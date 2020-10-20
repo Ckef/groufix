@@ -1,0 +1,9 @@
+# filetypes
+*.fuse_hidden*
+*.swo
+*.swp
+*~
+
+# directories
+bin/
+obj/
