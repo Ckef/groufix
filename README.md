@@ -1,3 +1,12 @@
 # groufix
 
-groufix is a cross platform, hardware accelerated graphics engine built in C. The library is primarily focused on the Vulkan API. The main repository is hosted on [GitHub](https://github.com/Ckef/groufix).
+_groufix_ is a cross platform, hardware accelerated graphics engine built in C. The library is primarily focused on the Vulkan API. The main repository is hosted on [GitHub](https://github.com/Ckef/groufix). The engine currently supports __Unix__-like systems and __Windows__.
+
+## Building
+
+The project is shipped with a Makefile, run `make` without a target to view all possible build targets. Each supported operating system has an explicit target. It is also possible to cross-compile _groufix_ to Windows using, for example, the `mingw-w64` package.
+
+The Makefile takes the following flags:
+
+* `DEBUG=xxx` tells the Makefile whether or not to compile _groufix_ with debug options enabled. `xxx` can be either `ON` or `OFF` and defaults to `OFF`. If not compiling with debug options, optimization settings will be applied.
+* `CC=xxx` tells the Makefile to use a given compiler collection. `xxx` defaults to `gcc`, however this can be set to e.g. `x86_64-w64_mingw32-gcc` to cross-compile to Windows.
