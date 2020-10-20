@@ -16,6 +16,9 @@ help:
 	@echo "~~~~~~~~~~~~~~~~~~~"
 	@echo "$(MAKE) clean         Clean temporary files."
 	@echo "$(MAKE) clean-all     Clean all files make produced."
+	@echo "~~~~~~~~~~~~~~~~~~~"
+	@echo "$(MAKE) unix          Build the groufix Unix target."
+	@echo "$(MAKE) win           Build the groufix Windows target."
 	@echo ""
 
 
@@ -24,6 +27,7 @@ help:
 
 BIN = bin
 OUT = obj
+SUB = /.
 CC  = gcc
 
 DEBUG = OFF
@@ -36,11 +40,11 @@ else
 	DFLAGS = -O3
 endif
 
-CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -pedantic $(DFLAGS)
+CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -pedantic -Iinclude $(DFLAGS)
 
 
 # Flags for library files only
-OFLAGS      = $(CFLAGS) -c -s
+OFLAGS      = $(CFLAGS) -c -s -DGFX_BUILD_LIB
 OFLAGS_UNIX = $(OFLAGS) -fPIC
 OFLAGS_WIN  = $(OFLAGS)
 
@@ -56,18 +60,18 @@ LFLAGS_WIN  = $(LFLAGS) -static-libgcc
 
 $(BIN):
 ifeq ($(OS),Windows_NT)
-	$(eval BIN_W = $(subst /,\,$(BIN)))
-	@if not exist $(BIN_W)\nul mkdir $(BIN_W)
+	$(eval BINSUB = $(subst /,\,$(BIN)$(SUB)))
+	@if not exist $(BINSUB)\nul mkdir $(BINSUB)
 else
-	@mkdir -p $(BIN)
+	@mkdir -p $(BIN)$(SUB)
 endif
 
 $(OUT):
 ifeq ($(OS),Windows_NT)
-	$(eval OUT_W = $(subst /,\,$(OUT)))
-	@if not exist $(OUT_W)\nul mkdir $(OUT_W)
+	$(eval OUTSUB = $(subst /,\,$(OUT)$(SUB)))
+	@if not exist $(OUTSUB)\nul mkdir $(OUTSUB)
 else
-	@mkdir -p $(OUT)
+	@mkdir -p $(OUT)$(SUB)
 endif
 
 
@@ -87,3 +91,43 @@ ifeq ($(OS),Windows_NT)
 else
 	@rm -Rf $(BIN)
 endif
+
+
+##############################
+# Shared files for all builds
+
+HEADERS = \
+ include/groufix/utils.h \
+ include/groufix.h
+
+
+OBJS = \
+ $(OUT)$(SUB)/groufix.o
+
+
+##############################
+# Unix builds
+
+$(OUT)/unix/%.o: src/%.c $(HEADERS) | $(OUT)
+	$(CC) $(OFLAGS_UNIX) $< -o $@
+
+$(BIN)/unix/libgroufix.so: $(OBJS) | $(BIN)
+	$(CC) $(OBJS) -o $@ $(LFLAGS_UNIX)
+
+
+unix:
+	@$(MAKE) $(BIN)/unix/libgroufix.so SUB=/unix
+
+
+##############################
+# Windows builds
+
+$(OUT)/win/%.o: src/%.c $(HEADERS) | $(OUT)
+	$(CC) $(OFLAGS_WIN) $< -o $@
+
+$(BIN)/win/libgroufix.dll: $(OBJS) | $(BIN)
+	$(CC) $(OBJS) -o $@ $(LFLAGS_WIN)
+
+
+win:
+	@$(MAKE) $(BIN)/win/libgroufix.dll SUB=/win
