@@ -13,7 +13,7 @@
 /**
  * Make sure _WIN32 is defined if we are compiling for windows.
  */
-#if !defined (_WIN32) && (defined (__WIN32__) || defined (__MINGW32__) || defined (__CYGWIN__))
+#if !defined (_WIN32) && (defined (__WIN32__) || defined (WIN32) || defined (__MINGW32__))
 	#define _WIN32
 #endif
 

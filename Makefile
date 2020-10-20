@@ -58,18 +58,18 @@ LFLAGS_WIN  = $(LFLAGS) -static-libgcc
 ##############################
 # Directory management
 
-$(BIN):
+$(BIN)$(SUB):
 ifeq ($(OS),Windows_NT)
-	$(eval BINSUB = $(subst /,\,$(BIN)$(SUB)))
-	@if not exist $(BINSUB)\nul mkdir $(BINSUB)
+	$(eval BINSUB_W = $(subst /,\,$(BIN)$(SUB)))
+	@if not exist $(BINSUB_W)\nul mkdir $(BINSUB_W)
 else
 	@mkdir -p $(BIN)$(SUB)
 endif
 
-$(OUT):
+$(OUT)$(SUB):
 ifeq ($(OS),Windows_NT)
-	$(eval OUTSUB = $(subst /,\,$(OUT)$(SUB)))
-	@if not exist $(OUTSUB)\nul mkdir $(OUTSUB)
+	$(eval OUTSUB_W = $(subst /,\,$(OUT)$(SUB)))
+	@if not exist $(OUTSUB_W)\nul mkdir $(OUTSUB_W)
 else
 	@mkdir -p $(OUT)$(SUB)
 endif
@@ -108,26 +108,26 @@ OBJS = \
 ##############################
 # Unix builds
 
-$(OUT)/unix/%.o: src/%.c $(HEADERS) | $(OUT)
+$(OUT)/unix/%.o: src/%.c $(HEADERS) | $(OUT)/unix
 	$(CC) $(OFLAGS_UNIX) $< -o $@
 
-$(BIN)/unix/libgroufix.so: $(OBJS) | $(BIN)
+$(BIN)/unix/libgroufix.so: $(OBJS) | $(BIN)/unix
 	$(CC) $(OBJS) -o $@ $(LFLAGS_UNIX)
 
 
 unix:
-	@$(MAKE) $(BIN)/unix/libgroufix.so SUB=/unix
+	@$(MAKE) --no-print-directory $(BIN)/unix/libgroufix.so SUB=/unix
 
 
 ##############################
 # Windows builds
 
-$(OUT)/win/%.o: src/%.c $(HEADERS) | $(OUT)
+$(OUT)/win/%.o: src/%.c $(HEADERS) | $(OUT)/win
 	$(CC) $(OFLAGS_WIN) $< -o $@
 
-$(BIN)/win/libgroufix.dll: $(OBJS) | $(BIN)
+$(BIN)/win/libgroufix.dll: $(OBJS) | $(BIN)/win
 	$(CC) $(OBJS) -o $@ $(LFLAGS_WIN)
 
 
 win:
-	@$(MAKE) $(BIN)/win/libgroufix.dll SUB=/win
+	@$(MAKE) --no-print-directory $(BIN)/win/libgroufix.dll SUB=/win
