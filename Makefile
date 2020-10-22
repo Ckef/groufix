@@ -50,7 +50,7 @@ CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -pedantic -Iinclude $(DFLAGS
 # Flags for library files only
 OFLAGS      = $(CFLAGS) -c -s -Ideps/glfw/include -DGFX_BUILD_LIB
 OFLAGS_UNIX = $(OFLAGS) -fPIC
-OFLAGS_WIN  = $(OFLAGS)
+OFLAGS_WIN  = $(OFLAGS) -Ideps/Vulkan-Headers/include
 
 
 # Linker flags
@@ -70,6 +70,8 @@ ifeq ($(CC),i686-w64-mingw32-gcc)
 	GLFW_FLAGS = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/i686-w64-mingw32.cmake
 else ifeq ($(CC),x86_64-w64-mingw32-gcc)
 	GLFW_FLAGS = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/x86_64-w64-mingw32.cmake
+else ifeq ($(OS),Windows_NT)
+	GLFW_FLAGS = $(GLFW_CONF) -DCMAKE_C_COMPILER=gcc -G "MinGW Makefiles"
 else
 	GLFW_FLAGS = $(GLFW_CONF)
 endif
@@ -164,17 +166,16 @@ unix-tests:
 
 
 # Windows builds
-# TODO: Vulkan breaks cross compilation to windows, missing headers and binaries
 $(OUT)/win/%.o: src/%.c $(HEADERS) | $(OUT)/win
 	$(CC) $(OFLAGS_WIN) $< -o $@
 
 $(BIN)/win/libgroufix.dll: $(LIBS) $(OBJS) | $(BIN)/win
 	$(CC) -Wl,--whole-archive $(LIBS) -Wl,--no-whole-archive $(OBJS) -o $@ $(LFLAGS_WIN)
 
-$(BIN)/win/%: tests/%.c $(BIN)/win/libgroufix.dll
+$(BIN)/win/%.exe: tests/%.c $(BIN)/win/libgroufix.dll
 	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)/win -Wl,-rpath='$$ORIGIN' -lgroufix
 
 win:
 	@$(MAKE) $(MFLAGS) $(BIN)/win/libgroufix.dll SUB=/win
 win-tests:
-	@$(MAKE) $(MFLAGS) $(BIN)/win/minimal SUB=/win
+	@$(MAKE) $(MFLAGS) $(BIN)/win/minimal.exe SUB=/win
