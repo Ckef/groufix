@@ -18,7 +18,9 @@ help:
 	@echo "$(MAKE) clean-all     Clean all files make produced."
 	@echo "~~~~~~~~~~~~~~~~~~~"
 	@echo "$(MAKE) unix          Build the groufix Unix target."
+	@echo "$(MAKE) unix-tests    Build all tests for the Unix target."
 	@echo "$(MAKE) win           Build the groufix Windows target."
+	@echo "$(MAKE) win-tests     Build all tests for the Windows target."
 	@echo ""
 
 
@@ -26,12 +28,12 @@ help:
 # Build environment
 
 CC    = gcc
+DEBUG = OFF
+
 BIN   = bin
 BUILD = build
 OUT   = obj
 SUB   = /.
-
-DEBUG = OFF
 
 
 # Flags for all binaries
@@ -41,6 +43,7 @@ else
 	DFLAGS = -DNDEBUG -O3
 endif
 
+MFLAGS = --no-print-directory
 CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -pedantic -Iinclude $(DFLAGS)
 
 
@@ -151,16 +154,27 @@ $(OUT)/unix/%.o: src/%.c $(HEADERS) | $(OUT)/unix
 $(BIN)/unix/libgroufix.so: $(LIBS) $(OBJS) | $(BIN)/unix
 	$(CC) -Wl,--whole-archive $(LIBS) -Wl,--no-whole-archive $(OBJS) -o $@ $(LFLAGS_UNIX)
 
+$(BIN)/unix/%: tests/%.c $(BIN)/unix/libgroufix.so
+	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)/unix -Wl,-rpath='$$ORIGIN' -lgroufix
+
 unix:
-	@$(MAKE) --no-print-directory $(BIN)/unix/libgroufix.so SUB=/unix
+	@$(MAKE) $(MFLAGS) $(BIN)/unix/libgroufix.so SUB=/unix
+unix-tests:
+	@$(MAKE) $(MFLAGS) $(BIN)/unix/minimal SUB=/unix
 
 
 # Windows builds
+# TODO: Vulkan breaks cross compilation to windows, missing headers and binaries
 $(OUT)/win/%.o: src/%.c $(HEADERS) | $(OUT)/win
 	$(CC) $(OFLAGS_WIN) $< -o $@
 
 $(BIN)/win/libgroufix.dll: $(LIBS) $(OBJS) | $(BIN)/win
 	$(CC) -Wl,--whole-archive $(LIBS) -Wl,--no-whole-archive $(OBJS) -o $@ $(LFLAGS_WIN)
 
+$(BIN)/win/%: tests/%.c $(BIN)/win/libgroufix.dll
+	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)/win -Wl,-rpath='$$ORIGIN' -lgroufix
+
 win:
-	@$(MAKE) --no-print-directory $(BIN)/win/libgroufix.dll SUB=/win
+	@$(MAKE) $(MFLAGS) $(BIN)/win/libgroufix.dll SUB=/win
+win-tests:
+	@$(MAKE) $(MFLAGS) $(BIN)/win/minimal SUB=/win
