@@ -6,4 +6,5 @@
 
 # directories
 bin/
+build/
 obj/

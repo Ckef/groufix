@@ -6,14 +6,20 @@
  * www     : <www.vuzzel.nl>
  */
 
+#include "GLFW/glfw3.h"
+
 
 /****************************/
 int gfx_init(void)
 {
+	if (!glfwInit())
+		return 0;
+
 	return 1;
 }
 
 /****************************/
 void gfx_terminate(void)
 {
+	glfwTerminate();
 }
