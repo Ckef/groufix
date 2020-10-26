@@ -28,7 +28,7 @@ help:
 # Build environment
 
 CC    = gcc
-DEBUG = OFF
+DEBUG = ON
 
 BIN   = bin
 BUILD = build
@@ -99,9 +99,9 @@ endif
 $(OUT)$(SUB):
 ifeq ($(OS),Windows_NT)
 	$(eval OUTSUB_W = $(subst /,\,$(OUT)$(SUB)))
-	@if not exist $(OUTSUB_W)\nul mkdir $(OUTSUB_W)
+	@if not exist $(OUTSUB_W)\groufix\containers\nul mkdir $(OUTSUB_W)
 else
-	@mkdir -p $(OUT)$(SUB)
+	@mkdir -p $(OUT)$(SUB)/groufix/containers
 endif
 
 
@@ -130,11 +130,13 @@ endif
 # Dependency files for all builds
 
 HEADERS = \
+ include/groufix/containers/vec.h \
  include/groufix/utils.h \
  include/groufix.h
 
 
 OBJS = \
+ $(OUT)$(SUB)/groufix/containers/vec.o \
  $(OUT)$(SUB)/groufix.o
 
 

@@ -13,7 +13,7 @@ The project is shipped with a Makefile, run `make` without a target to view all 
 
 The Makefile takes the following flags:
 
-* `DEBUG=xxx` tells the Makefile whether or not to compile _groufix_ with debug options enabled. `xxx` can be either `ON` or `OFF` and defaults to `OFF`. If not compiling with debug options, optimization settings will be applied.
+* `DEBUG=xxx` tells the Makefile whether or not to compile _groufix_ with debug options enabled. `xxx` can be either `ON` or `OFF` and defaults to `ON`. If not compiling with debug options, optimization settings will be applied.
 * `CC=xxx` tells the Makefile to use a given compiler collection. `xxx` defaults to `gcc`, however this can be set to `i686-w64-mingw32-gcc` or `x86_64-w64_mingw32-gcc` to cross-compile to Windows.
 
 ### Dependencies
