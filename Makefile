@@ -131,7 +131,7 @@ endif
 
 HEADERS = \
  include/groufix/containers/vec.h \
- include/groufix/utils.h \
+ include/groufix/def.h \
  include/groufix.h
 
 

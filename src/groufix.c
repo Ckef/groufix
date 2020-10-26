@@ -6,13 +6,15 @@
  * www     : <www.vuzzel.nl>
  */
 
+#include "groufix/def.h"
+
 #define GLFW_INCLUDE_VULKAN
 #define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
 
 
 /****************************/
-int gfx_init(void)
+GFX_API int gfx_init(void)
 {
 	if (!glfwInit())
 		return 0;
@@ -27,7 +29,7 @@ int gfx_init(void)
 }
 
 /****************************/
-void gfx_terminate(void)
+GFX_API void gfx_terminate(void)
 {
 	glfwTerminate();
 }

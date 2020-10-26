@@ -10,7 +10,7 @@
 #ifndef GROUFIX_H
 #define GROUFIX_H
 
-#include "groufix/utils.h"
+#include "groufix/def.h"
 
 
 /**

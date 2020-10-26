@@ -7,21 +7,25 @@
  */
 
 
-#ifndef GFX_UTILS_H
-#define GFX_UTILS_H
+#ifndef GFX_DEF_H
+#define GFX_DEF_H
 
 /**
- * Make sure _WIN32 is defined if we are compiling for windows.
+ * Identification of the host platform.
  */
-#if !defined (_WIN32) && (defined (__WIN32__) || defined (WIN32) || defined (__MINGW32__))
-	#define _WIN32
+#if defined (_WIN32) || defined (__WIN32__) || defined (WIN32) || defined (__MINGW32__)
+	#define GFX_WIN32
+#elif defined (__unix) || defined (__unix__)
+	#define GFX_UNIX
+#else
+	#error "Host platform not supported by groufix."
 #endif
 
 
 /**
  * DLL import/export interface.
  */
-#if defined (_WIN32)
+#if defined (GFX_WIN32)
 	#if defined (GFX_BUILD_LIB)
 		#define GFX_LIB __declspec(dllexport)
 	#else

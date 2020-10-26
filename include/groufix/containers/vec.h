@@ -10,7 +10,7 @@
 #ifndef GFX_CONTAINERS_VECTOR_H
 #define GFX_CONTAINERS_VECTOR_H
 
-#include "groufix/utils.h"
+#include "groufix/def.h"
 #include <stddef.h>
 
 

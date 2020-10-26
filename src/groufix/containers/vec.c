@@ -61,7 +61,7 @@ static void _gfx_vec_shrink(GFXVec* vec)
 }
 
 /****************************/
-void gfx_vec_init(GFXVec* vec, size_t elemSize)
+GFX_API void gfx_vec_init(GFXVec* vec, size_t elemSize)
 {
 	assert(vec != NULL);
 	assert(elemSize > 0);
@@ -74,7 +74,7 @@ void gfx_vec_init(GFXVec* vec, size_t elemSize)
 }
 
 /****************************/
-void gfx_vec_clear(GFXVec* vec)
+GFX_API void gfx_vec_clear(GFXVec* vec)
 {
 	assert(vec != NULL);
 
@@ -85,7 +85,7 @@ void gfx_vec_clear(GFXVec* vec)
 }
 
 /****************************/
-int gfx_vec_reserve(GFXVec* vec, size_t numElems)
+GFX_API int gfx_vec_reserve(GFXVec* vec, size_t numElems)
 {
 	assert(vec != NULL);
 
@@ -105,7 +105,7 @@ int gfx_vec_reserve(GFXVec* vec, size_t numElems)
 }
 
 /****************************/
-int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
+GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
 {
 	assert(vec != NULL);
 	assert(numElems > 0);
@@ -122,8 +122,8 @@ int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
 
 
 /****************************/
-int gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
-                   size_t index)
+GFX_API int gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
+                           size_t index)
 {
 	assert(vec != NULL);
 	assert(numElems > 0);
@@ -146,7 +146,7 @@ int gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
 }
 
 /****************************/
-void gfx_vec_pop(GFXVec* vec, size_t numElems)
+GFX_API void gfx_vec_pop(GFXVec* vec, size_t numElems)
 {
 	assert(vec != NULL);
 	assert(numElems > 0);
@@ -156,7 +156,7 @@ void gfx_vec_pop(GFXVec* vec, size_t numElems)
 }
 
 /****************************/
-void gfx_vec_erase(GFXVec* vec, size_t numElems, size_t index)
+GFX_API void gfx_vec_erase(GFXVec* vec, size_t numElems, size_t index)
 {
 	assert(vec != NULL);
 	assert(numElems > 0);
