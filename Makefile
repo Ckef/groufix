@@ -48,7 +48,7 @@ CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -pedantic -Iinclude $(DFLAGS
 
 
 # Flags for library files only
-OFLAGS      = $(CFLAGS) -c -s -Ideps/glfw/include -DGFX_BUILD_LIB
+OFLAGS      = $(CFLAGS) -c -s -Isrc -Ideps/glfw/include -DGFX_BUILD_LIB
 OFLAGS_UNIX = $(OFLAGS) -fPIC
 OFLAGS_WIN  = $(OFLAGS) -Ideps/Vulkan-Headers/include
 
@@ -100,8 +100,10 @@ $(OUT)$(SUB):
 ifeq ($(OS),Windows_NT)
 	$(eval OUTSUB_W = $(subst /,\,$(OUT)$(SUB)))
 	@if not exist $(OUTSUB_W)\groufix\containers\nul mkdir $(OUTSUB_W)
+	@if not exist $(OUTSUB_W)\groufix\core\nul mkdir $(OUTSUB_W)
 else
 	@mkdir -p $(OUT)$(SUB)/groufix/containers
+	@mkdir -p $(OUT)$(SUB)/groufix/core
 endif
 
 
@@ -131,12 +133,16 @@ endif
 
 HEADERS = \
  include/groufix/containers/vec.h \
+ include/groufix/core/log.h \
  include/groufix/def.h \
- include/groufix.h
+ include/groufix.h \
+ src/groufix/core/threads.h \
+ src/groufix/core.h
 
 
 OBJS = \
  $(OUT)$(SUB)/groufix/containers/vec.o \
+ $(OUT)$(SUB)/groufix/core/state.o \
  $(OUT)$(SUB)/groufix.o
 
 

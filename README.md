@@ -5,7 +5,7 @@ _groufix_ is a cross platform, hardware accelerated graphics engine built in C. 
 The engine currently supports the following targets:
 
 * __Unix__-like ([GCC](https://gcc.gnu.org/))
-* __Windows__ ([Mingw-w64](http://mingw-w64.org/doku.php))
+* __Windows__ (XP+) ([Mingw-w64](http://mingw-w64.org/doku.php))
 
 ## Building
 

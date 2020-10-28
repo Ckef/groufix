@@ -15,9 +15,9 @@
 
 
 /**
- * Vector definition.
+ * GFXVec: Vector (dynamically sized array) definition.
  */
-typedef struct GFXVec
+typedef struct
 {
 	size_t size;
 	size_t capacity;

@@ -6,22 +6,26 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/def.h"
-
-#define GLFW_INCLUDE_VULKAN
-#define GLFW_INCLUDE_NONE
-#include "GLFW/glfw3.h"
+#include "groufix.h"
+#include "groufix/core.h"
 
 
 /****************************/
 GFX_API int gfx_init(void)
 {
-	if (!glfwInit())
+	// Already initialized, just do nothing.
+	if (_groufix.initialized)
+		return 1;
+
+	// Initialize global state.
+	if (!_gfx_state_init())
 		return 0;
 
-	if (!glfwVulkanSupported())
+	// Ok so now we want to attach this thread as 'main' thread.
+	// If this fails, undo everything...
+	if (!gfx_attach())
 	{
-		glfwTerminate();
+		gfx_terminate();
 		return 0;
 	}
 
@@ -31,5 +35,39 @@ GFX_API int gfx_init(void)
 /****************************/
 GFX_API void gfx_terminate(void)
 {
-	glfwTerminate();
+	// Not yet initialized, just do nothing.
+	if (!_groufix.initialized)
+		return;
+
+	// Detach and terminate.
+	gfx_detach();
+	_gfx_state_terminate();
+}
+
+/****************************/
+GFX_API int gfx_attach(void)
+{
+	// Not yet initialized, cannot attach.
+	if (!_groufix.initialized)
+		return 0;
+
+	// Already attached.
+	if (_gfx_state_get_local())
+		return 1;
+
+	// Create thread local state.
+	if (!_gfx_state_create_local())
+		return 0;
+
+	return 1;
+}
+
+/****************************/
+GFX_API void gfx_detach(void)
+{
+	// Not yet initialized or attached.
+	if (!_groufix.initialized || !_gfx_state_get_local())
+		return;
+
+	_gfx_state_destroy_local();
 }
