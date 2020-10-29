@@ -29,6 +29,9 @@ GFX_API int gfx_init(void)
 		return 0;
 	}
 
+	// For ONLY the main thread: default to logging to stdout.
+	gfx_log_set_out(1);
+
 	return 1;
 }
 

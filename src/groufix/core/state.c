@@ -88,12 +88,7 @@ int _gfx_state_create_local(void)
 #endif
 
 	// Initialize the logging stuff.
-	// If not compiled in debug mode, don't include the debug level.
-#if defined(NDEBUG)
-	state->log.level = GFX_LOG_INFO;
-#else
-	state->log.level = GFX_LOG_DEBUG;
-#endif
+	state->log.level = GFX_LOG_DEFAULT;
 	state->log.std = 0;
 	state->log.file = NULL;
 
