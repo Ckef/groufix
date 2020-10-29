@@ -32,7 +32,7 @@ static void _gfx_log_out(GFXLogLevel level, double timeMs,
 	const char* L = _gfx_log_levels[level-1];
 	const char* C = _gfx_log_colors[level-1];
 
-	printf("%.2ems %s%-5s\x1b[0m \x1b[90m%s:%lu: %s:\x1b[0m ",
+	printf("%.2ems %s%-5s\x1b[0m \x1b[90m%s:%zu: %s:\x1b[0m ",
 		timeMs, C, L, file, line, func);
 
 	vprintf(fmt, args);
@@ -47,7 +47,9 @@ static void _gfx_log_file(FILE* out,
 {
 	const char* L = _gfx_log_levels[level-1];
 
-	fprintf(out, "%.2ems %-5s %s:%lu: %s: ", timeMs, L, file, line, func);
+	fprintf(out, "%.2ems %-5s %s:%zu: %s: ",
+		timeMs, L, file, line, func);
+
 	vfprintf(out, fmt, args);
 	fputc('\n', out);
 }
