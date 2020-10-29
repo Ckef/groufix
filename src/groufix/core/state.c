@@ -24,10 +24,17 @@ int _gfx_state_init(void)
 	if (!_gfx_thread_key_init(&_groufix.thread.key))
 		return 0;
 
-#if defined (__STDC_NO_ATOMICS__)
-	if (!_gfx_mutex_init(&_groufix.thread.mutex))
+	if (!_gfx_mutex_init(&_groufix.thread.ioLock))
 	{
 		_gfx_thread_key_clear(_groufix.thread.key);
+		return 0;
+	}
+
+#if defined (__STDC_NO_ATOMICS__)
+	if (!_gfx_mutex_init(&_groufix.thread.idLock))
+	{
+		_gfx_thread_key_clear(_groufix.thread.key);
+		_gfx_mutex_clear(&_groufix.thread.ioLock);
 		return 0;
 	}
 #endif
@@ -46,8 +53,9 @@ void _gfx_state_terminate(void)
 	assert(_groufix.initialized);
 
 	_gfx_thread_key_clear(_groufix.thread.key);
+	_gfx_mutex_clear(&_groufix.thread.ioLock);
 #if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_clear(&_groufix.thread.mutex);
+	_gfx_mutex_clear(&_groufix.thread.idLock);
 #endif
 
 	// Signal that termination is done.
@@ -72,12 +80,22 @@ int _gfx_state_create_local(void)
 
 	// Give it a unique id.
 #if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_lock(&_groufix.thread.mutex);
+	_gfx_mutex_lock(&_groufix.thread.idLock);
 	state->id = _groufix.thread.id++;
-	_gfx_mutex_unlock(&_groufix.thread.mutex);
+	_gfx_mutex_unlock(&_groufix.thread.idLock);
 #else
 	state->id = _groufix.thread.id++;
 #endif
+
+	// Initialize the logging stuff.
+	// If not compiled in debug mode, don't include the debug level.
+#if defined(NDEBUG)
+	state->log.level = GFX_LOG_INFO;
+#else
+	state->log.level = GFX_LOG_DEBUG;
+#endif
+	state->log.std = 0;
+	state->log.file = NULL;
 
 	return 1;
 }
@@ -88,8 +106,13 @@ void _gfx_state_destroy_local(void)
 	assert(_groufix.initialized);
 	assert(_gfx_thread_key_get(_groufix.thread.key));
 
-	// Get the key and free it.
+	// Get the key and clear all its data.
 	_GFXThreadState* state = _gfx_thread_key_get(_groufix.thread.key);
+
+	if (state->log.file != NULL)
+		fclose(state->log.file);
+
+	// Then free it.
 	free(state);
 
 	// I mean this better not fail...

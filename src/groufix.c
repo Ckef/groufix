@@ -56,10 +56,7 @@ GFX_API int gfx_attach(void)
 		return 1;
 
 	// Create thread local state.
-	if (!_gfx_state_create_local())
-		return 0;
-
-	return 1;
+	return _gfx_state_create_local();
 }
 
 /****************************/

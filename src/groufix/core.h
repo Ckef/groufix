@@ -10,7 +10,9 @@
 #ifndef _GFX_CORE_H
 #define _GFX_CORE_H
 
+#include "groufix/core/log.h"
 #include "groufix/core/threads.h"
+#include <stdio.h>
 
 #if !defined (__STDC_NO_ATOMICS__)
 	#include <stdatomic.h>
@@ -28,11 +30,12 @@ typedef struct
 	{
 #if defined (__STDC_NO_ATOMICS__)
 		unsigned int  id;
-		_GFXMutex     mutex;
+		_GFXMutex     idLock;
 #else
 		atomic_uint   id;
 #endif
 		_GFXThreadKey key;
+		_GFXMutex     ioLock;
 
 	} thread;
 
@@ -44,6 +47,14 @@ typedef struct
 typedef struct
 {
 	unsigned int id;
+
+	struct
+	{
+		GFXLogLevel level;
+		int         std;
+		FILE*       file;
+
+	} log;
 
 } _GFXThreadState;
 

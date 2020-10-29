@@ -16,6 +16,7 @@
 
 /**
  * Initializes the engine, attaching the calling thread as the 'main' thread.
+ * This call must be made before any groufix calls can be made.
  * @return Non-zero on success.
  */
 GFX_API int gfx_init(void);
