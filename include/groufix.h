@@ -11,11 +11,12 @@
 #define GROUFIX_H
 
 #include "groufix/core/log.h"
+#include "groufix/core/window.h"
 #include "groufix/def.h"
 
 
 /**
- * Initializes the engine, attaching the calling thread as the 'main' thread.
+ * Initializes the engine, attaching the calling thread as the main thread.
  * This call must be made before any groufix calls can be made.
  * @return Non-zero on success.
  */

@@ -60,7 +60,8 @@ typedef enum
  * @param func  Cannot be NULL, must be NULL-terminated.
  * @param fmt   Format, cannot be NULL, must be NULL-terminated.
  *
- * If this call is made before groufix is initialized, it outputs to stdout.
+ * If this call is made before the calling thread is attached,
+ * it outputs to stdout, assuming thread id 0 (as if the main thread).
  * Access to stdout will be synchronized if groufix is initialized.
  */
 GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
@@ -76,6 +77,7 @@ GFX_API int gfx_log_set_level(GFXLogLevel level);
 
 /**
  * Sets whether to output logging to stdout for the calling thread.
+ * The main thread defaults to 1, all other threads default to 0.
  * @return Non-zero on success.
  */
 GFX_API int gfx_log_set_out(int out);

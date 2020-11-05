@@ -25,15 +25,16 @@ static const char* _gfx_log_colors[] = {
 
 
 /****************************/
-static void _gfx_log_out(GFXLogLevel level, double timeMs,
+static void _gfx_log_out(unsigned int thread,
+                         GFXLogLevel level, double timeMs,
                          const char* file, const char* func, size_t line,
                          const char* fmt, va_list args)
 {
 	const char* L = _gfx_log_levels[level-1];
 	const char* C = _gfx_log_colors[level-1];
 
-	printf("%.2ems %s%-5s\x1b[0m \x1b[90m%s:%zu: %s:\x1b[0m ",
-		timeMs, C, L, file, line, func);
+	printf("%.2ems %s%-5s\x1b[0m \x1b[90mthread%u: %s:%zu: %s:\x1b[0m ",
+		timeMs, C, L, thread, file, line, func);
 
 	vprintf(fmt, args);
 	putc('\n', stdout);
@@ -68,6 +69,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 	// So we get seconds that the CPU has spent on this program...
 	// We calculate it here so stdout and the file record the same time.
 	double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
+	unsigned int thread = 0;
 
 	// Logging is special, when groufix is not initialized,
 	// we still output to stdout.
@@ -77,7 +79,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 		if (level <= GFX_LOG_DEFAULT)
 		{
 			va_start(args, fmt);
-			_gfx_log_out(level, timeMs, file, func, line, fmt, args);
+			_gfx_log_out(thread, level, timeMs, file, func, line, fmt, args);
 			va_end(args);
 		}
 		return;
@@ -111,6 +113,8 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 		// If the state says not to output to stdout, we're done.
 		if (!state->log.std)
 			return;
+
+		thread = state->id;
 	}
 
 	// If no thread local state was present
@@ -119,7 +123,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 	va_start(args, fmt);
 
 	_gfx_mutex_lock(&_groufix.thread.ioLock);
-	_gfx_log_out(level, timeMs, file, func, line, fmt, args);
+	_gfx_log_out(thread, level, timeMs, file, func, line, fmt, args);
 	_gfx_mutex_unlock(&_groufix.thread.ioLock);
 
 	va_end(args);

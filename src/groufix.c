@@ -9,6 +9,17 @@
 #include "groufix.h"
 #include "groufix/core.h"
 
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
+
+
+/****************************/
+static inline void _gfx_glfw_error(int error, const char* description)
+{
+	// Just log it as a groufix error,
+	// this should already take care of threading.
+	gfx_log_error(description);
+}
 
 /****************************/
 GFX_API int gfx_init(void)
@@ -24,15 +35,26 @@ GFX_API int gfx_init(void)
 	// Ok so now we want to attach this thread as 'main' thread.
 	// If this fails, undo everything...
 	if (!gfx_attach())
-	{
-		gfx_terminate();
-		return 0;
-	}
+		goto terminate;
 
 	// For ONLY the main thread: default to logging to stdout.
+	// After logging is setup, init contents of the engine.
 	gfx_log_set_out(1);
+	glfwSetErrorCallback(_gfx_glfw_error);
+
+	if (!glfwInit())
+		goto terminate;
+
+	if (!glfwVulkanSupported())
+		goto terminate;
 
 	return 1;
+
+	// Cleanup on failure.
+terminate:
+	gfx_terminate();
+
+	return 0;
 }
 
 /****************************/
@@ -41,6 +63,9 @@ GFX_API void gfx_terminate(void)
 	// Not yet initialized, just do nothing.
 	if (!_groufix.initialized)
 		return;
+
+	// Terminate the contents of the engine.
+	glfwTerminate();
 
 	// Detach and terminate.
 	gfx_detach();
