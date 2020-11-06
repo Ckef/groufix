@@ -22,6 +22,7 @@
 	#error "Host platform not supported by groufix."
 #endif
 
+
 /**
  * Windows XP minimum.
  */
@@ -49,6 +50,7 @@
 #else
 	#define GFX_LIB
 #endif
+
 
 /**
  * groufix API linkage.

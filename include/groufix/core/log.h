@@ -15,9 +15,9 @@
 
 
 /**
- * GFXLogLevel: logging level.
+ * Logging level.
  */
-typedef enum
+typedef enum GFXLogLevel
 {
 	GFX_LOG_NONE,
 	GFX_LOG_FATAL,

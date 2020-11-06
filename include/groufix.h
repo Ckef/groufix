@@ -24,7 +24,7 @@ GFX_API int gfx_init(void);
 
 /**
  * Terminates the engine, detaching the calling thread in the process.
- * Must be called by the same thread that called gfx_init.
+ * Must be called by the same thread that called gfx_init (the main thread).
  */
 GFX_API void gfx_terminate(void);
 

@@ -20,12 +20,13 @@
 
 
 /**
- * _GFXState: groufix global data, i.e. groufix state.
+ * groufix global data, i.e. groufix state.
  */
-typedef struct
+typedef struct _GFXState
 {
 	int initialized;
 
+	// Thread local data access.
 	struct
 	{
 #if defined (__STDC_NO_ATOMICS__)
@@ -42,12 +43,13 @@ typedef struct
 } _GFXState;
 
 /**
- * _GFXThreadState: Thread local data.
+ * Thread local data.
  */
-typedef struct
+typedef struct _GFXThreadState
 {
 	unsigned int id;
 
+	// Logging data.
 	struct
 	{
 		GFXLogLevel level;
