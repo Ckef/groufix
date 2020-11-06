@@ -48,10 +48,16 @@ typedef enum
 	gfx_log(GFX_LOG_WARN, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #define gfx_log_info(...) \
 	gfx_log(GFX_LOG_INFO, __FILE__, __func__, __LINE__, __VA_ARGS__)
-#define gfx_log_debug(...) \
-	gfx_log(GFX_LOG_DEBUG, __FILE__, __func__, __LINE__, __VA_ARGS__)
-#define gfx_log_trace(...) \
-	gfx_log(GFX_LOG_TRACE, __FILE__, __func__, __LINE__, __VA_ARGS__)
+
+#if defined(NDEBUG)
+	#define gfx_log_debug(...)
+	#define gfx_log_trace(...)
+#else
+	#define gfx_log_debug(...) \
+		gfx_log(GFX_LOG_DEBUG, __FILE__, __func__, __LINE__, __VA_ARGS__)
+	#define gfx_log_trace(...) \
+		gfx_log(GFX_LOG_TRACE, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#endif
 
 /**
  * Logs a new line to the log output of the calling thread.

@@ -25,18 +25,11 @@ int _gfx_state_init(void)
 		return 0;
 
 	if (!_gfx_mutex_init(&_groufix.thread.ioLock))
-	{
-		_gfx_thread_key_clear(_groufix.thread.key);
-		return 0;
-	}
+		goto clean_key;
 
 #if defined (__STDC_NO_ATOMICS__)
 	if (!_gfx_mutex_init(&_groufix.thread.idLock))
-	{
-		_gfx_thread_key_clear(_groufix.thread.key);
-		_gfx_mutex_clear(&_groufix.thread.ioLock);
-		return 0;
-	}
+		goto clean_io;
 #endif
 
 	_groufix.thread.id = 0;
@@ -45,6 +38,16 @@ int _gfx_state_init(void)
 	_groufix.initialized = 1;
 
 	return 1;
+
+	// Cleanup on failure.
+#if defined (__STDC_NO_ATOMICS__)
+clean_io:
+	_gfx_mutex_clear(&_groufix.thread.ioLock);
+#endif
+clean_key:
+	_gfx_thread_key_clear(_groufix.thread.key);
+
+	return 0;
 }
 
 /****************************/

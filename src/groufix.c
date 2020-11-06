@@ -30,7 +30,9 @@ GFX_API int gfx_init(void)
 
 	// Initialize global state.
 	if (!_gfx_state_init())
-		return 0;
+		goto terminate;
+
+	gfx_log_info("Global state initialized succesfully.");
 
 	// Ok so now we want to attach this thread as 'main' thread.
 	// If this fails, undo everything...
@@ -48,10 +50,13 @@ GFX_API int gfx_init(void)
 	if (!glfwVulkanSupported())
 		goto terminate;
 
+	gfx_log_info("GLFW initialized succesfully, Vulkan loader found.");
+
 	return 1;
 
 	// Cleanup on failure.
 terminate:
+	gfx_log_fatal("Could not initialize the engine.");
 	gfx_terminate();
 
 	return 0;
@@ -70,6 +75,8 @@ GFX_API void gfx_terminate(void)
 	// Detach and terminate.
 	gfx_detach();
 	_gfx_state_terminate();
+
+	gfx_log_info("Global state terminated.");
 }
 
 /****************************/
@@ -84,7 +91,13 @@ GFX_API int gfx_attach(void)
 		return 1;
 
 	// Create thread local state.
-	return _gfx_state_create_local();
+	if (!_gfx_state_create_local())
+	{
+		gfx_log_error("Could not attach a thread.");
+		return 0;
+	}
+
+	return 1;
 }
 
 /****************************/

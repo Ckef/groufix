@@ -15,6 +15,7 @@ help:
 	@echo "Available commands:"
 	@echo "~~~~~~~~~~~~~~~~~~~"
 	@echo "$(MAKE) clean         Clean temporary files."
+	@echo "$(MAKE) clean-deps    Clean dependency builds."
 	@echo "$(MAKE) clean-all     Clean all files make produced."
 	@echo "~~~~~~~~~~~~~~~~~~~"
 	@echo "$(MAKE) unix          Build the groufix Unix target."
@@ -110,16 +111,21 @@ endif
 # Cleaning directories
 clean:
 ifeq ($(OS),Windows_NT)
-	$(eval BUILD_W = $(subst /,\,$(BUILD)))
 	$(eval OUT_W = $(subst /,\,$(OUT)))
-	@if exist $(BUILD_W)\nul rmdir /s /q $(BUILD_W)
 	@if exist $(OUT_W)\nul rmdir /s /q $(OUT_W)
 else
-	@rm -Rf $(BUILD)
 	@rm -Rf $(OUT)
 endif
 
-clean-all: clean
+clean-deps:
+ifeq ($(OS),Windows_NT)
+	$(eval BUILD_W = $(subst /,\,$(BUILD)))
+	@if exist $(BUILD_W)\nul rmdir /s /q $(BUILD_W)
+else
+	@rm -Rf $(BUILD)
+endif
+
+clean-all: clean clean-deps
 ifeq ($(OS),Windows_NT)
 	$(eval BIN_W = $(subst /,\,$(BIN)))
 	@if exist $(BIN_W)\nul rmdir /s /q $(BIN_W)
