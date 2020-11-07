@@ -10,9 +10,9 @@
 #include "groufix/core.h"
 #include <assert.h>
 
-#define _GFX_GET_INSTANCE_PROC_ADDR(instance,pName) \
-	_groufix.vk.pName = \
-		(PFN_vk##pName)glfwGetInstanceProcAddress(instance, "vk"#pName); \
+#define _GFX_GET_INSTANCE_PROC_ADDR(pName) \
+	_groufix.vk.pName = (PFN_vk##pName)glfwGetInstanceProcAddress( \
+		_groufix.vk.instance, "vk"#pName); \
 	if (_groufix.vk.pName == NULL) \
 	{ \
 		gfx_log_error("Could not load vk"#pName"."); \
@@ -159,12 +159,16 @@ clean:
 /****************************/
 int _gfx_vulkan_init(void)
 {
-	assert(_groufix.vk.CreateInstance == NULL);
+	assert(_groufix.vk.instance == NULL);
 
-	// First of all, we need to create a Vulkan instance.
-	// For this we load the vkCreateInstance function and
+	// Set this to NULL so we don't accidentally call garbage on cleanup.
+	_groufix.vk.DestroyInstance = NULL;
+
+	// So first things first, we need to create a Vulkan instance.
+	// For this we load the global level vkCreateInstance function and
 	// we tell it what extensions we need, these include GLFW extensions.
-	_GFX_GET_INSTANCE_PROC_ADDR(NULL, CreateInstance);
+	// Also, load _all_ global level Vulkan functions here.
+	_GFX_GET_INSTANCE_PROC_ADDR(CreateInstance);
 
 	uint32_t count;
 	const char** extensions =
@@ -206,18 +210,13 @@ int _gfx_vulkan_init(void)
 		goto clean;
 	}
 
-	// Now load all other instance level Vulkan functions.
-	_GFX_GET_INSTANCE_PROC_ADDR(
-		_groufix.vk.instance, DestroyInstance);
-
-	_GFX_GET_INSTANCE_PROC_ADDR(
-		_groufix.vk.instance, CreateDevice);
-	_GFX_GET_INSTANCE_PROC_ADDR(
-		_groufix.vk.instance, EnumeratePhysicalDevices);
-	_GFX_GET_INSTANCE_PROC_ADDR(
-		_groufix.vk.instance, GetDeviceProcAddr);
-	_GFX_GET_INSTANCE_PROC_ADDR(
-		_groufix.vk.instance, GetPhysicalDeviceProperties);
+	// Now load all instance level Vulkan functions.
+	// Load vkDestroyInstance first so we can clean properly.
+	_GFX_GET_INSTANCE_PROC_ADDR(DestroyInstance);
+	_GFX_GET_INSTANCE_PROC_ADDR(CreateDevice);
+	_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDevices);
+	_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);
+	_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties);
 
 	// Initialize physical devices.
 	if (!_gfx_vulkan_init_devices())
@@ -230,8 +229,7 @@ clean:
 	if (_groufix.vk.DestroyInstance != NULL)
 		_groufix.vk.DestroyInstance(_groufix.vk.instance, NULL);
 
-	_groufix.vk.CreateInstance = NULL;
-	_groufix.vk.DestroyInstance = NULL;
+	_groufix.vk.instance = NULL;
 
 	return 0;
 }
@@ -239,17 +237,15 @@ clean:
 /****************************/
 void _gfx_vulkan_terminate(void)
 {
-	// Bit strange, but we check against vkCreateInstance.
 	// No assert, this function is a no-op if Vulkan is not initialized.
-	if (_groufix.vk.CreateInstance == NULL)
+	if (_groufix.vk.instance == NULL)
 		return;
 
 	gfx_vec_clear(&_groufix.devices);
 	_groufix.vk.DestroyInstance(_groufix.vk.instance, NULL);
 
 	// Signal that termination is done.
-	_groufix.vk.CreateInstance = NULL;
-	_groufix.vk.DestroyInstance = NULL;
+	_groufix.vk.instance = NULL;
 }
 
 /****************************/

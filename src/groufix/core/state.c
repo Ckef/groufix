@@ -40,9 +40,7 @@ int _gfx_state_init(void)
 	gfx_vec_init(&_groufix.windows, sizeof(_GFXWindow*));
 
 	_groufix.monitorEvent = NULL;
-
-	_groufix.vk.CreateInstance = NULL;
-	_groufix.vk.DestroyInstance = NULL;
+	_groufix.vk.instance = NULL;
 
 	// Signal that initialization is done.
 	_groufix.initialized = 1;

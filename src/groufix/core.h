@@ -83,9 +83,9 @@ typedef struct _GFXState
 		VkInstance instance;
 
 		PFN_vkCreateInstance
-			CreateInstance;  // Set to NULL on state init.
+			CreateInstance;
 		PFN_vkDestroyInstance
-			DestroyInstance; // Set to NULL on state init.
+			DestroyInstance;
 
 		PFN_vkCreateDevice
 			CreateDevice;
@@ -208,7 +208,7 @@ void _gfx_vulkan_log(VkResult result);
 
 /**
  * Initializes Vulkan state, including all physical devices.
- * _groufix.vk.CreateInstance must be NULL.
+ * _groufix.vk.instance must be NULL.
  * Must be called by the same thread that called _gfx_state_init.
  * @return Non-zero on success.
  */
