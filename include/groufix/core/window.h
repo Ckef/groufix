@@ -81,4 +81,34 @@ struct GFXWindow
 };
 
 
+/****************************
+ * Logical monitor.
+ ****************************/
+
+/**
+ * Retrieves the primary (user's preferred) monitor.
+ * @return NULL if no monitors were found.
+ */
+GFX_API GFXMonitor* gfx_get_primary_monitor(void);
+
+/**
+ * Retrieves all currently connected monitors.
+ * The primary monitor is always first.
+ * @param count Cannot be NULL.
+ * @return NULL if no monitors were found.
+ *
+ * The returned array is freed by groufix itself, it is a valid pointer
+ * until the monitor configuration changes or the engine is terminated.
+ */
+GFX_API GFXMonitor** gfx_get_monitors(size_t* count);
+
+/**
+ * Sets the configuration change event callback.
+ * The callback takes the monitor in question and a zero or non-zero value,
+ * zero if the monitor is disconnected, non-zero if it is connected.
+ * @param event NULL to disable the event callback.
+ */
+GFX_API void gfx_set_monitor_events(void (*event)(GFXMonitor*, int));
+
+
 #endif

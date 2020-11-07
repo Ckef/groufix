@@ -10,13 +10,21 @@
 #ifndef _GFX_CORE_H
 #define _GFX_CORE_H
 
+#include "groufix/containers/vec.h"
 #include "groufix/core/log.h"
+#include "groufix/core/window.h"
 #include "groufix/core/threads.h"
 #include <stdio.h>
 
 #if !defined (__STDC_NO_ATOMICS__)
 	#include <stdatomic.h>
 #endif
+
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
+
+#define VK_NO_PROTOTYPES
+#include <vulkan/vulkan.h>
 
 
 /**
@@ -25,6 +33,19 @@
 typedef struct _GFXState
 {
 	int initialized;
+
+	GFXVec monitors; // Stores _GFXMonitor*
+	GFXVec windows;  // Stores _GFXWindow*
+
+	// Monitor configuration change.
+	void (*monitorEvent)(GFXMonitor*, int);
+
+	// Vulkan fields.
+	struct
+	{
+		VkInstance instance;
+
+	} vk;
 
 	// Thread local data access.
 	struct
@@ -41,6 +62,7 @@ typedef struct _GFXState
 	} thread;
 
 } _GFXState;
+
 
 /**
  * Thread local data.
@@ -60,6 +82,39 @@ typedef struct _GFXThreadState
 
 } _GFXThreadState;
 
+
+/**
+ * Internal logical monitor definition.
+ */
+typedef struct _GFXMonitor
+{
+	GFXMonitor   base;
+	GLFWmonitor* handle;
+
+} _GFXMonitor;
+
+
+/**
+ * Internal logical window definition.
+ */
+typedef struct _GFXWindow
+{
+	GFXWindow   base;
+	GLFWwindow* handle;
+
+	// Vulkan fields.
+	struct
+	{
+		VkSurfaceKHR surface;
+
+	} vk;
+
+} _GFXWindow;
+
+
+/****************************
+ * Global and local state.
+ ****************************/
 
 /**
  * The only instance of global groufix data.
@@ -103,6 +158,25 @@ void _gfx_state_destroy_local(void);
  * @return NULL if no state was allocated.
  */
 _GFXThreadState* _gfx_state_get_local(void);
+
+
+/****************************
+ * Monitor configuration.
+ ****************************/
+
+/**
+ * Initializes internal monitor configuration.
+ * Must be called by the same thread that called _gfx_state_init.
+ * @return Non-zero on success.
+ */
+int _gfx_monitors_init(void);
+
+/**
+ * Terminates internal monitor configuration.
+ * This will make sure any monitors will be destroyed.
+ * Must be called by the same thread that called _gfx_state_init.
+ */
+void _gfx_monitors_terminate(void);
 
 
 #endif

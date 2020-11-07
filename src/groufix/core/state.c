@@ -34,6 +34,12 @@ int _gfx_state_init(void)
 
 	_groufix.thread.id = 0;
 
+	// Initialize other things...
+	gfx_vec_init(&_groufix.monitors, sizeof(_GFXMonitor*));
+	gfx_vec_init(&_groufix.windows, sizeof(_GFXWindow*));
+
+	_groufix.monitorEvent = NULL;
+
 	// Signal that initialization is done.
 	_groufix.initialized = 1;
 
@@ -54,6 +60,9 @@ clean_key:
 void _gfx_state_terminate(void)
 {
 	assert(_groufix.initialized);
+
+	gfx_vec_clear(&_groufix.monitors);
+	gfx_vec_clear(&_groufix.windows);
 
 	_gfx_thread_key_clear(_groufix.thread.key);
 	_gfx_mutex_clear(&_groufix.thread.ioLock);

@@ -73,7 +73,6 @@ typedef enum GFXLogLevel
 GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
                      size_t line, const char* fmt, ...);
 
-
 /**
  * Sets the log level to output for the calling thread.
  * @param level Must be >= GFX_LOG_NONE and <= GFX_LOG_ALL.

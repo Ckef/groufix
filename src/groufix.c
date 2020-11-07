@@ -9,12 +9,9 @@
 #include "groufix.h"
 #include "groufix/core.h"
 
-#define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h>
-
 
 /****************************/
-static inline void _gfx_glfw_error(int error, const char* description)
+static void _gfx_glfw_error(int error, const char* description)
 {
 	// Just log it as a groufix error,
 	// this should already take care of threading.
@@ -40,7 +37,7 @@ GFX_API int gfx_init(void)
 		goto terminate;
 
 	// For ONLY the main thread: default to logging to stdout.
-	// After logging is setup, init contents of the engine.
+	// After logging is setup, init GLFW and the Vulkan loader.
 	gfx_log_set_out(1);
 	glfwSetErrorCallback(_gfx_glfw_error);
 
@@ -51,6 +48,12 @@ GFX_API int gfx_init(void)
 		goto terminate;
 
 	gfx_log_info("GLFW initialized succesfully, Vulkan loader found.");
+
+	// Initialize all other internal state.
+	if (!_gfx_monitors_init())
+		goto terminate;
+
+	gfx_log_info("All internal state initialized succesfully, ready.");
 
 	return 1;
 
@@ -70,6 +73,7 @@ GFX_API void gfx_terminate(void)
 		return;
 
 	// Terminate the contents of the engine.
+	_gfx_monitors_terminate();
 	glfwTerminate();
 
 	// Detach and terminate.

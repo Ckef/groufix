@@ -29,6 +29,7 @@
 	typedef DWORD         _GFXThreadKey;
 #endif
 
+
 /**
  * Mutual exclusion lock.
  */

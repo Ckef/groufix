@@ -51,7 +51,6 @@
 	#define GFX_LIB
 #endif
 
-
 /**
  * groufix API linkage.
  */

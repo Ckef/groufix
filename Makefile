@@ -151,6 +151,7 @@ HEADERS = \
 OBJS = \
  $(OUT)$(SUB)/groufix/containers/vec.o \
  $(OUT)$(SUB)/groufix/core/log.o \
+ $(OUT)$(SUB)/groufix/core/monitor.o \
  $(OUT)$(SUB)/groufix/core/state.o \
  $(OUT)$(SUB)/groufix.o
 
