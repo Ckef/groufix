@@ -26,11 +26,8 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-
-/**
- * The Vulkan version used by groufix.
- */
-#define GFX_VK_VERSION VK_API_VERSION_1_2
+#define _GFX_VK_VERSION    VK_API_VERSION_1_2
+#define _GFX_PFN_VK(pName) PFN_vk##pName pName
 
 
 /**
@@ -63,6 +60,7 @@ typedef struct _GFXState
 	// Monitor configuration change.
 	void (*monitorEvent)(GFXMonitor*, int);
 
+
 	// Thread local data access.
 	struct
 	{
@@ -77,24 +75,19 @@ typedef struct _GFXState
 
 	} thread;
 
+
 	// Vulkan fields.
 	struct
 	{
 		VkInstance instance;
 
-		PFN_vkCreateInstance
-			CreateInstance;
-		PFN_vkDestroyInstance
-			DestroyInstance;
+		_GFX_PFN_VK(CreateInstance);
 
-		PFN_vkCreateDevice
-			CreateDevice;
-		PFN_vkEnumeratePhysicalDevices
-			EnumeratePhysicalDevices;
-		PFN_vkGetDeviceProcAddr
-			GetDeviceProcAddr;
-		PFN_vkGetPhysicalDeviceProperties
-			GetPhysicalDeviceProperties;
+		_GFX_PFN_VK(CreateDevice);
+		_GFX_PFN_VK(DestroyInstance);
+		_GFX_PFN_VK(EnumeratePhysicalDevices);
+		_GFX_PFN_VK(GetDeviceProcAddr);
+		_GFX_PFN_VK(GetPhysicalDeviceProperties);
 
 	} vk;
 

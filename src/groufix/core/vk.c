@@ -186,7 +186,7 @@ int _gfx_vulkan_init(void)
 		.applicationVersion = 0,
 		.pEngineName        = "groufix",
 		.engineVersion      = 0,
-		.apiVersion         = GFX_VK_VERSION
+		.apiVersion         = _GFX_VK_VERSION
 	};
 
 	VkInstanceCreateInfo ici = {
