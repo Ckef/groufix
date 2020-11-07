@@ -20,11 +20,17 @@
 	#include <stdatomic.h>
 #endif
 
+#define VK_NO_PROTOTYPES
+#include <vulkan/vulkan.h>
+
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#define VK_NO_PROTOTYPES
-#include <vulkan/vulkan.h>
+
+/**
+ * The Vulkan version used by groufix.
+ */
+#define GFX_VK_VERSION VK_API_VERSION_1_2
 
 
 /**
@@ -40,13 +46,6 @@ typedef struct _GFXState
 	// Monitor configuration change.
 	void (*monitorEvent)(GFXMonitor*, int);
 
-	// Vulkan fields.
-	struct
-	{
-		VkInstance instance;
-
-	} vk;
-
 	// Thread local data access.
 	struct
 	{
@@ -56,10 +55,21 @@ typedef struct _GFXState
 #else
 		atomic_uint   id;
 #endif
-		_GFXThreadKey key;
+		_GFXThreadKey key; // Stores _GFXThreadState*
 		_GFXMutex     ioLock;
 
 	} thread;
+
+	// Vulkan fields.
+	struct
+	{
+		VkInstance            instance;
+		PFN_vkCreateInstance  CreateInstance;  // Set to NULL on state init.
+		PFN_vkDestroyInstance DestroyInstance; // Set to NULL on state init.
+
+		PFN_vkGetDeviceProcAddr GetDeviceProcAddr;
+
+	} vk;
 
 } _GFXState;
 
@@ -161,11 +171,36 @@ _GFXThreadState* _gfx_state_get_local(void);
 
 
 /****************************
+ * Vulkan state.
+ ****************************/
+
+/**
+ * Logs a Vulkan result as a readable string.
+ */
+void _gfx_vulkan_log(VkResult result);
+
+/**
+ * Initializes Vulkan state.
+ * _groufix.vk.CreateInstance must be NULL.
+ * Must be called by the same thread that called _gfx_state_init.
+ * @return Non-zero on success.
+ */
+int _gfx_vulkan_init(void);
+
+/**
+ * Terminates Vulkan state.
+ * Must be called by the same thread that called _gfx_state_init.
+ */
+void _gfx_vulkan_terminate(void);
+
+
+/****************************
  * Monitor configuration.
  ****************************/
 
 /**
  * Initializes internal monitor configuration.
+ * _groufix.monitors.size must be 0.
  * Must be called by the same thread that called _gfx_state_init.
  * @return Non-zero on success.
  */

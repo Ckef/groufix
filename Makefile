@@ -153,6 +153,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/log.o \
  $(OUT)$(SUB)/groufix/core/monitor.o \
  $(OUT)$(SUB)/groufix/core/state.o \
+ $(OUT)$(SUB)/groufix/core/vk.o \
  $(OUT)$(SUB)/groufix.o
 
 

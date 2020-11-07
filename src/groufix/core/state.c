@@ -40,6 +40,9 @@ int _gfx_state_init(void)
 
 	_groufix.monitorEvent = NULL;
 
+	_groufix.vk.CreateInstance = NULL;
+	_groufix.vk.DestroyInstance = NULL;
+
 	// Signal that initialization is done.
 	_groufix.initialized = 1;
 
