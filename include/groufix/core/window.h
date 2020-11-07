@@ -17,6 +17,12 @@
 
 
 /**
+ * Physical device definition (e.g. a GPU).
+ */
+typedef struct GFXDevice GFXDevice;
+
+
+/**
  * Logical monitor definition.
  * Must be handled on the main thread.
  */
@@ -30,15 +36,10 @@ typedef struct GFXMonitor
 
 
 /**
- * Forward declaration of logical window for event callbacks.
- */
-typedef struct GFXWindow GFXWindow;
-
-/**
  * Logical window definition.
  * Must be handled on the main thread.
  */
-struct GFXWindow
+typedef struct GFXWindow
 {
 	// User pointer, can be used for any purpose.
 	// Defaults to NULL.
@@ -47,38 +48,54 @@ struct GFXWindow
 	// Event callbacks.
 	struct
 	{
-		void (*close   )(GFXWindow*);
-		void (*drop    )(GFXWindow*, size_t count, const char** paths);
-		void (*focus   )(GFXWindow*);
-		void (*maximize)(GFXWindow*);
-		void (*minimize)(GFXWindow*);
-		void (*move    )(GFXWindow*, int x, int y);
-		void (*resize  )(GFXWindow*, size_t width, size_t height);
+		void (*close   )(struct GFXWindow*);
+		void (*drop    )(struct GFXWindow*, size_t count, const char** paths);
+		void (*focus   )(struct GFXWindow*);
+		void (*maximize)(struct GFXWindow*);
+		void (*minimize)(struct GFXWindow*);
+		void (*move    )(struct GFXWindow*, int x, int y);
+		void (*resize  )(struct GFXWindow*, size_t width, size_t height);
 
 		// Keyboard events.
 		struct
 		{
-			void (*press  )(GFXWindow*, GFXKey, int scan, GFXModifier);
-			void (*release)(GFXWindow*, GFXKey, int scan, GFXModifier);
-			void (*repeat )(GFXWindow*, GFXKey, int scan, GFXModifier);
-			void (*text   )(GFXWindow*, char32_t codepoint);
+			void (*press  )(struct GFXWindow*, GFXKey, int scan, GFXModifier);
+			void (*release)(struct GFXWindow*, GFXKey, int scan, GFXModifier);
+			void (*repeat )(struct GFXWindow*, GFXKey, int scan, GFXModifier);
+			void (*text   )(struct GFXWindow*, char32_t codepoint);
 
 		} key;
 
 		// Mouse events.
 		struct
 		{
-			void (*enter  )(GFXWindow*);
-			void (*leave  )(GFXWindow*);
-			void (*move   )(GFXWindow*, double x, double y);
-			void (*press  )(GFXWindow*, GFXMouseButton, GFXModifier);
-			void (*release)(GFXWindow*, GFXMouseButton, GFXModifier);
-			void (*scroll )(GFXWindow*, double x, double y);
+			void (*enter  )(struct GFXWindow*);
+			void (*leave  )(struct GFXWindow*);
+			void (*move   )(struct GFXWindow*, double x, double y);
+			void (*press  )(struct GFXWindow*, GFXMouseButton, GFXModifier);
+			void (*release)(struct GFXWindow*, GFXMouseButton, GFXModifier);
+			void (*scroll )(struct GFXWindow*, double x, double y);
 
 		} mouse;
 
 	} events;
-};
+
+} GFXWindow;
+
+
+/****************************
+ * Physical device (e.g. GPU).
+ ****************************/
+
+/**
+ * Retrieves all initialized devices.
+ * @param count Cannot be NULL.
+ * @return NULL if no devices were found.
+ *
+ * The returned array is freed by groufix itself, it is a valid pointer
+ * until the engine is terminated.
+ */
+GFX_API GFXDevice* gfx_get_devices(size_t* count);
 
 
 /****************************

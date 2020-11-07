@@ -34,12 +34,29 @@
 
 
 /**
+ * Physical device definition.
+ * No distinction between public and internal struct because
+ * the public one does not expose any members.
+ */
+struct GFXDevice
+{
+	// Vulkan fields.
+	struct
+	{
+		VkPhysicalDevice device;
+
+	} vk;
+};
+
+
+/**
  * groufix global data, i.e. groufix state.
  */
 typedef struct _GFXState
 {
 	int initialized;
 
+	GFXVec devices;  // Stores GFXDevice (no user pointer, so not dynamic)
 	GFXVec monitors; // Stores _GFXMonitor*
 	GFXVec windows;  // Stores _GFXWindow*
 
@@ -63,11 +80,21 @@ typedef struct _GFXState
 	// Vulkan fields.
 	struct
 	{
-		VkInstance            instance;
-		PFN_vkCreateInstance  CreateInstance;  // Set to NULL on state init.
-		PFN_vkDestroyInstance DestroyInstance; // Set to NULL on state init.
+		VkInstance instance;
 
-		PFN_vkGetDeviceProcAddr GetDeviceProcAddr;
+		PFN_vkCreateInstance
+			CreateInstance;  // Set to NULL on state init.
+		PFN_vkDestroyInstance
+			DestroyInstance; // Set to NULL on state init.
+
+		PFN_vkCreateDevice
+			CreateDevice;
+		PFN_vkEnumeratePhysicalDevices
+			EnumeratePhysicalDevices;
+		PFN_vkGetDeviceProcAddr
+			GetDeviceProcAddr;
+		PFN_vkGetPhysicalDeviceProperties
+			GetPhysicalDeviceProperties;
 
 	} vk;
 
@@ -171,7 +198,7 @@ _GFXThreadState* _gfx_state_get_local(void);
 
 
 /****************************
- * Vulkan state.
+ * Vulkan and its physical device state.
  ****************************/
 
 /**
@@ -180,7 +207,7 @@ _GFXThreadState* _gfx_state_get_local(void);
 void _gfx_vulkan_log(VkResult result);
 
 /**
- * Initializes Vulkan state.
+ * Initializes Vulkan state, including all physical devices.
  * _groufix.vk.CreateInstance must be NULL.
  * Must be called by the same thread that called _gfx_state_init.
  * @return Non-zero on success.
@@ -189,6 +216,7 @@ int _gfx_vulkan_init(void);
 
 /**
  * Terminates Vulkan state.
+ * This will make sure all physical devices will be destroyed.
  * Must be called by the same thread that called _gfx_state_init.
  */
 void _gfx_vulkan_terminate(void);

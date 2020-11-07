@@ -19,22 +19,32 @@ static const char* _gfx_log_levels[] = {
 };
 
 /****************************/
-static const char* _gfx_log_colors[] = {
-	"\x1b[35m", "\x1b[31m", "\x1b[33m", "\x1b[32m", "\x1b[36m", "\x1b[94m"
-};
+#if defined (GFX_UNIX)
+	static const char* _gfx_log_colors[] = {
+		"\x1b[35m", "\x1b[31m", "\x1b[33m", "\x1b[32m", "\x1b[36m", "\x1b[94m"
+	};
+#endif
 
 
 /****************************/
 static void _gfx_log_out(unsigned int thread,
                          GFXLogLevel level, double timeMs,
-                         const char* file, const char* func, size_t line,
+                         const char* file, const char* func, unsigned int line,
                          const char* fmt, va_list args)
 {
 	const char* L = _gfx_log_levels[level-1];
+
+#if defined (GFX_UNIX)
 	const char* C = _gfx_log_colors[level-1];
 
-	printf("%.2ems %s%-5s\x1b[0m \x1b[90mthread%u: %s:%zu: %s:\x1b[0m ",
+	printf("%.2ems %s%-5s\x1b[0m \x1b[90mthread%u: %s:%u: %s:\x1b[0m ",
 		timeMs, C, L, thread, file, line, func);
+
+#elif defined (GFX_WIN32)
+	printf("%.2ems %-5s thread%u: %s:%u: %s: ",
+		timeMs, L, thread, file, line, func);
+
+#endif
 
 	vprintf(fmt, args);
 	putc('\n', stdout);
@@ -43,12 +53,12 @@ static void _gfx_log_out(unsigned int thread,
 /****************************/
 static void _gfx_log_file(FILE* out,
                           GFXLogLevel level, double timeMs,
-                          const char* file, const char* func, size_t line,
+                          const char* file, const char* func, unsigned int line,
                           const char* fmt, va_list args)
 {
 	const char* L = _gfx_log_levels[level-1];
 
-	fprintf(out, "%.2ems %-5s %s:%zu: %s: ",
+	fprintf(out, "%.2ems %-5s %s:%u: %s: ",
 		timeMs, L, file, line, func);
 
 	vfprintf(out, fmt, args);
@@ -57,7 +67,7 @@ static void _gfx_log_file(FILE* out,
 
 /****************************/
 GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
-                     size_t line, const char* fmt, ...)
+                     unsigned int line, const char* fmt, ...)
 {
 	assert(level > GFX_LOG_NONE && level < GFX_LOG_ALL);
 	assert(file != NULL);

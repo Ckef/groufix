@@ -110,6 +110,53 @@ void _gfx_vulkan_log(VkResult result)
 }
 
 /****************************/
+static int _gfx_vulkan_init_devices(void)
+{
+	assert(_groufix.devices.size == 0);
+
+	// Reserve and create groufix devices.
+	// There are no callbacks, so no user pointer,
+	// this means we do not have to dynamically allocate the devices.
+	uint32_t count;
+	VkResult result = _groufix.vk.EnumeratePhysicalDevices(
+		_groufix.vk.instance, &count, NULL);
+
+	if (result != VK_SUCCESS || count == 0)
+		goto clean;
+
+	{
+		// Enumerate all devices.
+		// We use a scope here so the goto above is allowed.
+		VkPhysicalDevice devices[count];
+
+		result = _groufix.vk.EnumeratePhysicalDevices(
+			_groufix.vk.instance, &count, devices);
+
+		if (result != VK_SUCCESS)
+			goto clean;
+
+		// Fill the array of groufix devices.
+		if (!gfx_vec_reserve(&_groufix.devices, (size_t)count))
+			goto clean;
+
+		for (uint32_t i = 0; i < count; ++i)
+		{
+			GFXDevice dev = { .vk = { .device = devices[i] } };
+			gfx_vec_push(&_groufix.devices, 1, &dev);
+		}
+
+		return 1;
+	}
+
+	// Cleanup on failure.
+clean:
+	gfx_log_error("Could not find or initialize physical devices.");
+	gfx_vec_clear(&_groufix.devices);
+
+	return 0;
+}
+
+/****************************/
 int _gfx_vulkan_init(void)
 {
 	assert(_groufix.vk.CreateInstance == NULL);
@@ -150,8 +197,8 @@ int _gfx_vulkan_init(void)
 		.ppEnabledExtensionNames = extensions
 	};
 
-	VkResult res =
-		_groufix.vk.CreateInstance(&ici, NULL, &_groufix.vk.instance);
+	VkResult res = _groufix.vk.CreateInstance(
+		&ici, NULL, &_groufix.vk.instance);
 
 	if (res != VK_SUCCESS)
 	{
@@ -160,8 +207,21 @@ int _gfx_vulkan_init(void)
 	}
 
 	// Now load all other instance level Vulkan functions.
-	_GFX_GET_INSTANCE_PROC_ADDR(_groufix.vk.instance, DestroyInstance);
-	_GFX_GET_INSTANCE_PROC_ADDR(_groufix.vk.instance, GetDeviceProcAddr);
+	_GFX_GET_INSTANCE_PROC_ADDR(
+		_groufix.vk.instance, DestroyInstance);
+
+	_GFX_GET_INSTANCE_PROC_ADDR(
+		_groufix.vk.instance, CreateDevice);
+	_GFX_GET_INSTANCE_PROC_ADDR(
+		_groufix.vk.instance, EnumeratePhysicalDevices);
+	_GFX_GET_INSTANCE_PROC_ADDR(
+		_groufix.vk.instance, GetDeviceProcAddr);
+	_GFX_GET_INSTANCE_PROC_ADDR(
+		_groufix.vk.instance, GetPhysicalDeviceProperties);
+
+	// Initialize physical devices.
+	if (!_gfx_vulkan_init_devices())
+		goto clean;
 
 	return 1;
 
@@ -184,10 +244,19 @@ void _gfx_vulkan_terminate(void)
 	if (_groufix.vk.CreateInstance == NULL)
 		return;
 
-	// So yea just destroy the instance.
+	gfx_vec_clear(&_groufix.devices);
 	_groufix.vk.DestroyInstance(_groufix.vk.instance, NULL);
 
 	// Signal that termination is done.
 	_groufix.vk.CreateInstance = NULL;
 	_groufix.vk.DestroyInstance = NULL;
+}
+
+/****************************/
+GFX_API GFXDevice* gfx_get_devices(size_t* count)
+{
+	assert(count != NULL);
+
+	*count = _groufix.devices.size;
+	return _groufix.devices.data;
 }

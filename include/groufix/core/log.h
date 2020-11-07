@@ -11,7 +11,6 @@
 #define GFX_CORE_LOG_H
 
 #include "groufix/def.h"
-#include <stddef.h>
 
 
 /**
@@ -71,7 +70,7 @@ typedef enum GFXLogLevel
  * Access to stdout will be synchronized if groufix is initialized.
  */
 GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
-                     size_t line, const char* fmt, ...);
+                     unsigned int line, const char* fmt, ...);
 
 /**
  * Sets the log level to output for the calling thread.
