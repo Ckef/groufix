@@ -34,7 +34,11 @@ typedef enum GFXDeviceType
 /**
  * Physical device definition (e.g. a GPU).
  */
-typedef struct GFXDevice GFXDevice;
+typedef struct GFXDevice
+{
+	GFXDeviceType type; // Read-only.
+
+} GFXDevice;
 
 
 /**
@@ -103,20 +107,16 @@ typedef struct GFXWindow
  ****************************/
 
 /**
- * Retrieves all initialized devices.
- * @param count Cannot be NULL.
- * @return NULL if no devices were found.
- *
- * The returned array is freed by groufix itself, it is a valid pointer
- * until the engine is terminated.
+ * Retrieves the number of initialized devices.
+ * @return 0 if no devices were found.
  */
-GFX_API GFXDevice* gfx_get_devices(size_t* count);
+GFX_API size_t gfx_get_num_devices(void);
 
 /**
- * Retrieves the type of a known device.
- * @param device Cannot be NULL.
+ * Retrieves an initialized device.
+ * @param index Must be < gfx_get_num_devices().
  */
-GFX_API GFXDeviceType gfx_device_get_type(GFXDevice* device);
+GFX_API GFXDevice* gfx_get_device(size_t index);
 
 
 /****************************
@@ -124,21 +124,24 @@ GFX_API GFXDeviceType gfx_device_get_type(GFXDevice* device);
  ****************************/
 
 /**
+ * Retrieves the number of currently connected monitors.
+ * @return 0 if no monitors were found.
+ */
+GFX_API size_t gfx_get_num_monitors(void);
+
+/**
+ * Retrieves a currently connected monitor.
+ * The primary monitor is always stored at index 0.
+ * gfx_get_num_monitors() must return > 0.
+ * @param index Must be < gfx_get_num_monitors().
+ */
+GFX_API GFXMonitor* gfx_get_monitor(size_t index);
+
+/**
  * Retrieves the primary (user's preferred) monitor.
  * @return NULL if no monitors were found.
  */
 GFX_API GFXMonitor* gfx_get_primary_monitor(void);
-
-/**
- * Retrieves all currently connected monitors.
- * The primary monitor is always first.
- * @param count Cannot be NULL.
- * @return NULL if no monitors were found.
- *
- * The returned array is freed by groufix itself, it is a valid pointer
- * until the monitor configuration changes or the engine is terminated.
- */
-GFX_API GFXMonitor** gfx_get_monitors(size_t* count);
 
 /**
  * Sets the configuration change event callback.

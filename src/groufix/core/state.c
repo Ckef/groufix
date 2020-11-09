@@ -35,7 +35,7 @@ int _gfx_state_init(void)
 	_groufix.thread.id = 0;
 
 	// Initialize other things...
-	gfx_vec_init(&_groufix.devices, sizeof(GFXDevice));
+	gfx_vec_init(&_groufix.devices, sizeof(_GFXDevice));
 	gfx_vec_init(&_groufix.contexts, sizeof(_GFXContext*));
 	gfx_vec_init(&_groufix.monitors, sizeof(_GFXMonitor*));
 

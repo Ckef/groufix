@@ -167,8 +167,8 @@ static int _gfx_vulkan_init_devices(void)
 			VkPhysicalDeviceProperties pdp;
 			_groufix.vk.GetPhysicalDeviceProperties(devices[i], &pdp);
 
-			GFXDevice dev = {
-				.type    = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
+			_GFXDevice dev = {
+				.base    = { .type = _GFX_GET_DEVICE_TYPE(pdp.deviceType) },
 				.index   = 0,
 				.context = NULL,
 				.vk      = { .device = devices[i] }
@@ -189,7 +189,7 @@ clean:
 }
 
 /****************************/
-static int _gfx_vulkan_init_context(GFXDevice* device)
+static int _gfx_vulkan_init_context(_GFXDevice* device)
 {
 	assert(device->context == NULL);
 
@@ -246,10 +246,10 @@ static int _gfx_vulkan_init_context(GFXDevice* device)
 		if (context == NULL)
 			goto clean;
 
+		gfx_vec_push(&_groufix.contexts, 1, &context);
+
 		// Set this to NULL so we don't accidentally call garbage on cleanup.
 		context->vk.DestroyDevice = NULL;
-
-		gfx_vec_push(&_groufix.contexts, 1, &context);
 
 		device->index = j;
 		device->context = context;
@@ -258,7 +258,7 @@ static int _gfx_vulkan_init_context(GFXDevice* device)
 		memcpy(
 			context->devices,
 			groups[i].physicalDevices,
-			groups[i].physicalDeviceCount * sizeof(VkPhysicalDevice));
+			context->numDevices * sizeof(VkPhysicalDevice));
 
 		// Finally go create the logical Vulkan device.
 		VkDeviceGroupDeviceCreateInfo dgdci = {
@@ -442,7 +442,7 @@ void _gfx_vulkan_terminate(void)
 }
 
 /****************************/
-_GFXContext* _gfx_vulkan_get_context(GFXDevice* device)
+_GFXContext* _gfx_vulkan_get_context(_GFXDevice* device)
 {
 	assert(device != NULL);
 
@@ -474,18 +474,16 @@ _GFXContext* _gfx_vulkan_get_context(GFXDevice* device)
 }
 
 /****************************/
-GFX_API GFXDevice* gfx_get_devices(size_t* count)
+GFX_API size_t gfx_get_num_devices(void)
 {
-	assert(count != NULL);
-
-	*count = _groufix.devices.size;
-	return _groufix.devices.data;
+	return _groufix.devices.size;
 }
 
 /****************************/
-GFX_API GFXDeviceType gfx_device_get_type(GFXDevice* device)
+GFX_API GFXDevice* gfx_get_device(size_t index)
 {
-	assert(device != NULL);
+	assert(_groufix.devices.size > 0);
+	assert(index < _groufix.devices.size);
 
-	return device->type;
+	return gfx_vec_at(&_groufix.devices, index);
 }

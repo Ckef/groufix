@@ -37,7 +37,7 @@ typedef struct _GFXState
 {
 	int initialized;
 
-	GFXVec devices;  // Stores GFXDevice (no user pointer, so not dynamic)
+	GFXVec devices;  // Stores _GFXDevice (never changes, so not dynamic)
 	GFXVec contexts; // Stores _GFXContext*
 	GFXVec monitors; // Stores _GFXMonitor*
 
@@ -127,11 +127,11 @@ typedef struct _GFXContext
 /**
  * Physical device definition (opaque public definition).
  */
-typedef struct GFXDevice
+typedef struct _GFXDevice
 {
-	GFXDeviceType type;
-	size_t        index; // Index into the device group.
-	_GFXContext*  context;
+	GFXDevice    base;
+	size_t       index; // Index into the device group.
+	_GFXContext* context;
 
 	// Vulkan fields.
 	struct
@@ -140,7 +140,7 @@ typedef struct GFXDevice
 
 	} vk;
 
-} GFXDevice;
+} _GFXDevice;
 
 
 /**
@@ -251,7 +251,7 @@ void _gfx_vulkan_terminate(void);
  * @param device Cannot be NULL.
  * @return NULL if the context could not be found or created.
  */
-_GFXContext* _gfx_vulkan_get_context(GFXDevice* device);
+_GFXContext* _gfx_vulkan_get_context(_GFXDevice* device);
 
 
 /****************************

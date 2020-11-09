@@ -139,24 +139,28 @@ void _gfx_monitors_terminate(void)
 }
 
 /****************************/
-GFX_API GFXMonitor* gfx_get_primary_monitor(void)
+GFX_API size_t gfx_get_num_monitors(void)
 {
-	GLFWmonitor* handle = glfwGetPrimaryMonitor();
-	if (handle == NULL) return NULL;
-
-	// Retrieve the groufix monitor from the GLFW one.
-	_GFXMonitor* monitor = glfwGetMonitorUserPointer(handle);
-
-	return &monitor->base;
+	return _groufix.monitors.size;
 }
 
 /****************************/
-GFX_API GFXMonitor** gfx_get_monitors(size_t* count)
+GFX_API GFXMonitor* gfx_get_monitor(size_t index)
 {
-	assert(count != NULL);
+	assert(_groufix.monitors.size > 0);
+	assert(index < _groufix.monitors.size);
 
-	*count = _groufix.monitors.size;
-	return _groufix.monitors.data;
+	return *(GFXMonitor**)gfx_vec_at(&_groufix.monitors, index);
+}
+
+/****************************/
+GFX_API GFXMonitor* gfx_get_primary_monitor(void)
+{
+	assert(_groufix.monitors.size > 0);
+
+	// Just return the first,
+	// due to GLFW guarantees this should be the primary.
+	return *(GFXMonitor**)gfx_vec_at(&_groufix.monitors, 0);
 }
 
 /****************************/
