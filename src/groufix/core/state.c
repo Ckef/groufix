@@ -36,8 +36,8 @@ int _gfx_state_init(void)
 
 	// Initialize other things...
 	gfx_vec_init(&_groufix.devices, sizeof(GFXDevice));
+	gfx_vec_init(&_groufix.contexts, sizeof(_GFXContext*));
 	gfx_vec_init(&_groufix.monitors, sizeof(_GFXMonitor*));
-	gfx_vec_init(&_groufix.windows, sizeof(_GFXWindow*));
 
 	_groufix.monitorEvent = NULL;
 	_groufix.vk.instance = NULL;
@@ -64,8 +64,8 @@ void _gfx_state_terminate(void)
 	assert(_groufix.initialized);
 
 	gfx_vec_clear(&_groufix.devices);
+	gfx_vec_clear(&_groufix.contexts);
 	gfx_vec_clear(&_groufix.monitors);
-	gfx_vec_clear(&_groufix.windows);
 
 	_gfx_thread_key_clear(_groufix.thread.key);
 	_gfx_mutex_clear(&_groufix.thread.ioLock);

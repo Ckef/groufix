@@ -17,6 +17,21 @@
 
 
 /**
+ * Physical device type.
+ * From most preferred to least preferred.
+ */
+typedef enum GFXDeviceType
+{
+	GFX_DEVICE_DEDICATED_GPU,
+	GFX_DEVICE_INTEGRATED_GPU,
+	GFX_DEVICE_VIRTUAL_GPU,
+	GFX_DEVICE_CPU,
+	GFX_DEVICE_UNKNOWN
+
+} GFXDeviceType;
+
+
+/**
  * Physical device definition (e.g. a GPU).
  */
 typedef struct GFXDevice GFXDevice;
@@ -96,6 +111,12 @@ typedef struct GFXWindow
  * until the engine is terminated.
  */
 GFX_API GFXDevice* gfx_get_devices(size_t* count);
+
+/**
+ * Retrieves the type of a known device.
+ * @param device Cannot be NULL.
+ */
+GFX_API GFXDeviceType gfx_device_get_type(GFXDevice* device);
 
 
 /****************************

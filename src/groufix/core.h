@@ -26,24 +26,8 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#define _GFX_VK_VERSION    VK_API_VERSION_1_2
+// Vulkan function pointer.
 #define _GFX_PFN_VK(pName) PFN_vk##pName pName
-
-
-/**
- * Physical device definition.
- * No distinction between public and internal struct because
- * the public one does not expose any members.
- */
-struct GFXDevice
-{
-	// Vulkan fields.
-	struct
-	{
-		VkPhysicalDevice device;
-
-	} vk;
-};
 
 
 /**
@@ -54,8 +38,8 @@ typedef struct _GFXState
 	int initialized;
 
 	GFXVec devices;  // Stores GFXDevice (no user pointer, so not dynamic)
+	GFXVec contexts; // Stores _GFXContext*
 	GFXVec monitors; // Stores _GFXMonitor*
-	GFXVec windows;  // Stores _GFXWindow*
 
 	// Monitor configuration change.
 	void (*monitorEvent)(GFXMonitor*, int);
@@ -82,9 +66,11 @@ typedef struct _GFXState
 		VkInstance instance;
 
 		_GFX_PFN_VK(CreateInstance);
+		_GFX_PFN_VK(EnumerateInstanceVersion);
 
 		_GFX_PFN_VK(CreateDevice);
 		_GFX_PFN_VK(DestroyInstance);
+		_GFX_PFN_VK(EnumeratePhysicalDeviceGroups);
 		_GFX_PFN_VK(EnumeratePhysicalDevices);
 		_GFX_PFN_VK(GetDeviceProcAddr);
 		_GFX_PFN_VK(GetPhysicalDeviceProperties);
@@ -111,6 +97,50 @@ typedef struct _GFXThreadState
 	} log;
 
 } _GFXThreadState;
+
+
+/**
+ * Logical Vulkan context (superset of a device).
+ */
+typedef struct _GFXContext
+{
+	// Vulkan fields.
+	struct
+	{
+		VkDevice device;
+
+		_GFX_PFN_VK(DestroyDevice);
+
+	} vk;
+
+	// Associated physical device group.
+	size_t           numDevices;
+	VkPhysicalDevice devices[];
+
+} _GFXContext;
+
+
+/****************************
+ * User visible objects.
+ ****************************/
+
+/**
+ * Physical device definition (opaque public definition).
+ */
+typedef struct GFXDevice
+{
+	GFXDeviceType type;
+	size_t        index; // Index into the device group.
+	_GFXContext*  context;
+
+	// Vulkan fields.
+	struct
+	{
+		VkPhysicalDevice device;
+
+	} vk;
+
+} GFXDevice;
 
 
 /**
@@ -191,7 +221,7 @@ _GFXThreadState* _gfx_state_get_local(void);
 
 
 /****************************
- * Vulkan and its physical device state.
+ * Vulkan and its device state.
  ****************************/
 
 /**
@@ -213,6 +243,15 @@ int _gfx_vulkan_init(void);
  * Must be called by the same thread that called _gfx_state_init.
  */
 void _gfx_vulkan_terminate(void);
+
+/**
+ * Retrieves the Vulkan context.
+ * It will automatically be created if it did not exist yet.
+ * The device will share its context with all devices in its device group.
+ * @param device Cannot be NULL.
+ * @return NULL if the context could not be found or created.
+ */
+_GFXContext* _gfx_vulkan_get_context(GFXDevice* device);
 
 
 /****************************
