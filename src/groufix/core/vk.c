@@ -6,11 +6,12 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/core/log.h"
+#include "groufix/core/window.h"
 #include "groufix/core.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
 
 #define _GFX_GET_INSTANCE_PROC_ADDR(pName) \
 	_groufix.vk.pName = (PFN_vk##pName)glfwGetInstanceProcAddress( \
@@ -33,10 +34,10 @@
 #define _GFX_GET_DEVICE_TYPE(vType) \
 	((vType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) ? \
 		GFX_DEVICE_DEDICATED_GPU : \
-	(vType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) ? \
-		GFX_DEVICE_INTEGRATED_GPU : \
 	(vType == VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU) ? \
 		GFX_DEVICE_VIRTUAL_GPU : \
+	(vType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) ? \
+		GFX_DEVICE_INTEGRATED_GPU : \
 	(vType == VK_PHYSICAL_DEVICE_TYPE_CPU) ? \
 		GFX_DEVICE_CPU : \
 		GFX_DEVICE_UNKNOWN)
@@ -298,6 +299,7 @@ static int _gfx_vulkan_init_context(_GFXDevice* device)
 		// Now load all device level Vulkan functions.
 		// Load vkDestroyDevice first so we can clean properly.
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
+		_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
 
 		return 1;
 	}
@@ -427,7 +429,9 @@ void _gfx_vulkan_terminate(void)
 		_GFXContext* context =
 			*(_GFXContext**)gfx_vec_at(&_groufix.contexts, i);
 
+		context->vk.DeviceWaitIdle(context->vk.device);
 		context->vk.DestroyDevice(context->vk.device, NULL);
+
 		free(context);
 	}
 
@@ -446,10 +450,15 @@ _GFXContext* _gfx_vulkan_get_context(_GFXDevice* device)
 {
 	assert(device != NULL);
 
-	// First check if it already has a context.
 	if (device->context == NULL)
 	{
-		// If it doesn't, go search for a compatible one.
+		// We only use the context lock here.
+		// Other uses happen during initialization or termination,
+		// any other operation must happen inbetween those two
+		// function calls anyway so no need to lock in them.
+		_gfx_mutex_lock(&_groufix.contextLock);
+
+		// No context, go search for a compatible one.
 		for (size_t i = 0; i < _groufix.contexts.size; ++i)
 		{
 			_GFXContext* context =
@@ -461,13 +470,17 @@ _GFXContext* _gfx_vulkan_get_context(_GFXDevice* device)
 					device->index = j;
 					device->context = context;
 
-					return context;
+					goto unlock;
 				}
 		}
 
 		// If none found, create a new one.
-		if (!_gfx_vulkan_init_context(device))
-			return NULL;
+		// It returns whether it succeeded, but just ignore this result.
+		// If it failed, device->context will be NULL anyway.
+		_gfx_vulkan_init_context(device);
+
+	unlock:
+		_gfx_mutex_unlock(&_groufix.contextLock);
 	}
 
 	return device->context;

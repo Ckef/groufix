@@ -50,6 +50,7 @@ GFX_API int gfx_init(void)
 	gfx_log_info("GLFW initialized succesfully, Vulkan loader found.");
 
 	// Initialize all other internal state.
+	// Vulkan initialization includes devices.
 	if (!_gfx_vulkan_init())
 		goto terminate;
 
@@ -84,7 +85,7 @@ GFX_API void gfx_terminate(void)
 	gfx_detach();
 	_gfx_state_terminate();
 
-	gfx_log_info("Global state terminated.");
+	gfx_log_info("All internal state terminated.");
 }
 
 /****************************/

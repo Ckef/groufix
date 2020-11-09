@@ -23,8 +23,8 @@
 typedef enum GFXDeviceType
 {
 	GFX_DEVICE_DEDICATED_GPU,
-	GFX_DEVICE_INTEGRATED_GPU,
 	GFX_DEVICE_VIRTUAL_GPU,
+	GFX_DEVICE_INTEGRATED_GPU,
 	GFX_DEVICE_CPU,
 	GFX_DEVICE_UNKNOWN
 
@@ -132,14 +132,13 @@ GFX_API size_t gfx_get_num_monitors(void);
 /**
  * Retrieves a currently connected monitor.
  * The primary monitor is always stored at index 0.
- * gfx_get_num_monitors() must return > 0.
  * @param index Must be < gfx_get_num_monitors().
  */
 GFX_API GFXMonitor* gfx_get_monitor(size_t index);
 
 /**
  * Retrieves the primary (user's preferred) monitor.
- * @return NULL if no monitors were found.
+ * This is equivalent to gfx_get_monitor(0).
  */
 GFX_API GFXMonitor* gfx_get_primary_monitor(void);
 
@@ -150,6 +149,27 @@ GFX_API GFXMonitor* gfx_get_primary_monitor(void);
  * @param event NULL to disable the event callback.
  */
 GFX_API void gfx_set_monitor_events(void (*event)(GFXMonitor*, int));
+
+
+/****************************
+ * Logical window.
+ ****************************/
+
+/**
+ * Creates a logical window.
+ * @param width  Must be > 0.
+ * @param height Must be > 0.
+ * @param title  Cannot be NULL.
+ * @return NULL on failure.
+ */
+GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
+                                     const char* title, GFXMonitor* monitor);
+
+/**
+ * Destroys a logical window.
+ * @param window Cannot be NULL.
+ */
+GFX_API void gfx_destroy_window(GFXWindow* window);
 
 
 #endif

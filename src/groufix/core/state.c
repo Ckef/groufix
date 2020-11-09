@@ -35,6 +35,9 @@ int _gfx_state_init(void)
 	_groufix.thread.id = 0;
 
 	// Initialize other things...
+	if (!_gfx_mutex_init(&_groufix.contextLock))
+		goto clean_local;
+
 	gfx_vec_init(&_groufix.devices, sizeof(_GFXDevice));
 	gfx_vec_init(&_groufix.contexts, sizeof(_GFXContext*));
 	gfx_vec_init(&_groufix.monitors, sizeof(_GFXMonitor*));
@@ -48,10 +51,12 @@ int _gfx_state_init(void)
 	return 1;
 
 	// Cleanup on failure.
+clean_local:
 #if defined (__STDC_NO_ATOMICS__)
+	_gfx_mutex_clear(&_groufix.thread.idLock);
 clean_io:
-	_gfx_mutex_clear(&_groufix.thread.ioLock);
 #endif
+	_gfx_mutex_clear(&_groufix.thread.ioLock);
 clean_key:
 	_gfx_thread_key_clear(_groufix.thread.key);
 
@@ -72,6 +77,7 @@ void _gfx_state_terminate(void)
 #if defined (__STDC_NO_ATOMICS__)
 	_gfx_mutex_clear(&_groufix.thread.idLock);
 #endif
+	_gfx_mutex_clear(&_groufix.contextLock);
 
 	// Signal that termination is done.
 	_groufix.initialized = 0;

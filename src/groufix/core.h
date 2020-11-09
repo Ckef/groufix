@@ -41,6 +41,8 @@ typedef struct _GFXState
 	GFXVec contexts; // Stores _GFXContext*
 	GFXVec monitors; // Stores _GFXMonitor*
 
+	_GFXMutex contextLock;
+
 	// Monitor configuration change.
 	void (*monitorEvent)(GFXMonitor*, int);
 
@@ -110,6 +112,7 @@ typedef struct _GFXContext
 		VkDevice device;
 
 		_GFX_PFN_VK(DestroyDevice);
+		_GFX_PFN_VK(DeviceWaitIdle);
 
 	} vk;
 
@@ -125,7 +128,7 @@ typedef struct _GFXContext
  ****************************/
 
 /**
- * Physical device definition (opaque public definition).
+ * Physical device definition.
  */
 typedef struct _GFXDevice
 {
@@ -250,6 +253,9 @@ void _gfx_vulkan_terminate(void);
  * The device will share its context with all devices in its device group.
  * @param device Cannot be NULL.
  * @return NULL if the context could not be found or created.
+ *
+ * This function will lock during context creation and
+ * can therefore be called on any thread.
  */
 _GFXContext* _gfx_vulkan_get_context(_GFXDevice* device);
 
