@@ -139,6 +139,7 @@ endif
 
 HEADERS = \
  include/groufix/containers/vec.h \
+ include/groufix/core/device.h \
  include/groufix/core/keys.h \
  include/groufix/core/log.h \
  include/groufix/core/window.h \
@@ -150,10 +151,11 @@ HEADERS = \
 
 OBJS = \
  $(OUT)$(SUB)/groufix/containers/vec.o \
+ $(OUT)$(SUB)/groufix/core/device.o \
  $(OUT)$(SUB)/groufix/core/log.o \
  $(OUT)$(SUB)/groufix/core/monitor.o \
  $(OUT)$(SUB)/groufix/core/state.o \
- $(OUT)$(SUB)/groufix/core/vk.o \
+ $(OUT)$(SUB)/groufix/core/vulkan.o \
  $(OUT)$(SUB)/groufix/core/window.o \
  $(OUT)$(SUB)/groufix.o
 

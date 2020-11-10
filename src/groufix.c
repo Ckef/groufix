@@ -52,8 +52,10 @@ GFX_API int gfx_init(void)
 	gfx_log_info("GLFW initialized succesfully, Vulkan loader found.");
 
 	// Initialize all other internal state.
-	// Vulkan initialization includes devices.
 	if (!_gfx_vulkan_init())
+		goto terminate;
+
+	if (!_gfx_devices_init())
 		goto terminate;
 
 	if (!_gfx_monitors_init())
@@ -80,6 +82,7 @@ GFX_API void gfx_terminate(void)
 
 	// Terminate the contents of the engine.
 	_gfx_monitors_terminate();
+	_gfx_devices_terminate();
 	_gfx_vulkan_terminate();
 	glfwTerminate();
 

@@ -11,6 +11,7 @@
 #define _GFX_CORE_H
 
 #include "groufix/containers/vec.h"
+#include "groufix/core/device.h"
 #include "groufix/core/log.h"
 #include "groufix/core/window.h"
 #include "groufix/core/threads.h"
@@ -176,7 +177,7 @@ typedef struct _GFXWindow
 
 
 /****************************
- * Global and local state.
+ * Global and thread local state.
  ****************************/
 
 /**
@@ -224,7 +225,7 @@ _GFXThreadState* _gfx_state_get_local(void);
 
 
 /****************************
- * Vulkan and its device state.
+ * Vulkan state and logging.
  ****************************/
 
 /**
@@ -233,7 +234,7 @@ _GFXThreadState* _gfx_state_get_local(void);
 void _gfx_vulkan_log(VkResult result);
 
 /**
- * Initializes Vulkan state, including all physical devices.
+ * Initializes Vulkan state.
  * _groufix.vk.instance must be NULL.
  * Must be called by the same thread that called _gfx_state_init.
  * @return Non-zero on success.
@@ -247,6 +248,26 @@ int _gfx_vulkan_init(void);
  */
 void _gfx_vulkan_terminate(void);
 
+
+/****************************
+ * Devices and Vulkan context.
+ ****************************/
+
+/**
+ * Initializes internal physical device (e.g. GPU) configuration.
+ * _groufix.devices.size must be 0.
+ * Must be called by the same thread that called _gfx_vulkan_init.
+ * @return Non-zero on success.
+ */
+int _gfx_devices_init(void);
+
+/**
+ * Terminates internal device configuration.
+ * This will make sure all divices and contexts are destroyed.
+ * Must be called by the same thread that called _gfx_vulkan_init.
+ */
+void _gfx_devices_terminate(void);
+
 /**
  * Retrieves the Vulkan context.
  * It will automatically be created if it did not exist yet.
@@ -257,7 +278,7 @@ void _gfx_vulkan_terminate(void);
  * This function will lock during context creation and
  * can therefore be called on any thread.
  */
-_GFXContext* _gfx_vulkan_get_context(_GFXDevice* device);
+_GFXContext* _gfx_device_get_context(_GFXDevice* device);
 
 
 /****************************
@@ -274,7 +295,7 @@ int _gfx_monitors_init(void);
 
 /**
  * Terminates internal monitor configuration.
- * This will make sure any monitors will be destroyed.
+ * This will make sure all monitors are destroyed.
  * Must be called by the same thread that called _gfx_state_init.
  */
 void _gfx_monitors_terminate(void);

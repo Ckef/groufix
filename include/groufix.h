@@ -10,6 +10,7 @@
 #ifndef GROUFIX_H
 #define GROUFIX_H
 
+#include "groufix/core/device.h"
 #include "groufix/core/keys.h"
 #include "groufix/core/log.h"
 #include "groufix/core/window.h"
