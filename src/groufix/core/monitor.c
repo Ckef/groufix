@@ -12,7 +12,10 @@
 #include <stdlib.h>
 
 
-/****************************/
+/****************************
+ * Reassign monitors according to previously set GLFW user pointers.
+ * This shuffles out deallocated monitors and fixes the primary one.
+ */
 static void _gfx_monitors_rebuild(void)
 {
 	// Get all GLFW monitors.
@@ -27,7 +30,10 @@ static void _gfx_monitors_rebuild(void)
 	}
 }
 
-/****************************/
+/****************************
+ * On monitor connect or disconnect.
+ * @param event Zero if it is disconnected, non-zero if it is connected.
+ */
 static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 {
 	int conn = (event == GLFW_CONNECTED) ? 1 : 0;

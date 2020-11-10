@@ -43,6 +43,7 @@ GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
 		goto clean;
 
 	// TODO: register all the callbacks.
+	// TODO: create Vulkan surface.
 
 	return &window->base;
 

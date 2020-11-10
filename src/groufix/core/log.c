@@ -13,12 +13,17 @@
 #include <time.h>
 
 
-/****************************/
+/****************************
+ * Stringified logging levels.
+ */
 static const char* _gfx_log_levels[] = {
 	"FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"
 };
 
-/****************************/
+
+/****************************
+ * Stringified logging colors for each level.
+ */
 #if defined (GFX_UNIX)
 	static const char* _gfx_log_colors[] = {
 		"\x1b[35m", "\x1b[31m", "\x1b[33m", "\x1b[32m", "\x1b[36m", "\x1b[94m"
@@ -26,7 +31,9 @@ static const char* _gfx_log_levels[] = {
 #endif
 
 
-/****************************/
+/****************************
+ * Logs a new line to stdout.
+ */
 static void _gfx_log_out(unsigned int thread,
                          GFXLogLevel level, double timeMs,
                          const char* file, const char* func, unsigned int line,
@@ -50,7 +57,9 @@ static void _gfx_log_out(unsigned int thread,
 	putc('\n', stdout);
 }
 
-/****************************/
+/****************************
+ * Logs a new line to a log file.
+ */
 static void _gfx_log_file(FILE* out,
                           GFXLogLevel level, double timeMs,
                           const char* file, const char* func, unsigned int line,

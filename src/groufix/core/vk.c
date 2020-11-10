@@ -132,7 +132,11 @@ void _gfx_vulkan_log(VkResult result)
 	}
 }
 
-/****************************/
+/****************************
+ * Initializes Vulkan physical devices (e.g. GPUs).
+ * _groufix.devices.size must be 0.
+ * @return Non-zero on success.
+ */
 static int _gfx_vulkan_init_devices(void)
 {
 	assert(_groufix.devices.size == 0);
@@ -189,7 +193,11 @@ clean:
 	return 0;
 }
 
-/****************************/
+/****************************
+ * Creates an appropriate context (Vulkan device + fp's) suited for a device.
+ * @param device Cannot be NULL.
+ * @return NULL on failure.
+ */
 static int _gfx_vulkan_init_context(_GFXDevice* device)
 {
 	assert(device->context == NULL);
@@ -248,12 +256,12 @@ static int _gfx_vulkan_init_context(_GFXDevice* device)
 			goto clean;
 
 		gfx_vec_push(&_groufix.contexts, 1, &context);
+		device->index = j;
+		device->context = context;
 
 		// Set this to NULL so we don't accidentally call garbage on cleanup.
 		context->vk.DestroyDevice = NULL;
 
-		device->index = j;
-		device->context = context;
 		context->numDevices = groups[i].physicalDeviceCount;
 
 		memcpy(

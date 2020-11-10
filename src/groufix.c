@@ -10,7 +10,9 @@
 #include "groufix/core.h"
 
 
-/****************************/
+/****************************
+ * Callback for GLFW errors.
+ */
 static void _gfx_glfw_error(int error, const char* description)
 {
 	// Just log it as a groufix error,
