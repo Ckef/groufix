@@ -12,7 +12,9 @@
 #include <string.h>
 
 
-/****************************/
+/****************************
+ * Increases the capacity such that it satisfies a minimum.
+ */
 static int _gfx_vec_grow(GFXVec* vec, size_t minCapacity)
 {
 	if (vec->capacity < minCapacity)
@@ -32,7 +34,9 @@ static int _gfx_vec_grow(GFXVec* vec, size_t minCapacity)
 	return 1;
 }
 
-/****************************/
+/****************************
+ * Shrinks the capacity such that size > capacity/4.
+ */
 static void _gfx_vec_shrink(GFXVec* vec)
 {
 	// If we have more elements than capacity/4, don't shrink.
