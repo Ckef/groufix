@@ -179,8 +179,9 @@ int _gfx_devices_init(void)
 	assert(_groufix.devices.size == 0);
 
 	// Reserve and create groufix devices.
-	// There are no callbacks, so no user pointer,
-	// this means we do not have to dynamically allocate the devices.
+	// The number or order of devices never changes after initialization,
+	// nor is there a user pointer for callbacks, as there are no callbacks.
+	// This means we do not have to dynamically allocate the devices.
 	uint32_t count;
 	VkResult result = _groufix.vk.EnumeratePhysicalDevices(
 		_groufix.vk.instance, &count, NULL);
@@ -200,12 +201,17 @@ int _gfx_devices_init(void)
 			goto clean;
 
 		// Fill the array of groufix devices.
+		// While doing so, keep track of the primary device,
+		// this to make sure the primary device is at index 0.
 		if (!gfx_vec_reserve(&_groufix.devices, (size_t)count))
 			goto clean;
 
+		GFXDeviceType type = GFX_DEVICE_UNKNOWN;
+		uint32_t ver = 0;
+
 		for (uint32_t i = 0; i < count; ++i)
 		{
-			// Get some Vulkan properties.
+			// Get some Vulkan properties and create new device.
 			VkPhysicalDeviceProperties pdp;
 			_groufix.vk.GetPhysicalDeviceProperties(devices[i], &pdp);
 
@@ -216,7 +222,22 @@ int _gfx_devices_init(void)
 				.vk      = { .device = devices[i] }
 			};
 
-			gfx_vec_push(&_groufix.devices, 1, &dev);
+			// Check if the new device is a better pick as primary.
+			// If the type of device is superior, pick it as primary.
+			// If the type is equal, pick the greater Vulkan version.
+			int isPrim = (i == 0) ||
+				dev.base.type < type ||
+				(dev.base.type == type && pdp.apiVersion > ver);
+
+			if (!isPrim)
+				gfx_vec_push(&_groufix.devices, 1, &dev);
+			else
+			{
+				// If new primary, insert it at index 0.
+				gfx_vec_insert(&_groufix.devices, 1, &dev, 0);
+				type = dev.base.type;
+				ver = pdp.apiVersion;
+			}
 		}
 
 		return 1;
@@ -306,4 +327,12 @@ GFX_API GFXDevice* gfx_get_device(size_t index)
 	assert(index < _groufix.devices.size);
 
 	return gfx_vec_at(&_groufix.devices, index);
+}
+
+/****************************/
+GFX_API GFXDevice* gfx_get_primary_device(void)
+{
+	assert(_groufix.devices.size > 0);
+
+	return gfx_vec_at(&_groufix.monitors, 0);
 }
