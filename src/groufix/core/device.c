@@ -57,7 +57,7 @@ static int _gfx_device_init_context(_GFXDevice* device)
 
 	{
 		// Enumerate all device groups.
-		// Again with the goto-proof scope.
+		// We use a scope here so the goto above is allowed.
 		VkPhysicalDeviceGroupProperties groups[count];
 
 		result = _groufix.vk.EnumeratePhysicalDeviceGroups(
@@ -111,6 +111,12 @@ static int _gfx_device_init_context(_GFXDevice* device)
 			context->numDevices * sizeof(VkPhysicalDevice));
 
 		// Finally go create the logical Vulkan device.
+		// Enable VK_LAYER_KHRONOS_validation if debug.
+		// This is deprecated by now, but for older Vulkan versions.
+#if !defined (NDEBUG)
+		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
+#endif
+
 		VkDeviceGroupDeviceCreateInfo dgdci = {
 			.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO,
 
@@ -126,8 +132,13 @@ static int _gfx_device_init_context(_GFXDevice* device)
 			.flags                   = 0,
 			.queueCreateInfoCount    = 0,    // TODO: obviously > 0.
 			.pQueueCreateInfos       = NULL, // TODO: Cannot be NULL!
+#if defined (NDEBUG)
 			.enabledLayerCount       = 0,
 			.ppEnabledLayerNames     = NULL,
+#else
+			.enabledLayerCount       = 1,
+			.ppEnabledLayerNames     = layers,
+#endif
 			.enabledExtensionCount   = 0,
 			.ppEnabledExtensionNames = NULL,
 			.pEnabledFeatures        = NULL
@@ -191,7 +202,7 @@ int _gfx_devices_init(void)
 
 	{
 		// Enumerate all devices.
-		// We use a scope here so the goto above is allowed.
+		// Again with the goto-proof scope.
 		VkPhysicalDevice devices[count];
 
 		result = _groufix.vk.EnumeratePhysicalDevices(
@@ -334,5 +345,5 @@ GFX_API GFXDevice* gfx_get_primary_device(void)
 {
 	assert(_groufix.devices.size > 0);
 
-	return gfx_vec_at(&_groufix.monitors, 0);
+	return gfx_vec_at(&_groufix.devices, 0);
 }

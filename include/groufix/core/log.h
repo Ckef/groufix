@@ -48,7 +48,7 @@ typedef enum GFXLogLevel
 #define gfx_log_info(...) \
 	gfx_log(GFX_LOG_INFO, __FILE__, __func__, __LINE__, __VA_ARGS__)
 
-#if defined(NDEBUG)
+#if defined (NDEBUG)
 	#define gfx_log_debug(...)
 	#define gfx_log_trace(...)
 #else

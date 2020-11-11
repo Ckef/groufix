@@ -67,10 +67,17 @@ typedef struct _GFXState
 	struct
 	{
 		VkInstance instance;
+#if !defined (NDEBUG)
+		VkDebugUtilsMessengerEXT messenger;
+#endif
 
 		_GFX_PFN_VK(CreateInstance);
 		_GFX_PFN_VK(EnumerateInstanceVersion);
 
+#if !defined (NDEBUG)
+		_GFX_PFN_VK(CreateDebugUtilsMessengerEXT);
+		_GFX_PFN_VK(DestroyDebugUtilsMessengerEXT);
+#endif
 		_GFX_PFN_VK(CreateDevice);
 		_GFX_PFN_VK(DestroyInstance);
 		_GFX_PFN_VK(EnumeratePhysicalDeviceGroups);

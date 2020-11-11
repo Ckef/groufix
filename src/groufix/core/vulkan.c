@@ -8,6 +8,7 @@
 
 #include "groufix/core.h"
 #include <assert.h>
+#include <string.h>
 
 
 #define _GFX_GET_INSTANCE_PROC_ADDR(pName) \
@@ -19,6 +20,40 @@
 		goto clean; \
 	}
 
+
+#if !defined (NDEBUG)
+
+/****************************
+ * Callback for Vulkan debug messages.
+ */
+static VKAPI_ATTR VkBool32 VKAPI_PTR _gfx_vulkan_message(
+	VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT             messageType,
+	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+	void*                                       pUserData)
+{
+	// We're skipping the verbose flag.
+	// That's just too verbose man...
+	switch (messageSeverity)
+	{
+	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+		gfx_log_info("Vulkan: %s", pCallbackData->pMessage);
+		break;
+	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+		gfx_log_warn("Vulkan: %s", pCallbackData->pMessage);
+		break;
+	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+		gfx_log_error("Vulkan: %s", pCallbackData->pMessage);
+		break;
+
+	default:
+		break;
+	}
+
+	return VK_FALSE;
+}
+
+#endif
 
 /****************************/
 void _gfx_vulkan_log(VkResult result)
@@ -124,65 +159,123 @@ int _gfx_vulkan_init(void)
 	_GFX_GET_INSTANCE_PROC_ADDR(CreateInstance);
 	_GFX_GET_INSTANCE_PROC_ADDR(EnumerateInstanceVersion);
 
-	uint32_t count;
-	const char** extensions =
-		glfwGetRequiredInstanceExtensions(&count);
+	uint32_t glfwCount;
+	const char** glfwExtensions =
+		glfwGetRequiredInstanceExtensions(&glfwCount);
 
-	if (extensions == NULL)
+	if (glfwExtensions == NULL)
 		goto clean;
 
-	// Ok now go create a Vulkan instance.
-	uint32_t version;
-	_groufix.vk.EnumerateInstanceVersion(&version);
-
-	VkApplicationInfo ai = {
-		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-
-		.pNext              = NULL,
-		.pApplicationName   = NULL,
-		.applicationVersion = 0,
-		.pEngineName        = "groufix",
-		.engineVersion      = 0,
-		.apiVersion         = version
-	};
-
-	VkInstanceCreateInfo ici = {
-		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-
-		.pNext                   = NULL,
-		.flags                   = 0,
-		.pApplicationInfo        = &ai,
-		.enabledLayerCount       = 0,
-		.ppEnabledLayerNames     = NULL,
-		.enabledExtensionCount   = count,
-		.ppEnabledExtensionNames = extensions
-	};
-
-	VkResult result = _groufix.vk.CreateInstance(
-		&ici, NULL, &_groufix.vk.instance);
-
-	if (result != VK_SUCCESS)
 	{
-		_gfx_vulkan_log(result);
-		goto clean;
+		// Add our own extensions and layers if in debug mode.
+		// We use a scope here so the goto above is allowed.
+#if !defined (NDEBUG)
+		uint32_t count = glfwCount + 1;
+		const char* extensions[count];
+		memcpy(extensions, glfwExtensions, sizeof(char*) * glfwCount);
+
+		// VK_EXT_debug_utils so we can log Vulkan debug messages.
+		extensions[glfwCount] = "VK_EXT_debug_utils";
+
+		// Enable VK_LAYER_KHRONOS_validation if debug.
+		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
+#endif
+
+		// Ok now go create a Vulkan instance.
+		uint32_t version;
+		_groufix.vk.EnumerateInstanceVersion(&version);
+
+#if !defined (NDEBUG)
+		VkDebugUtilsMessengerCreateInfoEXT dumci = {
+			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+
+			.pNext           = NULL,
+			.flags           = 0,
+			.pfnUserCallback = _gfx_vulkan_message,
+			.pUserData       = NULL,
+			.messageSeverity =
+				VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+				VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+				VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+			.messageType =
+				VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+				VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
+		};
+#endif
+
+		VkApplicationInfo ai = {
+			.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+
+			.pNext              = NULL,
+			.pApplicationName   = NULL,
+			.applicationVersion = 0,
+			.pEngineName        = "groufix",
+			.engineVersion      = 0,
+			.apiVersion         = version
+		};
+
+		VkInstanceCreateInfo ici = {
+			.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+
+			.flags                   = 0,
+			.pApplicationInfo        = &ai,
+#if defined (NDEBUG)
+			.pNext                   = NULL,
+			.enabledLayerCount       = 0,
+			.ppEnabledLayerNames     = NULL,
+			.enabledExtensionCount   = glfwCount,
+			.ppEnabledExtensionNames = glfwExtensions
+#else
+			.pNext                   = &dumci,
+			.enabledLayerCount       = 1,
+			.ppEnabledLayerNames     = layers,
+			.enabledExtensionCount   = count,
+			.ppEnabledExtensionNames = extensions
+#endif
+		};
+
+		VkResult result = _groufix.vk.CreateInstance(
+			&ici, NULL, &_groufix.vk.instance);
+
+		if (result != VK_SUCCESS)
+		{
+			_gfx_vulkan_log(result);
+			goto clean;
+		}
+
+		// Knowing the Vulkan version is always useful.
+		gfx_log_info("Vulkan instance of version %u.%u.%u created.",
+			(unsigned int)VK_VERSION_MAJOR(version),
+			(unsigned int)VK_VERSION_MINOR(version),
+			(unsigned int)VK_VERSION_PATCH(version));
+
+		// Now load all instance level Vulkan functions.
+		// Load vkDestroyInstance first so we can clean properly.
+		_GFX_GET_INSTANCE_PROC_ADDR(DestroyInstance);
+#if !defined (NDEBUG)
+		_GFX_GET_INSTANCE_PROC_ADDR(CreateDebugUtilsMessengerEXT);
+		_GFX_GET_INSTANCE_PROC_ADDR(DestroyDebugUtilsMessengerEXT);
+#endif
+		_GFX_GET_INSTANCE_PROC_ADDR(CreateDevice);
+		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDeviceGroups);
+		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDevices);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties);
+
+#if !defined (NDEBUG)
+		// Register the Vulkan debug messenger callback.
+		result = _groufix.vk.CreateDebugUtilsMessengerEXT(
+			_groufix.vk.instance, &dumci, NULL, &_groufix.vk.messenger);
+
+		if (result != VK_SUCCESS)
+		{
+			_gfx_vulkan_log(result);
+			goto clean;
+		}
+#endif
+
+		return 1;
 	}
-
-	// Knowing the Vulkan version is always useful.
-	gfx_log_info("Vulkan instance of version %u.%u.%u created.",
-		(unsigned int)VK_VERSION_MAJOR(version),
-		(unsigned int)VK_VERSION_MINOR(version),
-		(unsigned int)VK_VERSION_PATCH(version));
-
-	// Now load all instance level Vulkan functions.
-	// Load vkDestroyInstance first so we can clean properly.
-	_GFX_GET_INSTANCE_PROC_ADDR(DestroyInstance);
-	_GFX_GET_INSTANCE_PROC_ADDR(CreateDevice);
-	_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDeviceGroups);
-	_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDevices);
-	_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);
-	_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties);
-
-	return 1;
 
 	// Cleanup on failure.
 clean:
@@ -204,8 +297,13 @@ void _gfx_vulkan_terminate(void)
 	if (_groufix.vk.instance == NULL)
 		return;
 
-	// Destroy the Vulkan instance.
-	_groufix.vk.DestroyInstance(_groufix.vk.instance, NULL);
+	// Destroy the debug messenger and Vulkan instance.
+#if !defined (NDEBUG)
+	_groufix.vk.DestroyDebugUtilsMessengerEXT(
+		_groufix.vk.instance, _groufix.vk.messenger, NULL);
+#endif
+	_groufix.vk.DestroyInstance(
+		_groufix.vk.instance, NULL);
 
 	// Signal that termination is done.
 	_groufix.vk.instance = NULL;
