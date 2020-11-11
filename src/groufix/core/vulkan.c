@@ -26,28 +26,37 @@
 /****************************
  * Callback for Vulkan debug messages.
  */
-static VKAPI_ATTR VkBool32 VKAPI_PTR _gfx_vulkan_message(
+static VkBool32 VKAPI_PTR _gfx_vulkan_message(
 	VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT             messageType,
 	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 	void*                                       pUserData)
 {
-	// We're skipping the verbose flag.
-	// That's just too verbose man...
-	switch (messageSeverity)
+	// General events go to verbose debug...
+	if (messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT)
+		gfx_log_verbose("Vulkan: %s", pCallbackData->pMessage);
+	else
 	{
-	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-		gfx_log_info("Vulkan: %s", pCallbackData->pMessage);
-		break;
-	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-		gfx_log_warn("Vulkan: %s", pCallbackData->pMessage);
-		break;
-	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-		gfx_log_error("Vulkan: %s", pCallbackData->pMessage);
-		break;
+		// Info goes to debug, verbose goes to verbose debug.
+		// We don't use info as this is a debug feature anyway.
+		switch (messageSeverity)
+		{
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+			gfx_log_verbose("Vulkan: %s", pCallbackData->pMessage);
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+			gfx_log_debug("Vulkan: %s", pCallbackData->pMessage);
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+			gfx_log_warn("Vulkan: %s", pCallbackData->pMessage);
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+			gfx_log_error("Vulkan: %s", pCallbackData->pMessage);
+			break;
 
-	default:
-		break;
+		default:
+			break;
+		}
 	}
 
 	return VK_FALSE;
@@ -194,10 +203,12 @@ int _gfx_vulkan_init(void)
 			.pfnUserCallback = _gfx_vulkan_message,
 			.pUserData       = NULL,
 			.messageSeverity =
+				VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
 				VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
 				VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 				VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
 			.messageType =
+				VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
 				VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 				VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
 		};

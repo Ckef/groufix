@@ -15,9 +15,10 @@
 
 /****************************
  * Stringified logging levels.
+ * Verbose debug has the same name, but different color.
  */
 static const char* _gfx_log_levels[] = {
-	"FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"
+	"FATAL", "ERROR", "WARN", "INFO", "DEBUG", "DEBUG"
 };
 
 

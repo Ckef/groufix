@@ -24,7 +24,7 @@ typedef enum GFXLogLevel
 	GFX_LOG_WARN,
 	GFX_LOG_INFO,
 	GFX_LOG_DEBUG,
-	GFX_LOG_TRACE,
+	GFX_LOG_DEBUG_VERBOSE,
 	GFX_LOG_ALL,
 
 #if defined (NDEBUG)
@@ -50,12 +50,12 @@ typedef enum GFXLogLevel
 
 #if defined (NDEBUG)
 	#define gfx_log_debug(...)
-	#define gfx_log_trace(...)
+	#define gfx_log_verbose(...)
 #else
 	#define gfx_log_debug(...) \
 		gfx_log(GFX_LOG_DEBUG, __FILE__, __func__, __LINE__, __VA_ARGS__)
-	#define gfx_log_trace(...) \
-		gfx_log(GFX_LOG_TRACE, __FILE__, __func__, __LINE__, __VA_ARGS__)
+	#define gfx_log_verbose(...) \
+		gfx_log(GFX_LOG_DEBUG_VERBOSE, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #endif
 
 /**
