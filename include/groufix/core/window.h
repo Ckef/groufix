@@ -24,7 +24,8 @@ typedef struct GFXMonitor
 {
 	// User pointer, can be used for any purpose.
 	// Defaults to NULL.
-	void* ptr;
+	void*       ptr;
+	const char* name; // Read-only.
 
 } GFXMonitor;
 

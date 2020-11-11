@@ -107,6 +107,7 @@ int _gfx_monitors_init(void)
 		glfwSetMonitorUserPointer(handles[i], monitor);
 
 		monitor->base.ptr = NULL;
+		monitor->base.name = glfwGetMonitorName(handles[i]);
 		monitor->handle = handles[i];
 
 		// There should be enough room because we reserved data.

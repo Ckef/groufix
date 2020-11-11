@@ -198,7 +198,7 @@ int _gfx_devices_init(void)
 		_groufix.vk.instance, &count, NULL);
 
 	if (result != VK_SUCCESS || count == 0)
-		goto clean;
+		goto terminate;
 
 	{
 		// Enumerate all devices.
@@ -209,13 +209,13 @@ int _gfx_devices_init(void)
 			_groufix.vk.instance, &count, devices);
 
 		if (result != VK_SUCCESS)
-			goto clean;
+			goto terminate;
 
 		// Fill the array of groufix devices.
 		// While doing so, keep track of the primary device,
 		// this to make sure the primary device is at index 0.
 		if (!gfx_vec_reserve(&_groufix.devices, (size_t)count))
-			goto clean;
+			goto terminate;
 
 		GFXDeviceType type = GFX_DEVICE_UNKNOWN;
 		uint32_t ver = 0;
@@ -232,6 +232,16 @@ int _gfx_devices_init(void)
 				.context = NULL,
 				.vk      = { .device = devices[i] }
 			};
+
+			// Create a new string for its name.
+			size_t len = strlen(pdp.deviceName);
+			dev.base.name = malloc(sizeof(char*) * (len+1));
+
+			if (dev.base.name == NULL)
+				goto terminate;
+
+			strcpy((char*)dev.base.name, pdp.deviceName);
+			((char*)dev.base.name)[len] = '\0';
 
 			// Check if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.
@@ -255,9 +265,9 @@ int _gfx_devices_init(void)
 	}
 
 	// Cleanup on failure.
-clean:
+terminate:
 	gfx_log_error("Could not find or initialize physical devices.");
-	gfx_vec_clear(&_groufix.devices);
+	_gfx_devices_terminate();
 
 	return 0;
 }
@@ -277,6 +287,14 @@ void _gfx_devices_terminate(void)
 		context->vk.DestroyDevice(context->vk.device, NULL);
 
 		free(context);
+	}
+
+	// And free all groufix devices, this only entails freeing the name string.
+	// Devices are allocated in-place so no need to free anything else.
+	for (size_t i = 0; i < _groufix.devices.size; ++i)
+	{
+		_GFXDevice* device = gfx_vec_at(&_groufix.devices, i);
+		free((char*)device->base.name);
 	}
 
 	// Regular cleanup.

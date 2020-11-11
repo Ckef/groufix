@@ -20,17 +20,25 @@ int main()
 
 	// Enumerate devices.
 	size_t numDevices = gfx_get_num_devices();
-	printf("#devices: %u | ", (unsigned int)numDevices);
+	printf("#devices: %u\n", (unsigned int)numDevices);
 
 	for (size_t i = 0; i < numDevices; ++i)
 	{
 		GFXDevice* device = gfx_get_device(i);
-		printf("%u: { .type = %u } ", (unsigned int)i, device->type);
+		printf("\t%u: { .type = %u, .name = %s }\n",
+			(unsigned int)i, device->type, device->name);
 	}
 
 	// Enumerate monitors.
 	size_t numMonitors = gfx_get_num_monitors();
-	printf("\n#monitors: %u\n", (unsigned int)numMonitors);
+	printf("#monitors: %u\n", (unsigned int)numMonitors);
+
+	for (size_t i = 0; i < numMonitors; ++i)
+	{
+		GFXMonitor* monitor = gfx_get_monitor(i);
+		printf("\t%u: { .name = %s }\n",
+			(unsigned int)i, monitor->name);
+	}
 
 	// Create a window while we're at it...
 	// Then just stall a bit.
