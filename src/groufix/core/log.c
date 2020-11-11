@@ -12,6 +12,10 @@
 #include <stdarg.h>
 #include <time.h>
 
+#if defined (GFX_UNIX)
+	#include <unistd.h>
+#endif
+
 
 /****************************
  * Stringified logging levels.
@@ -43,15 +47,23 @@ static void _gfx_log_out(unsigned int thread,
 	const char* L = _gfx_log_levels[level-1];
 
 #if defined (GFX_UNIX)
-	const char* C = _gfx_log_colors[level-1];
+	if (isatty(STDOUT_FILENO))
+	{
+		// If on unix and stdout is a tty, use color.
+		const char* C = _gfx_log_colors[level-1];
 
-	printf("%.2ems %s%-5s\x1b[0m \x1b[90mthread%u: %s:%u: %s:\x1b[0m ",
-		timeMs, C, L, thread, file, line, func);
+		printf("%.2ems %s%-5s\x1b[0m \x1b[90mthread%u: %s:%u: %s:\x1b[0m ",
+			timeMs, C, L, thread, file, line, func);
+	}
+	else
+	{
+#endif
+		// If not, or not on unix at all, output regularly.
+		printf("%.2ems %-5s thread%u: %s:%u: %s: ",
+			timeMs, L, thread, file, line, func);
 
-#elif defined (GFX_WIN32)
-	printf("%.2ems %-5s thread%u: %s:%u: %s: ",
-		timeMs, L, thread, file, line, func);
-
+#if defined (GFX_UNIX)
+	}
 #endif
 
 	vprintf(fmt, args);
