@@ -251,6 +251,14 @@ int _gfx_vulkan_init(void)
 		if (result != VK_SUCCESS)
 		{
 			_gfx_vulkan_log(result);
+
+#if !defined (NDEBUG)
+			gfx_log_warn("Perhaps you do not have the Vulkan SDK installed?"
+			             " To build without needing the SDK, run "
+			             "`make clean` then build with DEBUG=OFF."
+			             " Or download the Vulkan SDK from `https://vulkan.lunarg.com/sdk/home`.");
+#endif
+
 			goto clean;
 		}
 
