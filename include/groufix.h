@@ -42,5 +42,12 @@ GFX_API int gfx_attach(void);
  */
 GFX_API void gfx_detach(void);
 
+/**
+ * Polls all window manager events and calls the window and monitor callbacks.
+ * Must be called after gfx_init has succesfully returned.
+ * Must be called from the main thread.
+ */
+GFX_API void gfx_poll_events(void);
+
 
 #endif

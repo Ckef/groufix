@@ -46,8 +46,10 @@ typedef struct GFXWindow
 		void (*close   )(struct GFXWindow*);
 		void (*drop    )(struct GFXWindow*, size_t count, const char** paths);
 		void (*focus   )(struct GFXWindow*);
+		void (*blur    )(struct GFXWindow*);
 		void (*maximize)(struct GFXWindow*);
 		void (*minimize)(struct GFXWindow*);
+		void (*restore )(struct GFXWindow*);
 		void (*move    )(struct GFXWindow*, int x, int y);
 		void (*resize  )(struct GFXWindow*, size_t width, size_t height);
 
@@ -107,7 +109,7 @@ GFX_API GFXMonitor* gfx_get_primary_monitor(void);
  * zero if the monitor is disconnected, non-zero if it is connected.
  * @param event NULL to disable the event callback.
  */
-GFX_API void gfx_set_monitor_events(void (*event)(GFXMonitor*, int));
+GFX_API void gfx_set_monitor_event(void (*event)(GFXMonitor*, int));
 
 
 /****************************
@@ -126,9 +128,24 @@ GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
 
 /**
  * Destroys a logical window.
+ * Must NOT be called from within a window event.
  * @param window Cannot be NULL.
  */
 GFX_API void gfx_destroy_window(GFXWindow* window);
+
+/**
+ * Retrieves whether the close flag is set.
+ * This flag is set by either the window manager or gfx_window_set_close.
+ * @param window Cannot be NULL.
+ */
+GFX_API int gfx_window_should_close(GFXWindow* window);
+
+/**
+ * Explicitally set the close flag of a window.
+ * This is the only way to tell a window to close from within a window event.
+ * @param window Cannot be NULL.
+ */
+GFX_API void gfx_window_set_close(GFXWindow* window, int close);
 
 
 #endif

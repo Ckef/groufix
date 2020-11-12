@@ -8,6 +8,7 @@
 
 #include "groufix.h"
 #include "groufix/core.h"
+#include <assert.h>
 
 
 /****************************
@@ -17,7 +18,7 @@ static void _gfx_glfw_error(int error, const char* description)
 {
 	// Just log it as a groufix error,
 	// this should already take care of threading.
-	gfx_log_error(description);
+	gfx_log_error("GLFW: %s", description);
 }
 
 /****************************/
@@ -122,4 +123,12 @@ GFX_API void gfx_detach(void)
 		return;
 
 	_gfx_state_destroy_local();
+}
+
+/****************************/
+GFX_API void gfx_poll_events(void)
+{
+	assert(_groufix.initialized);
+
+	glfwPollEvents();
 }

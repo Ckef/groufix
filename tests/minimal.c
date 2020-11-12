@@ -12,12 +12,8 @@
 
 
 /****************************/
-int main()
+static void print_info(void)
 {
-	// Initialize.
-	if (!gfx_init())
-		goto fail;
-
 	// Enumerate devices.
 	size_t numDevices = gfx_get_num_devices();
 	printf("#devices: %u\n", (unsigned int)numDevices);
@@ -25,8 +21,7 @@ int main()
 	for (size_t i = 0; i < numDevices; ++i)
 	{
 		GFXDevice* device = gfx_get_device(i);
-		printf("\t%u: { .type = %u, .name = %s }\n",
-			(unsigned int)i, device->type, device->name);
+		printf("\t{ .type = %u, .name = %s }\n", device->type, device->name);
 	}
 
 	// Enumerate monitors.
@@ -36,17 +31,31 @@ int main()
 	for (size_t i = 0; i < numMonitors; ++i)
 	{
 		GFXMonitor* monitor = gfx_get_monitor(i);
-		printf("\t%u: { .name = %s }\n",
-			(unsigned int)i, monitor->name);
+		printf("\t{ .name = %s }\n", monitor->name);
 	}
+}
 
-	// Create a window while we're at it...
-	// Then just stall a bit.
+/****************************/
+int main()
+{
+	// Initialize.
+	if (!gfx_init())
+		goto fail;
+
+	// Enumerate devices and monitors.
+	print_info();
+
+	// Create a window.
 	GFXWindow* window = gfx_create_window(600, 400, "groufix", NULL);
-	getchar();
-	gfx_destroy_window(window);
+	if (window == NULL)
+		goto fail;
+
+	// Setup an event loop.
+	while (!gfx_window_should_close(window))
+		gfx_poll_events();
 
 	// Terminate.
+	gfx_destroy_window(window);
 	gfx_terminate();
 
 	puts("Success!");

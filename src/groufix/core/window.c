@@ -13,6 +13,205 @@
 #include <string.h>
 
 
+/****************************
+ * GLFW window close callback.
+ */
+static void _gfx_glfw_window_close(GLFWwindow* handle)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (window->events.close != NULL)
+		window->events.close(window);
+}
+
+/****************************
+ * GLFW drop callback.
+ */
+static void _gfx_glfw_drop(GLFWwindow* handle, int count, const char** paths)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (window->events.drop != NULL)
+		window->events.drop(window, (size_t)count, paths);
+}
+
+/****************************
+ * GLFW window focus callback.
+ */
+static void _gfx_glfw_window_focus(GLFWwindow* handle, int focused)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (focused)
+	{
+		if (window->events.focus != NULL)
+			window->events.focus(window);
+	}
+	else
+	{
+		if (window->events.blur != NULL)
+			window->events.blur(window);
+	}
+}
+
+/****************************
+ * GLFW window maximize callback.
+ */
+static void _gfx_glfw_window_maximize(GLFWwindow* handle, int maximized)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (maximized)
+	{
+		if (window->events.maximize != NULL)
+			window->events.maximize(window);
+	}
+	else
+	{
+		if (window->events.restore != NULL)
+			window->events.restore(window);
+	}
+}
+
+/****************************
+ * GLFW window iconify callback.
+ */
+static void _gfx_glfw_window_iconify(GLFWwindow* handle, int iconified)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (iconified)
+	{
+		if (window->events.minimize != NULL)
+			window->events.minimize(window);
+	}
+	else
+	{
+		if (window->events.restore != NULL)
+			window->events.restore(window);
+	}
+}
+
+/****************************
+ * GLFW window pos callback.
+ */
+static void _gfx_glfw_window_pos(GLFWwindow* handle, int x, int y)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (window->events.move != NULL)
+		window->events.move(window, x, y);
+}
+
+/****************************
+ * GLFW window size callback.
+ */
+static void _gfx_glfw_window_size(GLFWwindow* handle, int width, int height)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (window->events.resize != NULL)
+		window->events.resize(window, (size_t)width, (size_t)height);
+}
+
+/****************************
+ * GLFW key callback.
+ */
+static void _gfx_glfw_key(GLFWwindow* handle,
+                          int key, int scancode, int action, int mods)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	switch (action)
+	{
+	case GLFW_PRESS:
+		if (window->events.key.press != NULL)
+			window->events.key.press(window, key, scancode, mods);
+		break;
+	case GLFW_RELEASE:
+		if (window->events.key.release != NULL)
+			window->events.key.release(window, key, scancode, mods);
+		break;
+	case GLFW_REPEAT:
+		if (window->events.key.repeat != NULL)
+			window->events.key.repeat(window, key, scancode, mods);
+		break;
+	}
+}
+
+/****************************
+ * GLFW char callback.
+ */
+static void _gfx_glfw_char(GLFWwindow* handle, unsigned int codepoint)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (window->events.key.text != NULL)
+		window->events.key.text(window, codepoint);
+}
+
+/****************************
+ * GLFW cursor enter callback.
+ */
+static void _gfx_glfw_cursor_enter(GLFWwindow* handle, int entered)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (entered)
+	{
+		if (window->events.mouse.enter != NULL)
+			window->events.mouse.enter(window);
+	}
+	else
+	{
+		if (window->events.mouse.leave != NULL)
+			window->events.mouse.leave(window);
+	}
+}
+
+/****************************
+ * GLFW cursor position callback.
+ */
+static void _gfx_glfw_cursor_pos(GLFWwindow* handle, double x, double y)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (window->events.mouse.move != NULL)
+		window->events.mouse.move(window, x, y);
+}
+
+/****************************
+ * GLFW mouse button callback.
+ */
+static void _gfx_glfw_mouse_button(GLFWwindow* handle,
+                                   int button, int action, int mods)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	switch (action)
+	{
+	case GLFW_PRESS:
+		if (window->events.mouse.press != NULL)
+			window->events.mouse.press(window, button, mods);
+		break;
+	case GLFW_RELEASE:
+		if (window->events.mouse.release != NULL)
+			window->events.mouse.release(window, button, mods);
+		break;
+	}
+}
+
+/****************************
+ * GLFW scroll callback.
+ */
+static void _gfx_glfw_scroll(GLFWwindow* handle, double x, double y)
+{
+	GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	if (window->events.mouse.scroll != NULL)
+		window->events.mouse.scroll(window, x, y);
+}
+
 /****************************/
 GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
                                      const char* title, GFXMonitor* monitor)
@@ -42,7 +241,39 @@ GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
 	if (window->handle == NULL)
 		goto clean;
 
-	// TODO: register all the callbacks.
+	// Set the input mode so we register caps/num lock as well.
+	// Then associate with GLFW using the user pointer and
+	// finally register all callbacks.
+	glfwSetInputMode(window->handle, GLFW_LOCK_KEY_MODS, GLFW_TRUE);
+	glfwSetWindowUserPointer(window->handle, window);
+
+	glfwSetWindowCloseCallback(
+		window->handle, _gfx_glfw_window_close);
+	glfwSetDropCallback(
+		window->handle, _gfx_glfw_drop);
+	glfwSetWindowFocusCallback(
+		window->handle, _gfx_glfw_window_focus);
+	glfwSetWindowMaximizeCallback(
+		window->handle, _gfx_glfw_window_maximize);
+	glfwSetWindowIconifyCallback(
+		window->handle, _gfx_glfw_window_iconify);
+	glfwSetWindowPosCallback(
+		window->handle, _gfx_glfw_window_pos);
+	glfwSetWindowSizeCallback(
+		window->handle, _gfx_glfw_window_size);
+	glfwSetKeyCallback(
+		window->handle, _gfx_glfw_key);
+	glfwSetCharCallback(
+		window->handle, _gfx_glfw_char);
+	glfwSetCursorEnterCallback(
+		window->handle, _gfx_glfw_cursor_enter);
+	glfwSetCursorPosCallback(
+		window->handle, _gfx_glfw_cursor_pos);
+	glfwSetMouseButtonCallback(
+		window->handle, _gfx_glfw_mouse_button);
+	glfwSetScrollCallback(
+		window->handle, _gfx_glfw_scroll);
+
 	// TODO: create Vulkan surface.
 
 	return &window->base;
@@ -62,4 +293,20 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 
 	glfwDestroyWindow(((_GFXWindow*)window)->handle);
 	free(window);
+}
+
+/****************************/
+GFX_API int gfx_window_should_close(GFXWindow* window)
+{
+	assert(window != NULL);
+
+	return glfwWindowShouldClose(((_GFXWindow*)window)->handle);
+}
+
+/****************************/
+GFX_API void gfx_window_set_close(GFXWindow* window, int close)
+{
+	assert(window != NULL);
+
+	glfwSetWindowShouldClose(((_GFXWindow*)window)->handle, close);
 }
