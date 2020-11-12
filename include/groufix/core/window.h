@@ -129,7 +129,6 @@ GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
 /**
  * Destroys a logical window.
  * Must NOT be called from within a window event.
- * @param window Cannot be NULL.
  */
 GFX_API void gfx_destroy_window(GFXWindow* window);
 

@@ -276,6 +276,7 @@ int _gfx_vulkan_init(void)
 		_GFX_GET_INSTANCE_PROC_ADDR(DestroyDebugUtilsMessengerEXT);
 #endif
 		_GFX_GET_INSTANCE_PROC_ADDR(CreateDevice);
+		_GFX_GET_INSTANCE_PROC_ADDR(DestroySurfaceKHR);
 		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDeviceGroups);
 		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDevices);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);

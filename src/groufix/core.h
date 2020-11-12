@@ -80,6 +80,7 @@ typedef struct _GFXState
 #endif
 		_GFX_PFN_VK(CreateDevice);
 		_GFX_PFN_VK(DestroyInstance);
+		_GFX_PFN_VK(DestroySurfaceKHR);
 		_GFX_PFN_VK(EnumeratePhysicalDeviceGroups);
 		_GFX_PFN_VK(EnumeratePhysicalDevices);
 		_GFX_PFN_VK(GetDeviceProcAddr);

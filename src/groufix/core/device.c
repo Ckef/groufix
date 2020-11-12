@@ -187,6 +187,7 @@ clean:
 /****************************/
 int _gfx_devices_init(void)
 {
+	assert(_groufix.vk.instance != NULL);
 	assert(_groufix.devices.size == 0);
 
 	// Reserve and create groufix devices.

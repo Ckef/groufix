@@ -219,6 +219,7 @@ GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
 	assert(width > 0);
 	assert(height > 0);
 	assert(title != NULL);
+	assert(_groufix.vk.instance != NULL);
 
 	// Allocate and set a new window.
 	// Just set the user pointer and all callbacks to all 0's.
@@ -274,7 +275,17 @@ GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
 	glfwSetScrollCallback(
 		window->handle, _gfx_glfw_scroll);
 
-	// TODO: create Vulkan surface.
+	// And finally attempt to create a Vulkan surface for the window.
+	VkResult result = glfwCreateWindowSurface(
+		_groufix.vk.instance, window->handle, NULL, &window->vk.surface);
+
+	if (result != VK_SUCCESS)
+	{
+		_gfx_vulkan_log(result);
+		glfwDestroyWindow(window->handle);
+
+		goto clean;
+	}
 
 	return &window->base;
 
@@ -289,9 +300,14 @@ clean:
 /****************************/
 GFX_API void gfx_destroy_window(GFXWindow* window)
 {
-	assert(window != NULL);
+	if (window == NULL)
+		return;
 
-	glfwDestroyWindow(((_GFXWindow*)window)->handle);
+	_groufix.vk.DestroySurfaceKHR(
+		_groufix.vk.instance, ((_GFXWindow*)window)->vk.surface, NULL);
+	glfwDestroyWindow(
+		((_GFXWindow*)window)->handle);
+
 	free(window);
 }
 

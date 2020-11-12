@@ -31,7 +31,8 @@ GFX_API void gfx_terminate(void);
 
 /**
  * Initializes the calling thread for groufix use.
- * Must be called after gfx_init has succesfully returned.
+ * This call must be made on the calling thread before any other groufix calls,
+ * the main thread (the one that called gfx_init) is the only exception.
  * @return Non-zero on success.
  */
 GFX_API int gfx_attach(void);
