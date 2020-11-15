@@ -32,6 +32,25 @@
 
 
 /**
+ * Thread local data.
+ */
+typedef struct _GFXThreadState
+{
+	unsigned int id;
+
+	// Logging data.
+	struct
+	{
+		GFXLogLevel level;
+		int         std;
+		FILE*       file;
+
+	} log;
+
+} _GFXThreadState;
+
+
+/**
  * groufix global data, i.e. groufix state.
  */
 typedef struct _GFXState
@@ -93,31 +112,12 @@ typedef struct _GFXState
 
 
 /**
- * Thread local data.
- */
-typedef struct _GFXThreadState
-{
-	unsigned int id;
-
-	// Logging data.
-	struct
-	{
-		GFXLogLevel level;
-		int         std;
-		FILE*       file;
-
-	} log;
-
-} _GFXThreadState;
-
-
-/**
  * Logical Vulkan queue family.
  */
 typedef struct _GFXQueueFamily
 {
 	VkQueueFlags flags;
-	uint32_t     familyIndex;
+	uint32_t     index; // Vulkan family index.
 	uint32_t     count;
 
 } _GFXQueueFamily;
@@ -138,7 +138,7 @@ typedef struct _GFXContext
 
 	} vk;
 
-	// Queues created for the device.
+	// Queue families created for the device.
 	size_t            numQueues;
 	_GFXQueueFamily*  queues;
 

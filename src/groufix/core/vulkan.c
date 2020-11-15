@@ -238,7 +238,7 @@ int _gfx_vulkan_init(void)
 			.ppEnabledExtensionNames = glfwExtensions
 #else
 			.pNext                   = &dumci,
-			.enabledLayerCount       = 1,
+			.enabledLayerCount       = sizeof(layers)/sizeof(char*),
 			.ppEnabledLayerNames     = layers,
 			.enabledExtensionCount   = count,
 			.ppEnabledExtensionNames = extensions

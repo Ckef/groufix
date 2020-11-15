@@ -83,9 +83,9 @@ static uint32_t _gfx_device_get_queues(
 			if (props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			{
 				(*families)[0] = (_GFXQueueFamily){
-					.flags       = props[i].queueFlags,
-					.familyIndex = (uint32_t)i,
-					.count       = 1
+					.flags = props[i].queueFlags,
+					.index = (uint32_t)i,
+					.count = 1
 				};
 
 				(*createInfos)[0] = (VkDeviceQueueCreateInfo){
@@ -224,8 +224,10 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		context->vk.DestroyDevice = NULL;
 
 		// Finally go create the logical Vulkan device.
+		// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
 		// Enable VK_LAYER_KHRONOS_validation if debug,
 		// this is deprecated by now, but for older Vulkan versions.
+		const char* extensions[] = { "VK_KHR_swapchain" };
 #if !defined (NDEBUG)
 		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 #endif
@@ -249,11 +251,11 @@ static int _gfx_device_init_context(_GFXDevice* device)
 			.enabledLayerCount       = 0,
 			.ppEnabledLayerNames     = NULL,
 #else
-			.enabledLayerCount       = 1,
+			.enabledLayerCount       = sizeof(layers)/sizeof(char*),
 			.ppEnabledLayerNames     = layers,
 #endif
-			.enabledExtensionCount   = 0,
-			.ppEnabledExtensionNames = NULL,
+			.enabledExtensionCount   = sizeof(extensions)/sizeof(char*),
+			.ppEnabledExtensionNames = extensions,
 			.pEnabledFeatures        = NULL
 		};
 
