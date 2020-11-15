@@ -24,7 +24,7 @@
 
 #define _GFX_GET_DEVICE_TYPE(vType) \
 	((vType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) ? \
-		GFX_DEVICE_DEDICATED_GPU : \
+		GFX_DEVICE_DISCRETE_GPU : \
 	(vType == VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU) ? \
 		GFX_DEVICE_VIRTUAL_GPU : \
 	(vType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) ? \
@@ -33,6 +33,88 @@
 		GFX_DEVICE_CPU : \
 		GFX_DEVICE_UNKNOWN)
 
+
+/****************************
+ * Array of Vulkan queue priority values in [0,1].
+ * TODO: For now just a singular 1, changes when more queues get created...
+ */
+static const float _gfx_vk_queue_priorities[] = { 1.0f };
+
+
+/****************************
+ * Creates an array of queue families and VkDeviceQueueCreateInfo structures
+ * desired by the groufix implementation, for a given device.
+ * @param families    Output families, must call free() manually to release it.
+ * @param createInfos Output create info, must call free() manually to release it.
+ * @return The size of the arrays.
+ */
+static uint32_t _gfx_device_get_queues(
+	VkPhysicalDevice          device,
+	_GFXQueueFamily**         families,
+	VkDeviceQueueCreateInfo** createInfos)
+{
+	// For now, we're using exactly 1 queue,
+	// namely the first one with VK_QUEUE_GRAPHICS_BIT set.
+	// TODO: In the future me might want to create more queues for concurrency,
+	// but this is fine for now...
+	uint32_t desired = 1;
+
+	*families = malloc(sizeof(_GFXQueueFamily) * desired);
+	*createInfos = malloc(sizeof(VkDeviceQueueCreateInfo) * desired);
+
+	if (*families == NULL || *createInfos == NULL)
+		goto clean;
+
+	// So get all queue families, do the searching...
+	uint32_t count;
+	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+		device, &count, NULL);
+
+	// We use a scope here so the goto above is allowed.
+	{
+		// Enumerate all queue families.
+		VkQueueFamilyProperties props[count];
+
+		_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+			device, &count, props);
+
+		// Now finally do the searching...
+		for (size_t i = 0; i < count; ++i)
+			if (props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			{
+				(*families)[0] = (_GFXQueueFamily){
+					.flags       = props[i].queueFlags,
+					.familyIndex = (uint32_t)i,
+					.count       = 1
+				};
+
+				(*createInfos)[0] = (VkDeviceQueueCreateInfo){
+					.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+
+					.pNext            = NULL,
+					.flags            = 0,
+					.queueFamilyIndex = (uint32_t)i,
+					.queueCount       = 1,
+					.pQueuePriorities = _gfx_vk_queue_priorities
+				};
+
+				return desired;
+			}
+
+		// Uuuuh.. oops..
+		gfx_log_error("Could not find a queue with VK_QUEUE_GRAPHICS_BIT set.");
+	}
+
+	// Cleanup on failure.
+clean:
+	free(*families);
+	*families = NULL;
+
+	free(*createInfos);
+	*createInfos = NULL;
+
+	return 0;
+}
 
 /****************************
  * Creates an appropriate context (Vulkan device + fp's) suited for a device.
@@ -45,7 +127,25 @@ static int _gfx_device_init_context(_GFXDevice* device)
 
 	_GFXContext* context = NULL;
 
+	// Call the thing that gets us the arrays of desired queues.
+	// These are explicitly freed on cleanup or success.
+	// When a future device also uses this context,
+	// it is assumed it has equivalent queue family properties.
+	// If there are any device groups such that this is the case,
+	// you probably have equivalent GPUs in an SLI/CrossFire setup anyway...
+	_GFXQueueFamily* families;
+	VkDeviceQueueCreateInfo* createInfos;
+
+	uint32_t queueCount = _gfx_device_get_queues(
+		device->vk.device, &families, &createInfos);
+
+	if (queueCount == 0)
+		goto clean;
+
+	// Now that we have desired queues, we can go create a context.
 	// So first of all we find a device group which this device is part of.
+	// We take the first device group we find, this assumes a device is never
+	// seen in multiple groups...
 	// Then we create a logical Vulkan device for this entire group.
 	// Later on, any other device in the group will also use this context.
 	uint32_t count;
@@ -55,9 +155,9 @@ static int _gfx_device_init_context(_GFXDevice* device)
 	if (result != VK_SUCCESS || count == 0)
 		goto clean;
 
+	// Again with the goto-proof scope.
 	{
 		// Enumerate all device groups.
-		// We use a scope here so the goto above is allowed.
 		VkPhysicalDeviceGroupProperties groups[count];
 
 		result = _groufix.vk.EnumeratePhysicalDeviceGroups(
@@ -80,39 +180,52 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		}
 
 		if (i >= count)
+		{
+			// Probably want to know when a device is somehow invalid...
+			gfx_log_error("Physical device could not be found in any device group.");
 			goto clean;
+		}
 
 		// Ok so we found a group, now go create a context.
-		// We allocate an array at the end of the context,
-		// holding the physical devices in the device group.
-		// This is used to check if a future device can use this context.
-		if (!gfx_vec_reserve(&_groufix.contexts, _groufix.contexts.size + 1))
-			goto clean;
-
+		// We allocate two arrays at the end of the context:
+		// 1) holding the queue families created for the device.
+		// 2) holding the physical devices in the device group,
+		// this is used to check if a future device can use this context.
 		context = malloc(
 			sizeof(_GFXContext) +
-			groups[i].physicalDeviceCount * sizeof(VkPhysicalDevice));
+			sizeof(_GFXQueueFamily) * queueCount +
+			sizeof(VkPhysicalDevice) * groups[i].physicalDeviceCount);
 
 		if (context == NULL)
 			goto clean;
 
-		gfx_vec_push(&_groufix.contexts, 1, &context);
+		if (!gfx_vec_push(&_groufix.contexts, 1, &context))
+			goto clean;
+
 		device->index = j;
 		device->context = context;
 
-		// Set this to NULL so we don't accidentally call garbage on cleanup.
-		context->vk.DestroyDevice = NULL;
-
+		context->numQueues = queueCount;
+		context->queues = (_GFXQueueFamily*)(context + 1);
 		context->numDevices = groups[i].physicalDeviceCount;
+		context->devices = (VkPhysicalDevice*)(context->queues + queueCount);
+
+		memcpy(
+			context->queues,
+			families,
+			sizeof(_GFXQueueFamily) * context->numQueues);
 
 		memcpy(
 			context->devices,
 			groups[i].physicalDevices,
-			context->numDevices * sizeof(VkPhysicalDevice));
+			sizeof(VkPhysicalDevice) * context->numDevices);
+
+		// Set this to NULL so we don't accidentally call garbage on cleanup.
+		context->vk.DestroyDevice = NULL;
 
 		// Finally go create the logical Vulkan device.
-		// Enable VK_LAYER_KHRONOS_validation if debug.
-		// This is deprecated by now, but for older Vulkan versions.
+		// Enable VK_LAYER_KHRONOS_validation if debug,
+		// this is deprecated by now, but for older Vulkan versions.
 #if !defined (NDEBUG)
 		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 #endif
@@ -130,8 +243,8 @@ static int _gfx_device_init_context(_GFXDevice* device)
 
 			.pNext                   = &dgdci,
 			.flags                   = 0,
-			.queueCreateInfoCount    = 0,    // TODO: obviously > 0.
-			.pQueueCreateInfos       = NULL, // TODO: Cannot be NULL!
+			.queueCreateInfoCount    = queueCount,
+			.pQueueCreateInfos       = createInfos,
 #if defined (NDEBUG)
 			.enabledLayerCount       = 0,
 			.ppEnabledLayerNames     = NULL,
@@ -161,6 +274,9 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
 		_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
 
+		free(families);
+		free(createInfos);
+
 		return 1;
 	}
 
@@ -180,6 +296,9 @@ clean:
 	free(context);
 	device->index = 0;
 	device->context = NULL;
+
+	free(families);
+	free(createInfos);
 
 	return 0;
 }
@@ -201,9 +320,9 @@ int _gfx_devices_init(void)
 	if (result != VK_SUCCESS || count == 0)
 		goto terminate;
 
+	// Again with the goto-proof scope.
 	{
 		// Enumerate all devices.
-		// Again with the goto-proof scope.
 		VkPhysicalDevice devices[count];
 
 		result = _groufix.vk.EnumeratePhysicalDevices(

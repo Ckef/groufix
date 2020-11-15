@@ -85,6 +85,7 @@ typedef struct _GFXState
 		_GFX_PFN_VK(EnumeratePhysicalDevices);
 		_GFX_PFN_VK(GetDeviceProcAddr);
 		_GFX_PFN_VK(GetPhysicalDeviceProperties);
+		_GFX_PFN_VK(GetPhysicalDeviceQueueFamilyProperties);
 
 	} vk;
 
@@ -111,6 +112,18 @@ typedef struct _GFXThreadState
 
 
 /**
+ * Logical Vulkan queue family.
+ */
+typedef struct _GFXQueueFamily
+{
+	VkQueueFlags flags;
+	uint32_t     familyIndex;
+	uint32_t     count;
+
+} _GFXQueueFamily;
+
+
+/**
  * Logical Vulkan context (superset of a device).
  */
 typedef struct _GFXContext
@@ -125,9 +138,13 @@ typedef struct _GFXContext
 
 	} vk;
 
+	// Queues created for the device.
+	size_t            numQueues;
+	_GFXQueueFamily*  queues;
+
 	// Associated physical device group.
-	size_t           numDevices;
-	VkPhysicalDevice devices[];
+	size_t            numDevices;
+	VkPhysicalDevice* devices;
 
 } _GFXContext;
 
@@ -137,7 +154,7 @@ typedef struct _GFXContext
  ****************************/
 
 /**
- * Physical device definition.
+ * Internal physical device definition.
  */
 typedef struct _GFXDevice
 {

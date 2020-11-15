@@ -175,9 +175,9 @@ int _gfx_vulkan_init(void)
 	if (glfwExtensions == NULL)
 		goto clean;
 
+	// We use a scope here so the goto above is allowed.
 	{
 		// Add our own extensions and layers if in debug mode.
-		// We use a scope here so the goto above is allowed.
 #if !defined (NDEBUG)
 		uint32_t count = glfwCount + 1;
 		const char* extensions[count];
@@ -281,6 +281,7 @@ int _gfx_vulkan_init(void)
 		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDevices);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceQueueFamilyProperties);
 
 #if !defined (NDEBUG)
 		// Register the Vulkan debug messenger callback.
