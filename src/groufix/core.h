@@ -117,7 +117,8 @@ typedef struct _GFXState
 typedef struct _GFXQueueFamily
 {
 	VkQueueFlags flags;
-	uint32_t     index; // Vulkan family index.
+	int          present; // Non-zero if presentation support.
+	uint32_t     index;   // Vulkan family index.
 	uint32_t     count;
 
 } _GFXQueueFamily;

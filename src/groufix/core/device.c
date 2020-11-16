@@ -53,17 +53,40 @@ static uint32_t _gfx_device_get_queues(
 	_GFXQueueFamily**         families,
 	VkDeviceQueueCreateInfo** createInfos)
 {
-	// For now, we're using exactly 1 queue,
-	// namely the first one with VK_QUEUE_GRAPHICS_BIT set.
-	// TODO: In the future me might want to create more queues for concurrency,
-	// but this is fine for now...
-	uint32_t desired = 1;
+	// We allocate enough for the maximum number of queue families we create.
+	// The following properties need to be supported by at least one queue:
+	// 1) A general graphics family.
+	// 2) A family that supports presentation to surfaces.
+	// For each property, we keep track of whether we found an appropriate
+	// queue family or not.
+	uint32_t num    = 2;
+	int hasGraphics = 0;
+	int hasPresent  = 0;
 
-	*families = malloc(sizeof(_GFXQueueFamily) * desired);
-	*createInfos = malloc(sizeof(VkDeviceQueueCreateInfo) * desired);
+	*families = malloc(sizeof(_GFXQueueFamily) * num);
+	*createInfos = malloc(sizeof(VkDeviceQueueCreateInfo) * num);
 
 	if (*families == NULL || *createInfos == NULL)
 		goto clean;
+
+	// Just initialize all structures to some defaults.
+	// Default is to create 1 queue of each family.
+	for (uint32_t i = 0; i < num; ++i)
+	{
+		(*families)[i] = (_GFXQueueFamily){
+			.present = 0,
+			.count   = 1
+		};
+
+		(*createInfos)[i] = (VkDeviceQueueCreateInfo){
+			.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+
+			.pNext            = NULL,
+			.flags            = 0,
+			.queueCount       = 1,
+			.pQueuePriorities = _gfx_vk_queue_priorities
+		};
+	}
 
 	// So get all queue families, do the searching...
 	uint32_t count;
@@ -78,31 +101,75 @@ static uint32_t _gfx_device_get_queues(
 		_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
 			device, &count, props);
 
-		// Now finally do the searching...
-		for (size_t i = 0; i < count; ++i)
+		// 1) A general graphics family:
+		// We use the family with VK_QUEUE_GRAPHICS BIT set and
+		// as few other bits set as possible.
+		VkQueueFlagBits flags = 0;
+
+		for (uint32_t i = 0; i < count; ++i)
 			if (props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			{
-				(*families)[0] = (_GFXQueueFamily){
-					.flags = props[i].queueFlags,
-					.index = (uint32_t)i,
-					.count = 1
-				};
+				if (hasGraphics && props[i].queueFlags >= flags)
+					continue;
 
-				(*createInfos)[0] = (VkDeviceQueueCreateInfo){
-					.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+				hasGraphics = 1;
+				flags = props[i].queueFlags;
 
-					.pNext            = NULL,
-					.flags            = 0,
-					.queueFamilyIndex = (uint32_t)i,
-					.queueCount       = 1,
-					.pQueuePriorities = _gfx_vk_queue_priorities
-				};
-
-				return desired;
+				// Pick this family as graphics family.
+				(*createInfos)[0].queueFamilyIndex = i;
+				(*families)[0].flags = flags;
+				(*families)[0].index = i;
 			}
 
-		// Uuuuh.. oops..
-		gfx_log_error("Could not find a queue with VK_QUEUE_GRAPHICS_BIT set.");
+		// Check if we found a graphics family.
+		if (!hasGraphics)
+		{
+			gfx_log_error("Could not find a queue with VK_QUEUE_GRAPHICS_BIT set.");
+			goto clean;
+		}
+
+		// 2) A family that supports presentation to surfaces:
+		// Again we use the family with as few bits set as possible.
+		// Here we only check if presentation support in general is supported,
+		// Not yet if it is supported for a specific surface...
+		// This property might already be facilitated by another family...
+		flags = 0;
+
+		for (uint32_t i = 0; i < count; ++i)
+			if (glfwGetPhysicalDevicePresentationSupport(
+				_groufix.vk.instance, device, i))
+			{
+				// Check if we already use this queue.
+				if ((*families)[0].index == i)
+				{
+					(*families)[0].present = 1;
+					hasPresent = 1;
+					num -= 1; // Does not require an additional queue.
+
+					break;
+				}
+
+				if (hasPresent && props[i].queueFlags >= flags)
+					continue;
+
+				hasPresent = 1;
+				flags = props[i].queueFlags;
+
+				// Pick this family as novel presentation family.
+				(*createInfos)[1].queueFamilyIndex = i;
+				(*families)[1].flags   = flags;
+				(*families)[1].present = 1;
+				(*families)[1].index   = i;
+			}
+
+		// Check if we found a presentation family.
+		if (!hasPresent)
+		{
+			gfx_log_error("Could not find a queue with presentation support.");
+			goto clean;
+		}
+
+		return num;
 	}
 
 	// Cleanup on failure.
@@ -269,7 +336,9 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		}
 
 		// This is like a moment to celebrate, right?
-		gfx_log_info("Logical Vulkan device created.");
+		gfx_log_info("Logical Vulkan device with "
+		             "%u physical device(s) and %u queue(s) created.",
+		             context->numDevices, context->numQueues);
 
 		// Now load all device level Vulkan functions.
 		// Load vkDestroyDevice first so we can clean properly.
