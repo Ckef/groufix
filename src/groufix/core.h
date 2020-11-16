@@ -140,8 +140,8 @@ typedef struct _GFXContext
 	} vk;
 
 	// Queue families created for the device.
-	size_t            numQueues;
-	_GFXQueueFamily*  queues;
+	size_t            numFamilies;
+	_GFXQueueFamily*  families;
 
 	// Associated physical device group.
 	size_t            numDevices;

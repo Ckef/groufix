@@ -57,8 +57,10 @@ static uint32_t _gfx_device_get_queues(
 	// The following properties need to be supported by at least one queue:
 	// 1) A general graphics family.
 	// 2) A family that supports presentation to surfaces.
+	// TODO: 3) A compute-only family for use when others are stalling.
+	// TODO: 4) A transfer-only family? Is this useful?
 	// For each property, we keep track of whether we found an appropriate
-	// queue family or not.
+	// queue or not.
 	uint32_t num    = 2;
 	int hasGraphics = 0;
 	int hasPresent  = 0;
@@ -124,7 +126,7 @@ static uint32_t _gfx_device_get_queues(
 		// Check if we found a graphics family.
 		if (!hasGraphics)
 		{
-			gfx_log_error("Could not find a queue with VK_QUEUE_GRAPHICS_BIT set.");
+			gfx_log_error("Could not find a queue family with VK_QUEUE_GRAPHICS_BIT set.");
 			goto clean;
 		}
 
@@ -165,7 +167,7 @@ static uint32_t _gfx_device_get_queues(
 		// Check if we found a presentation family.
 		if (!hasPresent)
 		{
-			gfx_log_error("Could not find a queue with presentation support.");
+			gfx_log_error("Could not find a queue family with presentation support.");
 			goto clean;
 		}
 
@@ -203,10 +205,10 @@ static int _gfx_device_init_context(_GFXDevice* device)
 	_GFXQueueFamily* families;
 	VkDeviceQueueCreateInfo* createInfos;
 
-	uint32_t queueCount = _gfx_device_get_queues(
+	uint32_t famCount = _gfx_device_get_queues(
 		device->vk.device, &families, &createInfos);
 
-	if (queueCount == 0)
+	if (famCount == 0)
 		goto clean;
 
 	// Now that we have desired queues, we can go create a context.
@@ -260,7 +262,7 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		// this is used to check if a future device can use this context.
 		context = malloc(
 			sizeof(_GFXContext) +
-			sizeof(_GFXQueueFamily) * queueCount +
+			sizeof(_GFXQueueFamily) * famCount +
 			sizeof(VkPhysicalDevice) * groups[i].physicalDeviceCount);
 
 		if (context == NULL)
@@ -272,15 +274,15 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		device->index = j;
 		device->context = context;
 
-		context->numQueues = queueCount;
-		context->queues = (_GFXQueueFamily*)(context + 1);
+		context->numFamilies = famCount;
+		context->families = (_GFXQueueFamily*)(context + 1);
 		context->numDevices = groups[i].physicalDeviceCount;
-		context->devices = (VkPhysicalDevice*)(context->queues + queueCount);
+		context->devices = (VkPhysicalDevice*)(context->families + famCount);
 
 		memcpy(
-			context->queues,
+			context->families,
 			families,
-			sizeof(_GFXQueueFamily) * context->numQueues);
+			sizeof(_GFXQueueFamily) * context->numFamilies);
 
 		memcpy(
 			context->devices,
@@ -312,7 +314,7 @@ static int _gfx_device_init_context(_GFXDevice* device)
 
 			.pNext                   = &dgdci,
 			.flags                   = 0,
-			.queueCreateInfoCount    = queueCount,
+			.queueCreateInfoCount    = famCount,
 			.pQueueCreateInfos       = createInfos,
 #if defined (NDEBUG)
 			.enabledLayerCount       = 0,
@@ -336,9 +338,14 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		}
 
 		// This is like a moment to celebrate, right?
+		// We count the number of actual queues here.
+		uint32_t queueCount = 0;
+		for (size_t i = 0; i < context->numFamilies; ++i)
+			queueCount += context->families[i].count;
+
 		gfx_log_info("Logical Vulkan device with "
 		             "%u physical device(s) and %u queue(s) created.",
-		             context->numDevices, context->numQueues);
+		             (unsigned int)context->numDevices, queueCount);
 
 		// Now load all device level Vulkan functions.
 		// Load vkDestroyDevice first so we can clean properly.
