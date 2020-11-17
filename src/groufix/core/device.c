@@ -106,21 +106,37 @@ static uint32_t _gfx_device_get_queues(
 		// 1) A general graphics family:
 		// We use the family with VK_QUEUE_GRAPHICS BIT set and
 		// as few other bits set as possible.
-		VkQueueFlagBits flags = 0;
-
+		// 2) A family that supports presentation to surfaces:
+		// Having presentation support has precedence over fewer flags.
+		// So if we find a graphics family with presentation support, gogogo!
+		// Note we do not check for presentation to a specific surface yet.
 		for (uint32_t i = 0; i < count; ++i)
 			if (props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			{
-				if (hasGraphics && props[i].queueFlags >= flags)
+				int present = glfwGetPhysicalDevicePresentationSupport(
+					_groufix.vk.instance, device, i);
+				int better =
+					(!(*families[0]).present && present) ||
+					(props[i].queueFlags < (*families)[0].flags &&
+					(!(*families[0]).present || present));
+
+				if (hasGraphics && !better)
 					continue;
 
 				hasGraphics = 1;
-				flags = props[i].queueFlags;
 
 				// Pick this family as graphics family.
 				(*createInfos)[0].queueFamilyIndex = i;
-				(*families)[0].flags = flags;
-				(*families)[0].index = i;
+				(*families)[0].flags   = props[i].queueFlags;
+				(*families)[0].present = present;
+				(*families)[0].index   = i;
+
+				// Also pick it as presentation family.
+				if (present)
+				{
+					hasPresent = 1;
+					num -= 1; // We do not rquire an additional family.
+				}
 			}
 
 		// Check if we found a graphics family.
@@ -131,35 +147,20 @@ static uint32_t _gfx_device_get_queues(
 		}
 
 		// 2) A family that supports presentation to surfaces:
-		// Again we use the family with as few bits set as possible.
-		// Here we only check if presentation support in general is supported,
-		// Not yet if it is supported for a specific surface...
-		// This property might already be facilitated by another family...
-		flags = 0;
-
-		for (uint32_t i = 0; i < count; ++i)
+		// If no graphics family supports presentation, find another family.
+		// Again we prefer fewer bits.
+		if (!hasPresent) for (uint32_t i = 0; i < count; ++i)
 			if (glfwGetPhysicalDevicePresentationSupport(
 				_groufix.vk.instance, device, i))
 			{
-				// Check if we already use this queue.
-				if ((*families)[0].index == i)
-				{
-					(*families)[0].present = 1;
-					hasPresent = 1;
-					num -= 1; // Does not require an additional queue.
-
-					break;
-				}
-
-				if (hasPresent && props[i].queueFlags >= flags)
+				if (hasPresent && props[i].queueFlags >= (*families)[1].flags)
 					continue;
 
 				hasPresent = 1;
-				flags = props[i].queueFlags;
 
 				// Pick this family as novel presentation family.
 				(*createInfos)[1].queueFamilyIndex = i;
-				(*families)[1].flags   = flags;
+				(*families)[1].flags   = props[i].queueFlags;
 				(*families)[1].present = 1;
 				(*families)[1].index   = i;
 			}
