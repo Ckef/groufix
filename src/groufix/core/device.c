@@ -515,8 +515,6 @@ _GFXContext* _gfx_device_get_context(_GFXDevice* device)
 {
 	assert(device != NULL);
 
-	_GFXContext* context = NULL;
-
 	// Lock the device's lock to sync access to the device's context.
 	// Once this call returns successfully the context will not be set anymore,
 	// which means after this call, we can just read device->context directly.
@@ -555,7 +553,8 @@ _GFXContext* _gfx_device_get_context(_GFXDevice* device)
 		_gfx_mutex_unlock(&_groufix.contextLock);
 	}
 
-	context = device->context;
+	// Unlock after we read from the device, in case we fail and return NULL.
+	_GFXContext* context = device->context;
 	_gfx_mutex_unlock(&device->lock);
 
 	return context;
