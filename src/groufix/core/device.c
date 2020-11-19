@@ -44,8 +44,8 @@ static const float _gfx_vk_queue_priorities[] = { 1.0f };
 /****************************
  * Creates an array of queue families and VkDeviceQueueCreateInfo structures
  * desired by the groufix implementation, for a given device.
- * @param families    Output families, must call free() manually to release it.
- * @param createInfos Output create info, must call free() manually to release it.
+ * @param families    Output families, must call free() to release it.
+ * @param createInfos Output create info, must call free() to release it.
  * @return The size of the arrays.
  */
 static uint32_t _gfx_device_get_queues(
@@ -277,6 +277,7 @@ static int _gfx_device_init_context(_GFXDevice* device)
 
 		context->numFamilies = famCount;
 		context->families = (_GFXQueueFamily*)(context + 1);
+
 		context->numDevices = groups[i].physicalDeviceCount;
 		context->devices = (VkPhysicalDevice*)(context->families + famCount);
 
@@ -344,9 +345,9 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		for (size_t i = 0; i < context->numFamilies; ++i)
 			queueCount += context->families[i].count;
 
-		gfx_log_info("Logical Vulkan device with "
-		             "%u physical device(s) and %u queue(s) created.",
-		             (unsigned int)context->numDevices, queueCount);
+		gfx_log_debug("Logical Vulkan device with "
+		              "%u physical device(s) and %u queue(s) created.",
+		              (unsigned int)context->numDevices, queueCount);
 
 		// Now load all device level Vulkan functions.
 		// Load vkDestroyDevice first so we can clean properly.

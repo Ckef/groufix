@@ -70,7 +70,7 @@ void _gfx_vulkan_log(VkResult result)
 	switch (result)
 	{
 	case VK_SUCCESS:
-		gfx_log_info("Vulkan: Success.");
+		gfx_log_debug("Vulkan: Success.");
 		break;
 	case VK_NOT_READY:
 		gfx_log_warn("Vulkan: A fence or query has not yet completed.");
@@ -80,10 +80,10 @@ void _gfx_vulkan_log(VkResult result)
 		             "specified time.");
 		break;
 	case VK_EVENT_SET:
-		gfx_log_info("Vulkan: An event is signaled.");
+		gfx_log_debug("Vulkan: An event is signaled.");
 		break;
 	case VK_EVENT_RESET:
-		gfx_log_info("Vulkan: An event is unsignaled.");
+		gfx_log_debug("Vulkan: An event is unsignaled.");
 		break;
 	case VK_INCOMPLETE:
 		gfx_log_warn("Vulkan: A return array was too small for the result.");
