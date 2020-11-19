@@ -433,12 +433,18 @@ int _gfx_devices_init(void)
 				.vk      = { .device = devices[i] }
 			};
 
-			// Create a new string for its name.
+			// Init mutex and name string.
+			if (!_gfx_mutex_init(&dev.lock))
+				goto terminate;
+
 			size_t len = strlen(pdp.deviceName);
 			dev.base.name = malloc(sizeof(char*) * (len+1));
 
 			if (dev.base.name == NULL)
+			{
+				_gfx_mutex_clear(&dev.lock);
 				goto terminate;
+			}
 
 			strcpy((char*)dev.base.name, pdp.deviceName);
 			((char*)dev.base.name)[len] = '\0';
@@ -494,7 +500,9 @@ void _gfx_devices_terminate(void)
 	for (size_t i = 0; i < _groufix.devices.size; ++i)
 	{
 		_GFXDevice* device = gfx_vec_at(&_groufix.devices, i);
+
 		free((char*)device->base.name);
+		_gfx_mutex_clear(&device->lock);
 	}
 
 	// Regular cleanup.
@@ -507,9 +515,16 @@ _GFXContext* _gfx_device_get_context(_GFXDevice* device)
 {
 	assert(device != NULL);
 
+	_GFXContext* context = NULL;
+
+	// Lock the device's lock to sync access to the device's context.
+	// Once this call returns successfully the context will not be set anymore,
+	// which means after this call, we can just read device->context directly.
+	_gfx_mutex_lock(&device->lock);
+
 	if (device->context == NULL)
 	{
-		// We only use the context lock here.
+		// We only use the context lock here to sync the context array.
 		// Other uses happen during initialization or termination,
 		// any other operation must happen inbetween those two
 		// function calls anyway so no need to lock in them.
@@ -540,7 +555,10 @@ _GFXContext* _gfx_device_get_context(_GFXDevice* device)
 		_gfx_mutex_unlock(&_groufix.contextLock);
 	}
 
-	return device->context;
+	context = device->context;
+	_gfx_mutex_unlock(&device->lock);
+
+	return context;
 }
 
 /****************************/

@@ -162,6 +162,7 @@ typedef struct _GFXDevice
 	GFXDevice    base;
 	size_t       index; // Index into the device group.
 	_GFXContext* context;
+	_GFXMutex    lock;
 
 	// Vulkan fields.
 	struct
@@ -301,8 +302,10 @@ void _gfx_devices_terminate(void);
  * @param device Cannot be NULL.
  * @return NULL if the context could not be found or created.
  *
- * This function will lock during context creation and
+ * This function will lock the device and lock during context creation and
  * can therefore be called on any thread.
+ * Once this function returned succesfully at least once for a given device,
+ * we can read device->index and device->context directly.
  */
 _GFXContext* _gfx_device_get_context(_GFXDevice* device);
 
