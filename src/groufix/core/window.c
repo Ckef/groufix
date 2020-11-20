@@ -229,7 +229,6 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
 		goto clean;
 
 	memset(&window->base, 0, sizeof(GFXWindow));
-	window->flags = flags;
 
 	// Create a GLFW window.
 	glfwDefaultWindowHints();
@@ -353,10 +352,6 @@ GFX_API void gfx_window_set_monitor(GFXWindow* window,
 	assert(window != NULL);
 	assert(mode.width > 0);
 	assert(mode.height > 0);
-
-	// If borderless fullscreen, use the current video mode.
-	if (monitor != NULL && ((_GFXWindow*)window)->flags & GFX_WINDOW_BORDERLESS)
-		mode = gfx_monitor_get_current_mode(monitor);
 
 	glfwSetWindowMonitor(
 		((_GFXWindow*)window)->handle,

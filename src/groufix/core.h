@@ -193,9 +193,8 @@ typedef struct _GFXMonitor
  */
 typedef struct _GFXWindow
 {
-	GFXWindow      base;
-	GFXWindowFlags flags;
-	GLFWwindow*    handle;
+	GFXWindow   base;
+	GLFWwindow* handle;
 
 	// Vulkan fields.
 	struct
