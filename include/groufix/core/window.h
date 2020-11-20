@@ -164,6 +164,8 @@ GFX_API GFXVideoMode gfx_monitor_get_current_mode(GFXMonitor* monitor);
  * @param mode    Width and height must be > 0.
  * @param title   Cannot be NULL.
  * @return NULL on failure.
+ *
+ * mode.refresh is ignored if monitor is set to NULL.
  */
 GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
                                      GFXMonitor* monitor, GFXVideoMode mode,
@@ -180,6 +182,8 @@ GFX_API void gfx_destroy_window(GFXWindow* window);
  * @param window  Cannot be NULL.
  * @param monitor NULL for windowed mode, fullscreen monitor otherwise.
  * @param mode    Width and height must be > 0.
+ *
+ * mode.refresh is ignored if monitor is set to NULL.
  */
 GFX_API void gfx_window_set_monitor(GFXWindow* window,
                                     GFXMonitor* monitor, GFXVideoMode mode);

@@ -243,28 +243,9 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
 	glfwWindowHint(GLFW_RESIZABLE,
 		flags & GFX_WINDOW_RESIZABLE ? GLFW_TRUE : GLFW_FALSE);
 
+	// If entering fullscreen, use the given refresh rate.
 	if (monitor != NULL)
-	{
-		if (flags & GFX_WINDOW_BORDERLESS)
-		{
-			// If borderless fullscreen, use the current video mode.
-			const GLFWvidmode* vid =
-				glfwGetVideoMode(((_GFXMonitor*)monitor)->handle);
-
-			glfwWindowHint(GLFW_RED_BITS, vid->redBits);
-			glfwWindowHint(GLFW_GREEN_BITS, vid->greenBits);
-			glfwWindowHint(GLFW_BLUE_BITS, vid->blueBits);
-			glfwWindowHint(GLFW_REFRESH_RATE, vid->refreshRate);
-
-			mode.width = (size_t)vid->width;
-			mode.height = (size_t)vid->height;
-		}
-		else
-		{
-			// If normal fullscreen, use the given video mode.
-			glfwWindowHint(GLFW_REFRESH_RATE, (int)mode.refresh);
-		}
-	}
+		glfwWindowHint(GLFW_REFRESH_RATE, (int)mode.refresh);
 
 	window->handle = glfwCreateWindow(
 		(int)mode.width,
