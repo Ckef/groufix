@@ -213,11 +213,12 @@ static void _gfx_glfw_scroll(GLFWwindow* handle, double x, double y)
 }
 
 /****************************/
-GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
-                                     const char* title, GFXMonitor* monitor)
+GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
+                                     GFXMonitor* monitor, GFXVideoMode mode,
+                                     const char* title)
 {
-	assert(width > 0);
-	assert(height > 0);
+	assert(mode.width > 0);
+	assert(mode.height > 0);
 	assert(title != NULL);
 	assert(_groufix.vk.instance != NULL);
 
@@ -228,13 +229,47 @@ GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
 		goto clean;
 
 	memset(&window->base, 0, sizeof(GFXWindow));
+	window->flags = flags;
 
 	// Create a GLFW window.
+	glfwDefaultWindowHints();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
+	glfwWindowHint(GLFW_DECORATED,
+		flags & GFX_WINDOW_BORDERLESS ? GLFW_FALSE : GLFW_TRUE);
+	glfwWindowHint(GLFW_FOCUSED,
+		flags & GFX_WINDOW_FOCUSED ? GLFW_TRUE : GLFW_FALSE);
+	glfwWindowHint(GLFW_MAXIMIZED,
+		flags & GFX_WINDOW_MAXIMIZED ? GLFW_TRUE : GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE,
+		flags & GFX_WINDOW_RESIZABLE ? GLFW_TRUE : GLFW_FALSE);
+
+	if (monitor != NULL)
+	{
+		if (flags & GFX_WINDOW_BORDERLESS)
+		{
+			// If borderless fullscreen, use the current video mode.
+			const GLFWvidmode* vid =
+				glfwGetVideoMode(((_GFXMonitor*)monitor)->handle);
+
+			glfwWindowHint(GLFW_RED_BITS, vid->redBits);
+			glfwWindowHint(GLFW_GREEN_BITS, vid->greenBits);
+			glfwWindowHint(GLFW_BLUE_BITS, vid->blueBits);
+			glfwWindowHint(GLFW_REFRESH_RATE, vid->refreshRate);
+
+			mode.width = (size_t)vid->width;
+			mode.height = (size_t)vid->height;
+		}
+		else
+		{
+			// If normal fullscreen, use the given video mode.
+			glfwWindowHint(GLFW_REFRESH_RATE, (int)mode.refresh);
+		}
+	}
+
 	window->handle = glfwCreateWindow(
-		(int)width,
-		(int)height,
+		(int)mode.width,
+		(int)mode.height,
 		title,
 		(monitor != NULL) ? ((_GFXMonitor*)monitor)->handle : NULL,
 		NULL);
@@ -309,6 +344,28 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 		((_GFXWindow*)window)->handle);
 
 	free(window);
+}
+
+/****************************/
+GFX_API void gfx_window_set_monitor(GFXWindow* window,
+                                    GFXMonitor* monitor, GFXVideoMode mode)
+{
+	assert(window != NULL);
+	assert(mode.width > 0);
+	assert(mode.height > 0);
+
+	// If borderless fullscreen, use the current video mode.
+	if (monitor != NULL && ((_GFXWindow*)window)->flags & GFX_WINDOW_BORDERLESS)
+		mode = gfx_monitor_get_current_mode(monitor);
+
+	glfwSetWindowMonitor(
+		((_GFXWindow*)window)->handle,
+		(monitor != NULL) ? ((_GFXMonitor*)monitor)->handle : NULL,
+		0,
+		0,
+		(int)mode.width,
+		(int)mode.height,
+		(int)mode.refresh);
 }
 
 /****************************/

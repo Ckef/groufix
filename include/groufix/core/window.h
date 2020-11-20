@@ -17,8 +17,32 @@
 
 
 /**
+ * Window configuration flags.
+ */
+typedef enum GFXWindowFlags
+{
+	GFX_WINDOW_BORDERLESS = 0x0001,
+	GFX_WINDOW_FOCUSED    = 0x0002,
+	GFX_WINDOW_MAXIMIZED  = 0x0004,
+	GFX_WINDOW_RESIZABLE  = 0x0008
+
+} GFXWindowFlags;
+
+
+/**
+ * Monitor video mode.
+ */
+typedef struct GFXVideoMode
+{
+	size_t       width;
+	size_t       height;
+	unsigned int refresh;
+
+} GFXVideoMode;
+
+
+/**
  * Logical monitor definition.
- * Must be handled on the main thread.
  */
 typedef struct GFXMonitor
 {
@@ -32,7 +56,6 @@ typedef struct GFXMonitor
 
 /**
  * Logical window definition.
- * Must be handled on the main thread.
  */
 typedef struct GFXWindow
 {
@@ -85,6 +108,14 @@ typedef struct GFXWindow
  ****************************/
 
 /**
+ * Sets the configuration change event callback.
+ * The callback takes the monitor in question and a zero or non-zero value,
+ * zero if the monitor is disconnected, non-zero if it is connected.
+ * @param event NULL to disable the event callback.
+ */
+GFX_API void gfx_set_monitor_event(void (*event)(GFXMonitor*, int));
+
+/**
  * Retrieves the number of currently connected monitors.
  * @return 0 if no monitors were found.
  */
@@ -104,12 +135,23 @@ GFX_API GFXMonitor* gfx_get_monitor(size_t index);
 GFX_API GFXMonitor* gfx_get_primary_monitor(void);
 
 /**
- * Sets the configuration change event callback.
- * The callback takes the monitor in question and a zero or non-zero value,
- * zero if the monitor is disconnected, non-zero if it is connected.
- * @param event NULL to disable the event callback.
+ * Retrieves the number of video modes available for a monitor.
+ * @param monitor Cannot be NULL.
  */
-GFX_API void gfx_set_monitor_event(void (*event)(GFXMonitor*, int));
+GFX_API size_t gfx_monitor_get_num_modes(GFXMonitor* monitor);
+
+/**
+ * Retrieves a video mode of a monitor.
+ * @param monitor Cannot be NULL.
+ * @param index   Must be < gfx_monitor_get_num_modes(monitor).
+ */
+GFX_API GFXVideoMode gfx_monitor_get_mode(GFXMonitor* monitor, size_t index);
+
+/**
+ * Retrieves the current video mode of a monitor.
+ * @param monitor Cannot be NULL.
+ */
+GFX_API GFXVideoMode gfx_monitor_get_current_mode(GFXMonitor* monitor);
 
 
 /****************************
@@ -118,19 +160,29 @@ GFX_API void gfx_set_monitor_event(void (*event)(GFXMonitor*, int));
 
 /**
  * Creates a logical window.
- * @param width  Must be > 0.
- * @param height Must be > 0.
- * @param title  Cannot be NULL.
+ * @param monitor NULL for windowed mode, fullscreen monitor otherwise.
+ * @param mode    Width and height must be > 0.
+ * @param title   Cannot be NULL.
  * @return NULL on failure.
  */
-GFX_API GFXWindow* gfx_create_window(size_t width, size_t height,
-                                     const char* title, GFXMonitor* monitor);
+GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
+                                     GFXMonitor* monitor, GFXVideoMode mode,
+                                     const char* title);
 
 /**
  * Destroys a logical window.
  * Must NOT be called from within a window event.
  */
 GFX_API void gfx_destroy_window(GFXWindow* window);
+
+/**
+ * Sets the monitor to fullscreen to.
+ * @param window  Cannot be NULL.
+ * @param monitor NULL for windowed mode, fullscreen monitor otherwise.
+ * @param mode    Width and height must be > 0.
+ */
+GFX_API void gfx_window_set_monitor(GFXWindow* window,
+                                    GFXMonitor* monitor, GFXVideoMode mode);
 
 /**
  * Retrieves whether the close flag is set.

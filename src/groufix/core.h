@@ -139,11 +139,11 @@ typedef struct _GFXContext
 
 	} vk;
 
-	// Queue families created for the device.
+	// Created queue families.
 	size_t            numFamilies;
 	_GFXQueueFamily*  families;
 
-	// Associated physical device group.
+	// Associated device group.
 	size_t            numDevices;
 	VkPhysicalDevice* devices;
 
@@ -179,8 +179,11 @@ typedef struct _GFXDevice
  */
 typedef struct _GFXMonitor
 {
-	GFXMonitor   base;
-	GLFWmonitor* handle;
+	GFXMonitor    base;
+	GLFWmonitor*  handle;
+
+	size_t        numModes;
+	GFXVideoMode* modes;
 
 } _GFXMonitor;
 
@@ -190,8 +193,9 @@ typedef struct _GFXMonitor
  */
 typedef struct _GFXWindow
 {
-	GFXWindow   base;
-	GLFWwindow* handle;
+	GFXWindow      base;
+	GFXWindowFlags flags;
+	GLFWwindow*    handle;
 
 	// Vulkan fields.
 	struct
@@ -252,7 +256,7 @@ _GFXThreadState* _gfx_state_get_local(void);
 
 
 /****************************
- * Vulkan state and logging.
+ * Vulkan context and logging.
  ****************************/
 
 /**
@@ -270,15 +274,9 @@ int _gfx_vulkan_init(void);
 
 /**
  * Terminates Vulkan state.
- * This will make sure all physical devices will be destroyed.
- * Must be called by the same thread that called _gfx_state_init.
+ * Must be called before _gfx_state_terminate, on the same thread.
  */
 void _gfx_vulkan_terminate(void);
-
-
-/****************************
- * Devices and Vulkan context.
- ****************************/
 
 /**
  * Initializes internal physical device (e.g. GPU) configuration.
@@ -291,7 +289,7 @@ int _gfx_devices_init(void);
 /**
  * Terminates internal device configuration.
  * This will make sure all divices and contexts are destroyed.
- * Must be called by the same thread that called _gfx_vulkan_init.
+ * Must be called before _gfx_vulkan_terminate, on the same thread.
  */
 void _gfx_devices_terminate(void);
 
@@ -325,7 +323,7 @@ int _gfx_monitors_init(void);
 /**
  * Terminates internal monitor configuration.
  * This will make sure all monitors are destroyed.
- * Must be called by the same thread that called _gfx_state_init.
+ * Must be called before _gfx_state_terminate, on the same thread.
  */
 void _gfx_monitors_terminate(void);
 
