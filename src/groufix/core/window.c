@@ -237,9 +237,9 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
 	glfwWindowHint(GLFW_DECORATED,
 		flags & GFX_WINDOW_BORDERLESS ? GLFW_FALSE : GLFW_TRUE);
 	glfwWindowHint(GLFW_FOCUSED,
-		flags & GFX_WINDOW_FOCUSED ? GLFW_TRUE : GLFW_FALSE);
+		flags & GFX_WINDOW_FOCUS ? GLFW_TRUE : GLFW_FALSE);
 	glfwWindowHint(GLFW_MAXIMIZED,
-		flags & GFX_WINDOW_MAXIMIZED ? GLFW_TRUE : GLFW_FALSE);
+		flags & GFX_WINDOW_MAXIMIZE ? GLFW_TRUE : GLFW_FALSE);
 	glfwWindowHint(GLFW_RESIZABLE,
 		flags & GFX_WINDOW_RESIZABLE ? GLFW_TRUE : GLFW_FALSE);
 
@@ -257,12 +257,23 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
 	if (window->handle == NULL)
 		goto clean;
 
-	// Set the input mode so we register caps/num lock as well.
-	// Then associate with GLFW using the user pointer and
-	// finally register all callbacks.
-	glfwSetInputMode(window->handle, GLFW_LOCK_KEY_MODS, GLFW_TRUE);
+	// Associate with GLFW using the user pointer.
 	glfwSetWindowUserPointer(window->handle, window);
 
+	// Set the input mode for the cursor and caps/num lock.
+	int cursor =
+		(flags & GFX_WINDOW_CAPTURE_MOUSE) ? GLFW_CURSOR_DISABLED :
+		(flags & GFX_WINDOW_HIDE_MOUSE) ? GLFW_CURSOR_HIDDEN :
+		GLFW_CURSOR_NORMAL;
+
+	glfwSetInputMode(window->handle, GLFW_CURSOR, cursor);
+	glfwSetInputMode(window->handle, GLFW_LOCK_KEY_MODS, GLFW_TRUE);
+
+	// Use raw mouse position if GFX_WINDOW_CAPTURE_MOUSE is set.
+	if (cursor == GLFW_CURSOR_DISABLED && glfwRawMouseMotionSupported())
+		glfwSetInputMode(window->handle, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+
+	// Register all callbacks.
 	glfwSetWindowCloseCallback(
 		window->handle, _gfx_glfw_window_close);
 	glfwSetDropCallback(
