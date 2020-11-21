@@ -282,6 +282,11 @@ int _gfx_vulkan_init(void)
 		_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceQueueFamilyProperties);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfaceCapabilitiesKHR);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfaceFormatsKHR);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfacePresentModesKHR);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfaceSupportKHR);
+
 
 #if !defined (NDEBUG)
 		// Register the Vulkan debug messenger callback.

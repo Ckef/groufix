@@ -327,7 +327,7 @@ static int _gfx_device_init_context(_GFXDevice* device)
 #endif
 			.enabledExtensionCount   = sizeof(extensions)/sizeof(char*),
 			.ppEnabledExtensionNames = extensions,
-			.pEnabledFeatures        = NULL
+			.pEnabledFeatures        = NULL // TODO: Will probably want to populate this.
 		};
 
 		result = _groufix.vk.CreateDevice(
@@ -352,7 +352,12 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		// Now load all device level Vulkan functions.
 		// Load vkDestroyDevice first so we can clean properly.
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
+		_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
+		_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
+		_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
+		_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
+		_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
 
 		free(families);
 		free(createInfos);

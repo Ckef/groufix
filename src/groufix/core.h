@@ -105,6 +105,10 @@ typedef struct _GFXState
 		_GFX_PFN_VK(GetDeviceProcAddr);
 		_GFX_PFN_VK(GetPhysicalDeviceProperties);
 		_GFX_PFN_VK(GetPhysicalDeviceQueueFamilyProperties);
+		_GFX_PFN_VK(GetPhysicalDeviceSurfaceCapabilitiesKHR);
+		_GFX_PFN_VK(GetPhysicalDeviceSurfaceFormatsKHR);
+		_GFX_PFN_VK(GetPhysicalDeviceSurfacePresentModesKHR);
+		_GFX_PFN_VK(GetPhysicalDeviceSurfaceSupportKHR);
 
 	} vk;
 
@@ -134,8 +138,13 @@ typedef struct _GFXContext
 	{
 		VkDevice device;
 
+		_GFX_PFN_VK(AcquireNextImageKHR);
+		_GFX_PFN_VK(CreateSwapchainKHR);
 		_GFX_PFN_VK(DestroyDevice);
+		_GFX_PFN_VK(DestroySwapchainKHR);
 		_GFX_PFN_VK(DeviceWaitIdle);
+		_GFX_PFN_VK(GetSwapchainImagesKHR);
+		_GFX_PFN_VK(QueuePresentKHR);
 
 	} vk;
 
@@ -182,6 +191,7 @@ typedef struct _GFXMonitor
 	GFXMonitor    base;
 	GLFWmonitor*  handle;
 
+	// Available video modes.
 	size_t        numModes;
 	GFXVideoMode* modes;
 
@@ -195,11 +205,13 @@ typedef struct _GFXWindow
 {
 	GFXWindow   base;
 	GLFWwindow* handle;
+	_GFXDevice* device; // Associated GPU to build a swapchain on.
 
 	// Vulkan fields.
 	struct
 	{
-		VkSurfaceKHR surface;
+		VkSurfaceKHR   surface;
+		VkSwapchainKHR swapchain;
 
 	} vk;
 
@@ -255,7 +267,7 @@ _GFXThreadState* _gfx_state_get_local(void);
 
 
 /****************************
- * Vulkan context and logging.
+ * Vulkan context, devices and logging.
  ****************************/
 
 /**
@@ -308,7 +320,7 @@ _GFXContext* _gfx_device_get_context(_GFXDevice* device);
 
 
 /****************************
- * Monitor configuration.
+ * Monitor configuration and window swapchain.
  ****************************/
 
 /**
@@ -325,6 +337,13 @@ int _gfx_monitors_init(void);
  * Must be called before _gfx_state_terminate, on the same thread.
  */
 void _gfx_monitors_terminate(void);
+
+/**
+ * (Re)creates the swapchain of a window.
+ * @param window Cannot be NULL.
+ * @return Non-zero on success.
+ */
+int _gfx_swapchain_recreate(_GFXWindow* window);
 
 
 #endif

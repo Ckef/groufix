@@ -10,6 +10,7 @@
 #ifndef GFX_CORE_WINDOW_H
 #define GFX_CORE_WINDOW_H
 
+#include "groufix/core/device.h"
 #include "groufix/core/keys.h"
 #include "groufix/def.h"
 #include <stddef.h>
@@ -162,6 +163,7 @@ GFX_API GFXVideoMode gfx_monitor_get_current_mode(GFXMonitor* monitor);
 
 /**
  * Creates a logical window.
+ * @param device  NULL is equivalent to gfx_get_primary_device().
  * @param monitor NULL for windowed mode, fullscreen monitor otherwise.
  * @param mode    Width and height must be > 0.
  * @param title   Cannot be NULL.
@@ -169,7 +171,7 @@ GFX_API GFXVideoMode gfx_monitor_get_current_mode(GFXMonitor* monitor);
  *
  * mode.refresh is ignored if monitor is set to NULL.
  */
-GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
+GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
                                      GFXMonitor* monitor, GFXVideoMode mode,
                                      const char* title);
 
@@ -180,6 +182,13 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
 GFX_API void gfx_destroy_window(GFXWindow* window);
 
 /**
+ * Retrieves the monitor the window is fullscreened to.
+ * @param window Cannot be NULL.
+ * @return NULL if the window is not assigned to a monitor.
+ */
+GFX_API GFXMonitor* gfx_window_get_monitor(GFXWindow* window);
+
+/**
  * Sets the monitor to fullscreen to.
  * @param window  Cannot be NULL.
  * @param monitor NULL for windowed mode, fullscreen monitor otherwise.
@@ -187,8 +196,8 @@ GFX_API void gfx_destroy_window(GFXWindow* window);
  *
  * mode.refresh is ignored if monitor is set to NULL.
  */
-GFX_API void gfx_window_set_monitor(GFXWindow* window,
-                                    GFXMonitor* monitor, GFXVideoMode mode);
+GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
+                                    GFXVideoMode mode);
 
 /**
  * Retrieves whether the close flag is set.

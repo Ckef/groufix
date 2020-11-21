@@ -155,6 +155,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/log.o \
  $(OUT)$(SUB)/groufix/core/monitor.o \
  $(OUT)$(SUB)/groufix/core/state.o \
+ $(OUT)$(SUB)/groufix/core/swap.o \
  $(OUT)$(SUB)/groufix/core/vulkan.o \
  $(OUT)$(SUB)/groufix/core/window.o \
  $(OUT)$(SUB)/groufix.o

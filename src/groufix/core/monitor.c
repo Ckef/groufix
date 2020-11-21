@@ -86,24 +86,6 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
 }
 
 /****************************
- * Reassign monitors according to previously set GLFW user pointers.
- * This shuffles out deallocated monitors and fixes the primary one.
- */
-static void _gfx_monitors_rebuild(void)
-{
-	// Get all GLFW monitors.
-	int count;
-	GLFWmonitor** handles = glfwGetMonitors(&count);
-
-	// Place the associated groufix monitors in the configuration.
-	for (size_t i = 0; (int)i < count; ++i)
-	{
-		_GFXMonitor* monitor = glfwGetMonitorUserPointer(handles[i]);
-		*(_GFXMonitor**)gfx_vec_at(&_groufix.monitors, i) = monitor;
-	}
-}
-
-/****************************
  * On monitor connect or disconnect.
  * @param event Zero if it is disconnected, non-zero if it is connected.
  */
@@ -133,8 +115,16 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 
 	// So we don't know if the order of the configuration array is preserved.
 	// On connect, we just inserted at the end and on disconnect we popped it.
-	// To fix this, we just rebuild the entire array.
-	_gfx_monitors_rebuild();
+	// To fix this, we just rebuild the entire array from GLFW user pointers.
+ 	// This shuffles out deallocated monitors and fixes the primary one.
+	int count;
+	GLFWmonitor** handles = glfwGetMonitors(&count);
+
+	for (size_t i = 0; (int)i < count; ++i)
+	{
+		_GFXMonitor* monitor = glfwGetMonitorUserPointer(handles[i]);
+		*(_GFXMonitor**)gfx_vec_at(&_groufix.monitors, i) = monitor;
+	}
 
 	// Finally, call the event if given, and free the monitor on disconnect.
 	if (_groufix.monitorEvent != NULL)
@@ -247,6 +237,8 @@ GFX_API GFXVideoMode gfx_monitor_get_current_mode(GFXMonitor* monitor)
 {
 	assert(monitor != NULL);
 
+	// We don't lookup the video mode array,
+	// instead we cheat a little and take GLFW's current mode.
 	const GLFWvidmode* vid =
 		glfwGetVideoMode(((_GFXMonitor*)monitor)->handle);
 

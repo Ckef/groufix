@@ -213,7 +213,7 @@ static void _gfx_glfw_scroll(GLFWwindow* handle, double x, double y)
 }
 
 /****************************/
-GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
+GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
                                      GFXMonitor* monitor, GFXVideoMode mode,
                                      const char* title)
 {
@@ -301,21 +301,46 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags,
 	glfwSetScrollCallback(
 		window->handle, _gfx_glfw_scroll);
 
-	// And finally attempt to create a Vulkan surface for the window.
+	// Ok so we have a window, now we need to somehow connect it to a GPU.
+	// So first attempt to create a Vulkan surface for the window.
 	VkResult result = glfwCreateWindowSurface(
 		_groufix.vk.instance, window->handle, NULL, &window->vk.surface);
 
 	if (result != VK_SUCCESS)
 	{
 		_gfx_vulkan_log(result);
-		glfwDestroyWindow(window->handle);
-
-		goto clean;
+		goto clean_window;
 	}
 
+	// Then get the physical device we'll be working with.
+	// When we have it, get the context associated with the device.
+	// We're not using it yet, but this should create it such that we can
+	// simply read it from the device from this point onwards,
+	// without having to lock by calling _gfx_device_get_context again.
+	window->device =
+		(_GFXDevice*)((device != NULL) ? device : gfx_get_primary_device());
+
+	if (_gfx_device_get_context(window->device) == NULL)
+		goto clean_surface;
+
+	// Ok so we have a physical device with a context (logical Vulkan device).
+	// Now go create a swapchain. Unfortunately we cannot clean the context
+	// if it was just created for us, but that's why we do this last.
+	if (!_gfx_swapchain_recreate(window))
+		goto clean_surface;
+
+	// Yey!
 	return &window->base;
 
+
 	// Cleanup on failure.
+clean_surface:
+	_groufix.vk.DestroySurfaceKHR(
+		_groufix.vk.instance, window->vk.surface, NULL);
+clean_window:
+	glfwDestroyWindow(
+		window->handle);
+
 clean:
 	gfx_log_error("Could not create a new window.");
 	free(window);
@@ -338,8 +363,20 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 }
 
 /****************************/
-GFX_API void gfx_window_set_monitor(GFXWindow* window,
-                                    GFXMonitor* monitor, GFXVideoMode mode)
+GFX_API GFXMonitor* gfx_window_get_monitor(GFXWindow* window)
+{
+	assert(window != NULL);
+
+	GLFWmonitor* monitor =
+		glfwGetWindowMonitor(((_GFXWindow*)window)->handle);
+
+	// Each GLFW monitor should have a user pointer to the groufix monitor :)
+	return (monitor == NULL) ? NULL : glfwGetMonitorUserPointer(monitor);
+}
+
+/****************************/
+GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
+                                    GFXVideoMode mode)
 {
 	assert(window != NULL);
 	assert(mode.width > 0);

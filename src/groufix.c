@@ -62,9 +62,6 @@ GFX_API int gfx_init(void)
 	if (!_gfx_monitors_init())
 		goto terminate;
 
-	// TODO: remove this, for debugging purposes only.
-	_gfx_device_get_context((_GFXDevice*)gfx_get_primary_device());
-
 	gfx_log_info("All internal state initialized succesfully, ready.");
 
 	return 1;
