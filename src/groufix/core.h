@@ -207,6 +207,13 @@ typedef struct _GFXWindow
 	GLFWwindow* handle;
 	_GFXDevice* device; // Associated GPU to build a swapchain on.
 
+#if defined (__STDC_NO_ATOMICS__)
+	int        resized;
+	_GFXMutex  sizeLock;
+#else
+	atomic_int resized;
+#endif
+
 	// Vulkan fields.
 	struct
 	{
@@ -340,10 +347,19 @@ void _gfx_monitors_terminate(void);
 
 /**
  * (Re)creates the swapchain of a window.
+ * window->device cannot be NULL and _gfx_device_get_context(window->device)
+ * should have returned succesfully before.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  */
 int _gfx_swapchain_recreate(_GFXWindow* window);
+
+/**
+ * Retrieves whether a GLFW resize signal was set and resets the singal.
+ * If the signal was set, _gfx_swapchain_recreate(window) should be called.
+ * @return Non-zero if the swapchain should be recreated.
+ */
+int _gfx_swapchain_resized(_GFXWindow* window);
 
 
 #endif

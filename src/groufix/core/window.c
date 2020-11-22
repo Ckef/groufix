@@ -212,6 +212,24 @@ static void _gfx_glfw_scroll(GLFWwindow* handle, double x, double y)
 		window->events.mouse.scroll(window, x, y);
 }
 
+/****************************
+ * GLFW framebuffer size callback.
+ */
+static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
+                                       int width, int height)
+{
+	_GFXWindow* window = glfwGetWindowUserPointer(handle);
+
+	// Signal a resize happened...
+#if defined (__STDC_NO_ATOMICS__)
+	_gfx_mutex_lock(&window->sizeLock);
+	window->resized = 1;
+	_gfx_mutex_unlock(&window->sizeLock);
+#else
+	window->resized = 1;
+#endif
+}
+
 /****************************/
 GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
                                      GFXMonitor* monitor, GFXVideoMode mode,
@@ -229,6 +247,16 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		goto clean;
 
 	memset(&window->base, 0, sizeof(GFXWindow));
+
+	// Before we do much work, setup the resize flag.
+	// This comes with an associated lock (or atomic), so other threads don't
+	// accidentally think the window has not resized or smth.
+	window->resized = 0;
+
+#if defined (__STDC_NO_ATOMICS__)
+	if (!_gfx_mutex_init(&window->sizeLock))
+		goto clean;
+#endif
 
 	// Create a GLFW window.
 	glfwDefaultWindowHints();
@@ -255,7 +283,11 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		NULL);
 
 	if (window->handle == NULL)
+#if defined (__STDC_NO_ATOMICS__)
+		goto clean_lock;
+#else
 		goto clean;
+#endif
 
 	// Associate with GLFW using the user pointer.
 	glfwSetWindowUserPointer(window->handle, window);
@@ -300,6 +332,8 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		window->handle, _gfx_glfw_mouse_button);
 	glfwSetScrollCallback(
 		window->handle, _gfx_glfw_scroll);
+	glfwSetFramebufferSizeCallback(
+		window->handle, _gfx_glfw_framebuffer_size);
 
 	// Ok so we have a window, now we need to somehow connect it to a GPU.
 	// So first attempt to create a Vulkan surface for the window.
@@ -326,6 +360,9 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	// Ok so we have a physical device with a context (logical Vulkan device).
 	// Now go create a swapchain. Unfortunately we cannot clean the context
 	// if it was just created for us, but that's why we do this last.
+	// Make sure to set it to a NULL handle here so a new one gets created.
+	window->vk.swapchain = VK_NULL_HANDLE;
+
 	if (!_gfx_swapchain_recreate(window))
 		goto clean_surface;
 
@@ -338,8 +375,12 @@ clean_surface:
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, window->vk.surface, NULL);
 clean_window:
-	glfwDestroyWindow(
-		window->handle);
+	glfwDestroyWindow(window->handle);
+
+#if defined (__STDC_NO_ATOMICS__)
+clean_lock:
+	_gfx_mutex_clear(&window->sizeLock);
+#endif
 
 clean:
 	gfx_log_error("Could not create a new window.");
@@ -354,11 +395,22 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	if (window == NULL)
 		return;
 
+	// Destroy the swapchain built on the logical Vulkan device...
+	// Creation was done through _gfx_swapchain_recreate(window).
+	_GFXContext* context =
+		((_GFXWindow*)window)->device->context;
+	context->vk.DestroySwapchainKHR(
+		context->vk.device, ((_GFXWindow*)window)->vk.swapchain, NULL);
+
+	// Destroy the surface and the window itself.
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, ((_GFXWindow*)window)->vk.surface, NULL);
 	glfwDestroyWindow(
 		((_GFXWindow*)window)->handle);
 
+#if defined (__STDC_NO_ATOMICS__)
+	_gfx_mutex_clear(&((_GFXWindow*)window)->sizeLock);
+#endif
 	free(window);
 }
 
