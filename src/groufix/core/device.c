@@ -346,8 +346,9 @@ static int _gfx_device_init_context(_GFXDevice* device)
 			queueCount += context->families[i].count;
 
 		gfx_log_debug("Logical Vulkan device with "
-		              "%u physical device(s) and %u queue(s) created.",
-		              (unsigned int)context->numDevices, queueCount);
+		              "%u physical device(s) and %u queue(s) created for "
+		              "physical device group containing at least: %s.",
+		              (unsigned int)context->numDevices, queueCount, device->base.name);
 
 		// Now load all device level Vulkan functions.
 		// Load vkDestroyDevice first so we can clean properly.
