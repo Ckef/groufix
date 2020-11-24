@@ -49,7 +49,7 @@ int main()
 		NULL, NULL, (GFXVideoMode){ .width = 600, .height = 400 }, "groufix");
 
 	if (window == NULL)
-		goto fail_terminate;
+		goto fail;
 
 	// Register key release event.
 	window->events.key.release = key_release;
@@ -66,9 +66,9 @@ int main()
 	exit(EXIT_SUCCESS);
 
 	// On failure.
-fail_terminate:
-	gfx_terminate();
 fail:
+	gfx_terminate();
+
 	puts("Failure!");
 	exit(EXIT_FAILURE);
 }

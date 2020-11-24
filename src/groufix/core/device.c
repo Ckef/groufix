@@ -357,6 +357,7 @@ static int _gfx_device_init_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
+		_GFX_GET_DEVICE_PROC_ADDR(GetDeviceQueue);
 		_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
 
@@ -368,7 +369,9 @@ static int _gfx_device_init_context(_GFXDevice* device)
 
 	// Cleanup on failure.
 clean:
-	gfx_log_error("Could not create or initialize a logical Vulkan device.");
+	gfx_log_error("Could not create or initialize a logical Vulkan device for "
+	              "physical device group containing at least: %s.",
+	              device->base.name);
 
 	if (device->context != NULL)
 	{

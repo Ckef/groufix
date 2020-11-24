@@ -30,7 +30,10 @@ GFX_API int gfx_init(void)
 
 	// Initialize global state.
 	if (!_gfx_state_init())
-		goto terminate;
+	{
+		gfx_log_fatal("Could not initialize global state.");
+		return 0;
+	}
 
 	gfx_log_info("Global state initialized succesfully.");
 

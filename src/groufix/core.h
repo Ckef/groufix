@@ -143,6 +143,7 @@ typedef struct _GFXContext
 		_GFX_PFN_VK(DestroyDevice);
 		_GFX_PFN_VK(DestroySwapchainKHR);
 		_GFX_PFN_VK(DeviceWaitIdle);
+		_GFX_PFN_VK(GetDeviceQueue);
 		_GFX_PFN_VK(GetSwapchainImagesKHR);
 		_GFX_PFN_VK(QueuePresentKHR);
 
@@ -219,6 +220,7 @@ typedef struct _GFXWindow
 	{
 		VkSurfaceKHR   surface;
 		VkSwapchainKHR swapchain;
+		VkQueue        present; // We queue presentation here.
 
 	} vk;
 
@@ -357,6 +359,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window);
 /**
  * Retrieves whether a GLFW resize signal was set and resets the singal.
  * If the signal was set, _gfx_swapchain_recreate(window) should be called.
+ * @param window Cannot be NULL.
  * @return Non-zero if the swapchain should be recreated.
  */
 int _gfx_swapchain_resized(_GFXWindow* window);

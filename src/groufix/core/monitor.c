@@ -169,6 +169,10 @@ terminate:
 /****************************/
 void _gfx_monitors_terminate(void)
 {
+	// In case it did not initialize, make it a no-op.
+	if (_groufix.monitors.size == 0)
+		return;
+
 	// First just deallocate all monitors.
 	for (size_t i = 0; i < _groufix.monitors.size; ++i)
 	{

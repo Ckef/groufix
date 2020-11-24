@@ -146,6 +146,14 @@ void _gfx_vulkan_log(VkResult result)
 		gfx_log_error("Vulkan: A buffer creation or memory allocation failed "
 		              "because the requested address is not available.");
 		break;
+	case VK_ERROR_SURFACE_LOST_KHR:
+		gfx_log_error("A surface is no longer available.");
+		break;
+	case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR:
+		gfx_log_error("The requested window is already in use by Vulkan or "
+		              "another API in a manner which prevents it from being "
+		              "used again.");
+		break;
 
 	default:
 		gfx_log_error("Vulkan: Unknown error.");
