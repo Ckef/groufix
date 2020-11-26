@@ -103,9 +103,11 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			goto fail;
 		}
 
-		// Decide on the number of required present images.
-		// We select the correct amount for single, double or triple
-		// buffering and then clamp it between what is supported.
+		// Decide on the presentation mode.
+		// - single buffered: Immediate.
+		// - double buffered: FIFO.
+		// - triple buffered: Mailbox.
+		// Fallback to FIFO, as this is required to be supported.
 		int singleBuff =
 			!(window->flags & (GFX_WINDOW_DOUBLE_BUFFER | GFX_WINDOW_TRIPLE_BUFFER));
 		int doubleBuff =
@@ -113,18 +115,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		int tripleBuff =
 			window->flags & GFX_WINDOW_TRIPLE_BUFFER;
 
-		uint32_t imageCount = tripleBuff ? 3 : doubleBuff ? 2 : 1;
-
-		imageCount =
-			sc.minImageCount > imageCount ? sc.minImageCount :
-			sc.maxImageCount < imageCount ? sc.maxImageCount :
-			imageCount;
-
-		// Decide on the presentation mode.
-		// - single buffered: Immediate.
-		// - double buffered: FIFO.
-		// - triple buffered: Mailbox.
-		// Fallback to FIFO, as this is required to be supported.
 		VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR;
 
 		for (size_t i = 0; i < mCount; ++i)
@@ -140,6 +130,16 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 				break;
 			}
 		}
+
+		// Decide on the number of required present images.
+		// We select the correct amount for single, double or triple
+		// buffering and then clamp it between what is supported.
+		uint32_t imageCount = tripleBuff ? 3 : doubleBuff ? 2 : 1;
+
+		imageCount =
+			sc.minImageCount > imageCount ? sc.minImageCount :
+			sc.maxImageCount < imageCount ? sc.maxImageCount :
+			imageCount;
 
 		// Decide on the image format + color space to use.
 		// At this moment we just take the first one...
