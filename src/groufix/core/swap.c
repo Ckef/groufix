@@ -112,11 +112,9 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		int tripleBuff =
 			window->flags & GFX_WINDOW_TRIPLE_BUFFER;
 		int doubleBuff =
-			!tripleBuff &&
-			window->flags & GFX_WINDOW_DOUBLE_BUFFER;
+			!tripleBuff && window->flags & GFX_WINDOW_DOUBLE_BUFFER;
 		int singleBuff =
-			!tripleBuff && !doubleBuff &&
-			!(window->flags & (GFX_WINDOW_DOUBLE_BUFFER | GFX_WINDOW_TRIPLE_BUFFER));
+			!tripleBuff && !doubleBuff;
 
 		VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR;
 

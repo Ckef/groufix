@@ -42,7 +42,7 @@ GFX_API int gfx_init(void)
 	if (!gfx_attach())
 		goto terminate;
 
-	// For ONLY the main thread: default to logging to stdout.
+	// For ONLY the main thread: default to logging to stderr.
 	// After logging is setup, init GLFW and the Vulkan loader.
 	gfx_log_set_out(1);
 	glfwSetErrorCallback(_gfx_glfw_error);

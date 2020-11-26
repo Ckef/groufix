@@ -26,18 +26,20 @@ static const char* _gfx_log_levels[] = {
 };
 
 
+#if defined (GFX_UNIX)
+
 /****************************
  * Stringified logging colors for each level.
  */
-#if defined (GFX_UNIX)
-	static const char* _gfx_log_colors[] = {
-		"\x1b[35m", "\x1b[31m", "\x1b[33m", "\x1b[32m", "\x1b[36m", "\x1b[94m"
-	};
+static const char* _gfx_log_colors[] = {
+	"\x1b[35m", "\x1b[31m", "\x1b[33m", "\x1b[32m", "\x1b[36m", "\x1b[94m"
+};
+
 #endif
 
 
 /****************************
- * Logs a new line to stdout.
+ * Logs a new line to stderr.
  */
 static void _gfx_log_out(unsigned int thread,
                          GFXLogLevel level, double timeMs,
@@ -47,34 +49,29 @@ static void _gfx_log_out(unsigned int thread,
 	const char* L = _gfx_log_levels[level-1];
 
 #if defined (GFX_UNIX)
-	int tty = isatty(STDOUT_FILENO);
-
-	if (tty)
+	if (isatty(STDERR_FILENO))
 	{
-		// If on unix and stdout is a tty, use color.
+		// If on unix and stderr is a tty, use color.
 		const char* C = _gfx_log_colors[level-1];
 
-		printf("%.2ems %s%-5s\x1b[0m \x1b[90mthread%u: %s:%u: %s:\x1b[0m ",
+		fprintf(stderr,
+			"%.2ems %s%-5s\x1b[0m \x1b[90mthread%u: %s:%u: %s:\x1b[0m ",
 			timeMs, C, L, thread, file, line, func);
 	}
 	else
 	{
 #endif
 		// If not, or not on unix at all, output regularly.
-		printf("%.2ems %-5s thread%u: %s:%u: %s: ",
+		fprintf(stderr,
+			"%.2ems %-5s thread%u: %s:%u: %s: ",
 			timeMs, L, thread, file, line, func);
 
 #if defined (GFX_UNIX)
 	}
 #endif
 
-	vprintf(fmt, args);
-	putc('\n', stdout);
-
-#if defined (GFX_UNIX)
-	// If not a tty, it's fully buffered instead of line buffered, flush it.
-	if (!tty) fflush(stdout);
-#endif
+	vfprintf(stderr, fmt, args);
+	putc('\n', stderr);
 }
 
 /****************************
@@ -106,12 +103,12 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 	va_list args;
 
 	// So we get seconds that the CPU has spent on this program...
-	// We calculate it here so stdout and the file record the same time.
+	// We calculate it here so stderr and the file record the same time.
 	double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
 	unsigned int thread = 0;
 
 	// Logging is special, when groufix is not initialized,
-	// we still output to stdout.
+	// we still output to stderr.
 	// Check against default log level.
 	if (!_groufix.initialized)
 	{
@@ -149,7 +146,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 			va_end(args);
 		}
 
-		// If the state says not to output to stdout, we're done.
+		// If the state says not to output to stderr, we're done.
 		if (!state->log.std)
 			return;
 
@@ -157,8 +154,8 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 	}
 
 	// If no thread local state was present
-	// OR the state said so, we output to stdout.
-	// But groufix is initialized, so we need to lock access to stdout.
+	// OR the state said so, we output to stderr.
+	// But groufix is initialized, so we need to lock access to stderr.
 	va_start(args, fmt);
 
 	_gfx_mutex_lock(&_groufix.thread.ioLock);
