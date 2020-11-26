@@ -47,7 +47,9 @@ static void _gfx_log_out(unsigned int thread,
 	const char* L = _gfx_log_levels[level-1];
 
 #if defined (GFX_UNIX)
-	if (isatty(STDOUT_FILENO))
+	int tty = isatty(STDOUT_FILENO);
+
+	if (tty)
 	{
 		// If on unix and stdout is a tty, use color.
 		const char* C = _gfx_log_colors[level-1];
@@ -68,6 +70,11 @@ static void _gfx_log_out(unsigned int thread,
 
 	vprintf(fmt, args);
 	putc('\n', stdout);
+
+#if defined (GFX_UNIX)
+	// If not a tty, it's fully buffered instead of line buffered, flush it.
+	if (!tty) fflush(stdout);
+#endif
 }
 
 /****************************
