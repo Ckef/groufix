@@ -121,7 +121,7 @@ typedef struct _GFXState
 typedef struct _GFXQueueFamily
 {
 	VkQueueFlags flags;
-	int          present; // Non-zero if presentation support.
+	int          present; // Non-zero if chosen for presentation.
 	uint32_t     index;   // Vulkan family index.
 	uint32_t     count;
 
@@ -129,7 +129,7 @@ typedef struct _GFXQueueFamily
 
 
 /**
- * Logical Vulkan context (superset of a device).
+ * Logical Vulkan context (superset of a logical device).
  */
 typedef struct _GFXContext
 {
@@ -148,6 +148,7 @@ typedef struct _GFXContext
 		_GFX_PFN_VK(QueuePresentKHR);
 
 	} vk;
+
 
 	// Created queue families.
 	size_t            numFamilies;
@@ -208,12 +209,23 @@ typedef struct _GFXWindow
 	GLFWwindow* handle;
 	_GFXDevice* device; // Associated GPU to build a swapchain on.
 
+	GFXWindowFlags flags;
+
+
+	// Frame (i.e Vulkan surface) properties.
+	struct
+	{
 #if defined (__STDC_NO_ATOMICS__)
-	int        resized;
-	_GFXMutex  sizeLock;
+		int        resized;
 #else
-	atomic_int resized;
+		atomic_int resized;
 #endif
+		size_t     width;
+		size_t     height;
+		_GFXMutex  lock;
+
+	} frame;
+
 
 	// Vulkan fields.
 	struct
@@ -323,7 +335,7 @@ void _gfx_devices_terminate(void);
  * This function will lock the device and lock during context creation and
  * can therefore be called on any thread.
  * Once this function returned succesfully at least once for a given device,
- * we can read device->index and device->context directly.
+ * we can read device->index and device->context directly without locking.
  */
 _GFXContext* _gfx_device_get_context(_GFXDevice* device);
 
@@ -353,6 +365,8 @@ void _gfx_monitors_terminate(void);
  * should have returned succesfully before.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
+ *
+ * Can be called from any thread, but it is not reentrant!
  */
 int _gfx_swapchain_recreate(_GFXWindow* window);
 
@@ -361,6 +375,8 @@ int _gfx_swapchain_recreate(_GFXWindow* window);
  * If the signal was set, _gfx_swapchain_recreate(window) should be called.
  * @param window Cannot be NULL.
  * @return Non-zero if the swapchain should be recreated.
+ *
+ * Can be called from any thread.
  */
 int _gfx_swapchain_resized(_GFXWindow* window);
 

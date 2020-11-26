@@ -132,7 +132,7 @@ static uint32_t _gfx_device_get_queues(
 				(*families)[0].index   = i;
 
 				// Also pick it as presentation family.
-				if (present)
+				if (!hasPresent && present)
 				{
 					hasPresent = 1;
 					num -= 1; // We do not rquire an additional family.

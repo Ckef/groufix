@@ -220,14 +220,15 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 {
 	_GFXWindow* window = glfwGetWindowUserPointer(handle);
 
-	// Signal a resize happened...
-#if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_lock(&window->sizeLock);
-	window->resized = 1;
-	_gfx_mutex_unlock(&window->sizeLock);
-#else
-	window->resized = 1;
-#endif
+	// We lock such that setting the size and signaling it has been resized
+	// are both in the same atomic operation.
+	_gfx_mutex_lock(&window->frame.lock);
+
+	window->frame.resized = 1;
+	window->frame.width = (size_t)width;
+	window->frame.height = (size_t)height;
+
+	_gfx_mutex_unlock(&window->frame.lock);
 }
 
 /****************************/
@@ -247,16 +248,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		goto clean;
 
 	memset(&window->base, 0, sizeof(GFXWindow));
-
-	// Before we do much work, setup the resize flag.
-	// This comes with an associated lock (or atomic), so other threads don't
-	// accidentally think the window has not resized or smth.
-	window->resized = 0;
-
-#if defined (__STDC_NO_ATOMICS__)
-	if (!_gfx_mutex_init(&window->sizeLock))
-		goto clean;
-#endif
+	window->flags = flags;
 
 	// Create a GLFW window.
 	glfwDefaultWindowHints();
@@ -283,11 +275,20 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		NULL);
 
 	if (window->handle == NULL)
-#if defined (__STDC_NO_ATOMICS__)
-		goto clean_lock;
-#else
 		goto clean;
-#endif
+
+	// Initialize the lock for the resize signal and set the current
+	// width and height of the window's framebuffer.
+	if (!_gfx_mutex_init(&window->frame.lock))
+		goto clean_window;
+
+	int width;
+	int height;
+	glfwGetFramebufferSize(window->handle, &width, &height);
+
+	window->frame.resized = 0;
+	window->frame.width = (size_t)width;
+	window->frame.height = (size_t)height;
 
 	// Associate with GLFW using the user pointer.
 	glfwSetWindowUserPointer(window->handle, window);
@@ -343,7 +344,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	if (result != VK_SUCCESS)
 	{
 		_gfx_vulkan_log(result);
-		goto clean_window;
+		goto clean_lock;
 	}
 
 	// Then get the physical device we'll be working with.
@@ -374,13 +375,10 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 clean_surface:
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, window->vk.surface, NULL);
+clean_lock:
+	_gfx_mutex_clear(&window->frame.lock);
 clean_window:
 	glfwDestroyWindow(window->handle);
-
-#if defined (__STDC_NO_ATOMICS__)
-clean_lock:
-	_gfx_mutex_clear(&window->sizeLock);
-#endif
 
 clean:
 	gfx_log_error("Could not create a new window.");
@@ -408,9 +406,7 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	glfwDestroyWindow(
 		((_GFXWindow*)window)->handle);
 
-#if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_clear(&((_GFXWindow*)window)->sizeLock);
-#endif
+	_gfx_mutex_clear(&((_GFXWindow*)window)->frame.lock);
 	free(window);
 }
 
