@@ -108,12 +108,15 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		// - double buffered: FIFO.
 		// - triple buffered: Mailbox.
 		// Fallback to FIFO, as this is required to be supported.
-		int singleBuff =
-			!(window->flags & (GFX_WINDOW_DOUBLE_BUFFER | GFX_WINDOW_TRIPLE_BUFFER));
-		int doubleBuff =
-			window->flags & GFX_WINDOW_DOUBLE_BUFFER;
+		// Triple buffering trumps double buffering, double trumps single.
 		int tripleBuff =
 			window->flags & GFX_WINDOW_TRIPLE_BUFFER;
+		int doubleBuff =
+			!tripleBuff &&
+			window->flags & GFX_WINDOW_DOUBLE_BUFFER;
+		int singleBuff =
+			!tripleBuff && !doubleBuff &&
+			!(window->flags & (GFX_WINDOW_DOUBLE_BUFFER | GFX_WINDOW_TRIPLE_BUFFER));
 
 		VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR;
 
