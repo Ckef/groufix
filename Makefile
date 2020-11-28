@@ -49,9 +49,9 @@ CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -pedantic -Iinclude $(DFLAGS
 
 
 # Flags for library files only
-OFLAGS      = $(CFLAGS) -c -s -Isrc -Ideps/glfw/include -DGFX_BUILD_LIB
+OFLAGS      = $(CFLAGS) -c -s -DGFX_BUILD_LIB -Isrc -Ideps/glfw/include -Ideps/Vulkan-Headers/include
 OFLAGS_UNIX = $(OFLAGS) -fPIC
-OFLAGS_WIN  = $(OFLAGS) -Ideps/Vulkan-Headers/include
+OFLAGS_WIN  = $(OFLAGS)
 
 
 # Linker flags
@@ -100,8 +100,8 @@ endif
 $(OUT)$(SUB):
 ifeq ($(OS),Windows_NT)
 	$(eval OUTSUB_W = $(subst /,\,$(OUT)$(SUB)))
-	@if not exist $(OUTSUB_W)\groufix\containers\nul mkdir $(OUTSUB_W)
-	@if not exist $(OUTSUB_W)\groufix\core\nul mkdir $(OUTSUB_W)
+	@if not exist $(OUTSUB_W)\groufix\containers\nul mkdir $(OUTSUB_W)\groufix\containers
+	@if not exist $(OUTSUB_W)\groufix\core\nul mkdir $(OUTSUB_W)\groufix\core
 else
 	@mkdir -p $(OUT)$(SUB)/groufix/containers
 	@mkdir -p $(OUT)$(SUB)/groufix/core

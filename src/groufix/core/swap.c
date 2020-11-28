@@ -17,7 +17,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	assert(window->device != NULL);
 	assert(window->device->context != NULL);
 
-	// We assume _gfx_device_get_context(window) has been successful before.
 	_GFXDevice* device = window->device;
 	_GFXContext* context = device->context;
 
@@ -230,10 +229,9 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			_gfx_vulkan_log(result);
 			goto fail;
 		}
+
+		return 1;
 	}
-
-	return 1;
-
 
 	// On failure.
 fail:
