@@ -360,13 +360,14 @@ int _gfx_monitors_init(void);
 void _gfx_monitors_terminate(void);
 
 /**
- * (Re)creates the swapchain of a window.
+ * (Re)creates the swapchain of a window, left empty at framebuffer size of 0x0.
  * window->device cannot be NULL and _gfx_device_get_context(window->device)
  * should have returned succesfully before.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *
  * Can be called from any thread, but it is not reentrant!
+ * This will destroy the old swapchain, references to it must first be released.
  */
 int _gfx_swapchain_recreate(_GFXWindow* window);
 

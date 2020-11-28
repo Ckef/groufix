@@ -50,5 +50,13 @@ GFX_API void gfx_detach(void);
  */
 GFX_API void gfx_poll_events(void);
 
+/**
+ * Puts the main thread to sleep until at least one event is available,
+ * then calls the window and monitor callbacks.
+ * Must be called after gfx_init has succesfully returned.
+ * Must be called from the main thread.
+ */
+GFX_API void gfx_wait_events(void);
+
 
 #endif

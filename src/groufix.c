@@ -135,3 +135,11 @@ GFX_API void gfx_poll_events(void)
 
 	glfwPollEvents();
 }
+
+/****************************/
+GFX_API void gfx_wait_events(void)
+{
+	assert(_groufix.initialized);
+
+	glfwWaitEvents();
+}

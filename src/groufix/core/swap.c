@@ -20,7 +20,33 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	_GFXDevice* device = window->device;
 	_GFXContext* context = device->context;
 
-	// First of all, find all queues that need access to the surface's images.
+	// First of all, get the size GLFW thinks the framebuffer should be.
+	// Remember this gets changed by a GLFW callback when the window is
+	// resized, so we must lock when reading from it.
+	// Also reset the resized signal, in case it was set again, in this
+	// scenario we don't need to resize AGAIN because we already have the
+	// correct size at this point.
+	_gfx_mutex_lock(&window->frame.lock);
+
+	window->frame.resized = 0;
+	uint32_t width = (uint32_t)window->frame.width;
+	uint32_t height = (uint32_t)window->frame.height;
+
+	_gfx_mutex_unlock(&window->frame.lock);
+
+	// If the size is 0x0, the window is minimized, do not create anything.
+	if (width == 0 || height == 0)
+	{
+		context->vk.DestroySwapchainKHR(
+			context->vk.device, window->vk.swapchain, NULL);
+
+		window->vk.swapchain = VK_NULL_HANDLE;
+
+		return 1;
+	}
+
+	// Ok now go create a swapchain, we clearly want one, size > 0x0.
+	// First find all queues that need access to the surface's images.
 	size_t numFamilies = 0;
 	uint32_t families[context->numFamilies];
 
@@ -154,29 +180,16 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 
 		if (extent.width == 0xFFFFFFFF || extent.height == 0xFFFFFFFF)
 		{
-			// Remember this gets changed by a GLFW callback when the window
-			// is resized, so we must lock reading from it.
-			// Also reset the resized signal, in case it was set again,
-			// in this scenario we don't need to resize AGAIN because we
-			// already have the correct size at this point.
-			_gfx_mutex_lock(&window->frame.lock);
-
-			window->frame.resized = 0;
-			extent.width = (uint32_t)window->frame.width;
-			extent.height = (uint32_t)window->frame.height;
-
-			_gfx_mutex_unlock(&window->frame.lock);
-
 			// Clamp it between the supported extents.
 			extent.width =
-				sc.minImageExtent.width > extent.width ? sc.minImageExtent.width :
-				sc.maxImageExtent.width < extent.width ? sc.maxImageExtent.width :
-				extent.width;
+				sc.minImageExtent.width > width ? sc.minImageExtent.width :
+				sc.maxImageExtent.width < width ? sc.maxImageExtent.width :
+				width;
 
 			extent.height =
-				sc.minImageExtent.height > extent.height ? sc.minImageExtent.height :
-				sc.maxImageExtent.height < extent.height ? sc.maxImageExtent.height :
-				extent.height;
+				sc.minImageExtent.height > height ? sc.minImageExtent.height :
+				sc.maxImageExtent.height < height ? sc.maxImageExtent.height :
+				height;
 		}
 
 		// Finally create the actual swapchain.
@@ -215,14 +228,8 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		VkResult result = context->vk.CreateSwapchainKHR(
 			context->vk.device, &sci, NULL, &window->vk.swapchain);
 
-		if (oldSwapchain != VK_NULL_HANDLE)
-		{
-			// TODO: The destruction of resources associated with the
-			// swapchain probably need to be delayed until they are not used
-			// by anything anymore.
-			context->vk.DestroySwapchainKHR(
-				context->vk.device, oldSwapchain, NULL);
-		}
+		context->vk.DestroySwapchainKHR(
+			context->vk.device, oldSwapchain, NULL);
 
 		if (result != VK_SUCCESS)
 		{

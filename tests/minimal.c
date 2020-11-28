@@ -56,7 +56,7 @@ int main()
 
 	// Setup an event loop.
 	while (!gfx_window_should_close(window))
-		gfx_poll_events();
+		gfx_wait_events();
 
 	// Terminate.
 	gfx_destroy_window(window);
