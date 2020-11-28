@@ -143,3 +143,11 @@ GFX_API void gfx_wait_events(void)
 
 	glfwWaitEvents();
 }
+
+/****************************/
+GFX_API void gfx_wake(void)
+{
+	assert(_groufix.initialized);
+
+	glfwPostEmptyEvent();
+}

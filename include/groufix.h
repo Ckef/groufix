@@ -58,5 +58,12 @@ GFX_API void gfx_poll_events(void);
  */
 GFX_API void gfx_wait_events(void);
 
+/**
+ * Wakes the main thread if it is waiting on events through gfx_wait_events().
+ * Must be called after gfx_init has succesfully returned.
+ * Can be called from any thread.
+ */
+GFX_API void gfx_wake(void);
+
 
 #endif
