@@ -46,13 +46,15 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	}
 
 	// Ok now go create a swapchain, we clearly want one, size > 0x0.
-	// First find all queues that need access to the surface's images.
+	// First find all queue families that need access to the surface's images.
 	size_t numFamilies = 0;
 	uint32_t families[context->numFamilies];
 
+	window->present = NULL;
+
 	for (size_t i = 0; i < context->numFamilies; ++i)
 	{
-		// We only care about the queue if it is a graphics queue OR
+		// We only care about the family if it is a graphics family OR
 		// it specifically tells us it is capable of presenting.
 		int want =
 			context->families[i].flags & VK_QUEUE_GRAPHICS_BIT ||
@@ -79,15 +81,16 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			goto fail;
 		}
 
-		// Just take whatever queue supports it as presentation queue.
+		// Just take whatever family supports it as presentation family.
 		if (support == VK_TRUE)
-		{
-			context->vk.GetDeviceQueue(
-				context->vk.device,
-				context->families[i].index,
-				0,
-				&window->vk.present);
-		}
+			window->present = context->families + i;
+	}
+
+	// Uuuuuh hold up...
+	if (window->present == NULL)
+	{
+		gfx_log_error("Could not find a queue family with surface presentation support.");
+		goto fail;
 	}
 
 	// Get all formats, present modes and capabilities of the device.

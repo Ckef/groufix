@@ -15,6 +15,7 @@
 #include "groufix/core/log.h"
 #include "groufix/core/window.h"
 #include "groufix/core/threads.h"
+#include "groufix/def.h"
 #include <stdio.h>
 
 #if !defined (__STDC_NO_ATOMICS__)
@@ -37,6 +38,7 @@
 typedef struct _GFXThreadState
 {
 	unsigned int id;
+
 
 	// Logging data.
 	struct
@@ -133,23 +135,6 @@ typedef struct _GFXQueueFamily
  */
 typedef struct _GFXContext
 {
-	// Vulkan fields.
-	struct
-	{
-		VkDevice device;
-
-		_GFX_PFN_VK(AcquireNextImageKHR);
-		_GFX_PFN_VK(CreateSwapchainKHR);
-		_GFX_PFN_VK(DestroyDevice);
-		_GFX_PFN_VK(DestroySwapchainKHR);
-		_GFX_PFN_VK(DeviceWaitIdle);
-		_GFX_PFN_VK(GetDeviceQueue);
-		_GFX_PFN_VK(GetSwapchainImagesKHR);
-		_GFX_PFN_VK(QueuePresentKHR);
-
-	} vk;
-
-
 	// Created queue families.
 	size_t            numFamilies;
 	_GFXQueueFamily*  families;
@@ -157,6 +142,26 @@ typedef struct _GFXContext
 	// Associated device group.
 	size_t            numDevices;
 	VkPhysicalDevice* devices;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkDevice device;
+
+		_GFX_PFN_VK(AcquireNextImageKHR);
+		_GFX_PFN_VK(CreateCommandPool);
+		_GFX_PFN_VK(CreateSwapchainKHR);
+		_GFX_PFN_VK(DestroyCommandPool);
+		_GFX_PFN_VK(DestroyDevice);
+		_GFX_PFN_VK(DestroySwapchainKHR);
+		_GFX_PFN_VK(DeviceWaitIdle);
+		_GFX_PFN_VK(GetDeviceQueue);
+		_GFX_PFN_VK(GetSwapchainImagesKHR);
+		_GFX_PFN_VK(QueuePresentKHR);
+		_GFX_PFN_VK(ResetCommandPool);
+
+	} vk;
 
 } _GFXContext;
 
@@ -174,6 +179,7 @@ typedef struct _GFXDevice
 	size_t       index; // Index into the device group.
 	_GFXContext* context;
 	_GFXMutex    lock;
+
 
 	// Vulkan fields.
 	struct
@@ -205,11 +211,12 @@ typedef struct _GFXMonitor
  */
 typedef struct _GFXWindow
 {
-	GFXWindow   base;
-	GLFWwindow* handle;
-	_GFXDevice* device; // Associated GPU to build a swapchain on.
-
+	GFXWindow      base;
 	GFXWindowFlags flags;
+	GLFWwindow*    handle;
+
+	_GFXDevice*      device;  // Associated GPU to build a swapchain on.
+	_GFXQueueFamily* present; // We queue presentation in this family.
 
 
 	// Frame (i.e Vulkan surface) properties.
@@ -232,7 +239,6 @@ typedef struct _GFXWindow
 	{
 		VkSurfaceKHR   surface;
 		VkSwapchainKHR swapchain;
-		VkQueue        present; // We queue presentation here.
 
 	} vk;
 
