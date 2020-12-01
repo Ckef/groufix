@@ -142,9 +142,11 @@ HEADERS = \
  include/groufix/core/device.h \
  include/groufix/core/keys.h \
  include/groufix/core/log.h \
+ include/groufix/core/renderer.h \
  include/groufix/core/window.h \
  include/groufix/def.h \
  include/groufix.h \
+ src/groufix/core/objects.h \
  src/groufix/core/threads.h \
  src/groufix/core.h
 
@@ -154,6 +156,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/device.o \
  $(OUT)$(SUB)/groufix/core/log.o \
  $(OUT)$(SUB)/groufix/core/monitor.o \
+ $(OUT)$(SUB)/groufix/core/pass.o \
  $(OUT)$(SUB)/groufix/core/state.o \
  $(OUT)$(SUB)/groufix/core/swap.o \
  $(OUT)$(SUB)/groufix/core/vulkan.o \

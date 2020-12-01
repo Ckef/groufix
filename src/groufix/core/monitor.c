@@ -6,7 +6,6 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/core/window.h"
 #include "groufix/core.h"
 #include <assert.h>
 #include <stdlib.h>

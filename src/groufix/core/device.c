@@ -6,7 +6,6 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/core/device.h"
 #include "groufix/core.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -189,9 +188,9 @@ clean:
 /****************************
  * Creates an appropriate context (Vulkan device + fp's) suited for a device.
  * @param device Cannot be NULL.
- * @return NULL on failure.
+ * @return Zero on failure.
  */
-static int _gfx_device_init_context(_GFXDevice* device)
+static int _gfx_device_create_context(_GFXDevice* device)
 {
 	assert(device->context == NULL);
 
@@ -523,9 +522,11 @@ void _gfx_devices_terminate(void)
 }
 
 /****************************/
-_GFXContext* _gfx_device_get_context(_GFXDevice* device)
+int _gfx_device_init_context(_GFXDevice* device)
 {
 	assert(device != NULL);
+
+	int ret = 0;
 
 	// Lock the device's lock to sync access to the device's context.
 	// Once this call returns successfully the context will not be set anymore,
@@ -552,24 +553,21 @@ _GFXContext* _gfx_device_get_context(_GFXDevice* device)
 					device->index = j;
 					device->context = context;
 
+					ret = 1;
 					goto unlock;
 				}
 		}
 
 		// If none found, create a new one.
-		// It returns whether it succeeded, but just ignore this result.
-		// If it failed, device->context will be NULL anyway.
-		_gfx_device_init_context(device);
+		ret = _gfx_device_create_context(device);
 
 	unlock:
 		_gfx_mutex_unlock(&_groufix.contextLock);
 	}
 
-	// Unlock after we read from the device, in case we fail and return NULL.
-	_GFXContext* context = device->context;
 	_gfx_mutex_unlock(&device->lock);
 
-	return context;
+	return ret;
 }
 
 /****************************/

@@ -11,11 +11,8 @@
 #define _GFX_CORE_H
 
 #include "groufix/containers/vec.h"
-#include "groufix/core/device.h"
-#include "groufix/core/log.h"
-#include "groufix/core/window.h"
 #include "groufix/core/threads.h"
-#include "groufix/def.h"
+#include "groufix.h"
 #include <stdio.h>
 
 #if !defined (__STDC_NO_ATOMICS__)
@@ -28,7 +25,10 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-// Vulkan function pointer.
+
+/**
+ * Vulkan function pointer.
+ */
 #define _GFX_PFN_VK(pName) PFN_vk##pName pName
 
 
@@ -294,7 +294,7 @@ _GFXThreadState* _gfx_state_get_local(void);
 
 
 /****************************
- * Vulkan context, devices and logging.
+ * Devices, monitors and Vulkan contexts.
  ****************************/
 
 /**
@@ -326,29 +326,23 @@ int _gfx_devices_init(void);
 
 /**
  * Terminates internal device configuration.
- * This will make sure all divices and contexts are destroyed.
+ * This will make sure all divices AND contexts are destroyed.
  * Must be called before _gfx_vulkan_terminate, on the same thread.
  */
 void _gfx_devices_terminate(void);
 
 /**
- * Retrieves the Vulkan context.
- * It will automatically be created if it did not exist yet.
+ * Initializes the Vulkan context, no-op if it already exists
  * The device will share its context with all devices in its device group.
  * @param device Cannot be NULL.
- * @return NULL if the context could not be found or created.
+ * @return Non-zero if successfull.
  *
  * This function will lock the device and lock during context creation and
  * can therefore be called on any thread.
  * Once this function returned succesfully at least once for a given device,
  * we can read device->index and device->context directly without locking.
  */
-_GFXContext* _gfx_device_get_context(_GFXDevice* device);
-
-
-/****************************
- * Monitor configuration and window swapchain.
- ****************************/
+int _gfx_device_init_context(_GFXDevice* device);
 
 /**
  * Initializes internal monitor configuration.
@@ -364,6 +358,11 @@ int _gfx_monitors_init(void);
  * Must be called before _gfx_state_terminate, on the same thread.
  */
 void _gfx_monitors_terminate(void);
+
+
+/****************************
+ * The window's swapchain.
+ ****************************/
 
 /**
  * (Re)creates the swapchain of a window, left empty at framebuffer size of 0x0.

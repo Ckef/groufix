@@ -6,7 +6,6 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/core/window.h"
 #include "groufix/core.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -347,15 +346,11 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		goto clean_lock;
 	}
 
-	// Then get the physical device we'll be working with.
-	// When we have it, get the context associated with the device.
-	// We're not using it yet, but this should create it such that we can
-	// simply read it from the device from this point onwards,
-	// without having to lock by calling _gfx_device_get_context again.
+	// Get the physical device and make sure it's initialized.
 	window->device =
 		(_GFXDevice*)((device != NULL) ? device : gfx_get_primary_device());
 
-	if (_gfx_device_get_context(window->device) == NULL)
+	if (!_gfx_device_init_context(window->device))
 		goto clean_surface;
 
 	// Ok so we have a physical device with a context (logical Vulkan device).

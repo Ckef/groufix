@@ -6,7 +6,6 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix.h"
 #include "groufix/core.h"
 #include <assert.h>
 
