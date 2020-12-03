@@ -276,21 +276,6 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	if (window->handle == NULL)
 		goto clean;
 
-	// Initialize the lock for the resize signal and set the current
-	// width and height of the window's framebuffer.
-	if (!_gfx_mutex_init(&window->frame.lock))
-		goto clean_window;
-
-	int width;
-	int height;
-	glfwGetFramebufferSize(window->handle, &width, &height);
-
-	window->frame.resized = 0;
-	window->frame.width = (size_t)width;
-	window->frame.height = (size_t)height;
-
-	gfx_vec_init(&window->frame.images, sizeof(VkImage));
-
 	// Associate with GLFW using the user pointer.
 	glfwSetWindowUserPointer(window->handle, window);
 
@@ -337,6 +322,22 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	glfwSetFramebufferSizeCallback(
 		window->handle, _gfx_glfw_framebuffer_size);
 
+	// Initialize the locks for resize signal and set the current
+	// width and height of the window's framebuffer.
+	if (!_gfx_mutex_init(&window->frame.lock))
+		goto clean_window;
+
+	int width;
+	int height;
+	glfwGetFramebufferSize(window->handle, &width, &height);
+
+	window->frame.resized = 0;
+	window->frame.width = (size_t)width;
+	window->frame.height = (size_t)height;
+
+	gfx_vec_init(&window->frame.images, sizeof(VkImage));
+	window->frame.present = NULL;
+
 	// Ok so we have a window, now we need to somehow connect it to a GPU.
 	// So first attempt to create a Vulkan surface for the window.
 	VkResult result = glfwCreateWindowSurface(
@@ -345,7 +346,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	if (result != VK_SUCCESS)
 	{
 		_gfx_vulkan_log(result);
-		goto clean_lock;
+		goto clean_frame;
 	}
 
 	// Get the physical device and make sure it's initialized.
@@ -372,7 +373,8 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 clean_surface:
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, window->vk.surface, NULL);
-clean_lock:
+clean_frame:
+	gfx_vec_clear(&window->frame.images);
 	_gfx_mutex_clear(&window->frame.lock);
 clean_window:
 	glfwDestroyWindow(window->handle);
@@ -404,10 +406,9 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 
 	// Destroy the surface and the window itself.
 	_groufix.vk.DestroySurfaceKHR(
-		_groufix.vk.instance, ((_GFXWindow*)window)->vk.surface, NULL);
-	glfwDestroyWindow(
-		((_GFXWindow*)window)->handle);
+		_groufix.vk.instance, win->vk.surface, NULL);
 
+	glfwDestroyWindow(win->handle);
 	free(window);
 }
 

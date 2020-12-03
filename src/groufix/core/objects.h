@@ -26,7 +26,10 @@ struct GFXRenderPass
 	struct
 	{
 		_GFXWindow* window;
-		uint32_t    index; // Vulkan image index into the swapchain.
+		VkQueue     queue; // Presentation queue.
+
+		VkSemaphore sema;
+		VkFence     fence;
 
 	} frame;
 };

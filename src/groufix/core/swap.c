@@ -19,6 +19,9 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	_GFXDevice* device = window->device;
 	_GFXContext* context = device->context;
 
+	gfx_vec_release(&window->frame.images);
+	window->frame.present = NULL;
+
 	// First of all, get the size GLFW thinks the framebuffer should be.
 	// Remember this gets changed by a GLFW callback when the window is
 	// resized, so we must lock when reading from it.
@@ -49,8 +52,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	// First find all queue families that need access to the surface's images.
 	size_t numFamilies = 0;
 	uint32_t families[context->numFamilies];
-
-	window->present = NULL;
 
 	for (size_t i = 0; i < context->numFamilies; ++i)
 	{
@@ -83,11 +84,11 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 
 		// Just take whatever family supports it as presentation family.
 		if (support == VK_TRUE)
-			window->present = context->families + i;
+			window->frame.present = context->families + i;
 	}
 
 	// Uuuuuh hold up...
-	if (window->present == NULL)
+	if (window->frame.present == NULL)
 	{
 		gfx_log_error("Could not find a queue family with surface presentation support.");
 		goto clean;
@@ -253,7 +254,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		if (!gfx_vec_reserve(&window->frame.images, count))
 			goto clean;
 
-		gfx_vec_release(&window->frame.images);
 		gfx_vec_push_empty(&window->frame.images, count);
 
 		result = context->vk.GetSwapchainImagesKHR(
@@ -278,7 +278,9 @@ clean:
 		context->vk.device, window->vk.swapchain, NULL);
 
 	window->vk.swapchain = VK_NULL_HANDLE;
+
 	gfx_vec_clear(&window->frame.images);
+	window->frame.present = NULL;
 
 	return 0;
 }

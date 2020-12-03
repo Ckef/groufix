@@ -151,15 +151,21 @@ typedef struct _GFXContext
 
 		_GFX_PFN_VK(AcquireNextImageKHR);
 		_GFX_PFN_VK(CreateCommandPool);
+		_GFX_PFN_VK(CreateFence);
+		_GFX_PFN_VK(CreateSemaphore);
 		_GFX_PFN_VK(CreateSwapchainKHR);
 		_GFX_PFN_VK(DestroyCommandPool);
 		_GFX_PFN_VK(DestroyDevice);
+		_GFX_PFN_VK(DestroyFence);
+		_GFX_PFN_VK(DestroySemaphore);
 		_GFX_PFN_VK(DestroySwapchainKHR);
 		_GFX_PFN_VK(DeviceWaitIdle);
 		_GFX_PFN_VK(GetDeviceQueue);
 		_GFX_PFN_VK(GetSwapchainImagesKHR);
 		_GFX_PFN_VK(QueuePresentKHR);
 		_GFX_PFN_VK(ResetCommandPool);
+		_GFX_PFN_VK(ResetFences);
+		_GFX_PFN_VK(WaitForFences);
 
 	} vk;
 
@@ -215,13 +221,15 @@ typedef struct _GFXWindow
 	GFXWindowFlags flags;
 	GLFWwindow*    handle;
 
-	_GFXDevice*      device;  // Associated GPU to build a swapchain on.
-	_GFXQueueFamily* present; // We queue presentation in this family.
+	_GFXDevice* device; // Associated GPU to build a swapchain on.
 
 
 	// Frame (i.e Vulkan surface + swapchain) properties.
 	struct
 	{
+		GFXVec           images;  // Stores VkImage.
+		_GFXQueueFamily* present; // We submit presentation to this family.
+
 #if defined (__STDC_NO_ATOMICS__)
 		int        resized;
 #else
@@ -230,7 +238,6 @@ typedef struct _GFXWindow
 		size_t     width;
 		size_t     height;
 		_GFXMutex  lock;
-		GFXVec     images;
 
 	} frame;
 
