@@ -289,8 +289,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	window->frame.width = (size_t)width;
 	window->frame.height = (size_t)height;
 
-	window->frame.numImages = 0;
-	window->frame.images = NULL;
+	gfx_vec_init(&window->frame.images, sizeof(VkImage));
 
 	// Associate with GLFW using the user pointer.
 	glfwSetWindowUserPointer(window->handle, window);
@@ -391,15 +390,17 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	if (window == NULL)
 		return;
 
+	_GFXWindow* win = (_GFXWindow*)window;
+
 	// Destroy the swapchain built on the logical Vulkan device...
 	// Creation was done through _gfx_swapchain_recreate(window).
-	_GFXContext* context =
-		((_GFXWindow*)window)->device->context;
-	context->vk.DestroySwapchainKHR(
-		context->vk.device, ((_GFXWindow*)window)->vk.swapchain, NULL);
+	_GFXContext* context = win->device->context;
 
-	free(((_GFXWindow*)window)->frame.images);
-	_gfx_mutex_clear(&((_GFXWindow*)window)->frame.lock);
+	context->vk.DestroySwapchainKHR(
+		context->vk.device, win->vk.swapchain, NULL);
+
+	gfx_vec_clear(&win->frame.images);
+	_gfx_mutex_clear(&win->frame.lock);
 
 	// Destroy the surface and the window itself.
 	_groufix.vk.DestroySurfaceKHR(

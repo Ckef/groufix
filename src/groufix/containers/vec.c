@@ -109,6 +109,14 @@ GFX_API int gfx_vec_reserve(GFXVec* vec, size_t numElems)
 }
 
 /****************************/
+GFX_API void gfx_vec_release(GFXVec* vec)
+{
+	assert(vec != NULL);
+
+	vec->size = 0;
+}
+
+/****************************/
 GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
 {
 	assert(vec != NULL);
@@ -124,6 +132,19 @@ GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
 	return 1;
 }
 
+/****************************/
+GFX_API int gfx_vec_push_empty(GFXVec* vec, size_t numElems)
+{
+	assert(vec != NULL);
+	assert(numElems > 0);
+
+	if (!_gfx_vec_grow(vec, vec->size + numElems))
+		return 0;
+
+	vec->size += numElems;
+
+	return 1;
+}
 
 /****************************/
 GFX_API int gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
@@ -144,6 +165,27 @@ GFX_API int gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
 		(vec->size - index) * vec->elementSize);
 
 	memcpy(gfx_vec_at(vec, index), elems, numElems * vec->elementSize);
+	vec->size += numElems;
+
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_vec_insert_empty(GFXVec* vec, size_t numElems, size_t index)
+{
+	assert(vec != NULL);
+	assert(numElems > 0);
+	assert(index <= vec->size);
+
+	if (!_gfx_vec_grow(vec, vec->size + numElems))
+		return 0;
+
+	// So yeah move elements to the right.
+	if (index < vec->size) memmove(
+		gfx_vec_at(vec, index + numElems),
+		gfx_vec_at(vec, index),
+		(vec->size - index) * vec->elementSize);
+
 	vec->size += numElems;
 
 	return 1;

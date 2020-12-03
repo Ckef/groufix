@@ -137,11 +137,11 @@ typedef struct _GFXContext
 {
 	// Created queue families.
 	size_t            numFamilies;
-	_GFXQueueFamily*  families;
+	_GFXQueueFamily*  families; // @struct tail.
 
 	// Associated device group.
 	size_t            numDevices;
-	VkPhysicalDevice* devices;
+	VkPhysicalDevice* devices; // @struct tail.
 
 
 	// Vulkan fields.
@@ -201,7 +201,7 @@ typedef struct _GFXMonitor
 
 	// Available video modes.
 	size_t        numModes;
-	GFXVideoMode* modes;
+	GFXVideoMode* modes; // @struct tail.
 
 } _GFXMonitor;
 
@@ -230,9 +230,7 @@ typedef struct _GFXWindow
 		size_t     width;
 		size_t     height;
 		_GFXMutex  lock;
-
-		size_t     numImages;
-		VkImage*   images;
+		GFXVec     images;
 
 	} frame;
 

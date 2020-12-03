@@ -19,10 +19,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	_GFXDevice* device = window->device;
 	_GFXContext* context = device->context;
 
-	free(window->frame.images);
-	window->frame.numImages = 0;
-	window->frame.images = NULL;
-
 	// First of all, get the size GLFW thinks the framebuffer should be.
 	// Remember this gets changed by a GLFW callback when the window is
 	// resized, so we must lock when reading from it.
@@ -250,14 +246,19 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		result = context->vk.GetSwapchainImagesKHR(
 			context->vk.device, window->vk.swapchain, &count, NULL);
 
-		window->frame.numImages = (size_t)count;
-		window->frame.images = malloc(sizeof(VkImage) * count);
-
-		if (result != VK_SUCCESS || count == 0 || window->frame.images == NULL)
+		if (result != VK_SUCCESS || count == 0)
 			goto clean;
 
+		// Reserve the exact amount cause it's most likely not gonna change.
+		if (!gfx_vec_reserve(&window->frame.images, count))
+			goto clean;
+
+		gfx_vec_release(&window->frame.images);
+		gfx_vec_push_empty(&window->frame.images, count);
+
 		result = context->vk.GetSwapchainImagesKHR(
-			context->vk.device, window->vk.swapchain, &count, window->frame.images);
+			context->vk.device, window->vk.swapchain, &count,
+			window->frame.images.data);
 
 		if (result != VK_SUCCESS)
 			goto clean;
@@ -277,10 +278,7 @@ clean:
 		context->vk.device, window->vk.swapchain, NULL);
 
 	window->vk.swapchain = VK_NULL_HANDLE;
-
-	free(window->frame.images);
-	window->frame.numImages = 0;
-	window->frame.images = NULL;
+	gfx_vec_clear(&window->frame.images);
 
 	return 0;
 }
