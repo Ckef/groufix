@@ -44,6 +44,8 @@ int main()
 	if (!gfx_init())
 		goto fail;
 
+
+	/////////////////////////
 	// Create a window.
 	GFXWindow* window = gfx_create_window(GFX_WINDOW_RESIZABLE,
 		NULL, NULL, (GFXVideoMode){ .width = 600, .height = 400 }, "groufix");
@@ -54,18 +56,38 @@ int main()
 	// Register key release event.
 	window->events.key.release = key_release;
 
+	// Create a render pass.
+	GFXRenderPass* pass = gfx_create_render_pass(NULL);
+	if (pass == NULL)
+		goto fail_pass;
+
+	if (!gfx_render_pass_attach_window(pass, window))
+		goto fail_pass;
+
+
+	/////////////////////////
 	// Setup an event loop.
 	while (!gfx_window_should_close(window))
+	{
+		gfx_render_pass_submit(pass);
 		gfx_wait_events();
+	}
 
+
+	/////////////////////////
 	// Terminate.
+	gfx_destroy_render_pass(pass);
 	gfx_destroy_window(window);
 	gfx_terminate();
 
 	puts("Success!");
 	exit(EXIT_SUCCESS);
 
+
 	// On failure.
+fail_pass:
+	gfx_destroy_render_pass(pass);
+	gfx_destroy_window(window);
 fail:
 	gfx_terminate();
 

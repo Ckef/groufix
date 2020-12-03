@@ -219,7 +219,7 @@ typedef struct _GFXWindow
 	_GFXQueueFamily* present; // We queue presentation in this family.
 
 
-	// Frame (i.e Vulkan surface) properties.
+	// Frame (i.e Vulkan surface + swapchain) properties.
 	struct
 	{
 #if defined (__STDC_NO_ATOMICS__)
@@ -230,6 +230,9 @@ typedef struct _GFXWindow
 		size_t     width;
 		size_t     height;
 		_GFXMutex  lock;
+
+		size_t     numImages;
+		VkImage*   images;
 
 	} frame;
 
@@ -366,12 +369,11 @@ void _gfx_monitors_terminate(void);
 
 /**
  * (Re)creates the swapchain of a window, left empty at framebuffer size of 0x0.
- * window->device cannot be NULL and _gfx_device_get_context(window->device)
- * should have returned succesfully before.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *
  * Can be called from any thread, but it is not reentrant!
+ * Also creates the window->frame images and fills window->present.
  * This will destroy the old swapchain, references to it must first be released.
  */
 int _gfx_swapchain_recreate(_GFXWindow* window);

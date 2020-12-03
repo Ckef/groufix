@@ -39,19 +39,21 @@ GFX_API void gfx_destroy_render_pass(GFXRenderPass* pass);
  * TODO: Improve API, is a mockup.
  * Attaches a window to a render pass.
  * @param pass   Cannot be NULL.
- * @param window Cannot be NULL.
+ * @param window NULL to detach the current window.
+ * @return Zero if the window and render pass do not share a compatible device.
  *
  * A window referenced by multiple passes is not synchronized.
  */
-GFX_API void gfx_render_pass_attach_window(GFXRenderPass* pass,
-                                           GFXWindow* window);
+GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
+                                          GFXWindow* window);
 
 /**
  * TODO: Improve API, is a mockup.
  * Submits the render pass to the GPU.
  * @param pass Cannot be NULL.
+ * @return Zero on failure.
  */
-GFX_API void gfx_render_pass_submit(GFXRenderPass* pass);
+GFX_API int gfx_render_pass_submit(GFXRenderPass* pass);
 
 
 #endif

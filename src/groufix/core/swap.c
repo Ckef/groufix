@@ -8,17 +8,20 @@
 
 #include "groufix/core.h"
 #include <assert.h>
+#include <stdlib.h>
 
 
 /****************************/
 int _gfx_swapchain_recreate(_GFXWindow* window)
 {
 	assert(window != NULL);
-	assert(window->device != NULL);
-	assert(window->device->context != NULL);
 
 	_GFXDevice* device = window->device;
 	_GFXContext* context = device->context;
+
+	free(window->frame.images);
+	window->frame.numImages = 0;
+	window->frame.images = NULL;
 
 	// First of all, get the size GLFW thinks the framebuffer should be.
 	// Remember this gets changed by a GLFW callback when the window is
@@ -35,6 +38,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	_gfx_mutex_unlock(&window->frame.lock);
 
 	// If the size is 0x0, the window is minimized, do not create anything.
+	// Actually destroy things.
 	if (width == 0 || height == 0)
 	{
 		context->vk.DestroySwapchainKHR(
@@ -78,7 +82,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		if (result != VK_SUCCESS)
 		{
 			_gfx_vulkan_log(result);
-			goto fail;
+			goto clean;
 		}
 
 		// Just take whatever family supports it as presentation family.
@@ -90,7 +94,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	if (window->present == NULL)
 	{
 		gfx_log_error("Could not find a queue family with surface presentation support.");
-		goto fail;
+		goto clean;
 	}
 
 	// Get all formats, present modes and capabilities of the device.
@@ -104,7 +108,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		device->vk.device, window->vk.surface, &mCount, NULL);
 
 	if (fRes != VK_SUCCESS || mRes != VK_SUCCESS || fCount == 0 || mCount == 0)
-		goto fail;
+		goto clean;
 
 	// We use a scope here so the gotos above are allowed.
 	{
@@ -122,13 +126,13 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			device->vk.device, window->vk.surface, &mCount, modes);
 
 		if (cRes != VK_SUCCESS || fRes != VK_SUCCESS || mRes != VK_SUCCESS)
-			goto fail;
+			goto clean;
 
 		// Check if our desired image usage is supported.
 		if (!(sc.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
 		{
 			gfx_log_error("VK_IMAGE_USAGE_TRANSFER_DST_BIT is not supported.");
-			goto fail;
+			goto clean;
 		}
 
 		// Decide on the presentation mode.
@@ -237,17 +241,46 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		if (result != VK_SUCCESS)
 		{
 			_gfx_vulkan_log(result);
-			goto fail;
+			goto clean;
 		}
+
+		// Query all the images associated with the swapchain
+		// and remember them for later usage.
+		uint32_t count = 0;
+		result = context->vk.GetSwapchainImagesKHR(
+			context->vk.device, window->vk.swapchain, &count, NULL);
+
+		window->frame.numImages = (size_t)count;
+		window->frame.images = malloc(sizeof(VkImage) * count);
+
+		if (result != VK_SUCCESS || count == 0 || window->frame.images == NULL)
+			goto clean;
+
+		result = context->vk.GetSwapchainImagesKHR(
+			context->vk.device, window->vk.swapchain, &count, window->frame.images);
+
+		if (result != VK_SUCCESS)
+			goto clean;
 
 		return 1;
 	}
 
-	// On failure.
-fail:
-	gfx_log_error(
+	// Clean on failure.
+clean:
+	gfx_log_fatal(
 		"Could not (re)create a swapchain for physical device: %s.",
 		device->base.name);
+
+	// On failure, destroy everything, we obviously wanted a new swapchain
+	// and we can't get it, so reset to empty state.
+	context->vk.DestroySwapchainKHR(
+		context->vk.device, window->vk.swapchain, NULL);
+
+	window->vk.swapchain = VK_NULL_HANDLE;
+
+	free(window->frame.images);
+	window->frame.numImages = 0;
+	window->frame.images = NULL;
 
 	return 0;
 }

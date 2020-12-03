@@ -289,6 +289,9 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	window->frame.width = (size_t)width;
 	window->frame.height = (size_t)height;
 
+	window->frame.numImages = 0;
+	window->frame.images = NULL;
+
 	// Associate with GLFW using the user pointer.
 	glfwSetWindowUserPointer(window->handle, window);
 
@@ -395,13 +398,15 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, ((_GFXWindow*)window)->vk.swapchain, NULL);
 
+	free(((_GFXWindow*)window)->frame.images);
+	_gfx_mutex_clear(&((_GFXWindow*)window)->frame.lock);
+
 	// Destroy the surface and the window itself.
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, ((_GFXWindow*)window)->vk.surface, NULL);
 	glfwDestroyWindow(
 		((_GFXWindow*)window)->handle);
 
-	_gfx_mutex_clear(&((_GFXWindow*)window)->frame.lock);
 	free(window);
 }
 

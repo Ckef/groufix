@@ -20,7 +20,15 @@
 struct GFXRenderPass
 {
 	_GFXDevice* device;
-	_GFXWindow* window;
+
+
+	// Frame, i.e. swapchain properties.
+	struct
+	{
+		_GFXWindow* window;
+		uint32_t    index; // Vulkan image index into the swapchain.
+
+	} frame;
 };
 
 

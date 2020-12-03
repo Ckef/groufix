@@ -533,7 +533,9 @@ int _gfx_device_init_context(_GFXDevice* device)
 	// which means after this call, we can just read device->context directly.
 	_gfx_mutex_lock(&device->lock);
 
-	if (device->context == NULL)
+	ret = device->context != NULL;
+
+	if (!ret)
 	{
 		// We only use the context lock here to sync the context array.
 		// Other uses happen during initialization or termination,
