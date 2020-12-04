@@ -227,8 +227,7 @@ typedef struct _GFXWindow
 	// Frame (i.e Vulkan surface + swapchain) properties.
 	struct
 	{
-		GFXVec           images;  // Stores VkImage.
-		_GFXQueueFamily* present; // We submit presentation to this family.
+		GFXVec images; // Stores VkImage.
 
 #if defined (__STDC_NO_ATOMICS__)
 		int        resized;
@@ -247,6 +246,10 @@ typedef struct _GFXWindow
 	{
 		VkSurfaceKHR   surface;
 		VkSwapchainKHR swapchain;
+		VkQueue        queue; // Presentation queue.
+
+		VkSemaphore    semaphore;
+		VkFence        fence;
 
 	} vk;
 
@@ -340,19 +343,6 @@ int _gfx_devices_init(void);
 void _gfx_devices_terminate(void);
 
 /**
- * Initializes the Vulkan context, no-op if it already exists
- * The device will share its context with all devices in its device group.
- * @param device Cannot be NULL.
- * @return Non-zero if successfull.
- *
- * This function will lock the device and lock during context creation and
- * can therefore be called on any thread.
- * Once this function returned succesfully at least once for a given device,
- * we can read device->index and device->context directly without locking.
- */
-int _gfx_device_init_context(_GFXDevice* device);
-
-/**
  * Initializes internal monitor configuration.
  * _groufix.monitors.size must be 0.
  * Must be called by the same thread that called _gfx_state_init.
@@ -367,6 +357,19 @@ int _gfx_monitors_init(void);
  */
 void _gfx_monitors_terminate(void);
 
+/**
+ * Initializes the Vulkan context, no-op if it already exists
+ * The device will share its context with all devices in its device group.
+ * @param device Cannot be NULL.
+ * @return Non-zero if successfull.
+ *
+ * This function will lock the device and lock during context creation and
+ * can therefore be called on any thread.
+ * Once this function returned succesfully at least once for a given device,
+ * we can read device->index and device->context directly without locking.
+ */
+int _gfx_device_init_context(_GFXDevice* device);
+
 
 /****************************
  * The window's swapchain.
@@ -377,21 +380,34 @@ void _gfx_monitors_terminate(void);
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *
- * Can be called from any thread, but it is not reentrant!
- * Also creates the window->frame images and fills window->present.
+ * Can be called from any thread, but not reentrant.
+ * Also fills window->frame.images and window->vk.queue.
  * This will destroy the old swapchain, references to it must first be released.
  */
 int _gfx_swapchain_recreate(_GFXWindow* window);
 
 /**
- * Retrieves whether a GLFW resize signal was set and resets the singal.
- * If the signal was set, _gfx_swapchain_recreate(window) should be called.
+ * Acquires the next available image from the swapchain of a window.
  * @param window Cannot be NULL.
- * @return Non-zero if the swapchain should be recreated.
+ * @param index  Cannot be NULL, index into window->frame.images.
+ * @param resize Cannot be NULL, non-zero if swapchain has been recreated.
+ * @return Non-zero on success.
  *
- * Can be called from any thread.
+ * Can be called from any thread, but not reentrant.
+ * This will wait until the previous image is acquired.
  */
-int _gfx_swapchain_resized(_GFXWindow* window);
+int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
+
+/**
+ * Submits a present command for the swapchain of a window.
+ * @param window Cannot be NULL.
+ * @param index  Must be an index retrieved by _gfx_swapchain_acquire.
+ * @param resize Cannot be NULL, non-zero if swapchain has been recreated.
+ * @return Non-zero on success.
+ *
+ * Can be called from any thread, but not reentrant.
+ */
+int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate);
 
 
 #endif

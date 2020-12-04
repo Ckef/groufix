@@ -26,10 +26,6 @@ struct GFXRenderPass
 	struct
 	{
 		_GFXWindow* window;
-		VkQueue     queue; // Presentation queue.
-
-		VkSemaphore sema;
-		VkFence     fence;
 
 	} frame;
 };

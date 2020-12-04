@@ -322,6 +322,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	glfwSetFramebufferSizeCallback(
 		window->handle, _gfx_glfw_framebuffer_size);
 
+	// So we setup everything related to GLFW, now set the frame properties.
 	// Initialize the locks for resize signal and set the current
 	// width and height of the window's framebuffer.
 	if (!_gfx_mutex_init(&window->frame.lock))
@@ -336,10 +337,12 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	window->frame.height = (size_t)height;
 
 	gfx_vec_init(&window->frame.images, sizeof(VkImage));
-	window->frame.present = NULL;
+	window->vk.queue = NULL;
+	window->vk.semaphore = VK_NULL_HANDLE;
+	window->vk.fence = VK_NULL_HANDLE;
 
-	// Ok so we have a window, now we need to somehow connect it to a GPU.
-	// So first attempt to create a Vulkan surface for the window.
+	// Now we need to somehow connect it to a GPU.
+	// So attempt to create a Vulkan surface for the window.
 	VkResult result = glfwCreateWindowSurface(
 		_groufix.vk.instance, window->handle, NULL, &window->vk.surface);
 
@@ -356,23 +359,61 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	if (!_gfx_device_init_context(window->device))
 		goto clean_surface;
 
+	_GFXContext* context =
+		window->device->context;
+
 	// Ok so we have a physical device with a context (logical Vulkan device).
 	// Now go create a swapchain. Unfortunately we cannot clean the context
-	// if it was just created for us, but that's why we do this last.
+	// if it was just created for us, but that's why we do this stuff last.
 	// Make sure to set it to a NULL handle here so a new one gets created.
 	window->vk.swapchain = VK_NULL_HANDLE;
 
 	if (!_gfx_swapchain_recreate(window))
 		goto clean_surface;
 
-	// Yey!
+	// Don't forget the synchronization primitives.
+	// We use these to signal when a new swapchain image is available.
+	// Firstly, a semaphore for device synchronization.
+	VkSemaphoreCreateInfo sci = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0
+	};
+
+	VkResult resSem = context->vk.CreateSemaphore(
+		context->vk.device, &sci, NULL, &window->vk.semaphore);
+
+	// Secondly, a fence for host synchronization.
+	 VkFenceCreateInfo fci = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = VK_FENCE_CREATE_SIGNALED_BIT
+	};
+
+	VkResult resFen = context->vk.CreateFence(
+		context->vk.device, &fci, NULL, &window->vk.fence);
+
+	if (resSem != VK_SUCCESS || resFen != VK_SUCCESS)
+		goto clean_swapchain;
+
+
+	// All successful!
 	return &window->base;
 
 
 	// Cleanup on failure.
+clean_swapchain:
+	context->vk.DestroyFence(
+		context->vk.device, window->vk.fence, NULL);
+	context->vk.DestroySemaphore(
+		context->vk.device, window->vk.semaphore, NULL);
+	context->vk.DestroySwapchainKHR(
+		context->vk.device, window->vk.swapchain, NULL);
+
 clean_surface:
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, window->vk.surface, NULL);
+
 clean_frame:
 	gfx_vec_clear(&window->frame.images);
 	_gfx_mutex_clear(&window->frame.lock);
@@ -398,17 +439,21 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	// Creation was done through _gfx_swapchain_recreate(window).
 	_GFXContext* context = win->device->context;
 
+	context->vk.DestroyFence(
+		context->vk.device, win->vk.fence, NULL);
+	context->vk.DestroySemaphore(
+		context->vk.device, win->vk.semaphore, NULL);
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, win->vk.swapchain, NULL);
-
-	gfx_vec_clear(&win->frame.images);
-	_gfx_mutex_clear(&win->frame.lock);
 
 	// Destroy the surface and the window itself.
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, win->vk.surface, NULL);
 
+	gfx_vec_clear(&win->frame.images);
+	_gfx_mutex_clear(&win->frame.lock);
 	glfwDestroyWindow(win->handle);
+
 	free(window);
 }
 

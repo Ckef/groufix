@@ -20,7 +20,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	_GFXContext* context = device->context;
 
 	gfx_vec_release(&window->frame.images);
-	window->frame.present = NULL;
+	window->vk.queue = NULL;
 
 	// First of all, get the size GLFW thinks the framebuffer should be.
 	// Remember this gets changed by a GLFW callback when the window is
@@ -82,13 +82,19 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			goto clean;
 		}
 
-		// Just take whatever family supports it as presentation family.
+		// Just take the presentation queue from whatever family supports it.
 		if (support == VK_TRUE)
-			window->frame.present = context->families + i;
+		{
+			context->vk.GetDeviceQueue(
+				context->vk.device,
+				context->families[i].index,
+				0,
+				&window->vk.queue);
+		}
 	}
 
 	// Uuuuuh hold up...
-	if (window->frame.present == NULL)
+	if (window->vk.queue == NULL)
 	{
 		gfx_log_error("Could not find a queue family with surface presentation support.");
 		goto clean;
@@ -232,6 +238,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		VkResult result = context->vk.CreateSwapchainKHR(
 			context->vk.device, &sci, NULL, &window->vk.swapchain);
 
+		// TODO: Maybe postpone this somehow until next present.
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, oldSwapchain, NULL);
 
@@ -277,30 +284,123 @@ clean:
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, window->vk.swapchain, NULL);
 
-	window->vk.swapchain = VK_NULL_HANDLE;
-
 	gfx_vec_clear(&window->frame.images);
-	window->frame.present = NULL;
+	window->vk.swapchain = VK_NULL_HANDLE;
+	window->vk.queue = NULL;
 
 	return 0;
 }
 
 /****************************/
-int _gfx_swapchain_resized(_GFXWindow* window)
+int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 {
 	assert(window != NULL);
+	assert(recreate != NULL);
+	assert(index != NULL);
 
-	int resized = 0;
+	*recreate = 0;
+	_GFXContext* context = window->device->context;
 
-	// Get the signal and set it back to 0.
+	// First wait for the fence so we know the semaphore
+	// is unsignaled and has no pending signals.
+	// Essentially we wait until the previous image is available,
+	// i.e. when the previous frame started rendering.
+	VkResult resWait = context->vk.WaitForFences(
+		context->vk.device, 1, &window->vk.fence, VK_TRUE, UINT64_MAX);
+	VkResult resReset = context->vk.ResetFences(
+		context->vk.device, 1, &window->vk.fence);
+
+	if (resWait != VK_SUCCESS || resReset != VK_SUCCESS)
+		return 0;
+
+	// Acquires an available presentable image from the swapchain.
+	VkResult result = context->vk.AcquireNextImageKHR(
+		context->vk.device,
+		window->vk.swapchain,
+		UINT64_MAX,
+		window->vk.semaphore,
+		window->vk.fence,
+		index);
+
+	switch (result)
+	{
+	// If we're good or suboptimal swapchain, keep going.
+	// We may have done precious work, just go ahead and present things.
+	case VK_SUCCESS:
+	case VK_SUBOPTIMAL_KHR:
+		break;
+
+	// If swapchain out of date, recreate it and exit.
+	case VK_ERROR_OUT_OF_DATE_KHR:
+		*recreate = 1;
+		return _gfx_swapchain_recreate(window);
+
+	// If something else happened, treat as normal error.
+	default:
+		_gfx_vulkan_log(result);
+		return 0;
+	}
+
+	return 1;
+}
+
+/****************************/
+int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
+{
+	assert(window != NULL);
+	assert(recreate != NULL);
+
+	_GFXContext* context = window->device->context;
+
+	// Now queue a presentation request.
+	// This would swap the acquired image to the screen :)
+	VkPresentInfoKHR pi = {
+		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+
+		.pNext              = NULL,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores    = &window->vk.semaphore,
+		.swapchainCount     = 1,
+		.pSwapchains        = &window->vk.swapchain,
+		.pImageIndices      = &index,
+		.pResults           = NULL
+	};
+
+	VkResult result = context->vk.QueuePresentKHR(
+		window->vk.queue, &pi);
+
+	// Check for the resize signal, if set, pretend the swapchain is
+	// suboptimal (well it really is) such that it will be recreated.
 #if defined (__STDC_NO_ATOMICS__)
 	_gfx_mutex_lock(&window->frame.lock);
-	resized = window->frame.resized;
+	*recreate = window->frame.resized;
 	window->frame.resized = 0;
 	_gfx_mutex_unlock(&window->frame.lock);
 #else
-	resized = atomic_exchange(&window->frame.resized, 0);
+	*recreate = atomic_exchange(&window->frame.resized, 0);
 #endif
 
-	return resized;
+	if (result == VK_SUCCESS && *recreate)
+		result = VK_SUBOPTIMAL_KHR;
+
+	switch (result)
+	{
+	case VK_SUCCESS:
+		break;
+
+	// If swapchain out of date or suboptimal, recreate it and exit.
+	// We now did a lot of work and nothing is pending, so this is a good
+	// opportunity to recreate.
+	case VK_ERROR_OUT_OF_DATE_KHR:
+	case VK_SUBOPTIMAL_KHR:
+		*recreate = 1;
+		return _gfx_swapchain_recreate(window);
+
+	// If something else happened, treat as normal error.
+	default:
+		_gfx_vulkan_log(result);
+		return 0;
+	}
+
+	return 1;
 }
