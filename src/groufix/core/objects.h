@@ -20,14 +20,7 @@
 struct GFXRenderPass
 {
 	_GFXDevice* device;
-
-
-	// Frame, i.e. swapchain properties.
-	struct
-	{
-		_GFXWindow* window;
-
-	} frame;
+	_GFXWindow* window;
 };
 
 

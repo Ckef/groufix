@@ -233,6 +233,17 @@ typedef struct _GFXWindow
 	_GFXDevice* device; // Associated GPU to build a swapchain on.
 
 
+	// Chosen presentation family.
+	struct
+	{
+		_GFXQueueFamily* family;
+
+		VkQueue queue;  // Queue chosen for presentation.
+		GFXVec  access; // Stores uint32_t, all families with image access.
+
+	} present;
+
+
 	// Frame (i.e Vulkan surface + swapchain) properties.
 	struct
 	{
@@ -255,7 +266,6 @@ typedef struct _GFXWindow
 	{
 		VkSurfaceKHR   surface;
 		VkSwapchainKHR swapchain;
-		VkQueue        queue; // Presentation queue.
 
 		VkSemaphore    semaphore;
 		VkFence        fence;
@@ -390,7 +400,7 @@ int _gfx_device_init_context(_GFXDevice* device);
  * @return Non-zero on success.
  *
  * Can be called from any thread, but not reentrant.
- * Also fills window->frame.images and window->vk.queue.
+ * Also fills window->frame.images.
  * This will destroy the old swapchain, references to it must first be released.
  */
 int _gfx_swapchain_recreate(_GFXWindow* window);
@@ -412,7 +422,6 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
 /**
  * Submits a present command for the swapchain of a window.
  * window->vk.swapchain cannot be VK_NULL_HANDLE.
- * window->vk.queue cannot be NULL.
  * @param window Cannot be NULL.
  * @param index  Must be an index retrieved by _gfx_swapchain_acquire.
  * @param resize Cannot be NULL, non-zero if swapchain has been recreated.

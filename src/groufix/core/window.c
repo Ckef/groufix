@@ -230,6 +230,78 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 	_gfx_mutex_unlock(&window->frame.lock);
 }
 
+/****************************
+ * Picks a presentation queue family (including a specific presentation queue).
+ * window->vk.surface must be initialized to a valid Vulkan surface.
+ * _gfx_device_init_context(window->device) must have returned successfully.
+ * @param window Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * This can only be called once for each window!
+ */
+static int _gfx_window_pick_present(_GFXWindow* window)
+{
+	assert(window != NULL);
+	assert(window->device != NULL);
+	assert(window->device->context != NULL);
+
+	_GFXContext* context = window->device->context;
+
+	window->present.family = NULL;
+	window->present.queue = NULL;
+	gfx_vec_init(&window->present.access, sizeof(uint32_t));
+
+	for (size_t i = 0; i < context->numFamilies; ++i)
+	{
+		// We only care about the family if it is a graphics family OR
+		// it specifically tells us it is capable of presenting.
+		int want =
+			context->families[i].flags & VK_QUEUE_GRAPHICS_BIT ||
+			context->families[i].present;
+
+		if (!want) continue;
+
+		if (!gfx_vec_push(&window->present.access, 1, &context->families[i].index))
+			return 0;
+
+		// We checked presentation support in a surface-agnostic manner
+		// during logical device creation, now go check for the given surface.
+		VkBool32 support = VK_FALSE;
+		VkResult result = _groufix.vk.GetPhysicalDeviceSurfaceSupportKHR(
+			window->device->vk.device,
+			context->families[i].index,
+			window->vk.surface,
+			&support);
+
+		if (result != VK_SUCCESS)
+		{
+			_gfx_vulkan_log(result);
+			return 0;
+		}
+
+		// Just take a presentation queue from whatever family supports it.
+		if (support == VK_TRUE)
+		{
+			window->present.family = context->families + i;
+
+			context->vk.GetDeviceQueue(
+				context->vk.device,
+				context->families[i].index,
+				0,
+				&window->present.queue);
+		}
+	}
+
+	// Uuuuuh hold up...
+	if (window->present.family == NULL)
+	{
+		gfx_log_error("Could not find a queue family with surface presentation support.");
+		return 0;
+	}
+
+	return 1;
+}
+
 /****************************/
 GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
                                      GFXMonitor* monitor, GFXVideoMode mode,
@@ -361,12 +433,15 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	// Ok so we have a physical device with a context (logical Vulkan device).
 	// Now go create a swapchain. Unfortunately we cannot clean the context
 	// if it was just created for us, but that's why we do this stuff last.
+	// First find all we pick a presentation queue.
+	if (!_gfx_window_pick_present(window))
+		goto clean_present;
+
 	// Make sure to set it to a NULL handle here so a new one gets created.
 	window->vk.swapchain = VK_NULL_HANDLE;
-	window->vk.queue = NULL;
 
 	if (!_gfx_swapchain_recreate(window))
-		goto clean_surface;
+		goto clean_present;
 
 	// Don't forget the synchronization primitives.
 	// We use these to signal when a new swapchain image is available.
@@ -412,10 +487,11 @@ clean_swapchain:
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, window->vk.swapchain, NULL);
 
+clean_present:
+	gfx_vec_clear(&window->present.access);
 clean_surface:
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, window->vk.surface, NULL);
-
 clean_frame:
 	gfx_vec_clear(&window->frame.images);
 	_gfx_mutex_clear(&window->frame.lock);
@@ -438,12 +514,11 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_GFXWindow* win = (_GFXWindow*)window;
 	_GFXContext* context = win->device->context;
 
-	// First wait for the presentation to be completely done.
+	// First wait for presentation to be completely done.
 	context->vk.WaitForFences(
 		context->vk.device, 1, &win->vk.fence, VK_TRUE, UINT64_MAX);
-
-	if (win->vk.queue != NULL)
-		context->vk.QueueWaitIdle(win->vk.queue);
+	context->vk.QueueWaitIdle(
+		win->present.queue);
 
 	// Destroy the swapchain built on the logical Vulkan device...
 	// Creation was done through _gfx_swapchain_recreate(window).
@@ -458,6 +533,7 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, win->vk.surface, NULL);
 
+	gfx_vec_clear(&win->present.access);
 	gfx_vec_clear(&win->frame.images);
 	_gfx_mutex_clear(&win->frame.lock);
 	glfwDestroyWindow(win->handle);

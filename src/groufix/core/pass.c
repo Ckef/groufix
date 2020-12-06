@@ -24,14 +24,14 @@ static void _gfx_render_pass_swap_clear(GFXRenderPass* pass)
 
 /****************************
  * Initializes all swapchain-dependent resources.
- * pass->frame.window cannot be NULL.
+ * pass->window cannot be NULL.
  * @param pass Cannot be NULL.
  * @return Non-zero on success.
  */
 static int _gfx_render_pass_swap_init(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
-	assert(pass->frame.window != NULL);
+	assert(pass->window != NULL);
 
 	// TODO: Create command buffers.
 
@@ -40,7 +40,7 @@ static int _gfx_render_pass_swap_init(GFXRenderPass* pass)
 	// Clean on failure.
 //clean:
 //	gfx_log_error("Could not initialize swapchain-dependent resources.");
-//	_gfx_render_pass_swap_destroy(pass);
+//	_gfx_render_pass_swap_clear(pass);
 
 //	return 0;
 }
@@ -63,7 +63,7 @@ GFX_API GFXRenderPass* gfx_create_render_pass(GFXDevice* device)
 	if (pass == NULL)
 		goto clean;
 
-	pass->frame.window = NULL;
+	pass->window = NULL;
 
 	// Get the physical device and make sure it's initialized.
 	pass->device =
@@ -99,14 +99,14 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 	assert(pass != NULL);
 
 	// It was already attached.
-	if (pass->frame.window == (_GFXWindow*)window)
+	if (pass->window == (_GFXWindow*)window)
 		return 1;
 
 	// Detach.
 	if (window == NULL)
 	{
 		_gfx_render_pass_swap_clear(pass);
-		pass->frame.window = NULL;
+		pass->window = NULL;
 
 		return 1;
 	}
@@ -123,12 +123,12 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 
 	// Ok so now we recreate all the swapchain-dependent resources.
 	_gfx_render_pass_swap_clear(pass);
-	pass->frame.window = (_GFXWindow*)window;
+	pass->window = (_GFXWindow*)window;
 
 	if (!_gfx_render_pass_swap_init(pass))
 	{
 		gfx_log_error("Could not attach a new window to a render pass.");
-		pass->frame.window = NULL;
+		pass->window = NULL;
 
 		return 0;
 	}
@@ -141,13 +141,13 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 
-	if (pass->frame.window != NULL)
+	if (pass->window != NULL)
 	{
 		int recreate;
 		uint32_t index;
 
 		// Acquire next image.
-		if (!_gfx_swapchain_acquire(pass->frame.window, &index, &recreate))
+		if (!_gfx_swapchain_acquire(pass->window, &index, &recreate))
 		{
 			gfx_log_error("Could not acquire an image from a swapchain.");
 			return 0;
@@ -164,7 +164,7 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 
 
 		// Present the image.
-		if (!_gfx_swapchain_present(pass->frame.window, index, &recreate))
+		if (!_gfx_swapchain_present(pass->window, index, &recreate))
 		{
 			gfx_log_error("Could not present an image to a swapchain.");
 			return 0;

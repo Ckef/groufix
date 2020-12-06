@@ -19,8 +19,8 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	_GFXDevice* device = window->device;
 	_GFXContext* context = device->context;
 
+	// We do not free the images as the count will likely never change.
 	gfx_vec_release(&window->frame.images);
-	window->vk.queue = NULL;
 
 	// First of all, get the size GLFW thinks the framebuffer should be.
 	// Remember this gets changed by a GLFW callback when the window is
@@ -46,58 +46,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		window->vk.swapchain = VK_NULL_HANDLE;
 
 		return 1;
-	}
-
-	// Ok now go create a swapchain, we clearly want one, size > 0x0.
-	// First find all queue families that need access to the surface's images.
-	size_t numFamilies = 0;
-	uint32_t families[context->numFamilies];
-
-	for (size_t i = 0; i < context->numFamilies; ++i)
-	{
-		// We only care about the family if it is a graphics family OR
-		// it specifically tells us it is capable of presenting.
-		int want =
-			context->families[i].flags & VK_QUEUE_GRAPHICS_BIT ||
-			context->families[i].present;
-
-		if (!want) continue;
-
-		families[numFamilies++] = context->families[i].index;
-
-		// We checked presentation support in a surface-agnostic manner
-		// during logical device creation, now go check for the given surface.
-		// Do note it's kinda dumb to do this everytime we recreate the
-		// swapchain, however we need to supply the families everytime...
-		VkBool32 support = VK_FALSE;
-		VkResult result = _groufix.vk.GetPhysicalDeviceSurfaceSupportKHR(
-			device->vk.device,
-			context->families[i].index,
-			window->vk.surface,
-			&support);
-
-		if (result != VK_SUCCESS)
-		{
-			_gfx_vulkan_log(result);
-			goto clean;
-		}
-
-		// Just take the presentation queue from whatever family supports it.
-		if (support == VK_TRUE)
-		{
-			context->vk.GetDeviceQueue(
-				context->vk.device,
-				context->families[i].index,
-				0,
-				&window->vk.queue);
-		}
-	}
-
-	// Uuuuuh hold up...
-	if (window->vk.queue == NULL)
-	{
-		gfx_log_error("Could not find a queue family with surface presentation support.");
-		goto clean;
 	}
 
 	// Get all formats, present modes and capabilities of the device.
@@ -222,12 +170,14 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 				VK_IMAGE_USAGE_TRANSFER_DST_BIT |
 				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			.imageSharingMode      =
-				(numFamilies > 1) ?
+				(window->present.access.size > 1) ?
 				VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
 			.queueFamilyIndexCount =
-				(uint32_t)((numFamilies > 1) ? numFamilies : 0),
+				(window->present.access.size > 1) ?
+				(uint32_t)window->present.access.size : 0,
 			.pQueueFamilyIndices   =
-				(numFamilies > 1) ? families : NULL,
+				(window->present.access.size > 1) ?
+				window->present.access.data : NULL,
 			.preTransform          = sc.currentTransform,
 			.compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 			.presentMode           = mode,
@@ -285,7 +235,6 @@ clean:
 
 	gfx_vec_clear(&window->frame.images);
 	window->vk.swapchain = VK_NULL_HANDLE;
-	window->vk.queue = NULL;
 
 	return 0;
 }
@@ -350,7 +299,6 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 	assert(window != NULL);
 	assert(recreate != NULL);
 	assert(window->vk.swapchain != VK_NULL_HANDLE);
-	assert(window->vk.queue != NULL);
 
 	_GFXContext* context = window->device->context;
 
@@ -369,7 +317,7 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 	};
 
 	VkResult result = context->vk.QueuePresentKHR(
-		window->vk.queue, &pi);
+		window->present.queue, &pi);
 
 	// Check for the resize signal, if set, pretend the swapchain is
 	// suboptimal (well it really is) such that it will be recreated.
