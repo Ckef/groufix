@@ -27,6 +27,12 @@
 
 
 /**
+ * Least Vulkan version that must be supported (1.1.0).
+ */
+#define _GFX_VK_VERSION VK_MAKE_VERSION(1,1,0)
+
+
+/**
  * Vulkan function pointer.
  */
 #define _GFX_PFN_VK(pName) PFN_vk##pName pName
@@ -163,6 +169,7 @@ typedef struct _GFXContext
 		_GFX_PFN_VK(GetDeviceQueue);
 		_GFX_PFN_VK(GetSwapchainImagesKHR);
 		_GFX_PFN_VK(QueuePresentKHR);
+		_GFX_PFN_VK(QueueWaitIdle);
 		_GFX_PFN_VK(ResetCommandPool);
 		_GFX_PFN_VK(ResetFences);
 		_GFX_PFN_VK(WaitForFences);
@@ -182,6 +189,8 @@ typedef struct _GFXContext
 typedef struct _GFXDevice
 {
 	GFXDevice    base;
+	uint32_t     api; // Vulkan API version.
+
 	size_t       index; // Index into the device group.
 	_GFXContext* context;
 	_GFXMutex    lock;
@@ -388,6 +397,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window);
 
 /**
  * Acquires the next available image from the swapchain of a window.
+ * window->vk.swapchain cannot be VK_NULL_HANDLE.
  * @param window Cannot be NULL.
  * @param index  Cannot be NULL, index into window->frame.images.
  * @param resize Cannot be NULL, non-zero if swapchain has been recreated.
@@ -395,17 +405,21 @@ int _gfx_swapchain_recreate(_GFXWindow* window);
  *
  * Can be called from any thread, but not reentrant.
  * This will wait until the previous image is acquired.
+ * _gfx_swapchain_recreate is called when necessary.
  */
 int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
 
 /**
  * Submits a present command for the swapchain of a window.
+ * window->vk.swapchain cannot be VK_NULL_HANDLE.
+ * window->vk.queue cannot be NULL.
  * @param window Cannot be NULL.
  * @param index  Must be an index retrieved by _gfx_swapchain_acquire.
  * @param resize Cannot be NULL, non-zero if swapchain has been recreated.
  * @return Non-zero on success.
  *
  * Can be called from any thread, but not reentrant.
+ * _gfx_swapchain_recreate is called when necessary.
  */
 int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate);
 

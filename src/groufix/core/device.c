@@ -196,6 +196,17 @@ static int _gfx_device_create_context(_GFXDevice* device)
 
 	_GFXContext* context = NULL;
 
+	// First of all, check Vulkan version.
+	if (device->api < _GFX_VK_VERSION)
+	{
+		gfx_log_error("Physical device does not support Vulkan version %u.%u.%u.",
+			(unsigned int)VK_VERSION_MAJOR(_GFX_VK_VERSION),
+			(unsigned int)VK_VERSION_MINOR(_GFX_VK_VERSION),
+			(unsigned int)VK_VERSION_PATCH(_GFX_VK_VERSION));
+
+		goto error;
+	}
+
 	// Call the thing that gets us the arrays of desired queues.
 	// These are explicitly freed on cleanup or success.
 	// When a future device also uses this context,
@@ -344,10 +355,16 @@ static int _gfx_device_create_context(_GFXDevice* device)
 		for (size_t i = 0; i < context->numFamilies; ++i)
 			queueCount += context->families[i].count;
 
-		gfx_log_debug("Logical Vulkan device with "
-		              "%u physical device(s) and %u queue(s) created for "
-		              "physical device group containing at least: %s.",
-		              (unsigned int)context->numDevices, queueCount, device->base.name);
+		gfx_log_debug(
+			"Logical Vulkan device of version %u.%u.%u with %u physical "
+			"device(s) and %u queue(s) created for physical device group "
+			"containing at least: %s.",
+			(unsigned int)VK_VERSION_MAJOR(device->api),
+			(unsigned int)VK_VERSION_MINOR(device->api),
+			(unsigned int)VK_VERSION_PATCH(device->api),
+			(unsigned int)context->numDevices,
+			(unsigned int)queueCount,
+			device->base.name);
 
 		// Now load all device level Vulkan functions.
 		// Load vkDestroyDevice first so we can clean properly.
@@ -365,6 +382,7 @@ static int _gfx_device_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(GetDeviceQueue);
 		_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
+		_GFX_GET_DEVICE_PROC_ADDR(QueueWaitIdle);
 		_GFX_GET_DEVICE_PROC_ADDR(ResetCommandPool);
 		_GFX_GET_DEVICE_PROC_ADDR(ResetFences);
 		_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);
@@ -377,10 +395,6 @@ static int _gfx_device_create_context(_GFXDevice* device)
 
 	// Cleanup on failure.
 clean:
-	gfx_log_error("Could not create or initialize a logical Vulkan device for "
-	              "physical device group containing at least: %s.",
-	              device->base.name);
-
 	if (device->context != NULL)
 	{
 		gfx_vec_pop(&_groufix.contexts, 1);
@@ -391,11 +405,17 @@ clean:
 	}
 
 	free(context);
-	device->index = 0;
-	device->context = NULL;
-
 	free(families);
 	free(createInfos);
+
+error:
+	gfx_log_error(
+		"Could not create or initialize a logical Vulkan device for physical "
+		"device group containing at least: %s.",
+		device->base.name);
+
+	device->index = 0;
+	device->context = NULL;
 
 	return 0;
 }
@@ -445,6 +465,7 @@ int _gfx_devices_init(void)
 
 			_GFXDevice dev = {
 				.base    = { .type = _GFX_GET_DEVICE_TYPE(pdp.deviceType) },
+				.api     = pdp.apiVersion,
 				.index   = 0,
 				.context = NULL,
 				.vk      = { .device = devices[i] }

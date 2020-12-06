@@ -37,6 +37,7 @@ GFX_API void gfx_destroy_render_pass(GFXRenderPass* pass);
 
 /**
  * TODO: Improve API, is a mockup.
+ * TODO: Attach multiple windows?
  * Attaches a window to a render pass.
  * @param pass   Cannot be NULL.
  * @param window NULL to detach the current window.

@@ -12,10 +12,10 @@
 
 
 /****************************
- * Destroys all swapchain-dependent resources.
+ * Clears all swapchain-dependent resources.
  * @param pass Cannot be NULL.
  */
-static void _gfx_render_pass_swap_destroy(GFXRenderPass* pass)
+static void _gfx_render_pass_swap_clear(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 
@@ -23,12 +23,12 @@ static void _gfx_render_pass_swap_destroy(GFXRenderPass* pass)
 }
 
 /****************************
- * Creates all swapchain-dependent resources.
+ * Initializes all swapchain-dependent resources.
  * pass->frame.window cannot be NULL.
  * @param pass Cannot be NULL.
  * @return Non-zero on success.
  */
-static int _gfx_render_pass_swap_create(GFXRenderPass* pass)
+static int _gfx_render_pass_swap_init(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 	assert(pass->frame.window != NULL);
@@ -51,8 +51,8 @@ static int _gfx_render_pass_swap_create(GFXRenderPass* pass)
  */
 static int _gfx_render_pass_swap_recreate(GFXRenderPass* pass)
 {
-	_gfx_render_pass_swap_destroy(pass);
-	return _gfx_render_pass_swap_create(pass);
+	_gfx_render_pass_swap_clear(pass);
+	return _gfx_render_pass_swap_init(pass);
 }
 
 /****************************/
@@ -88,7 +88,7 @@ GFX_API void gfx_destroy_render_pass(GFXRenderPass* pass)
 	if (pass == NULL)
 		return;
 
-	_gfx_render_pass_swap_destroy(pass);
+	_gfx_render_pass_swap_clear(pass);
 	free(pass);
 }
 
@@ -105,7 +105,7 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 	// Detach.
 	if (window == NULL)
 	{
-		_gfx_render_pass_swap_destroy(pass);
+		_gfx_render_pass_swap_clear(pass);
 		pass->frame.window = NULL;
 
 		return 1;
@@ -114,17 +114,18 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 	// Check that the pass and the window share the same context.
 	if (((_GFXWindow*)window)->device->context != pass->device->context)
 	{
-		gfx_log_error("When attaching a window to a render pass they must "
-		              "be built on the same logical Vulkan device.");
+		gfx_log_error(
+			"When attaching a window to a render pass they must be built on "
+			"the same logical Vulkan device.");
 
 		return 0;
 	}
 
 	// Ok so now we recreate all the swapchain-dependent resources.
-	_gfx_render_pass_swap_destroy(pass);
+	_gfx_render_pass_swap_clear(pass);
 	pass->frame.window = (_GFXWindow*)window;
 
-	if (!_gfx_render_pass_swap_create(pass))
+	if (!_gfx_render_pass_swap_init(pass))
 	{
 		gfx_log_error("Could not attach a new window to a render pass.");
 		pass->frame.window = NULL;
@@ -165,7 +166,7 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 		// Present the image.
 		if (!_gfx_swapchain_present(pass->frame.window, index, &recreate))
 		{
-			gfx_log_error("Could not present an image from a swapchain.");
+			gfx_log_error("Could not present an image to a swapchain.");
 			return 0;
 		}
 

@@ -238,7 +238,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		VkResult result = context->vk.CreateSwapchainKHR(
 			context->vk.device, &sci, NULL, &window->vk.swapchain);
 
-		// TODO: Maybe postpone this somehow until next present.
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, oldSwapchain, NULL);
 
@@ -295,8 +294,9 @@ clean:
 int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 {
 	assert(window != NULL);
-	assert(recreate != NULL);
 	assert(index != NULL);
+	assert(recreate != NULL);
+	assert(window->vk.swapchain != VK_NULL_HANDLE);
 
 	*recreate = 0;
 	_GFXContext* context = window->device->context;
@@ -349,6 +349,8 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 {
 	assert(window != NULL);
 	assert(recreate != NULL);
+	assert(window->vk.swapchain != VK_NULL_HANDLE);
+	assert(window->vk.queue != NULL);
 
 	_GFXContext* context = window->device->context;
 

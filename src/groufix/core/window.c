@@ -332,14 +332,10 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	int height;
 	glfwGetFramebufferSize(window->handle, &width, &height);
 
+	gfx_vec_init(&window->frame.images, sizeof(VkImage));
 	window->frame.resized = 0;
 	window->frame.width = (size_t)width;
 	window->frame.height = (size_t)height;
-
-	gfx_vec_init(&window->frame.images, sizeof(VkImage));
-	window->vk.queue = NULL;
-	window->vk.semaphore = VK_NULL_HANDLE;
-	window->vk.fence = VK_NULL_HANDLE;
 
 	// Now we need to somehow connect it to a GPU.
 	// So attempt to create a Vulkan surface for the window.
@@ -367,12 +363,18 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	// if it was just created for us, but that's why we do this stuff last.
 	// Make sure to set it to a NULL handle here so a new one gets created.
 	window->vk.swapchain = VK_NULL_HANDLE;
+	window->vk.queue = NULL;
 
 	if (!_gfx_swapchain_recreate(window))
 		goto clean_surface;
 
 	// Don't forget the synchronization primitives.
 	// We use these to signal when a new swapchain image is available.
+	// These aren't initialized by the swapchain because they do not
+	// need to be recreated.
+	window->vk.semaphore = VK_NULL_HANDLE;
+	window->vk.fence = VK_NULL_HANDLE;
+
 	// Firstly, a semaphore for device synchronization.
 	VkSemaphoreCreateInfo sci = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -434,11 +436,17 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 		return;
 
 	_GFXWindow* win = (_GFXWindow*)window;
+	_GFXContext* context = win->device->context;
+
+	// First wait for the presentation to be completely done.
+	context->vk.WaitForFences(
+		context->vk.device, 1, &win->vk.fence, VK_TRUE, UINT64_MAX);
+
+	if (win->vk.queue != NULL)
+		context->vk.QueueWaitIdle(win->vk.queue);
 
 	// Destroy the swapchain built on the logical Vulkan device...
 	// Creation was done through _gfx_swapchain_recreate(window).
-	_GFXContext* context = win->device->context;
-
 	context->vk.DestroyFence(
 		context->vk.device, win->vk.fence, NULL);
 	context->vk.DestroySemaphore(
