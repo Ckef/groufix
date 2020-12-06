@@ -247,7 +247,6 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 
 	_GFXContext* context = window->device->context;
 
-	window->present.family = NULL;
 	window->present.queue = NULL;
 	gfx_vec_init(&window->present.access, sizeof(uint32_t));
 
@@ -282,18 +281,18 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 		// Just take a presentation queue from whatever family supports it.
 		if (support == VK_TRUE)
 		{
-			window->present.family = context->families + i;
+			window->present.family = context->families[i].index;
 
 			context->vk.GetDeviceQueue(
 				context->vk.device,
-				context->families[i].index,
+				window->present.family,
 				0,
 				&window->present.queue);
 		}
 	}
 
 	// Uuuuuh hold up...
-	if (window->present.family == NULL)
+	if (window->present.queue == NULL)
 	{
 		gfx_log_error("Could not find a queue family with surface presentation support.");
 		return 0;

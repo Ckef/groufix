@@ -156,6 +156,7 @@ typedef struct _GFXContext
 		VkDevice device;
 
 		_GFX_PFN_VK(AcquireNextImageKHR);
+		_GFX_PFN_VK(AllocateCommandBuffers);
 		_GFX_PFN_VK(CreateCommandPool);
 		_GFX_PFN_VK(CreateFence);
 		_GFX_PFN_VK(CreateSemaphore);
@@ -166,6 +167,7 @@ typedef struct _GFXContext
 		_GFX_PFN_VK(DestroySemaphore);
 		_GFX_PFN_VK(DestroySwapchainKHR);
 		_GFX_PFN_VK(DeviceWaitIdle);
+		_GFX_PFN_VK(FreeCommandBuffers);
 		_GFX_PFN_VK(GetDeviceQueue);
 		_GFX_PFN_VK(GetSwapchainImagesKHR);
 		_GFX_PFN_VK(QueuePresentKHR);
@@ -236,10 +238,9 @@ typedef struct _GFXWindow
 	// Chosen presentation family.
 	struct
 	{
-		_GFXQueueFamily* family;
-
-		VkQueue queue;  // Queue chosen for presentation.
-		GFXVec  access; // Stores uint32_t, all families with image access.
+		uint32_t family;
+		VkQueue  queue;  // Queue chosen from the family.
+		GFXVec   access; // Stores uint32_t, all families with image access.
 
 	} present;
 

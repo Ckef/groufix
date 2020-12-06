@@ -12,47 +12,106 @@
 
 
 /****************************
- * Clears all swapchain-dependent resources.
- * @param pass Cannot be NULL.
- */
-static void _gfx_render_pass_swap_clear(GFXRenderPass* pass)
-{
-	assert(pass != NULL);
-
-	// TODO: Destroy command buffers.
-}
-
-/****************************
- * Initializes all swapchain-dependent resources.
+ * Recreates all swapchain-dependent resources.
  * pass->window cannot be NULL.
  * @param pass Cannot be NULL.
  * @return Non-zero on success.
  */
-static int _gfx_render_pass_swap_init(GFXRenderPass* pass)
+static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 	assert(pass->window != NULL);
 
-	// TODO: Create command buffers.
+	_GFXContext* context = pass->device->context;
+	_GFXWindow* window = pass->window;
+
+	if (pass->vk.pool != VK_NULL_HANDLE)
+	{
+		// If a command pool already exists, just reset it.
+		// This means we need to re-record all command buffers.
+		context->vk.ResetCommandPool(
+			context->vk.device, pass->vk.pool, 0);
+	}
+	else
+	{
+		// If it did not exist yet, create a command pool.
+		VkCommandPoolCreateInfo cpci = {
+			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+
+			.pNext            = NULL,
+			.flags            = 0,
+			.queueFamilyIndex = window->present.family
+		};
+
+		VkResult result = context->vk.CreateCommandPool(
+			context->vk.device, &cpci, NULL, &pass->vk.pool);
+
+		if (result != VK_SUCCESS)
+		{
+			_gfx_vulkan_log(result);
+			goto error;
+		}
+	}
+
+	// Ok so now we allocate more command buffers or free some.
+	size_t currCount = pass->vk.buffers.size;
+	size_t count = window->frame.images.size;
+
+	if (currCount < count)
+	{
+		// If we have too few, allocate some more.
+		// Reserve the exact amount cause it's most likely not gonna change.
+		if (!gfx_vec_reserve(&pass->vk.buffers, count))
+			goto error;
+
+		size_t newCount = count - currCount;
+		gfx_vec_push_empty(&pass->vk.buffers, newCount);
+
+		VkCommandBufferAllocateInfo cbai = {
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+
+			.pNext              = NULL,
+			.commandPool        = pass->vk.pool,
+			.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+			.commandBufferCount = (uint32_t)newCount
+		};
+
+		VkResult result = context->vk.AllocateCommandBuffers(
+			context->vk.device,
+			&cbai,
+			((VkCommandBuffer*)pass->vk.buffers.data) + currCount);
+
+		if (result != VK_SUCCESS)
+		{
+			// Throw away the items we just tried to insert.
+			gfx_vec_pop(&pass->vk.buffers, newCount);
+			_gfx_vulkan_log(result);
+
+			goto error;
+		}
+	}
+
+	else if (currCount > count)
+	{
+		// If we have too many, free some.
+		context->vk.FreeCommandBuffers(
+			context->vk.device,
+			pass->vk.pool,
+			(uint32_t)(currCount - count),
+			((VkCommandBuffer*)pass->vk.buffers.data) + count);
+
+		gfx_vec_pop(&pass->vk.buffers, currCount - count);
+	}
+
+	// TODO: Record into command buffers.
 
 	return 1;
 
-	// Clean on failure.
-//clean:
-//	gfx_log_error("Could not initialize swapchain-dependent resources.");
-//	_gfx_render_pass_swap_clear(pass);
+	// Error on failure.
+error:
+	gfx_log_error("Could not (re)create swapchain-dependent resources.");
 
-//	return 0;
-}
-
-/****************************
- * Recreates all swapchain-dependent resources.
- * @return Non-zero on success.
- */
-static int _gfx_render_pass_swap_recreate(GFXRenderPass* pass)
-{
-	_gfx_render_pass_swap_clear(pass);
-	return _gfx_render_pass_swap_init(pass);
+	return 0;
 }
 
 /****************************/
@@ -63,14 +122,17 @@ GFX_API GFXRenderPass* gfx_create_render_pass(GFXDevice* device)
 	if (pass == NULL)
 		goto clean;
 
-	pass->window = NULL;
-
 	// Get the physical device and make sure it's initialized.
 	pass->device =
 		(_GFXDevice*)((device != NULL) ? device : gfx_get_primary_device());
 
 	if (!_gfx_device_init_context(pass->device))
 		goto clean;
+
+	// Initialize things.
+	pass->window = NULL;
+	pass->vk.pool = VK_NULL_HANDLE;
+	gfx_vec_init(&pass->vk.buffers, sizeof(VkCommandBuffer));
 
 	return pass;
 
@@ -88,7 +150,9 @@ GFX_API void gfx_destroy_render_pass(GFXRenderPass* pass)
 	if (pass == NULL)
 		return;
 
-	_gfx_render_pass_swap_clear(pass);
+	// Detach to destroy all swapchain-dependent resources.
+	gfx_render_pass_attach_window(pass, NULL);
+
 	free(pass);
 }
 
@@ -98,21 +162,27 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 {
 	assert(pass != NULL);
 
+	_GFXContext* context = pass->device->context;
+
 	// It was already attached.
 	if (pass->window == (_GFXWindow*)window)
 		return 1;
 
+	// Ok so it's a different window, means we cannot re-use anything.
+	// Freeing the command pool will also free all command buffers for us.
+	context->vk.DestroyCommandPool(context->vk.device, pass->vk.pool, NULL);
+	pass->vk.pool = VK_NULL_HANDLE;
+	gfx_vec_clear(&pass->vk.buffers);
+
 	// Detach.
 	if (window == NULL)
 	{
-		_gfx_render_pass_swap_clear(pass);
 		pass->window = NULL;
-
 		return 1;
 	}
 
 	// Check that the pass and the window share the same context.
-	if (((_GFXWindow*)window)->device->context != pass->device->context)
+	if (((_GFXWindow*)window)->device->context != context)
 	{
 		gfx_log_error(
 			"When attaching a window to a render pass they must be built on "
@@ -122,10 +192,9 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 	}
 
 	// Ok so now we recreate all the swapchain-dependent resources.
-	_gfx_render_pass_swap_clear(pass);
 	pass->window = (_GFXWindow*)window;
 
-	if (!_gfx_render_pass_swap_init(pass))
+	if (!_gfx_render_pass_recreate_swap(pass))
 	{
 		gfx_log_error("Could not attach a new window to a render pass.");
 		pass->window = NULL;
@@ -155,7 +224,7 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 
 		// Recreate swapchain-dependent resources.
 		if (recreate)
-			return _gfx_render_pass_swap_recreate(pass);
+			return _gfx_render_pass_recreate_swap(pass);
 
 
 		////////////////////
@@ -172,7 +241,7 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 
 		// Recreate swapchain-dependent resources.
 		if (recreate)
-			return _gfx_render_pass_swap_recreate(pass);
+			return _gfx_render_pass_recreate_swap(pass);
 	}
 
 	return 1;

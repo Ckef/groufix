@@ -21,6 +21,15 @@ struct GFXRenderPass
 {
 	_GFXDevice* device;
 	_GFXWindow* window;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkCommandPool pool;
+		GFXVec        buffers; // Stores VkCommandBuffer.
+
+	} vk;
 };
 
 

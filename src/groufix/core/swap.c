@@ -201,7 +201,10 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		// and remember them for later usage.
 		uint32_t count = 0;
 		result = context->vk.GetSwapchainImagesKHR(
-			context->vk.device, window->vk.swapchain, &count, NULL);
+			context->vk.device,
+			window->vk.swapchain,
+			&count,
+			NULL);
 
 		if (result != VK_SUCCESS || count == 0)
 			goto clean;
@@ -213,7 +216,9 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		gfx_vec_push_empty(&window->frame.images, count);
 
 		result = context->vk.GetSwapchainImagesKHR(
-			context->vk.device, window->vk.swapchain, &count,
+			context->vk.device,
+			window->vk.swapchain,
+			&count,
 			window->frame.images.data);
 
 		if (result != VK_SUCCESS)
