@@ -157,6 +157,9 @@ typedef struct _GFXContext
 
 		_GFX_PFN_VK(AcquireNextImageKHR);
 		_GFX_PFN_VK(AllocateCommandBuffers);
+		_GFX_PFN_VK(BeginCommandBuffer);
+		_GFX_PFN_VK(CmdClearColorImage);
+		_GFX_PFN_VK(CmdPipelineBarrier);
 		_GFX_PFN_VK(CreateCommandPool);
 		_GFX_PFN_VK(CreateFence);
 		_GFX_PFN_VK(CreateSemaphore);
@@ -167,10 +170,12 @@ typedef struct _GFXContext
 		_GFX_PFN_VK(DestroySemaphore);
 		_GFX_PFN_VK(DestroySwapchainKHR);
 		_GFX_PFN_VK(DeviceWaitIdle);
+		_GFX_PFN_VK(EndCommandBuffer);
 		_GFX_PFN_VK(FreeCommandBuffers);
 		_GFX_PFN_VK(GetDeviceQueue);
 		_GFX_PFN_VK(GetSwapchainImagesKHR);
 		_GFX_PFN_VK(QueuePresentKHR);
+		_GFX_PFN_VK(QueueSubmit);
 		_GFX_PFN_VK(QueueWaitIdle);
 		_GFX_PFN_VK(ResetCommandPool);
 		_GFX_PFN_VK(ResetFences);
@@ -401,8 +406,8 @@ int _gfx_device_init_context(_GFXDevice* device);
  * @return Non-zero on success.
  *
  * Can be called from any thread, but not reentrant.
+ * This will destroy the old swapchain, references to it must be released.
  * Also fills window->frame.images.
- * This will destroy the old swapchain, references to it must first be released.
  */
 int _gfx_swapchain_recreate(_GFXWindow* window);
 

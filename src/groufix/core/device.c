@@ -371,6 +371,9 @@ static int _gfx_device_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
 		_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(AllocateCommandBuffers);
+		_GFX_GET_DEVICE_PROC_ADDR(BeginCommandBuffer);
+		_GFX_GET_DEVICE_PROC_ADDR(CmdClearColorImage);
+		_GFX_GET_DEVICE_PROC_ADDR(CmdPipelineBarrier);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateFence);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateSemaphore);
@@ -380,10 +383,12 @@ static int _gfx_device_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(DestroySemaphore);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
+		_GFX_GET_DEVICE_PROC_ADDR(EndCommandBuffer);
 		_GFX_GET_DEVICE_PROC_ADDR(FreeCommandBuffers);
 		_GFX_GET_DEVICE_PROC_ADDR(GetDeviceQueue);
 		_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
+		_GFX_GET_DEVICE_PROC_ADDR(QueueSubmit);
 		_GFX_GET_DEVICE_PROC_ADDR(QueueWaitIdle);
 		_GFX_GET_DEVICE_PROC_ADDR(ResetCommandPool);
 		_GFX_GET_DEVICE_PROC_ADDR(ResetFences);

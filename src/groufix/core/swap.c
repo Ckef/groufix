@@ -313,8 +313,8 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 
 		.pNext              = NULL,
-		.waitSemaphoreCount = 1,
-		.pWaitSemaphores    = &window->vk.semaphore,
+		.waitSemaphoreCount = 0,
+		.pWaitSemaphores    = NULL,
 		.swapchainCount     = 1,
 		.pSwapchains        = &window->vk.swapchain,
 		.pImageIndices      = &index,

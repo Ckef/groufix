@@ -513,7 +513,7 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_GFXWindow* win = (_GFXWindow*)window;
 	_GFXContext* context = win->device->context;
 
-	// First wait for presentation to be completely done.
+	// First wait for all pending presentation to be completely done.
 	context->vk.WaitForFences(
 		context->vk.device, 1, &win->vk.fence, VK_TRUE, UINT64_MAX);
 	context->vk.QueueWaitIdle(

@@ -28,9 +28,9 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 	if (pass->vk.pool != VK_NULL_HANDLE)
 	{
 		// If a command pool already exists, just reset it.
-		// This means we need to re-record all command buffers.
-		context->vk.ResetCommandPool(
-			context->vk.device, pass->vk.pool, 0);
+		// But first wait until all pending presentation is done.
+		context->vk.QueueWaitIdle(pass->window->present.queue);
+		context->vk.ResetCommandPool(context->vk.device, pass->vk.pool, 0);
 	}
 	else
 	{
@@ -79,7 +79,7 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 		VkResult result = context->vk.AllocateCommandBuffers(
 			context->vk.device,
 			&cbai,
-			((VkCommandBuffer*)pass->vk.buffers.data) + currCount);
+			gfx_vec_at(&pass->vk.buffers, currCount));
 
 		if (result != VK_SUCCESS)
 		{
@@ -98,12 +98,105 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 			context->vk.device,
 			pass->vk.pool,
 			(uint32_t)(currCount - count),
-			((VkCommandBuffer*)pass->vk.buffers.data) + count);
+			gfx_vec_at(&pass->vk.buffers, count));
 
 		gfx_vec_pop(&pass->vk.buffers, currCount - count);
 	}
 
-	// TODO: Record into command buffers.
+	// Now go record all of the command buffers.
+	// We simply clear the entire associated image to a single color.
+	// Obviously for testing purposes :)
+	VkClearColorValue clear = {
+		{ 1.0f, 0.8f, 0.4f, 0.0f }
+	};
+
+	VkImageSubresourceRange range = {
+		.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseMipLevel   = 0,
+		.levelCount     = 1,
+		.baseArrayLayer = 0,
+		.layerCount     = 1
+	};
+
+	VkCommandBufferBeginInfo cbbi = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+
+		.pNext            = NULL,
+		.flags            = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+		.pInheritanceInfo = NULL
+	};
+
+	for (size_t i = 0; i < count; ++i)
+	{
+		VkImage image =
+			*(VkImage*)gfx_vec_at(&window->frame.images, i);
+		VkCommandBuffer buffer =
+			*(VkCommandBuffer*)gfx_vec_at(&pass->vk.buffers, i);
+
+		VkImageMemoryBarrier imb_clear = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = VK_ACCESS_MEMORY_READ_BIT,
+			.dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			.srcQueueFamilyIndex = window->present.family,
+			.dstQueueFamilyIndex = window->present.family,
+			.image               = image,
+			.subresourceRange    = range
+		};
+
+		VkImageMemoryBarrier imb_present = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+			.dstAccessMask       = VK_ACCESS_MEMORY_READ_BIT,
+			.oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			.newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			.srcQueueFamilyIndex = window->present.family,
+			.dstQueueFamilyIndex = window->present.family,
+			.image               = image,
+			.subresourceRange    = range
+		};
+
+		// Start of all commands.
+		VkResult result = context->vk.BeginCommandBuffer(buffer, &cbbi);
+		if (result != VK_SUCCESS)
+		{
+			_gfx_vulkan_log(result);
+			goto error;
+		}
+
+		// Switch to transfer layout, clear, switch back to present layout.
+		context->vk.CmdPipelineBarrier(
+			buffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0, 0, NULL, 0, NULL, 1, &imb_clear);
+
+		context->vk.CmdClearColorImage(
+			buffer,
+			image,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			&clear,
+			1, &range);
+
+		context->vk.CmdPipelineBarrier(
+			buffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+			0, 0, NULL, 0, NULL, 1, &imb_present);
+
+		// End of all commands.
+		result = context->vk.EndCommandBuffer(buffer);
+		if (result != VK_SUCCESS)
+		{
+			_gfx_vulkan_log(result);
+			goto error;
+		}
+	}
 
 	return 1;
 
@@ -168,11 +261,18 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 	if (pass->window == (_GFXWindow*)window)
 		return 1;
 
-	// Ok so it's a different window, means we cannot re-use anything.
-	// Freeing the command pool will also free all command buffers for us.
-	context->vk.DestroyCommandPool(context->vk.device, pass->vk.pool, NULL);
-	pass->vk.pool = VK_NULL_HANDLE;
-	gfx_vec_clear(&pass->vk.buffers);
+	if (pass->window != NULL)
+	{
+		// Ok so it's a different window from the current,
+		// unfortunately this means we cannot re-use anything.
+		// Freeing the command pool will also free all command buffers for us.
+		// Also, we must wait until pending presentation is done.
+		context->vk.QueueWaitIdle(pass->window->present.queue);
+		context->vk.DestroyCommandPool(context->vk.device, pass->vk.pool, NULL);
+
+		pass->vk.pool = VK_NULL_HANDLE;
+		gfx_vec_clear(&pass->vk.buffers);
+	}
 
 	// Detach.
 	if (window == NULL)
@@ -210,13 +310,16 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 
+	_GFXContext* context = pass->device->context;
+	_GFXWindow* window = pass->window;
+
 	if (pass->window != NULL)
 	{
 		int recreate;
 		uint32_t index;
 
 		// Acquire next image.
-		if (!_gfx_swapchain_acquire(pass->window, &index, &recreate))
+		if (!_gfx_swapchain_acquire(window, &index, &recreate))
 		{
 			gfx_log_error("Could not acquire an image from a swapchain.");
 			return 0;
@@ -227,13 +330,36 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 			return _gfx_render_pass_recreate_swap(pass);
 
 
-		////////////////////
-		// TODO: Submit some command buffers.
-		////////////////////
+		///////////////////
+		// Submit the associated command buffer.
+		VkPipelineStageFlags waitStage =
+			VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+		VkSubmitInfo si = {
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+
+			.pNext                = NULL,
+			.waitSemaphoreCount   = 1,
+			.pWaitSemaphores      = &window->vk.semaphore,
+			.pWaitDstStageMask    = &waitStage,
+			.commandBufferCount   = 1,
+			.pCommandBuffers      = gfx_vec_at(&pass->vk.buffers, index),
+			.signalSemaphoreCount = 0,
+			.pSignalSemaphores    = NULL
+		};
+
+		VkResult result = context->vk.QueueSubmit(
+			window->present.queue, 1, &si, VK_NULL_HANDLE);
+
+		if (result != VK_SUCCESS)
+		{
+			gfx_log_error("Could not submit a command buffer to the presentation queue.");
+			return 0;
+		}
 
 
 		// Present the image.
-		if (!_gfx_swapchain_present(pass->window, index, &recreate))
+		if (!_gfx_swapchain_present(window, index, &recreate))
 		{
 			gfx_log_error("Could not present an image to a swapchain.");
 			return 0;
