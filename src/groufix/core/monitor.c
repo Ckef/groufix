@@ -121,8 +121,8 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 
 	for (size_t i = 0; (int)i < count; ++i)
 	{
-		_GFXMonitor* monitor = glfwGetMonitorUserPointer(handles[i]);
-		*(_GFXMonitor**)gfx_vec_at(&_groufix.monitors, i) = monitor;
+		_GFXMonitor* h = glfwGetMonitorUserPointer(handles[i]);
+		*(_GFXMonitor**)gfx_vec_at(&_groufix.monitors, i) = h;
 	}
 
 	// Finally, call the event if given, and free the monitor on disconnect.

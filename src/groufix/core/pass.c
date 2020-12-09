@@ -202,7 +202,7 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 
 	// Error on failure.
 error:
-	gfx_log_error("Could not (re)create swapchain-dependent resources.");
+	gfx_log_fatal("Could not (re)create swapchain-dependent resources.");
 
 	return 0;
 }
@@ -321,7 +321,7 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 		// Acquire next image.
 		if (!_gfx_swapchain_acquire(window, &index, &recreate))
 		{
-			gfx_log_error("Could not acquire an image from a swapchain.");
+			gfx_log_fatal("Could not acquire an image from a swapchain.");
 			return 0;
 		}
 
@@ -329,9 +329,9 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 		if (recreate)
 			return _gfx_render_pass_recreate_swap(pass);
 
-
-		///////////////////
 		// Submit the associated command buffer.
+		// Here we explicitly wait on the semaphore of the window.
+		// This gets signaled when the acquired image is available.
 		VkPipelineStageFlags waitStage =
 			VK_PIPELINE_STAGE_TRANSFER_BIT;
 
@@ -352,16 +352,12 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 			window->present.queue, 1, &si, VK_NULL_HANDLE);
 
 		if (result != VK_SUCCESS)
-		{
-			gfx_log_error("Could not submit a command buffer to the presentation queue.");
-			return 0;
-		}
-
+			gfx_log_warn("Could not submit a command buffer to the presentation queue.");
 
 		// Present the image.
 		if (!_gfx_swapchain_present(window, index, &recreate))
 		{
-			gfx_log_error("Could not present an image to a swapchain.");
+			gfx_log_fatal("Could not present an image to a swapchain.");
 			return 0;
 		}
 

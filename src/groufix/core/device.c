@@ -352,8 +352,8 @@ static int _gfx_device_create_context(_GFXDevice* device)
 		// This is like a moment to celebrate, right?
 		// We count the number of actual queues here.
 		uint32_t queueCount = 0;
-		for (size_t i = 0; i < context->numFamilies; ++i)
-			queueCount += context->families[i].count;
+		for (size_t k = 0; k < context->numFamilies; ++k)
+			queueCount += context->families[k].count;
 
 		gfx_log_debug(
 			"Logical Vulkan device of version %u.%u.%u with %u physical "

@@ -188,6 +188,8 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		VkResult result = context->vk.CreateSwapchainKHR(
 			context->vk.device, &sci, NULL, &window->vk.swapchain);
 
+		// TODO: Postpone this so that we see smth when we recreate and then
+		// wait for events?
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, oldSwapchain, NULL);
 
@@ -268,6 +270,13 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 		return 0;
 
 	// Acquires an available presentable image from the swapchain.
+	// Wait indefinitely (on the host) until an image is available, this means:
+	// - immediate mode: no waiting.
+	// -      fifo mode: until the next vsync.
+	// -   mailbox mode: until the previous present or next vsync.
+	// Or no waiting if an image was already available.
+	// We could use vkAcquireNextImage2KHR, but we don't.
+	// Just make the images available to all devices.
 	VkResult result = context->vk.AcquireNextImageKHR(
 		context->vk.device,
 		window->vk.swapchain,

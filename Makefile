@@ -45,7 +45,7 @@ else
 endif
 
 MFLAGS = --no-print-directory
-CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -pedantic -Iinclude $(DFLAGS)
+CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -Wshadow -pedantic -Iinclude $(DFLAGS)
 
 
 # Flags for library files only

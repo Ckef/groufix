@@ -388,8 +388,7 @@ void _gfx_monitors_terminate(void);
  * @param device Cannot be NULL.
  * @return Non-zero if successfull.
  *
- * This function will lock the device and lock during context creation and
- * can therefore be called on any thread.
+ * Completely thread-safe.
  * Once this function returned succesfully at least once for a given device,
  * we can read device->index and device->context directly without locking.
  */
