@@ -320,14 +320,12 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 
 		// Acquire next image.
 		if (!_gfx_swapchain_acquire(window, &index, &recreate))
-		{
-			gfx_log_fatal("Could not acquire an image from a swapchain.");
 			return 0;
-		}
 
 		// Recreate swapchain-dependent resources.
-		if (recreate)
-			return _gfx_render_pass_recreate_swap(pass);
+		// TODO: Do we actually continue if resizing?
+		if (recreate && !_gfx_render_pass_recreate_swap(pass))
+			return 0;
 
 		// Submit the associated command buffer.
 		// Here we explicitly wait on the semaphore of the window.
@@ -356,14 +354,11 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 
 		// Present the image.
 		if (!_gfx_swapchain_present(window, index, &recreate))
-		{
-			gfx_log_fatal("Could not present an image to a swapchain.");
 			return 0;
-		}
 
 		// Recreate swapchain-dependent resources.
-		if (recreate)
-			return _gfx_render_pass_recreate_swap(pass);
+		if (recreate && !_gfx_render_pass_recreate_swap(pass))
+			return 0;
 	}
 
 	return 1;

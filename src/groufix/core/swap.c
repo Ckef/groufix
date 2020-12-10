@@ -267,7 +267,7 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 		context->vk.device, 1, &window->vk.fence);
 
 	if (resWait != VK_SUCCESS || resReset != VK_SUCCESS)
-		return 0;
+		goto error;
 
 	// Acquires an available presentable image from the swapchain.
 	// Wait indefinitely (on the host) until an image is available, this means:
@@ -301,10 +301,18 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	// If something else happened, treat as normal error.
 	default:
 		_gfx_vulkan_log(result);
-		return 0;
+		goto error;
 	}
 
 	return 1;
+
+	// Error on failure.
+error:
+	gfx_log_fatal(
+		"Could not acquire an image from a swapchain on physical device: %s.",
+		window->device->base.name);
+
+	return 0;
 }
 
 /****************************/
@@ -363,8 +371,16 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 	// If something else happened, treat as normal error.
 	default:
 		_gfx_vulkan_log(result);
-		return 0;
+		goto error;
 	}
 
 	return 1;
+
+	// Error on failure.
+error:
+	gfx_log_fatal(
+		"Could not present an image to a swapchain on physical device: %s.",
+		window->device->base.name);
+
+	return 0;
 }
