@@ -11,6 +11,32 @@
 #include <stdlib.h>
 
 
+/****************************
+ * Retrieves whether the GLFW resize signal was set and resets the signal.
+ * @param window Cannot be NULL.
+ * @return Non-zero if the resize signal was set.
+ *
+ * Completely thread-safe.
+ */
+static int _gfx_swapchain_resized(_GFXWindow* window)
+{
+	assert(window != NULL);
+
+	int resize = 0;
+
+	// Get the GLFW resize signal and set it back to 0.
+#if defined (__STDC_NO_ATOMICS__)
+	_gfx_mutex_lock(&window->frame.lock);
+	resize = window->frame.resized;
+	window->frame.resized = 0;
+	_gfx_mutex_unlock(&window->frame.lock);
+#else
+	resize = atomic_exchange(&window->frame.resized, 0);
+#endif
+
+	return resize;
+}
+
 /****************************/
 int _gfx_swapchain_recreate(_GFXWindow* window)
 {
@@ -232,7 +258,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	// Clean on failure.
 clean:
 	gfx_log_fatal(
-		"Could not (re)create a swapchain for physical device: %s.",
+		"Could not (re)create a swapchain on physical device: %s.",
 		device->base.name);
 
 	// On failure, destroy everything, we obviously wanted a new swapchain
@@ -269,11 +295,18 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	if (resWait != VK_SUCCESS || resReset != VK_SUCCESS)
 		goto error;
 
+	// Now we check if we resized, just before acquiring a new image.
+	// If we resized, the new image would be useless anyway.
+	*recreate = _gfx_swapchain_resized(window);
+
+	if (*recreate && !_gfx_swapchain_recreate(window))
+		goto error;
+
 	// Acquires an available presentable image from the swapchain.
 	// Wait indefinitely (on the host) until an image is available, this means:
-	// - immediate mode: no waiting.
-	// -      fifo mode: until the next vsync.
-	// -   mailbox mode: until the previous present or next vsync.
+	// - Immediate: no waiting.
+	// -      FIFO: until the next vsync.
+	// -   Mailbox: until the previous present or next vsync.
 	// Or no waiting if an image was already available.
 	// We could use vkAcquireNextImage2KHR, but we don't.
 	// Just make the images available to all devices.
@@ -291,22 +324,28 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	// We may have done precious work, just go ahead and present things.
 	case VK_SUCCESS:
 	case VK_SUBOPTIMAL_KHR:
-		break;
+		return 1;
 
-	// If swapchain out of date, recreate it and exit.
+	// If swapchain out of date, recreate it and return as failed.
+	// We warn here, cause not sure what should happen?
 	case VK_ERROR_OUT_OF_DATE_KHR:
 		*recreate = 1;
-		return _gfx_swapchain_recreate(window);
+		if (!_gfx_swapchain_recreate(window))
+			break;
 
-	// If something else happened, treat as normal error.
+		gfx_log_warn(
+			"Could not acquire an image from a swapchain and instead had to "
+			"recreate the swapchain on physical device: %s.",
+			window->device->base.name);
+
+		return 0;
+
+	// If something else happened, treat as fatal error.
 	default:
 		_gfx_vulkan_log(result);
-		goto error;
 	}
 
-	return 1;
-
-	// Error on failure.
+	// Fatal error on failure.
 error:
 	gfx_log_fatal(
 		"Could not acquire an image from a swapchain on physical device: %s.",
@@ -341,43 +380,42 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 	VkResult result = context->vk.QueuePresentKHR(
 		window->present.queue, &pi);
 
-	// Check for the resize signal, if set, pretend the swapchain is
-	// suboptimal (well it really is) such that it will be recreated.
-#if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_lock(&window->frame.lock);
-	*recreate = window->frame.resized;
-	window->frame.resized = 0;
-	_gfx_mutex_unlock(&window->frame.lock);
-#else
-	*recreate = atomic_exchange(&window->frame.resized, 0);
-#endif
-
-	if (result == VK_SUCCESS && *recreate)
-		result = VK_SUBOPTIMAL_KHR;
+	// Check if the resize signal was set, makes sure it's reset also.
+	*recreate = _gfx_swapchain_resized(window);
 
 	switch (result)
 	{
+	// If success, only try to recreate if necessary.
 	case VK_SUCCESS:
-		break;
+		return !(*recreate) || _gfx_swapchain_recreate(window);
 
-	// If swapchain out of date or suboptimal, recreate it and exit.
-	// We now did a lot of work and nothing is pending, so this is a good
-	// opportunity to recreate.
-	case VK_ERROR_OUT_OF_DATE_KHR:
+	// If swapchain is suboptimal for some reason, recreate it.
+	// We did a lot of work and everything is submitted, so this is a good
+	// opportunity to recreate (as opposed to after image acquisition).
 	case VK_SUBOPTIMAL_KHR:
 		*recreate = 1;
 		return _gfx_swapchain_recreate(window);
 
-	// If something else happened, treat as normal error.
+	// If swapchain is out of date, recreate it and return as failed.
+	// We warn here, cause not sure what should happen?
+	case VK_ERROR_OUT_OF_DATE_KHR:
+		*recreate = 1;
+		if (!_gfx_swapchain_recreate(window))
+			break;
+
+		gfx_log_warn(
+			"Could not present an image to a swapchain and instead had to "
+			"recreate the swapchain on physical device: %s.",
+			window->device->base.name);
+
+		return 0;
+
+	// If something else happened, treat as fatal error.
 	default:
 		_gfx_vulkan_log(result);
-		goto error;
 	}
 
-	return 1;
-
-	// Error on failure.
-error:
+	// Fatal error on failure.
 	gfx_log_fatal(
 		"Could not present an image to a swapchain on physical device: %s.",
 		window->device->base.name);

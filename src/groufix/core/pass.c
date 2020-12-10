@@ -323,7 +323,6 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 			return 0;
 
 		// Recreate swapchain-dependent resources.
-		// TODO: Do we actually continue if resizing?
 		if (recreate && !_gfx_render_pass_recreate_swap(pass))
 			return 0;
 

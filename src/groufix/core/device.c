@@ -199,10 +199,11 @@ static int _gfx_device_create_context(_GFXDevice* device)
 	// First of all, check Vulkan version.
 	if (device->api < _GFX_VK_VERSION)
 	{
-		gfx_log_error("Physical device does not support Vulkan version %u.%u.%u.",
+		gfx_log_error("Physical device does not support Vulkan version %u.%u.%u: %s.",
 			(unsigned int)VK_VERSION_MAJOR(_GFX_VK_VERSION),
 			(unsigned int)VK_VERSION_MINOR(_GFX_VK_VERSION),
-			(unsigned int)VK_VERSION_PATCH(_GFX_VK_VERSION));
+			(unsigned int)VK_VERSION_PATCH(_GFX_VK_VERSION),
+			device->base.name);
 
 		goto error;
 	}
