@@ -202,6 +202,13 @@ GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
                                     GFXVideoMode mode);
 
 /**
+ * Sets a new window title.
+ * @param window Cannot be NULL.
+ * @param title  Cannot be NULL.
+ */
+GFX_API void gfx_window_set_title(GFXWindow* window, const char* title);
+
+/**
  * Retrieves whether the close flag is set.
  * This flag is set by either the window manager or gfx_window_set_close.
  * @param window Cannot be NULL.
@@ -214,6 +221,24 @@ GFX_API int gfx_window_should_close(GFXWindow* window);
  * @param window Cannot be NULL.
  */
 GFX_API void gfx_window_set_close(GFXWindow* window, int close);
+
+/**
+ * Maximizes the window.
+ * @param window Cannot be NULL.
+ */
+GFX_API void gfx_window_maximize(GFXWindow* window);
+
+/**
+ * Minimizes the window.
+ * @param window Cannot be NULL.
+ */
+GFX_API void gfx_window_minimize(GFXWindow* window);
+
+/**
+ * Restores the window from maximization or minimization.
+ * @param window Cannot be NULL.
+ */
+GFX_API void gfx_window_restore(GFXWindow* window);
 
 
 #endif

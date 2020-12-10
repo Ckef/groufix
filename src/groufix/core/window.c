@@ -294,7 +294,11 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 	// Uuuuuh hold up...
 	if (window->present.queue == NULL)
 	{
-		gfx_log_error("Could not find a queue family with surface presentation support.");
+		gfx_log_error(
+			"Could not find a queue family with surface presentation "
+			"support on physical device: %s.",
+			window->device->base.name);
+
 		return 0;
 	}
 
@@ -571,6 +575,15 @@ GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
 }
 
 /****************************/
+GFX_API void gfx_window_set_title(GFXWindow* window, const char* title)
+{
+	assert(window != NULL);
+	assert(title != NULL);
+
+	glfwSetWindowTitle(((_GFXWindow*)window)->handle, title);
+}
+
+/****************************/
 GFX_API int gfx_window_should_close(GFXWindow* window)
 {
 	assert(window != NULL);
@@ -584,4 +597,28 @@ GFX_API void gfx_window_set_close(GFXWindow* window, int close)
 	assert(window != NULL);
 
 	glfwSetWindowShouldClose(((_GFXWindow*)window)->handle, close);
+}
+
+/****************************/
+GFX_API void gfx_window_maximize(GFXWindow* window)
+{
+	assert(window != NULL);
+
+	glfwMaximizeWindow(((_GFXWindow*)window)->handle);
+}
+
+/****************************/
+GFX_API void gfx_window_minimize(GFXWindow* window)
+{
+	assert(window != NULL);
+
+	glfwIconifyWindow(((_GFXWindow*)window)->handle);
+}
+
+/****************************/
+GFX_API void gfx_window_restore(GFXWindow* window)
+{
+	assert(window != NULL);
+
+	glfwRestoreWindow(((_GFXWindow*)window)->handle);
 }
