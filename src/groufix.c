@@ -66,6 +66,11 @@ GFX_API int gfx_init(void)
 
 	gfx_log_info("All internal state initialized succesfully, ready.");
 
+	// If not in debug mode, default back to no logging to stderr.
+#if defined (NDEBUG)
+	gfx_log_set_out(0);
+#endif
+
 	return 1;
 
 	// Cleanup on failure.

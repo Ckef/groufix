@@ -75,14 +75,16 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 /**
  * Sets the log level to output for the calling thread.
  * @param level Must be >= GFX_LOG_NONE and <= GFX_LOG_ALL.
- * @return Non-zero on success.
+ * @return Zero if calling thread is not attached.
  */
 GFX_API int gfx_log_set_level(GFXLogLevel level);
 
 /**
  * Sets whether to output logging to stderr for the calling thread.
- * The main thread defaults to 1, all other threads default to 0.
- * @return Non-zero on success.
+ * @return Zero if calling thread is not attached.
+ *
+ * If built with DEBUG=ON, the main thread defaults to 1,
+ * otherwise it will default to 0, like all other threads.
  */
 GFX_API int gfx_log_set_out(int out);
 
@@ -90,7 +92,7 @@ GFX_API int gfx_log_set_out(int out);
  * Sets the output file for logging of the calling thread.
  * The file name will be prepended with the calling thread's id.
  * @param file Must be NULL or NULL-terminated.
- * @return Non-zero on success.
+ * @return Zero if calling thread is not attached or file creation failed.
  *
  * The file name uses / as directory separator.
  * Non-existing directories will not be automatically created for this call.
