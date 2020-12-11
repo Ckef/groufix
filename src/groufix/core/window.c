@@ -476,7 +476,6 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	if (resSem != VK_SUCCESS || resFen != VK_SUCCESS)
 		goto clean_swapchain;
 
-
 	// All successful!
 	return &window->base;
 
@@ -539,8 +538,8 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	gfx_vec_clear(&win->present.access);
 	gfx_vec_clear(&win->frame.images);
 	_gfx_mutex_clear(&win->frame.lock);
-	glfwDestroyWindow(win->handle);
 
+	glfwDestroyWindow(win->handle);
 	free(window);
 }
 

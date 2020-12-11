@@ -26,15 +26,10 @@
 #include <GLFW/glfw3.h>
 
 
-/**
- * Least Vulkan version that must be supported (1.1.0).
- */
+// Least Vulkan version that must be supported.
 #define _GFX_VK_VERSION VK_MAKE_VERSION(1,1,0)
 
-
-/**
- * Vulkan function pointer.
- */
+// Vulkan function pointer.
 #define _GFX_PFN_VK(pName) PFN_vk##pName pName
 
 
