@@ -90,11 +90,11 @@ GFX_API int gfx_log_set_out(int out);
 
 /**
  * Sets the output file for logging of the calling thread.
- * The file name will be prepended with the calling thread's id.
  * @param file Must be NULL or NULL-terminated.
  * @return Zero if calling thread is not attached or file creation failed.
  *
- * The file name uses / as directory separator.
+ * The file name will be appended with the calling thread's id
+ * before the first '.' character (or at the end if no '.' found).
  * Non-existing directories will not be automatically created for this call.
  */
 GFX_API int gfx_log_set_file(const char* file);

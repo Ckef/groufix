@@ -268,7 +268,8 @@ typedef struct _GFXWindow
 		VkSurfaceKHR   surface;
 		VkSwapchainKHR swapchain;
 
-		VkSemaphore    semaphore;
+		VkSemaphore    available; // Image available, to be waited for.
+		VkSemaphore    rendered;  // Presentation ready, to be signaled.
 		VkFence        fence;
 
 	} vk;
@@ -415,6 +416,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window);
  *
  * Can be called from any thread, but not reentrant.
  * This will wait until the previous image is acquired.
+ * This will signal window->vk.available when the current image is acquired.
  * _gfx_swapchain_recreate is called when necessary.
  */
 int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
@@ -422,6 +424,7 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
 /**
  * Submits a present command for the swapchain of a window.
  * window->vk.swapchain cannot be VK_NULL_HANDLE.
+ * window->vk.rendered must be signaled or pending.
  * @param window Cannot be NULL.
  * @param index  Must be an index retrieved by _gfx_swapchain_acquire.
  * @param resize Cannot be NULL, non-zero if swapchain has been recreated.

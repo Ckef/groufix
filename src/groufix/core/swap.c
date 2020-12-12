@@ -122,29 +122,25 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			window->flags & GFX_WINDOW_TRIPLE_BUFFER;
 		int doubleBuff =
 			!tripleBuff && window->flags & GFX_WINDOW_DOUBLE_BUFFER;
-		int singleBuff =
-			!tripleBuff && !doubleBuff;
 
-		VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR;
+		VkPresentModeKHR mode =
+			tripleBuff ? VK_PRESENT_MODE_MAILBOX_KHR :
+			doubleBuff ? VK_PRESENT_MODE_FIFO_KHR :
+			VK_PRESENT_MODE_IMMEDIATE_KHR;
 
-		for (size_t i = 0; i < mCount; ++i)
-		{
-			int want =
-				(singleBuff && modes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) ||
-				(doubleBuff && modes[i] == VK_PRESENT_MODE_FIFO_KHR) ||
-				(tripleBuff && modes[i] == VK_PRESENT_MODE_MAILBOX_KHR);
+		size_t m;
+		for (m = 0; m < mCount; ++m)
+			if (modes[m] == mode) break;
 
-			if (want)
-			{
-				mode = modes[i];
-				break;
-			}
-		}
+		if (m >= mCount)
+			mode = VK_PRESENT_MODE_FIFO_KHR;
 
 		// Decide on the number of required present images.
 		// We select the correct amount for single, double or triple
 		// buffering and then clamp it between what is supported.
-		uint32_t imageCount = tripleBuff ? 3 : doubleBuff ? 2 : 1;
+		uint32_t imageCount =
+			tripleBuff ? 3 :
+			doubleBuff ? 2 : 1;
 
 		imageCount =
 			sc.minImageCount > imageCount ? sc.minImageCount :
@@ -214,8 +210,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		VkResult result = context->vk.CreateSwapchainKHR(
 			context->vk.device, &sci, NULL, &window->vk.swapchain);
 
-		// TODO: Postpone this so that we see smth when we recreate and then
-		// wait for events?
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, oldSwapchain, NULL);
 
@@ -283,10 +277,13 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	*recreate = 0;
 	_GFXContext* context = window->device->context;
 
-	// First wait for the fence so we know the semaphore
+	// First wait for the fence so we know the available semaphore
 	// is unsignaled and has no pending signals.
-	// Essentially we wait until the previous image is available,
-	// i.e. when the previous frame started rendering.
+	// Essentially we wait until the previous image is available, this means:
+	// - Immediate: no waiting.
+	// -      FIFO: until the previous vsync.
+	// -   Mailbox: until the previous present or vsync.
+	// Or no waiting if an image was already available.
 	VkResult resWait = context->vk.WaitForFences(
 		context->vk.device, 1, &window->vk.fence, VK_TRUE, UINT64_MAX);
 	VkResult resReset = context->vk.ResetFences(
@@ -303,18 +300,15 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 		goto error;
 
 	// Acquires an available presentable image from the swapchain.
-	// Wait indefinitely (on the host) until an image is available, this means:
-	// - Immediate: no waiting.
-	// -      FIFO: until the next vsync.
-	// -   Mailbox: until the previous present or next vsync.
-	// Or no waiting if an image was already available.
-	// We could use vkAcquireNextImage2KHR, but we don't.
-	// Just make the images available to all devices.
+	// Wait indefinitely (on the host) until an image is available,
+	// driver dependent, probably before actually available?
+	// We could use vkAcquireNextImage2KHR, just make the images available
+	// to all devices.
 	VkResult result = context->vk.AcquireNextImageKHR(
 		context->vk.device,
 		window->vk.swapchain,
 		UINT64_MAX,
-		window->vk.semaphore,
+		window->vk.available,
 		window->vk.fence,
 		index);
 
@@ -365,12 +359,13 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 
 	// Now queue a presentation request.
 	// This would swap the acquired image to the screen :)
+	// We wait for all rendering to be done here.
 	VkPresentInfoKHR pi = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 
 		.pNext              = NULL,
-		.waitSemaphoreCount = 0,
-		.pWaitSemaphores    = NULL,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores    = &window->vk.rendered,
 		.swapchainCount     = 1,
 		.pSwapchains        = &window->vk.swapchain,
 		.pImageIndices      = &index,

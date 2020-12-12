@@ -9,6 +9,7 @@
 #include "groufix/core.h"
 #include <assert.h>
 #include <stdarg.h>
+#include <string.h>
 #include <time.h>
 
 #if defined (GFX_UNIX)
@@ -54,7 +55,7 @@ static void _gfx_log_out(unsigned int thread,
 		const char* C = _gfx_log_colors[level-1];
 
 		fprintf(stderr,
-			"%.2ems %s%-5s\x1b[0m \x1b[90mthread%u: %s:%u: %s:\x1b[0m ",
+			"%.2ems %s%-5s\x1b[0m \x1b[90mthread-%u: %s:%u: %s:\x1b[0m ",
 			timeMs, C, L, thread, file, line, func);
 	}
 	else
@@ -62,7 +63,7 @@ static void _gfx_log_out(unsigned int thread,
 #endif
 		// If not, or not on unix at all, output regularly.
 		fprintf(stderr,
-			"%.2ems %-5s thread%u: %s:%u: %s: ",
+			"%.2ems %-5s thread-%u: %s:%u: %s: ",
 			timeMs, L, thread, file, line, func);
 
 #if defined (GFX_UNIX)
@@ -218,16 +219,22 @@ GFX_API int gfx_log_set_file(const char* file)
 	if (file != NULL)
 	{
 		// Now open the appropriate logging file, if any.
-		// We are going to prepend the thread id to the filename...
+		// We are going to append the thread id to the filename...
 		// First find the length of the thread id.
 		size_t idLen = (size_t)snprintf(NULL, 0, "%.4u", state->id);
 
 		// Now find the point at which to insert the thread id.
-		// This is after the last '/' character.
+		// This is before the first '.' character.
+		// Append to end if no '.' found.
 		size_t i;
-		size_t li = 0;
+		size_t li = strlen(file);
+
 		for (i = 0; file[i] != '\0'; ++i)
-			if (file[i] == '/') li = i + 1;
+			if (file[i] == '.')
+			{
+				li = i;
+				break;
+			}
 
 		// Create a string for the file name.
 		char f[i + idLen + 1];

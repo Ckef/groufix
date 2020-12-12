@@ -47,7 +47,8 @@ int main()
 
 	/////////////////////////
 	// Create a window.
-	GFXWindow* window = gfx_create_window(GFX_WINDOW_RESIZABLE,
+	GFXWindow* window = gfx_create_window(
+		GFX_WINDOW_RESIZABLE | GFX_WINDOW_TRIPLE_BUFFER,
 		NULL, NULL, (GFXVideoMode){ .width = 600, .height = 400 }, "groufix");
 
 	if (window == NULL)

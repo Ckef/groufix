@@ -12,6 +12,38 @@
 
 
 /****************************
+ * Picks a graphics queue family (including a specific graphics queue).
+ * _gfx_device_init_context(pass->device) must have returned successfully.
+ * @param pass Cannot be NULL.
+ * @return Non-zero on success.
+ */
+static void _gfx_render_pass_pick_graphics(GFXRenderPass* pass)
+{
+	assert(pass != NULL);
+	assert(pass->device != NULL);
+	assert(pass->device->context != NULL);
+
+	_GFXContext* context = pass->device->context;
+
+	// We assume there is at least a graphics family.
+	// Otherwise context creation would have failed.
+	// We just pick the first one we find.
+	for (size_t i = 0; i < context->numFamilies; ++i)
+		if (context->families[i].flags & VK_QUEUE_GRAPHICS_BIT)
+		{
+			pass->graphics.family = context->families[i].index;
+
+			context->vk.GetDeviceQueue(
+				context->vk.device,
+				pass->graphics.family,
+				0,
+				&pass->graphics.queue);
+
+			break;
+		}
+}
+
+/****************************
  * Recreates all swapchain-dependent resources.
  * pass->window cannot be NULL.
  * @param pass Cannot be NULL.
@@ -29,7 +61,7 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 	{
 		// If a command pool already exists, just reset it.
 		// But first wait until all pending presentation is done.
-		context->vk.QueueWaitIdle(pass->window->present.queue);
+		context->vk.QueueWaitIdle(pass->graphics.queue);
 		context->vk.ResetCommandPool(context->vk.device, pass->vk.pool, 0);
 	}
 	else
@@ -40,7 +72,7 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 
 			.pNext            = NULL,
 			.flags            = 0,
-			.queueFamilyIndex = window->present.family
+			.queueFamilyIndex = pass->graphics.family
 		};
 
 		VkResult result = context->vk.CreateCommandPool(
@@ -141,8 +173,8 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 			.dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
 			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
 			.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			.srcQueueFamilyIndex = window->present.family,
-			.dstQueueFamilyIndex = window->present.family,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.image               = image,
 			.subresourceRange    = range
 		};
@@ -155,8 +187,8 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 			.dstAccessMask       = VK_ACCESS_MEMORY_READ_BIT,
 			.oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			.newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-			.srcQueueFamilyIndex = window->present.family,
-			.dstQueueFamilyIndex = window->present.family,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.image               = image,
 			.subresourceRange    = range
 		};
@@ -227,6 +259,8 @@ GFX_API GFXRenderPass* gfx_create_render_pass(GFXDevice* device)
 	pass->vk.pool = VK_NULL_HANDLE;
 	gfx_vec_init(&pass->vk.buffers, sizeof(VkCommandBuffer));
 
+	_gfx_render_pass_pick_graphics(pass);
+
 	return pass;
 
 	// Clean on failure.
@@ -267,7 +301,7 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 		// unfortunately this means we cannot re-use anything.
 		// Freeing the command pool will also free all command buffers for us.
 		// Also, we must wait until pending presentation is done.
-		context->vk.QueueWaitIdle(pass->window->present.queue);
+		context->vk.QueueWaitIdle(pass->graphics.queue);
 		context->vk.DestroyCommandPool(context->vk.device, pass->vk.pool, NULL);
 
 		pass->vk.pool = VK_NULL_HANDLE;
@@ -327,8 +361,10 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 			return 0;
 
 		// Submit the associated command buffer.
-		// Here we explicitly wait on the semaphore of the window.
-		// This gets signaled when the acquired image is available.
+		// Here we explicitly wait on the available semaphore of the window,
+		// this gets signaled when the acquired image is available.
+		// Plus we signal the rendered semaphore of the window, allowing it
+		// to present at some point.
 		VkPipelineStageFlags waitStage =
 			VK_PIPELINE_STAGE_TRANSFER_BIT;
 
@@ -337,16 +373,16 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 
 			.pNext                = NULL,
 			.waitSemaphoreCount   = 1,
-			.pWaitSemaphores      = &window->vk.semaphore,
+			.pWaitSemaphores      = &window->vk.available,
 			.pWaitDstStageMask    = &waitStage,
 			.commandBufferCount   = 1,
 			.pCommandBuffers      = gfx_vec_at(&pass->vk.buffers, index),
-			.signalSemaphoreCount = 0,
-			.pSignalSemaphores    = NULL
+			.signalSemaphoreCount = 1,
+			.pSignalSemaphores    = &window->vk.rendered
 		};
 
 		VkResult result = context->vk.QueueSubmit(
-			window->present.queue, 1, &si, VK_NULL_HANDLE);
+			pass->graphics.queue, 1, &si, VK_NULL_HANDLE);
 
 		if (result != VK_SUCCESS)
 			gfx_log_warn("Could not submit a command buffer to the presentation queue.");

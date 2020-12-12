@@ -23,6 +23,15 @@ struct GFXRenderPass
 	_GFXWindow* window;
 
 
+	// Chosen graphics family.
+	struct
+	{
+		uint32_t family;
+		VkQueue  queue; // Queue chosen from the family.
+
+	} graphics;
+
+
 	// Vulkan fields.
 	struct
 	{

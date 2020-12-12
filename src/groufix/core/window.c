@@ -447,21 +447,26 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		goto clean_present;
 
 	// Don't forget the synchronization primitives.
-	// We use these to signal when a new swapchain image is available.
+	// We use these to signal when a new swapchain image is available
+	// and wait for rendering to be done so we can present.
 	// These aren't initialized by the swapchain because they do not
 	// need to be recreated.
-	window->vk.semaphore = VK_NULL_HANDLE;
+	window->vk.available = VK_NULL_HANDLE;
+	window->vk.rendered = VK_NULL_HANDLE;
 	window->vk.fence = VK_NULL_HANDLE;
 
-	// Firstly, a semaphore for device synchronization.
+	// Firstly, two semaphores for device synchronization.
 	VkSemaphoreCreateInfo sci = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 		.pNext = NULL,
 		.flags = 0
 	};
 
-	VkResult resSem = context->vk.CreateSemaphore(
-		context->vk.device, &sci, NULL, &window->vk.semaphore);
+	VkResult resAvail = context->vk.CreateSemaphore(
+		context->vk.device, &sci, NULL, &window->vk.available);
+
+	VkResult resRend = context->vk.CreateSemaphore(
+		context->vk.device, &sci, NULL, &window->vk.rendered);
 
 	// Secondly, a fence for host synchronization.
 	 VkFenceCreateInfo fci = {
@@ -473,7 +478,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	VkResult resFen = context->vk.CreateFence(
 		context->vk.device, &fci, NULL, &window->vk.fence);
 
-	if (resSem != VK_SUCCESS || resFen != VK_SUCCESS)
+	if (resAvail != VK_SUCCESS || resRend != VK_SUCCESS || resFen != VK_SUCCESS)
 		goto clean_swapchain;
 
 	// All successful!
@@ -485,7 +490,9 @@ clean_swapchain:
 	context->vk.DestroyFence(
 		context->vk.device, window->vk.fence, NULL);
 	context->vk.DestroySemaphore(
-		context->vk.device, window->vk.semaphore, NULL);
+		context->vk.device, window->vk.rendered, NULL);
+	context->vk.DestroySemaphore(
+		context->vk.device, window->vk.available, NULL);
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, window->vk.swapchain, NULL);
 
@@ -527,7 +534,9 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	context->vk.DestroyFence(
 		context->vk.device, win->vk.fence, NULL);
 	context->vk.DestroySemaphore(
-		context->vk.device, win->vk.semaphore, NULL);
+		context->vk.device, win->vk.rendered, NULL);
+	context->vk.DestroySemaphore(
+		context->vk.device, win->vk.available, NULL);
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, win->vk.swapchain, NULL);
 
