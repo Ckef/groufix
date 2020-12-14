@@ -192,6 +192,7 @@ clean:
  */
 static int _gfx_device_create_context(_GFXDevice* device)
 {
+	assert(_groufix.vk.instance != NULL);
 	assert(device->context == NULL);
 
 	_GFXContext* context = NULL;

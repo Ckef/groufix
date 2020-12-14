@@ -1,4 +1,5 @@
 # filetypes
+*.cap
 *.fuse_hidden*
 *.swo
 *.swp

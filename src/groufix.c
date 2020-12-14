@@ -41,7 +41,8 @@ GFX_API int gfx_init(void)
 	if (!gfx_attach())
 		goto terminate;
 
-	// For ONLY the main thread: default to logging to stderr.
+	// For ONLY the main thread: always default to logging to stderr.
+	// This because no logging file can be set, but we want the logs somewhere.
 	// After logging is setup, init GLFW and the Vulkan loader.
 	gfx_log_set_out(1);
 	glfwSetErrorCallback(_gfx_glfw_error);
@@ -66,7 +67,8 @@ GFX_API int gfx_init(void)
 
 	gfx_log_info("All internal state initialized succesfully, ready.");
 
-	// If not in debug mode, default back to no logging to stderr.
+	// If not in debug mode, default back to no logging to stderr,
+	// it's now the user's responsibility.
 #if defined (NDEBUG)
 	gfx_log_set_out(0);
 #endif
@@ -118,6 +120,11 @@ GFX_API int gfx_attach(void)
 		gfx_log_error("Could not attach a thread.");
 		return 0;
 	}
+
+	// If debug mode, default to logging to stderr.
+#if !defined (NDEBUG)
+	gfx_log_set_out(1);
+#endif
 
 	return 1;
 }

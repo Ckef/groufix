@@ -83,8 +83,8 @@ GFX_API int gfx_log_set_level(GFXLogLevel level);
  * Sets whether to output logging to stderr for the calling thread.
  * @return Zero if calling thread is not attached.
  *
- * If built with DEBUG=ON, the main thread defaults to 1,
- * otherwise it will default to 0, like all other threads.
+ * All threads default to 1 if built with DEBUG=ON,
+ * otherwise they all default to 0.
  */
 GFX_API int gfx_log_set_out(int out);
 

@@ -125,6 +125,7 @@ typedef struct _GFXQueueFamily
 {
 	VkQueueFlags flags;
 	int          present; // Non-zero if chosen for presentation.
+
 	uint32_t     index;   // Vulkan family index.
 	uint32_t     count;
 
@@ -291,6 +292,8 @@ extern _GFXState _groufix;
  * Initializes global groufix state.
  * _groufix.initialized must be 0, on success it will be set to 1.
  * @return Non-zero on success.
+ *
+ * This will initialize everything to an empty or non-active state.
  */
 int _gfx_state_init(void);
 
@@ -306,6 +309,8 @@ void _gfx_state_terminate(void);
  * _groufix.initialized must be 1.
  * May not be called when data is already allocated on the calling thread.
  * @return Non-zero on success.
+ *
+ * This will initialize everything to an empty or non-active state.
  */
 int _gfx_state_create_local(void);
 

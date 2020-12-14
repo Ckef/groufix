@@ -384,8 +384,9 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 		VkResult result = context->vk.QueueSubmit(
 			pass->graphics.queue, 1, &si, VK_NULL_HANDLE);
 
+		// TODO: Do we continue here, wut?
 		if (result != VK_SUCCESS)
-			gfx_log_warn("Could not submit a command buffer to the presentation queue.");
+			gfx_log_fatal("Could not submit a command buffer to the presentation queue.");
 
 		// Present the image.
 		if (!_gfx_swapchain_present(window, index, &recreate))
