@@ -11,17 +11,16 @@
 # Helper manual, no target provided
 
 help:
+	@echo " Clean"
+	@echo "  $(MAKE) clean      - Clean temporary files."
+	@echo "  $(MAKE) clean-deps - Clean dependency builds."
+	@echo "  $(MAKE) clean-all  - Clean all files make produced."
 	@echo ""
-	@echo "Available commands:"
-	@echo "~~~~~~~~~~~~~~~~~~~"
-	@echo "$(MAKE) clean         Clean temporary files."
-	@echo "$(MAKE) clean-deps    Clean dependency builds."
-	@echo "$(MAKE) clean-all     Clean all files make produced."
-	@echo "~~~~~~~~~~~~~~~~~~~"
-	@echo "$(MAKE) unix          Build the groufix Unix target."
-	@echo "$(MAKE) unix-tests    Build all tests for the Unix target."
-	@echo "$(MAKE) win           Build the groufix Windows target."
-	@echo "$(MAKE) win-tests     Build all tests for the Windows target."
+	@echo " Build"
+	@echo "  $(MAKE) unix       - Build the Unix target."
+	@echo "  $(MAKE) unix-tests - Build all tests for the Unix target."
+	@echo "  $(MAKE) win        - Build the Windows target."
+	@echo "  $(MAKE) win-tests  - Build all tests for the Windows target."
 	@echo ""
 
 
