@@ -560,18 +560,20 @@ GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags)
 
 	_GFXWindow* win = (_GFXWindow*)window;
 
-	// Perform one-time actions.
-	// Do this before attributes so maximize can take effect.
-	if (flags & GFX_WINDOW_FOCUS)
-		glfwFocusWindow(win->handle);
-	if (flags & GFX_WINDOW_MAXIMIZE)
+	// Set attributes and perform one-time actions.
+	// Preemptively maximize window in case resizable is set to false here.
+	if ((flags & GFX_WINDOW_MAXIMIZE) && !(flags & GFX_WINDOW_RESIZABLE))
 		glfwMaximizeWindow(win->handle);
 
-	// Set attributes.
 	glfwSetWindowAttrib(win->handle, GLFW_DECORATED,
 		flags & GFX_WINDOW_BORDERLESS ? GLFW_FALSE : GLFW_TRUE);
 	glfwSetWindowAttrib(win->handle, GLFW_RESIZABLE,
 		flags & GFX_WINDOW_RESIZABLE ? GLFW_TRUE : GLFW_FALSE);
+
+	if (flags & GFX_WINDOW_FOCUS)
+		glfwFocusWindow(win->handle);
+	if ((flags & GFX_WINDOW_MAXIMIZE) && (flags & GFX_WINDOW_RESIZABLE))
+		glfwMaximizeWindow(win->handle);
 
 	// Set the input mode for the cursor.
 	int cursor =
