@@ -61,6 +61,7 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 	{
 		// If a command pool already exists, just reset it.
 		// But first wait until all pending presentation is done.
+		// TODO: queue needs to be synchronized.
 		context->vk.QueueWaitIdle(pass->graphics.queue);
 		context->vk.ResetCommandPool(context->vk.device, pass->vk.pool, 0);
 	}
@@ -301,6 +302,7 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 		// unfortunately this means we cannot re-use anything.
 		// Freeing the command pool will also free all command buffers for us.
 		// Also, we must wait until pending presentation is done.
+		// TODO: queue needs to be synchronized.
 		context->vk.QueueWaitIdle(pass->graphics.queue);
 		context->vk.DestroyCommandPool(context->vk.device, pass->vk.pool, NULL);
 
@@ -381,6 +383,7 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 			.pSignalSemaphores    = &window->vk.rendered
 		};
 
+		// TODO: queue needs to be synchronized.
 		VkResult result = context->vk.QueueSubmit(
 			pass->graphics.queue, 1, &si, VK_NULL_HANDLE);
 

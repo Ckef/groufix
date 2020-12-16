@@ -148,8 +148,8 @@ int _gfx_monitors_init(void)
 
 	for (size_t i = 0; (int)i < count; ++i)
 	{
-		_GFXMonitor* monitor = _gfx_alloc_monitor(handles[i]);
-		if (monitor == NULL) goto terminate;
+		if (_gfx_alloc_monitor(handles[i]) == NULL)
+			goto terminate;
 	}
 
 	// Make sure we get configuration change events.

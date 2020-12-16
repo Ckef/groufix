@@ -372,6 +372,7 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 		.pResults           = NULL
 	};
 
+	// TODO: queue needs to be synchronized.
 	VkResult result = context->vk.QueuePresentKHR(
 		window->present.queue, &pi);
 

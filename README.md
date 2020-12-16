@@ -1,26 +1,39 @@
-# groufix
 
-_groufix_ is a cross platform, hardware accelerated graphics engine built in C. The library is primarily focused on the Vulkan API. The main repository is hosted on [GitHub](https://github.com/Ckef/groufix).
+groufix
+=======
+
+_groufix_ is a cross-platform, thread-friendly and hardware accelerated graphics engine built in C. The library is primarily focused on the Vulkan API. The main repository is hosted on [GitHub](https://github.com/Ckef/groufix).
 
 The engine currently supports the following targets:
 
 * __Unix__-like ([GCC](https://gcc.gnu.org/))
 * __Windows__ (XP+) ([Mingw-w64](http://mingw-w64.org/doku.php))
 
-## Building
+
+Building
+--------
 
 The project is shipped with a Makefile, run `make` or `mingw32-make` without a target to view all possible build targets. Each supported operating system has an explicit target. It is also possible to cross-compile _groufix_ to Windows using the `mingw-w64` package.
 
 The Makefile takes the following flags:
 
-* `DEBUG=xxx` tells the Makefile whether or not to compile _groufix_ with debug options enabled. `xxx` can be either `ON` or `OFF` and defaults to `ON`. If not compiling with debug options, optimization settings will be applied.
+* `DEBUG=xxx` tells the Makefile whether or not to compile _groufix_ with debug options enabled. If not compiling with debug options, optimization settings will be applied. `xxx` can be either `ON` or `OFF` and defaults to `ON`.
+
 * `CC=xxx` tells the Makefile to use a given compiler collection. `xxx` defaults to `gcc`, however this can be set to `i686-w64-mingw32-gcc` or `x86_64-w64_mingw32-gcc` to cross-compile to Windows.
 
 ### Dependencies
 
-Major dependencies, such as [GLFW](https://www.glfw.org/), are included as submodules in the repository. They are automatically built and linked by the included Makefile. To build and run with debug options enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. When building on Linux, the `gcc`, `make`, `cmake` and either the `xorg-dev` or `libwayland-dev` packages need to be installed. When building on Windows, [CMake](https://cmake.org/) and [Mingw-w64](http://mingw-w64.org/doku.php) need to be installed, which should include the `cmake.exe` and `mingw32-make.exe` binaries. To use these to build _groufix_, add the `bin` directory of both to your `PATH` variable. Lastly, when cross-compiling to Windows, the `mingw-w64` package needs to be installed and the `CC` flag needs to be set as described above.
+Major dependencies, such as [GLFW](https://www.glfw.org/), are included as submodules in the repository. They are automatically built and linked by the included Makefile. To build and run with debug options enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system.
 
-## Usage
+_When building on Linux_, the `gcc`, `make`, `cmake` and either the `xorg-dev` or `libwayland-dev` packages need to be installed.
+
+_When building on Windows_, [CMake](https://cmake.org/) and [Mingw-w64](http://mingw-w64.org/doku.php) need to be installed, which should include the `cmake.exe` and `mingw32-make.exe` binaries. To use these to build _groufix_, add the `bin` directory of both to your `PATH` variable.
+
+_When cross-compiling to Windows_, the `mingw-w64` package needs to be installed and the `CC` flag needs to be set as described under [#Building](#building).
+
+
+Usage
+-----
 
 Once _groufix_ is built, it can be used in your code with `#include <groufix.h>`. All core functionality will be available through this file. The engine must be initialized with a call to `gfx_init`. The thread that initializes the engine is considered the _main thread_. Any other function of _groufix_ cannot be called before `gfx_init` has returned succesfully, the only exceptions being `gfx_terminate`, `gfx_attach`, `gfx_detach` and the `gfx_log_*` function family. When the engine will not be used anymore, it must be terminated by the main thread with a call to `gfx_terminate`. Once the engine is terminated, it behaves exactly the same as before initialization.
 
