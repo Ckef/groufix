@@ -57,8 +57,10 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	_gfx_mutex_lock(&window->frame.lock);
 
 	window->frame.resized = 0;
+
 	uint32_t width = (uint32_t)window->frame.width;
 	uint32_t height = (uint32_t)window->frame.height;
+	GFXWindowFlags flags = window->frame.flags;
 
 	_gfx_mutex_unlock(&window->frame.lock);
 
@@ -119,9 +121,9 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		// Fallback to FIFO, as this is required to be supported.
 		// Triple buffering trumps double buffering, double trumps single.
 		int tripleBuff =
-			window->flags & GFX_WINDOW_TRIPLE_BUFFER;
+			flags & GFX_WINDOW_TRIPLE_BUFFER;
 		int doubleBuff =
-			!tripleBuff && window->flags & GFX_WINDOW_DOUBLE_BUFFER;
+			!tripleBuff && flags & GFX_WINDOW_DOUBLE_BUFFER;
 
 		VkPresentModeKHR mode =
 			tripleBuff ? VK_PRESENT_MODE_MAILBOX_KHR :

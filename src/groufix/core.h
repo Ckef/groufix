@@ -229,10 +229,8 @@ typedef struct _GFXMonitor
  */
 typedef struct _GFXWindow
 {
-	GFXWindow      base;
-	GFXWindowFlags flags;
-	GLFWwindow*    handle;
-
+	GFXWindow   base;
+	GLFWwindow* handle;
 	_GFXDevice* device; // Associated GPU to build a swapchain on.
 
 
@@ -252,13 +250,14 @@ typedef struct _GFXWindow
 		GFXVec images; // Stores VkImage.
 
 #if defined (__STDC_NO_ATOMICS__)
-		int        resized;
+		int            resized;
 #else
-		atomic_int resized;
+		atomic_int     resized;
 #endif
-		size_t     width;
-		size_t     height;
-		_GFXMutex  lock;
+		size_t         width;
+		size_t         height;
+		GFXWindowFlags flags; // Determines number of images.
+		_GFXMutex      lock;
 
 	} frame;
 

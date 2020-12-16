@@ -184,6 +184,12 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 GFX_API void gfx_destroy_window(GFXWindow* window);
 
 /**
+ * Sets new window flags.
+ * @param window Cannot be NULL.
+ */
+GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags);
+
+/**
  * Retrieves the monitor the window is fullscreened to.
  * @param window Cannot be NULL.
  * @return NULL if the window is not assigned to a monitor.

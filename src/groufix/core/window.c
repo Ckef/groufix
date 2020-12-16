@@ -322,7 +322,6 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		goto clean;
 
 	memset(&window->base, 0, sizeof(GFXWindow));
-	window->flags = flags;
 
 	// Create a GLFW window.
 	glfwDefaultWindowHints();
@@ -408,9 +407,11 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	glfwGetFramebufferSize(window->handle, &width, &height);
 
 	gfx_vec_init(&window->frame.images, sizeof(VkImage));
+
 	window->frame.resized = 0;
 	window->frame.width = (size_t)width;
 	window->frame.height = (size_t)height;
+	window->frame.flags = flags;
 
 	// Now we need to somehow connect it to a GPU.
 	// So attempt to create a Vulkan surface for the window.
@@ -550,6 +551,56 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 
 	glfwDestroyWindow(win->handle);
 	free(window);
+}
+
+/****************************/
+GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags)
+{
+	assert(window != NULL);
+
+	_GFXWindow* win = (_GFXWindow*)window;
+
+	// Perform one-time actions.
+	// Do this before attributes so maximize can take effect.
+	if (flags & GFX_WINDOW_FOCUS)
+		glfwFocusWindow(win->handle);
+	if (flags & GFX_WINDOW_MAXIMIZE)
+		glfwMaximizeWindow(win->handle);
+
+	// Set attributes.
+	glfwSetWindowAttrib(win->handle, GLFW_DECORATED,
+		flags & GFX_WINDOW_BORDERLESS ? GLFW_FALSE : GLFW_TRUE);
+	glfwSetWindowAttrib(win->handle, GLFW_RESIZABLE,
+		flags & GFX_WINDOW_RESIZABLE ? GLFW_TRUE : GLFW_FALSE);
+
+	// Set the input mode for the cursor.
+	int cursor =
+		(flags & GFX_WINDOW_CAPTURE_MOUSE) ? GLFW_CURSOR_DISABLED :
+		(flags & GFX_WINDOW_HIDE_MOUSE) ? GLFW_CURSOR_HIDDEN :
+		GLFW_CURSOR_NORMAL;
+
+	glfwSetInputMode(win->handle, GLFW_CURSOR, cursor);
+
+	// Use raw mouse position if GFX_WINDOW_CAPTURE_MOUSE is set.
+	if (cursor == GLFW_CURSOR_DISABLED && glfwRawMouseMotionSupported())
+		glfwSetInputMode(win->handle, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+
+	// Finally check if we changed the buffer settings.
+	// We lock such that setting the flags and signaling it
+	// are both in the same atomic operation.
+	GFXWindowFlags bufferBits =
+		GFX_WINDOW_DOUBLE_BUFFER | GFX_WINDOW_TRIPLE_BUFFER;
+
+	_gfx_mutex_lock(&win->frame.lock);
+
+	// If buffer settings changed, pretend it's a resize, which actually just
+	// recreates the swapchain, which is exactly what we need, so it's fine.
+	if ((flags & bufferBits) != (win->frame.flags & bufferBits))
+		win->frame.resized = 1;
+
+	win->frame.flags = flags;
+
+	_gfx_mutex_unlock(&win->frame.lock);
 }
 
 /****************************/
