@@ -614,7 +614,8 @@ GFX_API GFXMonitor* gfx_window_get_monitor(GFXWindow* window)
 		glfwGetWindowMonitor(((_GFXWindow*)window)->handle);
 
 	// Each GLFW monitor should have a user pointer to the groufix monitor :)
-	return (monitor == NULL) ? NULL : glfwGetMonitorUserPointer(monitor);
+	return (monitor == NULL) ? NULL :
+		glfwGetMonitorUserPointer(monitor);
 }
 
 /****************************/
@@ -628,11 +629,35 @@ GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
 	glfwSetWindowMonitor(
 		((_GFXWindow*)window)->handle,
 		(monitor != NULL) ? ((_GFXMonitor*)monitor)->handle : NULL,
-		0,
-		0,
+		0, 0,
 		(int)mode.width,
 		(int)mode.height,
 		(int)mode.refresh);
+}
+
+/****************************/
+GFX_API void gfx_window_set_video(GFXWindow* window, GFXVideoMode mode)
+{
+	assert(window != NULL);
+	assert(mode.width > 0);
+	assert(mode.height > 0);
+
+	_GFXWindow* win = (_GFXWindow*)window;
+	GLFWmonitor* monitor = glfwGetWindowMonitor(win->handle);
+
+	if (monitor == NULL)
+		glfwSetWindowSize(
+			win->handle,
+			(int)mode.width,
+			(int)mode.height);
+	else
+		glfwSetWindowMonitor(
+			win->handle,
+			monitor,
+			0, 0,
+			(int)mode.width,
+			(int)mode.height,
+			(int)mode.refresh);
 }
 
 /****************************/

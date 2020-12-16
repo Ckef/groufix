@@ -208,6 +208,15 @@ GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
                                     GFXVideoMode mode);
 
 /**
+ * Sets the video mode of a window.
+ * @param window Cannot be NULL.
+ * @param mode   Width and height must be > 0.
+ *
+ * mode.refresh is ignored if window is set to a monitor.
+ */
+GFX_API void gfx_window_set_video(GFXWindow* window, GFXVideoMode mode);
+
+/**
  * Sets a new window title.
  * @param window Cannot be NULL.
  * @param title  Cannot be NULL.
