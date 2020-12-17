@@ -154,6 +154,7 @@ int _gfx_monitors_init(void)
 
 	return 1;
 
+
 	// Cleanup on failure.
 terminate:
 	gfx_log_error("Could not initialize all connected monitors.");

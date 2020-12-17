@@ -50,6 +50,7 @@ int _gfx_state_init(void)
 
 	return 1;
 
+
 	// Cleanup on failure.
 clean_local:
 #if defined (__STDC_NO_ATOMICS__)

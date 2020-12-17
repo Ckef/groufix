@@ -118,10 +118,6 @@ typedef struct _GFXState
 } _GFXState;
 
 
-/****************************
- * Internal Vulkan context.
- ****************************/
-
 /**
  * Logical (actually created) Vulkan queue family.
  */

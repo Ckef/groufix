@@ -251,6 +251,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		return 1;
 	}
 
+
 	// Clean on failure.
 clean:
 	gfx_log_fatal(
@@ -340,6 +341,7 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	default:
 		_gfx_vulkan_log(result);
 	}
+
 
 	// Fatal error on failure.
 error:

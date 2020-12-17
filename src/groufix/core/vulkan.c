@@ -295,9 +295,8 @@ int _gfx_vulkan_init(void)
 #if !defined (NDEBUG)
 			gfx_log_warn(
 				"Perhaps you do not have the Vulkan SDK installed?\n"
-				"To build without needing the SDK, run `make clean` then "
-				"build with DEBUG=OFF.\n"
-				"Or download the Vulkan SDK from `https://vulkan.lunarg.com/sdk/home`.\n");
+				"    To build without needing the SDK, run `make clean` then build with DEBUG=OFF.\n"
+				"    Or download the Vulkan SDK from `https://vulkan.lunarg.com/sdk/home`.\n");
 #endif
 
 			goto clean;
@@ -308,6 +307,7 @@ int _gfx_vulkan_init(void)
 			(unsigned int)VK_VERSION_MAJOR(version),
 			(unsigned int)VK_VERSION_MINOR(version),
 			(unsigned int)VK_VERSION_PATCH(version));
+
 
 		// Now load all instance level Vulkan functions.
 		// Load vkDestroyInstance first so we can clean properly.
@@ -343,6 +343,7 @@ int _gfx_vulkan_init(void)
 
 		return 1;
 	}
+
 
 	// Cleanup on failure.
 clean:

@@ -152,9 +152,8 @@ static int _gfx_get_queue_sets(VkPhysicalDevice device, GFXVec* sets,
 				int better = (present == UINT32_MAX) ||
 					props[i].queueFlags < props[present].queueFlags;
 
-				// Pick this family as novel presentation family?
-				if (!better) continue;
-				present = i;
+				// Pick this family as novel presentation family.
+				if (better) present = i;
 			}
 
 	// Check if we found a presentation family.
@@ -189,6 +188,7 @@ static int _gfx_get_queue_sets(VkPhysicalDevice device, GFXVec* sets,
 
 	// Allocate graphics queue.
 	(*createInfos)[0].queueFamilyIndex = graphics;
+
 	int success = _gfx_alloc_queue_set(
 		sets, graphics, props[graphics].queueFlags, graphicsHasPresent, 1);
 
@@ -196,7 +196,8 @@ static int _gfx_get_queue_sets(VkPhysicalDevice device, GFXVec* sets,
 	if (!graphicsHasPresent)
 	{
 		(*createInfos)[1].queueFamilyIndex = present;
-		success = _gfx_alloc_queue_set(
+
+		success = success && _gfx_alloc_queue_set(
 			sets, present, props[present].queueFlags, 1, 1);
 	}
 
@@ -204,6 +205,7 @@ static int _gfx_get_queue_sets(VkPhysicalDevice device, GFXVec* sets,
 		goto clean;
 
 	return 1;
+
 
 	// Cleanup on failure.
 clean:
@@ -312,7 +314,10 @@ static int _gfx_create_context(_GFXDevice* device)
 		if (i >= count)
 		{
 			// Probably want to know when a device is somehow invalid...
-			gfx_log_error("Physical device could not be found in any device group.");
+			gfx_log_error(
+				"Physical device could not be found in any device group: %s.",
+				device->base.name);
+
 			goto error;
 		}
 
@@ -339,13 +344,13 @@ static int _gfx_create_context(_GFXDevice* device)
 		gfx_vec_init(&context->sets, sizeof(_GFXQueueSet*));
 		context->numDevices = groups[i].physicalDeviceCount;
 
-		device->index = j;
-		device->context = context;
-
 		memcpy(
 			context->devices,
 			groups[i].physicalDevices,
 			sizeof(VkPhysicalDevice) * context->numDevices);
+
+		device->index = j;
+		device->context = context;
 
 		// Call the thing that gets us the desired queues to create.
 		// createInfos is explicitly freed on cleanup or success.
@@ -450,6 +455,7 @@ static int _gfx_create_context(_GFXDevice* device)
 
 		return 1;
 	}
+
 
 	// Cleanup on failure.
 clean:
@@ -557,6 +563,7 @@ int _gfx_devices_init(void)
 
 		return 1;
 	}
+
 
 	// Cleanup on failure.
 terminate:

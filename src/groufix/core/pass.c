@@ -237,6 +237,7 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 
 	return 1;
 
+
 	// Error on failure.
 error:
 	gfx_log_fatal("Could not (re)create swapchain-dependent resources.");
@@ -267,6 +268,7 @@ GFX_API GFXRenderPass* gfx_create_render_pass(GFXDevice* device)
 	_gfx_render_pass_pick_graphics(pass);
 
 	return pass;
+
 
 	// Clean on failure.
 clean:
