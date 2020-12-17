@@ -146,10 +146,8 @@ int _gfx_monitors_init(void)
 		goto terminate;
 
 	for (size_t i = 0; (int)i < count; ++i)
-	{
 		if (_gfx_alloc_monitor(handles[i]) == NULL)
 			goto terminate;
-	}
 
 	// Make sure we get configuration change events.
 	glfwSetMonitorCallback(_gfx_glfw_monitor);

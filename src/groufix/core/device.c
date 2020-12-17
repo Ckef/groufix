@@ -80,8 +80,8 @@ static int _gfx_alloc_queue_set(GFXVec* sets, uint32_t family,
  *
  * Output describe the queue families desired by the groufix implementation.
  */
-static int _gfx_get_queues_sets(VkPhysicalDevice device, GFXVec* sets,
-                                VkDeviceQueueCreateInfo** createInfos)
+static int _gfx_get_queue_sets(VkPhysicalDevice device, GFXVec* sets,
+                               VkDeviceQueueCreateInfo** createInfos)
 {
 	assert(sets != NULL);
 	assert(sets->size == 0);
@@ -92,10 +92,10 @@ static int _gfx_get_queues_sets(VkPhysicalDevice device, GFXVec* sets,
 	// 1) A general graphics family.
 	// 2) A family that supports presentation to surfaces.
 	// TODO: 3) A compute-only family for use when others are stalling.
-	uint32_t graphics;
-	uint32_t present;
-	int hasGraphics = 0;
-	int hasPresent = 0;
+	// Keep track of the family indices for all properties,
+	// UINT32_MAX means we haven't found a family yet.
+	uint32_t graphics = UINT32_MAX;
+	uint32_t present = UINT32_MAX;
 	int graphicsHasPresent = 0;
 
 	// So get all queue families, do the searching...
@@ -117,7 +117,8 @@ static int _gfx_get_queues_sets(VkPhysicalDevice device, GFXVec* sets,
 		{
 			int pres = glfwGetPhysicalDevicePresentationSupport(
 				_groufix.vk.instance, device, i);
-			int better = !hasGraphics ||
+
+			int better = (graphics == UINT32_MAX) ||
 				(!graphicsHasPresent && pres) ||
 				(props[i].queueFlags < props[graphics].queueFlags &&
 				(!graphicsHasPresent || pres));
@@ -125,20 +126,16 @@ static int _gfx_get_queues_sets(VkPhysicalDevice device, GFXVec* sets,
 			if (!better) continue;
 
 			// Pick this family as graphics family.
-			hasGraphics = 1;
 			graphicsHasPresent = pres;
 			graphics = i;
 
-			if (!hasPresent && pres)
-			{
-				// Also pick it as presentation family.
-				hasPresent = 1;
+			// Also pick it as presentation family.
+			if (present == UINT32_MAX && pres)
 				present = i;
-			}
 		}
 
 	// Check if we found a graphics family.
-	if (!hasGraphics)
+	if (graphics == UINT32_MAX)
 	{
 		gfx_log_error("Could not find a queue family with VK_QUEUE_GRAPHICS_BIT set.");
 		return 0;
@@ -147,22 +144,21 @@ static int _gfx_get_queues_sets(VkPhysicalDevice device, GFXVec* sets,
 	// 2) A family that supports presentation to surfaces:
 	// If no graphics family supports presentation, find another family.
 	// Again we prefer fewer bits.
-	if (!hasPresent) for (uint32_t i = 0; i < count; ++i)
-		if (glfwGetPhysicalDevicePresentationSupport(
-			_groufix.vk.instance, device, i))
-		{
-			int better = !hasPresent ||
-				props[i].queueFlags < props[present].queueFlags;
+	if (present == UINT32_MAX)
+		for (uint32_t i = 0; i < count; ++i)
+			if (glfwGetPhysicalDevicePresentationSupport(
+				_groufix.vk.instance, device, i))
+			{
+				int better = (present == UINT32_MAX) ||
+					props[i].queueFlags < props[present].queueFlags;
 
-			if (!better) continue;
-
-			// Pick this family as novel presentation family.
-			hasPresent = 1;
-			present = i;
-		}
+				// Pick this family as novel presentation family?
+				if (!better) continue;
+				present = i;
+			}
 
 	// Check if we found a presentation family.
-	if (!hasPresent)
+	if (present == UINT32_MAX)
 	{
 		gfx_log_error("Could not find a queue family with presentation support.");
 		return 0;
@@ -193,18 +189,18 @@ static int _gfx_get_queues_sets(VkPhysicalDevice device, GFXVec* sets,
 
 	// Allocate graphics queue.
 	(*createInfos)[0].queueFamilyIndex = graphics;
-	hasGraphics = _gfx_alloc_queue_set(
+	int success = _gfx_alloc_queue_set(
 		sets, graphics, props[graphics].queueFlags, graphicsHasPresent, 1);
 
 	// Allocate novel present queue if necessary.
 	if (!graphicsHasPresent)
 	{
 		(*createInfos)[1].queueFamilyIndex = present;
-		hasPresent = _gfx_alloc_queue_set(
+		success = _gfx_alloc_queue_set(
 			sets, present, props[present].queueFlags, 1, 1);
 	}
 
-	if (!hasGraphics || !hasPresent)
+	if (!success)
 		goto clean;
 
 	return 1;
@@ -357,7 +353,7 @@ static int _gfx_create_context(_GFXDevice* device)
 		// it is assumed it has equivalent queue family properties.
 		// If there are any device groups such that this is the case, you
 		// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
-		if (!_gfx_get_queues_sets(device->vk.device, &context->sets, &createInfos))
+		if (!_gfx_get_queue_sets(device->vk.device, &context->sets, &createInfos))
 			goto clean;
 
 		// Finally go create the logical Vulkan device.
