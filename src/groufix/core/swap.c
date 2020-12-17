@@ -374,9 +374,13 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 		.pResults           = NULL
 	};
 
-	// TODO: queue needs to be synchronized.
+	// Lock queue and submit.
+	_gfx_mutex_lock(window->present.mutex);
+
 	VkResult result = context->vk.QueuePresentKHR(
 		window->present.queue, &pi);
+
+	_gfx_mutex_unlock(window->present.mutex);
 
 	// Check if the resize signal was set, makes sure it's reset also.
 	*recreate = _gfx_swapchain_resized(window);

@@ -250,44 +250,36 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 	window->present.queue = NULL;
 	gfx_vec_init(&window->present.access, sizeof(uint32_t));
 
-	for (size_t i = 0; i < context->numFamilies; ++i)
+	for (size_t i = 0; i < context->sets.size; ++i)
 	{
+		_GFXQueueSet* set = *(_GFXQueueSet**)gfx_vec_at(&context->sets, i);
+
 		// We only care about the family if it is a graphics family OR
 		// it specifically tells us it is capable of presenting.
-		int want =
-			context->families[i].flags & VK_QUEUE_GRAPHICS_BIT ||
-			context->families[i].present;
+		if (!(set->flags & VK_QUEUE_GRAPHICS_BIT || set->present))
+			continue;
 
-		if (!want) continue;
-
-		if (!gfx_vec_push(&window->present.access, 1, &context->families[i].index))
+		if (!gfx_vec_push(&window->present.access, 1, &set->family))
 			return 0;
 
 		// We checked presentation support in a surface-agnostic manner
 		// during logical device creation, now go check for the given surface.
 		VkBool32 support = VK_FALSE;
-		VkResult result = _groufix.vk.GetPhysicalDeviceSurfaceSupportKHR(
+		_groufix.vk.GetPhysicalDeviceSurfaceSupportKHR(
 			window->device->vk.device,
-			context->families[i].index,
+			set->family,
 			window->vk.surface,
 			&support);
 
-		if (result != VK_SUCCESS)
-		{
-			_gfx_vulkan_log(result);
-			return 0;
-		}
-
 		// Just take a presentation queue from whatever family supports it.
+		// We take the first queue in this family.
 		if (support == VK_TRUE)
 		{
-			window->present.family = context->families[i].index;
+			window->present.family = set->family;
+			window->present.mutex = &set->mutexes[0];
 
 			context->vk.GetDeviceQueue(
-				context->vk.device,
-				window->present.family,
-				0,
-				&window->present.queue);
+				context->vk.device, set->family, 0, &window->present.queue);
 		}
 	}
 

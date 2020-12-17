@@ -118,18 +118,23 @@ typedef struct _GFXState
 } _GFXState;
 
 
+/****************************
+ * Internal Vulkan context.
+ ****************************/
+
 /**
- * Logical Vulkan queue family.
+ * Logical (actually created) Vulkan queue family.
  */
-typedef struct _GFXQueueFamily
+typedef struct _GFXQueueSet
 {
+	uint32_t     family;  // Vulkan family index.
 	VkQueueFlags flags;
 	int          present; // Non-zero if chosen for presentation.
 
-	uint32_t     index;   // Vulkan family index.
 	uint32_t     count;
+	_GFXMutex    mutexes[]; // Count mutexes, one for each queue.
 
-} _GFXQueueFamily;
+} _GFXQueueSet;
 
 
 /**
@@ -137,15 +142,6 @@ typedef struct _GFXQueueFamily
  */
 typedef struct _GFXContext
 {
-	// Created queue families.
-	size_t            numFamilies;
-	_GFXQueueFamily*  families; // @struct tail.
-
-	// Associated device group.
-	size_t            numDevices;
-	VkPhysicalDevice* devices; // @struct tail.
-
-
 	// Vulkan fields.
 	struct
 	{
@@ -178,6 +174,13 @@ typedef struct _GFXContext
 		_GFX_PFN_VK(WaitForFences);
 
 	} vk;
+
+
+	GFXVec sets; // Stores _GFXQueueSet*
+
+	// Associated device group.
+	size_t           numDevices;
+	VkPhysicalDevice devices[];
 
 } _GFXContext;
 
@@ -214,12 +217,11 @@ typedef struct _GFXDevice
  */
 typedef struct _GFXMonitor
 {
-	GFXMonitor    base;
-	GLFWmonitor*  handle;
+	GFXMonitor   base;
+	GLFWmonitor* handle;
 
-	// Available video modes.
-	size_t        numModes;
-	GFXVideoMode* modes; // @struct tail.
+	size_t       numModes;
+	GFXVideoMode modes[]; // Available video modes.
 
 } _GFXMonitor;
 
@@ -234,12 +236,14 @@ typedef struct _GFXWindow
 	_GFXDevice* device; // Associated GPU to build a swapchain on.
 
 
-	// Chosen presentation family.
+	// Chosen presentation queue.
 	struct
 	{
-		uint32_t family;
-		VkQueue  queue;  // Queue chosen from the family.
-		GFXVec   access; // Stores uint32_t, all families with image access.
+		uint32_t   family;
+		VkQueue    queue; // Queue chosen from the family.
+		_GFXMutex* mutex;
+
+		GFXVec access; // Stores uint32_t, all Vulkan family indices with image access.
 
 	} present;
 

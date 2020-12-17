@@ -1,11 +1,17 @@
-# filetypes
-*.cap
-*.fuse_hidden*
+
+# vim files
 *.swo
 *.swp
-*~
 
-# directories
+# renderdoc files
+*.cap
+*.rdc
+
+# make directories
 bin/
 build/
 obj/
+
+# other
+*.fuse_hidden*
+*~

@@ -28,19 +28,21 @@ static void _gfx_render_pass_pick_graphics(GFXRenderPass* pass)
 	// We assume there is at least a graphics family.
 	// Otherwise context creation would have failed.
 	// We just pick the first one we find.
-	for (size_t i = 0; i < context->numFamilies; ++i)
-		if (context->families[i].flags & VK_QUEUE_GRAPHICS_BIT)
+	for (size_t i = 0; i < context->sets.size; ++i)
+	{
+		_GFXQueueSet* set = *(_GFXQueueSet**)gfx_vec_at(&context->sets, i);
+
+		if (set->flags & VK_QUEUE_GRAPHICS_BIT)
 		{
-			pass->graphics.family = context->families[i].index;
+			pass->graphics.family = set->family;
+			pass->graphics.mutex = &set->mutexes[0];
 
 			context->vk.GetDeviceQueue(
-				context->vk.device,
-				pass->graphics.family,
-				0,
-				&pass->graphics.queue);
+				context->vk.device, set->family, 0, &pass->graphics.queue);
 
 			break;
 		}
+	}
 }
 
 /****************************
@@ -61,8 +63,10 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 	{
 		// If a command pool already exists, just reset it.
 		// But first wait until all pending presentation is done.
-		// TODO: queue needs to be synchronized.
+		_gfx_mutex_lock(pass->graphics.mutex);
 		context->vk.QueueWaitIdle(pass->graphics.queue);
+		_gfx_mutex_unlock(pass->graphics.mutex);
+
 		context->vk.ResetCommandPool(context->vk.device, pass->vk.pool, 0);
 	}
 	else
@@ -302,8 +306,10 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 		// unfortunately this means we cannot re-use anything.
 		// Freeing the command pool will also free all command buffers for us.
 		// Also, we must wait until pending presentation is done.
-		// TODO: queue needs to be synchronized.
+		_gfx_mutex_lock(pass->graphics.mutex);
 		context->vk.QueueWaitIdle(pass->graphics.queue);
+		_gfx_mutex_unlock(pass->graphics.mutex);
+
 		context->vk.DestroyCommandPool(context->vk.device, pass->vk.pool, NULL);
 
 		pass->vk.pool = VK_NULL_HANDLE;
@@ -383,9 +389,13 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 			.pSignalSemaphores    = &window->vk.rendered
 		};
 
-		// TODO: queue needs to be synchronized.
+		// Lock queue and submit.
+		_gfx_mutex_lock(pass->graphics.mutex);
+
 		VkResult result = context->vk.QueueSubmit(
 			pass->graphics.queue, 1, &si, VK_NULL_HANDLE);
+
+		_gfx_mutex_unlock(pass->graphics.mutex);
 
 		// TODO: Do we continue here, wut?
 		if (result != VK_SUCCESS)

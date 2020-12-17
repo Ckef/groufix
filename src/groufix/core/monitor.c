@@ -49,7 +49,6 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
 	monitor->handle = handle;
 
 	monitor->numModes = 0;
-	monitor->modes = (GFXVideoMode*)(monitor + 1);
 
 	for (size_t m = 0; (int)m < vidCount; ++m)
 	{
@@ -69,7 +68,7 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
 			}
 
 		// If not found, insert a new mode to expose.
-		if (f == monitor->numModes)
+		if (f >= monitor->numModes)
 		{
 			monitor->modes[f] = (GFXVideoMode){
 				.width = (size_t)modes[m].width,

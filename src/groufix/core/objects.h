@@ -26,8 +26,9 @@ struct GFXRenderPass
 	// Chosen graphics family.
 	struct
 	{
-		uint32_t family;
-		VkQueue  queue; // Queue chosen from the family.
+		uint32_t   family;
+		VkQueue    queue; // Queue chosen from the family.
+		_GFXMutex* mutex;
 
 	} graphics;
 
