@@ -546,6 +546,20 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 }
 
 /****************************/
+GFX_API GFXWindowFlags gfx_window_get_flags(GFXWindow* window)
+{
+	assert(window != NULL);
+
+	// We don't actually need to use the frame lock.
+	// Only the main thread ever writes the flags, every other thread only
+	// reads, so this can never result in a race condition.
+	// Also we filter out any one-time actions
+	return
+		((_GFXWindow*)window)->frame.flags &
+		(GFXWindowFlags)~(GFX_WINDOW_FOCUS | GFX_WINDOW_MAXIMIZE);
+}
+
+/****************************/
 GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags)
 {
 	assert(window != NULL);
@@ -625,6 +639,37 @@ GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
 		(int)mode.width,
 		(int)mode.height,
 		(int)mode.refresh);
+}
+
+/****************************/
+GFX_API GFXVideoMode gfx_window_get_video(GFXWindow* window)
+{
+	assert(window != NULL);
+
+	_GFXWindow* win = (_GFXWindow*)window;
+	GLFWmonitor* monitor = glfwGetWindowMonitor(win->handle);
+
+	GFXVideoMode mode = {
+		.width = 0, .height = 0, .refresh = 0 };
+
+	if (monitor == NULL)
+	{
+		int width;
+		int height;
+
+		glfwGetWindowSize(win->handle, &width, &height);
+		mode.width = (size_t)width;
+		mode.height = (size_t)height;
+	}
+	else
+	{
+		const GLFWvidmode* vid = glfwGetVideoMode(monitor);
+		mode.width = (size_t)vid->width;
+		mode.height = (size_t)vid->height;
+		mode.refresh = (unsigned int)vid->refreshRate;
+	}
+
+	return mode;
 }
 
 /****************************/
