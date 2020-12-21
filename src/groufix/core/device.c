@@ -253,6 +253,8 @@ static void _gfx_destroy_context(_GFXContext* context)
  * device->context must be NULL, no prior context can be assigned.
  * @param device Cannot be NULL.
  * @return Zero on failure.
+ *
+ * Not reentrant for the same device, it modifies.
  */
 static int _gfx_create_context(_GFXDevice* device)
 {
@@ -603,7 +605,7 @@ int _gfx_device_init_context(_GFXDevice* device)
 	int ret = 0;
 
 	// Lock the device's lock to sync access to the device's context.
-	// Once this call returns successfully the context will not be set anymore,
+	// Once this call returns successfully the context will not be modified anymore,
 	// which means after this call, we can just read device->context directly.
 	_gfx_mutex_lock(&device->lock);
 

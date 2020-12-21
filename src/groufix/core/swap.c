@@ -123,7 +123,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		int tripleBuff =
 			flags & GFX_WINDOW_TRIPLE_BUFFER;
 		int doubleBuff =
-			!tripleBuff && flags & GFX_WINDOW_DOUBLE_BUFFER;
+			!tripleBuff && (flags & GFX_WINDOW_DOUBLE_BUFFER);
 
 		VkPresentModeKHR mode =
 			tripleBuff ? VK_PRESENT_MODE_MAILBOX_KHR :

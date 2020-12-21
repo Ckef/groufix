@@ -14,13 +14,12 @@
 
 
 /**
- * TODO: Improve API, is a mockup.
- * Internal logical render pass.
+ * Internal logical renderer.
  */
-struct GFXRenderPass
+struct GFXRenderer
 {
-	_GFXDevice* device;
-	_GFXWindow* window;
+	_GFXDevice*    device;
+	GFXRenderPass* first;
 
 
 	// Chosen graphics family.
@@ -31,8 +30,23 @@ struct GFXRenderPass
 		_GFXMutex* mutex;
 
 	} graphics;
+};
 
 
+/**
+ * TODO: Improve, is a mockup.
+ * Internal logical render pass.
+ */
+struct GFXRenderPass
+{
+	GFXRenderPass* next;
+	GFXRenderer*   renderer;
+
+	// TODO: multiple windows?
+	_GFXWindow* window;
+
+
+	// TODO: Do we store this here?
 	// Vulkan fields.
 	struct
 	{
@@ -41,6 +55,16 @@ struct GFXRenderPass
 
 	} vk;
 };
+
+
+/**
+ * TODO: Improve, is a mockup.
+ * TODO: Somehow aggregate this so the renderer does all submission?
+ * Submits the render pass to the GPU.
+ * @param pass Cannot be NULL.
+ * @return Zero on failure.
+ */
+int _gfx_render_pass_submit(GFXRenderPass* pass);
 
 
 #endif

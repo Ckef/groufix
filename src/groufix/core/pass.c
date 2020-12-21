@@ -12,40 +12,6 @@
 
 
 /****************************
- * Picks a graphics queue family (including a specific graphics queue).
- * _gfx_device_init_context(pass->device) must have returned successfully.
- * @param pass Cannot be NULL.
- * @return Non-zero on success.
- */
-static void _gfx_render_pass_pick_graphics(GFXRenderPass* pass)
-{
-	assert(pass != NULL);
-	assert(pass->device != NULL);
-	assert(pass->device->context != NULL);
-
-	_GFXContext* context = pass->device->context;
-
-	// We assume there is at least a graphics family.
-	// Otherwise context creation would have failed.
-	// We just pick the first one we find.
-	for (size_t i = 0; i < context->sets.size; ++i)
-	{
-		_GFXQueueSet* set = *(_GFXQueueSet**)gfx_vec_at(&context->sets, i);
-
-		if (set->flags & VK_QUEUE_GRAPHICS_BIT)
-		{
-			pass->graphics.family = set->family;
-			pass->graphics.mutex = &set->mutexes[0];
-
-			context->vk.GetDeviceQueue(
-				context->vk.device, set->family, 0, &pass->graphics.queue);
-
-			break;
-		}
-	}
-}
-
-/****************************
  * Recreates all swapchain-dependent resources.
  * pass->window cannot be NULL.
  * @param pass Cannot be NULL.
@@ -56,16 +22,17 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 	assert(pass != NULL);
 	assert(pass->window != NULL);
 
-	_GFXContext* context = pass->device->context;
+	GFXRenderer* rend = pass->renderer;
+	_GFXContext* context = rend->device->context;
 	_GFXWindow* window = pass->window;
 
 	if (pass->vk.pool != VK_NULL_HANDLE)
 	{
 		// If a command pool already exists, just reset it.
 		// But first wait until all pending presentation is done.
-		_gfx_mutex_lock(pass->graphics.mutex);
-		context->vk.QueueWaitIdle(pass->graphics.queue);
-		_gfx_mutex_unlock(pass->graphics.mutex);
+		_gfx_mutex_lock(rend->graphics.mutex);
+		context->vk.QueueWaitIdle(rend->graphics.queue);
+		_gfx_mutex_unlock(rend->graphics.mutex);
 
 		context->vk.ResetCommandPool(context->vk.device, pass->vk.pool, 0);
 	}
@@ -77,7 +44,7 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 
 			.pNext            = NULL,
 			.flags            = 0,
-			.queueFamilyIndex = pass->graphics.family
+			.queueFamilyIndex = rend->graphics.family
 		};
 
 		VkResult result = context->vk.CreateCommandPool(
@@ -246,115 +213,12 @@ error:
 }
 
 /****************************/
-GFX_API GFXRenderPass* gfx_create_render_pass(GFXDevice* device)
-{
-	// Allocate a new render pass.
-	GFXRenderPass* pass = malloc(sizeof(GFXRenderPass));
-	if (pass == NULL)
-		goto clean;
-
-	// Get the physical device and make sure it's initialized.
-	pass->device =
-		(_GFXDevice*)((device != NULL) ? device : gfx_get_primary_device());
-
-	if (!_gfx_device_init_context(pass->device))
-		goto clean;
-
-	// Initialize things.
-	pass->window = NULL;
-	pass->vk.pool = VK_NULL_HANDLE;
-	gfx_vec_init(&pass->vk.buffers, sizeof(VkCommandBuffer));
-
-	_gfx_render_pass_pick_graphics(pass);
-
-	return pass;
-
-
-	// Clean on failure.
-clean:
-	gfx_log_error("Could not create a new render pass.");
-	free(pass);
-
-	return NULL;
-}
-
-/****************************/
-GFX_API void gfx_destroy_render_pass(GFXRenderPass* pass)
-{
-	if (pass == NULL)
-		return;
-
-	// Detach to destroy all swapchain-dependent resources.
-	gfx_render_pass_attach_window(pass, NULL);
-
-	free(pass);
-}
-
-/****************************/
-GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
-                                          GFXWindow* window)
+int _gfx_render_pass_submit(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 
-	_GFXContext* context = pass->device->context;
-
-	// It was already attached.
-	if (pass->window == (_GFXWindow*)window)
-		return 1;
-
-	if (pass->window != NULL)
-	{
-		// Ok so it's a different window from the current,
-		// unfortunately this means we cannot re-use anything.
-		// Freeing the command pool will also free all command buffers for us.
-		// Also, we must wait until pending presentation is done.
-		_gfx_mutex_lock(pass->graphics.mutex);
-		context->vk.QueueWaitIdle(pass->graphics.queue);
-		_gfx_mutex_unlock(pass->graphics.mutex);
-
-		context->vk.DestroyCommandPool(context->vk.device, pass->vk.pool, NULL);
-
-		pass->vk.pool = VK_NULL_HANDLE;
-		gfx_vec_clear(&pass->vk.buffers);
-	}
-
-	// Detach.
-	if (window == NULL)
-	{
-		pass->window = NULL;
-		return 1;
-	}
-
-	// Check that the pass and the window share the same context.
-	if (((_GFXWindow*)window)->device->context != context)
-	{
-		gfx_log_error(
-			"When attaching a window to a render pass they must be built on "
-			"the same logical Vulkan device.");
-
-		return 0;
-	}
-
-	// Ok so now we recreate all the swapchain-dependent resources.
-	pass->window = (_GFXWindow*)window;
-
-	if (!_gfx_render_pass_recreate_swap(pass))
-	{
-		gfx_log_error("Could not attach a new window to a render pass.");
-		pass->window = NULL;
-
-		return 0;
-	}
-
-	return 1;
-}
-
-/****************************/
-GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
-{
-	assert(pass != NULL);
-
-	_GFXContext* context = pass->device->context;
+	GFXRenderer* rend = pass->renderer;
+	_GFXContext* context = rend->device->context;
 	_GFXWindow* window = pass->window;
 
 	if (pass->window != NULL)
@@ -392,12 +256,12 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 		};
 
 		// Lock queue and submit.
-		_gfx_mutex_lock(pass->graphics.mutex);
+		_gfx_mutex_lock(rend->graphics.mutex);
 
 		VkResult result = context->vk.QueueSubmit(
-			pass->graphics.queue, 1, &si, VK_NULL_HANDLE);
+			rend->graphics.queue, 1, &si, VK_NULL_HANDLE);
 
-		_gfx_mutex_unlock(pass->graphics.mutex);
+		_gfx_mutex_unlock(rend->graphics.mutex);
 
 		// TODO: Do we continue here, wut?
 		if (result != VK_SUCCESS)
@@ -410,6 +274,66 @@ GFX_API int gfx_render_pass_submit(GFXRenderPass* pass)
 		// Recreate swapchain-dependent resources.
 		if (recreate && !_gfx_render_pass_recreate_swap(pass))
 			return 0;
+	}
+
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
+                                          GFXWindow* window)
+{
+	assert(pass != NULL);
+
+	GFXRenderer* rend = pass->renderer;
+	_GFXContext* context = rend->device->context;
+
+	// It was already attached.
+	if (pass->window == (_GFXWindow*)window)
+		return 1;
+
+	if (pass->window != NULL)
+	{
+		// Ok so it's a different window from the current,
+		// unfortunately this means we cannot re-use anything.
+		// Freeing the command pool will also free all command buffers for us.
+		// Also, we must wait until pending presentation is done.
+		_gfx_mutex_lock(rend->graphics.mutex);
+		context->vk.QueueWaitIdle(rend->graphics.queue);
+		_gfx_mutex_unlock(rend->graphics.mutex);
+
+		context->vk.DestroyCommandPool(context->vk.device, pass->vk.pool, NULL);
+
+		pass->vk.pool = VK_NULL_HANDLE;
+		gfx_vec_clear(&pass->vk.buffers);
+	}
+
+	// Detach.
+	if (window == NULL)
+	{
+		pass->window = NULL;
+		return 1;
+	}
+
+	// Check that the pass and the window share the same context.
+	if (((_GFXWindow*)window)->device->context != context)
+	{
+		gfx_log_error(
+			"When attaching a window to a render pass they must be built on "
+			"the same logical Vulkan device.");
+
+		return 0;
+	}
+
+	// Ok so now we recreate all the swapchain-dependent resources.
+	pass->window = (_GFXWindow*)window;
+
+	if (!_gfx_render_pass_recreate_swap(pass))
+	{
+		gfx_log_error("Could not attach a new window to a render pass.");
+		pass->window = NULL;
+
+		return 0;
 	}
 
 	return 1;

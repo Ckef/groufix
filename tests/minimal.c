@@ -57,27 +57,31 @@ int main()
 	// Register key release event.
 	window->events.key.release = key_release;
 
-	// Create a render pass.
-	GFXRenderPass* pass = gfx_create_render_pass(NULL);
+	// Create a renderer and add a single render pass.
+	GFXRenderer* renderer = gfx_create_renderer(NULL);
+	if (renderer == NULL)
+		goto fail_renderer;
+
+	GFXRenderPass* pass = gfx_renderer_add(renderer);
 	if (pass == NULL)
-		goto fail_pass;
+		goto fail_renderer;
 
 	if (!gfx_render_pass_attach_window(pass, window))
-		goto fail_pass;
+		goto fail_renderer;
 
 
 	/////////////////////////
 	// Setup an event loop.
 	while (!gfx_window_should_close(window))
 	{
-		gfx_render_pass_submit(pass);
+		gfx_renderer_submit(renderer);
 		gfx_wait_events();
 	}
 
 
 	/////////////////////////
 	// Terminate.
-	gfx_destroy_render_pass(pass);
+	gfx_destroy_renderer(renderer);
 	gfx_destroy_window(window);
 	gfx_terminate();
 
@@ -86,8 +90,8 @@ int main()
 
 
 	// On failure.
-fail_pass:
-	gfx_destroy_render_pass(pass);
+fail_renderer:
+	gfx_destroy_renderer(renderer);
 	gfx_destroy_window(window);
 fail:
 	gfx_terminate();
