@@ -413,9 +413,9 @@ int _gfx_swapchain_recreate(_GFXWindow* window);
 /**
  * Acquires the next available image from the swapchain of a window.
  * window->vk.swapchain cannot be VK_NULL_HANDLE.
- * @param window Cannot be NULL.
- * @param index  Cannot be NULL, index into window->frame.images.
- * @param resize Cannot be NULL, non-zero if swapchain has been recreated.
+ * @param window   Cannot be NULL.
+ * @param index    Cannot be NULL, index into window->frame.images.
+ * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
  * @return Non-zero on success.
  *
  * Can be called from any thread, but not reentrant.
@@ -429,9 +429,9 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
  * Submits a present command for the swapchain of a window.
  * window->vk.swapchain cannot be VK_NULL_HANDLE.
  * window->vk.rendered must be signaled or pending.
- * @param window Cannot be NULL.
- * @param index  Must be an index retrieved by _gfx_swapchain_acquire.
- * @param resize Cannot be NULL, non-zero if swapchain has been recreated.
+ * @param window   Cannot be NULL.
+ * @param index    Must be an index retrieved by _gfx_swapchain_acquire.
+ * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
  * @return Non-zero on success.
  *
  * Can be called from any thread, but not reentrant.

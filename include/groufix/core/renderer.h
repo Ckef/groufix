@@ -46,6 +46,8 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
  * TODO: Improve API, is a mockup.
+ * TODO: Allow for multiple 'paths' through passes, splits and merges.
+ * TODO: Research if the above ^ is useful.
  * Appends a new render pass to the renderer.
  * @param renderer Cannot be NULL.
  * @return NULL on failure.
