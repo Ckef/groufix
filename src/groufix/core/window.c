@@ -254,6 +254,7 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 	{
 		_GFXQueueSet* set = *(_GFXQueueSet**)gfx_vec_at(&context->sets, i);
 
+		// Gather all families that needs access to presentable images.
 		// We only care about the family if it is a graphics family OR
 		// it specifically tells us it is capable of presenting.
 		if (!(set->flags & VK_QUEUE_GRAPHICS_BIT || set->present))
@@ -261,6 +262,10 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 
 		if (!gfx_vec_push(&window->present.access, 1, &set->family))
 			return 0;
+
+		// Pick the first family that can present.
+		if (window->present.queue != NULL || !set->present)
+			continue;
 
 		// We checked presentation support in a surface-agnostic manner
 		// during logical device creation, now go check for the given surface.
@@ -271,10 +276,9 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 			window->vk.surface,
 			&support);
 
-		// Just take a presentation queue from whatever family supports it.
-		// We take the first queue in this family.
 		if (support == VK_TRUE)
 		{
+			// We take the first queue in this family.
 			window->present.family = set->family;
 			window->present.mutex = &set->mutexes[0];
 
