@@ -19,7 +19,7 @@
  */
 typedef struct GFXVec
 {
-	size_t size;
+	size_t size; // Number of stored elements.
 	size_t capacity;
 	size_t elementSize;
 

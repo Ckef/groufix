@@ -51,7 +51,8 @@ static int _gfx_alloc_queue_set(GFXVec* sets, uint32_t family,
 {
 	// Allocate a new queue set.
 	_GFXQueueSet* s = malloc(
-		sizeof(_GFXQueueSet) + sizeof(_GFXMutex) * count);
+		sizeof(_GFXQueueSet) +
+		sizeof(_GFXMutex) * count);
 
 	if (s == NULL || !gfx_vec_push(sets, 1, &s))
 	{

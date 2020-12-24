@@ -30,7 +30,7 @@
 #define _GFX_VK_VERSION VK_MAKE_VERSION(1,1,0)
 
 // Vulkan function pointer.
-#define _GFX_PFN_VK(pName) PFN_vk##pName pName
+#define _GFX_VK_PFN(pName) PFN_vk##pName pName
 
 
 /**
@@ -93,25 +93,25 @@ typedef struct _GFXState
 		VkDebugUtilsMessengerEXT messenger;
 #endif
 
-		_GFX_PFN_VK(CreateInstance);
-		_GFX_PFN_VK(EnumerateInstanceVersion);
+		_GFX_VK_PFN(CreateInstance);
+		_GFX_VK_PFN(EnumerateInstanceVersion);
 
 #if !defined (NDEBUG)
-		_GFX_PFN_VK(CreateDebugUtilsMessengerEXT);
-		_GFX_PFN_VK(DestroyDebugUtilsMessengerEXT);
+		_GFX_VK_PFN(CreateDebugUtilsMessengerEXT);
+		_GFX_VK_PFN(DestroyDebugUtilsMessengerEXT);
 #endif
-		_GFX_PFN_VK(CreateDevice);
-		_GFX_PFN_VK(DestroyInstance);
-		_GFX_PFN_VK(DestroySurfaceKHR);
-		_GFX_PFN_VK(EnumeratePhysicalDeviceGroups);
-		_GFX_PFN_VK(EnumeratePhysicalDevices);
-		_GFX_PFN_VK(GetDeviceProcAddr);
-		_GFX_PFN_VK(GetPhysicalDeviceProperties);
-		_GFX_PFN_VK(GetPhysicalDeviceQueueFamilyProperties);
-		_GFX_PFN_VK(GetPhysicalDeviceSurfaceCapabilitiesKHR);
-		_GFX_PFN_VK(GetPhysicalDeviceSurfaceFormatsKHR);
-		_GFX_PFN_VK(GetPhysicalDeviceSurfacePresentModesKHR);
-		_GFX_PFN_VK(GetPhysicalDeviceSurfaceSupportKHR);
+		_GFX_VK_PFN(CreateDevice);
+		_GFX_VK_PFN(DestroyInstance);
+		_GFX_VK_PFN(DestroySurfaceKHR);
+		_GFX_VK_PFN(EnumeratePhysicalDeviceGroups);
+		_GFX_VK_PFN(EnumeratePhysicalDevices);
+		_GFX_VK_PFN(GetDeviceProcAddr);
+		_GFX_VK_PFN(GetPhysicalDeviceProperties);
+		_GFX_VK_PFN(GetPhysicalDeviceQueueFamilyProperties);
+		_GFX_VK_PFN(GetPhysicalDeviceSurfaceCapabilitiesKHR);
+		_GFX_VK_PFN(GetPhysicalDeviceSurfaceFormatsKHR);
+		_GFX_VK_PFN(GetPhysicalDeviceSurfacePresentModesKHR);
+		_GFX_VK_PFN(GetPhysicalDeviceSurfaceSupportKHR);
 
 	} vk;
 
@@ -143,31 +143,31 @@ typedef struct _GFXContext
 	{
 		VkDevice device;
 
-		_GFX_PFN_VK(AcquireNextImageKHR);
-		_GFX_PFN_VK(AllocateCommandBuffers);
-		_GFX_PFN_VK(BeginCommandBuffer);
-		_GFX_PFN_VK(CmdClearColorImage);
-		_GFX_PFN_VK(CmdPipelineBarrier);
-		_GFX_PFN_VK(CreateCommandPool);
-		_GFX_PFN_VK(CreateFence);
-		_GFX_PFN_VK(CreateSemaphore);
-		_GFX_PFN_VK(CreateSwapchainKHR);
-		_GFX_PFN_VK(DestroyCommandPool);
-		_GFX_PFN_VK(DestroyDevice);
-		_GFX_PFN_VK(DestroyFence);
-		_GFX_PFN_VK(DestroySemaphore);
-		_GFX_PFN_VK(DestroySwapchainKHR);
-		_GFX_PFN_VK(DeviceWaitIdle);
-		_GFX_PFN_VK(EndCommandBuffer);
-		_GFX_PFN_VK(FreeCommandBuffers);
-		_GFX_PFN_VK(GetDeviceQueue);
-		_GFX_PFN_VK(GetSwapchainImagesKHR);
-		_GFX_PFN_VK(QueuePresentKHR);
-		_GFX_PFN_VK(QueueSubmit);
-		_GFX_PFN_VK(QueueWaitIdle);
-		_GFX_PFN_VK(ResetCommandPool);
-		_GFX_PFN_VK(ResetFences);
-		_GFX_PFN_VK(WaitForFences);
+		_GFX_VK_PFN(AcquireNextImageKHR);
+		_GFX_VK_PFN(AllocateCommandBuffers);
+		_GFX_VK_PFN(BeginCommandBuffer);
+		_GFX_VK_PFN(CmdClearColorImage);
+		_GFX_VK_PFN(CmdPipelineBarrier);
+		_GFX_VK_PFN(CreateCommandPool);
+		_GFX_VK_PFN(CreateFence);
+		_GFX_VK_PFN(CreateSemaphore);
+		_GFX_VK_PFN(CreateSwapchainKHR);
+		_GFX_VK_PFN(DestroyCommandPool);
+		_GFX_VK_PFN(DestroyDevice);
+		_GFX_VK_PFN(DestroyFence);
+		_GFX_VK_PFN(DestroySemaphore);
+		_GFX_VK_PFN(DestroySwapchainKHR);
+		_GFX_VK_PFN(DeviceWaitIdle);
+		_GFX_VK_PFN(EndCommandBuffer);
+		_GFX_VK_PFN(FreeCommandBuffers);
+		_GFX_VK_PFN(GetDeviceQueue);
+		_GFX_VK_PFN(GetSwapchainImagesKHR);
+		_GFX_VK_PFN(QueuePresentKHR);
+		_GFX_VK_PFN(QueueSubmit);
+		_GFX_VK_PFN(QueueWaitIdle);
+		_GFX_VK_PFN(ResetCommandPool);
+		_GFX_VK_PFN(ResetFences);
+		_GFX_VK_PFN(WaitForFences);
 
 	} vk;
 

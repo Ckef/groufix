@@ -9,6 +9,7 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 /****************************
@@ -213,6 +214,48 @@ error:
 }
 
 /****************************/
+GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer, size_t numDeps,
+                                       GFXRenderPass** deps)
+{
+	assert(renderer != NULL);
+	assert(numDeps == 0 || deps != NULL);
+
+	// Allocate a new render pass.
+	GFXRenderPass* pass = malloc(
+		sizeof(GFXRenderPass) +
+		sizeof(GFXRenderPass*) * numDeps);
+
+	if (pass == NULL)
+		return NULL;
+
+	// Initialize things.
+	pass->renderer = renderer;
+	pass->window = NULL;
+	pass->numDeps = numDeps;
+
+	if (numDeps) memcpy(
+		pass->deps, deps, sizeof(GFXRenderPass*) * numDeps);
+
+	pass->vk.pool = VK_NULL_HANDLE;
+	gfx_vec_init(&pass->vk.buffers, sizeof(VkCommandBuffer));
+
+	return pass;
+}
+
+/****************************/
+void _gfx_destroy_render_pass(GFXRenderPass* pass)
+{
+	assert(pass != NULL);
+
+	// Detach to destroy all swapchain-dependent resources.
+	// TODO: Will prolly change as API gets improved.
+	gfx_render_pass_attach_window(pass, NULL);
+
+	gfx_vec_clear(&pass->vk.buffers);
+	free(pass);
+}
+
+/****************************/
 int _gfx_render_pass_submit(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
@@ -277,6 +320,23 @@ int _gfx_render_pass_submit(GFXRenderPass* pass)
 	}
 
 	return 1;
+}
+
+/****************************/
+GFX_API size_t gfx_render_pass_get_num(GFXRenderPass* pass)
+{
+	assert(pass != NULL);
+
+	return pass->numDeps;
+}
+
+/****************************/
+GFX_API GFXRenderPass* gfx_render_pass_get(GFXRenderPass* pass, size_t index)
+{
+	assert(pass != NULL);
+	assert(index < pass->numDeps);
+
+	return pass->deps[index];
 }
 
 /****************************/

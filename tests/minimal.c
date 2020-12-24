@@ -62,7 +62,7 @@ int main()
 	if (renderer == NULL)
 		goto fail_renderer;
 
-	GFXRenderPass* pass = gfx_renderer_add(renderer);
+	GFXRenderPass* pass = gfx_renderer_add(renderer, 0, NULL);
 	if (pass == NULL)
 		goto fail_renderer;
 
@@ -74,7 +74,7 @@ int main()
 	// Setup an event loop.
 	while (!gfx_window_should_close(window))
 	{
-		gfx_renderer_submit(renderer);
+		gfx_renderer_submit(renderer, 0);
 		gfx_wait_events();
 	}
 

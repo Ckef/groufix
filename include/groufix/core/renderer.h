@@ -45,26 +45,62 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device);
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
- * TODO: Improve API, is a mockup.
- * TODO: Allow for multiple 'paths' through passes, splits and merges.
- * TODO: Research if the above ^ is useful.
- * Appends a new render pass to the renderer.
+ * Adds a new (target) render pass to the renderer.
  * @param renderer Cannot be NULL.
+ * @param numDeps  Number of dependencies, 0 for no dependencies.
+ * @param deps     Passes it depends on, cannot be NULL if numDeps > 0.
  * @return NULL on failure.
+ *
+ * A render pass can not be removed, nor can its dependencies be changed
+ * once it has been added to a renderer.
  */
-GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer);
+GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer, size_t numDeps,
+                                        GFXRenderPass** deps);
 
 /**
- * Submits the renderer to the GPU.
+ * Retrieves the number of target render passes of a renderer.
+ * A target pass is one that no other pass depends on (last in the path).
  * @param renderer Cannot be NULL.
+ *
+ * This number may change when a new render pass is added.
+ */
+GFX_API size_t gfx_renderer_get_num(GFXRenderer* renderer);
+
+/**
+ * Retrieves a target render pass of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param index Must be < gfx_renderer_get_num(renderer).
+ *
+ * The index of each target may change when a new render pass is added.
+ */
+GFX_API GFXRenderPass* gfx_renderer_get(GFXRenderer* renderer, size_t index);
+
+/**
+ * Submits a target of the renderer to the GPU.
+ * The given index is the index of the target render pass to submit.
+ * @param renderer Cannot be NULL.
+ * @param target   Must be < gfx_renderer_get_num(renderer).
  * @return Zero on failure.
  */
-GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
+GFX_API int gfx_renderer_submit(GFXRenderer* renderer, size_t target);
 
 
 /****************************
  * Logical render pass.
  ****************************/
+
+/**
+ * Retrieves the number of passes a single render pass depends on.
+ * @param pass Cannot be NULL.
+ */
+GFX_API size_t gfx_render_pass_get_num(GFXRenderPass* pass);
+
+/**
+ * Retrieves a dependency of a render pass.
+ * @param pass Cannot be NULL.
+ * @param index Must be < gfx_render_pass_get_num(pass).
+ */
+GFX_API GFXRenderPass* gfx_render_pass_get(GFXRenderPass* pass, size_t index);
 
 /**
  * TODO: Improve API, is a mockup.

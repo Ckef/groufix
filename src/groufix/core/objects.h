@@ -18,8 +18,10 @@
  */
 struct GFXRenderer
 {
-	_GFXDevice*    device;
-	GFXRenderPass* first;
+	_GFXDevice* device;
+
+	GFXVec targets; // Stores GFXRenderPass* (target passes, end of path)
+	GFXVec passes;  // Stores GFXRenderPass*
 
 
 	// Chosen graphics family.
@@ -39,11 +41,8 @@ struct GFXRenderer
  */
 struct GFXRenderPass
 {
-	GFXRenderPass* next;
-	GFXRenderer*   renderer;
-
-	// TODO: multiple windows?
-	_GFXWindow* window;
+	GFXRenderer* renderer;
+	_GFXWindow*  window; // TODO: multiple windows?
 
 
 	// TODO: Do we store this here?
@@ -54,8 +53,33 @@ struct GFXRenderPass
 		GFXVec        buffers; // Stores VkCommandBuffer.
 
 	} vk;
+
+
+	// Dependency passes.
+	size_t         numDeps;
+	GFXRenderPass* deps[];
 };
 
+
+/****************************
+ * Logical render pass.
+ ****************************/
+
+/**
+ * Creates a logical render pass.
+ * @param renderer Cannot be NULL.
+ * @param numDeps  Number of dependencies, 0 for no dependencies.
+ * @param deps     Passes it depends on, cannot be NULL if numDeps > 0.
+ * @return NULL on failure.
+ */
+GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer, size_t numDeps,
+                                       GFXRenderPass** deps);
+
+/**
+ * Destroys a logical render pass.
+ * @param pass Cannot be NULL.
+ */
+void _gfx_destroy_render_pass(GFXRenderPass* pass);
 
 /**
  * TODO: Improve, is a mockup.

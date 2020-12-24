@@ -207,6 +207,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		VkResult result = context->vk.CreateSwapchainKHR(
 			context->vk.device, &sci, NULL, &window->vk.swapchain);
 
+		// TODO: Still need to maybe defer this to when the last present happened?
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, oldSwapchain, NULL);
 
@@ -300,8 +301,8 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	// Acquires an available presentable image from the swapchain.
 	// Wait indefinitely (on the host) until an image is available,
 	// driver dependent, probably before actually available?
-	// We could use vkAcquireNextImage2KHR, just make the images available
-	// to all devices.
+	// We could use vkAcquireNextImage2KHR, but we don't,
+	// just make the images available to all devices.
 	VkResult result = context->vk.AcquireNextImageKHR(
 		context->vk.device,
 		window->vk.swapchain,

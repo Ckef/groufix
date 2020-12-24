@@ -35,7 +35,7 @@ typedef enum GFXWindowFlags
 
 
 /**
- * Monitor video mode.
+ * Monitor/Window video mode.
  */
 typedef struct GFXVideoMode
 {
