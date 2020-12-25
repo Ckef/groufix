@@ -48,14 +48,8 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 			.queueFamilyIndex = rend->graphics.family
 		};
 
-		VkResult result = context->vk.CreateCommandPool(
-			context->vk.device, &cpci, NULL, &pass->vk.pool);
-
-		if (result != VK_SUCCESS)
-		{
-			_gfx_vulkan_log(result);
-			goto error;
-		}
+		_GFX_VK_CHECK(context->vk.CreateCommandPool(
+			context->vk.device, &cpci, NULL, &pass->vk.pool), goto error);
 	}
 
 	// Ok so now we allocate more command buffers or free some.
@@ -81,17 +75,17 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 			.commandBufferCount = (uint32_t)newCount
 		};
 
-		VkResult result = context->vk.AllocateCommandBuffers(
-			context->vk.device,
-			&cbai,
-			gfx_vec_at(&pass->vk.buffers, currCount));
+		int res = 1;
+		_GFX_VK_CHECK(
+			context->vk.AllocateCommandBuffers(
+				context->vk.device, &cbai,
+				gfx_vec_at(&pass->vk.buffers, currCount)),
+			res = 0);
 
-		if (result != VK_SUCCESS)
+		// Throw away the items we just tried to insert.
+		if (!res)
 		{
-			// Throw away the items we just tried to insert.
 			gfx_vec_pop(&pass->vk.buffers, newCount);
-			_gfx_vulkan_log(result);
-
 			goto error;
 		}
 	}
@@ -167,12 +161,8 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 		};
 
 		// Start of all commands.
-		VkResult result = context->vk.BeginCommandBuffer(buffer, &cbbi);
-		if (result != VK_SUCCESS)
-		{
-			_gfx_vulkan_log(result);
-			goto error;
-		}
+		_GFX_VK_CHECK(context->vk.BeginCommandBuffer(buffer, &cbbi),
+			goto error);
 
 		// Switch to transfer layout, clear, switch back to present layout.
 		context->vk.CmdPipelineBarrier(
@@ -195,12 +185,8 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 			0, 0, NULL, 0, NULL, 1, &imb_present);
 
 		// End of all commands.
-		result = context->vk.EndCommandBuffer(buffer);
-		if (result != VK_SUCCESS)
-		{
-			_gfx_vulkan_log(result);
-			goto error;
-		}
+		_GFX_VK_CHECK(context->vk.EndCommandBuffer(buffer),
+			goto error);
 	}
 
 	return 1;
@@ -301,14 +287,13 @@ int _gfx_render_pass_submit(GFXRenderPass* pass)
 		// Lock queue and submit.
 		_gfx_mutex_lock(rend->graphics.mutex);
 
-		VkResult result = context->vk.QueueSubmit(
-			rend->graphics.queue, 1, &si, VK_NULL_HANDLE);
+		// TODO: Do we continue on failure here, wut?
+		_GFX_VK_CHECK(
+			context->vk.QueueSubmit(
+				rend->graphics.queue, 1, &si, VK_NULL_HANDLE),
+			gfx_log_fatal("Could not submit a command buffer to the presentation queue."));
 
 		_gfx_mutex_unlock(rend->graphics.mutex);
-
-		// TODO: Do we continue here, wut?
-		if (result != VK_SUCCESS)
-			gfx_log_fatal("Could not submit a command buffer to the presentation queue.");
 
 		// Present the image.
 		if (!_gfx_swapchain_present(window, index, &recreate))

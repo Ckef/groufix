@@ -284,10 +284,10 @@ static int _gfx_create_context(_GFXDevice* device)
 	// Then we create a logical Vulkan device for this entire group.
 	// Later on, any other device in the group will also use this context.
 	uint32_t count;
-	VkResult result = _groufix.vk.EnumeratePhysicalDeviceGroups(
-		_groufix.vk.instance, &count, NULL);
+	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDeviceGroups(
+		_groufix.vk.instance, &count, NULL), goto error);
 
-	if (result != VK_SUCCESS || count == 0)
+	if (count == 0)
 		goto error;
 
 	// We use a scope here so the goto above is allowed.
@@ -295,11 +295,8 @@ static int _gfx_create_context(_GFXDevice* device)
 		// Enumerate all device groups.
 		VkPhysicalDeviceGroupProperties groups[count];
 
-		result = _groufix.vk.EnumeratePhysicalDeviceGroups(
-			_groufix.vk.instance, &count, groups);
-
-		if (result != VK_SUCCESS)
-			goto error;
+		_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDeviceGroups(
+			_groufix.vk.instance, &count, groups), goto error);
 
 		// Loop over all groups and see if one contains this device.
 		// We keep track of the index of the group and the device in it.
@@ -400,14 +397,8 @@ static int _gfx_create_context(_GFXDevice* device)
 			.pEnabledFeatures        = NULL // TODO: Will probably want to populate this.
 		};
 
-		result = _groufix.vk.CreateDevice(
-			device->vk.device, &dci, NULL, &context->vk.device);
-
-		if (result != VK_SUCCESS)
-		{
-			_gfx_vulkan_log(result);
-			goto clean;
-		}
+		_GFX_VK_CHECK(_groufix.vk.CreateDevice(
+			device->vk.device, &dci, NULL, &context->vk.device), goto clean);
 
 		// This is like a moment to celebrate, right?
 		// We count the number of actual queues here.
@@ -490,10 +481,10 @@ int _gfx_devices_init(void)
 	// nor is there a user pointer for callbacks, as there are no callbacks.
 	// This means we do not have to dynamically allocate the devices.
 	uint32_t count;
-	VkResult result = _groufix.vk.EnumeratePhysicalDevices(
-		_groufix.vk.instance, &count, NULL);
+	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
+		_groufix.vk.instance, &count, NULL), goto terminate);
 
-	if (result != VK_SUCCESS || count == 0)
+	if (count == 0)
 		goto terminate;
 
 	// Again with the goto-proof scope.
@@ -501,11 +492,8 @@ int _gfx_devices_init(void)
 		// Enumerate all devices.
 		VkPhysicalDevice devices[count];
 
-		result = _groufix.vk.EnumeratePhysicalDevices(
-			_groufix.vk.instance, &count, devices);
-
-		if (result != VK_SUCCESS)
-			goto terminate;
+		_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
+			_groufix.vk.instance, &count, devices), goto terminate);
 
 		// Fill the array of groufix devices.
 		// While doing so, keep track of the primary device,

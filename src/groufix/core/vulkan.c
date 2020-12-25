@@ -285,13 +285,12 @@ int _gfx_vulkan_init(void)
 #endif
 		};
 
-		VkResult result = _groufix.vk.CreateInstance(
-			&ici, NULL, &_groufix.vk.instance);
+		int res = 1;
+		_GFX_VK_CHECK(_groufix.vk.CreateInstance(
+			&ici, NULL, &_groufix.vk.instance), res = 0);
 
-		if (result != VK_SUCCESS)
+		if (!res)
 		{
-			_gfx_vulkan_log(result);
-
 #if !defined (NDEBUG)
 			gfx_log_warn(
 				"Perhaps you do not have the Vulkan SDK installed?\n"
@@ -331,14 +330,8 @@ int _gfx_vulkan_init(void)
 
 #if !defined (NDEBUG)
 		// Register the Vulkan debug messenger callback.
-		result = _groufix.vk.CreateDebugUtilsMessengerEXT(
-			_groufix.vk.instance, &dumci, NULL, &_groufix.vk.messenger);
-
-		if (result != VK_SUCCESS)
-		{
-			_gfx_vulkan_log(result);
-			goto clean;
-		}
+		_GFX_VK_CHECK(_groufix.vk.CreateDebugUtilsMessengerEXT(
+			_groufix.vk.instance, &dumci, NULL, &_groufix.vk.messenger), goto clean);
 #endif
 
 		return 1;

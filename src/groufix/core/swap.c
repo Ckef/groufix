@@ -80,13 +80,13 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	uint32_t fCount;
 	uint32_t mCount;
 
-	VkResult fRes = _groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
-		device->vk.device, window->vk.surface, &fCount, NULL);
+	_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
+		device->vk.device, window->vk.surface, &fCount, NULL), goto clean);
 
-	VkResult mRes = _groufix.vk.GetPhysicalDeviceSurfacePresentModesKHR(
-		device->vk.device, window->vk.surface, &mCount, NULL);
+	_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfacePresentModesKHR(
+		device->vk.device, window->vk.surface, &mCount, NULL), goto clean);
 
-	if (fRes != VK_SUCCESS || mRes != VK_SUCCESS || fCount == 0 || mCount == 0)
+	if (fCount == 0 || mCount == 0)
 		goto clean;
 
 	// We use a scope here so the gotos above are allowed.
@@ -95,17 +95,14 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		VkSurfaceFormatKHR formats[fCount];
 		VkPresentModeKHR modes[mCount];
 
-		VkResult cRes = _groufix.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(
-			device->vk.device, window->vk.surface, &sc);
+		_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+			device->vk.device, window->vk.surface, &sc), goto clean);
 
-		fRes = _groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
-			device->vk.device, window->vk.surface, &fCount, formats);
+		_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
+			device->vk.device, window->vk.surface, &fCount, formats), goto clean);
 
-		mRes = _groufix.vk.GetPhysicalDeviceSurfacePresentModesKHR(
-			device->vk.device, window->vk.surface, &mCount, modes);
-
-		if (cRes != VK_SUCCESS || fRes != VK_SUCCESS || mRes != VK_SUCCESS)
-			goto clean;
+		_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfacePresentModesKHR(
+			device->vk.device, window->vk.surface, &mCount, modes), goto clean);
 
 		// Check if our desired image usage is supported.
 		if (!(sc.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
@@ -204,29 +201,28 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			.oldSwapchain          = oldSwapchain
 		};
 
-		VkResult result = context->vk.CreateSwapchainKHR(
-			context->vk.device, &sci, NULL, &window->vk.swapchain);
+		int res = 1;
+		_GFX_VK_CHECK(
+			context->vk.CreateSwapchainKHR(
+				context->vk.device, &sci, NULL, &window->vk.swapchain),
+			res = 0);
 
 		// TODO: Still need to maybe defer this to when the last present happened?
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, oldSwapchain, NULL);
 
-		if (result != VK_SUCCESS)
-		{
-			_gfx_vulkan_log(result);
+		if (!res)
 			goto clean;
-		}
 
 		// Query all the images associated with the swapchain
 		// and remember them for later usage.
 		uint32_t count = 0;
-		result = context->vk.GetSwapchainImagesKHR(
-			context->vk.device,
-			window->vk.swapchain,
-			&count,
-			NULL);
+		_GFX_VK_CHECK(
+			context->vk.GetSwapchainImagesKHR(
+				context->vk.device, window->vk.swapchain, &count, NULL),
+			goto clean);
 
-		if (result != VK_SUCCESS || count == 0)
+		if (count == 0)
 			goto clean;
 
 		// Reserve the exact amount cause it's most likely not gonna change.
@@ -235,14 +231,11 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 
 		gfx_vec_push_empty(&window->frame.images, count);
 
-		result = context->vk.GetSwapchainImagesKHR(
-			context->vk.device,
-			window->vk.swapchain,
-			&count,
-			window->frame.images.data);
-
-		if (result != VK_SUCCESS)
-			goto clean;
+		_GFX_VK_CHECK(
+			context->vk.GetSwapchainImagesKHR(
+				context->vk.device, window->vk.swapchain, &count,
+				window->frame.images.data),
+			goto clean);
 
 		return 1;
 	}
@@ -283,13 +276,11 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	// -      FIFO: until the previous vsync.
 	// -   Mailbox: until the previous present or vsync.
 	// Or no waiting if an image was already available.
-	VkResult resWait = context->vk.WaitForFences(
-		context->vk.device, 1, &window->vk.fence, VK_TRUE, UINT64_MAX);
-	VkResult resReset = context->vk.ResetFences(
-		context->vk.device, 1, &window->vk.fence);
+	_GFX_VK_CHECK(context->vk.WaitForFences(
+		context->vk.device, 1, &window->vk.fence, VK_TRUE, UINT64_MAX), goto error);
 
-	if (resWait != VK_SUCCESS || resReset != VK_SUCCESS)
-		goto error;
+	_GFX_VK_CHECK(context->vk.ResetFences(
+		context->vk.device, 1, &window->vk.fence), goto error);
 
 	// Now we check if we resized, just before acquiring a new image.
 	// If we resized, the new image would be useless anyway.

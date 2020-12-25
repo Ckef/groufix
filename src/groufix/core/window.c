@@ -411,14 +411,10 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 
 	// Now we need to somehow connect it to a GPU.
 	// So attempt to create a Vulkan surface for the window.
-	VkResult result = glfwCreateWindowSurface(
-		_groufix.vk.instance, window->handle, NULL, &window->vk.surface);
-
-	if (result != VK_SUCCESS)
-	{
-		_gfx_vulkan_log(result);
-		goto clean_frame;
-	}
+	_GFX_VK_CHECK(
+		glfwCreateWindowSurface(
+			_groufix.vk.instance, window->handle, NULL, &window->vk.surface),
+		goto clean_frame);
 
 	// Get the physical device and make sure it's initialized.
 	window->device =
@@ -459,11 +455,15 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		.flags = 0
 	};
 
-	VkResult resAvail = context->vk.CreateSemaphore(
-		context->vk.device, &sci, NULL, &window->vk.available);
+	_GFX_VK_CHECK(
+		context->vk.CreateSemaphore(
+			context->vk.device, &sci, NULL, &window->vk.available),
+		goto clean_swapchain);
 
-	VkResult resRend = context->vk.CreateSemaphore(
-		context->vk.device, &sci, NULL, &window->vk.rendered);
+	_GFX_VK_CHECK(
+		context->vk.CreateSemaphore(
+			context->vk.device, &sci, NULL, &window->vk.rendered),
+		goto clean_swapchain);
 
 	// Secondly, a fence for host synchronization.
 	 VkFenceCreateInfo fci = {
@@ -472,11 +472,10 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		.flags = VK_FENCE_CREATE_SIGNALED_BIT
 	};
 
-	VkResult resFen = context->vk.CreateFence(
-		context->vk.device, &fci, NULL, &window->vk.fence);
-
-	if (resAvail != VK_SUCCESS || resRend != VK_SUCCESS || resFen != VK_SUCCESS)
-		goto clean_swapchain;
+	_GFX_VK_CHECK(
+		context->vk.CreateFence(
+			context->vk.device, &fci, NULL, &window->vk.fence),
+		goto clean_swapchain);
 
 	// All successful!
 	return &window->base;

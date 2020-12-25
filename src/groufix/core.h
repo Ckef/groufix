@@ -32,6 +32,17 @@
 // Vulkan function pointer.
 #define _GFX_VK_PFN(pName) PFN_vk##pName pName
 
+// Auto log the result of a call with return type VkResult.
+#define _GFX_VK_CHECK(val, action) \
+	do { \
+		VkResult _gfx_vk_result = val; \
+		if (_gfx_vk_result != VK_SUCCESS) { \
+			_gfx_vulkan_log(_gfx_vk_result); \
+			action; \
+		} \
+	} \
+	while (0)
+
 
 /**
  * Thread local data.
