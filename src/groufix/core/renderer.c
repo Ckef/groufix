@@ -101,15 +101,39 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer, size_t numDeps,
-                                        GFXRenderPass** deps)
+GFX_API size_t gfx_renderer_get_num(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	return renderer->targets.size;
+}
+
+/****************************/
+GFX_API GFXRenderPass* gfx_renderer_get(GFXRenderer* renderer, size_t index)
+{
+	assert(renderer != NULL);
+	assert(index < renderer->targets.size);
+
+	return *(GFXRenderPass**)gfx_vec_at(&renderer->targets, index);
+}
+
+/****************************/
+GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
+                                        size_t numDeps, const size_t* deps)
 {
 	assert(renderer != NULL);
 	assert(numDeps == 0 || deps != NULL);
+	assert(numDeps <= renderer->targets.size);
+
+	// Retrieve all dependencies.
+	GFXRenderPass* passes[numDeps];
+
+	for (size_t d = 0; d < numDeps; ++d)
+		passes[d] = gfx_renderer_get(renderer, deps[d]);
 
 	// Create a new pass.
 	GFXRenderPass* pass =
-		_gfx_create_render_pass(renderer, numDeps, deps);
+		_gfx_create_render_pass(renderer, numDeps, passes);
 
 	if (pass == NULL)
 		goto clean;
@@ -133,7 +157,7 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer, size_t numDeps,
 
 		size_t d;
 		for (d = 0; d < numDeps; ++d)
-			if (target == deps[d]) break;
+			if (target == passes[d]) break;
 
 		if (d < numDeps)
 			gfx_vec_erase(&renderer->targets, 1, t-1);
@@ -148,23 +172,6 @@ clean:
 	_gfx_destroy_render_pass(pass);
 
 	return NULL;
-}
-
-/****************************/
-GFX_API size_t gfx_renderer_get_num(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	return renderer->targets.size;
-}
-
-/****************************/
-GFX_API GFXRenderPass* gfx_renderer_get(GFXRenderer* renderer, size_t index)
-{
-	assert(renderer != NULL);
-	assert(index < renderer->targets.size);
-
-	return *(GFXRenderPass**)gfx_vec_at(&renderer->targets, index);
 }
 
 /****************************/

@@ -71,8 +71,8 @@ struct GFXRenderPass
  * @param deps     Passes it depends on, cannot be NULL if numDeps > 0.
  * @return NULL on failure.
  */
-GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer, size_t numDeps,
-                                       GFXRenderPass** deps);
+GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
+                                       size_t numDeps, GFXRenderPass** deps);
 
 /**
  * Destroys a logical render pass.

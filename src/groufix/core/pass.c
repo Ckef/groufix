@@ -200,8 +200,8 @@ error:
 }
 
 /****************************/
-GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer, size_t numDeps,
-                                       GFXRenderPass** deps)
+GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
+                                       size_t numDeps, GFXRenderPass** deps)
 {
 	assert(renderer != NULL);
 	assert(numDeps == 0 || deps != NULL);
