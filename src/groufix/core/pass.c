@@ -289,8 +289,7 @@ int _gfx_render_pass_submit(GFXRenderPass* pass)
 
 		// TODO: Do we continue on failure here, wut?
 		_GFX_VK_CHECK(
-			context->vk.QueueSubmit(
-				rend->graphics.queue, 1, &si, VK_NULL_HANDLE),
+			context->vk.QueueSubmit(rend->graphics.queue, 1, &si, VK_NULL_HANDLE),
 			gfx_log_fatal("Could not submit a command buffer to the presentation queue."));
 
 		_gfx_mutex_unlock(rend->graphics.mutex);

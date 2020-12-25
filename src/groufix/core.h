@@ -33,11 +33,12 @@
 #define _GFX_VK_PFN(pName) PFN_vk##pName pName
 
 // Auto log the result of a call with return type VkResult.
-#define _GFX_VK_CHECK(val, action) \
+#define _GFX_VK_CHECK(eval, action) \
 	do { \
-		VkResult _gfx_vk_result = val; \
+		VkResult _gfx_vk_result = eval; \
 		if (_gfx_vk_result != VK_SUCCESS) { \
-			_gfx_vulkan_log(_gfx_vk_result); \
+			gfx_log_error("Vulkan: %s", \
+				_gfx_vulkan_result_string(_gfx_vk_result)); \
 			action; \
 		} \
 	} \
@@ -129,6 +130,10 @@ typedef struct _GFXState
 } _GFXState;
 
 
+/****************************
+ * Vulkan context (superset of a logical device).
+ ****************************/
+
 /**
  * Logical (actually created) Vulkan queue family.
  */
@@ -145,7 +150,7 @@ typedef struct _GFXQueueSet
 
 
 /**
- * Logical Vulkan context (superset of a logical device).
+ * Logical Vulkan context.
  */
 typedef struct _GFXContext
 {
@@ -197,7 +202,7 @@ typedef struct _GFXContext
  ****************************/
 
 /**
- * Internal physical device definition.
+ * Internal physical device.
  */
 typedef struct _GFXDevice
 {
@@ -220,7 +225,7 @@ typedef struct _GFXDevice
 
 
 /**
- * Internal logical monitor definition.
+ * Internal logical monitor.
  */
 typedef struct _GFXMonitor
 {
@@ -234,7 +239,7 @@ typedef struct _GFXMonitor
 
 
 /**
- * Internal logical window definition.
+ * Internal logical window.
  */
 typedef struct _GFXWindow
 {
@@ -345,9 +350,9 @@ _GFXThreadState* _gfx_state_get_local(void);
  ****************************/
 
 /**
- * Logs a Vulkan result as a readable string.
+ * Retrieves a VkResult as a readable string.
  */
-void _gfx_vulkan_log(VkResult result);
+const char* _gfx_vulkan_result_string(VkResult result);
 
 /**
  * Initializes Vulkan state.

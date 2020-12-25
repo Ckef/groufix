@@ -45,7 +45,6 @@ struct GFXRenderPass
 	_GFXWindow*  window; // TODO: multiple windows?
 
 
-	// TODO: Do we store this here?
 	// Vulkan fields.
 	struct
 	{
@@ -62,7 +61,7 @@ struct GFXRenderPass
 
 
 /****************************
- * Logical render pass.
+ * Render pass management.
  ****************************/
 
 /**

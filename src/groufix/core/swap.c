@@ -326,7 +326,7 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 
 	// If something else happened, treat as fatal error.
 	default:
-		_gfx_vulkan_log(result);
+		_GFX_VK_CHECK(result, {});
 	}
 
 
@@ -403,7 +403,7 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 
 	// If something else happened, treat as fatal error.
 	default:
-		_gfx_vulkan_log(result);
+		_GFX_VK_CHECK(result, {});
 	}
 
 	// Fatal error on failure.

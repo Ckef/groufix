@@ -44,12 +44,15 @@ static VkBool32 VKAPI_PTR _gfx_vulkan_message(
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
 			gfx_log_verbose("Vulkan: %s", pCallbackData->pMessage);
 			break;
+
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
 			gfx_log_debug("Vulkan: %s", pCallbackData->pMessage);
 			break;
+
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
 			gfx_log_warn("Vulkan: %s", pCallbackData->pMessage);
 			break;
+
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
 			gfx_log_error("Vulkan: %s", pCallbackData->pMessage);
 			break;
@@ -65,120 +68,88 @@ static VkBool32 VKAPI_PTR _gfx_vulkan_message(
 #endif
 
 /****************************/
-void _gfx_vulkan_log(VkResult result)
+const char* _gfx_vulkan_result_string(VkResult result)
 {
 	switch (result)
 	{
 	case VK_SUCCESS:
-		gfx_log_debug(
-			"Vulkan: Success.");
-		break;
+		return "Success.";
+
 	case VK_NOT_READY:
-		gfx_log_warn(
-			"Vulkan: A fence or query has not yet completed.");
-		break;
+		return "A fence or query has not yet completed.";
+
 	case VK_TIMEOUT:
-		gfx_log_warn(
-			"Vulkan: A wait operation has not completed in the specified "
-			"time.");
-		break;
+		return "A wait operation has not completed in the specified time.";
+
 	case VK_EVENT_SET:
-		gfx_log_debug(
-			"Vulkan: An event is signaled.");
-		break;
+		return "An event is signaled.";
+
 	case VK_EVENT_RESET:
-		gfx_log_debug(
-			"Vulkan: An event is unsignaled.");
-		break;
+		return "An event is unsignaled.";
+
 	case VK_INCOMPLETE:
-		gfx_log_warn(
-			"Vulkan: A return array was too small for the result.");
-		break;
+		return "A return array was too small for the result.";
+
 	case VK_ERROR_OUT_OF_HOST_MEMORY:
-		gfx_log_error(
-			"Vulkan: A host memory allocation has failed.");
-		break;
+		return "A host memory allocation has failed.";
+
 	case VK_ERROR_OUT_OF_DEVICE_MEMORY:
-		gfx_log_error(
-			"Vulkan: A device memory allocation has failed.");
-		break;
+		return "A device memory allocation has failed.";
+
 	case VK_ERROR_INITIALIZATION_FAILED:
-		gfx_log_error(
-			"Vulkan: initialization of an object could not be completed for "
-			"implementation-specific reasons.");
-		break;
+		return "initialization of an object could not be completed for "
+			"implementation-specific reasons.";
+
 	case VK_ERROR_DEVICE_LOST:
-		gfx_log_error(
-			"Vulkan: A logical or physical device has been lost.");
-		break;
+		return "A logical or physical device has been lost.";
+
 	case VK_ERROR_MEMORY_MAP_FAILED:
-		gfx_log_error(
-			"Vulkan: Mapping of a memory object has failed.");
-		break;
+		return "Mapping of a memory object has failed.";
+
 	case VK_ERROR_LAYER_NOT_PRESENT:
-		gfx_log_error(
-			"Vulkan: A requested layer is not present or could not be "
-			"loaded.");
-		break;
+		return "A requested layer is not present or could not be loaded.";
+
 	case VK_ERROR_EXTENSION_NOT_PRESENT:
-		gfx_log_error(
-			"Vulkan: A requested extension is not supported.");
-		break;
+		return "A requested extension is not supported.";
+
 	case VK_ERROR_FEATURE_NOT_PRESENT:
-		gfx_log_error(
-			"Vulkan: A requested feature is not supported.");
-		break;
+		return "A requested feature is not supported.";
+
 	case VK_ERROR_INCOMPATIBLE_DRIVER:
-		gfx_log_error(
-			"Vulkan: The requested version of Vulkan is not supported by "
-			"the driver or is otherwise incompatible for "
-			"implementation-specific reasons.");
-		break;
+		return "The requested version of Vulkan is not supported by the driver "
+			"or is otherwise incompatible for implementation-specific reasons.";
+
 	case VK_ERROR_TOO_MANY_OBJECTS:
-		gfx_log_error(
-			"Vulkan: Too many objects of a type have already been created.");
-		break;
+		return "Too many objects of a type have already been created.";
+
 	case VK_ERROR_FORMAT_NOT_SUPPORTED:
-		gfx_log_error(
-			"Vulkan: A requested format is not supported on this device.");
-		break;
+		return "A requested format is not supported on this device.";
+
 	case VK_ERROR_FRAGMENTED_POOL:
-		gfx_log_error(
-			"Vulkan: A pool allocation has failed due to fragmentation of "
-			"the pool's memory.");
-		break;
+		return "A pool allocation has failed due to fragmentation of the pool's memory.";
+
 	case VK_ERROR_OUT_OF_POOL_MEMORY:
-		gfx_log_error(
-			"Vulkan: A pool memory allocation has failed.");
-		break;
+		return "A pool memory allocation has failed.";
+
 	case VK_ERROR_INVALID_EXTERNAL_HANDLE:
-		gfx_log_error(
-			"Vulkan: An external handle is not a valid handle of the "
-			"specified type.");
-		break;
+		return "An external handle is not a valid handle of the specified type.";
+
 	case VK_ERROR_FRAGMENTATION:
-		gfx_log_error(
-			"Vulkan: A descriptor pool creation has failed due to "
-			"fragmentation.");
-		break;
+		return "A descriptor pool creation has failed due to fragmentation.";
+
 	case VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS:
-		gfx_log_error(
-			"Vulkan: A buffer creation or memory allocation failed because "
-			"the requested address is not available.");
-		break;
+		return "A buffer creation or memory allocation failed because the "
+			"requested address is not available.";
+
 	case VK_ERROR_SURFACE_LOST_KHR:
-		gfx_log_error(
-			"A surface is no longer available.");
-		break;
+		return "A surface is no longer available.";
+
 	case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR:
-		gfx_log_error(
-			"The requested window is already in use by Vulkan or another "
-			"API in a manner which prevents it from being used again.");
-		break;
+		return "The requested window is already in use by Vulkan or another "
+			"Vulkan API in a manner which prevents it from being used again.";
 
 	default:
-		gfx_log_error("Vulkan: Unknown error.");
-		break;
+		return "Unknown error.";
 	}
 }
 

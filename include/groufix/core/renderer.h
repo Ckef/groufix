@@ -16,16 +16,15 @@
 
 
 /**
- * Logical renderer.
+ * Logical renderer definition.
  */
 typedef struct GFXRenderer GFXRenderer;
 
 
 /**
- * Logical render pass.
+ * Logical render pass definition.
  */
 typedef struct GFXRenderPass GFXRenderPass;
-
 
 
 /****************************
@@ -71,7 +70,8 @@ GFX_API size_t gfx_renderer_get_num(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @param index Must be < gfx_renderer_get_num(renderer).
  *
- * The index of each target may change when a new render pass is added.
+ * The index of each target may change when a new render pass is added,
+ * however their order remains fixed during the lifetime of the renderer.
  */
 GFX_API GFXRenderPass* gfx_renderer_get(GFXRenderer* renderer, size_t index);
 
