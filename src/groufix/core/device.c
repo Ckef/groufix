@@ -587,20 +587,16 @@ void _gfx_devices_terminate(void)
 }
 
 /****************************/
-int _gfx_device_init_context(_GFXDevice* device)
+_GFXContext* _gfx_device_init_context(_GFXDevice* device)
 {
 	assert(device != NULL);
-
-	int ret = 0;
 
 	// Lock the device's lock to sync access to the device's context.
 	// Once this call returns successfully the context will not be modified anymore,
 	// which means after this call, we can just read device->context directly.
 	_gfx_mutex_lock(&device->lock);
 
-	ret = device->context != NULL;
-
-	if (!ret)
+	if (device->context == NULL)
 	{
 		// We only use the context lock here to sync the context array.
 		// Other uses happen during initialization or termination,
@@ -620,17 +616,21 @@ int _gfx_device_init_context(_GFXDevice* device)
 					device->index = j;
 					device->context = context;
 
-					ret = 1;
 					goto unlock;
 				}
 		}
 
 		// If none found, create a new one.
-		ret = _gfx_create_context(device);
+		// It returns if it was successful, but just ignore it...
+		_gfx_create_context(device);
 
 	unlock:
 		_gfx_mutex_unlock(&_groufix.contextLock);
 	}
+
+	// Read the result before unlock just in case it failed,
+	// only when succeeded are we sure we don't write to it anymore.
+	_GFXContext* ret = device->context;
 
 	_gfx_mutex_unlock(&device->lock);
 

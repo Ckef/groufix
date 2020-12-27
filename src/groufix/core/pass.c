@@ -24,7 +24,7 @@ static int _gfx_render_pass_recreate_swap(GFXRenderPass* pass)
 	assert(pass->window != NULL);
 
 	GFXRenderer* rend = pass->renderer;
-	_GFXContext* context = rend->device->context;
+	_GFXContext* context = rend->context;
 	_GFXWindow* window = pass->window;
 
 	if (pass->vk.pool != VK_NULL_HANDLE)
@@ -247,7 +247,7 @@ int _gfx_render_pass_submit(GFXRenderPass* pass)
 	assert(pass != NULL);
 
 	GFXRenderer* rend = pass->renderer;
-	_GFXContext* context = rend->device->context;
+	_GFXContext* context = rend->context;
 	_GFXWindow* window = pass->window;
 
 	if (pass->window != NULL)
@@ -330,7 +330,7 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 	assert(pass != NULL);
 
 	GFXRenderer* rend = pass->renderer;
-	_GFXContext* context = rend->device->context;
+	_GFXContext* context = rend->context;
 
 	// It was already attached.
 	if (pass->window == (_GFXWindow*)window)
@@ -360,7 +360,7 @@ GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
 	}
 
 	// Check that the pass and the window share the same context.
-	if (((_GFXWindow*)window)->device->context != context)
+	if (((_GFXWindow*)window)->context != context)
 	{
 		gfx_log_error(
 			"When attaching a window to a render pass they must be built on "

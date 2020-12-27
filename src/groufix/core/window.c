@@ -242,10 +242,9 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 static int _gfx_window_pick_present(_GFXWindow* window)
 {
 	assert(window != NULL);
-	assert(window->device != NULL);
-	assert(window->device->context != NULL);
+	assert(window->context != NULL);
 
-	_GFXContext* context = window->device->context;
+	_GFXContext* context = window->context;
 
 	window->present.queue = NULL;
 	gfx_vec_init(&window->present.access, sizeof(uint32_t));
@@ -419,12 +418,14 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	// Get the physical device and make sure it's initialized.
 	window->device =
 		(_GFXDevice*)((device != NULL) ? device : gfx_get_primary_device());
+	window->context =
+		_gfx_device_init_context(window->device);
 
-	if (!_gfx_device_init_context(window->device))
+	if (window->context == NULL)
 		goto clean_surface;
 
-	_GFXContext* context =
-		window->device->context;
+	// Typing window->context is obviously too long.
+	_GFXContext* context = window->context;
 
 	// Ok so we have a physical device with a context (logical Vulkan device).
 	// Now go create a swapchain. Unfortunately we cannot clean the context
@@ -517,7 +518,7 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 		return;
 
 	_GFXWindow* win = (_GFXWindow*)window;
-	_GFXContext* context = win->device->context;
+	_GFXContext* context = win->context;
 
 	// First wait for all pending presentation to be completely done.
 	context->vk.WaitForFences(

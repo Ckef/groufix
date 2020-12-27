@@ -18,7 +18,7 @@
  */
 struct GFXRenderer
 {
-	_GFXDevice* device;
+	_GFXContext* context;
 
 	GFXVec targets; // Stores GFXRenderPass* (target passes, end of path)
 	GFXVec passes;  // Stores GFXRenderPass*

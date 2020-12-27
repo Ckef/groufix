@@ -63,6 +63,7 @@ GFX_API size_t gfx_renderer_get_num(GFXRenderer* renderer);
 GFX_API GFXRenderPass* gfx_renderer_get(GFXRenderer* renderer, size_t index);
 
 /**
+ * TODO: Really want to only depend on targets!?
  * Adds a new (target) render pass to the renderer given a set of dependencies.
  * Each element in deps must be < gfx_renderer_get_num(renderer).
  * @param renderer Cannot be NULL.

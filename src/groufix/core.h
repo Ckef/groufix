@@ -243,9 +243,11 @@ typedef struct _GFXMonitor
  */
 typedef struct _GFXWindow
 {
-	GFXWindow   base;
-	GLFWwindow* handle;
-	_GFXDevice* device; // Associated GPU to build a swapchain on.
+	GFXWindow    base;
+	GLFWwindow*  handle;
+
+	_GFXDevice*  device; // Associated GPU to build a swapchain on.
+	_GFXContext* context;
 
 
 	// Chosen presentation queue.
@@ -402,13 +404,13 @@ void _gfx_monitors_terminate(void);
  * Initializes the Vulkan context, no-op if it already exists
  * The device will share its context with all devices in its device group.
  * @param device Cannot be NULL.
- * @return Non-zero if successfull.
+ * @return NULL on failure.
  *
  * Completely thread-safe.
  * Once this function returned succesfully at least once for a given device,
  * we can read device->index and device->context directly without locking.
  */
-int _gfx_device_init_context(_GFXDevice* device);
+_GFXContext* _gfx_device_init_context(_GFXDevice* device);
 
 
 /****************************

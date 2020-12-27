@@ -13,17 +13,16 @@
 
 /****************************
  * Picks a graphics queue family (including a specific graphics queue).
- * _gfx_device_init_context(renderer->device) must have returned successfully.
+ * _gfx_device_init_context(...) must have returned successfully.
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
  */
 static void _gfx_renderer_pick_graphics(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
-	assert(renderer->device != NULL);
-	assert(renderer->device->context != NULL);
+	assert(renderer->context != NULL);
 
-	_GFXContext* context = renderer->device->context;
+	_GFXContext* context = renderer->context;
 
 	// We assume there is at least a graphics family.
 	// Otherwise context creation would have failed.
@@ -54,10 +53,12 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 		goto clean;
 
 	// Get the physical device and make sure it's initialized.
-	rend->device =
+	_GFXDevice* dev =
 		(_GFXDevice*)((device != NULL) ? device : gfx_get_primary_device());
+	rend->context =
+		_gfx_device_init_context(dev);
 
-	if (!_gfx_device_init_context(rend->device))
+	if (rend->context == NULL)
 		goto clean;
 
 	// Initialize things.

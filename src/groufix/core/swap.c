@@ -43,7 +43,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	assert(window != NULL);
 
 	_GFXDevice* device = window->device;
-	_GFXContext* context = device->context;
+	_GFXContext* context = window->context;
 
 	// We do not free the images as the count will likely never change.
 	gfx_vec_release(&window->frame.images);
@@ -267,7 +267,7 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	assert(window->vk.swapchain != VK_NULL_HANDLE);
 
 	*recreate = 0;
-	_GFXContext* context = window->device->context;
+	_GFXContext* context = window->context;
 
 	// First wait for the fence so we know the available semaphore
 	// is unsignaled and has no pending signals.
@@ -346,7 +346,7 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 	assert(recreate != NULL);
 	assert(window->vk.swapchain != VK_NULL_HANDLE);
 
-	_GFXContext* context = window->device->context;
+	_GFXContext* context = window->context;
 
 	// Now queue a presentation request.
 	// This would swap the acquired image to the screen :)
