@@ -74,7 +74,7 @@ int main()
 	// Setup an event loop.
 	while (!gfx_window_should_close(window))
 	{
-		gfx_renderer_submit(renderer, 0);
+		gfx_renderer_submit(renderer);
 		gfx_wait_events();
 	}
 

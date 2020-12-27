@@ -84,12 +84,14 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	if (renderer == NULL)
 		return;
 
-	// Destroy all passes.
-	// They do not destroy dependencies, so we manually destroy 'em all.
-	for (size_t i = 0; i < renderer->passes.size; ++i)
+	// Destroy all passes, this does alter the reference count of dependencies,
+	// however all dependencies of a pass will be to its left due to
+	// submission order, which is always honored.
+	// So we manually destroy 'em all in reverse order.
+	for (size_t i = renderer->passes.size; i > 0; --i)
 	{
 		GFXRenderPass* pass =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
+			*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i-1);
 
 		_gfx_destroy_render_pass(pass);
 	}
@@ -99,6 +101,72 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	gfx_vec_clear(&renderer->passes);
 
 	free(renderer);
+}
+
+/****************************/
+GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
+                                        size_t numDeps, GFXRenderPass** deps)
+{
+	assert(renderer != NULL);
+	assert(numDeps == 0 || deps != NULL);
+
+	// Create a new pass.
+	GFXRenderPass* pass =
+		_gfx_create_render_pass(renderer, numDeps, deps);
+
+	if (pass == NULL)
+		goto error;
+
+	// Add the new pass as a target, as nothing depends on it yet.
+	if (!gfx_vec_push(&renderer->targets, 1, &pass))
+		goto clean;
+
+	// Find the right place to insert the new render pass at,
+	// we pre-sort on level, this essentially makes it such that
+	// every pass is submitted as early as possible.
+	// Note that within a level, the adding order is preserved.
+	size_t loc;
+	for (loc = renderer->passes.size; loc > 0; --loc)
+	{
+		unsigned int level =
+			(*(GFXRenderPass**)gfx_vec_at(&renderer->passes, loc-1))->level;
+
+		if (level <= pass->level)
+			break;
+	}
+
+	// Insert at found position.
+	if (!gfx_vec_insert(&renderer->passes, 1, &pass, loc))
+	{
+		gfx_vec_pop(&renderer->targets, 1);
+		goto clean;
+	}
+
+	// Loop through all targets, remove if it's now a dependency.
+	// Skip the last element, as we just added that.
+	for (size_t t = renderer->targets.size-1; t > 0; --t)
+	{
+		GFXRenderPass* target =
+			*(GFXRenderPass**)gfx_vec_at(&renderer->targets, t-1);
+
+		size_t d;
+		for (d = 0; d < numDeps; ++d)
+			if (target == deps[d]) break;
+
+		if (d < numDeps)
+			gfx_vec_erase(&renderer->targets, 1, t-1);
+	}
+
+	return pass;
+
+
+	// Clean on failure.
+clean:
+	_gfx_destroy_render_pass(pass);
+error:
+	gfx_log_error("Could not add a new render pass to a renderer.");
+
+	return NULL;
 }
 
 /****************************/
@@ -119,79 +187,22 @@ GFX_API GFXRenderPass* gfx_renderer_get(GFXRenderer* renderer, size_t index)
 }
 
 /****************************/
-GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
-                                        size_t numDeps, const size_t* deps)
+GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
-	assert(numDeps == 0 || deps != NULL);
-	assert(numDeps <= renderer->targets.size);
 
-	// Retrieve all dependencies.
-	GFXRenderPass* passes[numDeps];
-
-	for (size_t d = 0; d < numDeps; ++d)
-		passes[d] = gfx_renderer_get(renderer, deps[d]);
-
-	// Create a new pass.
-	GFXRenderPass* pass =
-		_gfx_create_render_pass(renderer, numDeps, passes);
-
-	if (pass == NULL)
-		goto clean;
-
-	if (!gfx_vec_push(&renderer->passes, 1, &pass))
-		goto clean;
-
-	// Add the new pass as a target, as nothing depends on it yet.
-	if (!gfx_vec_push(&renderer->targets, 1, &pass))
+	// Submit all passes in submission order.
+	// TODO: merge passes with 1 references into the one that references it.
+	for (size_t i = 0; i < renderer->passes.size; ++i)
 	{
-		gfx_vec_pop(&renderer->passes, 1);
-		goto clean;
-	}
+		GFXRenderPass* pass =
+			*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
 
-	// Loop through all targets, remove if it's now a dependency.
-	// Skip the last element, as we just added that.
-	for (size_t t = renderer->targets.size-1; t > 0; --t)
-	{
-		GFXRenderPass* target =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->targets, t-1);
-
-		size_t d;
-		for (d = 0; d < numDeps; ++d)
-			if (target == passes[d]) break;
-
-		if (d < numDeps)
-			gfx_vec_erase(&renderer->targets, 1, t-1);
-	}
-
-	return pass;
-
-
-	// Clean on failure.
-clean:
-	gfx_log_error("Could not add a new render pass to a renderer.");
-	_gfx_destroy_render_pass(pass);
-
-	return NULL;
-}
-
-/****************************/
-GFX_API int gfx_renderer_submit(GFXRenderer* renderer, size_t target)
-{
-	assert(renderer != NULL);
-	assert(target < renderer->targets.size);
-
-	// TODO: Totally fake, mockup!
-	// TODO: Must submit the entire dependency tree.
-	// Get the target pass.
-	GFXRenderPass* pass =
-		*(GFXRenderPass**)gfx_vec_at(&renderer->targets, target);
-
-	// And submit it.
-	if (!_gfx_render_pass_submit(pass))
-	{
-		gfx_log_fatal("Could not submit target render pass.");
-		return 0;
+		if (!_gfx_render_pass_submit(pass))
+		{
+			gfx_log_fatal("Could not submit render pass.");
+			return 0;
+		}
 	}
 
 	return 1;

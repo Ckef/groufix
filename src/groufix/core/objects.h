@@ -21,7 +21,7 @@ struct GFXRenderer
 	_GFXContext* context;
 
 	GFXVec targets; // Stores GFXRenderPass* (target passes, end of path)
-	GFXVec passes;  // Stores GFXRenderPass*
+	GFXVec passes;  // Stores GFXRenderPass* (in submission order)
 
 
 	// Chosen graphics family.
@@ -42,7 +42,10 @@ struct GFXRenderer
 struct GFXRenderPass
 {
 	GFXRenderer* renderer;
-	_GFXWindow*  window; // TODO: multiple windows?
+	unsigned int level; // Determines submission order.
+	unsigned int refs;  // Number of passes that depend on this one.
+
+	_GFXWindow* window; // TODO: multiple windows?
 
 
 	// Vulkan fields.
@@ -66,8 +69,9 @@ struct GFXRenderPass
 
 /**
  * Creates a logical render pass.
+ * Each element in deps must be associated with the same renderer.
  * @param renderer Cannot be NULL.
- * @param numDeps  Number of dependencies, 0 for no dependencies.
+ * @param numDeps  Number of dependencies, 0 for none.
  * @param deps     Passes it depends on, cannot be NULL if numDeps > 0.
  * @return NULL on failure.
  */

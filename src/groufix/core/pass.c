@@ -206,6 +206,17 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	assert(renderer != NULL);
 	assert(numDeps == 0 || deps != NULL);
 
+	// Check if all dependencies use this renderer.
+	for (size_t d = 0; d < numDeps; ++d)
+		if (deps[d]->renderer != renderer)
+		{
+			gfx_log_error(
+				"Render pass cannot depend on a pass associated "
+				"with a different renderer.");
+
+			return NULL;
+		}
+
 	// Allocate a new render pass.
 	GFXRenderPass* pass = malloc(
 		sizeof(GFXRenderPass) +
@@ -216,12 +227,27 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 
 	// Initialize things.
 	pass->renderer = renderer;
-	pass->window = NULL;
+	pass->level = 0;
+	pass->refs = 0;
 	pass->numDeps = numDeps;
 
 	if (numDeps) memcpy(
 		pass->deps, deps, sizeof(GFXRenderPass*) * numDeps);
 
+	for (size_t d = 0; d < numDeps; ++d)
+	{
+		// The level is the highest level of all dependencies + 1.
+		if (deps[d]->level >= pass->level)
+			pass->level = deps[d]->level + 1;
+
+		// Increase the reference count of each dependency.
+		// TODO: Maybe we want to filter out duplicates?
+		++deps[d]->refs;
+	}
+
+	// Window setup.
+	// TODO: This will prolly be moved some place else.
+	pass->window = NULL;
 	pass->vk.pool = VK_NULL_HANDLE;
 	gfx_vec_init(&pass->vk.buffers, sizeof(VkCommandBuffer));
 
@@ -232,6 +258,11 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 void _gfx_destroy_render_pass(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
+
+	// Decrease the reference count of each dependency.
+	// TODO: Maybe we want to filter out duplicates?
+	for (size_t d = 0; d < pass->numDeps; ++d)
+		--pass->deps[d]->refs;
 
 	// Detach to destroy all swapchain-dependent resources.
 	// TODO: Will prolly change as API gets improved.
