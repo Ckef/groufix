@@ -14,38 +14,13 @@
 
 
 /**
- * Internal logical renderer.
+ * Logical window attachment.
  */
-struct GFXRenderer
+typedef struct _GFXWindowAttach
 {
-	_GFXContext* context;
-
-	GFXVec targets; // Stores GFXRenderPass* (target passes, end of path)
-	GFXVec passes;  // Stores GFXRenderPass* (in submission order)
-
-
-	// Chosen graphics family.
-	struct
-	{
-		uint32_t   family;
-		VkQueue    queue; // Queue chosen from the family.
-		_GFXMutex* mutex;
-
-	} graphics;
-};
-
-
-/**
- * TODO: Improve, is a mockup.
- * Internal logical render pass.
- */
-struct GFXRenderPass
-{
-	GFXRenderer* renderer;
-	unsigned int level; // Determines submission order.
-	unsigned int refs;  // Number of passes that depend on this one.
-
-	_GFXWindow* window; // TODO: multiple windows?
+	size_t      index;
+	_GFXWindow* window;
+	uint32_t    image; // Swapchain image index.
 
 
 	// Vulkan fields.
@@ -56,10 +31,43 @@ struct GFXRenderPass
 
 	} vk;
 
+} _GFXWindowAttach;
 
-	// Dependency passes.
+
+/**
+ * Internal logical renderer.
+ */
+struct GFXRenderer
+{
+	_GFXContext* context;
+
+	GFXVec windows; // Stores _GFXWindowAttach (sorted on index).
+	GFXVec targets; // Stores GFXRenderPass* (target passes, end of path).
+	GFXVec passes;  // Stores GFXRenderPass* (in submission order).
+
+
+	// Chosen graphics family.
+	struct
+	{
+		uint32_t   family;
+		VkQueue    queue; // Queue chosen from the family.
+		_GFXMutex* lock;
+
+	} graphics;
+};
+
+
+/**
+ * Internal logical render pass.
+ */
+struct GFXRenderPass
+{
+	GFXRenderer* renderer;
+	unsigned int level; // Determines submission order.
+	unsigned int refs;  // Number of passes that depend on this one.
+
 	size_t         numDeps;
-	GFXRenderPass* deps[];
+	GFXRenderPass* deps[]; // Dependency passes.
 };
 
 
@@ -84,15 +92,6 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
  * @param pass Cannot be NULL.
  */
 void _gfx_destroy_render_pass(GFXRenderPass* pass);
-
-/**
- * TODO: Improve, is a mockup.
- * TODO: Somehow aggregate this so the renderer does all submission?
- * Submits the render pass to the GPU.
- * @param pass Cannot be NULL.
- * @return Zero on failure.
- */
-int _gfx_render_pass_submit(GFXRenderPass* pass);
 
 
 #endif

@@ -279,7 +279,7 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 		{
 			// We take the first queue in this family.
 			window->present.family = set->family;
-			window->present.mutex = &set->mutexes[0];
+			window->present.lock = &set->locks[0];
 
 			context->vk.GetDeviceQueue(
 				context->vk.device, set->family, 0, &window->present.queue);

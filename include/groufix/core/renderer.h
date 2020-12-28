@@ -44,6 +44,18 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device);
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
+ * Attaches a window to an attachment point of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param window   NULL to detach the current window.
+ * @return Zero if the window and renderer do not share a compatible device.
+ *
+ * TODO: A window referenced by multiple renderers is not synchronized.
+ * TODO: Make access to window thread-safe? Or limit to one renderer?
+ */
+GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
+                                size_t index, GFXWindow* window);
+
+/**
  * Adds a new (target) render pass to the renderer given a set of dependencies.
  * Each element in deps must be associated with the same renderer.
  * @param renderer Cannot be NULL.
@@ -101,19 +113,6 @@ GFX_API size_t gfx_render_pass_get_num_deps(GFXRenderPass* pass);
  * @param dep  Dependency index, must be < gfx_render_pass_get_num(pass).
  */
 GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep);
-
-/**
- * TODO: Improve API, is a mockup.
- * TODO: Attach multiple windows?
- * TODO: Make access to window thread-safe.
- * Attaches a window to a render pass.
- * @param pass   Cannot be NULL.
- * @param window NULL to detach the current window.
- * @return Zero if the window and render pass do not share a compatible device.
- *
- * A window referenced by multiple passes is not synchronized.
- */
-GFX_API int gfx_render_pass_attach(GFXRenderPass* pass, GFXWindow* window);
 
 
 #endif

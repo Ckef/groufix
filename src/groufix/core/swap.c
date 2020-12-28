@@ -207,6 +207,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			res = 0);
 
 		// TODO: Still need to maybe defer this to when the last present happened?
+		// TODO: Well it doesn't matter because GFXRenderer will wait on queue..?
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, oldSwapchain, NULL);
 
@@ -363,12 +364,12 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 	};
 
 	// Lock queue and submit.
-	_gfx_mutex_lock(window->present.mutex);
+	_gfx_mutex_lock(window->present.lock);
 
 	VkResult result = context->vk.QueuePresentKHR(
 		window->present.queue, &pi);
 
-	_gfx_mutex_unlock(window->present.mutex);
+	_gfx_mutex_unlock(window->present.lock);
 
 	// Check if the recreate signal was set, makes sure it's reset also.
 	*recreate = _gfx_swapchain_sig(window);

@@ -66,7 +66,7 @@ static int _gfx_alloc_queue_set(GFXVec* sets, uint32_t family,
 	// Keep inserting a mutex for each queue and stop as soon as we fail.
 	// This so it's easy to clear later on.
 	for (s->count = 0; s->count < count; ++s->count)
-		if (!_gfx_mutex_init(&s->mutexes[s->count])) return 0;
+		if (!_gfx_mutex_init(&s->locks[s->count])) return 0;
 
 	return 1;
 }
@@ -230,7 +230,7 @@ static void _gfx_destroy_context(_GFXContext* context)
 			*(_GFXQueueSet**)gfx_vec_at(&context->sets, s);
 
 		for (size_t q = 0; q < set->count; ++q)
-			_gfx_mutex_clear(&set->mutexes[q]);
+			_gfx_mutex_clear(&set->locks[q]);
 
 		free(set);
 	}

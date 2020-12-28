@@ -71,9 +71,9 @@ typedef struct _GFXState
 {
 	int initialized;
 
-	GFXVec devices;  // Stores _GFXDevice (never changes, so not dynamic)
-	GFXVec contexts; // Stores _GFXContext*
-	GFXVec monitors; // Stores _GFXMonitor*
+	GFXVec devices;  // Stores _GFXDevice (never changes, so not dynamic).
+	GFXVec contexts; // Stores _GFXContext*.
+	GFXVec monitors; // Stores _GFXMonitor*.
 
 	_GFXMutex contextLock;
 
@@ -90,7 +90,7 @@ typedef struct _GFXState
 #else
 		atomic_uint   id;
 #endif
-		_GFXThreadKey key; // Stores _GFXThreadState*
+		_GFXThreadKey key; // Stores _GFXThreadState*.
 		_GFXMutex     ioLock;
 
 	} thread;
@@ -143,7 +143,7 @@ typedef struct _GFXQueueSet
 	int          present; // Non-zero if chosen for presentation.
 
 	uint32_t     count;
-	_GFXMutex    mutexes[]; // Count mutexes, one for each queue.
+	_GFXMutex    locks[]; // Count mutexes, one for each queue.
 
 } _GFXQueueSet;
 
@@ -187,7 +187,7 @@ typedef struct _GFXContext
 	} vk;
 
 
-	GFXVec sets; // Stores _GFXQueueSet*
+	GFXVec sets; // Stores _GFXQueueSet*.
 
 	// Associated device group.
 	size_t           numDevices;
@@ -254,7 +254,7 @@ typedef struct _GFXWindow
 	{
 		uint32_t   family;
 		VkQueue    queue; // Queue chosen from the family.
-		_GFXMutex* mutex;
+		_GFXMutex* lock;
 
 		GFXVec access; // Stores uint32_t, all Vulkan family indices with image access.
 
@@ -445,6 +445,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window);
 int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
 
 /**
+ * TODO: Allow multiple windows in one call?
  * Submits a present command for the swapchain of a window.
  * window->vk.swapchain cannot be VK_NULL_HANDLE.
  * window->vk.rendered must be signaled or pending.
