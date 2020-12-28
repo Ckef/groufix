@@ -12,29 +12,28 @@
 
 
 /****************************
- * Retrieves whether the GLFW resize signal was set and resets the signal.
+ * Retrieves whether the GLFW recreate signal was set (and resets the signal).
  * @param window Cannot be NULL.
- * @return Non-zero if the resize signal was set.
+ * @return Non-zero if the recreate signal was set.
  *
  * Completely thread-safe.
  */
-static int _gfx_swapchain_resized(_GFXWindow* window)
+static int _gfx_swapchain_sig(_GFXWindow* window)
 {
 	assert(window != NULL);
 
-	int resize = 0;
+	int recreate = 0;
 
-	// Get the GLFW resize signal and set it back to 0.
 #if defined (__STDC_NO_ATOMICS__)
 	_gfx_mutex_lock(&window->frame.lock);
-	resize = window->frame.resized;
-	window->frame.resized = 0;
+	recreate = window->frame.recreate;
+	window->frame.recreate = 0;
 	_gfx_mutex_unlock(&window->frame.lock);
 #else
-	resize = atomic_exchange(&window->frame.resized, 0);
+	recreate = atomic_exchange(&window->frame.recreate, 0);
 #endif
 
-	return resize;
+	return recreate;
 }
 
 /****************************/
@@ -49,14 +48,14 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	gfx_vec_release(&window->frame.images);
 
 	// First of all, get the size GLFW thinks the framebuffer should be.
-	// Remember this gets changed by a GLFW callback when the window is
-	// resized, so we must lock when reading from it.
-	// Also reset the resized signal, in case it was set again, in this
-	// scenario we don't need to resize AGAIN because we already have the
-	// correct size at this point.
+	// Remember this (and others) get changed by a GLFW callback when the
+	// window is resized, so we must lock when reading from it.
+	// Also reset the recreate signal, in case it was set again, in this
+	// scenario we don't need to recreate AGAIN because we already have the
+	// correct inputs at this point.
 	_gfx_mutex_lock(&window->frame.lock);
 
-	window->frame.resized = 0;
+	window->frame.recreate = 0;
 
 	uint32_t width = (uint32_t)window->frame.width;
 	uint32_t height = (uint32_t)window->frame.height;
@@ -282,9 +281,9 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	_GFX_VK_CHECK(context->vk.ResetFences(
 		context->vk.device, 1, &window->vk.fence), goto error);
 
-	// Now we check if we resized, just before acquiring a new image.
-	// If we resized, the new image would be useless anyway.
-	*recreate = _gfx_swapchain_resized(window);
+	// Now we check the recreate signal, just before acquiring a new image.
+	// If we acquired anyway, the new image would be useless.
+	*recreate = _gfx_swapchain_sig(window);
 
 	if (*recreate && !_gfx_swapchain_recreate(window))
 		goto error;
@@ -371,8 +370,8 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 
 	_gfx_mutex_unlock(window->present.mutex);
 
-	// Check if the resize signal was set, makes sure it's reset also.
-	*recreate = _gfx_swapchain_resized(window);
+	// Check if the recreate signal was set, makes sure it's reset also.
+	*recreate = _gfx_swapchain_sig(window);
 
 	switch (result)
 	{

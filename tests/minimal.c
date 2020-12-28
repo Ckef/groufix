@@ -66,7 +66,7 @@ int main()
 	if (pass == NULL)
 		goto fail_renderer;
 
-	if (!gfx_render_pass_attach_window(pass, window))
+	if (!gfx_render_pass_attach(pass, window))
 		goto fail_renderer;
 
 

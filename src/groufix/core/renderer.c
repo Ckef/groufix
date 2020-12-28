@@ -170,7 +170,7 @@ error:
 }
 
 /****************************/
-GFX_API size_t gfx_renderer_get_num(GFXRenderer* renderer)
+GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
@@ -178,12 +178,13 @@ GFX_API size_t gfx_renderer_get_num(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API GFXRenderPass* gfx_renderer_get(GFXRenderer* renderer, size_t index)
+GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
+                                               size_t target)
 {
 	assert(renderer != NULL);
-	assert(index < renderer->targets.size);
+	assert(target < renderer->targets.size);
 
-	return *(GFXRenderPass**)gfx_vec_at(&renderer->targets, index);
+	return *(GFXRenderPass**)gfx_vec_at(&renderer->targets, target);
 }
 
 /****************************/
@@ -192,7 +193,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Submit all passes in submission order.
-	// TODO: merge passes with 1 references into the one that references it.
+	// TODO: merge passes with the same resolution into subpasses.
 	for (size_t i = 0; i < renderer->passes.size; ++i)
 	{
 		GFXRenderPass* pass =

@@ -41,8 +41,7 @@
 				_gfx_vulkan_result_string(_gfx_vk_result)); \
 			action; \
 		} \
-	} \
-	while (0)
+	} while (0)
 
 
 /**
@@ -268,9 +267,9 @@ typedef struct _GFXWindow
 		GFXVec images; // Stores VkImage.
 
 #if defined (__STDC_NO_ATOMICS__)
-		int            resized;
+		int            recreate;
 #else
-		atomic_int     resized;
+		atomic_int     recreate;
 #endif
 		size_t         width;
 		size_t         height;
@@ -438,6 +437,8 @@ int _gfx_swapchain_recreate(_GFXWindow* window);
  *
  * Can be called from any thread, but not reentrant.
  * This will wait until the previous image is acquired.
+ * TODO: Wait until current vsync? Can be threaded anyway, have one thread wait
+ * for vsync is fine?
  * This will signal window->vk.available when the current image is acquired.
  * _gfx_swapchain_recreate is called when necessary.
  */
@@ -452,6 +453,7 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
  * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
  * @return Non-zero on success.
  *
+ * TODO: Or wait for vsync here? This does actual submission after all.
  * Can be called from any thread, but not reentrant.
  * _gfx_swapchain_recreate is called when necessary.
  */

@@ -266,7 +266,7 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 
 	// Detach to destroy all swapchain-dependent resources.
 	// TODO: Will prolly change as API gets improved.
-	gfx_render_pass_attach_window(pass, NULL);
+	gfx_render_pass_attach(pass, NULL);
 
 	gfx_vec_clear(&pass->vk.buffers);
 	free(pass);
@@ -321,7 +321,7 @@ int _gfx_render_pass_submit(GFXRenderPass* pass)
 		// TODO: Do we continue on failure here, wut?
 		_GFX_VK_CHECK(
 			context->vk.QueueSubmit(rend->graphics.queue, 1, &si, VK_NULL_HANDLE),
-			gfx_log_fatal("Could not submit a command buffer to the presentation queue."));
+			gfx_log_fatal("Could not submit a command buffer to the graphics queue."));
 
 		_gfx_mutex_unlock(rend->graphics.mutex);
 
@@ -338,7 +338,7 @@ int _gfx_render_pass_submit(GFXRenderPass* pass)
 }
 
 /****************************/
-GFX_API size_t gfx_render_pass_get_num(GFXRenderPass* pass)
+GFX_API size_t gfx_render_pass_get_num_deps(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 
@@ -346,17 +346,16 @@ GFX_API size_t gfx_render_pass_get_num(GFXRenderPass* pass)
 }
 
 /****************************/
-GFX_API GFXRenderPass* gfx_render_pass_get(GFXRenderPass* pass, size_t index)
+GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep)
 {
 	assert(pass != NULL);
-	assert(index < pass->numDeps);
+	assert(dep < pass->numDeps);
 
-	return pass->deps[index];
+	return pass->deps[dep];
 }
 
 /****************************/
-GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
-                                          GFXWindow* window)
+GFX_API int gfx_render_pass_attach(GFXRenderPass* pass, GFXWindow* window)
 {
 	assert(pass != NULL);
 

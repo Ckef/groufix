@@ -68,7 +68,7 @@ struct GFXRenderPass
  ****************************/
 
 /**
- * Creates a logical render pass.
+ * Creates a logical render pass, referencing all dependencies.
  * Each element in deps must be associated with the same renderer.
  * @param renderer Cannot be NULL.
  * @param numDeps  Number of dependencies, 0 for none.
@@ -79,7 +79,8 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
                                        size_t numDeps, GFXRenderPass** deps);
 
 /**
- * Destroys a logical render pass.
+ * Destroys a logical render pass, unreferencing all dependencies.
+ * Undefined behaviour if destroying a pass that is referenced by another.
  * @param pass Cannot be NULL.
  */
 void _gfx_destroy_render_pass(GFXRenderPass* pass);

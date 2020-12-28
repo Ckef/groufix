@@ -223,7 +223,7 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 	// are both in the same atomic operation.
 	_gfx_mutex_lock(&window->frame.lock);
 
-	window->frame.resized = 1;
+	window->frame.recreate = 1;
 	window->frame.width = (size_t)width;
 	window->frame.height = (size_t)height;
 
@@ -403,7 +403,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 
 	gfx_vec_init(&window->frame.images, sizeof(VkImage));
 
-	window->frame.resized = 0;
+	window->frame.recreate = 0;
 	window->frame.width = (size_t)width;
 	window->frame.height = (size_t)height;
 	window->frame.flags = flags;
@@ -430,7 +430,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	// Ok so we have a physical device with a context (logical Vulkan device).
 	// Now go create a swapchain. Unfortunately we cannot clean the context
 	// if it was just created for us, but that's why we do this stuff last.
-	// First find all we pick a presentation queue.
+	// But first we pick a presentation queue.
 	if (!_gfx_window_pick_present(window))
 		goto clean_present;
 
@@ -605,10 +605,9 @@ GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags)
 
 	_gfx_mutex_lock(&win->frame.lock);
 
-	// If buffer settings changed, pretend it's a resize, which actually just
-	// recreates the swapchain, which is exactly what we need, so it's fine.
+	// If buffer settings changed, signal a swapchain recreate.
 	if ((flags & bufferBits) != (win->frame.flags & bufferBits))
-		win->frame.resized = 1;
+		win->frame.recreate = 1;
 
 	win->frame.flags = flags;
 

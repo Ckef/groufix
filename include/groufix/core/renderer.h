@@ -64,17 +64,18 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
  *
  * This number may change when a new render pass is added.
  */
-GFX_API size_t gfx_renderer_get_num(GFXRenderer* renderer);
+GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer);
 
 /**
  * Retrieves a target render pass of a renderer.
  * @param renderer Cannot be NULL.
- * @param index Must be < gfx_renderer_get_num(renderer).
+ * @param target   Target index, must be < gfx_renderer_get_num(renderer).
  *
  * The index of each target may change when a new render pass is added,
  * however their order remains fixed during the lifetime of the renderer.
  */
-GFX_API GFXRenderPass* gfx_renderer_get(GFXRenderer* renderer, size_t index);
+GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
+                                               size_t target);
 
 /**
  * Submits all passes of the renderer to the GPU.
@@ -92,14 +93,14 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
  * Retrieves the number of passes a single render pass depends on.
  * @param pass Cannot be NULL.
  */
-GFX_API size_t gfx_render_pass_get_num(GFXRenderPass* pass);
+GFX_API size_t gfx_render_pass_get_num_deps(GFXRenderPass* pass);
 
 /**
  * Retrieves a dependency of a render pass.
  * @param pass Cannot be NULL.
- * @param index Must be < gfx_render_pass_get_num(pass).
+ * @param dep  Dependency index, must be < gfx_render_pass_get_num(pass).
  */
-GFX_API GFXRenderPass* gfx_render_pass_get(GFXRenderPass* pass, size_t index);
+GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep);
 
 /**
  * TODO: Improve API, is a mockup.
@@ -112,8 +113,7 @@ GFX_API GFXRenderPass* gfx_render_pass_get(GFXRenderPass* pass, size_t index);
  *
  * A window referenced by multiple passes is not synchronized.
  */
-GFX_API int gfx_render_pass_attach_window(GFXRenderPass* pass,
-                                          GFXWindow* window);
+GFX_API int gfx_render_pass_attach(GFXRenderPass* pass, GFXWindow* window);
 
 
 #endif
