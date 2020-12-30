@@ -47,7 +47,7 @@ typedef struct GFXVideoMode
 
 
 /**
- * Logical monitor definition.
+ * Monitor definition.
  */
 typedef struct GFXMonitor
 {
@@ -60,7 +60,7 @@ typedef struct GFXMonitor
 
 
 /**
- * Logical window definition.
+ * Window definition.
  */
 typedef struct GFXWindow
 {
@@ -109,7 +109,7 @@ typedef struct GFXWindow
 
 
 /****************************
- * Logical monitor.
+ * Monitor handling.
  ****************************/
 
 /**
@@ -160,11 +160,11 @@ GFX_API GFXVideoMode gfx_monitor_get_current_mode(GFXMonitor* monitor);
 
 
 /****************************
- * Logical window.
+ * Window handling.
  ****************************/
 
 /**
- * Creates a logical window.
+ * Creates a window.
  * @param device  NULL is equivalent to gfx_get_primary_device().
  * @param monitor NULL for windowed mode, fullscreen monitor otherwise.
  * @param mode    Width and height must be > 0.
@@ -178,7 +178,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
                                      const char* title);
 
 /**
- * Destroys a logical window.
+ * Destroys a window.
  * Must NOT be called from within a window event.
  */
 GFX_API void gfx_destroy_window(GFXWindow* window);

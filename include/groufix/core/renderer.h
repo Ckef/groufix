@@ -27,7 +27,7 @@ typedef enum GFXSizeClass
 
 
 /**
- * Attachment (of renderer) description.
+ * Attachment description (of renderer).
  */
 typedef struct GFXAttachment
 {
@@ -53,30 +53,30 @@ typedef struct GFXAttachment
 
 
 /**
- * Logical renderer definition.
+ * Renderer definition.
  */
 typedef struct GFXRenderer GFXRenderer;
 
 
 /**
- * Logical render pass definition.
+ * Render pass definition.
  */
 typedef struct GFXRenderPass GFXRenderPass;
 
 
 /****************************
- * Logical renderer.
+ * Renderer handling.
  ****************************/
 
 /**
- * Creates a logical renderer.
+ * Creates a renderer.
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @return NULL on failure.
  */
 GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device);
 
 /**
- * Destroys a logical renderer.
+ * Destroys a renderer.
  */
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
@@ -144,7 +144,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
 
 
 /****************************
- * Logical render pass.
+ * Render pass handling.
  ****************************/
 
 /**

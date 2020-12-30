@@ -224,7 +224,7 @@ typedef struct _GFXDevice
 
 
 /**
- * Internal logical monitor.
+ * Internal monitor.
  */
 typedef struct _GFXMonitor
 {
@@ -238,7 +238,7 @@ typedef struct _GFXMonitor
 
 
 /**
- * Internal logical window.
+ * Internal window.
  */
 typedef struct _GFXWindow
 {
