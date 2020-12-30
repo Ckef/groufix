@@ -252,6 +252,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 		goto clean;
 
 	// Initialize things.
+	gfx_vec_init(&rend->attachs, sizeof(_GFXAttach));
 	gfx_vec_init(&rend->windows, sizeof(_GFXWindowAttach));
 	gfx_vec_init(&rend->targets, sizeof(GFXRenderPass*));
 	gfx_vec_init(&rend->passes, sizeof(GFXRenderPass*));
@@ -292,27 +293,92 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	for (size_t i = renderer->windows.size; i > 0; --i)
 	{
 		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i-1);
-		gfx_renderer_attach(renderer, attach->index, NULL);
+		gfx_renderer_attach_window(renderer, attach->index, NULL);
 	}
 
 	// Regular cleanup.
 	gfx_vec_clear(&renderer->passes);
 	gfx_vec_clear(&renderer->targets);
 	gfx_vec_clear(&renderer->windows);
+	gfx_vec_clear(&renderer->attachs);
 
 	free(renderer);
 }
 
 /****************************/
 GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
-                                size_t index, GFXWindow* window)
+                                size_t index, GFXAttachment attachment)
+{
+	assert(renderer != NULL);
+
+	// First see if a window attachment at this point exists.
+	// AAAAH IT'S LINEAR!
+	for (size_t i = 0; i < renderer->windows.size; ++i)
+	{
+		_GFXWindowAttach* at = gfx_vec_at(&renderer->windows, i);
+		if (at->index == index)
+		{
+			gfx_log_error("Cannot describe a window attachment of a renderer.");
+			return 0;
+		}
+	}
+
+	// Find attachment point.
+	// Linear search... meh can't have that many attachments.
+	_GFXAttach* attach = NULL;
+	size_t f;
+
+	for (f = 0 ; f < renderer->attachs.size; ++f)
+	{
+		attach = gfx_vec_at(&renderer->attachs, f);
+		if (attach->index > index)
+			break;
+		if (attach->index == index)
+		{
+			attach->base = attachment;
+			return 1;
+		}
+	}
+
+	// If not found, insert new one.
+	if (!gfx_vec_insert_empty(&renderer->attachs, 1, f))
+	{
+		gfx_log_error("Could not describe an attachment point of a renderer.");
+		return 0;
+	}
+
+	attach = gfx_vec_at(&renderer->attachs, f);
+	attach->index = index;
+	attach->base = attachment;
+
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
+                                       size_t index, GFXWindow* window)
 {
 	assert(renderer != NULL);
 
 	_GFXContext* context = renderer->context;
 	_GFXWindowAttach* attach = NULL;
 
-	// Find attachment point.
+	// First see if this attachment point is already described.
+	// NOT LINEAR AGAIN!?!?
+	for (size_t i = 0; i < renderer->attachs.size; ++i)
+	{
+		_GFXAttach* at = gfx_vec_at(&renderer->attachs, i);
+		if (at->index == index)
+		{
+			gfx_log_error(
+				"Cannot attach a window to an already described "
+				"attachment point of a renderer.");
+
+			return 0;
+		}
+	}
+
+	// Find window attachment point.
 	// Yeah linear search whatever, you have 3000 windows or smth?
 	// Backwards tho, this is nice for when we destroy the renderer :)
 	size_t f;
@@ -427,6 +493,7 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 	// every pass is submitted as early as possible.
 	// Note that within a level, the adding order is preserved.
 	// Yeah yeah yeah linear search...
+	// Tho you prolly add at the end most often, so start searching at the end.
 	size_t loc;
 	for (loc = renderer->passes.size; loc > 0; --loc)
 	{

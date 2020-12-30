@@ -16,6 +16,43 @@
 
 
 /**
+ * Size class of a resource.
+ */
+typedef enum GFXSizeClass
+{
+	GFX_SIZE_ABSOLUTE,
+	GFX_SIZE_RELATIVE
+
+} GFXSizeClass;
+
+
+/**
+ * Attachment (of renderer) description.
+ */
+typedef struct GFXAttachment
+{
+	GFXSizeClass size;
+	size_t       ref; // Index of the attachment the size is relative to.
+
+	union {
+		size_t width;
+		float xScale;
+	};
+
+	union {
+		size_t height;
+		float yScale;
+	};
+
+	union {
+		size_t depth;
+		float zScale;
+	};
+
+} GFXAttachment;
+
+
+/**
  * Logical renderer definition.
  */
 typedef struct GFXRenderer GFXRenderer;
@@ -44,16 +81,25 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device);
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
+ * Describes the properties of an attachment point of the renderer.
+ * @param renderer Cannot be NULL.
+ * @return Zero if a window is attached at the given index.
+ */
+GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
+                                size_t index, GFXAttachment attachment);
+
+/**
+ * TODO: Make access to window thread-safe? Or limit to one renderer?
  * Attaches a window to an attachment point of a renderer.
  * @param renderer Cannot be NULL.
  * @param window   NULL to detach the current window.
  * @return Zero if the window and renderer do not share a compatible device.
  *
- * TODO: A window referenced by multiple renderers is not synchronized.
- * TODO: Make access to window thread-safe? Or limit to one renderer?
+ * Also fails when gfx_renderer_attach(...) was previously called
+ * with the same index.
  */
-GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
-                                size_t index, GFXWindow* window);
+GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
+                                       size_t index, GFXWindow* window);
 
 /**
  * Adds a new (target) render pass to the renderer given a set of dependencies.
@@ -100,6 +146,20 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
 /****************************
  * Logical render pass.
  ****************************/
+
+/**
+ * Set render pass to read from an attachpent point of the renderer.
+ * @param pass  Cannot be NULL.
+ * @param index Attachment point of the renderer.
+ * @return Zero on failure.
+ */
+GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index);
+
+/**
+ * Set render pass to write to an attachment point of the renderer.
+ * @see gfx_render_pass_read.
+ */
+GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index);
 
 /**
  * Retrieves the number of passes a single render pass depends on.

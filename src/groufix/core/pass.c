@@ -42,6 +42,10 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	pass->renderer = renderer;
 	pass->level = 0;
 	pass->refs = 0;
+
+	gfx_vec_init(&pass->reads, sizeof(size_t));
+	gfx_vec_init(&pass->writes, sizeof(size_t));
+
 	pass->numDeps = numDeps;
 
 	if (numDeps) memcpy(
@@ -66,12 +70,42 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 
+	gfx_vec_clear(&pass->reads);
+	gfx_vec_clear(&pass->writes);
+
 	// Decrease the reference count of each dependency.
 	// TODO: Maybe we want to filter out duplicates?
 	for (size_t d = 0; d < pass->numDeps; ++d)
 		--pass->deps[d]->refs;
 
 	free(pass);
+}
+
+/****************************/
+GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index)
+{
+	assert(pass != NULL);
+
+	// Try to find it first.
+	// Just a linear search, nothing is sorted, whatever.
+	for (size_t i = 0; i < pass->reads.size; ++i)
+		if (*(size_t*)gfx_vec_at(&pass->reads, i) == index)
+			return 1;
+
+	return gfx_vec_push(&pass->reads, 1, &index);
+}
+
+/****************************/
+GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index)
+{
+	assert(pass != NULL);
+
+	// Try to find it first.
+	for (size_t i = 0; i < pass->writes.size; ++i)
+		if (*(size_t*)gfx_vec_at(&pass->writes, i) == index)
+			return 1;
+
+	return gfx_vec_push(&pass->writes, 1, &index);
 }
 
 /****************************/

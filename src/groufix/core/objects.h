@@ -14,7 +14,18 @@
 
 
 /**
- * Logical window attachment.
+ * Internal sttachment (of renderer) description.
+ */
+typedef struct _GFXAttach
+{
+	size_t        index;
+	GFXAttachment base;
+
+} _GFXAttach;
+
+
+/**
+ * Window attachment.
  */
 typedef struct _GFXWindowAttach
 {
@@ -41,7 +52,9 @@ struct GFXRenderer
 {
 	_GFXContext* context;
 
+	GFXVec attachs; // Stores _GFXAttach (sorted on index).
 	GFXVec windows; // Stores _GFXWindowAttach (sorted on index).
+
 	GFXVec targets; // Stores GFXRenderPass* (target passes, end of path).
 	GFXVec passes;  // Stores GFXRenderPass* (in submission order).
 
@@ -65,6 +78,9 @@ struct GFXRenderPass
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
 	unsigned int refs;  // Number of passes that depend on this one.
+
+	GFXVec reads;  // Stores size_t.
+	GFXVec writes; // Stores size_t.
 
 	size_t         numDeps;
 	GFXRenderPass* deps[]; // Dependency passes.

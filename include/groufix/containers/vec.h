@@ -93,7 +93,7 @@ GFX_API int gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
 
 /**
  * Inserts uninitialized elements in the vector at some index.
- * @see gfx_vec_insert_empty.
+ * @see gfx_vec_insert.
  */
 GFX_API int gfx_vec_insert_empty(GFXVec* vec, size_t numElems, size_t index);
 

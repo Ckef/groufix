@@ -62,12 +62,15 @@ int main()
 	if (renderer == NULL)
 		goto fail_renderer;
 
-	if (!gfx_renderer_attach(renderer, 0, window))
+	if (!gfx_renderer_attach_window(renderer, 0, window))
 		goto fail_renderer;
 
-	/*GFXRenderPass* pass = gfx_renderer_add(renderer, 0, NULL);
+	GFXRenderPass* pass = gfx_renderer_add(renderer, 0, NULL);
 	if (pass == NULL)
-		goto fail_renderer;*/
+		goto fail_renderer;
+
+	if (!gfx_render_pass_write(pass, 0))
+		goto fail_renderer;
 
 
 	/////////////////////////
