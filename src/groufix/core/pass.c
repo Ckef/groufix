@@ -42,6 +42,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	pass->renderer = renderer;
 	pass->level = 0;
 	pass->refs = 0;
+	pass->vk.pass = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->reads, sizeof(size_t));
 	gfx_vec_init(&pass->writes, sizeof(size_t));

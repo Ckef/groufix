@@ -82,6 +82,15 @@ struct GFXRenderPass
 	GFXVec reads;  // Stores size_t.
 	GFXVec writes; // Stores size_t.
 
+
+	// Vulkan fields.
+	struct
+	{
+		VkRenderPass pass;
+
+	} vk;
+
+
 	size_t         numDeps;
 	GFXRenderPass* deps[]; // Dependency passes.
 };

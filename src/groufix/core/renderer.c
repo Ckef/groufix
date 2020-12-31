@@ -311,8 +311,8 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 {
 	assert(renderer != NULL);
 
-	// First see if a window attachment at this point exists.
-	// AAAAH IT'S LINEAR!
+	// Note: everything here is a linear search, setup only + few elements.
+	// First see if a window attachment at this index exists.
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
 		_GFXWindowAttach* at = gfx_vec_at(&renderer->windows, i);
@@ -323,8 +323,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 		}
 	}
 
-	// Find attachment point.
-	// Linear search... meh can't have that many attachments.
+	// Find attachment index.
 	_GFXAttach* attach = NULL;
 	size_t f;
 
@@ -343,7 +342,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	// If not found, insert new one.
 	if (!gfx_vec_insert_empty(&renderer->attachs, 1, f))
 	{
-		gfx_log_error("Could not describe an attachment point of a renderer.");
+		gfx_log_error("Could not describe an attachment index of a renderer.");
 		return 0;
 	}
 
@@ -363,8 +362,8 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	_GFXContext* context = renderer->context;
 	_GFXWindowAttach* attach = NULL;
 
-	// First see if this attachment point is already described.
-	// NOT LINEAR AGAIN!?!?
+	// Note: everything here is a linear search, setup only + few elements.
+	// First see if this attachment index is already described.
 	for (size_t i = 0; i < renderer->attachs.size; ++i)
 	{
 		_GFXAttach* at = gfx_vec_at(&renderer->attachs, i);
@@ -372,15 +371,14 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		{
 			gfx_log_error(
 				"Cannot attach a window to an already described "
-				"attachment point of a renderer.");
+				"attachment index of a renderer.");
 
 			return 0;
 		}
 	}
 
-	// Find window attachment point.
-	// Yeah linear search whatever, you have 3000 windows or smth?
-	// Backwards tho, this is nice for when we destroy the renderer :)
+	// Find window attachment index.
+	// Backwards search, this is nice for when we destroy the renderer :)
 	size_t f;
 	for (f = renderer->windows.size; f > 0; --f)
 	{
@@ -432,7 +430,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		return 0;
 	}
 
-	// But what if we don't have the attachment point yet?
+	// But what if we don't have the attachment index yet?
 	if (attach != NULL)
 		attach->window = (_GFXWindow*)window;
 	else
@@ -465,7 +463,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	// Error on failure.
 error:
 	gfx_log_error(
-		"Could not attach a window to an attachment point of a renderer");
+		"Could not attach a window to an attachment index of a renderer");
 
 	return 0;
 }
@@ -492,8 +490,7 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 	// we pre-sort on level, this essentially makes it such that
 	// every pass is submitted as early as possible.
 	// Note that within a level, the adding order is preserved.
-	// Yeah yeah yeah linear search...
-	// Tho you prolly add at the end most often, so start searching at the end.
+	// Backwards search is probably in-line with the adding order :p
 	size_t loc;
 	for (loc = renderer->passes.size; loc > 0; --loc)
 	{
@@ -557,13 +554,15 @@ GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
 }
 
 /****************************/
-GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
+GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
 	_GFXContext* context = renderer->context;
 
+	// Note: on failures we continue processing, maybe something will show?
 	// Acquire next image of all windows.
+	// We do everything in separate loop cause there are syncs inbetween.
 	// TODO: Postpone this so we're sure we don't wait for no reason.
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
@@ -571,12 +570,10 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
 
 		// Acquire next image.
-		if (!_gfx_swapchain_acquire(attach->window, &attach->image, &recreate))
-			return 0;
+		_gfx_swapchain_acquire(attach->window, &attach->image, &recreate);
 
 		// Recreate swapchain-dependent resources.
-		if (recreate && !_gfx_renderer_recreate_swap(renderer, attach))
-			return 0;
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
 	}
 
 	// TODO: Currently we clear the images of all windows.
@@ -610,7 +607,6 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		// Lock queue and submit.
 		_gfx_mutex_lock(renderer->graphics.lock);
 
-		// TODO: Do we continue on failure here, wut?
 		_GFX_VK_CHECK(
 			context->vk.QueueSubmit(renderer->graphics.queue, 1, &si, VK_NULL_HANDLE),
 			gfx_log_fatal("Could not submit a command buffer to the graphics queue."));
@@ -627,13 +623,11 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 			*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
 
 		if (!_gfx_render_pass_submit(pass))
-		{
 			gfx_log_fatal("Could not submit render pass.");
-			return 0;
-		}
 	}
 	*/
 
+	// TODO: Merge this into one call?
 	// Present images of all windows.
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
@@ -641,14 +635,9 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
 
 		// Present the image.
-		// TODO: Merge this into one call?
-		if (!_gfx_swapchain_present(attach->window, attach->image, &recreate))
-			return 0;
+		_gfx_swapchain_present(attach->window, attach->image, &recreate);
 
 		// Recreate swapchain-dependent resources.
-		if (recreate && !_gfx_renderer_recreate_swap(renderer, attach))
-			return 0;
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
 	}
-
-	return 1;
 }

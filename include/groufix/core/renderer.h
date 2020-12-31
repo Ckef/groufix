@@ -81,7 +81,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device);
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
- * Describes the properties of an attachment point of the renderer.
+ * Describes the properties of an attachment index of the renderer.
  * @param renderer Cannot be NULL.
  * @return Zero if a window is attached at the given index.
  */
@@ -90,7 +90,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 
 /**
  * TODO: Make access to window thread-safe? Or limit to one renderer?
- * Attaches a window to an attachment point of a renderer.
+ * Attaches a window to an attachment index of a renderer.
  * @param renderer Cannot be NULL.
  * @param window   NULL to detach the current window.
  * @return Zero if the window and renderer do not share a compatible device.
@@ -138,9 +138,8 @@ GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
 /**
  * Submits all passes of the renderer to the GPU.
  * @param renderer Cannot be NULL.
- * @return Zero on failure.
  */
-GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
+GFX_API void gfx_renderer_submit(GFXRenderer* renderer);
 
 
 /****************************
@@ -148,15 +147,14 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
  ****************************/
 
 /**
- * Set render pass to read from an attachpent point of the renderer.
+ * Set render pass to read from an attachpent index of the renderer.
  * @param pass  Cannot be NULL.
- * @param index Attachment point of the renderer.
  * @return Zero on failure.
  */
 GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index);
 
 /**
- * Set render pass to write to an attachment point of the renderer.
+ * Set render pass to write to an attachment index of the renderer.
  * @see gfx_render_pass_read.
  */
 GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index);
