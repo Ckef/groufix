@@ -39,7 +39,7 @@ Once _groufix_ is built, it can be used in your code with `#include <groufix.h>`
 
 _groufix will not implicitly free resources_. This means that any object you create or initialize should be destroyed or cleared by you as well. In practice this means any call to a `gfx_create_*` function should be followed up by a call to the associated `gfx_destroy_*` function and every call to a `gfx_*_init` function should be followed up by a call to the associated `gfx_*_clear` function. Any `gfx_destroy_*` function can take `NULL` as argument and the call becomes a no-op.
 
-All names starting with `gfx`, `_gfx`, `GFX` or `_GFX` are reserved by _groufix_, using any such name in conjunction with the engine might result in redefinitions.
+All names starting with `gfx` or `GFX` are reserved by _groufix_, using any such name in conjunction with the engine might result in redefinitions.
 
 ### Threading
 
@@ -47,6 +47,6 @@ Similarly to initializing the engine, any thread that wants to make any _groufix
 
 _groufix will not reference count_. This means that whenever you destroy or clear an object with a call to the associated `gfx_destroy_*` or `gfx_*_clear` function, any other object may not reference this object anymore. In other words, _groufix_ will __not__ idle during destruction or clearing until all references to the object are released.
 
-_groufix objects are not reentrant_. Function calls associated with the same object created with a call to `gfx_create_*` or `gfx_*_init` are not synchronized and __cannot__ be called concurrently from different threads. However, internal access to the same object of any type is synchronized, unless explicitly stated otherwise. For example, various concurrently operating objects referencing the same `GFXWindow` object is thread-safe.
+_groufix objects are not reentrant_. Function calls associated with the same object created with a call to `gfx_create_*` or `gfx_*_init` are not synchronized and __cannot__ be called concurrently from different threads. ~~However, internal access to the same object of any type is synchronized, unless explicitly stated otherwise. For example, various concurrently operating objects referencing the same `GFXWindow` object is thread-safe.~~
 
 _All functions directly related to the window manager of the host platform are thread affine_. These functions can __only__ be called from the main thread. These functions are `gfx_poll_events`, `gfx_wait_events` and all functions defined in `groufix/core/window.h` (these are the `gfx_*monitor*` and `gfx_*window*` function families). All other functions can be called from any thread, unless explicitly stated otherwise.

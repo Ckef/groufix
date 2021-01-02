@@ -14,26 +14,32 @@
 /****************************/
 void key_release(GFXWindow* window, GFXKey key, int scan, GFXModifier mod)
 {
-	// Toggle fullscreen on F11.
-	if (key == GFX_KEY_F11)
+	switch (key)
 	{
+	// Toggle fullscreen on F11.
+	case GFX_KEY_F11:
 		if (gfx_window_get_monitor(window) != NULL)
 		{
-			GFXVideoMode mode = { .width = 600, .height = 400 };
-			gfx_window_set_monitor(window, NULL, mode);
+			gfx_window_set_monitor(
+				window, NULL,
+				(GFXVideoMode){ .width = 600, .height = 400 });
 		}
 		else
 		{
 			GFXMonitor* monitor = gfx_get_primary_monitor();
-			GFXVideoMode mode = gfx_monitor_get_current_mode(monitor);
-			gfx_window_set_monitor(window, monitor, mode);
+			gfx_window_set_monitor(
+				window, monitor,
+				gfx_monitor_get_current_mode(monitor));
 		}
-	}
+		break;
 
 	// Close on escape.
-	if (key == GFX_KEY_ESCAPE)
-	{
+	case GFX_KEY_ESCAPE:
 		gfx_window_set_close(window, 1);
+		break;
+
+	default:
+		break;
 	}
 }
 

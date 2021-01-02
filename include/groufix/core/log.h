@@ -66,8 +66,9 @@ typedef enum GFXLogLevel
  * @param fmt   Format, cannot be NULL, must be NULL-terminated.
  *
  * If this call is made before the calling thread is attached,
- * it outputs to stderr, assuming thread id 0 (as if the main thread).
- * Access to stderr will be synchronized if groufix is initialized.
+ * it outputs to stderr, assuming thread id 0 (as if the main thread) and the
+ * global log level that can be set before initialization with gfx_log_set_level.
+ * Access to stderr will be synchronized when groufix is initialized.
  */
 GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
                      unsigned int line, const char* fmt, ...);
@@ -75,7 +76,11 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 /**
  * Sets the log level to output for the calling thread.
  * @param level Must be >= GFX_LOG_NONE and <= GFX_LOG_ALL.
- * @return Zero if calling thread is not attached.
+ * @return Zero if the calling thread is not attached.
+ *
+ * If this call is made before gfx_init, it will always return non-zero and
+ * will set a global log level, which is used to initialize every thread with
+ * when the engine is initialized (including the main thread).
  */
 GFX_API int gfx_log_set_level(GFXLogLevel level);
 

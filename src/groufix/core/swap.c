@@ -63,7 +63,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 
 	_gfx_mutex_unlock(&window->frame.lock);
 
-	// If the size is 0x0, the window is minimized, do not create anything.
+	// If the size is 0x0, do not create anything.
 	// Actually destroy things.
 	if (width == 0 || height == 0)
 	{
@@ -71,6 +71,14 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			context->vk.device, window->vk.swapchain, NULL);
 
 		window->vk.swapchain = VK_NULL_HANDLE;
+
+		// This might be problematic?
+		// TODO: In this case, probably want to make render passes dependent
+		// on this size inactive or smth?
+		gfx_log_warn(
+			"Window has an apparent framebuffer size of 0x0, "
+			"associated swapchain absent on physical device: %s.",
+			device->base.name);
 
 		return 1;
 	}
@@ -207,7 +215,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			res = 0);
 
 		// TODO: Still need to maybe defer this to when the last present happened?
-		// TODO: Well it doesn't matter because GFXRenderer will wait on queue..?
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, oldSwapchain, NULL);
 

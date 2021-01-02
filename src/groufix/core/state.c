@@ -12,7 +12,7 @@
 
 
 /****************************/
-_GFXState _groufix = { .initialized = 0 };
+_GFXState _groufix = { .initialized = 0, .logDef = GFX_LOG_DEFAULT };
 
 
 /****************************/
@@ -110,7 +110,7 @@ int _gfx_state_create_local(void)
 #endif
 
 	// Initialize the logging stuff.
-	state->log.level = GFX_LOG_DEFAULT;
+	state->log.level = _groufix.logDef;
 	state->log.std = 0;
 	state->log.file = NULL;
 

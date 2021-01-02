@@ -14,7 +14,7 @@
 
 
 /**
- * Internal sttachment (of renderer) description.
+ * Internal attachment description.
  */
 typedef struct _GFXAttach
 {
@@ -55,7 +55,7 @@ struct GFXRenderer
 	GFXVec attachs; // Stores _GFXAttach (sorted on index).
 	GFXVec windows; // Stores _GFXWindowAttach (sorted on index).
 
-	GFXVec targets; // Stores GFXRenderPass* (target passes, end of path).
+	GFXVec targets; // Stores GFXRenderPass* (target passes, end of paths).
 	GFXVec passes;  // Stores GFXRenderPass* (in submission order).
 
 
@@ -117,6 +117,16 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
  * @param pass Cannot be NULL.
  */
 void _gfx_destroy_render_pass(GFXRenderPass* pass);
+
+/**
+ * TODO: Dependencies.
+ * TODO: Build recursively.
+ * TODO: Merge passes with the same resolution into subpasses.
+ * Builds the Vulkan object structure.
+ * @param pass Cannot be NULL.
+ * @return Non-zero if valid and built.
+ */
+int _gfx_render_pass_build(GFXRenderPass* pass);
 
 
 #endif

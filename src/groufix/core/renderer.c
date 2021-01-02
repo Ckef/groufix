@@ -318,7 +318,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 		_GFXWindowAttach* at = gfx_vec_at(&renderer->windows, i);
 		if (at->index == index)
 		{
-			gfx_log_error("Cannot describe a window attachment of a renderer.");
+			gfx_log_debug("Cannot describe a window attachment of a renderer.");
 			return 0;
 		}
 	}
@@ -369,7 +369,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		_GFXAttach* at = gfx_vec_at(&renderer->attachs, i);
 		if (at->index == index)
 		{
-			gfx_log_error(
+			gfx_log_debug(
 				"Cannot attach a window to an already described "
 				"attachment index of a renderer.");
 
@@ -423,7 +423,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	// Check if the renderer and the window share the same context.
 	if (context != ((_GFXWindow*)window)->context)
 	{
-		gfx_log_error(
+		gfx_log_debug(
 			"When attaching a window to a renderer they must be built on "
 			"the same logical Vulkan device.");
 
@@ -576,6 +576,14 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
 	}
 
+	// TODO: Kinda need a return or a hook here for processing input?
+	// More precisely, in the case that we vsync after acquire, the only
+	// reason to sync with vsync is to minimize input delay.
+	// Plus,
+	// that's the whole idea when we're having GFXRenderers running on
+	// different threads from the main thread!
+	// TODO: Or do an async input mechanism somehow...
+
 	// TODO: Currently we clear the images of all windows.
 	// TODO: Somehow associate windows with the appropriate render passes so
 	// submission to the graphics queue is done by the passes.
@@ -616,7 +624,8 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 
 	/*
 	// Submit all passes in submission order.
-	// TODO: merge passes with the same resolution into subpasses.
+	// TODO: Probably want to do this in the renderer, not in the passes.
+	// The renderer dictates submission order of vkQueueSubmit anyway.
 	for (size_t i = 0; i < renderer->passes.size; ++i)
 	{
 		GFXRenderPass* pass =

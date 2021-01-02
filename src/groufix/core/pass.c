@@ -23,7 +23,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	for (size_t d = 0; d < numDeps; ++d)
 		if (deps[d]->renderer != renderer)
 		{
-			gfx_log_error(
+			gfx_log_debug(
 				"Render pass cannot depend on a pass associated "
 				"with a different renderer.");
 
@@ -80,6 +80,14 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 		--pass->deps[d]->refs;
 
 	free(pass);
+}
+
+/****************************/
+int _gfx_render_pass_build(GFXRenderPass* pass)
+{
+	assert(pass != NULL);
+
+	return 1;
 }
 
 /****************************/

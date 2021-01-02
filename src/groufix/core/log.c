@@ -112,7 +112,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 	// Check against default log level.
 	if (!_groufix.initialized)
 	{
-		if (level <= GFX_LOG_DEFAULT)
+		if (level <= _groufix.logDef)
 		{
 			va_start(args, fmt);
 			_gfx_log_out(thread, level, timeMs, file, func, line, fmt, args);
@@ -126,7 +126,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 	if (state == NULL)
 	{
 		// If no state, check against default log level.
-		if (level > GFX_LOG_DEFAULT)
+		if (level > _groufix.logDef)
 			return;
 	}
 	else
@@ -170,9 +170,12 @@ GFX_API int gfx_log_set_level(GFXLogLevel level)
 {
 	assert(level >= GFX_LOG_NONE && level <= GFX_LOG_ALL);
 
-	// Because logging is special, we actually check this here.
+	// Adjust the only pre-gfx_init() initialized setting.
 	if (!_groufix.initialized)
-		return 0;
+	{
+		_groufix.logDef = level;
+		return 1;
+	}
 
 	// Get the thread local state and set its level.
 	_GFXThreadState* state = _gfx_state_get_local();
