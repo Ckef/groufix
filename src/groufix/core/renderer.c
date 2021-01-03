@@ -53,7 +53,6 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 	}
 
 	// Ok so now we allocate more command buffers or free some.
-	// TODO: Sync access to window or no?
 	size_t currCount = attach->vk.buffers.size;
 	size_t count = window->frame.images.size;
 
@@ -128,7 +127,6 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 
 	for (size_t i = 0; i < count; ++i)
 	{
-		// TODO: Again sync access to window?
 		VkImage image =
 			*(VkImage*)gfx_vec_at(&window->frame.images, i);
 		VkCommandBuffer buffer =

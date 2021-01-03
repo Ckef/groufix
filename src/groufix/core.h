@@ -427,8 +427,9 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device);
  ****************************/
 
 /**
- * Attempt to 'claim' the swapchain by atomically reading if window->swap
- * is already set to one and subsequentally setting it to 1.
+ * Attempt to 'claim' (i.e. lock) the swapchain by atomically reading if
+ * window->swap is already set to one and subsequentally setting it to 1.
+ * This is used to ensure no two objects try to use the swapchain.
  * @param window Cannot be NULL.
  * @return Non-zero if swapchain was not yet claimed.
  */
@@ -442,19 +443,18 @@ void _gfx_swapchain_unlock(_GFXWindow* window);
 
 /**
  * (Re)creates the swapchain of a window, left empty at framebuffer size of 0x0.
+ * Also fills window->frame.images (all swapchain images).
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *
  * Can be called from any thread, but not reentrant.
  * Automatically called by _gfx_swapchain_acquire and _gfx_swapchain_present.
- * Also fills window->frame.images.
  */
 int _gfx_swapchain_recreate(_GFXWindow* window);
 
 /**
  * TODO: Wait until current vsync (instead of previous)?
  * Acquires the next available image from the swapchain of a window.
- * The object calling this method must have claimed the swapchain.
  * @param window   Cannot be NULL.
  * @param index    Cannot be NULL, index into window->frame.images.
  * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
@@ -468,7 +468,6 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
 /**
  * TODO: Or wait for vsync here? This does actual submission after all.
  * Submits a present command for the swapchain of a window.
- * The object calling this method must have claimed the swapchain.
  * @param window   Cannot be NULL.
  * @param index    Must be an index retrieved by _gfx_swapchain_acquire.
  * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
