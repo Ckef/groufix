@@ -122,11 +122,11 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass);
  * TODO: Dependencies.
  * TODO: Build recursively.
  * TODO: Merge passes with the same resolution into subpasses.
- * Builds the Vulkan object structure.
+ * (Re)builds the Vulkan object structure.
  * @param pass Cannot be NULL.
  * @return Non-zero if valid and built.
  */
-int _gfx_render_pass_build(GFXRenderPass* pass);
+int _gfx_render_pass_rebuild(GFXRenderPass* pass);
 
 
 #endif

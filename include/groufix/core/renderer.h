@@ -89,13 +89,13 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
                                 size_t index, GFXAttachment attachment);
 
 /**
- * TODO: Make access to window thread-safe? Or limit to one renderer?
  * Attaches a window to an attachment index of a renderer.
  * @param renderer Cannot be NULL.
  * @param window   NULL to detach the current window.
  * @return Zero if the window and renderer do not share a compatible device.
  *
- * Also fails when gfx_renderer_attach(...) was previously called
+ * Also fails if the window was already attached to a renderer.
+ * And fails when gfx_renderer_attach(...) was previously called
  * with the same index.
  */
 GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
@@ -136,6 +136,7 @@ GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
                                                size_t target);
 
 /**
+ * TODO: Totally under construction.
  * Submits all passes of the renderer to the GPU.
  * @param renderer Cannot be NULL.
  */

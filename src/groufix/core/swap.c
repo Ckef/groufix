@@ -37,6 +37,39 @@ static int _gfx_swapchain_sig(_GFXWindow* window)
 }
 
 /****************************/
+int _gfx_swapchain_try_lock(_GFXWindow* window)
+{
+	assert(window != NULL);
+
+	int locked = 0;
+
+#if defined (__STDC_NO_ATOMICS__)
+	_gfx_mutex_lock(&window->swapLock);
+	locked = window->swap;
+	window->swap = 1;
+	_gfx_mutex_unlock(&window->swapLock);
+#else
+	locked = atomic_exchange(&window->swap, 1);
+#endif
+
+	return !locked;
+}
+
+/****************************/
+void _gfx_swapchain_unlock(_GFXWindow* window)
+{
+	assert(window != NULL);
+
+#if defined (__STDC_NO_ATOMICS__)
+	_gfx_mutex_lock(&window->swapLock);
+	window->swap = 0;
+	_gfx_mutex_unlock(&window->swapLock);
+#else
+	window->swap = 0;
+#endif
+}
+
+/****************************/
 int _gfx_swapchain_recreate(_GFXWindow* window)
 {
 	assert(window != NULL);
@@ -70,6 +103,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, window->vk.swapchain, NULL);
 
+		gfx_vec_clear(&window->frame.images);
 		window->vk.swapchain = VK_NULL_HANDLE;
 
 		// This might be problematic?
@@ -271,10 +305,20 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	assert(window != NULL);
 	assert(index != NULL);
 	assert(recreate != NULL);
-	assert(window->vk.swapchain != VK_NULL_HANDLE);
 
 	*recreate = 0;
 	_GFXContext* context = window->context;
+
+	// Warn, this could happen with framebuffer size 0x0.
+	if (window->vk.swapchain == VK_NULL_HANDLE)
+	{
+		gfx_log_warn(
+			"Trying to acquire from non-existing swapchain on "
+			"physical device: %s",
+			window->device->base.name);
+
+		return 0;
+	}
 
 	// First wait for the fence so we know the available semaphore
 	// is unsignaled and has no pending signals.
@@ -351,9 +395,19 @@ int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 {
 	assert(window != NULL);
 	assert(recreate != NULL);
-	assert(window->vk.swapchain != VK_NULL_HANDLE);
 
 	_GFXContext* context = window->context;
+
+	// Warn, this could happen with framebuffer size 0x0.
+	if (window->vk.swapchain == VK_NULL_HANDLE)
+	{
+		gfx_log_warn(
+			"Trying to present to non-existing swapchain on "
+			"physical device: %s",
+			window->device->base.name);
+
+		return 0;
+	}
 
 	// Now queue a presentation request.
 	// This would swap the acquired image to the screen :)

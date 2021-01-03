@@ -250,6 +250,14 @@ typedef struct _GFXWindow
 	_GFXDevice*  device; // Associated GPU to build a swapchain on.
 	_GFXContext* context;
 
+	// Swapchain lock (window can only be used by one renderer).
+#if defined (__STDC_NO_ATOMICS__)
+	int        swap;
+	_GFXMutex  swapLock;
+#else
+	atomic_int swap;
+#endif
+
 
 	// Chosen presentation queue.
 	struct
@@ -419,46 +427,55 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device);
  ****************************/
 
 /**
+ * Attempt to 'claim' the swapchain by atomically reading if window->swap
+ * is already set to one and subsequentally setting it to 1.
+ * @param window Cannot be NULL.
+ * @return Non-zero if swapchain was not yet claimed.
+ */
+int _gfx_swapchain_try_lock(_GFXWindow* window);
+
+/**
+ * Atomically 'unclaims' the swapchain by setting window->swap back to 0.
+ * @param window Cannot be NULL.
+ */
+void _gfx_swapchain_unlock(_GFXWindow* window);
+
+/**
  * (Re)creates the swapchain of a window, left empty at framebuffer size of 0x0.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *
  * Can be called from any thread, but not reentrant.
- * This will destroy the old swapchain, references to it must be released.
+ * Automatically called by _gfx_swapchain_acquire and _gfx_swapchain_present.
  * Also fills window->frame.images.
  */
 int _gfx_swapchain_recreate(_GFXWindow* window);
 
 /**
+ * TODO: Wait until current vsync (instead of previous)?
  * Acquires the next available image from the swapchain of a window.
- * window->vk.swapchain cannot be VK_NULL_HANDLE.
+ * The object calling this method must have claimed the swapchain.
  * @param window   Cannot be NULL.
  * @param index    Cannot be NULL, index into window->frame.images.
  * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
  * @return Non-zero on success.
  *
  * Can be called from any thread, but not reentrant.
- * This will wait until the previous image is acquired.
- * TODO: Wait until current vsync? Can be threaded anyway, have one thread wait
- * for vsync is fine?
  * This will signal window->vk.available when the current image is acquired.
- * _gfx_swapchain_recreate is called when necessary.
  */
 int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
 
 /**
- * TODO: Allow multiple windows in one call?
+ * TODO: Or wait for vsync here? This does actual submission after all.
  * Submits a present command for the swapchain of a window.
- * window->vk.swapchain cannot be VK_NULL_HANDLE.
- * window->vk.rendered must be signaled or pending.
+ * The object calling this method must have claimed the swapchain.
  * @param window   Cannot be NULL.
  * @param index    Must be an index retrieved by _gfx_swapchain_acquire.
  * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
  * @return Non-zero on success.
  *
- * TODO: Or wait for vsync here? This does actual submission after all.
  * Can be called from any thread, but not reentrant.
- * _gfx_swapchain_recreate is called when necessary.
+ * window->vk.rendered must be signaled or pending.
  */
 int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate);
 

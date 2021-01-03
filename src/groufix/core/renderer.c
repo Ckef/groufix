@@ -288,7 +288,8 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 		_gfx_destroy_render_pass(pass);
 	}
 
-	// Detach all windows to destroy all swapchain-dependent resources.
+	// Detach all windows to unlock them from their attachments
+	// and destroy all swapchain-dependent resources.
 	// In reverse order because memory happy :)
 	for (size_t i = renderer->windows.size; i > 0; --i)
 	{
@@ -318,7 +319,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 		_GFXWindowAttach* at = gfx_vec_at(&renderer->windows, i);
 		if (at->index == index)
 		{
-			gfx_log_debug("Cannot describe a window attachment of a renderer.");
+			gfx_log_warn("Cannot describe a window attachment of a renderer.");
 			return 0;
 		}
 	}
@@ -369,7 +370,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		_GFXAttach* at = gfx_vec_at(&renderer->attachs, i);
 		if (at->index == index)
 		{
-			gfx_log_debug(
+			gfx_log_warn(
 				"Cannot attach a window to an already described "
 				"attachment index of a renderer.");
 
@@ -416,6 +417,9 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		gfx_vec_clear(&attach->vk.buffers);
 		gfx_vec_erase(&renderer->windows, 1, f);
 
+		// Finaly unlock the window for another attachment.
+		_gfx_swapchain_unlock(attach->window);
+
 		return 1;
 	}
 
@@ -423,13 +427,24 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	// Check if the renderer and the window share the same context.
 	if (context != ((_GFXWindow*)window)->context)
 	{
-		gfx_log_debug(
+		gfx_log_warn(
 			"When attaching a window to a renderer they must be built on "
 			"the same logical Vulkan device.");
 
 		return 0;
 	}
 
+	// Try to lock the window to this attachment.
+	if (!_gfx_swapchain_try_lock((_GFXWindow*)window))
+	{
+		gfx_log_warn(
+			"A window can only be attached to one attachment index of one "
+			"renderer at a time.");
+
+		return 0;
+	}
+
+	// Ok we can attach.
 	// But what if we don't have the attachment index yet?
 	if (attach != NULL)
 		attach->window = (_GFXWindow*)window;
@@ -444,7 +459,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		};
 
 		if (!gfx_vec_insert(&renderer->windows, 1, &at, f))
-			goto error;
+			goto unlock;
 
 		attach = gfx_vec_at(&renderer->windows, f);
 		gfx_vec_init(&attach->vk.buffers, sizeof(VkCommandBuffer));
@@ -454,14 +469,16 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	if (!_gfx_renderer_recreate_swap(renderer, attach))
 	{
 		gfx_vec_erase(&renderer->windows, 1, f);
-		goto error;
+		goto unlock;
 	}
 
 	return 1;
 
 
-	// Error on failure.
-error:
+	// Unlock window on failure.
+unlock:
+	_gfx_swapchain_unlock((_GFXWindow*)window);
+
 	gfx_log_error(
 		"Could not attach a window to an attachment index of a renderer");
 
@@ -582,7 +599,8 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	// Plus,
 	// that's the whole idea when we're having GFXRenderers running on
 	// different threads from the main thread!
-	// TODO: Or do an async input mechanism somehow...
+	// Or,
+	// do an async input mechanism somehow...
 
 	// TODO: Currently we clear the images of all windows.
 	// TODO: Somehow associate windows with the appropriate render passes so
@@ -590,6 +608,10 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
 		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
+
+		// TODO: What if we don't have images (we prolly ignored some error).
+		if (attach->vk.buffers.size == 0)
+			continue;
 
 		// Submit the associated command buffer.
 		// Here we explicitly wait on the available semaphore of the window,
@@ -636,7 +658,6 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	}
 	*/
 
-	// TODO: Merge this into one call?
 	// Present images of all windows.
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{

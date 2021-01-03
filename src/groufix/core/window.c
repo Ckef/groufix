@@ -392,11 +392,22 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		window->handle, _gfx_glfw_framebuffer_size);
 
 	// So we setup everything related to GLFW, now set the frame properties.
-	// Initialize the locks for resize signal and set the current
-	// width and height of the window's framebuffer.
-	if (!_gfx_mutex_init(&window->frame.lock))
-		goto clean_window;
+	// Initialize the locks for swapping and the resize signal.
+	window->swap = 0;
 
+#if defined (__STDC_NO_ATOMICS__)
+	if (!_gfx_mutex_init(&window->swapLock))
+		goto clean_window;
+#endif
+
+	if (!_gfx_mutex_init(&window->frame.lock))
+#if defined (__STDC_NO_ATOMICS__)
+		goto clean_swap_lock;
+#else
+		goto clean_window;
+#endif
+
+	// And set the current width/height of the framebuffer.
 	int width;
 	int height;
 	glfwGetFramebufferSize(window->handle, &width, &height);
@@ -501,9 +512,14 @@ clean_surface:
 clean_frame:
 	gfx_vec_clear(&window->frame.images);
 	_gfx_mutex_clear(&window->frame.lock);
+
+#if defined (__STDC_NO_ATOMICS__)
+clean_swap_lock:
+	_gfx_mutex_clear(&window->swapLock);
+#endif
+
 clean_window:
 	glfwDestroyWindow(window->handle);
-
 clean:
 	gfx_log_error("Could not create a new window.");
 	free(window);
@@ -544,6 +560,9 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	gfx_vec_clear(&win->present.access);
 	gfx_vec_clear(&win->frame.images);
 	_gfx_mutex_clear(&win->frame.lock);
+#if defined (__STDC_NO_ATOMICS__)
+	_gfx_mutex_clear(&win->swapLock);
+#endif
 
 	glfwDestroyWindow(win->handle);
 	free(window);
