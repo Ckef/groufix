@@ -187,6 +187,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		// TODO: Find a better way, prolly want to parse Vulkan formats
 		// so we can do actual calculations and comparisons on them.
 		VkSurfaceFormatKHR format = formats[0];
+		window->frame.format = format.format;
 
 		// Decide on the extend of the swapchain (i.e. the width and height).
 		// We just pick the current extent of the surface, if it doesn't have

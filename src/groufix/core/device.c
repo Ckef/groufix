@@ -426,10 +426,12 @@ static int _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(CmdPipelineBarrier);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateFence);
+		_GFX_GET_DEVICE_PROC_ADDR(CreateRenderPass);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateSemaphore);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyCommandPool);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyFence);
+		_GFX_GET_DEVICE_PROC_ADDR(DestroyRenderPass);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroySemaphore);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);

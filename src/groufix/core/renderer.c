@@ -257,6 +257,8 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 
 	_gfx_renderer_pick_graphics(rend);
 
+	rend->built = 0;
+
 	return rend;
 
 
@@ -538,6 +540,9 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 			gfx_vec_erase(&renderer->targets, 1, t-1);
 	}
 
+	// We added a render pass, clearly we need to rebuild.
+	renderer->built = 0;
+
 	return pass;
 
 
@@ -574,6 +579,24 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	_GFXContext* context = renderer->context;
+
+	// First of all, we build the renderer if it is not built yet.
+	// We only build the targets, as they will recursively build the tree.
+	// TODO: Maybe separate this from the submit call?
+	if (!renderer->built)
+	{
+		for (size_t i = 0; i < renderer->passes.size; ++i)
+		{
+			GFXRenderPass* pass =
+				*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
+
+			// We cannot continue, the pass itself should log errors.
+			if (!_gfx_render_pass_rebuild(pass))
+				return;
+		}
+
+		renderer->built = 1;
+	}
 
 	// Note: on failures we continue processing, maybe something will show?
 	// Acquire next image of all windows.

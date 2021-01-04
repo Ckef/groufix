@@ -94,9 +94,8 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
  * @param window   NULL to detach the current window.
  * @return Zero if the window and renderer do not share a compatible device.
  *
- * Also fails if the window was already attached to a renderer.
- * And fails when gfx_renderer_attach(...) was previously called
- * with the same index.
+ * Also fails if the window was already attached to a renderer or
+ * gfx_renderer_attach was previously called with the same index.
  */
 GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
                                        size_t index, GFXWindow* window);

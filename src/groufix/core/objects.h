@@ -58,6 +58,8 @@ struct GFXRenderer
 	GFXVec targets; // Stores GFXRenderPass* (target passes, end of paths).
 	GFXVec passes;  // Stores GFXRenderPass* (in submission order).
 
+	int built;
+
 
 	// Chosen graphics family.
 	struct
