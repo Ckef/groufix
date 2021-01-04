@@ -201,7 +201,13 @@ GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index)
 		if (*(size_t*)gfx_vec_at(&pass->reads, i) == index)
 			return 1;
 
-	return gfx_vec_push(&pass->reads, 1, &index);
+	if (!gfx_vec_push(&pass->reads, 1, &index))
+		return 0;
+
+	// Changed a pass, the renderer must rebuild.
+	pass->renderer->built = 0;
+
+	return 1;
 }
 
 /****************************/
@@ -214,7 +220,13 @@ GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index)
 		if (*(size_t*)gfx_vec_at(&pass->writes, i) == index)
 			return 1;
 
-	return gfx_vec_push(&pass->writes, 1, &index);
+	if (!gfx_vec_push(&pass->writes, 1, &index))
+		return 0;
+
+	// Changed a pass, the renderer must rebuild.
+	pass->renderer->built = 0;
+
+	return 1;
 }
 
 /****************************/

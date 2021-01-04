@@ -9,6 +9,7 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 /****************************
@@ -335,6 +336,10 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 			break;
 		if (attach->index == index)
 		{
+			// Rebuild when the attachment is changed.
+			if (memcmp(&attach->base, &attachment, sizeof(GFXAttachment)))
+				renderer->built = 0;
+
 			attach->base = attachment;
 			return 1;
 		}
@@ -420,6 +425,9 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		// Finaly unlock the window for another attachment.
 		_gfx_swapchain_unlock(attach->window);
 
+		// Rebuild so it errors when this window was used.
+		renderer->built = 0;
+
 		return 1;
 	}
 
@@ -447,7 +455,12 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	// Ok we can attach.
 	// But what if we don't have the attachment index yet?
 	if (attach != NULL)
+	{
 		attach->window = (_GFXWindow*)window;
+
+		// If we change, we rebuild.
+		renderer->built = 0;
+	}
 	else
 	{
 		// Insert one at the found index.
