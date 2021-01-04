@@ -88,7 +88,8 @@ struct GFXRenderPass
 	// Vulkan fields.
 	struct
 	{
-		VkRenderPass pass;
+		VkRenderPass  pass;
+		VkFramebuffer framebuffer;
 
 	} vk;
 

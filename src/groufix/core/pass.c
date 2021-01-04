@@ -42,11 +42,6 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	pass->renderer = renderer;
 	pass->level = 0;
 	pass->refs = 0;
-	pass->vk.pass = VK_NULL_HANDLE;
-
-	gfx_vec_init(&pass->reads, sizeof(size_t));
-	gfx_vec_init(&pass->writes, sizeof(size_t));
-
 	pass->numDeps = numDeps;
 
 	if (numDeps) memcpy(
@@ -63,6 +58,13 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 		++deps[d]->refs;
 	}
 
+	// Initialize pre-building stuff.
+	pass->vk.pass = VK_NULL_HANDLE;
+	pass->vk.framebuffer = VK_NULL_HANDLE;
+
+	gfx_vec_init(&pass->reads, sizeof(size_t));
+	gfx_vec_init(&pass->writes, sizeof(size_t));
+
 	return pass;
 }
 
@@ -74,6 +76,8 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 	_GFXContext* context = pass->renderer->context;
 
 	// Destroy Vulkan object structure.
+	context->vk.DestroyFramebuffer(
+		context->vk.device, pass->vk.framebuffer, NULL);
 	context->vk.DestroyRenderPass(
 		context->vk.device, pass->vk.pass, NULL);
 
@@ -98,6 +102,8 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 	_GFXContext* context = rend->context;
 
 	// Destroy old object structure.
+	context->vk.DestroyFramebuffer(
+		context->vk.device, pass->vk.framebuffer, NULL);
 	context->vk.DestroyRenderPass(
 		context->vk.device, pass->vk.pass, NULL);
 
@@ -177,7 +183,9 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 	// Error on failure.
 error:
 	gfx_log_error("Could not build a render pass.");
+
 	pass->vk.pass = VK_NULL_HANDLE;
+	pass->vk.framebuffer = VK_NULL_HANDLE;
 
 	return 0;
 }

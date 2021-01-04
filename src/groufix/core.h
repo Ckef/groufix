@@ -167,12 +167,14 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CmdPipelineBarrier);
 		_GFX_VK_PFN(CreateCommandPool);
 		_GFX_VK_PFN(CreateFence);
+		_GFX_VK_PFN(CreateFramebuffer);
 		_GFX_VK_PFN(CreateRenderPass);
 		_GFX_VK_PFN(CreateSemaphore);
 		_GFX_VK_PFN(CreateSwapchainKHR);
 		_GFX_VK_PFN(DestroyCommandPool);
 		_GFX_VK_PFN(DestroyDevice);
 		_GFX_VK_PFN(DestroyFence);
+		_GFX_VK_PFN(DestroyFramebuffer);
 		_GFX_VK_PFN(DestroyRenderPass);
 		_GFX_VK_PFN(DestroySemaphore);
 		_GFX_VK_PFN(DestroySwapchainKHR);

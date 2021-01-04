@@ -585,10 +585,10 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	// TODO: Maybe separate this from the submit call?
 	if (!renderer->built)
 	{
-		for (size_t i = 0; i < renderer->passes.size; ++i)
+		for (size_t i = 0; i < renderer->targets.size; ++i)
 		{
 			GFXRenderPass* pass =
-				*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
+				*(GFXRenderPass**)gfx_vec_at(&renderer->targets, i);
 
 			// We cannot continue, the pass itself should log errors.
 			if (!_gfx_render_pass_rebuild(pass))
