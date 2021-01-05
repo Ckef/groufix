@@ -196,6 +196,8 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 	_GFX_VK_CHECK(context->vk.CreateRenderPass(
 		context->vk.device, &rpci, NULL, &pass->vk.pass), goto clean);
 
+	// TODO: Create framebuffers.
+
 	return 1;
 
 

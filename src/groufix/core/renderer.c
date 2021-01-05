@@ -155,11 +155,12 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 		VkImageViewCreateInfo ivci = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 
-			.pNext    = NULL,
-			.flags    = 0,
-			.image    = *image,
-			.viewType = VK_IMAGE_VIEW_TYPE_2D,
-			.format   = window->frame.format,
+			.pNext            = NULL,
+			.flags            = 0,
+			.image            = *image,
+			.viewType         = VK_IMAGE_VIEW_TYPE_2D,
+			.format           = window->frame.format,
+			.subresourceRange = range,
 
 			.components = {
 				.r = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -167,14 +168,6 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 				.b = VK_COMPONENT_SWIZZLE_IDENTITY,
 				.a = VK_COMPONENT_SWIZZLE_IDENTITY
 			},
-
-			.subresourceRange = {
-				.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseMipLevel   = 0,
-				.levelCount     = 1,
-				.baseArrayLayer = 0,
-				.layerCount     = 1
-			}
 		};
 
 		_GFX_VK_CHECK(context->vk.CreateImageView(
