@@ -163,8 +163,8 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(AcquireNextImageKHR);
 		_GFX_VK_PFN(AllocateCommandBuffers);
 		_GFX_VK_PFN(BeginCommandBuffer);
-		_GFX_VK_PFN(CmdClearColorImage);
-		_GFX_VK_PFN(CmdPipelineBarrier);
+		_GFX_VK_PFN(CmdClearColorImage); // TODO: Remove.
+		_GFX_VK_PFN(CmdPipelineBarrier); // TODO: Remove.
 		_GFX_VK_PFN(CreateCommandPool);
 		_GFX_VK_PFN(CreateFence);
 		_GFX_VK_PFN(CreateFramebuffer);

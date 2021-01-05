@@ -229,7 +229,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 			.imageExtent           = extent,
 			.imageArrayLayers      = 1,
 			.imageUsage            =
-				VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+				VK_IMAGE_USAGE_TRANSFER_DST_BIT | // TODO: Remove.
 				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 			.imageSharingMode      =
 				(window->present.access.size > 1) ?

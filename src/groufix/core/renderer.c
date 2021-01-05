@@ -64,6 +64,9 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 		if (!gfx_vec_reserve(&attach->vk.buffers, count))
 			goto clean;
 
+		if (!gfx_vec_reserve(&attach->vk.views, count))
+			goto clean;
+
 		size_t newCount = count - currCount;
 		gfx_vec_push_empty(&attach->vk.buffers, newCount);
 
@@ -103,7 +106,20 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 		gfx_vec_pop(&attach->vk.buffers, currCount - count);
 	}
 
-	// Now go record all of the command buffers.
+	// Destroy all image views.
+	for (size_t i = 0; i < attach->vk.views.size; ++i)
+	{
+		VkImageView* view = gfx_vec_at(&attach->vk.views, i);
+		context->vk.DestroyImageView(context->vk.device, *view, NULL);
+	}
+
+	gfx_vec_release(&attach->vk.views);
+	gfx_vec_push_empty(&attach->vk.views, count);
+
+	for (size_t i = 0; i < count; ++i)
+		*(VkImageView*)gfx_vec_at(&attach->vk.views, i) = VK_NULL_HANDLE;
+
+	// Now go create the image views and record all of the command buffers.
 	// We simply clear the entire associated image to a single color.
 	// Obviously for testing purposes :)
 	VkClearColorValue clear = {
@@ -128,11 +144,43 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 
 	for (size_t i = 0; i < count; ++i)
 	{
-		VkImage image =
-			*(VkImage*)gfx_vec_at(&window->frame.images, i);
-		VkCommandBuffer buffer =
-			*(VkCommandBuffer*)gfx_vec_at(&attach->vk.buffers, i);
+		VkImage* image =
+			gfx_vec_at(&window->frame.images, i);
+		VkCommandBuffer* buffer =
+			gfx_vec_at(&attach->vk.buffers, i);
+		VkImageView* view =
+			gfx_vec_at(&attach->vk.views, i);
 
+		// Create image view.
+		VkImageViewCreateInfo ivci = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+
+			.pNext    = NULL,
+			.flags    = 0,
+			.image    = *image,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format   = window->frame.format,
+
+			.components = {
+				.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+				.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+				.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+				.a = VK_COMPONENT_SWIZZLE_IDENTITY
+			},
+
+			.subresourceRange = {
+				.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel   = 0,
+				.levelCount     = 1,
+				.baseArrayLayer = 0,
+				.layerCount     = 1
+			}
+		};
+
+		_GFX_VK_CHECK(context->vk.CreateImageView(
+			context->vk.device, &ivci, NULL, view), goto clean);
+
+		// Define memory barriers.
 		VkImageMemoryBarrier imb_clear = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 
@@ -143,7 +191,7 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 			.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image               = image,
+			.image               = *image,
 			.subresourceRange    = range
 		};
 
@@ -157,36 +205,36 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 			.newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image               = image,
+			.image               = *image,
 			.subresourceRange    = range
 		};
 
 		// Start of all commands.
-		_GFX_VK_CHECK(context->vk.BeginCommandBuffer(buffer, &cbbi),
+		_GFX_VK_CHECK(context->vk.BeginCommandBuffer(*buffer, &cbbi),
 			goto clean);
 
 		// Switch to transfer layout, clear, switch back to present layout.
 		context->vk.CmdPipelineBarrier(
-			buffer,
+			*buffer,
 			VK_PIPELINE_STAGE_TRANSFER_BIT,
 			VK_PIPELINE_STAGE_TRANSFER_BIT,
 			0, 0, NULL, 0, NULL, 1, &imb_clear);
 
 		context->vk.CmdClearColorImage(
-			buffer,
-			image,
+			*buffer,
+			*image,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			&clear,
 			1, &range);
 
 		context->vk.CmdPipelineBarrier(
-			buffer,
+			*buffer,
 			VK_PIPELINE_STAGE_TRANSFER_BIT,
 			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
 			0, 0, NULL, 0, NULL, 1, &imb_present);
 
 		// End of all commands.
-		_GFX_VK_CHECK(context->vk.EndCommandBuffer(buffer),
+		_GFX_VK_CHECK(context->vk.EndCommandBuffer(*buffer),
 			goto clean);
 	}
 
@@ -204,6 +252,13 @@ clean:
 			attach->vk.pool,
 			(uint32_t)attach->vk.buffers.size,
 			attach->vk.buffers.data);
+
+	// Destroy all image views.
+	for (size_t i = 0; i < attach->vk.views.size; ++i)
+	{
+		VkImageView* view = gfx_vec_at(&attach->vk.views, i);
+		context->vk.DestroyImageView(context->vk.device, *view, NULL);
+	}
 
 	gfx_vec_clear(&attach->vk.buffers);
 	gfx_vec_clear(&attach->vk.views);
@@ -462,6 +517,13 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		context->vk.DestroyCommandPool(
 			context->vk.device, attach->vk.pool, NULL);
 
+		// Also destroy all image views.
+		for (size_t i = 0; i < attach->vk.views.size; ++i)
+		{
+			VkImageView* view = gfx_vec_at(&attach->vk.views, i);
+			context->vk.DestroyImageView(context->vk.device, *view, NULL);
+		}
+
 		gfx_vec_clear(&attach->vk.buffers);
 		gfx_vec_clear(&attach->vk.views);
 		gfx_vec_erase(&renderer->windows, 1, f);
@@ -646,6 +708,7 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	// Acquire next image of all windows.
 	// We do everything in separate loop cause there are syncs inbetween.
 	// TODO: Postpone this so we're sure we don't wait for no reason.
+	// TODO: Only rebuild bits of renderer that rely on the window?
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
 		int recreate;
@@ -671,9 +734,7 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	// Or,
 	// do an async input mechanism somehow...
 
-	// TODO: Currently we clear the images of all windows.
-	// TODO: Somehow associate windows with the appropriate render passes so
-	// submission to the graphics queue is done by the passes.
+	// TODO: Make passes submit, currently we clear the images of all windows.
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
 		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
@@ -717,6 +778,7 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	// Submit all passes in submission order.
 	// TODO: Probably want to do this in the renderer, not in the passes.
 	// The renderer dictates submission order of vkQueueSubmit anyway.
+	// Plus it might submit multiple passes in one vkQueue* call.
 	for (size_t i = 0; i < renderer->passes.size; ++i)
 	{
 		GFXRenderPass* pass =
@@ -728,6 +790,7 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	*/
 
 	// Present images of all windows.
+	// TODO: Only rebuild bits of renderer that rely on the window?
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
 		int recreate;

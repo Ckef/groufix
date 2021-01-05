@@ -25,11 +25,10 @@ static void _gfx_render_pass_destruct(GFXRenderPass* pass)
 	// Destroy all framebuffers.
 	for (size_t i = 0; i < pass->vk.framebuffers.size; ++i)
 	{
-		VkFramebuffer framebuff =
-			*(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, i);
-
+		VkFramebuffer* frame =
+			gfx_vec_at(&pass->vk.framebuffers, i);
 		context->vk.DestroyFramebuffer(
-			context->vk.device, framebuff, NULL);
+			context->vk.device, *frame, NULL);
 	}
 
 	// Destroy the rest.
