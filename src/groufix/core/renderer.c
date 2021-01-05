@@ -50,7 +50,7 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 		};
 
 		_GFX_VK_CHECK(context->vk.CreateCommandPool(
-			context->vk.device, &cpci, NULL, &attach->vk.pool), goto error);
+			context->vk.device, &cpci, NULL, &attach->vk.pool), goto clean);
 	}
 
 	// Ok so now we allocate more command buffers or free some.
@@ -62,7 +62,7 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 		// If we have too few, allocate some more.
 		// Reserve the exact amount cause it's most likely not gonna change.
 		if (!gfx_vec_reserve(&attach->vk.buffers, count))
-			goto error;
+			goto clean;
 
 		size_t newCount = count - currCount;
 		gfx_vec_push_empty(&attach->vk.buffers, newCount);
@@ -87,7 +87,7 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 		if (!res)
 		{
 			gfx_vec_pop(&attach->vk.buffers, newCount);
-			goto error;
+			goto clean;
 		}
 	}
 
@@ -163,7 +163,7 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 
 		// Start of all commands.
 		_GFX_VK_CHECK(context->vk.BeginCommandBuffer(buffer, &cbbi),
-			goto error);
+			goto clean);
 
 		// Switch to transfer layout, clear, switch back to present layout.
 		context->vk.CmdPipelineBarrier(
@@ -187,17 +187,60 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 
 		// End of all commands.
 		_GFX_VK_CHECK(context->vk.EndCommandBuffer(buffer),
-			goto error);
+			goto clean);
 	}
 
 	return 1;
 
 
-	// Error on failure.
-error:
+	// Cleanup on failure.
+clean:
 	gfx_log_fatal("Could not (re)create swapchain-dependent resources.");
 
+	// Free all buffers, we don't know if they're valid.
+	if (attach->vk.buffers.size > 0)
+		context->vk.FreeCommandBuffers(
+			context->vk.device,
+			attach->vk.pool,
+			(uint32_t)attach->vk.buffers.size,
+			attach->vk.buffers.data);
+
+	gfx_vec_clear(&attach->vk.buffers);
+	gfx_vec_clear(&attach->vk.views);
+
 	return 0;
+}
+
+/****************************
+ * (Re)builds the render passes.
+ * @param renderer Cannot be NULL.
+ * @return Non-zero on success.
+ */
+static int _gfx_renderer_rebuild(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// If we fail, make sure we don't just run with it.
+	renderer->built = 0;
+
+	// We only build the targets, as they will recursively build the tree.
+	for (size_t i = 0; i < renderer->targets.size; ++i)
+	{
+		GFXRenderPass* pass =
+			*(GFXRenderPass**)gfx_vec_at(&renderer->targets, i);
+
+		// We cannot continue, the pass itself should log errors.
+		if (!_gfx_render_pass_rebuild(pass))
+		{
+			gfx_log_error("Renderer build incomplete.");
+			return 0;
+		}
+	}
+
+	// Yep it's built.
+	renderer->built = 1;
+
+	return 1;
 }
 
 /****************************
@@ -420,6 +463,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 			context->vk.device, attach->vk.pool, NULL);
 
 		gfx_vec_clear(&attach->vk.buffers);
+		gfx_vec_clear(&attach->vk.views);
 		gfx_vec_erase(&renderer->windows, 1, f);
 
 		// Finaly unlock the window for another attachment.
@@ -476,6 +520,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 
 		attach = gfx_vec_at(&renderer->windows, f);
 		gfx_vec_init(&attach->vk.buffers, sizeof(VkCommandBuffer));
+		gfx_vec_init(&attach->vk.views, sizeof(VkImageView));
 	}
 
 	// Go create swapchain-dependent resources.
@@ -594,22 +639,8 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	_GFXContext* context = renderer->context;
 
 	// First of all, we build the renderer if it is not built yet.
-	// We only build the targets, as they will recursively build the tree.
-	// TODO: Maybe separate this from the submit call?
 	if (!renderer->built)
-	{
-		for (size_t i = 0; i < renderer->targets.size; ++i)
-		{
-			GFXRenderPass* pass =
-				*(GFXRenderPass**)gfx_vec_at(&renderer->targets, i);
-
-			// We cannot continue, the pass itself should log errors.
-			if (!_gfx_render_pass_rebuild(pass))
-				return;
-		}
-
-		renderer->built = 1;
-	}
+		_gfx_renderer_rebuild(renderer);
 
 	// Note: on failures we continue processing, maybe something will show?
 	// Acquire next image of all windows.
@@ -624,7 +655,11 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 		_gfx_swapchain_acquire(attach->window, &attach->image, &recreate);
 
 		// Recreate swapchain-dependent resources.
-		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
+		if (recreate)
+		{
+			_gfx_renderer_recreate_swap(renderer, attach);
+			_gfx_renderer_rebuild(renderer);
+		}
 	}
 
 	// TODO: Kinda need a return or a hook here for processing input?
@@ -702,6 +737,10 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 		_gfx_swapchain_present(attach->window, attach->image, &recreate);
 
 		// Recreate swapchain-dependent resources.
-		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
+		if (recreate)
+		{
+			_gfx_renderer_recreate_swap(renderer, attach);
+			_gfx_renderer_rebuild(renderer);
+		}
 	}
 }

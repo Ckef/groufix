@@ -80,9 +80,9 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 	// We do not free the images as the count will likely never change.
 	gfx_vec_release(&window->frame.images);
 
-	// First of all, get the size GLFW thinks the framebuffer should be.
+	// First of all, read the size GLFW thinks the framebuffer should be.
 	// Remember this (and others) get changed by a GLFW callback when the
-	// window is resized, so we must lock when reading from it.
+	// window is resized, so we must lock and copy to actual size.
 	// Also reset the recreate signal, in case it was set again, in this
 	// scenario we don't need to recreate AGAIN because we already have the
 	// correct inputs at this point.
@@ -90,11 +90,15 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 
 	window->frame.recreate = 0;
 
-	uint32_t width = (uint32_t)window->frame.width;
-	uint32_t height = (uint32_t)window->frame.height;
+	window->frame.width = window->frame.rWidth;
+	window->frame.height = window->frame.rHeight;
 	GFXWindowFlags flags = window->frame.flags;
 
 	_gfx_mutex_unlock(&window->frame.lock);
+
+	// Typing too much is annoying.
+	uint32_t width = (uint32_t)window->frame.width;
+	uint32_t height = (uint32_t)window->frame.height;
 
 	// If the size is 0x0, do not create anything.
 	// Actually destroy things.

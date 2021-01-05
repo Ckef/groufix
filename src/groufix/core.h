@@ -168,6 +168,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CreateCommandPool);
 		_GFX_VK_PFN(CreateFence);
 		_GFX_VK_PFN(CreateFramebuffer);
+		_GFX_VK_PFN(CreateImageView);
 		_GFX_VK_PFN(CreateRenderPass);
 		_GFX_VK_PFN(CreateSemaphore);
 		_GFX_VK_PFN(CreateSwapchainKHR);
@@ -175,6 +176,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(DestroyDevice);
 		_GFX_VK_PFN(DestroyFence);
 		_GFX_VK_PFN(DestroyFramebuffer);
+		_GFX_VK_PFN(DestroyImageView);
 		_GFX_VK_PFN(DestroyRenderPass);
 		_GFX_VK_PFN(DestroySemaphore);
 		_GFX_VK_PFN(DestroySwapchainKHR);
@@ -280,15 +282,17 @@ typedef struct _GFXWindow
 	{
 		GFXVec   images; // Stores VkImage.
 		VkFormat format;
+		size_t   width;
+		size_t   height;
 
 #if defined (__STDC_NO_ATOMICS__)
 		int            recreate;
 #else
 		atomic_int     recreate;
 #endif
-		size_t         width;
-		size_t         height;
-		GFXWindowFlags flags; // Determines number of images.
+		size_t         rWidth;  // Future width;
+		size_t         rHeight; // Future height;
+		GFXWindowFlags flags;   // Determines number of images.
 		_GFXMutex      lock;
 
 	} frame;
@@ -448,7 +452,7 @@ void _gfx_swapchain_unlock(_GFXWindow* window);
 
 /**
  * (Re)creates the swapchain of a window, left empty at framebuffer size of 0x0.
- * Also fills window->frame.images (all swapchain images).
+ * Also updates all of window->frame.{ images, format, width, height }.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *

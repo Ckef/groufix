@@ -221,11 +221,13 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 
 	// We lock such that setting the size and signaling it has been resized
 	// are both in the same atomic operation.
+	// We set a proxy size though, not the actually used one,
+	// that one gets updated by the thread that uses it.
 	_gfx_mutex_lock(&window->frame.lock);
 
 	window->frame.recreate = 1;
-	window->frame.width = (size_t)width;
-	window->frame.height = (size_t)height;
+	window->frame.rWidth = (size_t)width;
+	window->frame.rHeight = (size_t)height;
 
 	_gfx_mutex_unlock(&window->frame.lock);
 }
@@ -407,16 +409,19 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 		goto clean_window;
 #endif
 
-	// And set the current width/height of the framebuffer.
+	// And set the current width/height and such of the framebuffer.
 	int width;
 	int height;
 	glfwGetFramebufferSize(window->handle, &width, &height);
 
 	gfx_vec_init(&window->frame.images, sizeof(VkImage));
-
-	window->frame.recreate = 0;
+	window->frame.format = VK_FORMAT_UNDEFINED;
 	window->frame.width = (size_t)width;
 	window->frame.height = (size_t)height;
+
+	window->frame.recreate = 0;
+	window->frame.rWidth = (size_t)width;
+	window->frame.rHeight = (size_t)height;
 	window->frame.flags = flags;
 
 	// Now we need to somehow connect it to a GPU.

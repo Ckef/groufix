@@ -12,6 +12,34 @@
 #include <string.h>
 
 
+/****************************
+ * Destructs the Vulkan object structure.
+ * @param pass Cannot be NULL.
+ */
+static void _gfx_render_pass_destruct(GFXRenderPass* pass)
+{
+	assert(pass != NULL);
+
+	_GFXContext* context = pass->renderer->context;
+
+	// Destroy all framebuffers.
+	for (size_t i = 0; i < pass->vk.framebuffers.size; ++i)
+	{
+		VkFramebuffer framebuff =
+			*(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, i);
+
+		context->vk.DestroyFramebuffer(
+			context->vk.device, framebuff, NULL);
+	}
+
+	// Destroy the rest.
+	context->vk.DestroyRenderPass(
+		context->vk.device, pass->vk.pass, NULL);
+
+	pass->vk.pass = VK_NULL_HANDLE;
+	gfx_vec_clear(&pass->vk.framebuffers);
+}
+
 /****************************/
 GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
                                        size_t numDeps, GFXRenderPass** deps)
@@ -60,7 +88,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 
 	// Initialize pre-building stuff.
 	pass->vk.pass = VK_NULL_HANDLE;
-	pass->vk.framebuffer = VK_NULL_HANDLE;
+	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
 
 	gfx_vec_init(&pass->reads, sizeof(size_t));
 	gfx_vec_init(&pass->writes, sizeof(size_t));
@@ -73,13 +101,8 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 
-	_GFXContext* context = pass->renderer->context;
-
 	// Destroy Vulkan object structure.
-	context->vk.DestroyFramebuffer(
-		context->vk.device, pass->vk.framebuffer, NULL);
-	context->vk.DestroyRenderPass(
-		context->vk.device, pass->vk.pass, NULL);
+	_gfx_render_pass_destruct(pass);
 
 	// Clear all pre-building information.
 	gfx_vec_clear(&pass->reads);
@@ -102,16 +125,13 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 	_GFXContext* context = rend->context;
 
 	// Destroy old object structure.
-	context->vk.DestroyFramebuffer(
-		context->vk.device, pass->vk.framebuffer, NULL);
-	context->vk.DestroyRenderPass(
-		context->vk.device, pass->vk.pass, NULL);
+	_gfx_render_pass_destruct(pass);
 
 	// TODO: Obviously expand, for now 1 color attachment, the first window.
 	// TODO: This does not log anything, as it's super temporary.
 	// Pick a window from the renderer attachments.
 	if (pass->writes.size == 0)
-		goto error;
+		goto clean;
 
 	size_t index = *(size_t*)gfx_vec_at(&pass->writes, 0);
 	_GFXWindowAttach* attach = NULL;
@@ -127,7 +147,7 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 	}
 
 	if (attach == NULL)
-		goto error;
+		goto clean;
 
 	// Ok we have all data.
 	// Go build a new render pass.
@@ -175,17 +195,15 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 	};
 
 	_GFX_VK_CHECK(context->vk.CreateRenderPass(
-		context->vk.device, &rpci, NULL, &pass->vk.pass), goto error);
+		context->vk.device, &rpci, NULL, &pass->vk.pass), goto clean);
 
 	return 1;
 
 
-	// Error on failure.
-error:
+	// Clean on failure.
+clean:
 	gfx_log_error("Could not build a render pass.");
-
-	pass->vk.pass = VK_NULL_HANDLE;
-	pass->vk.framebuffer = VK_NULL_HANDLE;
+	_gfx_render_pass_destruct(pass);
 
 	return 0;
 }

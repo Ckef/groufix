@@ -39,6 +39,7 @@ typedef struct _GFXWindowAttach
 	{
 		VkCommandPool pool;
 		GFXVec        buffers; // Stores VkCommandBuffer.
+		GFXVec        views;   // Stores VkImageView.
 
 	} vk;
 
@@ -89,7 +90,7 @@ struct GFXRenderPass
 	struct
 	{
 		VkRenderPass  pass;
-		VkFramebuffer framebuffer;
+		GFXVec        framebuffers;
 
 	} vk;
 
