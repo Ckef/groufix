@@ -13,7 +13,39 @@
 
 
 /****************************
- * Recreates all swapchain-dependent resources.
+ * (Re)builds the render passes.
+ * @param renderer Cannot be NULL.
+ * @return Non-zero on success.
+ */
+static int _gfx_renderer_rebuild(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// If we fail, make sure we don't just run with it.
+	renderer->built = 0;
+
+	// We only build the targets, as they will recursively build the tree.
+	for (size_t i = 0; i < renderer->targets.size; ++i)
+	{
+		GFXRenderPass* pass =
+			*(GFXRenderPass**)gfx_vec_at(&renderer->targets, i);
+
+		// We cannot continue, the pass itself should log errors.
+		if (!_gfx_render_pass_rebuild(pass))
+		{
+			gfx_log_error("Renderer build incomplete.");
+			return 0;
+		}
+	}
+
+	// Yep it's built.
+	renderer->built = 1;
+
+	return 1;
+}
+
+/****************************
+ * (Re)creates all swapchain-dependent resources.
  * @param renderer Cannot be NULL.
  * @param attach   Cannot be NULL.
  * @return Non-zero on success.
@@ -231,6 +263,11 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 			goto clean);
 	}
 
+	// Last thing, don't forget to rebuild all passes.
+	// TODO: Probably only want to rebuild relevant passes.
+	if (!_gfx_renderer_rebuild(renderer))
+		goto clean;
+
 	return 1;
 
 
@@ -257,38 +294,6 @@ clean:
 	gfx_vec_clear(&attach->vk.views);
 
 	return 0;
-}
-
-/****************************
- * (Re)builds the render passes.
- * @param renderer Cannot be NULL.
- * @return Non-zero on success.
- */
-static int _gfx_renderer_rebuild(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	// If we fail, make sure we don't just run with it.
-	renderer->built = 0;
-
-	// We only build the targets, as they will recursively build the tree.
-	for (size_t i = 0; i < renderer->targets.size; ++i)
-	{
-		GFXRenderPass* pass =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->targets, i);
-
-		// We cannot continue, the pass itself should log errors.
-		if (!_gfx_render_pass_rebuild(pass))
-		{
-			gfx_log_error("Renderer build incomplete.");
-			return 0;
-		}
-	}
-
-	// Yep it's built.
-	renderer->built = 1;
-
-	return 1;
 }
 
 /****************************
@@ -701,7 +706,6 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	// Acquire next image of all windows.
 	// We do everything in separate loop cause there are syncs inbetween.
 	// TODO: Postpone this so we're sure we don't wait for no reason.
-	// TODO: Only rebuild bits of renderer that rely on the window?
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
 		int recreate;
@@ -711,11 +715,7 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 		_gfx_swapchain_acquire(attach->window, &attach->image, &recreate);
 
 		// Recreate swapchain-dependent resources.
-		if (recreate)
-		{
-			_gfx_renderer_recreate_swap(renderer, attach);
-			_gfx_renderer_rebuild(renderer);
-		}
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
 	}
 
 	// TODO: Kinda need a return or a hook here for processing input?
@@ -783,7 +783,6 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	*/
 
 	// Present images of all windows.
-	// TODO: Only rebuild bits of renderer that rely on the window?
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
 		int recreate;
@@ -793,10 +792,6 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 		_gfx_swapchain_present(attach->window, attach->image, &recreate);
 
 		// Recreate swapchain-dependent resources.
-		if (recreate)
-		{
-			_gfx_renderer_recreate_swap(renderer, attach);
-			_gfx_renderer_rebuild(renderer);
-		}
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
 	}
 }
