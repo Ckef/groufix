@@ -415,7 +415,7 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 
 	// Clean on failure.
 clean:
-	gfx_log_error("Could not build a render pass.");
+	gfx_log_error("Could not (re)build a render pass.");
 	_gfx_render_pass_destruct(pass);
 
 	return 0;
@@ -439,7 +439,7 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 		_GFXWindowAttach* attach =
 			gfx_vec_at(&pass->renderer->windows, pass->build.backing);
 
-		// Destroy all command buffers.
+		// Free all command buffers.
 		if (pass->vk.commands.size > 0)
 			context->vk.FreeCommandBuffers(
 				context->vk.device,

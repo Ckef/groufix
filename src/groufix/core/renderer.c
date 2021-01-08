@@ -8,38 +8,14 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 
 /****************************
- * Destructs all render passes (i.e. destroys Vulkan object structure).
- * Blocks until rendering is done.
- * @param renderer Cannot be NULL.
- */
-static void _gfx_renderer_destruct(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	_GFXContext* context = renderer->context;
-
-	// We must wait until pending rendering is done before destructing.
-	_gfx_mutex_lock(renderer->graphics.lock);
-	context->vk.QueueWaitIdle(renderer->graphics.queue);
-	_gfx_mutex_unlock(renderer->graphics.lock);
-
-	// Destruct all passes.
-	for (size_t i = 0; i < renderer->passes.size; ++i)
-	{
-		GFXRenderPass** pass = gfx_vec_at(&renderer->passes, i);
-		_gfx_render_pass_destruct(*pass);
-	}
-
-	renderer->built = 0;
-}
-
-/****************************
  * (Re)builds the render passes.
+ * Blocks until rendering is done.
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
  */
@@ -52,12 +28,15 @@ static int _gfx_renderer_rebuild(GFXRenderer* renderer)
 	// If we fail, make sure we don't just run with it.
 	renderer->built = 0;
 
+	// We must wait until pending rendering is done before rebuilding.
+	_gfx_mutex_lock(renderer->graphics.lock);
+	context->vk.QueueWaitIdle(renderer->graphics.queue);
+	_gfx_mutex_unlock(renderer->graphics.lock);
+
 	// So we reset all command pools.
-	// If we have multiple windows but resize 1, we rebuild all passes anyway.
-	// This causes all passes to re-record command buffers and causes a
-	// shitload of vulkan errors, because we didn't reset those pools.
-	// TODO: Probably want to avoid this. Or wait for rendering.
-	// TODO: Or only rebuild relevant bits?
+	// Rebuilding causes the passes to re-record command buffers allocated
+	// from those pools, which we cannot do if they're not reset.
+	// TODO: Is this necessary?
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
 		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
@@ -65,6 +44,7 @@ static int _gfx_renderer_rebuild(GFXRenderer* renderer)
 	}
 
 	// We only build the targets, as they will recursively build the tree.
+	// TODO: Will they?
 	for (size_t i = 0; i < renderer->targets.size; ++i)
 	{
 		GFXRenderPass* pass =
@@ -86,6 +66,7 @@ static int _gfx_renderer_rebuild(GFXRenderer* renderer)
 
 /****************************
  * Destroys all swapchain-dependent resources.
+ * Blocks until rendering is done.
  * @param renderer Cannot be NULL.
  * @param attach   Cannot be NULL.
  */
@@ -97,6 +78,30 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 
 	_GFXContext* context = renderer->context;
 
+	// When a window is detached, we don't know what will happen after,
+	// so just rebuild all the things.
+	renderer->built = 0;
+
+	// We must wait until pending rendering is done before destroying.
+	_gfx_mutex_lock(renderer->graphics.lock);
+	context->vk.QueueWaitIdle(renderer->graphics.queue);
+	_gfx_mutex_unlock(renderer->graphics.lock);
+
+	// Now we loop over all passes and check if they write to this window
+	// attachment as output, if so, destruct the pass.
+	// The window will be gone after this, so we can't keep anything.
+	// Do NOT destruct everything, many things can be partially destructed :)
+	size_t backing =
+		(size_t)(attach - (_GFXWindowAttach*)renderer->windows.data);
+
+	for (size_t i = 0; i < renderer->passes.size; ++i)
+	{
+		GFXRenderPass* pass =
+			*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
+		if (pass->build.backing == backing)
+			_gfx_render_pass_destruct(pass);
+	}
+
 	// Destroy all image views.
 	for (size_t i = 0; i < attach->vk.views.size; ++i)
 	{
@@ -104,23 +109,26 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 		context->vk.DestroyImageView(context->vk.device, *view, NULL);
 	}
 
+	gfx_vec_clear(&attach->vk.views);
+
 	// Destroy command pool.
 	// Implicitly frees all command buffers.
 	context->vk.DestroyCommandPool(
 		context->vk.device, attach->vk.pool, NULL);
 
 	attach->vk.pool = VK_NULL_HANDLE;
-	gfx_vec_clear(&attach->vk.views);
 }
 
 /****************************
  * (Re)creates all swapchain-dependent resources.
+ * Blocks until rendering is done if necessary.
  * @param renderer Cannot be NULL.
  * @param attach   Cannot be NULL.
+ * @param rebuild  Non-zero to rebuild passes that write to this window.
  * @return Non-zero on success.
  */
 static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
-                                       _GFXWindowAttach* attach)
+                                       _GFXWindowAttach* attach, int rebuild)
 {
 	assert(renderer != NULL);
 	assert(attach != NULL);
@@ -205,6 +213,25 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 			context->vk.device, &ivci, NULL, &view), goto clean);
 
 		gfx_vec_push(&attach->vk.views, 1, &view);
+	}
+
+	// Now we loop over all passes and check if they write to this window
+	// attachment as output, if so, we rebuild those passes.
+	if (rebuild)
+	{
+		size_t backing =
+			(size_t)(attach - (_GFXWindowAttach*)renderer->windows.data);
+
+		for (size_t i = 0; i < renderer->passes.size; ++i)
+		{
+			GFXRenderPass* pass =
+				*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
+
+			// If a pass writes to this window, rebuild it.
+			if (pass->build.backing == backing)
+				if (!_gfx_render_pass_rebuild(pass))
+					goto clean;
+		}
 	}
 
 	return 1;
@@ -422,18 +449,26 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	// Check if we are just detaching the current window.
 	if (attach != NULL && window == NULL)
 	{
-		// Something might depend on the window, destruct the renderer.
-		// This is what causes the block.
-		// It destructs _everything_, so back-buffer references are lost and
-		// we do not need to adjust the build.backing field of each pass.
-		_gfx_renderer_destruct(renderer);
-
-		// Lastly destroy all swapchain-dependent resources and
-		// unlock the window for another attachment.
+		// Destroy all swapchain-dependent resources.
+		// This is the bit that blocks until rendering is done.
+		// Lastly unlock the window for use at another attachment.
 		_gfx_renderer_destroy_swap(renderer, attach);
 		_gfx_swapchain_unlock(attach->window);
 
 		gfx_vec_erase(&renderer->windows, 1, loc);
+
+		// Ok so we just erased an element out of renderer->windows.
+		// Which means any back-buffer window references might now be one
+		// too high (i.e. the build.backing field of each pass).
+		// So to fix, decrease all invalidated references by one.
+		for (size_t i = 0; i < renderer->passes.size; ++i)
+		{
+			GFXRenderPass* pass =
+				*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
+
+			if (pass->build.backing != SIZE_MAX && pass->build.backing > loc)
+				--pass->build.backing;
+		}
 
 		return 1;
 	}
@@ -462,9 +497,8 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	// Ok we can attach.
 	if (attach != NULL)
 	{
-		// Destruct, destroy previous swap-dependent & unlock window.
+		// Destroy previous swap-dependent & unlock window.
 		// This is the same story as just above here (so it blocks).
-		_gfx_renderer_destruct(renderer);
 		_gfx_renderer_destroy_swap(renderer, attach);
 		_gfx_swapchain_unlock(attach->window);
 
@@ -492,7 +526,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	}
 
 	// Go create swapchain-dependent resources.
-	if (!_gfx_renderer_recreate_swap(renderer, attach))
+	if (!_gfx_renderer_recreate_swap(renderer, attach, 0))
 	{
 		gfx_vec_erase(&renderer->windows, 1, loc);
 		goto unlock;
@@ -609,13 +643,7 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 	// Note: on failures we continue processing, maybe something will show?
 	// First of all, we build the renderer if it is required.
 	if (!renderer->built)
-	{
-		_gfx_mutex_lock(renderer->graphics.lock);
-		context->vk.QueueWaitIdle(renderer->graphics.queue);
-		_gfx_mutex_unlock(renderer->graphics.lock);
-
 		_gfx_renderer_rebuild(renderer);
-	}
 
 	// Acquire next image of all windows.
 	// We do this in a separate loop because otherwise we'd be synchronizing
@@ -629,11 +657,7 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 		_gfx_swapchain_acquire(attach->window, &attach->image, &recreate);
 
 		// Recreate swapchain-dependent resources.
-		if (recreate)
-		{
-			_gfx_renderer_recreate_swap(renderer, attach);
-			_gfx_renderer_rebuild(renderer);
-		}
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
 	}
 
 	// TODO: Kinda need a return or a hook here for processing input?
@@ -702,10 +726,6 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 		_gfx_swapchain_present(attach->window, attach->image, &recreate);
 
 		// Recreate swapchain-dependent resources.
-		if (recreate)
-		{
-			_gfx_renderer_recreate_swap(renderer, attach);
-			_gfx_renderer_rebuild(renderer);
-		}
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
 	}
 }

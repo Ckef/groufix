@@ -132,7 +132,7 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass);
 
 /**
  * TODO: Dependencies.
- * TODO: Build recursively.
+ * TODO: Build recursively?
  * TODO: Merge passes with the same resolution into subpasses.
  * (Re)builds the Vulkan object structure.
  * @param pass Cannot be NULL.
@@ -149,8 +149,7 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass);
  * @param pass Cannot be NULL.
  *
  * Does not synchronize anything before destructing!
- * If built, this must be called before detaching a window attachment
- * this pass writes to.
+ * If built, this must be called before detaching a window this pass writes to.
  */
 void _gfx_render_pass_destruct(GFXRenderPass* pass);
 
