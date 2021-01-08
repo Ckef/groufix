@@ -14,6 +14,27 @@
 
 
 /****************************
+ * Fix window back-buffer references of each render pass.
+ * Used when an element gets erased from renderer->windows, meaning the
+ * build.backing field of each pass might be one too high.
+ * @param renderer Cannot be NULL.
+ * @param loc      Any build.backing field greater than loc will be decreased.
+ */
+static void _gfx_renderer_fix_backings(GFXRenderer* renderer, size_t loc)
+{
+	assert(renderer != NULL);
+
+	for (size_t i = 0; i < renderer->passes.size; ++i)
+	{
+		GFXRenderPass* pass =
+			*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
+
+		if (pass->build.backing != SIZE_MAX && pass->build.backing > loc)
+			--pass->build.backing;
+	}
+}
+
+/****************************
  * (Re)builds the render passes.
  * Blocks until rendering is done.
  * @param renderer Cannot be NULL.
@@ -456,19 +477,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		_gfx_swapchain_unlock(attach->window);
 
 		gfx_vec_erase(&renderer->windows, 1, loc);
-
-		// Ok so we just erased an element out of renderer->windows.
-		// Which means any back-buffer window references might now be one
-		// too high (i.e. the build.backing field of each pass).
-		// So to fix, decrease all invalidated references by one.
-		for (size_t i = 0; i < renderer->passes.size; ++i)
-		{
-			GFXRenderPass* pass =
-				*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
-
-			if (pass->build.backing != SIZE_MAX && pass->build.backing > loc)
-				--pass->build.backing;
-		}
+		_gfx_renderer_fix_backings(renderer, loc);
 
 		return 1;
 	}
@@ -529,6 +538,8 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	if (!_gfx_renderer_recreate_swap(renderer, attach, 0))
 	{
 		gfx_vec_erase(&renderer->windows, 1, loc);
+		_gfx_renderer_fix_backings(renderer, loc);
+
 		goto unlock;
 	}
 
