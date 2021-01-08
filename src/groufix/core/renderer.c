@@ -192,11 +192,11 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 
 	gfx_vec_release(&attach->vk.views);
 
+	// Now go create the image views again.
 	// Reserve the exact amount, it's probably not gonna change.
 	if (!gfx_vec_reserve(&attach->vk.views, window->frame.images.size))
 		goto clean;
 
-	// Now go create the image views again.
 	for (size_t i = 0; i < window->frame.images.size; ++i)
 	{
 		VkImage image =

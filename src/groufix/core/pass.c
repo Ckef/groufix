@@ -39,7 +39,7 @@ void _gfx_render_pass_destruct_partial(GFXRenderPass* pass)
 		context->vk.device, pass->vk.pass, NULL);
 
 	pass->vk.pass = VK_NULL_HANDLE;
-	gfx_vec_clear(&pass->vk.framebuffers);
+	gfx_vec_release(&pass->vk.framebuffers);
 }
 
 /****************************
@@ -319,11 +319,38 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 	_GFX_VK_CHECK(context->vk.CreateRenderPass(
 		context->vk.device, &rpci, NULL, &pass->vk.pass), goto clean);
 
-	// TODO: Create framebuffers.
+	// Create framebuffers.
+	// Reserve the exact amount, it's probably not gonna change.
+	// TODO: Do we really need multiple framebuffers? Maybe just blit into image?
+	if (!gfx_vec_reserve(&pass->vk.framebuffers, attach->vk.views.size))
+		goto clean;
+
+	for (size_t i = 0; i < attach->vk.views.size; ++i)
+	{
+		VkFramebufferCreateInfo fci = {
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+
+			.pNext           = NULL,
+			.flags           = 0,
+			.renderPass      = pass->vk.pass,
+			.attachmentCount = 1,
+			.pAttachments    = gfx_vec_at(&attach->vk.views, i),
+			.width           = (uint32_t)attach->window->frame.width,
+			.height          = (uint32_t)attach->window->frame.height,
+			.layers          = 1
+		};
+
+		VkFramebuffer frame;
+		_GFX_VK_CHECK(context->vk.CreateFramebuffer(
+			context->vk.device, &fci, NULL, &frame), goto clean);
+
+		gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
+	}
 
 	// Now go record all of the command buffers.
 	// We simply clear the entire associated image to a single color.
 	// Obviously for testing purposes :)
+	// TODO: Move recording to a separate function (so we can re-record each frame).
 	VkClearColorValue clear = {
 		{ 1.0f, 0.8f, 0.4f, 0.0f }
 	};
@@ -448,8 +475,10 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 				pass->vk.commands.data);
 
 		pass->build.backing = SIZE_MAX;
-		gfx_vec_clear(&pass->vk.commands);
 	}
+
+	gfx_vec_clear(&pass->vk.framebuffers);
+	gfx_vec_clear(&pass->vk.commands);
 }
 
 /****************************/
