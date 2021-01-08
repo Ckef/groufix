@@ -90,15 +90,11 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 
 	window->frame.recreate = 0;
 
-	window->frame.width = window->frame.rWidth;
-	window->frame.height = window->frame.rHeight;
+	uint32_t width = (uint32_t)window->frame.rWidth;
+	uint32_t height = (uint32_t)window->frame.rHeight;
 	GFXWindowFlags flags = window->frame.flags;
 
 	_gfx_mutex_unlock(&window->frame.lock);
-
-	// Typing too much is annoying.
-	uint32_t width = (uint32_t)window->frame.width;
-	uint32_t height = (uint32_t)window->frame.height;
 
 	// If the size is 0x0, do not create anything.
 	// Actually destroy things.
@@ -111,8 +107,6 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		window->vk.swapchain = VK_NULL_HANDLE;
 
 		// This might be problematic?
-		// TODO: In this case, probably want to make render passes dependent
-		// on this size inactive or smth?
 		gfx_log_warn(
 			"Window has an apparent framebuffer size of 0x0, "
 			"associated swapchain absent on physical device: %s.",
@@ -211,6 +205,9 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 				sc.maxImageExtent.height < height ? sc.maxImageExtent.height :
 				height;
 		}
+
+		window->frame.width = (size_t)extent.width;
+		window->frame.height = (size_t)extent.height;
 
 		// Finally create the actual swapchain.
 		// Remember the old swapchain so we can destroy its resources.

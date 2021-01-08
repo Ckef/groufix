@@ -35,8 +35,7 @@ static void _gfx_renderer_fix_backings(GFXRenderer* renderer, size_t loc)
 }
 
 /****************************
- * (Re)builds the render passes.
- * Blocks until rendering is done.
+ * (Re)builds the render passes, blocks until rendering is done.
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
  */
@@ -86,8 +85,7 @@ static int _gfx_renderer_rebuild(GFXRenderer* renderer)
 }
 
 /****************************
- * Destroys all swapchain-dependent resources.
- * Blocks until rendering is done.
+ * Destroys all swapchain-dependent resources, blocks until rendering is done.
  * @param renderer Cannot be NULL.
  * @param attach   Cannot be NULL.
  */
@@ -268,14 +266,12 @@ clean:
 
 /****************************
  * Picks a graphics queue family (including a specific graphics queue).
- * _gfx_device_init_context(...) must have returned successfully.
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
  */
 static void _gfx_renderer_pick_graphics(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
-	assert(renderer->context != NULL);
 
 	_GFXContext* context = renderer->context;
 

@@ -235,7 +235,6 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 /****************************
  * Picks a presentation queue family (including a specific presentation queue).
  * window->vk.surface must be initialized to a valid Vulkan surface.
- * _gfx_device_init_context(window->device) must have returned successfully.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *
@@ -244,7 +243,6 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 static int _gfx_window_pick_present(_GFXWindow* window)
 {
 	assert(window != NULL);
-	assert(window->context != NULL);
 
 	_GFXContext* context = window->context;
 
