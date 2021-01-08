@@ -235,7 +235,6 @@ static void _gfx_destroy_context(_GFXContext* context)
 		free(set);
 	}
 
-	// If vkDestroyDevice is available, properly clean the device.
 	// We wait for all queues of the device to complete, then we can destroy.
 	// We check if the functions were loaded properly,
 	// they may not be if something failed during context creation.

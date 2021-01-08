@@ -37,9 +37,8 @@ typedef struct _GFXWindowAttach
 	// Vulkan fields.
 	struct
 	{
+		GFXVec        views; // Stores VkImageView.
 		VkCommandPool pool;
-		GFXVec        buffers; // Stores VkCommandBuffer.
-		GFXVec        views;   // Stores VkImageView.
 
 	} vk;
 
@@ -53,10 +52,10 @@ struct GFXRenderer
 {
 	_GFXContext* context;
 
-	GFXVec attachs; // Stores _GFXAttach (sorted on index).
-	GFXVec windows; // Stores _GFXWindowAttach (sorted on index).
+	GFXVec attachs; // Stores _GFXAttach.
+	GFXVec windows; // Stores _GFXWindowAttach.
 
-	GFXVec targets; // Stores GFXRenderPass* (target passes, end of paths).
+	GFXVec targets; // Stores GFXRenderPass* (target passes, roots of trees).
 	GFXVec passes;  // Stores GFXRenderPass* (in submission order).
 
 	int built;
@@ -86,11 +85,20 @@ struct GFXRenderPass
 	GFXVec writes; // Stores size_t.
 
 
+	// Building output (can be invalidated).
+	struct
+	{
+		size_t backing; // Index into renderer->windows (or SIZE_MAX).
+
+	} build;
+
+
 	// Vulkan fields.
 	struct
 	{
-		VkRenderPass  pass;
-		GFXVec        framebuffers;
+		VkRenderPass pass;
+		GFXVec       framebuffers; // Stores VkFramebuffer.
+		GFXVec       commands;     // Stores VkCommandBuffer.
 
 	} vk;
 
@@ -129,8 +137,22 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass);
  * (Re)builds the Vulkan object structure.
  * @param pass Cannot be NULL.
  * @return Non-zero if valid and built.
+ *
+ * Does not synchronize anything before rebuilding!
+ * If writing to a window attachment, _gfx_render_pass_destruct must
+ * be called before the window is detached.
  */
 int _gfx_render_pass_rebuild(GFXRenderPass* pass);
+
+/**
+ * Destructs the Vulkan object structure, non-recursively.
+ * @param pass Cannot be NULL.
+ *
+ * Does not synchronize anything before destructing!
+ * If built, this must be called before detaching a window attachment
+ * this pass writes to.
+ */
+void _gfx_render_pass_destruct(GFXRenderPass* pass);
 
 
 #endif

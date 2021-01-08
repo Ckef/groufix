@@ -90,6 +90,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 
 /**
  * Attaches a window to an attachment index of a renderer.
+ * If a window needs to be detached, this will block until rendering is done!
  * @param renderer Cannot be NULL.
  * @param window   NULL to detach the current window.
  * @return Zero if the window and renderer do not share a compatible device.
@@ -154,6 +155,7 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer);
 GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index);
 
 /**
+ * TODO: If multiple passes write to the same window, resolve conflicts.
  * Set render pass to write to an attachment index of the renderer.
  * @see gfx_render_pass_read.
  */
