@@ -238,7 +238,9 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 	// attachment as output, if so, we rebuild those passes.
 	// Yeah I'm not separating in a function because this one is also
 	// responsible for blocking until this is possible.
-	if (rebuild)
+	// Only do this if the renderer is built, if not, we skip this and
+	// postpone to when the entire renderer will get rebuild.
+	if (rebuild && renderer->built)
 	{
 		size_t backing = gfx_vec_get(&renderer->windows, attach);
 
@@ -648,14 +650,6 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 
 	_GFXContext* context = renderer->context;
 
-	// First of all, we build the renderer if it is required.
-	if (!renderer->built)
-		if (!_gfx_renderer_rebuild(renderer))
-		{
-			gfx_log_error("Could not submit renderer due to faulty build.");
-			return 0;
-		}
-
 	// Note: on failures we continue processing, maybe something will show?
 	// Acquire next image of all windows.
 	// We do this in a separate loop because otherwise we'd be synchronizing
@@ -675,11 +669,20 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	// TODO: Kinda need a return or a hook here for processing input?
 	// More precisely, in the case that we vsync after acquire, the only
 	// reason to sync with vsync is to minimize input delay.
-	// Plus,
-	// that's the whole idea when we're having GFXRenderers running on
-	// different threads from the main thread!
-	// Or,
-	// do an async input mechanism somehow...
+	// TODO: We could make this call blocking, so if it blocks, we acquire
+	// at the end of this call so the function exits when an image is
+	// available for input processing, so that's 1 frame of input delay.
+	// If not blocking, we make present block until it started rendering,
+	// so we have 2 frames input delay.
+
+	// We build the renderer if it is required.
+	// This is the only part that can return an error value.
+	if (!renderer->built)
+		if (!_gfx_renderer_rebuild(renderer))
+		{
+			gfx_log_error("Could not submit renderer due to faulty build.");
+			return 0;
+		}
 
 	// Submit all passes in submission order.
 	// TODO: Do this in the render passes?

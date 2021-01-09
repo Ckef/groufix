@@ -137,6 +137,7 @@ GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
 
 /**
  * TODO: Totally under construction.
+ * TODO: Separate in submit() and swap/block() (where the latter is optional)?
  * Submits all passes of the renderer to the GPU.
  * @param renderer Cannot be NULL.
  * @return Zero if the renderer could not build.
