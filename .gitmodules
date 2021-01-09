@@ -4,3 +4,6 @@
 [submodule "deps/Vulkan-Headers"]
 	path = deps/Vulkan-Headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers
+[submodule "deps/shaderc"]
+	path = deps/shaderc
+	url = https://github.com/google/shaderc

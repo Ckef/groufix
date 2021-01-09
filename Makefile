@@ -48,7 +48,13 @@ CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -Wshadow -pedantic -Iinclude
 
 
 # Flags for library files only
-OFLAGS      = $(CFLAGS) -c -s -DGFX_BUILD_LIB -Isrc -Ideps/glfw/include -Ideps/Vulkan-Headers/include
+OFLAGS_INCLUDE = \
+ -Isrc \
+ -Ideps/glfw/include \
+ -Ideps/Vulkan-Headers/include \
+ -Ideps/shaderc/libshaderc/include
+
+OFLAGS      = $(CFLAGS) -c -s -DGFX_BUILD_LIB $(OFLAGS_INCLUDE)
 OFLAGS_UNIX = $(OFLAGS) -fPIC
 OFLAGS_WIN  = $(OFLAGS)
 
@@ -66,14 +72,26 @@ GLFW_CONF = \
  -DGLFW_BUILD_TESTS=OFF \
  -DGLFW_BUILD_DOCS=OFF
 
+SHADERC_MINGW_TOOLCHAIN = \
+ -DCMAKE_TOOLCHAIN_FILE=cmake/linux-mingw-toolchain.cmake \
+ -Dgtest_disable_pthreads=ON
+
+SHADERC_CONF      = -Wno-dev -DCMAKE_BUILD_TYPE=Release
+SHADERC_CONF_UNIX = $(SHADERC_CONF) -G "Unix Makefiles"
+SHADERC_CONF_WIN  = $(SHADERC_CONF) -G "MinGw Makefiles"
+
 ifeq ($(CC),i686-w64-mingw32-gcc)
-	GLFW_FLAGS = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/i686-w64-mingw32.cmake
+	GLFW_FLAGS    = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/i686-w64-mingw32.cmake
+	SHADERC_FLAGS = $(SHADERC_CONF_UNIX) $(SHADERC_MINGW_TOOLCHAIN)
 else ifeq ($(CC),x86_64-w64-mingw32-gcc)
-	GLFW_FLAGS = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/x86_64-w64-mingw32.cmake
+	GLFW_FLAGS    = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/x86_64-w64-mingw32.cmake
+	SHADERC_FLAGS = $(SHADERC_CONF_UNIX) $(SHADERC_MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
-	GLFW_FLAGS = $(GLFW_CONF) -DCMAKE_C_COMPILER=gcc -G "MinGW Makefiles"
+	GLFW_FLAGS    = $(GLFW_CONF) -DCMAKE_C_COMPILER=gcc -G "MinGW Makefiles"
+	SHADERC_FLAGS = $(SHADERC_CONF_WIN)
 else
-	GLFW_FLAGS = $(GLFW_CONF)
+	GLFW_FLAGS    = $(GLFW_CONF)
+	SHADERC_FLAGS = $(SHADERC_CONF_UNIX)
 endif
 
 
@@ -92,8 +110,10 @@ $(BUILD)$(SUB):
 ifeq ($(OS),Windows_NT)
 	$(eval BUILDSUB_W = $(subst /,\,$(BUILD)$(SUB)))
 	@if not exist $(BUILDSUB_W)\glfw\nul mkdir $(BUILDSUB_W)\glfw
+	@if not exist $(BUILDSUB_W)\shaderc\nul mkdir $(BUILDSUB_W)\shaderc
 else
 	@mkdir -p $(BUILD)$(SUB)/glfw
+	@mkdir -p $(BUILD)$(SUB)/shaderc
 endif
 
 $(OUT)$(SUB):
@@ -164,8 +184,13 @@ OBJS = \
  $(OUT)$(SUB)/groufix.o
 
 
-LIBS = \
+LIBS_WA = \
  $(BUILD)$(SUB)/glfw/src/libglfw3.a
+LIBS_NWA = \
+ $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a
+
+LIBS = $(LIBS_WA) $(LIBS_NWA)
+LIBS_FLAGS = -Wl,--whole-archive $(LIBS_WA) -Wl,--no-whole-archive $(LIBS_NWA)
 
 
 ##############################
@@ -174,13 +199,16 @@ LIBS = \
 $(BUILD)$(SUB)/glfw/src/libglfw3.a: | $(BUILD)$(SUB)
 	@cd $(BUILD)$(SUB)/glfw && cmake $(GLFW_FLAGS) $(CURDIR)/deps/glfw && $(MAKE)
 
+$(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a: | $(BUILD)$(SUB)
+	@cd $(BUILD)$(SUB)/shaderc && cmake $(SHADERC_FLAGS) $(CURDIR)/deps/shaderc && $(MAKE)
+
 
 # Unix builds
 $(OUT)/unix/%.o: src/%.c $(HEADERS) | $(OUT)/unix
 	$(CC) $(OFLAGS_UNIX) $< -o $@
 
 $(BIN)/unix/libgroufix.so: $(LIBS) $(OBJS) | $(BIN)/unix
-	$(CC) -Wl,--whole-archive $(LIBS) -Wl,--no-whole-archive $(OBJS) -o $@ $(LFLAGS_UNIX)
+	$(CC) $(LIBS_FLAGS) $(OBJS) -o $@ $(LFLAGS_UNIX)
 
 $(BIN)/unix/%: tests/%.c $(BIN)/unix/libgroufix.so
 	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)/unix -Wl,-rpath='$$ORIGIN' -lgroufix
@@ -196,7 +224,7 @@ $(OUT)/win/%.o: src/%.c $(HEADERS) | $(OUT)/win
 	$(CC) $(OFLAGS_WIN) $< -o $@
 
 $(BIN)/win/libgroufix.dll: $(LIBS) $(OBJS) | $(BIN)/win
-	$(CC) -Wl,--whole-archive $(LIBS) -Wl,--no-whole-archive $(OBJS) -o $@ $(LFLAGS_WIN)
+	$(CC) $(LIBS_FLAGS) $(OBJS) -o $@ $(LFLAGS_WIN)
 
 $(BIN)/win/%.exe: tests/%.c $(BIN)/win/libgroufix.dll
 	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)/win -Wl,-rpath='$$ORIGIN' -lgroufix

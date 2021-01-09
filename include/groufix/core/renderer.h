@@ -109,6 +109,8 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
  * @param deps     Passes it depends on, cannot be NULL if numDeps > 0.
  * @return NULL on failure.
  *
+ * The renderer shares resources with all passes, it cannot concurrently
+ * operate with any pass and passes cannot concurrently operate among themselves.
  * A render pass cannot be removed, nor can its dependencies be changed
  * once it has been added to a renderer.
  */
