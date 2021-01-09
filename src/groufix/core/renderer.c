@@ -110,8 +110,7 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 	// attachment as output, if so, destruct the pass.
 	// The window will be gone after this, so we can't keep anything.
 	// Do NOT destruct everything, many things can be partially destructed :)
-	size_t backing =
-		(size_t)(attach - (_GFXWindowAttach*)renderer->windows.data);
+	size_t backing = gfx_vec_get(&renderer->windows, attach);
 
 	for (size_t i = 0; i < renderer->passes.size; ++i)
 	{
@@ -139,7 +138,8 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 }
 
 /****************************
- * (Re)creates all swapchain-dependent resources.
+ * (Re)creates all swapchain-dependent resources, makes sure attach->vk.pool
+ * exists, recreates attach->vk.views and optionally rebuilds relevant passes.
  * Blocks until rendering is done if necessary.
  * @param renderer Cannot be NULL.
  * @param attach   Cannot be NULL.
@@ -236,10 +236,11 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 
 	// Now we loop over all passes and check if they write to this window
 	// attachment as output, if so, we rebuild those passes.
+	// Yeah I'm not separating in a function because this one is also
+	// responsible for blocking until this is possible.
 	if (rebuild)
 	{
-		size_t backing =
-			(size_t)(attach - (_GFXWindowAttach*)renderer->windows.data);
+		size_t backing = gfx_vec_get(&renderer->windows, attach);
 
 		for (size_t i = 0; i < renderer->passes.size; ++i)
 		{
@@ -574,7 +575,7 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 	// we pre-sort on level, this essentially makes it such that
 	// every pass is submitted as early as possible.
 	// Note that within a level, the adding order is preserved.
-	// Backwards search is probably in-line with the adding order :p
+	// Backwards linear search is probably in-line with the adding order :p
 	size_t loc;
 	for (loc = renderer->passes.size; loc > 0; --loc)
 	{

@@ -37,7 +37,7 @@ typedef struct _GFXWindowAttach
 	// Vulkan fields.
 	struct
 	{
-		GFXVec        views; // Stores VkImageView.
+		GFXVec        views; // Stores VkImageView, on-swapchain recreate.
 		VkCommandPool pool;
 
 	} vk;
@@ -139,8 +139,8 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass);
  * @return Non-zero if valid and built.
  *
  * Does not synchronize anything before rebuilding!
- * If writing to a window attachment, _gfx_render_pass_destruct must
- * be called before the window is detached.
+ * If writing to a window attachment, _gfx_render_pass_destruct must be called
+ * before the window is detached.
  */
 int _gfx_render_pass_rebuild(GFXRenderPass* pass);
 
@@ -149,7 +149,7 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass);
  * @param pass Cannot be NULL.
  *
  * Does not synchronize anything before destructing!
- * If built, this must be called before detaching a window this pass writes to.
+ * If built, this must be called before detaching the output window attachment.
  */
 void _gfx_render_pass_destruct(GFXRenderPass* pass);
 

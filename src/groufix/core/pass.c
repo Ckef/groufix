@@ -15,8 +15,8 @@
 
 /****************************
  * Destructs the Vulkan object structure, non-recursively.
- * Only destructs swapchain-dependent stuff, suitable for e.g. resizing.
- * Call _gfx_render_pass_destruct (without partial) to destruct _everything_.
+ * Partial destruct, assumes any output window attachments still exists.
+ * Useful when the swapchain got recreated because of a resize or smth.
  * @param pass Cannot be NULL.
  */
 void _gfx_render_pass_destruct_partial(GFXRenderPass* pass)
@@ -43,7 +43,8 @@ void _gfx_render_pass_destruct_partial(GFXRenderPass* pass)
 }
 
 /****************************
- * Picks a window to use as back-buffer and (re)builds appropriate resources.
+ * Validates and picks a window to use as back-buffer and (re)builds
+ * appropriate resources if necessary.
  * @param pass Cannot be NULL.
  * @return Non-zero if successful (zero if multiple windows found).
  */
@@ -54,6 +55,8 @@ static int _gfx_render_pass_rebuild_backing(GFXRenderPass* pass)
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->context;
 
+	// Validate that there is exactly 1 window we write to.
+	// We don't have but we're nice, otherwise Vulkan would spam the logs.
 	size_t backing = SIZE_MAX;
 
 	// Check out all write attachments.
@@ -86,26 +89,17 @@ static int _gfx_render_pass_rebuild_backing(GFXRenderPass* pass)
 		}
 	}
 
-	// Nothing errored, so we can safely ignore the previous backing value.
-	// We cannot have a different back-buffer window from the current:
-	// - If a window detached or another attached, the renderer destructed.
-	// - If we added another reference to a window, we error above.
-	// - And lastly we cannot remove a current reference.
-	// So no leakage :)
-	// But we cannot set this value any earlier, if we error above there can
-	// still be resources that we did not free yet, don't tamper with those...
+	// Now if the current backing window was detached,
+	// the renderer is required to call _gfx_render_pass_destruct,
+	// meaning there is no current backing or it's the same.
 	pass->build.backing = backing;
 
-	// None found, don't error as this isn't necessarily an error.
-	// Could just be a pass that does not write to a window.
+	// Render pass doesn't write to a window, perfect.
 	if (pass->build.backing == SIZE_MAX)
 		return 1;
 
-	// TODO: In the future, allocate different command buffers?
 	// Ok so we chose a backing window.
 	// Now we allocate more command buffers or free some.
-	// We assume destruction already happened if necessary, so all existing
-	// buffers must come from the same command pool.
 	_GFXWindowAttach* attach = gfx_vec_at(&rend->windows, backing);
 	size_t currCount = pass->vk.commands.size;
 	size_t count = attach->vk.views.size;
@@ -161,11 +155,9 @@ static int _gfx_render_pass_rebuild_backing(GFXRenderPass* pass)
 
 	// Error on failure.
 error:
-	// We keep the picked backing though, as we might still want to free
-	// those command buffers :)
 	gfx_log_error(
-		"Could not allocate resources for a window attachment a render pass "
-		"writes to.");
+		"Could not allocate resources for a window attachment written to "
+		"by a render pass.");
 
 	return 0;
 }
@@ -373,7 +365,6 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 
 	for (size_t i = 0; i < pass->vk.commands.size; ++i)
 	{
-		// TODO: Using render passes we'd use the VkImageView, not VkImage.
 		VkImage image =
 			*(VkImage*)gfx_vec_at(&attach->window->frame.images, i);
 		VkCommandBuffer buffer =
@@ -455,7 +446,7 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 
 	_GFXContext* context = pass->renderer->context;
 
-	// Destruct things we'd also destroy during e.g. a resize.
+	// Destruct things we'd also destroy during a rebuild.
 	_gfx_render_pass_destruct_partial(pass);
 
 	// If we use a window as back-buffer, destroy those resources.

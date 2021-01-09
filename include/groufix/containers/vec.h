@@ -37,6 +37,15 @@ static inline void* gfx_vec_at(GFXVec* vec, size_t index)
 }
 
 /**
+ * Returns the index of an element.
+ * Undefined behaviour if elem is not memory of vec.
+ */
+static inline size_t gfx_vec_get(GFXVec* vec, const void* elem)
+{
+	return (size_t)((char*)elem - (char*)vec->data) / vec->elementSize;
+}
+
+/**
  * Initializes a vector.
  * @param vec      Cannot be NULL.
  * @param elemSize Must be > 0.
