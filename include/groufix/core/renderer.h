@@ -139,8 +139,12 @@ GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
  * TODO: Totally under construction.
  * Submits all passes of the renderer to the GPU.
  * @param renderer Cannot be NULL.
+ * @return Zero if the renderer could not build.
+ *
+ * Returns non-zero if build was successful. Errors during submission are
+ * considered pseudo-fatal and ignored, processing continues.
  */
-GFX_API void gfx_renderer_submit(GFXRenderer* renderer);
+GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
 
 
 /****************************

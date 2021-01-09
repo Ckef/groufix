@@ -642,17 +642,21 @@ GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
 }
 
 /****************************/
-GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
+GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
 	_GFXContext* context = renderer->context;
 
-	// Note: on failures we continue processing, maybe something will show?
 	// First of all, we build the renderer if it is required.
 	if (!renderer->built)
-		_gfx_renderer_rebuild(renderer);
+		if (!_gfx_renderer_rebuild(renderer))
+		{
+			gfx_log_error("Could not submit renderer due to faulty build.");
+			return 0;
+		}
 
+	// Note: on failures we continue processing, maybe something will show?
 	// Acquire next image of all windows.
 	// We do this in a separate loop because otherwise we'd be synchronizing
 	// on _gfx_swapchain_acquire at the most random times.
@@ -736,4 +740,6 @@ GFX_API void gfx_renderer_submit(GFXRenderer* renderer)
 		// Recreate swapchain-dependent resources.
 		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
 	}
+
+	return 1;
 }
