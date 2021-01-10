@@ -29,7 +29,9 @@ The Makefile takes the following flags:
 
 ### Dependencies
 
-Major dependencies, such as [GLFW](https://www.glfw.org/) and [Shaderc](https://github.com/google/shaderc), are included as submodules in the repository. They are automatically built and linked by the included Makefile. To build and run with debug options enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. All other dependencies based on your setup are:
+Most major dependencies, such as [GLFW](https://www.glfw.org/) and [Shaderc](https://github.com/google/shaderc), are included as submodules in the repository. They are automatically built and linked by the included Makefile.
+
+To build and run with debug options enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. All other dependencies based on your setup are:
 
 _When building on Linux_:
 * `gcc`, `make`, `cmake` : for building source files.
