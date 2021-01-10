@@ -29,17 +29,19 @@ The Makefile takes the following flags:
 
 ### Dependencies
 
-Major dependencies, such as [GLFW](https://www.glfw.org/) and [Shaderc](https://github.com/google/shaderc), are included as submodules in the repository. They are automatically built and linked by the included Makefile. To build and run with debug options enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. Other dependencies based on your setup:
+Major dependencies, such as [GLFW](https://www.glfw.org/) and [Shaderc](https://github.com/google/shaderc), are included as submodules in the repository. They are automatically built and linked by the included Makefile. To build and run with debug options enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. All other dependencies based on your setup are:
 
 _When building on Linux_:
 * `gcc`, `make`, `cmake` : for building source files.
 * `xorg-dev` _or_ `libwayland-dev` : for building [GLFW](https://www.glfw.org/).
+* `python3` : for building [Shaderc](https://github.com/google/shaderc).
 
 _When cross-compiling to Windows_:
 * `mingw-w64` : for building source files for windows (in addition to the above packages), the `CC` flag needs to be set as described under [#Building](#building).
 
 _When building on Windows_:
-* [CMake](https://cmake.org/) and [Mingw-w64](http://mingw-w64.org/doku.php) need to be installed, which should include the `cmake.exe` and `mingw32-make.exe` binaries. To use these to build _groufix_, add the `bin` directory of both to your `PATH` variable.
+* [CMake](https://cmake.org/) and [Mingw-w64](http://mingw-w64.org/doku.php) need to be installed, which should include the `cmake.exe` and `mingw32-make.exe` binaries. To use these to build _groufix_, add the `bin` directory of both to your `PATH` variable. Make sure to install the compiler using `POSIX` threads.
+* [Python 3](https://www.python.org/) needs to be installed for building [Shaderc](https://github.com/google/shaderc), make sure to install Python to your `PATH` variable.
 
 
 Usage

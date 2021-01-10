@@ -78,7 +78,7 @@ SHADERC_MINGW_TOOLCHAIN = \
 
 SHADERC_CONF      = -Wno-dev -DCMAKE_BUILD_TYPE=Release
 SHADERC_CONF_UNIX = $(SHADERC_CONF) -G "Unix Makefiles"
-SHADERC_CONF_WIN  = $(SHADERC_CONF) -G "MinGw Makefiles"
+SHADERC_CONF_WIN  = $(SHADERC_CONF) -G "MinGW Makefiles"
 
 ifeq ($(CC),i686-w64-mingw32-gcc)
 	GLFW_FLAGS    = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/i686-w64-mingw32.cmake
