@@ -406,9 +406,9 @@ static int _gfx_create_context(_GFXDevice* device)
 
 		gfx_log_debug(
 			"Logical Vulkan device of version %u.%u.%u created:\n"
-			"    Contains at least: %s\n"
-			"    #physical devices: %u\n"
-			"    #queues: %u\n",
+			"    Contains at least: %s.\n"
+			"    #physical devices: %u.\n"
+			"    #queues: %u.\n",
 			(unsigned int)VK_VERSION_MAJOR(device->api),
 			(unsigned int)VK_VERSION_MINOR(device->api),
 			(unsigned int)VK_VERSION_PATCH(device->api),
