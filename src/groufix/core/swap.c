@@ -107,6 +107,8 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		window->vk.swapchain = VK_NULL_HANDLE;
 
 		// This might be problematic?
+		// TODO: Do smth about this? (currently it'll prolly error somewhere)
+		// TODO: Maybe a general "stop rendering cause window hidden" mechanism?
 		gfx_log_warn(
 			"Window has an apparent framebuffer size of 0x0, "
 			"associated swapchain absent on physical device: %s.",

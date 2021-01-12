@@ -106,7 +106,7 @@ static int _gfx_get_queue_sets(VkPhysicalDevice device, GFXVec* sets,
 	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(device, &count, props);
 
 	// 1) A general graphics family:
-	// We use the family with VK_QUEUE_GRAPHICS BIT set and
+	// We use the family with VK_QUEUE_GRAPHICS_BIT set and
 	// as few other bits set as possible.
 	// 2) A family that supports presentation to surfaces:
 	// Having presentation support has precedence over fewer flags.
@@ -405,15 +405,16 @@ static int _gfx_create_context(_GFXDevice* device)
 			queueCount += (*(_GFXQueueSet**)gfx_vec_at(&context->sets, k))->count;
 
 		gfx_log_debug(
-			"Logical Vulkan device of version %u.%u.%u with %u physical "
-			"device(s) and %u queue(s) created for physical device group "
-			"containing at least: %s.",
+			"Logical Vulkan device of version %u.%u.%u created:\n"
+			"    Contains at least: %s\n"
+			"    #physical devices: %u\n"
+			"    #queues: %u\n",
 			(unsigned int)VK_VERSION_MAJOR(device->api),
 			(unsigned int)VK_VERSION_MINOR(device->api),
 			(unsigned int)VK_VERSION_PATCH(device->api),
+			device->base.name,
 			(unsigned int)context->numDevices,
-			(unsigned int)queueCount,
-			device->base.name);
+			(unsigned int)queueCount);
 
 		// Now load all device level Vulkan functions.
 		// Load vkDestroyDevice first so we can clean properly.

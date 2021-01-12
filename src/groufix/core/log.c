@@ -43,7 +43,7 @@ static const char* _gfx_log_colors[] = {
  */
 static void _gfx_log_out(unsigned int thread,
                          GFXLogLevel level, double timeMs,
-                         const char* file, const char* func, unsigned int line,
+                         const char* file, unsigned int line,
                          const char* fmt, va_list args)
 {
 	const char* L = _gfx_log_levels[level-1];
@@ -55,16 +55,16 @@ static void _gfx_log_out(unsigned int thread,
 		const char* C = _gfx_log_colors[level-1];
 
 		fprintf(stderr,
-			"%.2ems %s%-5s\x1b[0m \x1b[90mthread-%u: %s:%u: %s:\x1b[0m ",
-			timeMs, C, L, thread, file, line, func);
+			"%.2ems %s%-5s\x1b[0m \x1b[90mthread-%u: %s:%u:\x1b[0m ",
+			timeMs, C, L, thread, file, line);
 	}
 	else
 	{
 #endif
 		// If not, or not on unix at all, output regularly.
 		fprintf(stderr,
-			"%.2ems %-5s thread-%u: %s:%u: %s: ",
-			timeMs, L, thread, file, line, func);
+			"%.2ems %-5s thread-%u: %s:%u: ",
+			timeMs, L, thread, file, line);
 
 #if defined (GFX_UNIX)
 	}
@@ -79,25 +79,24 @@ static void _gfx_log_out(unsigned int thread,
  */
 static void _gfx_log_file(FILE* out,
                           GFXLogLevel level, double timeMs,
-                          const char* file, const char* func, unsigned int line,
+                          const char* file, unsigned int line,
                           const char* fmt, va_list args)
 {
 	const char* L = _gfx_log_levels[level-1];
 
-	fprintf(out, "%.2ems %-5s %s:%u: %s: ",
-		timeMs, L, file, line, func);
+	fprintf(out, "%.2ems %-5s %s:%u: ",
+		timeMs, L, file, line);
 
 	vfprintf(out, fmt, args);
 	fputc('\n', out);
 }
 
 /****************************/
-GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
-                     unsigned int line, const char* fmt, ...)
+GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
+                     const char* fmt, ...)
 {
 	assert(level > GFX_LOG_NONE && level < GFX_LOG_ALL);
 	assert(file != NULL);
-	assert(func != NULL);
 	assert(fmt != NULL);
 
 	va_list args;
@@ -115,7 +114,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 		if (level <= _groufix.logDef)
 		{
 			va_start(args, fmt);
-			_gfx_log_out(thread, level, timeMs, file, func, line, fmt, args);
+			_gfx_log_out(thread, level, timeMs, file, line, fmt, args);
 			va_end(args);
 		}
 		return;
@@ -141,7 +140,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 			va_start(args, fmt);
 
 			_gfx_log_file(state->log.file,
-				level, timeMs, file, func, line, fmt, args);
+				level, timeMs, file, line, fmt, args);
 
 			va_end(args);
 		}
@@ -159,7 +158,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
 	va_start(args, fmt);
 
 	_gfx_mutex_lock(&_groufix.thread.ioLock);
-	_gfx_log_out(thread, level, timeMs, file, func, line, fmt, args);
+	_gfx_log_out(thread, level, timeMs, file, line, fmt, args);
 	_gfx_mutex_unlock(&_groufix.thread.ioLock);
 
 	va_end(args);

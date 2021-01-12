@@ -19,7 +19,7 @@
  * Useful when the swapchain got recreated because of a resize or smth.
  * @param pass Cannot be NULL.
  */
-void _gfx_render_pass_destruct_partial(GFXRenderPass* pass)
+static void _gfx_render_pass_destruct_partial(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 

@@ -40,29 +40,28 @@ typedef enum GFXLogLevel
  * Logging macros.
  */
 #define gfx_log_fatal(...) \
-	gfx_log(GFX_LOG_FATAL, __FILE__, __func__, __LINE__, __VA_ARGS__)
+	gfx_log(GFX_LOG_FATAL, __FILE__,  __LINE__, __VA_ARGS__)
 #define gfx_log_error(...) \
-	gfx_log(GFX_LOG_ERROR, __FILE__, __func__, __LINE__, __VA_ARGS__)
+	gfx_log(GFX_LOG_ERROR, __FILE__,  __LINE__, __VA_ARGS__)
 #define gfx_log_warn(...) \
-	gfx_log(GFX_LOG_WARN, __FILE__, __func__, __LINE__, __VA_ARGS__)
+	gfx_log(GFX_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
 #define gfx_log_info(...) \
-	gfx_log(GFX_LOG_INFO, __FILE__, __func__, __LINE__, __VA_ARGS__)
+	gfx_log(GFX_LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
 
 #if defined (NDEBUG)
 	#define gfx_log_debug(...)
 	#define gfx_log_verbose(...)
 #else
 	#define gfx_log_debug(...) \
-		gfx_log(GFX_LOG_DEBUG, __FILE__, __func__, __LINE__, __VA_ARGS__)
+		gfx_log(GFX_LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
 	#define gfx_log_verbose(...) \
-		gfx_log(GFX_LOG_DEBUG_VERBOSE, __FILE__, __func__, __LINE__, __VA_ARGS__)
+		gfx_log(GFX_LOG_DEBUG_VERBOSE, __FILE__, __LINE__, __VA_ARGS__)
 #endif
 
 /**
  * Logs a new line to the log output of the calling thread.
  * @param level Must be > GFX_LOG_NONE and < GFX_LOG_ALL.
  * @param file  Cannot be NULL, must be NULL-terminated.
- * @param func  Cannot be NULL, must be NULL-terminated.
  * @param fmt   Format, cannot be NULL, must be NULL-terminated.
  *
  * If this call is made before the calling thread is attached,
@@ -70,8 +69,8 @@ typedef enum GFXLogLevel
  * global log level that can be set before initialization with gfx_log_set_level.
  * Access to stderr will be synchronized when groufix is initialized.
  */
-GFX_API void gfx_log(GFXLogLevel level, const char* file, const char* func,
-                     unsigned int line, const char* fmt, ...);
+GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
+                     const char* fmt, ...);
 
 /**
  * Sets the log level to output for the calling thread.
