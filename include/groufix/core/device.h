@@ -48,7 +48,7 @@ GFX_API size_t gfx_get_num_devices(void);
 
 /**
  * Retrieves an initialized device.
- * The primary device is always stored at index 0.
+ * The primary device is always stored at index 0 and stays constant.
  * @param index Must be < gfx_get_num_devices().
  */
 GFX_API GFXDevice* gfx_get_device(size_t index);

@@ -14,6 +14,7 @@
 #include "groufix/core/keys.h"
 #include "groufix/core/log.h"
 #include "groufix/core/renderer.h"
+#include "groufix/core/shader.h"
 #include "groufix/core/window.h"
 #include "groufix/def.h"
 

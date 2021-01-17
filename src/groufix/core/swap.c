@@ -107,6 +107,7 @@ int _gfx_swapchain_recreate(_GFXWindow* window)
 		window->vk.swapchain = VK_NULL_HANDLE;
 
 		// This might be problematic?
+		// TODO: Definitely do something about this, fails on minimize on Windows.
 		gfx_log_warn(
 			"Window has an apparent framebuffer size of 0x0, "
 			"associated swapchain absent on physical device: %s.",

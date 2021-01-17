@@ -13,6 +13,7 @@
 help:
 	@echo " Clean"
 	@echo "  $(MAKE) clean      - Clean temporary files."
+	@echo "  $(MAKE) clean-bin  - Clean build files."
 	@echo "  $(MAKE) clean-deps - Clean dependency builds."
 	@echo "  $(MAKE) clean-all  - Clean all files make produced."
 	@echo ""
@@ -28,6 +29,7 @@ help:
 # Build environment
 
 CC    = gcc
+CCPP  = $(subst gcc,g++,$(CC))
 DEBUG = ON
 
 BIN   = bin
@@ -60,9 +62,9 @@ OFLAGS_WIN  = $(OFLAGS)
 
 
 # Linker flags
-LFLAGS      = -shared
-LFLAGS_UNIX = $(LFLAGS) -pthread -ldl -lm
-LFLAGS_WIN  = $(LFLAGS) -lgdi32 -static-libgcc
+LFLAGS      = -shared -pthread
+LFLAGS_UNIX = $(LFLAGS) -ldl
+LFLAGS_WIN  = $(LFLAGS) -lgdi32 -static-libstdc++ -static-libgcc
 
 
 # Dependency flags
@@ -74,16 +76,15 @@ GLFW_CONF = \
 
 SHADERC_MINGW_TOOLCHAIN = \
  -DCMAKE_TOOLCHAIN_FILE=cmake/linux-mingw-toolchain.cmake \
+ -DMINGW_COMPILER_PREFIX=x86_64-w64-mingw32 \
  -Dgtest_disable_pthreads=ON
 
 SHADERC_CONF      = -Wno-dev -DCMAKE_BUILD_TYPE=Release
 SHADERC_CONF_UNIX = $(SHADERC_CONF) -G "Unix Makefiles"
 SHADERC_CONF_WIN  = $(SHADERC_CONF) -G "MinGW Makefiles"
 
-ifeq ($(CC),i686-w64-mingw32-gcc)
-	GLFW_FLAGS    = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/i686-w64-mingw32.cmake
-	SHADERC_FLAGS = $(SHADERC_CONF_UNIX) $(SHADERC_MINGW_TOOLCHAIN)
-else ifeq ($(CC),x86_64-w64-mingw32-gcc)
+# TODO: Add a target for i686-w64-mingw32-gcc?
+ifeq ($(CC),x86_64-w64-mingw32-gcc)
 	GLFW_FLAGS    = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/x86_64-w64-mingw32.cmake
 	SHADERC_FLAGS = $(SHADERC_CONF_UNIX) $(SHADERC_MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
@@ -136,6 +137,14 @@ else
 	@rm -Rf $(OUT)
 endif
 
+clean-bin:
+ifeq ($(OS),Windows_NT)
+	$(eval BIN_W = $(subst /,\,$(BIN)))
+	@if exist $(BIN_W)\nul rmdir /s /q $(BIN_W)
+else
+	@rm -Rf $(BIN)
+endif
+
 clean-deps:
 ifeq ($(OS),Windows_NT)
 	$(eval BUILD_W = $(subst /,\,$(BUILD)))
@@ -144,13 +153,7 @@ else
 	@rm -Rf $(BUILD)
 endif
 
-clean-all: clean clean-deps
-ifeq ($(OS),Windows_NT)
-	$(eval BIN_W = $(subst /,\,$(BIN)))
-	@if exist $(BIN_W)\nul rmdir /s /q $(BIN_W)
-else
-	@rm -Rf $(BIN)
-endif
+clean-all: clean clean-bin clean-deps
 
 
 ##############################
@@ -162,6 +165,7 @@ HEADERS = \
  include/groufix/core/keys.h \
  include/groufix/core/log.h \
  include/groufix/core/renderer.h \
+ include/groufix/core/shader.h \
  include/groufix/core/window.h \
  include/groufix/def.h \
  include/groufix.h \
@@ -177,6 +181,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/monitor.o \
  $(OUT)$(SUB)/groufix/core/pass.o \
  $(OUT)$(SUB)/groufix/core/renderer.o \
+ $(OUT)$(SUB)/groufix/core/shader.o \
  $(OUT)$(SUB)/groufix/core/state.o \
  $(OUT)$(SUB)/groufix/core/swap.o \
  $(OUT)$(SUB)/groufix/core/vulkan.o \
@@ -184,13 +189,9 @@ OBJS = \
  $(OUT)$(SUB)/groufix.o
 
 
-LIBS_WA = \
- $(BUILD)$(SUB)/glfw/src/libglfw3.a
-LIBS_NWA = \
+LIBS = \
+ $(BUILD)$(SUB)/glfw/src/libglfw3.a \
  $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a
-
-LIBS = $(LIBS_WA) $(LIBS_NWA)
-LIBS_FLAGS = -Wl,--whole-archive $(LIBS_WA) -Wl,--no-whole-archive $(LIBS_NWA)
 
 
 ##############################
@@ -208,7 +209,7 @@ $(OUT)/unix/%.o: src/%.c $(HEADERS) | $(OUT)/unix
 	$(CC) $(OFLAGS_UNIX) $< -o $@
 
 $(BIN)/unix/libgroufix.so: $(LIBS) $(OBJS) | $(BIN)/unix
-	$(CC) $(LIBS_FLAGS) $(OBJS) -o $@ $(LFLAGS_UNIX)
+	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS_UNIX)
 
 $(BIN)/unix/%: tests/%.c $(BIN)/unix/libgroufix.so
 	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)/unix -Wl,-rpath='$$ORIGIN' -lgroufix
@@ -224,7 +225,7 @@ $(OUT)/win/%.o: src/%.c $(HEADERS) | $(OUT)/win
 	$(CC) $(OFLAGS_WIN) $< -o $@
 
 $(BIN)/win/libgroufix.dll: $(LIBS) $(OBJS) | $(BIN)/win
-	$(CC) $(LIBS_FLAGS) $(OBJS) -o $@ $(LFLAGS_WIN)
+	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS_WIN)
 
 $(BIN)/win/%.exe: tests/%.c $(BIN)/win/libgroufix.dll
 	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)/win -Wl,-rpath='$$ORIGIN' -lgroufix

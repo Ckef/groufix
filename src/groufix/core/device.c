@@ -429,6 +429,7 @@ static int _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(CreateImageView);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateRenderPass);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateSemaphore);
+		_GFX_GET_DEVICE_PROC_ADDR(CreateShaderModule);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyCommandPool);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyFence);
@@ -436,6 +437,7 @@ static int _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyImageView);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyRenderPass);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroySemaphore);
+		_GFX_GET_DEVICE_PROC_ADDR(DestroyShaderModule);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
 		_GFX_GET_DEVICE_PROC_ADDR(EndCommandBuffer);
