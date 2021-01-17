@@ -43,6 +43,22 @@
 		} \
 	} while (0)
 
+// User device handle (can be NULL) to internal handle, assigned to an lvalue.
+#define _GFX_GET_DEVICE(lvalue, device) \
+	do { \
+		lvalue = (_GFXDevice*)(device == NULL ? \
+			gfx_get_primary_device() : device); \
+	} while (0)
+
+// Ensures a Vulkan context exists for a device and assignes it to an lvalue.
+#define _GFX_GET_CONTEXT(lvalue, device, action) \
+	do { \
+		lvalue = _gfx_device_init_context((_GFXDevice*)(device == NULL ? \
+			gfx_get_primary_device() : device)); \
+		if (lvalue == NULL) \
+			action; \
+	} while (0)
+
 
 /**
  * Thread local data.
@@ -171,6 +187,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CreateImageView);
 		_GFX_VK_PFN(CreateRenderPass);
 		_GFX_VK_PFN(CreateSemaphore);
+		_GFX_VK_PFN(CreateShaderModule);
 		_GFX_VK_PFN(CreateSwapchainKHR);
 		_GFX_VK_PFN(DestroyCommandPool);
 		_GFX_VK_PFN(DestroyDevice);
@@ -179,6 +196,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(DestroyImageView);
 		_GFX_VK_PFN(DestroyRenderPass);
 		_GFX_VK_PFN(DestroySemaphore);
+		_GFX_VK_PFN(DestroyShaderModule);
 		_GFX_VK_PFN(DestroySwapchainKHR);
 		_GFX_VK_PFN(DeviceWaitIdle);
 		_GFX_VK_PFN(EndCommandBuffer);

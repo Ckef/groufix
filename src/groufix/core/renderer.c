@@ -306,14 +306,8 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 	if (rend == NULL)
 		goto clean;
 
-	// Get the physical device and make sure it's initialized.
-	_GFXDevice* dev =
-		(_GFXDevice*)((device != NULL) ? device : gfx_get_primary_device());
-	rend->context =
-		_gfx_device_init_context(dev);
-
-	if (rend->context == NULL)
-		goto clean;
+	// Get context associated with the device.
+	_GFX_GET_CONTEXT(rend->context, device, goto clean);
 
 	// Initialize things.
 	gfx_vec_init(&rend->attachs, sizeof(_GFXAttach));

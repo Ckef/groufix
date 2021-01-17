@@ -14,6 +14,29 @@
 
 
 /**
+ * Internal shader.
+ */
+struct GFXShader
+{
+	_GFXContext* context;
+
+	// TODO: Other stuff?
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkShaderModule shader;
+
+	} vk;
+};
+
+
+/****************************
+ * Renderer & render graphs.
+ ****************************/
+
+/**
  * Internal attachment description.
  */
 typedef struct _GFXAttach

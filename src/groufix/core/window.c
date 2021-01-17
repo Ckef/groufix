@@ -429,25 +429,20 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 			_groufix.vk.instance, window->handle, NULL, &window->vk.surface),
 		goto clean_frame);
 
-	// Get the physical device and make sure it's initialized.
-	window->device =
-		(_GFXDevice*)((device != NULL) ? device : gfx_get_primary_device());
-	window->context =
-		_gfx_device_init_context(window->device);
-
-	if (window->context == NULL)
-		goto clean_surface;
+	// Get physical device and its associated (Vulkan) context.
+	// Unfortunately we cannot clean the context if it's newly created for us,
+	// that's why we do stuff dependent on it last.
+	_GFX_GET_DEVICE(window->device, device);
+	_GFX_GET_CONTEXT(window->context, device, goto clean_surface);
 
 	// Typing window->context is obviously too long.
 	_GFXContext* context = window->context;
 
-	// Ok so we have a physical device with a context (logical Vulkan device).
-	// Now go create a swapchain. Unfortunately we cannot clean the context
-	// if it was just created for us, but that's why we do this stuff last.
-	// But first we pick a presentation queue.
+	// Pick a presentation queue for the swapchain.
 	if (!_gfx_window_pick_present(window))
 		goto clean_present;
 
+	// Create the swapchain.
 	// Make sure to set it to a NULL handle here so a new one gets created.
 	window->vk.swapchain = VK_NULL_HANDLE;
 
