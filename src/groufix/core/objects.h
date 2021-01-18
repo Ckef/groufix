@@ -54,7 +54,7 @@ typedef struct _GFXWindowAttach
 {
 	size_t      index;
 	_GFXWindow* window;
-	uint32_t    image; // Swapchain image index.
+	uint32_t    image; // Swapchain image index (or UINT32_MAX).
 
 
 	// Vulkan fields.

@@ -442,12 +442,9 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	if (!_gfx_window_pick_present(window))
 		goto clean_present;
 
-	// Create the swapchain.
-	// Make sure to set it to a NULL handle here so a new one gets created.
+	// Make sure to set the swapchain to a NULL handle here so a new one will
+	// eventually get created when an image is acquired.
 	window->vk.swapchain = VK_NULL_HANDLE;
-
-	if (!_gfx_swapchain_recreate(window))
-		goto clean_present;
 
 	// Don't forget the synchronization primitives.
 	// We use these to signal when a new swapchain image is available
@@ -468,39 +465,37 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	_GFX_VK_CHECK(
 		context->vk.CreateSemaphore(
 			context->vk.device, &sci, NULL, &window->vk.available),
-		goto clean_swapchain);
+		goto clean_sync);
 
 	_GFX_VK_CHECK(
 		context->vk.CreateSemaphore(
 			context->vk.device, &sci, NULL, &window->vk.rendered),
-		goto clean_swapchain);
+		goto clean_sync);
 
 	// Secondly, a fence for host synchronization.
 	 VkFenceCreateInfo fci = {
 		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
 		.pNext = NULL,
-		.flags = VK_FENCE_CREATE_SIGNALED_BIT
+		.flags = 0
 	};
 
 	_GFX_VK_CHECK(
 		context->vk.CreateFence(
 			context->vk.device, &fci, NULL, &window->vk.fence),
-		goto clean_swapchain);
+		goto clean_sync);
 
 	// All successful!
 	return &window->base;
 
 
 	// Cleanup on failure.
-clean_swapchain:
+clean_sync:
 	context->vk.DestroyFence(
 		context->vk.device, window->vk.fence, NULL);
 	context->vk.DestroySemaphore(
 		context->vk.device, window->vk.rendered, NULL);
 	context->vk.DestroySemaphore(
 		context->vk.device, window->vk.available, NULL);
-	context->vk.DestroySwapchainKHR(
-		context->vk.device, window->vk.swapchain, NULL);
 
 clean_present:
 	gfx_vec_clear(&window->present.access);
@@ -540,8 +535,7 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	context->vk.QueueWaitIdle(
 		win->present.queue);
 
-	// Destroy the swapchain built on the logical Vulkan device...
-	// Creation was done through _gfx_swapchain_recreate(window).
+	// Destroy the swapchain built on the logical Vulkan device.
 	context->vk.DestroyFence(
 		context->vk.device, win->vk.fence, NULL);
 	context->vk.DestroySemaphore(

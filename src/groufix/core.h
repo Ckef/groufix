@@ -469,17 +469,6 @@ int _gfx_swapchain_try_lock(_GFXWindow* window);
 void _gfx_swapchain_unlock(_GFXWindow* window);
 
 /**
- * (Re)creates the swapchain of a window, left empty at framebuffer size of 0x0.
- * Also updates all of window->frame.{ images, format, width, height }.
- * @param window Cannot be NULL.
- * @return Non-zero on success.
- *
- * Can be called from any thread, but not reentrant.
- * Automatically called by _gfx_swapchain_acquire and _gfx_swapchain_present.
- */
-int _gfx_swapchain_recreate(_GFXWindow* window);
-
-/**
  * TODO: Wait until current vsync (instead of previous)?
  * Acquires the next available image from the swapchain of a window.
  * @param window   Cannot be NULL.
@@ -498,12 +487,12 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
  * @param window   Cannot be NULL.
  * @param index    Must be an index retrieved by _gfx_swapchain_acquire.
  * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
- * @return Non-zero on success.
  *
  * Can be called from any thread, but not reentrant.
  * window->vk.rendered must be signaled or pending.
+ * This will silently log failures.
  */
-int _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate);
+void _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate);
 
 
 #endif

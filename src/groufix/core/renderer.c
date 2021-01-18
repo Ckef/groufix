@@ -505,6 +505,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		_gfx_swapchain_unlock(attach->window);
 
 		attach->window = (_GFXWindow*)window;
+		attach->image = UINT32_MAX;
 	}
 	else
 	{
@@ -512,7 +513,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		_GFXWindowAttach at = {
 			.index  = index,
 			.window = (_GFXWindow*)window,
-			.image  = 0,
+			.image  = UINT32_MAX,
 			.vk     = { .pool = VK_NULL_HANDLE }
 		};
 
@@ -654,7 +655,8 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
 
 		// Acquire next image.
-		_gfx_swapchain_acquire(attach->window, &attach->image, &recreate);
+		if (!_gfx_swapchain_acquire(attach->window, &attach->image, &recreate))
+			attach->image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
 		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
@@ -691,6 +693,10 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 
 		_GFXWindowAttach* attach =
 			gfx_vec_at(&renderer->windows, pass->build.backing);
+
+		// TODO: Apparently acquisition went wrong..?
+		if (attach->image == UINT32_MAX)
+			continue;
 
 		// Submit the associated command buffer.
 		// Here we explicitly wait on the available semaphore of the window,
@@ -731,8 +737,13 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		int recreate;
 		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
 
+		// Nowhere to present to.
+		if (attach->image == UINT32_MAX)
+			continue;
+
 		// Present the image.
 		_gfx_swapchain_present(attach->window, attach->image, &recreate);
+		attach->image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
 		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
