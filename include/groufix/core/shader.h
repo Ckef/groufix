@@ -20,11 +20,16 @@ typedef struct GFXShader GFXShader;
 
 
 /**
+ * TODO: Want to be able to input spir-v.
+ * TODO: Let user set log level?
+ * TODO: Stream compiler errors/warnings to user.
+ * TODO: Define shader type.
  * Creates a shader.
  * @param device NULL is equivalent to gfx_get_primary_device().
+ * @param src    Source string, cannot be NULL, must be NULL-terminated.
  * @return NULL on failure.
  */
-GFX_API GFXShader* gfx_create_shader(GFXDevice* device);
+GFX_API GFXShader* gfx_create_shader(GFXDevice* device, const char* src);
 
 /**
  * Destroys a shader.

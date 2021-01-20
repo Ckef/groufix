@@ -99,7 +99,7 @@ GFX_API int gfx_log_set_out(int out);
  *
  * The file name will be appended with the calling thread's id
  * before the first '.' character (or at the end if no '.' found).
- * Non-existing directories will not be automatically created for this call.
+ * Non-existing directories will NOT get automatically created by this call.
  */
 GFX_API int gfx_log_set_file(const char* file);
 

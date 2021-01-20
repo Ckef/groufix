@@ -315,9 +315,6 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate)
 	*recreate = 0;
 	_GFXContext* context = window->context;
 
-	if (window->vk.swapchain == VK_NULL_HANDLE)
-		goto recreate_acquire;
-
 	// If swapchain present, wait for the fence so we know the
 	// available semaphore is unsignaled and has no pending signals.
 	// Essentially we wait until the previous image is available, this means:

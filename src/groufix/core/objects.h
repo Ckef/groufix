@@ -20,7 +20,8 @@ struct GFXShader
 {
 	_GFXContext* context;
 
-	// TODO: Other stuff?
+	// Opaque Shaderc result handle (don't need to know).
+	void* bin;
 
 
 	// Vulkan fields.

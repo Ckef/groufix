@@ -398,6 +398,7 @@ static int _gfx_create_context(_GFXDevice* device)
 		_GFX_VK_CHECK(_groufix.vk.CreateDevice(
 			device->vk.device, &dci, NULL, &context->vk.device), goto clean);
 
+#if !defined (NDEBUG)
 		// This is like a moment to celebrate, right?
 		// We count the number of actual queues here.
 		uint32_t queueCount = 0;
@@ -415,6 +416,7 @@ static int _gfx_create_context(_GFXDevice* device)
 			device->base.name,
 			(unsigned int)context->numDevices,
 			(unsigned int)queueCount);
+#endif
 
 		// Now load all device level Vulkan functions.
 		// Load vkDestroyDevice first so we can clean properly.

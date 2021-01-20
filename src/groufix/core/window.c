@@ -476,7 +476,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	 VkFenceCreateInfo fci = {
 		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
 		.pNext = NULL,
-		.flags = 0
+		.flags = VK_FENCE_CREATE_SIGNALED_BIT
 	};
 
 	_GFX_VK_CHECK(
