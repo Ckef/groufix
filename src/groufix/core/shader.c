@@ -13,8 +13,55 @@
 #include <string.h>
 
 
+#define _GFX_GET_SHADERC_KIND(stage) \
+	((stage == GFX_SHADER_VERTEX) ? \
+		shaderc_glsl_vertex_shader : \
+	(stage == GFX_SHADER_TESS_CONTROL) ? \
+		shaderc_glsl_tess_control_shader : \
+	(stage == GFX_SHADER_TESS_EVALUATION) ? \
+		shaderc_glsl_tess_evaluation_shader : \
+	(stage == GFX_SHADER_GEOMETRY) ? \
+		shaderc_glsl_geometry_shader : \
+	(stage == GFX_SHADER_FRAGMENT) ? \
+		shaderc_glsl_fragment_shader : \
+	(stage == GFX_SHADER_COMPUTE) ? \
+		shaderc_glsl_compute_shader : \
+		shaderc_glsl_infer_from_source)
+
+
+/****************************
+ * Retrieves a GFXShaderStage as a readable string.
+ */
+static const char* _gfx_shader_stage_string(GFXShaderStage stage)
+{
+	switch (stage)
+	{
+	case GFX_SHADER_VERTEX:
+		return "vertex";
+
+	case GFX_SHADER_TESS_CONTROL:
+		return "tessellation control";
+
+	case GFX_SHADER_TESS_EVALUATION:
+		return "tessellation evaluation";
+
+	case GFX_SHADER_GEOMETRY:
+		return "geometry";
+
+	case GFX_SHADER_FRAGMENT:
+		return "fragment";
+
+	case GFX_SHADER_COMPUTE:
+		return "compute";
+
+	default:
+		return "unknown";
+	}
+}
+
 /****************************/
-GFX_API GFXShader* gfx_create_shader(GFXDevice* device, const char* src)
+GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device,
+                                     const char* src)
 {
 	assert(src != NULL);
 
@@ -60,8 +107,8 @@ GFX_API GFXShader* gfx_create_shader(GFXDevice* device, const char* src)
 	shader->bin = shaderc_compile_into_spv(
 		compiler,
 		src, strlen(src),
-		shaderc_glsl_vertex_shader,
-		"main.vert", // TODO: Eh?
+		_GFX_GET_SHADERC_KIND(stage),
+		"main", // TODO: Eh?
 		"main",
 		options);
 
@@ -73,21 +120,21 @@ GFX_API GFXShader* gfx_create_shader(GFXDevice* device, const char* src)
 	// TODO: Stream to the user as well?
 	if (status != shaderc_compilation_status_success)
 	{
-		// TODO: Stringify shader type.
 		gfx_log_error(
-			"Could not compile <type> shader:\n%s",
+			"Could not compile %s shader:\n%s",
+			_gfx_shader_stage_string(stage),
 			shaderc_result_get_error_message(shader->bin));
 
 		goto clean_shaderc;
 	}
 
 	// Victory!
-	// TODO: Stringify shader type.
 	gfx_log_debug(
-		"Successfully compiled <type> shader:\n"
-		"    Source length: %u.\n"
+		"Successfully compiled %s shader:\n"
+		"    Output size: %u bytes.\n"
 		"    #errors: %u.\n"
 		"    #warnings: %u.\n",
+		_gfx_shader_stage_string(stage),
 		(unsigned int)shaderc_result_get_length(shader->bin),
 		(unsigned int)shaderc_result_get_num_errors(shader->bin),
 		(unsigned int)shaderc_result_get_num_warnings(shader->bin));

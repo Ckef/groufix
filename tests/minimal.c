@@ -86,7 +86,7 @@ int main()
 		"#define SOME_MACRO 42\n"
 		"void main() { int x = SOME_MACRO; }";
 
-	GFXShader* shader = gfx_create_shader(NULL, src);
+	GFXShader* shader = gfx_create_shader(GFX_SHADER_VERTEX, NULL, src);
 	if (shader == NULL)
 		goto fail_shader;
 

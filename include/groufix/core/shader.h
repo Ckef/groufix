@@ -14,6 +14,21 @@
 
 
 /**
+ * Shader stage.
+ */
+typedef enum GFXShaderStage
+{
+	GFX_SHADER_VERTEX,
+	GFX_SHADER_TESS_CONTROL,
+	GFX_SHADER_TESS_EVALUATION,
+	GFX_SHADER_GEOMETRY,
+	GFX_SHADER_FRAGMENT,
+	GFX_SHADER_COMPUTE
+
+} GFXShaderStage;
+
+
+/**
  * Shader definition.
  */
 typedef struct GFXShader GFXShader;
@@ -23,13 +38,13 @@ typedef struct GFXShader GFXShader;
  * TODO: Want to be able to input spir-v.
  * TODO: Let user set log level?
  * TODO: Stream compiler errors/warnings to user.
- * TODO: Define shader type.
  * Creates a shader.
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @param src    Source string, cannot be NULL, must be NULL-terminated.
  * @return NULL on failure.
  */
-GFX_API GFXShader* gfx_create_shader(GFXDevice* device, const char* src);
+GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device,
+                                     const char* src);
 
 /**
  * Destroys a shader.
