@@ -173,13 +173,16 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 	// Add all these options only if we compile for this specific platform.
 	// This will enable optimization for the target API and GPU limits.
+	// Target API omits patch version (Shaderc doesn't understand it).
 	if (optimize)
 	{
 		shaderc_compile_options_set_optimization_level(
 			options, shaderc_optimization_level_performance);
 
 		shaderc_compile_options_set_target_env(
-			options, shaderc_target_env_vulkan, shader->device->api);
+			options, shaderc_target_env_vulkan, VK_MAKE_VERSION(
+				VK_VERSION_MAJOR(shader->device->api),
+				VK_VERSION_MINOR(shader->device->api), 0));
 
 		// TODO: Stick physical device limits in the compiler.
 	}
@@ -230,12 +233,14 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 	// Attempt to build the shader module.
 	// Round the size to a multiple of 4 just in case it isn't.
-	size_t wordSize = (size / sizeof(uint32_t)) * sizeof(uint32_t);
+	size_t wordSize =
+		(size / sizeof(uint32_t)) * sizeof(uint32_t);
 
 	if (!_gfx_shader_build(shader, wordSize, (const uint32_t*)bytes))
 		goto clean_result;
 
-	// At this point we succeeded, but try to write to file if asked.
+	// At this point we succeeded,
+	// but try to write to file if asked.
 	if (file != NULL)
 	{
 		// Open file (in binary mode!) and immediately write.
