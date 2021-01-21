@@ -484,6 +484,7 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
 /**
  * TODO: Or wait for vsync here? This does actual submission after all.
  * Submits a present command for the swapchain of a window.
+ * _gfx_swapchain_acquire must have returned succesfully before this call.
  * @param window   Cannot be NULL.
  * @param index    Must be an index retrieved by _gfx_swapchain_acquire.
  * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.

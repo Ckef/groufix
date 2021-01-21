@@ -245,8 +245,12 @@ GFX_API int gfx_log_set_file(const char* file)
 		// Now finally attempt to open the file.
 		state->log.file = fopen(f, "w");
 
+		// Log error in case we output to stderr.
 		if (state->log.file == NULL)
+		{
+			gfx_log_error("Could not open log file: %s", f);
 			return 0;
+		}
 	}
 
 	return 1;

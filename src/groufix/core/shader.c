@@ -9,6 +9,7 @@
 #include "groufix/core/objects.h"
 #include <shaderc/shaderc.h>
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -59,12 +60,44 @@ static const char* _gfx_shader_stage_string(GFXShaderStage stage)
 	}
 }
 
-/****************************/
-GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device,
-                                     const char* src)
+/****************************
+ * Creates a new shader module to actually use.
+ * shader->vk.module must be NULL, no prior shader module must be created.
+ * @param size   Must be a multiple of sizeof(uint32_t).
+ * @param shader Cannot be NULL.
+ * @return Zero on failure.
+ */
+static int _gfx_shader_build(GFXShader* shader,
+                             size_t size, const uint32_t* code)
 {
-	assert(src != NULL);
+	assert(shader != NULL);
+	assert(shader->vk.module == VK_NULL_HANDLE);
+	assert(sizeof(uint32_t) == 4); // Has to be according to Vulkan.
+	assert(size % sizeof(uint32_t) == 0);
 
+	_GFXContext* context = shader->context;
+
+	// Create the Vulkan shader module.
+	VkShaderModuleCreateInfo smci = {
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+
+		.pNext    = NULL,
+		.flags    = 0,
+		.codeSize = size,
+		.pCode    = code
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.CreateShaderModule(
+			context->vk.device, &smci, NULL, &shader->vk.module),
+		return 0);
+
+	return 1;
+}
+
+/****************************/
+GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
+{
 	// Allocate a new shader.
 	GFXShader* shader = malloc(sizeof(GFXRenderer));
 	if (shader == NULL)
@@ -72,93 +105,16 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device,
 
 	// Get context associated with the device.
 	// We need the device to set the compiler's target environment.
-	_GFXDevice* dev;
-
-	_GFX_GET_DEVICE(dev, device);
+	_GFX_GET_DEVICE(shader->device, device);
 	_GFX_GET_CONTEXT(shader->context, device, goto clean);
 
-	// Initialize things so we don't accidentally free garbage.
-	shader->bin = NULL;
-	shader->vk.shader = VK_NULL_HANDLE;
-
-	// Create compiler and compile options.
-	// We create new resources for every shader,
-	// this presumably makes it pretty much thread-safe.
-	shaderc_compiler_t compiler =
-		shaderc_compiler_initialize();
-	shaderc_compile_options_t options =
-		shaderc_compile_options_initialize();
-
-	if (compiler == NULL || options == NULL)
-		goto clean_shaderc;
-
-#if !defined (NDEBUG)
-	// If in debug mode, generate debug info :)
-	shaderc_compile_options_set_generate_debug_info(
-		options);
-#endif
-
-	shaderc_compile_options_set_optimization_level(
-		options, shaderc_optimization_level_performance);
-
-	shaderc_compile_options_set_target_env(
-		options, shaderc_target_env_vulkan, dev->api);
-
-	// TODO: Stick physical device limits in the compiler.
-
-	// Compile the shader.
-	shader->bin = shaderc_compile_into_spv(
-		compiler,
-		src, strlen(src),
-		_GFX_GET_SHADERC_KIND(stage),
-		"main", // TODO: Eh?
-		"main",
-		options);
-
-	shaderc_compilation_status status =
-		shaderc_result_get_compilation_status(shader->bin);
-
-	// Something went wrong.
-	// We explicitly log shader errors/warnings.
-	// TODO: Stream to the user as well?
-	if (status != shaderc_compilation_status_success)
-	{
-		gfx_log_error(
-			"Could not compile %s shader:\n%s",
-			_gfx_shader_stage_string(stage),
-			shaderc_result_get_error_message(shader->bin));
-
-		goto clean_shaderc;
-	}
-
-#if !defined (NDEBUG)
-	// Victory!
-	size_t warnings =
-		shaderc_result_get_num_warnings(shader->bin);
-
-	gfx_log_debug(
-		"Successfully compiled %s shader:\n"
-		"    Output size: %u bytes.\n"
-		"    #warnings: %u.\n%s%s",
-		_gfx_shader_stage_string(stage),
-		(unsigned int)shaderc_result_get_length(shader->bin),
-		(unsigned int)warnings,
-		warnings > 0 ? "\n" : "",
-		warnings > 0 ? shaderc_result_get_error_message(shader->bin) : "");
-#endif
-
-	// Get rid of the compiler and return.
-	shaderc_compiler_release(compiler);
-	shaderc_compile_options_release(options);
+	shader->stage = stage;
+	shader->vk.module = VK_NULL_HANDLE;
 
 	return shader;
 
 
 	// Clean on failure.
-clean_shaderc:
-	shaderc_result_release(shader->bin);
-	shaderc_compiler_release(compiler);
-	shaderc_compile_options_release(options);
 clean:
 	gfx_log_error("Could not create a new shader.");
 	free(shader);
@@ -174,13 +130,198 @@ GFX_API void gfx_destroy_shader(GFXShader* shader)
 
 	_GFXContext* context = shader->context;
 
-	// Release Shaderc handle.
-	// TODO: Prolly want to release this waaay earlier.
-	shaderc_result_release(shader->bin);
-
 	// Destroy the shader module.
 	context->vk.DestroyShaderModule(
-		context->vk.device, shader->vk.shader, NULL);
+		context->vk.device, shader->vk.module, NULL);
 
 	free(shader);
+}
+
+/****************************/
+GFX_API int gfx_shader_compile(GFXShader* shader, const char* source,
+                               int optimize, const char* file)
+{
+	assert(shader != NULL);
+	assert(source != NULL);
+
+	// Already has a shader module.
+	if (shader->vk.module != VK_NULL_HANDLE)
+		return 1;
+
+	// Create compiler and compile options.
+	// We create new resources for every shader,
+	// this presumably makes it pretty much thread-safe.
+	shaderc_compiler_t compiler =
+		shaderc_compiler_initialize();
+	shaderc_compile_options_t options =
+		shaderc_compile_options_initialize();
+
+	if (compiler == NULL || options == NULL)
+	{
+		gfx_log_error(
+			"Could not create resources to compile %s shader.",
+			_gfx_shader_stage_string(shader->stage));
+
+		goto clean;
+	}
+
+	// Add all these options only if we compile for this specific platform.
+	// This will enable optimization for the target API and GPU limits.
+	if (optimize)
+	{
+		shaderc_compile_options_set_optimization_level(
+			options, shaderc_optimization_level_performance);
+
+		shaderc_compile_options_set_target_env(
+			options, shaderc_target_env_vulkan, shader->device->api);
+
+		// TODO: Stick physical device limits in the compiler.
+	}
+
+#if !defined (NDEBUG)
+	// If in debug mode, generate debug info :)
+	shaderc_compile_options_set_generate_debug_info(
+		options);
+#endif
+
+	// Compile the shader.
+	shaderc_compilation_result_t result = shaderc_compile_into_spv(
+		compiler, source, strlen(source),
+		_GFX_GET_SHADERC_KIND(shader->stage),
+		"main", // TODO: Eh?
+		"main",
+		options);
+
+	shaderc_compilation_status status =
+		shaderc_result_get_compilation_status(result);
+
+	// Something went wrong.
+	// We explicitly log shader errors/warnings.
+	if (status != shaderc_compilation_status_success)
+	{
+		gfx_log_error(
+			"Could not compile %s shader:\n%s",
+			_gfx_shader_stage_string(shader->stage),
+			shaderc_result_get_error_message(result));
+
+		goto clean_result;
+	}
+
+	/// Get bytecode.
+	size_t size = shaderc_result_get_length(result);
+	const char* bytes = shaderc_result_get_bytes(result);
+
+#if !defined (NDEBUG)
+	// Victory!
+	size_t warnings =
+		shaderc_result_get_num_warnings(result);
+
+	gfx_log_debug(
+		"Successfully compiled %s shader:\n"
+		"    Output size: %u words (%u bytes).\n"
+		"    #warnings: %u.\n%s%s",
+		_gfx_shader_stage_string(shader->stage),
+		(unsigned int)(size / sizeof(uint32_t)),
+		(unsigned int)size,
+		(unsigned int)warnings,
+		warnings > 0 ? "\n" : "",
+		warnings > 0 ? shaderc_result_get_error_message(result) : "");
+#endif
+
+	// Attempt to build the shader module.
+	// Round the size to a multiple of 4 just in case it isn't.
+	size_t wordSize = (size / sizeof(uint32_t)) * sizeof(uint32_t);
+
+	if (!_gfx_shader_build(shader, wordSize, (const uint32_t*)bytes))
+		goto clean_result;
+
+	// At this point we succeeded, but try to write to file if asked.
+	if (file != NULL)
+	{
+		// Open file (in binary mode!) and immediately write.
+		// We treat any failure as a warning, as we do have a functional shader.
+		FILE* f = fopen(file, "wb");
+
+		if (f == NULL)
+			gfx_log_warn("Could not open SPIR-V file: %s", file);
+
+		else if (fwrite(bytes, 1, size, f) < size)
+			gfx_log_warn("Could not write to SPIR-V file: %s", file);
+	}
+
+	// Get rid of the resources and return.
+	shaderc_result_release(result);
+	shaderc_compiler_release(compiler);
+	shaderc_compile_options_release(options);
+
+	return 1;
+
+
+	// Clean on failure.
+clean_result:
+	shaderc_result_release(result);
+clean:
+	shaderc_compiler_release(compiler);
+	shaderc_compile_options_release(options);
+
+	return 0;
+}
+
+/****************************/
+GFX_API int gfx_shader_load(GFXShader* shader, const char* file)
+{
+	assert(shader != NULL);
+	assert(file != NULL);
+
+	// Already has a shader module.
+	if (shader->vk.module != VK_NULL_HANDLE)
+		return 1;
+
+	// Open the file (in binary mode!) and get its byte-size.
+	FILE* f = fopen(file, "rb");
+	if (f == NULL) goto error;
+
+	fseek(f, 0, SEEK_END);
+
+	long int size = ftell(f);
+	if (size == -1L) goto close;
+
+	fseek(f, 0, SEEK_SET);
+
+	// Read the contents and close the file.
+	// We actually use malloc as this might be large.
+	uint32_t* bytes = malloc((size_t)size);
+	if (bytes == NULL) goto close;
+
+	if (fread(bytes, 1, (size_t)size, f) < (size_t)size)
+	{
+		free(bytes);
+		goto close;
+	}
+
+	fclose(f);
+
+	// Attempt to build the shader module.
+	// Round the size to a multiple of 4 just in case it isn't.
+	size_t wordSize = ((size_t)size / sizeof(uint32_t)) * sizeof(uint32_t);
+
+	if (!_gfx_shader_build(shader, wordSize, bytes))
+	{
+		free(bytes);
+		goto error;
+	}
+
+	// Yep that's it, get rid of temp buffer.
+	free(bytes);
+
+	return 1;
+
+
+	// Error on failure.
+close:
+	fclose(f);
+error:
+	gfx_log_error("Could not open SPIR-V file: %s", file);
+
+	return 0;
 }

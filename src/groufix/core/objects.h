@@ -18,16 +18,16 @@
  */
 struct GFXShader
 {
+	_GFXDevice*  device; // Associated GPU to use as target environment.
 	_GFXContext* context;
 
-	// Opaque Shaderc result handle (don't need to know).
-	void* bin;
+	GFXShaderStage stage;
 
 
 	// Vulkan fields.
 	struct
 	{
-		VkShaderModule shader;
+		VkShaderModule module;
 
 	} vk;
 };

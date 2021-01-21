@@ -35,21 +35,41 @@ typedef struct GFXShader GFXShader;
 
 
 /**
- * TODO: Want to be able to input spir-v.
- * TODO: Let user set log level?
- * TODO: Stream compiler errors/warnings to user.
  * Creates a shader.
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @param src    Source string, cannot be NULL, must be NULL-terminated.
  * @return NULL on failure.
  */
-GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device,
-                                     const char* src);
+GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device);
 
 /**
  * Destroys a shader.
  */
 GFX_API void gfx_destroy_shader(GFXShader* shader);
+
+/**
+ * TODO: Stream compiler errors/warnings to user.
+ * Compiles a shader from GLSL source into SPIR-V bytecode for use.
+ * @param shader   Cannot be NULL.
+ * @param source   Must be NULL-terminated, cannot be NULL.
+ * @param optimize Non-zero to enable platform-specific bytecode optimization.
+ * @param file     Must be NULL or NULL-terminated.
+ * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
+ *
+ * Optionally writes SPIR-V bytecode to file, if this action fails, it will log
+ * a warning, but the compiled shader will still be used by the shader.
+ * Non-existing directories will NOT get automatically created by this call.
+ */
+GFX_API int gfx_shader_compile(GFXShader* shader, const char* source,
+                               int optimize, const char* file);
+
+/**
+ * Loads SPIR-V bytecode from a file for use.
+ * @param shader Cannot be NULL.
+ * @param file   Must be NULL-terminated, cannot be NULL.
+ * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
+ */
+GFX_API int gfx_shader_load(GFXShader* shader, const char* file);
 
 
 #endif

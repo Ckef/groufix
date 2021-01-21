@@ -397,19 +397,9 @@ void _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 {
 	assert(window != NULL);
 	assert(recreate != NULL);
+	assert(window->vk.swapchain != VK_NULL_HANDLE);
 
 	_GFXContext* context = window->context;
-
-	// Warn, this could happen with framebuffer size 0x0.
-	if (window->vk.swapchain == VK_NULL_HANDLE)
-	{
-		gfx_log_warn(
-			"Trying to present to non-existing swapchain on "
-			"physical device: %s",
-			window->device->base.name);
-
-		return;
-	}
 
 	// Now queue a presentation request.
 	// This would swap the acquired image to the screen :)
@@ -470,7 +460,5 @@ void _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate)
 		gfx_log_fatal(
 			"Could not present an image to a swapchain on physical device: %s.",
 			window->device->base.name);
-
-		return;
 	}
 }
