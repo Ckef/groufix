@@ -14,6 +14,17 @@
 
 
 /**
+ * Shader language.
+ */
+typedef enum GFXShaderLanguage
+{
+	GFX_GLSL,
+	GFX_HLSL
+
+} GFXShaderLanguage;
+
+
+/**
  * Shader stage.
  */
 typedef enum GFXShaderStage
@@ -60,8 +71,9 @@ GFX_API void gfx_destroy_shader(GFXShader* shader);
  * a warning, but the compiled shader will still be used by the shader.
  * Non-existing directories will NOT get automatically created by this call.
  */
-GFX_API int gfx_shader_compile(GFXShader* shader, const char* source,
-                               int optimize, const char* file);
+GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
+                               const char* source, int optimize,
+                               const char* file);
 
 /**
  * Loads SPIR-V bytecode from a file for use.

@@ -90,7 +90,7 @@ int main()
 	if (shader == NULL)
 		goto fail_shader;
 
-	if (!gfx_shader_compile(shader, src, 1, NULL))
+	if (!gfx_shader_compile(shader, GFX_GLSL, src, 1, NULL))
 		goto fail_shader;
 
 

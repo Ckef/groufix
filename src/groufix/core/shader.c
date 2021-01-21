@@ -14,51 +14,46 @@
 #include <string.h>
 
 
+#define _GFX_GET_LANGUAGE_STRING(language) \
+	((language == GFX_GLSL) ? "glsl" : \
+	(language == GFX_HLSL) ? "hlsl" : "*")
+
+#define _GFX_GET_STAGE_STRING(stage) \
+	((stage == GFX_SHADER_VERTEX) ? \
+		"vertex" : \
+	(stage == GFX_SHADER_TESS_CONTROL) ? \
+		"tessellation control" : \
+	(stage == GFX_SHADER_TESS_EVALUATION) ? \
+		"tessellation evaulation" : \
+	(stage == GFX_SHADER_GEOMETRY) ? \
+		"geometry" : \
+	(stage == GFX_SHADER_FRAGMENT) ? \
+		"fragment" : \
+	(stage == GFX_SHADER_COMPUTE) ? \
+		"compute" : "unknown")
+
+#define _GFX_GET_SHADERC_LANGUAGE(language) \
+	((language == GFX_GLSL) ? \
+		shaderc_source_language_glsl : \
+	(language == GFX_HLSL) ? \
+		shaderc_source_language_hlsl : \
+		shaderc_source_language_glsl)
+
 #define _GFX_GET_SHADERC_KIND(stage) \
 	((stage == GFX_SHADER_VERTEX) ? \
-		shaderc_glsl_vertex_shader : \
+		shaderc_vertex_shader : \
 	(stage == GFX_SHADER_TESS_CONTROL) ? \
-		shaderc_glsl_tess_control_shader : \
+		shaderc_tess_control_shader : \
 	(stage == GFX_SHADER_TESS_EVALUATION) ? \
-		shaderc_glsl_tess_evaluation_shader : \
+		shaderc_tess_evaluation_shader : \
 	(stage == GFX_SHADER_GEOMETRY) ? \
-		shaderc_glsl_geometry_shader : \
+		shaderc_geometry_shader : \
 	(stage == GFX_SHADER_FRAGMENT) ? \
-		shaderc_glsl_fragment_shader : \
+		shaderc_fragment_shader : \
 	(stage == GFX_SHADER_COMPUTE) ? \
-		shaderc_glsl_compute_shader : \
+		shaderc_compute_shader : \
 		shaderc_glsl_infer_from_source)
 
-
-/****************************
- * Retrieves a GFXShaderStage as a readable string.
- */
-static const char* _gfx_shader_stage_string(GFXShaderStage stage)
-{
-	switch (stage)
-	{
-	case GFX_SHADER_VERTEX:
-		return "vertex";
-
-	case GFX_SHADER_TESS_CONTROL:
-		return "tessellation control";
-
-	case GFX_SHADER_TESS_EVALUATION:
-		return "tessellation evaluation";
-
-	case GFX_SHADER_GEOMETRY:
-		return "geometry";
-
-	case GFX_SHADER_FRAGMENT:
-		return "fragment";
-
-	case GFX_SHADER_COMPUTE:
-		return "compute";
-
-	default:
-		return "unknown";
-	}
-}
 
 /****************************
  * Creates a new shader module to actually use.
@@ -138,8 +133,9 @@ GFX_API void gfx_destroy_shader(GFXShader* shader)
 }
 
 /****************************/
-GFX_API int gfx_shader_compile(GFXShader* shader, const char* source,
-                               int optimize, const char* file)
+GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
+                               const char* source, int optimize,
+                               const char* file)
 {
 	assert(shader != NULL);
 	assert(source != NULL);
@@ -160,10 +156,20 @@ GFX_API int gfx_shader_compile(GFXShader* shader, const char* source,
 	{
 		gfx_log_error(
 			"Could not create resources to compile %s shader.",
-			_gfx_shader_stage_string(shader->stage));
+			_GFX_GET_STAGE_STRING(shader->stage));
 
 		goto clean;
 	}
+
+	// Set source language.
+	shaderc_compile_options_set_source_language(
+		options, _GFX_GET_SHADERC_LANGUAGE(language));
+
+#if !defined (NDEBUG)
+	// If in debug mode, generate debug info :)
+	shaderc_compile_options_set_generate_debug_info(
+		options);
+#endif
 
 	// Add all these options only if we compile for this specific platform.
 	// This will enable optimization for the target API and GPU limits.
@@ -178,17 +184,11 @@ GFX_API int gfx_shader_compile(GFXShader* shader, const char* source,
 		// TODO: Stick physical device limits in the compiler.
 	}
 
-#if !defined (NDEBUG)
-	// If in debug mode, generate debug info :)
-	shaderc_compile_options_set_generate_debug_info(
-		options);
-#endif
-
 	// Compile the shader.
 	shaderc_compilation_result_t result = shaderc_compile_into_spv(
 		compiler, source, strlen(source),
 		_GFX_GET_SHADERC_KIND(shader->stage),
-		"main", // TODO: Eh?
+		_GFX_GET_LANGUAGE_STRING(language),
 		"main",
 		options);
 
@@ -201,7 +201,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, const char* source,
 	{
 		gfx_log_error(
 			"Could not compile %s shader:\n%s",
-			_gfx_shader_stage_string(shader->stage),
+			_GFX_GET_STAGE_STRING(shader->stage),
 			shaderc_result_get_error_message(result));
 
 		goto clean_result;
@@ -220,7 +220,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, const char* source,
 		"Successfully compiled %s shader:\n"
 		"    Output size: %u words (%u bytes).\n"
 		"    #warnings: %u.\n%s%s",
-		_gfx_shader_stage_string(shader->stage),
+		_GFX_GET_STAGE_STRING(shader->stage),
 		(unsigned int)(size / sizeof(uint32_t)),
 		(unsigned int)size,
 		(unsigned int)warnings,
