@@ -81,8 +81,9 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device,
 	shader->bin = NULL;
 	shader->vk.shader = VK_NULL_HANDLE;
 
-	// TODO: Concern myself about thread-safety of shaderc?
 	// Create compiler and compile options.
+	// We create new resources for every shader,
+	// this presumably makes it pretty much thread-safe.
 	shaderc_compiler_t compiler =
 		shaderc_compiler_initialize();
 	shaderc_compile_options_t options =
@@ -102,6 +103,8 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device,
 
 	shaderc_compile_options_set_target_env(
 		options, shaderc_target_env_vulkan, dev->api);
+
+	// TODO: Stick physical device limits in the compiler.
 
 	// Compile the shader.
 	shader->bin = shaderc_compile_into_spv(
@@ -128,16 +131,21 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device,
 		goto clean_shaderc;
 	}
 
+#if !defined (NDEBUG)
 	// Victory!
+	size_t warnings =
+		shaderc_result_get_num_warnings(shader->bin);
+
 	gfx_log_debug(
 		"Successfully compiled %s shader:\n"
 		"    Output size: %u bytes.\n"
-		"    #errors: %u.\n"
-		"    #warnings: %u.\n",
+		"    #warnings: %u.\n%s%s",
 		_gfx_shader_stage_string(stage),
 		(unsigned int)shaderc_result_get_length(shader->bin),
-		(unsigned int)shaderc_result_get_num_errors(shader->bin),
-		(unsigned int)shaderc_result_get_num_warnings(shader->bin));
+		(unsigned int)warnings,
+		warnings > 0 ? "\n" : "",
+		warnings > 0 ? shaderc_result_get_error_message(shader->bin) : "");
+#endif
 
 	// Get rid of the compiler and return.
 	shaderc_compiler_release(compiler);
