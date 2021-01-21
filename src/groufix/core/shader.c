@@ -263,6 +263,7 @@ clean_result:
 clean:
 	shaderc_compiler_release(compiler);
 	shaderc_compile_options_release(options);
+	shader->vk.module = VK_NULL_HANDLE;
 
 	return 0;
 }
@@ -279,24 +280,24 @@ GFX_API int gfx_shader_load(GFXShader* shader, const char* file)
 
 	// Open the file (in binary mode!) and get its byte-size.
 	FILE* f = fopen(file, "rb");
-	if (f == NULL) goto error;
+	if (f == NULL) goto clean;
 
 	fseek(f, 0, SEEK_END);
 
 	long int size = ftell(f);
-	if (size == -1L) goto close;
+	if (size == -1L) goto clean_close;
 
 	fseek(f, 0, SEEK_SET);
 
 	// Read the contents and close the file.
 	// We actually use malloc as this might be large.
 	uint32_t* bytes = malloc((size_t)size);
-	if (bytes == NULL) goto close;
+	if (bytes == NULL) goto clean_close;
 
 	if (fread(bytes, 1, (size_t)size, f) < (size_t)size)
 	{
 		free(bytes);
-		goto close;
+		goto clean_close;
 	}
 
 	fclose(f);
@@ -308,7 +309,7 @@ GFX_API int gfx_shader_load(GFXShader* shader, const char* file)
 	if (!_gfx_shader_build(shader, wordSize, bytes))
 	{
 		free(bytes);
-		goto error;
+		goto clean;
 	}
 
 	// Yep that's it, get rid of temp buffer.
@@ -317,11 +318,12 @@ GFX_API int gfx_shader_load(GFXShader* shader, const char* file)
 	return 1;
 
 
-	// Error on failure.
-close:
+	// Clean on failure.
+clean_close:
 	fclose(f);
-error:
+clean:
 	gfx_log_error("Could not open SPIR-V file: %s", file);
+	shader->vk.module = VK_NULL_HANDLE;
 
 	return 0;
 }
