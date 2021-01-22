@@ -188,31 +188,32 @@ static int _gfx_swapchain_recreate(_GFXWindow* window)
 		VkSwapchainCreateInfoKHR sci = {
 			.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 
-			.pNext                 = NULL,
-			.flags                 = 0,
-			.surface               = window->vk.surface,
-			.minImageCount         = imageCount,
-			.imageFormat           = format.format,
-			.imageColorSpace       = format.colorSpace,
-			.imageExtent           = extent,
-			.imageArrayLayers      = 1,
-			.imageUsage            =
-				VK_IMAGE_USAGE_TRANSFER_DST_BIT | // TODO: Remove.
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-			.imageSharingMode      =
+			.pNext            = NULL,
+			.flags            = 0,
+			.surface          = window->vk.surface,
+			.minImageCount    = imageCount,
+			.imageFormat      = format.format,
+			.imageColorSpace  = format.colorSpace,
+			.imageExtent      = extent,
+			.imageArrayLayers = 1,
+			.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.preTransform     = sc.currentTransform,
+			.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+			.presentMode      = mode,
+			.clipped          = VK_TRUE,
+			.oldSwapchain     = oldSwapchain,
+
+			.imageSharingMode =
 				(window->present.access.size > 1) ?
 				VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
+
 			.queueFamilyIndexCount =
 				(window->present.access.size > 1) ?
 				(uint32_t)window->present.access.size : 0,
-			.pQueueFamilyIndices   =
+
+			.pQueueFamilyIndices =
 				(window->present.access.size > 1) ?
-				window->present.access.data : NULL,
-			.preTransform          = sc.currentTransform,
-			.compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-			.presentMode           = mode,
-			.clipped               = VK_TRUE,
-			.oldSwapchain          = oldSwapchain
+				window->present.access.data : NULL
 		};
 
 		int res = 1;
