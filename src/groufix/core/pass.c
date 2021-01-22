@@ -198,20 +198,28 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	// TODO: Super temporary!!
 	const char vert[] =
 		"#version 450\n"
+		"layout(location = 0) out vec3 fragColor;\n"
 		"vec2 positions[3] = vec2[](\n"
 		"  vec2(0.0, -0.5),\n"
 		"  vec2(0.5, 0.5),\n"
 		"  vec2(-0.5, 0.5)\n"
 		");\n"
+		"vec3 colors[3] = vec3[](\n"
+		"  vec3(1.0, 0.0, 0.0),\n"
+		"  vec3(0.0, 1.0, 0.0),\n"
+		"  vec3(0.0, 0.0, 1.0)\n"
+		");\n"
 		"void main() {\n"
 		"  gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);\n"
+		"  fragColor = colors[gl_VertexIndex];\n"
 		"}\n";
 
 	const char frag[] =
 		"#version 450\n"
+		"layout(location = 0) in vec3 fragColor;\n"
 		"layout(location = 0) out vec4 outColor;\n"
 		"void main() {\n"
-		"  outColor = vec4(1.0, 0.0, 0.0, 1.0);\n"
+		"  outColor = vec4(fragColor, 1.0);\n"
 		"}\n";
 
 	pass->vertex = gfx_create_shader(GFX_SHADER_VERTEX, NULL);
@@ -318,7 +326,7 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 		.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
 		.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-		.initialLayout  = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
 		.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 	};
 
@@ -468,7 +476,7 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 		.rasterizerDiscardEnable = VK_FALSE,
 		.polygonMode             = VK_POLYGON_MODE_FILL,
 		.cullMode                = VK_CULL_MODE_BACK_BIT,
-		.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		.frontFace               = VK_FRONT_FACE_CLOCKWISE,
 		.depthBiasEnable         = VK_FALSE,
 		.depthBiasConstantFactor = 0.0f,
 		.depthBiasClamp          = 0.0f,
@@ -565,19 +573,8 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 		goto clean);
 
 	// Now go record all of the command buffers.
-	// We simply clear the entire associated image to a single color.
-	// Obviously for testing purposes :)
-	// TODO: Move recording to a separate function (so we can re-record each frame).
-	VkClearColorValue clear = {
-		{ 1.0f, 0.8f, 0.4f, 0.0f }
-	};
-
-	VkImageSubresourceRange range = {
-		.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-		.baseMipLevel   = 0,
-		.levelCount     = 1,
-		.baseArrayLayer = 0,
-		.layerCount     = 1
+	VkClearValue clear = {
+		.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
 	};
 
 	VkCommandBufferBeginInfo cbbi = {
@@ -590,64 +587,38 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 
 	for (size_t i = 0; i < pass->vk.commands.size; ++i)
 	{
-		VkImage image =
-			*(VkImage*)gfx_vec_at(&attach->window->frame.images, i);
+		VkFramebuffer frame =
+			*(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, i);
 		VkCommandBuffer buffer =
 			*(VkCommandBuffer*)gfx_vec_at(&pass->vk.commands, i);
-
-		// Define memory barriers.
-		// No need for an ownership transfer as the image is shared.
-		VkImageMemoryBarrier imb_clear = {
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-
-			.pNext               = NULL,
-			.srcAccessMask       = VK_ACCESS_MEMORY_READ_BIT,
-			.dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
-			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-			.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image               = image,
-			.subresourceRange    = range
-		};
-
-		VkImageMemoryBarrier imb_present = {
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-
-			.pNext               = NULL,
-			.srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
-			.dstAccessMask       = VK_ACCESS_MEMORY_READ_BIT,
-			.oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			.newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image               = image,
-			.subresourceRange    = range
-		};
 
 		// Start of all commands.
 		_GFX_VK_CHECK(context->vk.BeginCommandBuffer(buffer, &cbbi),
 			goto clean);
 
-		// Switch to transfer layout, clear, switch back to present layout.
-		context->vk.CmdPipelineBarrier(
-			buffer,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			0, 0, NULL, 0, NULL, 1, &imb_clear);
+		// Begin render pass, bind pipeline, draw, and end pass.
+		VkRenderPassBeginInfo rpbi = {
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 
-		context->vk.CmdClearColorImage(
-			buffer,
-			image,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			&clear,
-			1, &range);
+			.pNext           = NULL,
+			.renderPass      = pass->vk.pass,
+			.framebuffer     = frame,
+			.renderArea      = scissor,
+			.clearValueCount = 1,
+			.pClearValues    = &clear
+		};
 
-		context->vk.CmdPipelineBarrier(
-			buffer,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-			0, 0, NULL, 0, NULL, 1, &imb_present);
+		context->vk.CmdBeginRenderPass(
+			buffer, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+
+		context->vk.CmdBindPipeline(
+			buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->vk.pipeline);
+
+		context->vk.CmdDraw(
+			buffer, 3, 1, 0, 0);
+
+		context->vk.CmdEndRenderPass(
+			buffer);
 
 		// End of all commands.
 		_GFX_VK_CHECK(context->vk.EndCommandBuffer(buffer),

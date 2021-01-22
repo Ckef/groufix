@@ -424,8 +424,10 @@ static int _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(AllocateCommandBuffers);
 		_GFX_GET_DEVICE_PROC_ADDR(BeginCommandBuffer);
-		_GFX_GET_DEVICE_PROC_ADDR(CmdClearColorImage);
-		_GFX_GET_DEVICE_PROC_ADDR(CmdPipelineBarrier);
+		_GFX_GET_DEVICE_PROC_ADDR(CmdBeginRenderPass);
+		_GFX_GET_DEVICE_PROC_ADDR(CmdBindPipeline);
+		_GFX_GET_DEVICE_PROC_ADDR(CmdDraw);
+		_GFX_GET_DEVICE_PROC_ADDR(CmdEndRenderPass);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateFence);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateFramebuffer);
