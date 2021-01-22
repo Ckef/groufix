@@ -33,11 +33,18 @@ static void _gfx_render_pass_destruct_partial(GFXRenderPass* pass)
 			context->vk.device, *frame, NULL);
 	}
 
-	// Destroy the render pass.
+	// Destroy the other Vulkan objects.
 	context->vk.DestroyRenderPass(
 		context->vk.device, pass->vk.pass, NULL);
+	context->vk.DestroyPipelineLayout(
+		context->vk.device, pass->vk.layout, NULL);
+	context->vk.DestroyPipeline(
+		context->vk.device, pass->vk.pipeline, NULL);
 
 	pass->vk.pass = VK_NULL_HANDLE;
+	pass->vk.layout = VK_NULL_HANDLE;
+	pass->vk.pipeline = VK_NULL_HANDLE;
+
 	gfx_vec_release(&pass->vk.framebuffers);
 }
 
@@ -187,6 +194,36 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	if (pass == NULL)
 		return NULL;
 
+
+	// TODO: Super temporary!!
+	const char vert[] =
+		"#version 450\n"
+		"vec2 positions[3] = vec2[](\n"
+		"  vec2(0.0, -0.5),\n"
+		"  vec2(0.5, 0.5),\n"
+		"  vec2(-0.5, 0.5)\n"
+		");\n"
+		"void main() {\n"
+		"  gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);\n"
+		"}\n";
+
+	const char frag[] =
+		"#version 450\n"
+		"layout(location = 0) out vec4 outColor;\n"
+		"void main() {\n"
+		"  outColor = vec4(1.0, 0.0, 0.0, 1.0);\n"
+		"}\n";
+
+	pass->vertex = gfx_create_shader(GFX_SHADER_VERTEX, NULL);
+	pass->fragment = gfx_create_shader(GFX_SHADER_FRAGMENT, NULL);
+
+	if (pass->vertex == NULL || pass->fragment == NULL)
+		return NULL;
+
+	gfx_shader_compile(pass->vertex, GFX_GLSL, vert, 1, NULL);
+	gfx_shader_compile(pass->fragment, GFX_GLSL, frag, 1, NULL);
+
+
 	// Initialize things.
 	pass->renderer = renderer;
 	pass->level = 0;
@@ -211,6 +248,9 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	pass->build.backing = SIZE_MAX;
 
 	pass->vk.pass = VK_NULL_HANDLE;
+	pass->vk.layout = VK_NULL_HANDLE;
+	pass->vk.pipeline = VK_NULL_HANDLE;
+
 	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
 	gfx_vec_init(&pass->vk.commands, sizeof(VkCommandBuffer));
 
@@ -224,6 +264,12 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 void _gfx_destroy_render_pass(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
+
+
+	// TODO: Super temporary!!
+	gfx_destroy_shader(pass->vertex);
+	gfx_destroy_shader(pass->fragment);
+
 
 	// Destroy Vulkan object structure.
 	_gfx_render_pass_destruct(pass);
@@ -338,6 +384,186 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 		gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
 	}
 
+	// Pipeline shader stages.
+	VkPipelineShaderStageCreateInfo pstci[] = { {
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+
+			.pNext               = NULL,
+			.flags               = 0,
+			.stage               = VK_SHADER_STAGE_VERTEX_BIT,
+			.module              = pass->vertex->vk.module,
+			.pName               = "main",
+			.pSpecializationInfo = NULL
+
+		}, {
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+
+			.pNext               = NULL,
+			.flags               = 0,
+			.stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.module              = pass->fragment->vk.module,
+			.pName               = "main",
+			.pSpecializationInfo = NULL
+		}
+	};
+
+	// Pipeline vertex input state.
+	VkPipelineVertexInputStateCreateInfo pvisci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+
+		.pNext                           = NULL,
+		.flags                           = 0,
+		.vertexBindingDescriptionCount   = 0,
+		.pVertexBindingDescriptions      = NULL,
+		.vertexAttributeDescriptionCount = 0,
+		.pVertexAttributeDescriptions    = NULL
+	};
+
+	// Pipeline input assembly state.
+	VkPipelineInputAssemblyStateCreateInfo piasci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+
+		.pNext                  = NULL,
+		.flags                  = 0,
+		.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+		.primitiveRestartEnable = VK_FALSE
+	};
+
+	// Pipeline viewport state.
+	VkViewport viewport = {
+		.x        = 0.0f,
+		.y        = 0.0f,
+		.width    = (float)attach->window->frame.width,
+		.height   = (float)attach->window->frame.height,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
+
+	VkRect2D scissor = {
+		.offset = { 0, 0 },
+		.extent = {
+			(uint32_t)attach->window->frame.width,
+			(uint32_t)attach->window->frame.height
+		}
+	};
+
+	VkPipelineViewportStateCreateInfo pvsci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+
+		.pNext         = NULL,
+		.flags         = 0,
+		.viewportCount = 1,
+		.pViewports    = &viewport,
+		.scissorCount  = 1,
+		.pScissors     = &scissor
+	};
+
+	// Pipeline rasterization state.
+	VkPipelineRasterizationStateCreateInfo prsci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+
+		.pNext                   = NULL,
+		.flags                   = 0,
+		.depthClampEnable        = VK_FALSE,
+		.rasterizerDiscardEnable = VK_FALSE,
+		.polygonMode             = VK_POLYGON_MODE_FILL,
+		.cullMode                = VK_CULL_MODE_BACK_BIT,
+		.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		.depthBiasEnable         = VK_FALSE,
+		.depthBiasConstantFactor = 0.0f,
+		.depthBiasClamp          = 0.0f,
+		.depthBiasSlopeFactor    = 0.0f,
+		.lineWidth               = 1.0f
+	};
+
+	// Pipeline multisample state
+	VkPipelineMultisampleStateCreateInfo pmsci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+
+		.pNext                 = NULL,
+		.flags                 = 0,
+		.rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
+		.sampleShadingEnable   = VK_FALSE,
+		.minSampleShading      = 1.0,
+		.pSampleMask           = NULL,
+		.alphaToCoverageEnable = VK_FALSE,
+		.alphaToOneEnable      = VK_FALSE
+	};
+
+	// Pipeline color blend state.
+	VkPipelineColorBlendAttachmentState pcbas = {
+		.blendEnable         = VK_FALSE,
+		.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+		.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+		.colorBlendOp        = VK_BLEND_OP_ADD,
+		.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+		.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+		.alphaBlendOp        = VK_BLEND_OP_ADD,
+		.colorWriteMask      =
+			VK_COLOR_COMPONENT_R_BIT |
+			VK_COLOR_COMPONENT_G_BIT |
+			VK_COLOR_COMPONENT_B_BIT |
+			VK_COLOR_COMPONENT_A_BIT
+	};
+
+	VkPipelineColorBlendStateCreateInfo pcbsci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+
+		.pNext           = NULL,
+		.flags           = 0,
+		.logicOpEnable   = VK_FALSE,
+		.logicOp         = VK_LOGIC_OP_COPY,
+		.attachmentCount = 1,
+		.pAttachments    = &pcbas,
+		.blendConstants  = { 0.0f, 0.0f, 0.0f, 0.0f }
+	};
+
+	// Create a pipeline layout.
+	VkPipelineLayoutCreateInfo plci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+
+		.pNext                  = NULL,
+		.flags                  = 0,
+		.setLayoutCount         = 0,
+		.pSetLayouts            = NULL,
+		.pushConstantRangeCount = 0,
+		.pPushConstantRanges    = NULL
+	};
+
+	_GFX_VK_CHECK(context->vk.CreatePipelineLayout(
+		context->vk.device, &plci, NULL, &pass->vk.layout), goto clean);
+
+	// Finally create graphics pipeline.
+	VkGraphicsPipelineCreateInfo gpci = {
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+
+		.pNext               = NULL,
+		.flags               = 0,
+		.stageCount          = 2,
+		.pStages             = pstci,
+		.pVertexInputState   = &pvisci,
+		.pInputAssemblyState = &piasci,
+		.pTessellationState  = NULL,
+		.pViewportState      = &pvsci,
+		.pRasterizationState = &prsci,
+		.pMultisampleState   = &pmsci,
+		.pDepthStencilState  = NULL,
+		.pColorBlendState    = &pcbsci,
+		.pDynamicState       = NULL,
+		.layout              = pass->vk.layout,
+		.renderPass          = pass->vk.pass,
+		.subpass             = 0,
+		.basePipelineHandle  = VK_NULL_HANDLE,
+		.basePipelineIndex   = 0
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.CreateGraphicsPipelines(
+			context->vk.device,
+			VK_NULL_HANDLE,
+			1, &gpci, NULL, &pass->vk.pipeline),
+		goto clean);
+
 	// Now go record all of the command buffers.
 	// We simply clear the entire associated image to a single color.
 	// Obviously for testing purposes :)
@@ -370,6 +596,7 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 			*(VkCommandBuffer*)gfx_vec_at(&pass->vk.commands, i);
 
 		// Define memory barriers.
+		// No need for an ownership transfer as the image is shared.
 		VkImageMemoryBarrier imb_clear = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 

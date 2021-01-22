@@ -24,7 +24,7 @@
 	(stage == GFX_SHADER_TESS_CONTROL) ? \
 		"tessellation control" : \
 	(stage == GFX_SHADER_TESS_EVALUATION) ? \
-		"tessellation evaulation" : \
+		"tessellation evaluation" : \
 	(stage == GFX_SHADER_GEOMETRY) ? \
 		"geometry" : \
 	(stage == GFX_SHADER_FRAGMENT) ? \

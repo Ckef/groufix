@@ -80,21 +80,6 @@ int main()
 
 
 	/////////////////////////
-	// Compile a shader.
-	const char src[] =
-		"#version 310 es\n"
-		"#define SOME_MACRO 42\n"
-		"void main() { int x = SOME_MACRO; }";
-
-	GFXShader* shader = gfx_create_shader(GFX_SHADER_VERTEX, NULL);
-	if (shader == NULL)
-		goto fail_shader;
-
-	if (!gfx_shader_compile(shader, GFX_GLSL, src, 1, NULL))
-		goto fail_shader;
-
-
-	/////////////////////////
 	// Setup an event loop.
 	while (!gfx_window_should_close(window))
 	{
@@ -105,7 +90,6 @@ int main()
 
 	/////////////////////////
 	// Terminate.
-	gfx_destroy_shader(shader);
 	gfx_destroy_renderer(renderer);
 	gfx_destroy_window(window);
 	gfx_terminate();
@@ -115,8 +99,6 @@ int main()
 
 
 	// On failure.
-fail_shader:
-	gfx_destroy_shader(shader);
 fail_renderer:
 	gfx_destroy_renderer(renderer);
 	gfx_destroy_window(window);

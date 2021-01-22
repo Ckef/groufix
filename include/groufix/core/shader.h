@@ -60,6 +60,7 @@ GFX_API void gfx_destroy_shader(GFXShader* shader);
 
 /**
  * TODO: Stream compiler errors/warnings to user.
+ * TODO: Allow recompilation (and reload), cause modules can be destroyed?
  * Compiles a shader from GLSL source into SPIR-V bytecode for use.
  * @param shader   Cannot be NULL.
  * @param source   Must be NULL-terminated, cannot be NULL.

@@ -109,6 +109,11 @@ struct GFXRenderPass
 	GFXVec writes; // Stores size_t.
 
 
+	// TODO: Super temporary!!
+	GFXShader* vertex;
+	GFXShader* fragment;
+
+
 	// Building output (can be invalidated).
 	struct
 	{
@@ -120,9 +125,11 @@ struct GFXRenderPass
 	// Vulkan fields.
 	struct
 	{
-		VkRenderPass pass;
-		GFXVec       framebuffers; // Stores VkFramebuffer.
-		GFXVec       commands;     // Stores VkCommandBuffer.
+		VkRenderPass     pass;
+		VkPipelineLayout layout;
+		VkPipeline       pipeline;
+		GFXVec           framebuffers; // Stores VkFramebuffer.
+		GFXVec           commands;     // Stores VkCommandBuffer.
 
 	} vk;
 
