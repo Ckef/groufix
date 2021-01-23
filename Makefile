@@ -35,7 +35,20 @@ DEBUG = ON
 BIN   = bin
 BUILD = build
 OUT   = obj
-SUB   = /.
+
+MFLAGS_ALL  = --no-print-directory
+MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix EXT=.so PTEST=%
+MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win EXT=.dll PTEST=%.exe
+
+
+# Compiler prefix (None if not a cross-compile)
+ifeq ($(CC),i686-w64-mingw32-gcc)
+	CC_PREFIX = i686-w64-mingw32
+else ifeq ($(CC),x86_64-w64-mingw32-gcc)
+	CC_PREFIX = x86_64-w64-mingw32
+else
+	CC_PREFIX = None
+endif
 
 
 # Flags for all binaries
@@ -45,30 +58,40 @@ else
 	DFLAGS = -DNDEBUG -O3
 endif
 
-MFLAGS = --no-print-directory
-CFLAGS = -std=c11 -Wall -Wconversion -Wsign-compare -Wshadow -pedantic -Iinclude $(DFLAGS)
+WFLAGS = -Wall -Wconversion -Wsign-compare -Wshadow -pedantic
+CFLAGS = $(DFLAGS) $(WFLAGS) -std=c11 -Iinclude
 
 
 # Flags for library files only
-OFLAGS_INCLUDE = \
- -Isrc \
+OFLAGS_ALL = \
+ $(CFLAGS) -c -s -DGFX_BUILD_LIB -Isrc \
  -Ideps/glfw/include \
  -Ideps/Vulkan-Headers/include \
  -Ideps/shaderc/libshaderc/include
 
-OFLAGS      = $(CFLAGS) -c -s -DGFX_BUILD_LIB $(OFLAGS_INCLUDE)
-OFLAGS_UNIX = $(OFLAGS) -fPIC
-OFLAGS_WIN  = $(OFLAGS)
+ifeq ($(OS),Windows_NT)
+	OFLAGS = $(OFLAGS_ALL)
+else
+	OFLAGS = $(OFLAGS_ALL) -fPIC
+endif
 
 
 # Linker flags
-LFLAGS      = -shared -pthread
-LFLAGS_UNIX = $(LFLAGS) -ldl
-LFLAGS_WIN  = $(LFLAGS) -lgdi32 -static-libstdc++ -static-libgcc
+LFLAGS_ALL  = -shared -pthread
+LFLAGS_UNIX = $(LFLAGS_ALL) -ldl
+LFLAGS_WIN  = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
+
+ifneq ($(CC_PREFIX),None) # Cross-compile
+	LFLAGS = $(LFLAGS_WIN)
+else ifeq ($(OS),Windows_NT)
+	LFLAGS = $(LFLAGS_WIN)
+else
+	LFLAGS = $(LFLAGS_UNIX)
+endif
 
 
 # Dependency flags
-GLFW_CONF = \
+GLFW_FLAGS_ALL = \
  -DBUILD_SHARED_LIBS=OFF \
  -DGLFW_BUILD_EXAMPLES=OFF \
  -DGLFW_BUILD_TESTS=OFF \
@@ -76,23 +99,22 @@ GLFW_CONF = \
 
 SHADERC_MINGW_TOOLCHAIN = \
  -DCMAKE_TOOLCHAIN_FILE=cmake/linux-mingw-toolchain.cmake \
- -DMINGW_COMPILER_PREFIX=x86_64-w64-mingw32 \
+ -DMINGW_COMPILER_PREFIX=$(CC_PREFIX) \
  -Dgtest_disable_pthreads=ON
 
-SHADERC_CONF      = -Wno-dev -DCMAKE_BUILD_TYPE=Release
-SHADERC_CONF_UNIX = $(SHADERC_CONF) -G "Unix Makefiles"
-SHADERC_CONF_WIN  = $(SHADERC_CONF) -G "MinGW Makefiles"
+SHADERC_FLAGS_ALL  = -Wno-dev -DCMAKE_BUILD_TYPE=Release
+SHADERC_FLAGS_UNIX = $(SHADERC_FLAGS_ALL) -G "Unix Makefiles"
+SHADERC_FLAGS_WIN  = $(SHADERC_FLAGS_ALL) -G "MinGW Makefiles"
 
-# TODO: Add a target for i686-w64-mingw32-gcc?
-ifeq ($(CC),x86_64-w64-mingw32-gcc)
-	GLFW_FLAGS    = $(GLFW_CONF) -DCMAKE_TOOLCHAIN_FILE=CMake/x86_64-w64-mingw32.cmake
-	SHADERC_FLAGS = $(SHADERC_CONF_UNIX) $(SHADERC_MINGW_TOOLCHAIN)
+ifneq ($(CC_PREFIX),None) # Cross-compile
+	GLFW_FLAGS    = $(GLFW_FLAGS_ALL) -DCMAKE_TOOLCHAIN_FILE=CMake/$(CC_PREFIX).cmake
+	SHADERC_FLAGS = $(SHADERC_FLAGS_UNIX) $(SHADERC_MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
-	GLFW_FLAGS    = $(GLFW_CONF) -DCMAKE_C_COMPILER=$(CC) -G "MinGW Makefiles"
-	SHADERC_FLAGS = $(SHADERC_CONF_WIN)
+	GLFW_FLAGS    = $(GLFW_FLAGS_ALL) -DCMAKE_C_COMPILER=$(CC) -G "MinGW Makefiles"
+	SHADERC_FLAGS = $(SHADERC_FLAGS_WIN)
 else
-	GLFW_FLAGS    = $(GLFW_CONF)
-	SHADERC_FLAGS = $(SHADERC_CONF_UNIX)
+	GLFW_FLAGS    = $(GLFW_FLAGS_ALL)
+	SHADERC_FLAGS = $(SHADERC_FLAGS_UNIX)
 endif
 
 
@@ -153,6 +175,8 @@ else
 	@rm -Rf $(BUILD)
 endif
 
+
+# Nuke everything
 clean-all: clean clean-bin clean-deps
 
 
@@ -204,33 +228,28 @@ $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a: | $(BUILD)$(SUB)
 	@cd $(BUILD)$(SUB)/shaderc && cmake $(SHADERC_FLAGS) $(CURDIR)/deps/shaderc && $(MAKE)
 
 
-# Unix builds
-$(OUT)/unix/%.o: src/%.c $(HEADERS) | $(OUT)/unix
-	$(CC) $(OFLAGS_UNIX) $< -o $@
+# Object files
+$(OUT)$(SUB)/%.o: src/%.c $(HEADERS) | $(OUT)$(SUB)
+	$(CC) $(OFLAGS) $< -o $@
 
-$(BIN)/unix/libgroufix.so: $(LIBS) $(OBJS) | $(BIN)/unix
-	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS_UNIX)
+# Library file
+$(BIN)$(SUB)/libgroufix$(EXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
+	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS)
 
-$(BIN)/unix/%: tests/%.c $(BIN)/unix/libgroufix.so
-	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)/unix -Wl,-rpath='$$ORIGIN' -lgroufix
+# Test programs
+$(BIN)$(SUB)/$(PTEST): tests/%.c $(BIN)$(SUB)/libgroufix$(EXT)
+	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)$(SUB) -Wl,-rpath='$$ORIGIN' -lgroufix
+
+
+# Platform builds
+# TODO: Targets don't have to explicitly state the platform :o ?
 
 unix:
-	@$(MAKE) $(MFLAGS) $(BIN)/unix/libgroufix.so SUB=/unix
+	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/libgroufix.so
 unix-tests:
-	@$(MAKE) $(MFLAGS) $(BIN)/unix/minimal SUB=/unix
-
-
-# Windows builds
-$(OUT)/win/%.o: src/%.c $(HEADERS) | $(OUT)/win
-	$(CC) $(OFLAGS_WIN) $< -o $@
-
-$(BIN)/win/libgroufix.dll: $(LIBS) $(OBJS) | $(BIN)/win
-	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS_WIN)
-
-$(BIN)/win/%.exe: tests/%.c $(BIN)/win/libgroufix.dll
-	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)/win -Wl,-rpath='$$ORIGIN' -lgroufix
+	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/minimal
 
 win:
-	@$(MAKE) $(MFLAGS) $(BIN)/win/libgroufix.dll SUB=/win
+	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/libgroufix.dll
 win-tests:
-	@$(MAKE) $(MFLAGS) $(BIN)/win/minimal.exe SUB=/win
+	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/minimal.exe

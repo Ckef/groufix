@@ -25,7 +25,7 @@ The Makefile takes the following flags:
 
 * `DEBUG=xxx` tells the Makefile whether or not to compile _groufix_ with debug options enabled. If not compiling with debug options, optimization settings will be applied. `xxx` can be either `ON` or `OFF` and defaults to `ON`.
 
-* `CC=xxx` tells the Makefile to use a given compiler collection. `xxx` defaults to `gcc`, to cross-compile to Windows, this must be set to `x86_64-w64_mingw32-gcc`.
+* `CC=xxx` tells the Makefile to use a given compiler collection. `xxx` defaults to `gcc`, to cross-compile to Windows, this must be set to `i686-w64-mingw32-gcc` or `x86_64-w64_mingw32-gcc`.
 
 ### Dependencies
 
