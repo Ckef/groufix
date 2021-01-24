@@ -233,8 +233,8 @@ $(BIN)$(SUB)/libgroufix$(EXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
 	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS)
 
 # Test programs
-$(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
-	$(CC) $(CFLAGS) -Itests $< tests/test.c -o $@ -L$(BIN)$(SUB) -Wl,-rpath='$$ORIGIN' -lgroufix
+$(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
+	$(CC) $(CFLAGS) -Itests $< -o $@ -L$(BIN)$(SUB) -Wl,-rpath='$$ORIGIN' -lgroufix
 
 
 # Platform builds
