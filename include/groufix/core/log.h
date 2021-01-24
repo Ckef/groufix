@@ -58,6 +58,7 @@ typedef enum GFXLogLevel
 		gfx_log(GFX_LOG_DEBUG_VERBOSE, __FILE__, __LINE__, __VA_ARGS__)
 #endif
 
+
 /**
  * Logs a new line to the log output of the calling thread.
  * @param level Must be > GFX_LOG_NONE and < GFX_LOG_ALL.

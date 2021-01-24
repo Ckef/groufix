@@ -55,7 +55,6 @@ static int _gfx_renderer_rebuild(GFXRenderer* renderer)
 	// So we reset all command pools.
 	// Rebuilding causes the passes to re-record command buffers allocated
 	// from those pools, which we cannot do if they're not reset.
-	// TODO: Is this necessary?
 	for (size_t i = 0; i < renderer->windows.size; ++i)
 	{
 		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
@@ -693,7 +692,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		_GFXWindowAttach* attach =
 			gfx_vec_at(&renderer->windows, pass->build.backing);
 
-		// TODO: Apparently acquisition went wrong..?
+		// No image (e.g. minimized).
 		if (attach->image == UINT32_MAX)
 			continue;
 

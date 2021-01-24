@@ -36,10 +36,6 @@ BIN   = bin
 BUILD = build
 OUT   = obj
 
-MFLAGS_ALL  = --no-print-directory
-MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix EXT=.so PTEST=%
-MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win EXT=.dll PTEST=%.exe
-
 
 # Compiler prefix (None if not a cross-compile)
 ifeq ($(CC),i686-w64-mingw32-gcc)
@@ -237,19 +233,23 @@ $(BIN)$(SUB)/libgroufix$(EXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
 	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS)
 
 # Test programs
-$(BIN)$(SUB)/$(PTEST): tests/%.c $(BIN)$(SUB)/libgroufix$(EXT)
-	$(CC) $(CFLAGS) $< -o $@ -L$(BIN)$(SUB) -Wl,-rpath='$$ORIGIN' -lgroufix
+$(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
+	$(CC) $(CFLAGS) -Itests $< tests/test.c -o $@ -L$(BIN)$(SUB) -Wl,-rpath='$$ORIGIN' -lgroufix
 
 
 # Platform builds
-# TODO: Targets don't have to explicitly state the platform :o ?
+MFLAGS_ALL  = --no-print-directory
+MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix EXT=.so PTEST=%
+MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win EXT=.dll PTEST=%.exe
 
 unix:
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/libgroufix.so
 unix-tests:
+	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/fps
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/minimal
 
 win:
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/libgroufix.dll
 win-tests:
+	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/fps.exe
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/minimal.exe
