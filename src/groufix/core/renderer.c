@@ -95,10 +95,6 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 
 	_GFXContext* context = renderer->context;
 
-	// When a window is detached, we don't know what will happen after,
-	// so just rebuild all the things.
-	renderer->built = 0;
-
 	// We must wait until pending rendering is done before destroying.
 	_gfx_mutex_lock(renderer->graphics.lock);
 	context->vk.QueueWaitIdle(renderer->graphics.queue);
@@ -133,19 +129,25 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 		context->vk.device, attach->vk.pool, NULL);
 
 	attach->vk.pool = VK_NULL_HANDLE;
+
+	// When a window is detached, we don't know what will happen after,
+	// so just rebuild all the things.
+	renderer->built = 0;
+
+	// Also, can't have an image.
+	attach->image = UINT32_MAX;
 }
 
 /****************************
  * (Re)creates all swapchain-dependent resources, makes sure attach->vk.pool
- * exists, recreates attach->vk.views and optionally rebuilds relevant passes.
+ * exists, recreates attach->vk.views and rebuilds relevant passes.
  * Blocks until rendering is done if necessary.
  * @param renderer Cannot be NULL.
  * @param attach   Cannot be NULL.
- * @param rebuild  Non-zero to rebuild passes that write to this window.
  * @return Non-zero on success.
  */
 static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
-                                       _GFXWindowAttach* attach, int rebuild)
+                                       _GFXWindowAttach* attach)
 {
 	assert(renderer != NULL);
 	assert(attach != NULL);
@@ -234,11 +236,9 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 
 	// Now we loop over all passes and check if they write to this window
 	// attachment as output, if so, we rebuild those passes.
-	// Yeah I'm not separating in a function because this one is also
-	// responsible for blocking until rebuilding is possible.
 	// Only do this if the renderer is built, if not, we skip this and
 	// postpone to when the entire renderer will get rebuild.
-	if (rebuild && renderer->built)
+	if (renderer->built)
 	{
 		size_t backing = gfx_vec_get(&renderer->windows, attach);
 
@@ -503,7 +503,6 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		_gfx_swapchain_unlock(attach->window);
 
 		attach->window = (_GFXWindow*)window;
-		attach->image = UINT32_MAX;
 	}
 	else
 	{
@@ -515,37 +514,22 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 			.vk     = { .pool = VK_NULL_HANDLE }
 		};
 
-		if (!gfx_vec_push(&renderer->windows, 1, &at))
-			goto unlock;
-
 		// Just insert it at the end.
 		// This to not fuck up any back-buffer window references.
-		loc = renderer->windows.size-1;
-		attach = gfx_vec_at(&renderer->windows, loc);
+		if (!gfx_vec_push(&renderer->windows, 1, &at))
+		{
+			// Oops failed, unlock window.
+			_gfx_swapchain_unlock((_GFXWindow*)window);
+			gfx_log_error("Could not attach another window to a renderer");
 
+			return 0;
+		}
+
+		attach = gfx_vec_at(&renderer->windows, renderer->windows.size-1);
 		gfx_vec_init(&attach->vk.views, sizeof(VkImageView));
 	}
 
-	// Go create swapchain-dependent resources.
-	if (!_gfx_renderer_recreate_swap(renderer, attach, 0))
-	{
-		gfx_vec_erase(&renderer->windows, 1, loc);
-		_gfx_renderer_fix_backings(renderer, loc);
-
-		goto unlock;
-	}
-
 	return 1;
-
-
-	// Unlock window on failure.
-unlock:
-	_gfx_swapchain_unlock((_GFXWindow*)window);
-
-	gfx_log_error(
-		"Could not attach a window to an attachment index of a renderer");
-
-	return 0;
 }
 
 /****************************/
@@ -657,7 +641,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 			attach->image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
 	}
 
 	// TODO: Kinda need a return or a hook here for processing input?
@@ -744,7 +728,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		attach->image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
 	}
 
 	return 1;
