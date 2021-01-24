@@ -140,14 +140,14 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 
 /****************************
  * (Re)creates all swapchain-dependent resources, makes sure attach->vk.pool
- * exists, recreates attach->vk.views and rebuilds relevant passes.
+ * exists, recreates attach->vk.views and optionally rebuilds relevant passes.
  * Blocks until rendering is done if necessary.
  * @param renderer Cannot be NULL.
  * @param attach   Cannot be NULL.
  * @return Non-zero on success.
  */
 static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
-                                       _GFXWindowAttach* attach)
+                                       _GFXWindowAttach* attach, int rebuild)
 {
 	assert(renderer != NULL);
 	assert(attach != NULL);
@@ -238,7 +238,7 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 	// attachment as output, if so, we rebuild those passes.
 	// Only do this if the renderer is built, if not, we skip this and
 	// postpone to when the entire renderer will get rebuild.
-	if (renderer->built)
+	if (rebuild && renderer->built)
 	{
 		size_t backing = gfx_vec_get(&renderer->windows, attach);
 
@@ -517,19 +517,32 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		// Just insert it at the end.
 		// This to not fuck up any back-buffer window references.
 		if (!gfx_vec_push(&renderer->windows, 1, &at))
-		{
-			// Oops failed, unlock window.
-			_gfx_swapchain_unlock((_GFXWindow*)window);
-			gfx_log_error("Could not attach another window to a renderer");
+			goto unlock;
 
-			return 0;
-		}
+		loc = renderer->windows.size-1;
+		attach = gfx_vec_at(&renderer->windows, loc);
 
-		attach = gfx_vec_at(&renderer->windows, renderer->windows.size-1);
 		gfx_vec_init(&attach->vk.views, sizeof(VkImageView));
 	}
 
+	// Go create swapchain-dependent resources.
+	if (!_gfx_renderer_recreate_swap(renderer, attach, 0))
+	{
+		gfx_vec_erase(&renderer->windows, 1, loc);
+		_gfx_renderer_fix_backings(renderer, loc);
+
+		goto unlock;
+	}
+
 	return 1;
+
+
+	// Unlock window on failure.
+unlock:
+	_gfx_swapchain_unlock((_GFXWindow*)window);
+	gfx_log_error("Could not attach another window to a renderer");
+
+	return 0;
 }
 
 /****************************/
@@ -641,7 +654,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 			attach->image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
 	}
 
 	// TODO: Kinda need a return or a hook here for processing input?
@@ -728,7 +741,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		attach->image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		if (recreate) _gfx_renderer_recreate_swap(renderer, attach);
+		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
 	}
 
 	return 1;
