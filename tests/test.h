@@ -150,6 +150,16 @@ static void _test_init(void)
 	if (!gfx_renderer_attach_window(_test_base.renderer, 0, _test_base.window))
 		_test_fail();
 
+#if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
+	// Create a single render pass that writes to the window.
+	GFXRenderPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);
+	if (pass == NULL)
+		TEST_FAIL();
+
+	if (!gfx_render_pass_write(pass, 0))
+		TEST_FAIL();
+#endif
+
 	// Set to initialized and return.
 	_test_base.initialized = 1;
 }
