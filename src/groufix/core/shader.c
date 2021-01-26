@@ -140,6 +140,8 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	assert(shader != NULL);
 	assert(source != NULL);
 
+	_GFXDevice* device = shader->device;
+
 	// Already has a shader module.
 	if (shader->vk.module != VK_NULL_HANDLE)
 		return 1;
@@ -176,15 +178,98 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	// Target API omits patch version (Shaderc doesn't understand it).
 	if (optimize)
 	{
+		VkPhysicalDeviceProperties pdp;
+		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
+
+		// Optimization level and target environment.
 		shaderc_compile_options_set_optimization_level(
 			options, shaderc_optimization_level_performance);
 
 		shaderc_compile_options_set_target_env(
 			options, shaderc_target_env_vulkan, VK_MAKE_VERSION(
-				VK_VERSION_MAJOR(shader->device->api),
-				VK_VERSION_MINOR(shader->device->api), 0));
+				VK_VERSION_MAJOR(device->api),
+				VK_VERSION_MINOR(device->api), 0));
 
-		// TODO: Stick physical device limits in the compiler.
+		// GPU limits.
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_clip_distances,
+			(int)pdp.limits.maxClipDistances);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_cull_distances,
+			(int)pdp.limits.maxCullDistances);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_combined_clip_and_cull_distances,
+			(int)pdp.limits.maxCombinedClipAndCullDistances);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_compute_work_group_count_x,
+			(int)pdp.limits.maxComputeWorkGroupCount[0]);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_compute_work_group_count_y,
+			(int)pdp.limits.maxComputeWorkGroupCount[1]);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_compute_work_group_count_z,
+			(int)pdp.limits.maxComputeWorkGroupCount[2]);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_compute_work_group_size_x,
+			(int)pdp.limits.maxComputeWorkGroupSize[0]);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_compute_work_group_size_y,
+			(int)pdp.limits.maxComputeWorkGroupSize[1]);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_compute_work_group_size_z,
+			(int)pdp.limits.maxComputeWorkGroupSize[2]);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_fragment_input_components,
+			(int)pdp.limits.maxFragmentInputComponents);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_geometry_input_components,
+			(int)pdp.limits.maxGeometryInputComponents);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_geometry_output_components,
+			(int)pdp.limits.maxGeometryOutputComponents);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_geometry_output_vertices,
+			(int)pdp.limits.maxGeometryOutputVertices);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_geometry_total_output_components,
+			(int)pdp.limits.maxGeometryTotalOutputComponents);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_tess_control_total_output_components,
+			(int)pdp.limits.maxTessellationControlTotalOutputComponents);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_tess_evaluation_input_components,
+			(int)pdp.limits.maxTessellationEvaluationInputComponents);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_tess_evaluation_output_components,
+			(int)pdp.limits.maxTessellationEvaluationOutputComponents);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_tess_gen_level,
+			(int)pdp.limits.maxTessellationGenerationLevel);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_viewports,
+			(int)pdp.limits.maxViewports);
+
+		shaderc_compile_options_set_limit(
+			options, shaderc_limit_max_vertex_output_components,
+			(int)pdp.limits.maxVertexOutputComponents);
 	}
 
 	// Compile the shader.

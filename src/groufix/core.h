@@ -135,6 +135,7 @@ typedef struct _GFXState
 		_GFX_VK_PFN(EnumeratePhysicalDeviceGroups);
 		_GFX_VK_PFN(EnumeratePhysicalDevices);
 		_GFX_VK_PFN(GetDeviceProcAddr);
+		_GFX_VK_PFN(GetPhysicalDeviceFeatures);
 		_GFX_VK_PFN(GetPhysicalDeviceProperties);
 		_GFX_VK_PFN(GetPhysicalDeviceQueueFamilyProperties);
 		_GFX_VK_PFN(GetPhysicalDeviceSurfaceCapabilitiesKHR);

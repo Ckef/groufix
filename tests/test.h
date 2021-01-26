@@ -11,8 +11,7 @@
  * TEST_DESCRIBE(name, base)
  *   Describe a new test, the syntax is similar to a function:
  *   TEST_DESCRIBE(basic_test, t) { gfx_window_set_title(t->window, "test"); }
- *   @name The name of the test.
- *   @base The name of the exposed GFXTestBase pointer.
+ *   Where `t` is the name of the exposed GFXTestBase pointer.
  *
  * TEST_FAIL()
  *   Forces the test to fail and exits the program.
@@ -178,7 +177,7 @@ static void _test_init(void)
 		_test_fail();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
-	// Create a single render pass that writes to the window.
+	// Add a single render pass that writes to the window.
 	GFXRenderPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);
 	if (pass == NULL)
 		_test_fail();

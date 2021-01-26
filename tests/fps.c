@@ -12,7 +12,7 @@
 /****************************
  * Minimal test.
  */
-TEST_DESCRIBE(minimal, _t)
+TEST_DESCRIBE(fps, _t)
 {
 	// Triple buffer the window for the maniest frames per second.
 	// This way we're not limited to waiting on v-sync.
@@ -30,6 +30,6 @@ TEST_DESCRIBE(minimal, _t)
 
 
 /****************************
- * Run the minimal test.
+ * Run the fps test.
  */
-TEST_MAIN(minimal);
+TEST_MAIN(fps);

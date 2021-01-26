@@ -298,18 +298,18 @@ static int _gfx_create_context(_GFXDevice* device)
 
 		// Loop over all groups and see if one contains this device.
 		// We keep track of the index of the group and the device in it.
-		size_t i, j;
-		for (i = 0; i < count; ++i)
+		size_t g, i;
+		for (g = 0; g < count; ++g)
 		{
-			for (j = 0; j < groups[i].physicalDeviceCount; ++j)
-				if (groups[i].physicalDevices[j] == device->vk.device)
+			for (i = 0; i < groups[g].physicalDeviceCount; ++i)
+				if (groups[g].physicalDevices[i] == device->vk.device)
 					break;
 
-			if (j < groups[i].physicalDeviceCount)
+			if (i < groups[g].physicalDeviceCount)
 				break;
 		}
 
-		if (i >= count)
+		if (g >= count)
 		{
 			// Probably want to know when a device is somehow invalid...
 			gfx_log_error(
@@ -324,7 +324,7 @@ static int _gfx_create_context(_GFXDevice* device)
 		// this is used to check if a future device can use this context.
 		context = malloc(
 			sizeof(_GFXContext) +
-			sizeof(VkPhysicalDevice) * groups[i].physicalDeviceCount);
+			sizeof(VkPhysicalDevice) * groups[g].physicalDeviceCount);
 
 		if (context == NULL)
 			goto error;
@@ -340,14 +340,14 @@ static int _gfx_create_context(_GFXDevice* device)
 		context->vk.DeviceWaitIdle = NULL;
 
 		gfx_vec_init(&context->sets, sizeof(_GFXQueueSet*));
-		context->numDevices = groups[i].physicalDeviceCount;
+		context->numDevices = groups[g].physicalDeviceCount;
 
 		memcpy(
 			context->devices,
-			groups[i].physicalDevices,
+			groups[g].physicalDevices,
 			sizeof(VkPhysicalDevice) * context->numDevices);
 
-		device->index = j;
+		device->index = i;
 		device->context = context;
 
 		// Call the thing that gets us the desired queues to create.
@@ -358,6 +358,75 @@ static int _gfx_create_context(_GFXDevice* device)
 		// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
 		if (!_gfx_get_queue_sets(device->vk.device, &context->sets, &createInfos))
 			goto clean;
+
+		// Pick device features to enable (i.e. disable stuff we dont' want).
+		// Again when devices use the same context, we assume they have
+		// equivalent features.
+		VkPhysicalDeviceFeatures pdf;
+		_groufix.vk.GetPhysicalDeviceFeatures(device->vk.device, &pdf);
+
+		// For features we do want, warn if not present.
+		if (pdf.geometryShader == VK_FALSE) gfx_log_warn(
+			"Physical device does not support geometry shaders: %s.",
+			device->base.name);
+
+		if (pdf.tessellationShader == VK_FALSE) gfx_log_warn(
+			"Physical device does not support tessellation shaders: %s.",
+			device->base.name);
+
+		pdf.robustBufferAccess                      = VK_FALSE;
+		pdf.fullDrawIndexUint32                     = VK_FALSE;
+		pdf.imageCubeArray                          = VK_FALSE;
+		pdf.independentBlend                        = VK_FALSE;
+		pdf.sampleRateShading                       = VK_FALSE;
+		pdf.dualSrcBlend                            = VK_FALSE;
+		pdf.logicOp                                 = VK_FALSE;
+		pdf.multiDrawIndirect                       = VK_FALSE;
+		pdf.drawIndirectFirstInstance               = VK_FALSE;
+		pdf.depthClamp                              = VK_FALSE;
+		pdf.depthBiasClamp                          = VK_FALSE;
+		pdf.fillModeNonSolid                        = VK_FALSE;
+		pdf.depthBounds                             = VK_FALSE;
+		pdf.wideLines                               = VK_FALSE;
+		pdf.largePoints                             = VK_FALSE;
+		pdf.alphaToOne                              = VK_FALSE;
+		pdf.multiViewport                           = VK_FALSE;
+		pdf.samplerAnisotropy                       = VK_FALSE;
+		pdf.textureCompressionETC2                  = VK_FALSE;
+		pdf.textureCompressionASTC_LDR              = VK_FALSE;
+		pdf.textureCompressionBC                    = VK_FALSE;
+		pdf.occlusionQueryPrecise                   = VK_FALSE;
+		pdf.pipelineStatisticsQuery                 = VK_FALSE;
+		pdf.vertexPipelineStoresAndAtomics          = VK_FALSE;
+		pdf.fragmentStoresAndAtomics                = VK_FALSE;
+		pdf.shaderTessellationAndGeometryPointSize  = VK_FALSE;
+		pdf.shaderImageGatherExtended               = VK_FALSE;
+		pdf.shaderStorageImageExtendedFormats       = VK_FALSE;
+		pdf.shaderStorageImageMultisample           = VK_FALSE;
+		pdf.shaderStorageImageReadWithoutFormat     = VK_FALSE;
+		pdf.shaderStorageImageWriteWithoutFormat    = VK_FALSE;
+		pdf.shaderUniformBufferArrayDynamicIndexing = VK_FALSE;
+		pdf.shaderSampledImageArrayDynamicIndexing  = VK_FALSE;
+		pdf.shaderStorageBufferArrayDynamicIndexing = VK_FALSE;
+		pdf.shaderStorageImageArrayDynamicIndexing  = VK_FALSE;
+		pdf.shaderClipDistance                      = VK_FALSE;
+		pdf.shaderCullDistance                      = VK_FALSE;
+		pdf.shaderFloat64                           = VK_FALSE;
+		pdf.shaderInt64                             = VK_FALSE;
+		pdf.shaderInt16                             = VK_FALSE;
+		pdf.shaderResourceResidency                 = VK_FALSE;
+		pdf.shaderResourceMinLod                    = VK_FALSE;
+		pdf.sparseBinding                           = VK_FALSE;
+		pdf.sparseResidencyBuffer                   = VK_FALSE;
+		pdf.sparseResidencyImage2D                  = VK_FALSE;
+		pdf.sparseResidencyImage3D                  = VK_FALSE;
+		pdf.sparseResidency2Samples                 = VK_FALSE;
+		pdf.sparseResidency4Samples                 = VK_FALSE;
+		pdf.sparseResidency8Samples                 = VK_FALSE;
+		pdf.sparseResidency16Samples                = VK_FALSE;
+		pdf.sparseResidencyAliased                  = VK_FALSE;
+		pdf.variableMultisampleRate                 = VK_FALSE;
+		pdf.inheritedQueries                        = VK_FALSE;
 
 		// Finally go create the logical Vulkan device.
 		// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
@@ -392,7 +461,7 @@ static int _gfx_create_context(_GFXDevice* device)
 #endif
 			.enabledExtensionCount   = sizeof(extensions)/sizeof(char*),
 			.ppEnabledExtensionNames = extensions,
-			.pEnabledFeatures        = NULL // TODO: Will probably want to populate this.
+			.pEnabledFeatures        = &pdf
 		};
 
 		_GFX_VK_CHECK(_groufix.vk.CreateDevice(

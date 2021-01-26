@@ -64,7 +64,7 @@ GFX_API void gfx_destroy_shader(GFXShader* shader);
  * Compiles a shader from GLSL source into SPIR-V bytecode for use.
  * @param shader   Cannot be NULL.
  * @param source   Must be NULL-terminated, cannot be NULL.
- * @param optimize Non-zero to enable platform-specific bytecode optimization.
+ * @param optimize Non-zero to enable platform-specific compiler options.
  * @param file     Must be NULL or NULL-terminated.
  * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
  *
