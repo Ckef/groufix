@@ -14,6 +14,10 @@
 #include <string.h>
 
 
+#define _GFX_SET_SHADERC_LIMIT(shc, vk) \
+	shaderc_compile_options_set_limit(options, \
+		shaderc_limit_##shc, (int)pdp.limits.vk);
+
 #define _GFX_GET_LANGUAGE_STRING(language) \
 	((language == GFX_GLSL) ? "glsl" : \
 	(language == GFX_HLSL) ? "hlsl" : "*")
@@ -178,9 +182,6 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	// Target API omits patch version (Shaderc doesn't understand it).
 	if (optimize)
 	{
-		VkPhysicalDeviceProperties pdp;
-		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
-
 		// Optimization level and target environment.
 		shaderc_compile_options_set_optimization_level(
 			options, shaderc_optimization_level_performance);
@@ -191,85 +192,47 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 				VK_VERSION_MINOR(device->api), 0));
 
 		// GPU limits.
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_clip_distances,
-			(int)pdp.limits.maxClipDistances);
+		VkPhysicalDeviceProperties pdp;
+		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_cull_distances,
-			(int)pdp.limits.maxCullDistances);
+		_GFX_SET_SHADERC_LIMIT(max_clip_distances, maxClipDistances);
+		_GFX_SET_SHADERC_LIMIT(max_cull_distances, maxCullDistances);
+		_GFX_SET_SHADERC_LIMIT(max_viewports, maxViewports);
 
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_combined_clip_and_cull_distances,
-			(int)pdp.limits.maxCombinedClipAndCullDistances);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_compute_work_group_count_x,
-			(int)pdp.limits.maxComputeWorkGroupCount[0]);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_compute_work_group_count_y,
-			(int)pdp.limits.maxComputeWorkGroupCount[1]);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_compute_work_group_count_z,
-			(int)pdp.limits.maxComputeWorkGroupCount[2]);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_compute_work_group_size_x,
-			(int)pdp.limits.maxComputeWorkGroupSize[0]);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_compute_work_group_size_y,
-			(int)pdp.limits.maxComputeWorkGroupSize[1]);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_compute_work_group_size_z,
-			(int)pdp.limits.maxComputeWorkGroupSize[2]);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_fragment_input_components,
-			(int)pdp.limits.maxFragmentInputComponents);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_geometry_input_components,
-			(int)pdp.limits.maxGeometryInputComponents);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_geometry_output_components,
-			(int)pdp.limits.maxGeometryOutputComponents);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_geometry_output_vertices,
-			(int)pdp.limits.maxGeometryOutputVertices);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_geometry_total_output_components,
-			(int)pdp.limits.maxGeometryTotalOutputComponents);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_tess_control_total_output_components,
-			(int)pdp.limits.maxTessellationControlTotalOutputComponents);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_tess_evaluation_input_components,
-			(int)pdp.limits.maxTessellationEvaluationInputComponents);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_tess_evaluation_output_components,
-			(int)pdp.limits.maxTessellationEvaluationOutputComponents);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_tess_gen_level,
-			(int)pdp.limits.maxTessellationGenerationLevel);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_viewports,
-			(int)pdp.limits.maxViewports);
-
-		shaderc_compile_options_set_limit(
-			options, shaderc_limit_max_vertex_output_components,
-			(int)pdp.limits.maxVertexOutputComponents);
+		_GFX_SET_SHADERC_LIMIT(max_combined_clip_and_cull_distances,
+			maxCombinedClipAndCullDistances);
+		_GFX_SET_SHADERC_LIMIT(max_vertex_output_components,
+			maxVertexOutputComponents);
+		_GFX_SET_SHADERC_LIMIT(max_tess_control_total_output_components,
+			maxTessellationControlTotalOutputComponents);
+		_GFX_SET_SHADERC_LIMIT(max_tess_evaluation_input_components,
+			maxTessellationEvaluationInputComponents);
+		_GFX_SET_SHADERC_LIMIT(max_tess_evaluation_output_components,
+			maxTessellationEvaluationOutputComponents);
+		_GFX_SET_SHADERC_LIMIT(max_tess_gen_level,
+			maxTessellationGenerationLevel);
+		_GFX_SET_SHADERC_LIMIT(max_geometry_input_components,
+			maxGeometryInputComponents);
+		_GFX_SET_SHADERC_LIMIT(max_geometry_output_components,
+			maxGeometryOutputComponents);
+		_GFX_SET_SHADERC_LIMIT(max_geometry_output_vertices,
+			maxGeometryOutputVertices);
+		_GFX_SET_SHADERC_LIMIT(max_geometry_total_output_components,
+			maxGeometryTotalOutputComponents);
+		_GFX_SET_SHADERC_LIMIT(max_fragment_input_components,
+			maxFragmentInputComponents);
+		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_count_x,
+			maxComputeWorkGroupCount[0]);
+		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_count_y,
+			maxComputeWorkGroupCount[1]);
+		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_count_z,
+			maxComputeWorkGroupCount[2]);
+		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_size_x,
+			maxComputeWorkGroupSize[0]);
+		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_size_y,
+			maxComputeWorkGroupSize[1]);
+		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_size_z,
+			maxComputeWorkGroupSize[2]);
 	}
 
 	// Compile the shader.
