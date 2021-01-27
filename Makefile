@@ -56,6 +56,7 @@ endif
 
 WFLAGS = -Wall -Wconversion -Wsign-compare -Wshadow -pedantic
 CFLAGS = $(DFLAGS) $(WFLAGS) -std=c11 -Iinclude
+TFLAGS = $(CFLAGS) -pthread
 
 
 # Flags for library files only
@@ -234,7 +235,7 @@ $(BIN)$(SUB)/libgroufix$(EXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
 
 # Test programs
 $(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
-	$(CC) $(CFLAGS) -Itests $< -o $@ -L$(BIN)$(SUB) -Wl,-rpath='$$ORIGIN' -lgroufix
+	$(CC) $(TFLAGS) -Itests $< -o $@ -L$(BIN)$(SUB) -Wl,-rpath='$$ORIGIN' -lgroufix
 
 
 # Platform builds
@@ -247,9 +248,11 @@ unix:
 unix-tests:
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/fps
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/minimal
+	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/threaded
 
 win:
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/libgroufix.dll
 win-tests:
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/fps.exe
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/minimal.exe
+	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/threaded.exe

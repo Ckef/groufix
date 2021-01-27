@@ -11,7 +11,7 @@
  * TEST_DESCRIBE(name, base)
  *   Describe a new test, the syntax is similar to a function:
  *   TEST_DESCRIBE(basic_test, t) { gfx_window_set_title(t->window, "test"); }
- *   Where `t` is the name of the exposed GFXTestBase pointer.
+ *   Where `t` is the name of the exposed TestBase pointer.
  *
  * TEST_FAIL()
  *   Forces the test to fail and exits the program.
@@ -19,9 +19,20 @@
  * TEST_RUN(name)
  *   Call from within a test, run another test by name.
  *
+ * TEST_RUN_THREAD(name)
+ *   Same as TEST_RUN(name), except the test will run in a new thread.
+ *   This will attach and detach the thread to and from groufix appropriately.
+ *
+ * TEST_JOIN(name)
+ *   Joins a threaded test by name.
+ *
  * TEST_MAIN(name)
  *   Main entry point of the program by test name, use as follows:
  *   TEST_MAIN(basic_test);
+ *
+ * To enable threading, TEST_ENABLE_THREADS must be defined. Threading is
+ * implementeded using pthreads. The compiler should support this, luckily
+ * Mingw-w64 does on all platforms so no issues on Windows.
  *
  * The testing utility initializes groufix and opens a window backed by a
  * default renderer setup. To override default behaviour you can disable some
@@ -43,10 +54,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined (TEST_ENABLE_THREADS)
+	#include <pthread.h>
+#endif
+
 
 // Describes a test function that can be called.
 #define TEST_DESCRIBE(name, base) \
-	void _test_func_##name(struct GFXTestBase* base)
+	void _test_func_##name(TestBase* base)
 
 // Forces the test to fail.
 #define TEST_FAIL() \
@@ -55,6 +70,20 @@
 // Runs a test function from within another test function.
 #define TEST_RUN(name) \
 	_test_func_##name(&_test_base)
+
+// Runs a test in a new thread.
+#define TEST_RUN_THREAD(name) \
+	pthread_t _test_thrd_##name; \
+	TestThread _test_pfunc_##name = { &_test_func_##name }; \
+	if (pthread_create(&_test_thrd_##name, NULL, &_test_thrd, &_test_pfunc_##name) != 0) \
+		TEST_FAIL(); \
+
+// Joins a threaded test function.
+#define TEST_JOIN(name) \
+	do { \
+		void* _test_ret; \
+		pthread_join(_test_thrd_##name, &_test_ret); \
+	} while(0)
 
 // Main entry point for a test program, runs the given test name.
 #define TEST_MAIN(name) \
@@ -69,13 +98,33 @@
 /**
  * Base testing state, modify at your leisure :)
  */
-static struct GFXTestBase
+typedef struct
 {
 	GFXWindow*   window;
 	GFXRenderer* renderer; // Window is attached at index 0.
 
-} _test_base = { NULL, NULL };
+} TestBase;
 
+
+/**
+ * Thread pointer.
+ */
+typedef struct
+{
+	void (*f)(TestBase*);
+
+} TestThread;
+
+
+/**
+ * Instance of the test base state.
+ */
+static TestBase _test_base = { NULL, NULL };
+
+
+/****************************
+ * All internal testing functions.
+ ****************************/
 
 /**
  * Default key release event handler.
@@ -146,6 +195,28 @@ static void _test_end(void)
 	exit(EXIT_SUCCESS);
 }
 
+
+#if defined (TEST_ENABLE_THREADS)
+
+/**
+ * Thread entry point for a test.
+ */
+static void* _test_thrd(void* arg)
+{
+	TestThread* thrd = arg;
+
+	if (!gfx_attach())
+		TEST_FAIL();
+
+	thrd->f(&_test_base);
+	gfx_detach();
+
+	return NULL;
+}
+
+#endif
+
+
 /**
  * Initializes the test base program.
  */
@@ -153,7 +224,7 @@ static void _test_init(void)
 {
 	// Initialize.
 	if (!gfx_init())
-		_test_fail();
+		TEST_FAIL();
 
 	// Create a window.
 	_test_base.window = gfx_create_window(
@@ -161,7 +232,7 @@ static void _test_init(void)
 		NULL, NULL, (GFXVideoMode){ .width = 600, .height = 400 }, "groufix");
 
 	if (_test_base.window == NULL)
-		_test_fail();
+		TEST_FAIL();
 
 #if !defined (TEST_SKIP_EVENT_HANDLERS)
 	// Register the default key release event.
@@ -171,19 +242,19 @@ static void _test_init(void)
 	// Create a renderer and attach the window at index 0.
 	_test_base.renderer = gfx_create_renderer(NULL);
 	if (_test_base.renderer == NULL)
-		_test_fail();
+		TEST_FAIL();
 
 	if (!gfx_renderer_attach_window(_test_base.renderer, 0, _test_base.window))
-		_test_fail();
+		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
 	// Add a single render pass that writes to the window.
 	GFXRenderPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);
 	if (pass == NULL)
-		_test_fail();
+		TEST_FAIL();
 
 	if (!gfx_render_pass_write(pass, 0))
-		_test_fail();
+		TEST_FAIL();
 #endif
 }
 

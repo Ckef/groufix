@@ -10,7 +10,7 @@
 
 
 /****************************
- * Minimal test.
+ * Test to see many frames.
  */
 TEST_DESCRIBE(fps, _t)
 {
