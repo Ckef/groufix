@@ -9,6 +9,20 @@
 #define TEST_ENABLE_THREADS
 #include "test.h"
 
+#if !defined (__STDC_NO_ATOMICS__)
+	#include <stdatomic.h>
+#endif
+
+
+/****************************
+ * Terminate signal for threads.
+ */
+#if !defined (__STDC_NO_ATOMICS__)
+	static atomic_int termSig = 0;
+#else
+	static int termSig = 0; // Uh yeah whatever..
+#endif
+
 
 /****************************
  * The bit that renders.
@@ -16,9 +30,7 @@
 TEST_DESCRIBE(render_loop, _t)
 {
 	// Like the other loop, but submit the renderer :)
-	// TODO: So a call to gfx_window_should_close is not thread-safe.
-	// Actually it sorta is according to GLFW, but not synced.
-	while (!gfx_window_should_close(_t->window))
+	while (!termSig)
 		gfx_renderer_submit(_t->renderer);
 }
 
@@ -41,6 +53,7 @@ TEST_DESCRIBE(threaded, _t)
 		gfx_wait_events();
 
 	// Join the render thread.
+	termSig = 1;
 	TEST_JOIN(render_loop);
 }
 
