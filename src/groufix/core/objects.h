@@ -14,30 +14,6 @@
 
 
 /**
- * Internal shader.
- */
-struct GFXShader
-{
-	_GFXDevice*  device; // Associated GPU to use as target environment.
-	_GFXContext* context;
-
-	GFXShaderStage stage;
-
-
-	// Vulkan fields.
-	struct
-	{
-		VkShaderModule module;
-
-	} vk;
-};
-
-
-/****************************
- * Renderer & render graphs.
- ****************************/
-
-/**
  * Internal attachment description.
  */
 typedef struct _GFXAttach
@@ -67,6 +43,30 @@ typedef struct _GFXWindowAttach
 	} vk;
 
 } _GFXWindowAttach;
+
+
+/****************************
+ * User visible objects.
+ ****************************/
+
+/**
+ * Internal shader.
+ */
+struct GFXShader
+{
+	_GFXDevice*  device; // Associated GPU to use as target environment.
+	_GFXContext* context;
+
+	GFXShaderStage stage;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkShaderModule module;
+
+	} vk;
+};
 
 
 /**

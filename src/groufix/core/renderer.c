@@ -122,6 +122,7 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 	}
 
 	gfx_vec_clear(&attach->vk.views);
+	attach->image = UINT32_MAX;
 
 	// Destroy command pool.
 	// Implicitly frees all command buffers.
@@ -133,9 +134,6 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 	// When a window is detached, we don't know what will happen after,
 	// so just rebuild all the things.
 	renderer->built = 0;
-
-	// Also, can't have an image.
-	attach->image = UINT32_MAX;
 }
 
 /****************************
