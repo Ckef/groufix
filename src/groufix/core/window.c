@@ -305,10 +305,11 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
                                      GFXMonitor* monitor, GFXVideoMode mode,
                                      const char* title)
 {
+	assert(_groufix.initialized);
+	assert(_groufix.vk.instance != NULL);
 	assert(mode.width > 0);
 	assert(mode.height > 0);
 	assert(title != NULL);
-	assert(_groufix.vk.instance != NULL);
 
 	// Allocate and set a new window.
 	// Just set the user pointer and all callbacks to all 0's.

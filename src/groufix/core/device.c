@@ -724,12 +724,15 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device)
 /****************************/
 GFX_API size_t gfx_get_num_devices(void)
 {
+	assert(_groufix.initialized);
+
 	return _groufix.devices.size;
 }
 
 /****************************/
 GFX_API GFXDevice* gfx_get_device(size_t index)
 {
+	assert(_groufix.initialized);
 	assert(_groufix.devices.size > 0);
 	assert(index < _groufix.devices.size);
 
@@ -739,6 +742,7 @@ GFX_API GFXDevice* gfx_get_device(size_t index)
 /****************************/
 GFX_API GFXDevice* gfx_get_primary_device(void)
 {
+	assert(_groufix.initialized);
 	assert(_groufix.devices.size > 0);
 
 	return gfx_vec_at(&_groufix.devices, 0);
