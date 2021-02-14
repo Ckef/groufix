@@ -73,16 +73,15 @@
 
 // Runs a test in a new thread.
 #define TEST_RUN_THREAD(name) \
-	pthread_t _test_thrd_##name; \
-	TestThread _test_pfunc_##name = { &_test_func_##name }; \
-	if (pthread_create(&_test_thrd_##name, NULL, &_test_thrd, &_test_pfunc_##name) != 0) \
+	TestThread _test_thrd_##name = { .f = &_test_func_##name }; \
+	if (pthread_create(&_test_thrd_##name.thrd, NULL, &_test_thrd, &_test_thrd_##name) != 0) \
 		TEST_FAIL(); \
 
 // Joins a threaded test function.
 #define TEST_JOIN(name) \
 	do { \
 		void* _test_ret; \
-		pthread_join(_test_thrd_##name, &_test_ret); \
+		pthread_join(_test_thrd_##name.thrd, &_test_ret); \
 	} while(0)
 
 // Main entry point for a test program, runs the given test name.
@@ -106,14 +105,19 @@ typedef struct
 } TestBase;
 
 
+#if defined (TEST_ENABLE_THREADS)
+
 /**
- * Thread pointer.
+ * Thread handle.
  */
 typedef struct
 {
 	void (*f)(TestBase*);
+	pthread_t thrd;
 
 } TestThread;
+
+#endif
 
 
 /**

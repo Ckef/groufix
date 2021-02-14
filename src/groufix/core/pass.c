@@ -198,7 +198,11 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	// TODO: Super temporary!!
 	const char vert[] =
 		"#version 450\n"
+		"#extension GL_ARB_separate_shader_objects : enable\n"
 		"layout(location = 0) out vec3 fragColor;\n"
+		"out gl_PerVertex {\n"
+		"  vec4 gl_Position;\n"
+		"};\n"
 		"vec2 positions[3] = vec2[](\n"
 		"  vec2(0.0, -0.5),\n"
 		"  vec2(0.5, 0.5),\n"
@@ -209,9 +213,6 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 		"  vec3(0.0, 1.0, 0.0),\n"
 		"  vec3(0.0, 0.0, 1.0)\n"
 		");\n"
-		"out gl_PerVertex {\n"
-		"  vec4 gl_Position;\n"
-		"};\n"
 		"void main() {\n"
 		"  gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);\n"
 		"  fragColor = colors[gl_VertexIndex];\n"
@@ -219,6 +220,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 
 	const char frag[] =
 		"#version 450\n"
+		"#extension GL_ARB_separate_shader_objects : enable\n"
 		"layout(location = 0) in vec3 fragColor;\n"
 		"layout(location = 0) out vec4 outColor;\n"
 		"void main() {\n"
