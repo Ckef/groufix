@@ -483,7 +483,7 @@ void _gfx_swapchain_unlock(_GFXWindow* window);
  * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
  * @return Non-zero on success.
  *
- * Can be called from any thread, but not reentrant.
+ * Not thread-affine, but also not thread-safe.
  * This will signal window->vk.available when the current image is acquired.
  */
 int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
@@ -496,7 +496,7 @@ int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
  * @param index    Must be an index retrieved by _gfx_swapchain_acquire.
  * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
  *
- * Can be called from any thread, but not reentrant.
+ * Not thread-affine, but also not thread-safe.
  * window->vk.rendered must be signaled or pending.
  * This will silently log failures.
  */

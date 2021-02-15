@@ -42,7 +42,7 @@ static int _gfx_swapchain_sig(_GFXWindow* window)
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *
- * Can be called from any thread, but not reentrant.
+ * Not thread-affine, but also not thread-safe.
  */
 static int _gfx_swapchain_recreate(_GFXWindow* window)
 {

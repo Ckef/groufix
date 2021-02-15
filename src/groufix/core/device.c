@@ -253,7 +253,7 @@ static void _gfx_destroy_context(_GFXContext* context)
  * @param device Cannot be NULL.
  * @return Zero on failure.
  *
- * Not reentrant for the same device, it modifies.
+ * Not thread-safe for the same device, it modifies.
  */
 static int _gfx_create_context(_GFXDevice* device)
 {
