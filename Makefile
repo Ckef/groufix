@@ -61,7 +61,7 @@ TFLAGS = $(CFLAGS) -pthread
 
 # Flags for library files only
 OFLAGS_ALL = \
- $(CFLAGS) -c -s -DGFX_BUILD_LIB -Isrc \
+ $(CFLAGS) -c -s -MP -MMD -DGFX_BUILD_LIB -Isrc \
  -Ideps/glfw/include \
  -Ideps/Vulkan-Headers/include \
  -Ideps/shaderc/libshaderc/include
@@ -180,21 +180,6 @@ clean-all: clean clean-bin clean-deps
 ##############################
 # Dependency files for all builds
 
-HEADERS = \
- include/groufix/containers/vec.h \
- include/groufix/core/device.h \
- include/groufix/core/keys.h \
- include/groufix/core/log.h \
- include/groufix/core/renderer.h \
- include/groufix/core/shader.h \
- include/groufix/core/window.h \
- include/groufix/def.h \
- include/groufix.h \
- src/groufix/core/objects.h \
- src/groufix/core/threads.h \
- src/groufix/core.h
-
-
 OBJS = \
  $(OUT)$(SUB)/groufix/containers/vec.o \
  $(OUT)$(SUB)/groufix/core/device.o \
@@ -209,10 +194,13 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/window.o \
  $(OUT)$(SUB)/groufix.o
 
-
 LIBS = \
  $(BUILD)$(SUB)/glfw/src/libglfw3.a \
  $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a
+
+
+# Generated dependency files
+-include $(OBJS:.o=.d)
 
 
 ##############################
@@ -226,7 +214,7 @@ $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a: | $(BUILD)$(SUB)
 
 
 # Object files
-$(OUT)$(SUB)/%.o: src/%.c $(HEADERS) | $(OUT)$(SUB)
+$(OUT)$(SUB)/%.o: src/%.c | $(OUT)$(SUB)
 	$(CC) $(OFLAGS) $< -o $@
 
 # Library file
