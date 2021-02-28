@@ -7,8 +7,8 @@
  */
 
 
-#ifndef GFX_CONTAINERS_VECTOR_H
-#define GFX_CONTAINERS_VECTOR_H
+#ifndef GFX_CONTAINERS_VEC_H
+#define GFX_CONTAINERS_VEC_H
 
 #include "groufix/def.h"
 #include <stddef.h>
@@ -33,14 +33,14 @@ typedef struct GFXVec
  */
 static inline void* gfx_vec_at(GFXVec* vec, size_t index)
 {
-	return (void*)(((char*)vec->data) + vec->elementSize * index);
+	return (void*)((char*)vec->data + (vec->elementSize * index));
 }
 
 /**
  * Returns the index of an element.
  * Undefined behaviour if elem is not memory of vec.
  */
-static inline size_t gfx_vec_get(GFXVec* vec, const void* elem)
+static inline size_t gfx_vec_index(GFXVec* vec, const void* elem)
 {
 	return (size_t)((char*)elem - (char*)vec->data) / vec->elementSize;
 }
@@ -81,7 +81,6 @@ GFX_API void gfx_vec_release(GFXVec* vec);
  * @return Zero when out of memory.
  */
 GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems);
-
 
 /**
  * Pushes uninitialized elements to the end of a vector.

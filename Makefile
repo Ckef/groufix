@@ -39,19 +39,19 @@ OUT   = obj
 
 # Compiler prefix (None if not a cross-compile)
 ifeq ($(CC),i686-w64-mingw32-gcc)
-	CC_PREFIX = i686-w64-mingw32
+ CC_PREFIX = i686-w64-mingw32
 else ifeq ($(CC),x86_64-w64-mingw32-gcc)
-	CC_PREFIX = x86_64-w64-mingw32
+ CC_PREFIX = x86_64-w64-mingw32
 else
-	CC_PREFIX = None
+ CC_PREFIX = None
 endif
 
 
 # Flags for all binaries
 ifeq ($(DEBUG),ON)
-	DFLAGS = -g -Og
+ DFLAGS = -g -Og
 else
-	DFLAGS = -DNDEBUG -O3
+ DFLAGS = -DNDEBUG -O3
 endif
 
 WFLAGS = -Wall -Wconversion -Wsign-compare -Wshadow -pedantic
@@ -67,9 +67,9 @@ OFLAGS_ALL = \
  -Ideps/shaderc/libshaderc/include
 
 ifeq ($(OS),Windows_NT)
-	OFLAGS = $(OFLAGS_ALL)
+ OFLAGS = $(OFLAGS_ALL)
 else
-	OFLAGS = $(OFLAGS_ALL) -fPIC
+ OFLAGS = $(OFLAGS_ALL) -fPIC
 endif
 
 
@@ -79,11 +79,11 @@ LFLAGS_UNIX = $(LFLAGS_ALL) -ldl
 LFLAGS_WIN  = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
-	LFLAGS = $(LFLAGS_WIN)
+ LFLAGS = $(LFLAGS_WIN)
 else ifeq ($(OS),Windows_NT)
-	LFLAGS = $(LFLAGS_WIN)
+ LFLAGS = $(LFLAGS_WIN)
 else
-	LFLAGS = $(LFLAGS_UNIX)
+ LFLAGS = $(LFLAGS_UNIX)
 endif
 
 
@@ -104,14 +104,14 @@ SHADERC_FLAGS_UNIX = $(SHADERC_FLAGS_ALL) -G "Unix Makefiles"
 SHADERC_FLAGS_WIN  = $(SHADERC_FLAGS_ALL) -G "MinGW Makefiles"
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
-	GLFW_FLAGS    = $(GLFW_FLAGS_ALL) -DCMAKE_TOOLCHAIN_FILE=CMake/$(CC_PREFIX).cmake
-	SHADERC_FLAGS = $(SHADERC_FLAGS_UNIX) $(SHADERC_MINGW_TOOLCHAIN)
+ GLFW_FLAGS    = $(GLFW_FLAGS_ALL) -DCMAKE_TOOLCHAIN_FILE=CMake/$(CC_PREFIX).cmake
+ SHADERC_FLAGS = $(SHADERC_FLAGS_UNIX) $(SHADERC_MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
-	GLFW_FLAGS    = $(GLFW_FLAGS_ALL) -DCMAKE_C_COMPILER=$(CC) -G "MinGW Makefiles"
-	SHADERC_FLAGS = $(SHADERC_FLAGS_WIN)
+ GLFW_FLAGS    = $(GLFW_FLAGS_ALL) -DCMAKE_C_COMPILER=$(CC) -G "MinGW Makefiles"
+ SHADERC_FLAGS = $(SHADERC_FLAGS_WIN)
 else
-	GLFW_FLAGS    = $(GLFW_FLAGS_ALL)
-	SHADERC_FLAGS = $(SHADERC_FLAGS_UNIX)
+ GLFW_FLAGS    = $(GLFW_FLAGS_ALL)
+ SHADERC_FLAGS = $(SHADERC_FLAGS_UNIX)
 endif
 
 
@@ -181,6 +181,7 @@ clean-all: clean clean-bin clean-deps
 # Dependency files for all builds
 
 OBJS = \
+ $(OUT)$(SUB)/groufix/containers/tree.o \
  $(OUT)$(SUB)/groufix/containers/vec.o \
  $(OUT)$(SUB)/groufix/core/device.o \
  $(OUT)$(SUB)/groufix/core/log.o \

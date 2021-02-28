@@ -46,6 +46,7 @@
 
 /**
  * Initializes a thread local data key.
+ * The object pointed to by key cannot be moved or copied!
  * @return Non-zero on success.
  */
 static inline int _gfx_thread_key_init(_GFXThreadKey* key)
@@ -111,6 +112,7 @@ static inline void* _gfx_thread_key_get(_GFXThreadKey key)
 
 /**
  * Initializes a mutex.
+ * The object pointed to by mutex cannot be moved or copied!
  * @return Non-zero on success.
  */
 static inline int _gfx_mutex_init(_GFXMutex* mutex)

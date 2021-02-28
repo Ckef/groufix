@@ -104,7 +104,7 @@ static void _gfx_renderer_destroy_swap(GFXRenderer* renderer,
 	// attachment as output, if so, destruct the pass.
 	// The window will be gone after this, so we can't keep anything.
 	// Do NOT destruct every pass, many things can be partially destructed :)
-	size_t backing = gfx_vec_get(&renderer->windows, attach);
+	size_t backing = gfx_vec_index(&renderer->windows, attach);
 
 	for (size_t i = 0; i < renderer->passes.size; ++i)
 	{
@@ -238,7 +238,7 @@ static int _gfx_renderer_recreate_swap(GFXRenderer* renderer,
 	// postpone to when the entire renderer will get rebuild.
 	if (rebuild && renderer->built)
 	{
-		size_t backing = gfx_vec_get(&renderer->windows, attach);
+		size_t backing = gfx_vec_index(&renderer->windows, attach);
 
 		for (size_t i = 0; i < renderer->passes.size; ++i)
 		{

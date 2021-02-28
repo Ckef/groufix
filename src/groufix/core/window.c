@@ -253,7 +253,7 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 	{
 		_GFXQueueSet* set = *(_GFXQueueSet**)gfx_vec_at(&context->sets, i);
 
-		// Gather all families that needs access to presentable images.
+		// Gather all families that need access to presentable images.
 		// We only care about the family if it is a graphics family OR
 		// it specifically tells us it is capable of presenting.
 		if (!(set->flags & VK_QUEUE_GRAPHICS_BIT || set->present))
