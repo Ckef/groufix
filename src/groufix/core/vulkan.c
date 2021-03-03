@@ -66,6 +66,7 @@ static VkBool32 VKAPI_PTR _gfx_vulkan_message(
 
 #endif
 
+
 /****************************/
 const char* _gfx_vulkan_result_string(VkResult result)
 {

@@ -34,7 +34,7 @@ typedef struct GFXTree
 	size_t keySize;
 	void*  root;
 
-	// Comparison function, takes two keys as arguments.
+	// Key comparison function.
 	int (*cmp)(const void*, const void*);
 
 } GFXTree;
@@ -54,12 +54,14 @@ static inline const void* gfx_tree_key(GFXTree* tree, const void* node)
  * @param tree    Cannot be NULL.
  * @param keySize Must be > 0.
  * @param cmp     Cannot be NULL.
+ *
+ * cmp takes two keys and should return -1 if <, 0 if == and 1 if >.
  */
 GFX_API void gfx_tree_init(GFXTree* tree, size_t keySize,
                            int (*cmp)(const void*, const void*));
 
 /**
- * Clears the content of a tree (erasing all nodes).
+ * Clears the content of a tree, erasing all nodes.
  * @param tree Cannot be NULL.
  */
 GFX_API void gfx_tree_clear(GFXTree* tree);
@@ -98,7 +100,7 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
  * @param node Must be a value returned by gfx_tree_insert_*.
  * @param key  Cannot be NULL.
  */
-GFX_API void gfx_tree_update(GFXTree* tree, void* node, const void* key);
+GFX_API void gfx_tree_update(GFXTree* tree, const void* node, const void* key);
 
 /**
  * Erases a node from the tree, also freeing the modifiable element data.
