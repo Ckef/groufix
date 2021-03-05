@@ -48,7 +48,7 @@ typedef struct _GFXTreeNode
 /****************************
  * Left tree rotation.
  */
-static void _gfx_tree_rotate_left(_GFXTreeNode* tNode)
+static void _gfx_tree_rotate_left(GFXTree* tree, _GFXTreeNode* tNode)
 {
 	assert(tNode->right != NULL);
 
@@ -64,7 +64,9 @@ static void _gfx_tree_rotate_left(_GFXTreeNode* tNode)
 	if (tNode->right != NULL)
 		tNode->right->parent = tNode;
 
-	if (parent != NULL)
+	if (parent == NULL)
+		tree->root = _GFX_GET_ELEMENT(tree, pivot);
+	else
 	{
 		if (parent->left == tNode)
 			parent->left = pivot;
@@ -76,7 +78,7 @@ static void _gfx_tree_rotate_left(_GFXTreeNode* tNode)
 /****************************
  * Right tree rotation.
  */
-static void _gfx_tree_rotate_right(_GFXTreeNode* tNode)
+static void _gfx_tree_rotate_right(GFXTree* tree, _GFXTreeNode* tNode)
 {
 	assert(tNode->left != NULL);
 
@@ -92,7 +94,9 @@ static void _gfx_tree_rotate_right(_GFXTreeNode* tNode)
 	if (tNode->left != NULL)
 		tNode->left->parent = tNode;
 
-	if (parent != NULL)
+	if (parent == NULL)
+		tree->root = _GFX_GET_ELEMENT(tree, pivot);
+	else
 	{
 		if (parent->left == tNode)
 			parent->left = pivot;
@@ -128,13 +132,14 @@ static void _gfx_tree_insert(GFXTree* tree, _GFXTreeNode* tNode)
 	}
 
 	*walk = tNode; // If root was NULL, now it is not.
+	tree->root = _GFX_GET_ELEMENT(tree, root);
 
 	tNode->parent = parent;
 	tNode->left = NULL;
 	tNode->right = NULL;
 	tNode->color = _GFX_TREE_RED;
 
-	// Rebalance/repair the tree.
+	// Rebalance the tree.
 	while (1)
 	{
 		parent = tNode->parent;
@@ -148,7 +153,7 @@ static void _gfx_tree_insert(GFXTree* tree, _GFXTreeNode* tNode)
 		else if (parent->color == _GFX_TREE_RED)
 		{
 			_GFXTreeNode* grand = parent->parent;
-			_GFXTreeNode* uncle = grand->left == parent ?
+			_GFXTreeNode* uncle = (grand->left == parent) ?
 				grand->right : grand->left;
 
 			if (uncle != NULL && uncle->color == _GFX_TREE_RED)
@@ -166,21 +171,21 @@ static void _gfx_tree_insert(GFXTree* tree, _GFXTreeNode* tNode)
 			{
 				if (tNode == parent->right && parent == grand->left)
 				{
-					_gfx_tree_rotate_left(parent);
+					_gfx_tree_rotate_left(tree, parent);
 					tNode = parent;
 					parent = tNode->parent;
 				}
 				else if (tNode == parent->left && parent == grand->right)
 				{
-					_gfx_tree_rotate_right(parent);
+					_gfx_tree_rotate_right(tree, parent);
 					tNode = parent;
 					parent = tNode->parent;
 				}
 
 				if (tNode == parent->left)
-					_gfx_tree_rotate_right(grand);
+					_gfx_tree_rotate_right(tree, grand);
 				else
-					_gfx_tree_rotate_left(grand);
+					_gfx_tree_rotate_left(tree, grand);
 
 				parent->color = _GFX_TREE_BLACK;
 				grand->color = _GFX_TREE_RED;
@@ -189,20 +194,206 @@ static void _gfx_tree_insert(GFXTree* tree, _GFXTreeNode* tNode)
 
 		break;
 	}
-
-	// Find new root of tree.
-	while (root->parent != NULL)
-		root = root->parent;
-
-	tree->root = _GFX_GET_ELEMENT(tree, root);
 }
 
 /****************************
  * Erases a _GFXTreeNode from the tree.
+ * This will only unlink, it will not free any memory.
  */
 static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 {
-	// TODO: Do the erasing...
+	// TODO: Super untested!!
+
+	// If the node has two children, exchange with its successor.
+	// We remove it after this exchange, as then it can only have 1 child.
+	if (tNode->left != NULL && tNode->right != NULL)
+	{
+		_GFXTreeNode* succ = tNode->right;
+		while (succ->left != NULL) succ = succ->left;
+
+		_GFXTreeNode* child =
+			succ->left != NULL ? succ->left : succ->right;
+
+		// Swap all pointers to the node or its successor.
+		if (tNode->parent == NULL)
+			tree->root = _GFX_GET_ELEMENT(tree, succ);
+		else
+		{
+			if (tNode == tNode->parent->left)
+				tNode->parent->left = succ;
+			else
+				tNode->parent->right = succ;
+		}
+
+		tNode->left->parent = succ;
+
+		if (tNode->right != succ)
+			tNode->right->parent = succ;
+
+		if (succ->parent != tNode)
+		{
+			if (succ == succ->parent->left)
+				succ->parent->left = tNode;
+			else
+				succ->parent->right = tNode;
+		}
+
+		if (child != NULL)
+			child->parent = tNode;
+
+		// Set pointers (and colors!) of the node and its successor.
+		_GFXTreeNode temp = *tNode;
+
+		tNode->parent = (temp.right == succ) ? succ : succ->parent;
+		tNode->left = succ->left;
+		tNode->right = succ->right;
+		tNode->color = succ->color;
+
+		succ->parent = temp.parent;
+		succ->left = temp.left;
+		succ->right = (temp.right == succ) ? tNode : temp.right;
+		succ->color = temp.color;
+	}
+
+	// If the node is red now, it cannot have that one child because
+	// it would have to be black, which causes a black-violation.
+	// Meaning it's a leaf, just unlink it.
+	if (tNode->color == _GFX_TREE_RED)
+	{
+		if (tNode == tNode->parent->left)
+			tNode->parent->left = NULL;
+		else
+			tNode->parent->right = NULL;
+
+		// Done!
+		return;
+	}
+
+	// If it has a child it must be red again,
+	// the child replaces the node and becomes black.
+	if (tNode->left != NULL || tNode->right != NULL)
+	{
+		_GFXTreeNode* child =
+			tNode->left != NULL ? tNode->left : tNode->right;
+
+		child->parent = tNode->parent;
+
+		if (tNode->parent == NULL)
+			tree->root = _GFX_GET_ELEMENT(tree, child);
+		else
+		{
+			if (tNode == tNode->parent->left)
+				tNode->parent->left = child;
+			else
+				tNode->parent->right = child;
+		}
+
+		child->color = _GFX_TREE_BLACK;
+
+		// Done!
+		return;
+	}
+
+	// At this point we must have a black node without children.
+	// Firstly, check if it is the root.
+	_GFXTreeNode* parent = tNode->parent;
+
+	if (parent == NULL)
+	{
+		tree->root = NULL;
+		return;
+	}
+
+	// If not, unlink from its parent (causing a black-violation).
+	if (tNode == parent->left)
+		parent->left = NULL;
+	else
+		parent->right = NULL;
+
+	tNode = NULL; // It's officially 'erased'.
+
+	// Rebalance the tree.
+	while (parent != NULL)
+	{
+		_GFXTreeNode* sibling =
+			(tNode == parent->left) ? parent->right : parent->left;
+
+		// If we hit this spot again it means the current subtree has
+		// 1 black node too little, so it's a black-violation.
+		if (sibling->color == _GFX_TREE_RED)
+		{
+			parent->color = _GFX_TREE_RED;
+			sibling->color = _GFX_TREE_BLACK;
+
+			if (sibling == parent->right)
+			{
+				_gfx_tree_rotate_left(tree, parent);
+				sibling = parent->right;
+			}
+			else
+			{
+				_gfx_tree_rotate_right(tree, parent);
+				sibling = parent->left;
+			}
+		}
+		else if (
+			parent->color == _GFX_TREE_BLACK &&
+			(sibling->left == NULL || sibling->left->color == _GFX_TREE_BLACK) &&
+			(sibling->right == NULL || sibling->right->color == _GFX_TREE_BLACK))
+		{
+			sibling->color = _GFX_TREE_RED;
+
+			// The parent subtree still has 1 black node too little.
+			// 'recursively' fix the parent.
+			tNode = parent;
+			parent = tNode->parent;
+			continue;
+		}
+
+		// Sibling must be black at this point.
+		if (
+			parent->color == _GFX_TREE_RED &&
+			(sibling->left == NULL || sibling->left->color == _GFX_TREE_BLACK) &&
+			(sibling->right == NULL || sibling->right->color == _GFX_TREE_BLACK))
+		{
+			parent->color = _GFX_TREE_BLACK;
+			sibling->color = _GFX_TREE_RED;
+		}
+		else
+		{
+			// One of sibling's children must be red.
+			if (
+				tNode == parent->left &&
+				(sibling->right == NULL || sibling->right->color == _GFX_TREE_BLACK))
+			{
+				_gfx_tree_rotate_right(tree, sibling);
+				sibling = sibling->parent;
+			}
+			else if (
+				tNode == parent->right &&
+				(sibling->left == NULL || sibling->left->color == _GFX_TREE_BLACK))
+			{
+				_gfx_tree_rotate_left(tree, sibling);
+				sibling = sibling->parent;
+			}
+
+			sibling->color = parent->color;
+			parent->color = _GFX_TREE_BLACK;
+
+			if (tNode == parent->left)
+			{
+				sibling->right->color = _GFX_TREE_BLACK;
+				_gfx_tree_rotate_left(tree, parent);
+			}
+			else
+			{
+				sibling->left->color = _GFX_TREE_BLACK;
+				_gfx_tree_rotate_right(tree, parent);
+			}
+		}
+
+		break;
+	}
 }
 
 /****************************/
@@ -292,7 +483,6 @@ GFX_API void gfx_tree_update(GFXTree* tree, const void* node, const void* key)
 
 	// TODO: Check if still correct relative to parent/children.
 
-	// TODO: Will definitely break as nothing gets erased from the tree.
 	// If the tree is invalidated, re-insert the node.
 	_gfx_tree_erase(tree, tNode);
 	_gfx_tree_insert(tree, tNode);
@@ -304,7 +494,6 @@ GFX_API void gfx_tree_erase(GFXTree* tree, void* node)
 	assert(tree != NULL);
 	assert(node != NULL);
 
-	// TODO: Will definitely break as nothing gets erased from the tree.
 	_GFXTreeNode* tNode = _GFX_GET_NODE(tree, node);
 	_gfx_tree_erase(tree, tNode);
 
