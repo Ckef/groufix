@@ -20,8 +20,8 @@
 typedef enum GFXTreeMatchType
 {
 	GFX_TREE_MATCH_STRICT,
-	GFX_TREE_MATCH_LEFT, // Greatest element smaller than search key.
-	GFX_TREE_MATCH_RIGHT // Smallest element greater than search key.
+	GFX_TREE_MATCH_LEFT, // Greatest element <= than search key.
+	GFX_TREE_MATCH_RIGHT // Smallest element >= than search key.
 
 } GFXTreeMatchType;
 

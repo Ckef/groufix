@@ -449,7 +449,60 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 	assert(tree != NULL);
 	assert(key != NULL);
 
-	// TODO: Search in tree.
+	if (tree->root == NULL)
+		return NULL;
+
+	// Search for the node with the exact key,
+	// keep track of its parent for when we're not strict matching.
+	// Also store cmp so we don't compare against the last node twice.
+	_GFXTreeNode* tNode = _GFX_GET_NODE(tree, tree->root);
+	_GFXTreeNode* parent = NULL;
+	int cmp = 0;
+
+	while (tNode != NULL)
+	{
+		cmp = tree->cmp(key, _GFX_GET_KEY(tree, tNode));
+		parent = tNode;
+
+		if (cmp < 0)
+			tNode = tNode->left;
+		else if (cmp > 0)
+			tNode = tNode->right;
+		else
+			return _GFX_GET_ELEMENT(tree, tNode);
+	}
+
+	// No exact match :(
+	if (matchType == GFX_TREE_MATCH_STRICT)
+		return NULL;
+
+	tNode = parent;
+	parent = tNode->parent;
+
+	// TODO: Below does not account for duplicates!
+	// Now we need to match to some node that is not strictly equal in key.
+	// left = find predecessor & right = find successor.
+	if (
+		(cmp > 0 && matchType == GFX_TREE_MATCH_LEFT) ||
+		(cmp < 0 && matchType == GFX_TREE_MATCH_RIGHT))
+	{
+		// Last walked node is a match.
+		return _GFX_GET_ELEMENT(tree, tNode);
+	}
+
+	while (parent != NULL)
+	{
+		if (
+			(tNode == parent->right && matchType == GFX_TREE_MATCH_LEFT) ||
+			(tNode == parent->left && matchType == GFX_TREE_MATCH_RIGHT))
+		{
+			// Internal node is a match.
+			return _GFX_GET_ELEMENT(tree, tNode);
+		}
+
+		tNode = parent;
+		parent = tNode->parent;
+	}
 
 	return NULL;
 }
