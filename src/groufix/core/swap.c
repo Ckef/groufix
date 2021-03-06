@@ -244,7 +244,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window)
 		if (!gfx_vec_reserve(&window->frame.images, count))
 			goto clean;
 
-		gfx_vec_push_empty(&window->frame.images, count);
+		gfx_vec_push(&window->frame.images, count, NULL);
 
 		_GFX_VK_CHECK(
 			context->vk.GetSwapchainImagesKHR(

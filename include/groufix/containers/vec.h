@@ -77,33 +77,21 @@ GFX_API void gfx_vec_release(GFXVec* vec);
  * Pushes elements to the end of a vector.
  * @param vec      Cannot be NULL.
  * @param numElems Must be > 0.
- * @param elems    Cannot be an element of vec or NULL.
+ * @param elems    Cannot be an element of vec, may be NULL to push empty.
  * @return Zero when out of memory.
  */
 GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems);
 
 /**
- * Pushes uninitialized elements to the end of a vector.
- * @see gfx_vec_push.
- */
-GFX_API int gfx_vec_push_empty(GFXVec* vec, size_t numElems);
-
-/**
  * Inserts elements in the vector at some index.
  * @param vec      Cannot be NULL.
  * @param numElems Must be > 0.
- * @param elems    Cannot be an element of vec or NULL.
+ * @param elems    Cannot be an element of vec, may be NULL to insert empty.
  * @param index    Must be <= vec->size.
  * @return Zero when out of memory.
  */
 GFX_API int gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
                            size_t index);
-
-/**
- * Inserts uninitialized elements in the vector at some index.
- * @see gfx_vec_insert.
- */
-GFX_API int gfx_vec_insert_empty(GFXVec* vec, size_t numElems, size_t index);
 
 /**
  * Pops elements from the end of a vector.

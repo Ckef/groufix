@@ -422,23 +422,6 @@ GFX_API void* gfx_tree_insert(GFXTree* tree, size_t elemSize, const void* elem,
                               const void* key)
 {
 	assert(tree != NULL);
-	assert(elemSize > 0);
-	assert(elem != NULL);
-	assert(key != NULL);
-
-	void* node = gfx_tree_insert_empty(tree, elemSize, key);
-	if (node == NULL) return NULL;
-
-	memcpy(node, elem, elemSize);
-
-	return node;
-}
-
-/****************************/
-GFX_API void* gfx_tree_insert_empty(GFXTree* tree, size_t elemSize,
-                                    const void* key)
-{
-	assert(tree != NULL);
 	assert(key != NULL);
 
 	// Allocate a new node.
@@ -452,6 +435,9 @@ GFX_API void* gfx_tree_insert_empty(GFXTree* tree, size_t elemSize,
 	// Initialize the key value and insert.
 	memcpy(_GFX_GET_KEY(tree, tNode), key, tree->keySize);
 	_gfx_tree_insert(tree, tNode);
+
+	if (elemSize > 0 && elem != NULL)
+		memcpy(_GFX_GET_ELEMENT(tree, tNode), elem, elemSize);
 
 	return _GFX_GET_ELEMENT(tree, tNode);
 }
@@ -478,7 +464,32 @@ GFX_API void gfx_tree_update(GFXTree* tree, const void* node, const void* key)
 	_GFXTreeNode* tNode = _GFX_GET_NODE(tree, node);
 	memcpy(_GFX_GET_KEY(tree, tNode), key, tree->keySize);
 
-	// TODO: Check if still correct relative to parent/children.
+	// Check if still correct relative to its parent and children.
+	int p = (tNode->parent == NULL) ? 0 :
+		tree->cmp(key, _GFX_GET_KEY(tree, tNode->parent));
+
+	int l = (tNode->left == NULL) ? 0 :
+		tree->cmp(key, _GFX_GET_KEY(tree, tNode->left));
+
+	int r = (tNode->right == NULL) ? 0 :
+		tree->cmp(key, _GFX_GET_KEY(tree, tNode->right));
+
+	if(
+		(p == 0 ||
+		(p < 0 && tNode == tNode->parent->left) ||
+		(p > 0 && tNode == tNode->parent->right)) &&
+		l >= 0 &&
+		r <= 0)
+	{
+		//  == to parent (to avoid access to NULL) OR
+		//  < than parent and is left child OR
+		//  > than parent and is right child.
+		// AND
+		//  >= than left child.
+		// AND
+		//  <= than right child.
+		return;
+	}
 
 	// If the tree is invalidated, re-insert the node.
 	_gfx_tree_erase(tree, tNode);

@@ -69,21 +69,13 @@ GFX_API void gfx_tree_clear(GFXTree* tree);
 /**
  * Inserts a node into the tree.
  * @param tree     Cannot be NULL.
- * @param elemSize Must be > 0.
- * @param elem     Cannot be NULL.
+ * @param elemSize Can be 0 for a truly empty node.
+ * @param elem     Can be NULL for an empty node.
  * @param key      Cannot be NULL.
  * @return The inserted node (modifiable element data), NULL when out of memory.
  */
 GFX_API void* gfx_tree_insert(GFXTree* tree, size_t elemSize, const void* elem,
                               const void* key);
-
-/**
- * Inserts an uninitialized node into the tree.
- * Can also insert a truly empty node with elemSize = 0.
- * @see gfx_tree_insert.
- */
-GFX_API void* gfx_tree_insert_empty(GFXTree* tree, size_t elemSize,
-                                    const void* key);
 
 /**
  * Searches for a node in the tree.

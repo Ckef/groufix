@@ -395,7 +395,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	}
 
 	// If not found, insert new one.
-	if (!gfx_vec_push_empty(&renderer->attachs, 1))
+	if (!gfx_vec_push(&renderer->attachs, 1, NULL))
 	{
 		gfx_log_error("Could not describe an attachment index of a renderer.");
 		return 0;

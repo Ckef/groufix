@@ -118,7 +118,7 @@ static int _gfx_render_pass_rebuild_backing(GFXRenderPass* pass)
 			goto error;
 
 		size_t newCount = count - currCount;
-		gfx_vec_push_empty(&pass->vk.commands, newCount);
+		gfx_vec_push(&pass->vk.commands, newCount, NULL);
 
 		VkCommandBufferAllocateInfo cbai = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
