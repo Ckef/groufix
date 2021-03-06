@@ -167,29 +167,28 @@ static void _gfx_tree_insert(GFXTree* tree, _GFXTreeNode* tNode)
 				tNode = grand;
 				continue;
 			}
-			else
+
+			// Uncle must be black here.
+			if (tNode == parent->right && parent == grand->left)
 			{
-				if (tNode == parent->right && parent == grand->left)
-				{
-					_gfx_tree_rotate_left(tree, parent);
-					tNode = parent;
-					parent = tNode->parent;
-				}
-				else if (tNode == parent->left && parent == grand->right)
-				{
-					_gfx_tree_rotate_right(tree, parent);
-					tNode = parent;
-					parent = tNode->parent;
-				}
-
-				if (tNode == parent->left)
-					_gfx_tree_rotate_right(tree, grand);
-				else
-					_gfx_tree_rotate_left(tree, grand);
-
-				parent->color = _GFX_TREE_BLACK;
-				grand->color = _GFX_TREE_RED;
+				_gfx_tree_rotate_left(tree, parent);
+				tNode = parent;
+				parent = tNode->parent;
 			}
+			else if (tNode == parent->left && parent == grand->right)
+			{
+				_gfx_tree_rotate_right(tree, parent);
+				tNode = parent;
+				parent = tNode->parent;
+			}
+
+			if (tNode == parent->left)
+				_gfx_tree_rotate_right(tree, grand);
+			else
+				_gfx_tree_rotate_left(tree, grand);
+
+			parent->color = _GFX_TREE_BLACK;
+			grand->color = _GFX_TREE_RED;
 		}
 
 		break;
@@ -202,8 +201,6 @@ static void _gfx_tree_insert(GFXTree* tree, _GFXTreeNode* tNode)
  */
 static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 {
-	// TODO: Super untested!!
-
 	// If the node has two children, exchange with its successor.
 	// We remove it after this exchange, as then it can only have 1 child.
 	if (tNode->left != NULL && tNode->right != NULL)
@@ -362,7 +359,6 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 		else
 		{
 			// One of sibling's children must be red.
-			// TODO: You sure?
 			if (
 				tNode == parent->left &&
 				(sibling->right == NULL || sibling->right->color == _GFX_TREE_BLACK))
