@@ -479,7 +479,6 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 	tNode = parent;
 	parent = tNode->parent;
 
-	// TODO: Below does not account for duplicates!
 	// Now we need to match to some node that is not strictly equal in key.
 	// left = find predecessor & right = find successor.
 	if (
@@ -497,7 +496,7 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 			(tNode == parent->left && matchType == GFX_TREE_MATCH_RIGHT))
 		{
 			// Internal node is a match.
-			return _GFX_GET_ELEMENT(tree, tNode);
+			return _GFX_GET_ELEMENT(tree, parent);
 		}
 
 		tNode = parent;
