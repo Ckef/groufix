@@ -362,6 +362,7 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 		else
 		{
 			// One of sibling's children must be red.
+			// TODO: You sure?
 			if (
 				tNode == parent->left &&
 				(sibling->right == NULL || sibling->right->color == _GFX_TREE_BLACK))
