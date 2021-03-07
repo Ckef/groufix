@@ -386,6 +386,8 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 		if (at->index == index)
 		{
 			// Rebuild when the attachment is changed.
+			// TODO: This memcmp does not take into account struct padding!
+			// i.e. it might return non-zero even if they're equal.
 			if (memcmp(&at->base, &attachment, sizeof(GFXAttachment)))
 				renderer->built = 0;
 

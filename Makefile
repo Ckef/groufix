@@ -184,12 +184,12 @@ OBJS = \
  $(OUT)$(SUB)/groufix/containers/tree.o \
  $(OUT)$(SUB)/groufix/containers/vec.o \
  $(OUT)$(SUB)/groufix/core/device.o \
+ $(OUT)$(SUB)/groufix/core/init.o \
  $(OUT)$(SUB)/groufix/core/log.o \
  $(OUT)$(SUB)/groufix/core/monitor.o \
  $(OUT)$(SUB)/groufix/core/pass.o \
  $(OUT)$(SUB)/groufix/core/renderer.o \
  $(OUT)$(SUB)/groufix/core/shader.o \
- $(OUT)$(SUB)/groufix/core/state.o \
  $(OUT)$(SUB)/groufix/core/swap.o \
  $(OUT)$(SUB)/groufix/core/vulkan.o \
  $(OUT)$(SUB)/groufix/core/window.o \

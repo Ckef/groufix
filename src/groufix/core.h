@@ -355,14 +355,14 @@ extern _GFXState _groufix;
  *
  * This will initialize everything to an empty or non-active state.
  */
-int _gfx_state_init(void);
+int _gfx_init(void);
 
 /**
  * Terminates global groufix state.
  * _groufix.initialized must be 1, after this call it will be set to 0.
  * Must be called by the same thread that called _gfx_state_init.
  */
-void _gfx_state_terminate(void);
+void _gfx_terminate(void);
 
 /**
  * Allocates thread local state for the calling thread.
@@ -372,7 +372,7 @@ void _gfx_state_terminate(void);
  *
  * This will initialize everything to an empty or non-active state.
  */
-int _gfx_state_create_local(void);
+int _gfx_create_local(void);
 
 /**
  * Frees thread local state of the calling thread.
@@ -380,14 +380,14 @@ int _gfx_state_create_local(void);
  * May not be called when no data is allocated on the calling thread.
  * All threads with local data need to call this before _gfx_state_terminate.
  */
-void _gfx_state_destroy_local(void);
+void _gfx_destroy_local(void);
 
 /**
  * Retrieves thread local state of the calling thread.
  * _groufix.initialized must be 1.
  * @return NULL if no state was allocated.
  */
-_GFXThreadState* _gfx_state_get_local(void);
+_GFXThreadState* _gfx_get_local(void);
 
 
 /****************************

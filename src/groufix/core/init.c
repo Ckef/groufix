@@ -16,7 +16,7 @@ _GFXState _groufix = { .initialized = 0, .logDef = GFX_LOG_DEFAULT };
 
 
 /****************************/
-int _gfx_state_init(void)
+int _gfx_init(void)
 {
 	assert(!_groufix.initialized);
 
@@ -65,7 +65,7 @@ clean_key:
 }
 
 /****************************/
-void _gfx_state_terminate(void)
+void _gfx_terminate(void)
 {
 	assert(_groufix.initialized);
 
@@ -85,7 +85,7 @@ void _gfx_state_terminate(void)
 }
 
 /****************************/
-int _gfx_state_create_local(void)
+int _gfx_create_local(void)
 {
 	assert(_groufix.initialized);
 	assert(!_gfx_thread_key_get(_groufix.thread.key));
@@ -118,7 +118,7 @@ int _gfx_state_create_local(void)
 }
 
 /****************************/
-void _gfx_state_destroy_local(void)
+void _gfx_destroy_local(void)
 {
 	assert(_groufix.initialized);
 	assert(_gfx_thread_key_get(_groufix.thread.key));
@@ -137,7 +137,7 @@ void _gfx_state_destroy_local(void)
 }
 
 /****************************/
-_GFXThreadState* _gfx_state_get_local(void)
+_GFXThreadState* _gfx_get_local(void)
 {
 	assert(_groufix.initialized);
 

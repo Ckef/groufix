@@ -219,11 +219,8 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 			_GFX_REPLACE_CHILD(tNode->parent, tNode, succ);
 
 		// Swap all pointers to its successor.
-		_GFXTreeNode* child =
-			succ->left != NULL ? succ->left : succ->right;
-
-		if (child != NULL)
-			child->parent = tNode;
+		if (succ->right != NULL)
+			succ->right->parent = tNode;
 
 		if (succ->parent != tNode)
 			_GFX_REPLACE_CHILD(succ->parent, succ, tNode);
@@ -248,8 +245,6 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 	if (tNode->color == _GFX_TREE_RED)
 	{
 		_GFX_REPLACE_CHILD(tNode->parent, tNode, NULL);
-
-		// Done!
 		return;
 	}
 
@@ -260,15 +255,13 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 		_GFXTreeNode* child =
 			tNode->left != NULL ? tNode->left : tNode->right;
 
-		child->parent = tNode->parent;
-		child->color = _GFX_TREE_BLACK;
-
 		if (tNode->parent == NULL)
 			tree->root = _GFX_GET_ELEMENT(tree, child);
 		else
 			_GFX_REPLACE_CHILD(tNode->parent, tNode, child);
 
-		// Done!
+		child->parent = tNode->parent;
+		child->color = _GFX_TREE_BLACK;
 		return;
 	}
 
@@ -283,12 +276,9 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 	}
 
 	// If not, unlink from its parent (causing a black-violation).
-	if (tNode == parent->left)
-		parent->left = NULL;
-	else
-		parent->right = NULL;
-
-	tNode = NULL; // It's officially 'erased'.
+	// After this point we have no reference to the node anymore.
+	_GFX_REPLACE_CHILD(parent, tNode, NULL);
+	tNode = NULL;
 
 	// Rebalance the tree.
 	while (parent != NULL)

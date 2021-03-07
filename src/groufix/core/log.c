@@ -121,7 +121,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	}
 
 	// Get the thread local state.
-	_GFXThreadState* state = _gfx_state_get_local();
+	_GFXThreadState* state = _gfx_get_local();
 	if (state == NULL)
 	{
 		// If no state, check against default log level.
@@ -177,7 +177,7 @@ GFX_API int gfx_log_set_level(GFXLogLevel level)
 	}
 
 	// Get the thread local state and set its level.
-	_GFXThreadState* state = _gfx_state_get_local();
+	_GFXThreadState* state = _gfx_get_local();
 	if (state == NULL)
 		return 0;
 
@@ -193,7 +193,7 @@ GFX_API int gfx_log_set_out(int out)
 	if (!_groufix.initialized)
 		return 0;
 
-	_GFXThreadState* state = _gfx_state_get_local();
+	_GFXThreadState* state = _gfx_get_local();
 	if (state == NULL)
 		return 0;
 
@@ -208,7 +208,7 @@ GFX_API int gfx_log_set_file(const char* file)
 	if (!_groufix.initialized)
 		return 0;
 
-	_GFXThreadState* state = _gfx_state_get_local();
+	_GFXThreadState* state = _gfx_get_local();
 	if (state == NULL)
 		return 0;
 

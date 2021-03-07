@@ -28,7 +28,7 @@ GFX_API int gfx_init(void)
 		return 1;
 
 	// Initialize global state.
-	if (!_gfx_state_init())
+	if (!_gfx_init())
 	{
 		gfx_log_fatal("Could not initialize global state.");
 		return 0;
@@ -98,7 +98,7 @@ GFX_API void gfx_terminate(void)
 
 	// Detach and terminate.
 	gfx_detach();
-	_gfx_state_terminate();
+	_gfx_terminate();
 
 	gfx_log_info("All internal state terminated.");
 }
@@ -111,11 +111,11 @@ GFX_API int gfx_attach(void)
 		return 0;
 
 	// Already attached.
-	if (_gfx_state_get_local())
+	if (_gfx_get_local())
 		return 1;
 
 	// Create thread local state.
-	if (!_gfx_state_create_local())
+	if (!_gfx_create_local())
 	{
 		gfx_log_error("Could not attach a thread.");
 		return 0;
@@ -133,10 +133,10 @@ GFX_API int gfx_attach(void)
 GFX_API void gfx_detach(void)
 {
 	// Not yet initialized or attached.
-	if (!_groufix.initialized || !_gfx_state_get_local())
+	if (!_groufix.initialized || !_gfx_get_local())
 		return;
 
-	_gfx_state_destroy_local();
+	_gfx_destroy_local();
 }
 
 /****************************/

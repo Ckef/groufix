@@ -62,7 +62,7 @@ static int _gfx_render_pass_rebuild_backing(GFXRenderPass* pass)
 	_GFXContext* context = rend->context;
 
 	// Validate that there is exactly 1 window we write to.
-	// We don't have but we're nice, otherwise Vulkan would spam the logs.
+	// We don't have to but we're nice, otherwise Vulkan would spam the logs.
 	size_t backing = SIZE_MAX;
 
 	// Check out all write attachments.
