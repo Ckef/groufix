@@ -24,6 +24,15 @@
 #define _GFX_GET_ELEMENT(tree, tNode) \
 	((void*)((char*)((_GFXTreeNode*)tNode + 1) + tree->keySize))
 
+// Replace the child of a node with a new one (without touching the children).
+#define _GFX_REPLACE_CHILD(tNode, child, new) \
+	{ \
+		if (child == tNode->left) \
+			tNode->left = new; \
+		else \
+			tNode->right = new; \
+	}
+
 
 /****************************
  * Red/black tree node definition.
@@ -67,12 +76,7 @@ static void _gfx_tree_rotate_left(GFXTree* tree, _GFXTreeNode* tNode)
 	if (parent == NULL)
 		tree->root = _GFX_GET_ELEMENT(tree, pivot);
 	else
-	{
-		if (parent->left == tNode)
-			parent->left = pivot;
-		else
-			parent->right = pivot;
-	}
+		_GFX_REPLACE_CHILD(parent, tNode, pivot);
 }
 
 /****************************
@@ -97,12 +101,7 @@ static void _gfx_tree_rotate_right(GFXTree* tree, _GFXTreeNode* tNode)
 	if (parent == NULL)
 		tree->root = _GFX_GET_ELEMENT(tree, pivot);
 	else
-	{
-		if (parent->left == tNode)
-			parent->left = pivot;
-		else
-			parent->right = pivot;
-	}
+		_GFX_REPLACE_CHILD(parent, tNode, pivot);
 }
 
 /****************************
@@ -208,35 +207,26 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 		_GFXTreeNode* succ = tNode->right;
 		while (succ->left != NULL) succ = succ->left;
 
-		_GFXTreeNode* child =
-			succ->left != NULL ? succ->left : succ->right;
-
-		// Swap all pointers to the node or its successor.
-		if (tNode->parent == NULL)
-			tree->root = _GFX_GET_ELEMENT(tree, succ);
-		else
-		{
-			if (tNode == tNode->parent->left)
-				tNode->parent->left = succ;
-			else
-				tNode->parent->right = succ;
-		}
-
+		// Swap all pointers to the node.
 		tNode->left->parent = succ;
 
 		if (tNode->right != succ)
 			tNode->right->parent = succ;
 
-		if (succ->parent != tNode)
-		{
-			if (succ == succ->parent->left)
-				succ->parent->left = tNode;
-			else
-				succ->parent->right = tNode;
-		}
+		if (tNode->parent == NULL)
+			tree->root = _GFX_GET_ELEMENT(tree, succ);
+		else
+			_GFX_REPLACE_CHILD(tNode->parent, tNode, succ);
+
+		// Swap all pointers to its successor.
+		_GFXTreeNode* child =
+			succ->left != NULL ? succ->left : succ->right;
 
 		if (child != NULL)
 			child->parent = tNode;
+
+		if (succ->parent != tNode)
+			_GFX_REPLACE_CHILD(succ->parent, succ, tNode);
 
 		// Set pointers (and colors!) of the node and its successor.
 		_GFXTreeNode temp = *tNode;
@@ -257,10 +247,7 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 	// Meaning it's a leaf, just unlink it.
 	if (tNode->color == _GFX_TREE_RED)
 	{
-		if (tNode == tNode->parent->left)
-			tNode->parent->left = NULL;
-		else
-			tNode->parent->right = NULL;
+		_GFX_REPLACE_CHILD(tNode->parent, tNode, NULL);
 
 		// Done!
 		return;
@@ -274,18 +261,12 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 			tNode->left != NULL ? tNode->left : tNode->right;
 
 		child->parent = tNode->parent;
+		child->color = _GFX_TREE_BLACK;
 
 		if (tNode->parent == NULL)
 			tree->root = _GFX_GET_ELEMENT(tree, child);
 		else
-		{
-			if (tNode == tNode->parent->left)
-				tNode->parent->left = child;
-			else
-				tNode->parent->right = child;
-		}
-
-		child->color = _GFX_TREE_BLACK;
+			_GFX_REPLACE_CHILD(tNode->parent, tNode, child);
 
 		// Done!
 		return;
@@ -453,57 +434,41 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 		return NULL;
 
 	// Search for the node with the exact key,
-	// keep track of its parent for when we're not strict matching.
-	// Also store cmp so we don't compare against the last node twice.
+	// keep track of its predecessor and successor for when we're not
+	// going to match strictly.
 	_GFXTreeNode* tNode = _GFX_GET_NODE(tree, tree->root);
-	_GFXTreeNode* parent = NULL;
-	int cmp = 0;
+	_GFXTreeNode* pred = NULL;
+	_GFXTreeNode* succ = NULL;
 
 	while (tNode != NULL)
 	{
-		cmp = tree->cmp(key, _GFX_GET_KEY(tree, tNode));
-		parent = tNode;
+		int cmp = tree->cmp(key, _GFX_GET_KEY(tree, tNode));
 
 		if (cmp < 0)
-			tNode = tNode->left;
-		else if (cmp > 0)
-			tNode = tNode->right;
-		else
-			return _GFX_GET_ELEMENT(tree, tNode);
-	}
-
-	// No exact match :(
-	if (matchType == GFX_TREE_MATCH_STRICT)
-		return NULL;
-
-	tNode = parent;
-	parent = tNode->parent;
-
-	// Now we need to match to some node that is not strictly equal in key.
-	// left = find predecessor & right = find successor.
-	if (
-		(cmp > 0 && matchType == GFX_TREE_MATCH_LEFT) ||
-		(cmp < 0 && matchType == GFX_TREE_MATCH_RIGHT))
-	{
-		// Last walked node is a match.
-		return _GFX_GET_ELEMENT(tree, tNode);
-	}
-
-	while (parent != NULL)
-	{
-		if (
-			(tNode == parent->right && matchType == GFX_TREE_MATCH_LEFT) ||
-			(tNode == parent->left && matchType == GFX_TREE_MATCH_RIGHT))
 		{
-			// Internal node is a match.
-			return _GFX_GET_ELEMENT(tree, parent);
+			succ = tNode;
+			tNode = tNode->left;
 		}
-
-		tNode = parent;
-		parent = tNode->parent;
+		else if (cmp > 0)
+		{
+			pred = tNode;
+			tNode = tNode->right;
+		}
+		else
+		{
+			// Found an exact match.
+			return _GFX_GET_ELEMENT(tree, tNode);
+		}
 	}
 
-	return NULL;
+	// Return the predecessor or successor,
+	// or NULL if we only want strict matches.
+	tNode =
+		(matchType == GFX_TREE_MATCH_LEFT) ? pred :
+		(matchType == GFX_TREE_MATCH_RIGHT) ? succ :
+		NULL;
+
+	return (tNode == NULL) ? NULL : _GFX_GET_ELEMENT(tree, tNode);
 }
 
 /****************************/
@@ -516,34 +481,6 @@ GFX_API void gfx_tree_update(GFXTree* tree, const void* node, const void* key)
 	_GFXTreeNode* tNode = _GFX_GET_NODE(tree, node);
 	memcpy(_GFX_GET_KEY(tree, tNode), key, tree->keySize);
 
-	// Check if still correct relative to its parent and children.
-	int p = (tNode->parent == NULL) ? 0 :
-		tree->cmp(key, _GFX_GET_KEY(tree, tNode->parent));
-
-	int l = (tNode->left == NULL) ? 0 :
-		tree->cmp(key, _GFX_GET_KEY(tree, tNode->left));
-
-	int r = (tNode->right == NULL) ? 0 :
-		tree->cmp(key, _GFX_GET_KEY(tree, tNode->right));
-
-	if(
-		(p == 0 ||
-		(p < 0 && tNode == tNode->parent->left) ||
-		(p > 0 && tNode == tNode->parent->right)) &&
-		l >= 0 &&
-		r <= 0)
-	{
-		//  == to parent (to avoid access to NULL) OR
-		//  < than parent and is left child OR
-		//  > than parent and is right child.
-		// AND
-		//  >= than left child.
-		// AND
-		//  <= than right child.
-		return;
-	}
-
-	// If the tree is invalidated, re-insert the node.
 	_gfx_tree_erase(tree, tNode);
 	_gfx_tree_insert(tree, tNode);
 }
