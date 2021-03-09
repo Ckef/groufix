@@ -14,13 +14,6 @@
 #include "groufix/core.h"
 
 
-// Maximum size for a heap to be considered 'small' (1 GiB).
-#define _GFX_SMALL_HEAP_SIZE (1024ull * 1024 * 1024)
-
-// Preferred memory block size of a 'large' heap (256 MiB).
-#define _GFX_PREFERRED_MEM_BLOCK_SIZE (256ull * 1024 * 2014)
-
-
 /**
  * Vulkan memory object (e.g. VRAM memory block).
  */
@@ -29,7 +22,8 @@ typedef struct _GFXMemBlock
 	struct _GFXMemBlock* next;
 	struct _GFXMemBlock* prev;
 
-	GFXTree free; // Stores uint32_t : _GFXMemFree.
+	uint64_t size;
+	GFXTree  free; // Stores uint64_t : _GFXMemFree.
 
 
 	// Vulkan fields.
@@ -64,7 +58,7 @@ typedef struct _GFXMemFree
 	_GFXMemNode node;
 
 	// Size is stored as key in the search tree.
-	uint32_t offset;
+	uint64_t offset;
 
 } _GFXMemFree;
 
@@ -77,8 +71,8 @@ typedef struct _GFXMemAlloc
 	_GFXMemNode   node;
 	_GFXMemBlock* block;
 
-	uint32_t offset;
-	uint32_t size;
+	uint64_t offset;
+	uint64_t size;
 
 
 	// Vulkan fields.
@@ -100,7 +94,6 @@ typedef struct _GFXAllocator
 
 	_GFXMemBlock* free;
 	_GFXMemBlock* allocd;
-	uint32_t      blockSize;
 
 } _GFXAllocator;
 
@@ -111,12 +104,10 @@ typedef struct _GFXAllocator
 
 /**
  * Initializes an allocator.
- * @param alloc     Cannot be NULL.
- * @param context   Cannot be NULL.
- * @param blockSize Must be > 0.
+ * @param alloc   Cannot be NULL.
+ * @param context Cannot be NULL.
  */
-void _gfx_allocator_init(_GFXAllocator* alloc, _GFXContext* context,
-                         uint32_t blockSize);
+void _gfx_allocator_init(_GFXAllocator* alloc, _GFXContext* context);
 
 /**
  * Clears an allocator, freeing all allocations.
@@ -132,7 +123,7 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
  * @return Non-zero on success.
  */
 int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-                         uint32_t size, uint32_t align);
+                         uint64_t size, uint64_t align);
 
 /**
  * Free some vulkan memory.
