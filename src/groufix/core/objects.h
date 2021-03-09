@@ -140,7 +140,7 @@ struct GFXRenderPass
 
 
 /****************************
- * Render pass management.
+ * Render pass handling.
  ****************************/
 
 /**

@@ -42,7 +42,7 @@ typedef struct GFXTree
 
 /**
  * Retrieves the key value from a tree node.
- * Undefined behaviour if node is not a value returned by gfx_tree_insert_*.
+ * Undefined behaviour if node is not a value returned by gfx_tree_insert.
  */
 static inline const void* gfx_tree_key(GFXTree* tree, const void* node)
 {
@@ -89,7 +89,7 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 /**
  * Updates the key of a node.
  * @param tree Cannot be NULL.
- * @param node Must be a value returned by gfx_tree_insert_*.
+ * @param node Must be a value returned by gfx_tree_insert.
  * @param key  Cannot be NULL.
  */
 GFX_API void gfx_tree_update(GFXTree* tree, const void* node, const void* key);
@@ -97,7 +97,7 @@ GFX_API void gfx_tree_update(GFXTree* tree, const void* node, const void* key);
 /**
  * Erases a node from the tree, also freeing the modifiable element data.
  * @param tree Cannot be NULL.
- * @param node Must be a value returned by gfx_tree_insert_*.
+ * @param node Must be a value returned by gfx_tree_insert.
  */
 GFX_API void gfx_tree_erase(GFXTree* tree, void* node);
 

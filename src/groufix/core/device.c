@@ -621,6 +621,7 @@ int _gfx_devices_init(void)
 			// Check if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.
 			// If the type is equal, pick the greater Vulkan version.
+			// TODO: Select primary based on physical device features.
 			int isPrim = (i == 0) ||
 				dev.base.type < type ||
 				(dev.base.type == type && pdp.apiVersion > ver);

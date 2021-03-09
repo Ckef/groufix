@@ -183,6 +183,7 @@ clean-all: clean clean-bin clean-deps
 OBJS = \
  $(OUT)$(SUB)/groufix/containers/tree.o \
  $(OUT)$(SUB)/groufix/containers/vec.o \
+ $(OUT)$(SUB)/groufix/core/alloc.o \
  $(OUT)$(SUB)/groufix/core/device.o \
  $(OUT)$(SUB)/groufix/core/init.o \
  $(OUT)$(SUB)/groufix/core/log.o \
