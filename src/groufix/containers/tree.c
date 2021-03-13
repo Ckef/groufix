@@ -462,6 +462,68 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 }
 
 /****************************/
+GFX_API void* gfx_tree_pred(GFXTree* tree, const void* node)
+{
+	assert(tree != NULL);
+	assert(node != NULL);
+
+	_GFXTreeNode* tNode = _GFX_GET_NODE(tree, node);
+	_GFXTreeNode* pred = tNode->left;
+
+	// Get maximum value in left subtree.
+	if (pred != NULL)
+	{
+		while (pred->right != NULL) pred = pred->right;
+		return _GFX_GET_ELEMENT(tree, pred);
+	}
+
+	// Get first ancestor right of its parent, this parent is the predecessor.
+	pred = tNode->parent;
+
+	while (pred != NULL)
+	{
+		if (tNode == pred->right)
+			return _GFX_GET_ELEMENT(tree, pred);
+
+		tNode = pred;
+		pred = tNode->parent;
+	}
+
+	return NULL;
+}
+
+/****************************/
+GFX_API void* gfx_tree_succ(GFXTree* tree, const void* node)
+{
+	assert(tree != NULL);
+	assert(node != NULL);
+
+	_GFXTreeNode* tNode = _GFX_GET_NODE(tree, node);
+	_GFXTreeNode* succ = tNode->right;
+
+	// Get minimum value in right subtree.
+	if (succ != NULL)
+	{
+		while (succ->left != NULL) succ = succ->left;
+		return _GFX_GET_ELEMENT(tree, succ);
+	}
+
+	// Get first ancestor left of its parent, this parent is the successor.
+	succ = tNode->parent;
+
+	while (succ != NULL)
+	{
+		if (tNode == succ->left)
+			return _GFX_GET_ELEMENT(tree, succ);
+
+		tNode = succ;
+		succ = tNode->parent;
+	}
+
+	return NULL;
+}
+
+/****************************/
 GFX_API void gfx_tree_update(GFXTree* tree, const void* node, const void* key)
 {
 	assert(tree != NULL);

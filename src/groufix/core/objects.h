@@ -10,6 +10,7 @@
 #ifndef _GFX_CORE_OBJECTS_H
 #define _GFX_CORE_OBJECTS_H
 
+#include "groufix/containers/vec.h"
 #include "groufix/core.h"
 
 

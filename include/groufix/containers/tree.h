@@ -87,6 +87,20 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
                               GFXTreeMatchType matchType);
 
 /**
+ * Retrieves the predecessor of a node.
+ * @param tree Cannot be NULL.
+ * @param node Must be a value returned by gfx_tree_insert.
+ * @return NULL if none found.
+ */
+GFX_API void* gfx_tree_pred(GFXTree* tree, const void* node);
+
+/**
+ * Retrieves the successor of a node.
+ * @see gfx_tree_pred.
+ */
+GFX_API void* gfx_tree_succ(GFXTree* tree, const void* node);
+
+/**
  * Updates the key of a node.
  * @param tree Cannot be NULL.
  * @param node Must be a value returned by gfx_tree_insert.

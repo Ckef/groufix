@@ -23,7 +23,7 @@ typedef struct _GFXMemBlock
 	struct _GFXMemBlock* prev;
 
 	uint64_t size;
-	GFXTree  free; // Stores uint64_t : _GFXMemFree.
+	GFXTree  free; // Stores { uint64_t, uint64_t } : _GFXMemNode.
 
 
 	// Vulkan fields.
@@ -45,22 +45,9 @@ typedef struct _GFXMemNode
 	struct _GFXMemNode* left;
 	struct _GFXMemNode* right;
 
-	int free; // isa _GFXMemAlloc if zero, isa _GFXMemFree if non-zero.
+	int free; // isa _GFXMemAlloc if zero, isa search tree node if non-zero.
 
 } _GFXMemNode;
-
-
-/**
- * Free memory node (isa search tree node).
- */
-typedef struct _GFXMemFree
-{
-	_GFXMemNode node;
-
-	// Size is stored as key in the search tree.
-	uint64_t offset;
-
-} _GFXMemFree;
 
 
 /**
@@ -71,8 +58,8 @@ typedef struct _GFXMemAlloc
 	_GFXMemNode   node;
 	_GFXMemBlock* block;
 
-	uint64_t offset;
 	uint64_t size;
+	uint64_t offset;
 
 
 	// Vulkan fields.
@@ -90,6 +77,7 @@ typedef struct _GFXMemAlloc
  */
 typedef struct _GFXAllocator
 {
+	_GFXDevice*  device; // For memory property queries.
 	_GFXContext* context;
 
 	_GFXMemBlock* free;
@@ -104,10 +92,13 @@ typedef struct _GFXAllocator
 
 /**
  * Initializes an allocator.
- * @param alloc   Cannot be NULL.
- * @param context Cannot be NULL.
+ * @param alloc  Cannot be NULL.
+ * @param device Cannot be NULL.
+ *
+ * _gfx_device_init_context must have returned successfully at least once
+ * for the given device.
  */
-void _gfx_allocator_init(_GFXAllocator* alloc, _GFXContext* context);
+void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device);
 
 /**
  * Clears an allocator, freeing all allocations.
@@ -116,17 +107,18 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXContext* context);
 void _gfx_allocator_clear(_GFXAllocator* alloc);
 
 /**
- * Allocate some vulkan memory.
+ * Allocate some Vulkan memory.
  * @param alloc Cannot be NULL.
  * @param mem   Cannot be NULL.
  * @param size  Must be > 0.
+ * @param align Must be 0 or a power of two.
  * @return Non-zero on success.
  */
 int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
                          uint64_t size, uint64_t align);
 
 /**
- * Free some vulkan memory.
+ * Free some Vulkan memory.
  * @param alloc Cannot be NULL.
  * @param mem   Cannot be NULL.
  */
