@@ -42,6 +42,46 @@ static int _gfx_allocator_cmp(const void* l, const void* r)
 		(_GFX_GET_ALIGN(_l[1]) > _GFX_GET_ALIGN(_r[1])) ? 1 : 0;
 }
 
+/****************************
+ * Find a memory type that includes all the required flags.
+ * @param required Required memory property flags.
+ * @param types    Supported (i.e. required) memory type bits to choose from.
+ * @param flags    Output flags, all property flags associated with found index.
+ * @param index    Output memory type index.
+ * @return Non-zero on success.
+ */
+static int _gfx_get_mem_type(VkPhysicalDevice device,
+                             VkMemoryPropertyFlags required, uint32_t types,
+                             VkMemoryPropertyFlags* flags, uint32_t* index)
+{
+	assert(types != 0);
+	assert(flags != NULL);
+	assert(index != NULL);
+
+	VkPhysicalDeviceMemoryProperties pdmp;
+	_groufix.vk.GetPhysicalDeviceMemoryProperties(device, &pdmp);
+
+	// We search in order, Vulkan orders subsets before supersets,
+	// so we don't have to check for the least flags
+	for (uint32_t t = 0; t < pdmp.memoryTypeCount; ++t)
+	{
+		// Not a supported type.
+		if (!(((uint32_t)1 << t) & types))
+			continue;
+
+		// Does not include all required flags.
+		if ((pdmp.memoryTypes[t].propertyFlags & required) != required)
+			continue;
+
+		*flags = pdmp.memoryTypes[t].propertyFlags;
+		*index = t;
+
+		return 1;
+	}
+
+	return 0;
+}
+
 /****************************/
 void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 {
@@ -66,22 +106,56 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 
 /****************************/
 int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-                         uint64_t size, uint64_t align)
+                         VkMemoryRequirements reqs, VkMemoryPropertyFlags flags)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
-	assert(size > 0);
-	assert(_GFX_IS_POWER_OF_TWO(align));
+	assert(reqs.size > 0);
+	assert(_GFX_IS_POWER_OF_TWO(reqs.alignment));
+	assert(reqs.memoryTypeBits != 0);
+
+	_GFXDevice* device = alloc->device;
+
+	// If larger than a memory block (?!?).
+	// TODO: Allocate a dedicated memory block?
+	if (reqs.size > _GFX_PREFERRED_MEM_BLOCK_SIZE)
+	{
+		gfx_log_error(
+			"Cannot allocate a Vulkan memory object larger than %llu bytes.",
+			_GFX_PREFERRED_MEM_BLOCK_SIZE);
+
+		return 0;
+	}
+
+	// TODO: Find memory block before calling _gfx_get_mem_type,
+	// so we don't needlessly call vkGetPhysicalDeviceMemoryProperties.
+
+	// Get memory type index.
+	uint32_t typeIndex;
+	VkMemoryPropertyFlags typeFlags;
+
+	if (!_gfx_get_mem_type(
+		device->vk.device, flags, reqs.memoryTypeBits, &typeFlags, &typeIndex))
+	{
+		gfx_log_error(
+			"Could not find suitable Vulkan memory type for allocation of %llu bytes.",
+			(unsigned long long)reqs.size);
+
+		return 0;
+	}
 
 	// Construct a search key:
 	// The key of the memory block will store two uint64_t's.
 	// The first being the size, the second being the offset.
 	// However offset is never compared, instead alignment is, this allows us
 	// to search based on alignment as well.
-	_GFXMemBlock* block;
-	uint64_t key[2] = { size, (align > 0) ? align : 1 };
+	uint64_t key[2] = {
+		reqs.size,
+		(reqs.alignment > 0) ? reqs.alignment : 1
+	};
 
 	// Find a free memory block with enough space.
+	_GFXMemBlock* block;
 	for (block = alloc->free; block != NULL; block = block->next)
 	{
 	}

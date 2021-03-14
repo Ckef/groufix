@@ -114,7 +114,7 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 	// So we don't know if the order of the configuration array is preserved.
 	// On connect, we just inserted at the end and on disconnect we popped it.
 	// To fix this, we just rebuild the entire array from GLFW user pointers.
- 	// This shuffles out deallocated monitors and fixes the primary one.
+	// This shuffles out deallocated monitors and fixes the primary one.
 	int count;
 	GLFWmonitor** handles = glfwGetMonitors(&count);
 

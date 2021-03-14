@@ -22,6 +22,9 @@ typedef struct _GFXMemBlock
 	struct _GFXMemBlock* next;
 	struct _GFXMemBlock* prev;
 
+	uint32_t              type; // Vulkan memory type index.
+	VkMemoryPropertyFlags flags;
+
 	uint64_t size;
 	GFXTree  free; // Stores { uint64_t, uint64_t } : _GFXMemNode.
 
@@ -110,12 +113,12 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
  * Allocate some Vulkan memory.
  * @param alloc Cannot be NULL.
  * @param mem   Cannot be NULL.
- * @param size  Must be > 0.
- * @param align Must be 0 or a power of two.
+ * @param reqs  Must be valid (size > 0, align = a power of two, bits != 0).
+ * @param flags Must have at least 1 flag set.
  * @return Non-zero on success.
  */
 int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-                         uint64_t size, uint64_t align);
+                         VkMemoryRequirements reqs, VkMemoryPropertyFlags flags);
 
 /**
  * Free some Vulkan memory.
