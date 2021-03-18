@@ -99,8 +99,7 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 {
 	// Allocate a new shader.
 	GFXShader* shader = malloc(sizeof(GFXRenderer));
-	if (shader == NULL)
-		goto clean;
+	if (shader == NULL) goto clean;
 
 	// Get context associated with the device.
 	// We need the device to set the compiler's target environment.

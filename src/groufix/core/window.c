@@ -314,8 +314,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	// Allocate and set a new window.
 	// Just set the user pointer and all callbacks to all 0's.
 	_GFXWindow* window = malloc(sizeof(_GFXWindow));
-	if (window == NULL)
-		goto clean;
+	if (window == NULL) goto clean;
 
 	memset(&window->base, 0, sizeof(GFXWindow));
 

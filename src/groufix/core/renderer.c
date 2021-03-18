@@ -299,8 +299,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 {
 	// Allocate a new renderer.
 	GFXRenderer* rend = malloc(sizeof(GFXRenderer));
-	if (rend == NULL)
-		goto clean;
+	if (rend == NULL) goto clean;
 
 	// Get context associated with the device.
 	_GFX_GET_CONTEXT(rend->context, device, goto clean);
