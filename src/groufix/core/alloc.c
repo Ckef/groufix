@@ -166,20 +166,15 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	}
 
 	// At this point we have memory!
-	block->type = type;
-	block->size = blockSize;
-
-	// Insert a single free memory node.
+	// Initialize and insert a single free memory node.
 	uint64_t key[2] = { blockSize, 0 };
 	_GFXMemNode data = { .left = NULL, .right = NULL, .free = 1 };
 
-	gfx_tree_init(
-		&block->free, sizeof(key), _gfx_allocator_cmp);
+	block->type = type;
+	block->size = blockSize;
+	gfx_tree_init(&block->free, sizeof(key), _gfx_allocator_cmp);
 
-	_GFXMemNode* node = gfx_tree_insert(
-		&block->free, sizeof(_GFXMemNode), &data, key);
-
-	if (node == NULL)
+	if (gfx_tree_insert(&block->free, sizeof(_GFXMemNode), &data, key) == NULL)
 		goto clean_block;
 
 	// Link into the allocator's free block list.
@@ -193,7 +188,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	// Yay!
 	gfx_log_debug(
 		"New Vulkan memory object allocated:\n"
-		"    Allocated block size: %llu bytes.\n"
+		"    Memory block size: %llu bytes.\n"
 		"    Preferred block size: %llu bytes.\n",
 		(unsigned long long)blockSize,
 		(unsigned long long)prefBlockSize);
@@ -214,6 +209,33 @@ error:
 		(unsigned long long)blockSize);
 
 	return NULL;
+}
+
+/****************************
+ * Frees a memory block, also freeing the Vulkan memory object.
+ */
+static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
+{
+	assert(alloc != NULL);
+	assert(block != NULL);
+
+	_GFXContext* context = alloc->context;
+
+	gfx_tree_clear(&block->free);
+	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+
+	// Unlink from the allocator.
+	if (alloc->free == block)
+		alloc->free = block->next;
+	if (alloc->allocd == block)
+		alloc->allocd = block->next;
+
+	if (block->next != NULL)
+		block->next->prev = block->prev;
+	if (block->prev != NULL)
+		block->prev->next = block->next;
+
+	free(block);
 }
 
 /****************************/
@@ -237,10 +259,12 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 {
 	assert(alloc != NULL);
 
-	// TODO: Implement.
+	// Free all memory;
+	while (alloc->free != NULL)
+		_gfx_free_mem_block(alloc, alloc->free);
 
-	alloc->free = NULL;
-	alloc->allocd = NULL;
+	while (alloc->allocd != NULL)
+		_gfx_free_mem_block(alloc, alloc->allocd);
 }
 
 /****************************/
