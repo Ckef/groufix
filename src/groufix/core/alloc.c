@@ -21,11 +21,11 @@
 
 // Check whether a value is a power of two (0 counts).
 #define _GFX_IS_POWER_OF_TWO(x) \
-	((x & (x - 1)) == 0)
+	(((x) & ((x) - 1)) == 0)
 
 // Get the strictest alignment (i.e. the least significant bit) of an offset.
 #define _GFX_GET_ALIGN(offset) \
-	(offset == 0 ? UINT64_MAX : offset & (~offset + 1))
+	(offset == 0 ? UINT64_MAX : (offset) & (~(offset) + 1))
 
 // Aligns offset up/down to the nearest multiple of align,
 // which is assumed to be a power of two.
@@ -33,7 +33,7 @@
 	((offset + align - 1) & ~(align - 1))
 
 #define _GFX_ALIGN_DOWN(offset, align) \
-	(offset & ~(align - 1))
+	((offset) & ~(align - 1))
 
 
 /****************************
@@ -43,13 +43,13 @@
  */
 static int _gfx_allocator_cmp(const void* l, const void* r)
 {
-	const uint64_t* _l = l;
-	const uint64_t* _r = r;
+	const uint64_t* kL = l;
+	const uint64_t* kR = r;
 
 	return
-		(_l[0] < _r[0]) ? -1 : (_l[0] > _r[0]) ? 1 :
-		(_GFX_GET_ALIGN(_l[1]) < _GFX_GET_ALIGN(_r[1])) ? -1 :
-		(_GFX_GET_ALIGN(_l[1]) > _GFX_GET_ALIGN(_r[1])) ? 1 : 0;
+		(kL[0] < kR[0]) ? -1 : (kL[0] > kR[0]) ? 1 :
+		(_GFX_GET_ALIGN(kL[1]) < _GFX_GET_ALIGN(kR[1])) ? -1 :
+		(_GFX_GET_ALIGN(kL[1]) > _GFX_GET_ALIGN(kR[1])) ? 1 : 0;
 }
 
 /****************************
@@ -95,14 +95,92 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 {
 	assert(alloc != NULL);
 
-	// Allocate and initialize.
+	_GFXContext* context = alloc->context;
+	VkPhysicalDeviceMemoryProperties* pdmp = &alloc->vk.properties;
+
+	// Validate that we have enough memory.
+	VkDeviceSize heapSize =
+		pdmp->memoryHeaps[pdmp->memoryTypes[type].heapIndex].size;
+
+	if (minSize > heapSize)
+	{
+		gfx_log_error(
+			"Memory heap of %llu bytes is too small to allocate %llu bytes from.",
+			(unsigned long long)heapSize,
+			(unsigned long long)minSize);
+
+		return NULL;
+	}
+
+	// Calculate block size in Vulkan units.
+	// If it is a 'small' heap, we allocate the heap's size divided by 8.
+	// Lastly, if minimum requested size is greater than half the block size,
+	// we instead just allocate a dedicated block for it.
+	VkDeviceSize prefBlockSize =
+		(heapSize <= _GFX_SMALL_HEAP_SIZE) ?
+		heapSize / 8 :
+		_GFX_PREFERRED_MEM_BLOCK_SIZE;
+
+	VkDeviceSize blockSize =
+		(prefBlockSize / 2 < minSize) ? minSize : prefBlockSize;
+
+	// Allocate handle & actual Vulkan memory object.
+	// If the allocation failed, we try again at 1/2, 1/4 and 1/8 of the size.
+	// During the process we keep track of the actual allocated size.
 	_GFXMemBlock* block = malloc(sizeof(_GFXMemBlock));
-	if (block == NULL) return NULL;
+	if (block == NULL) goto error;
 
+	for (unsigned int i = 0; 1; ++i) // Note: condition is always true!
+	{
+		// TODO: Support Vulkan dedicated allocation?
+
+		VkMemoryAllocateInfo mai = {
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+
+			.pNext           = NULL,
+			.allocationSize  = blockSize,
+			.memoryTypeIndex = type
+		};
+
+		VkResult result = context->vk.AllocateMemory(
+			context->vk.device, &mai, NULL, &block->vk.memory);
+
+		if (result != VK_ERROR_OUT_OF_DEVICE_MEMORY)
+		{
+			// Success?
+			_GFX_VK_CHECK(result, goto clean);
+			break;
+		}
+
+		// Try smaller size class.
+		// Smallest size class we go is 1/8 (i.e. we divided by two 3 times).
+		// Can't go smaller than the minimum requested either..
+		if (i >= 3 || blockSize <= minSize)
+		{
+			_GFX_VK_CHECK(result, {});
+			goto clean;
+		}
+
+		blockSize /= 2;
+		blockSize = (blockSize < minSize) ? minSize : blockSize;
+	}
+
+	// At this point we have memory!
 	block->type = type;
-	gfx_tree_init(&block->free, sizeof(uint64_t) * 2, _gfx_allocator_cmp);
+	block->size = blockSize;
 
-	// TODO: Determine size, insert a single free node and allocate.
+	// Insert a single free memory node.
+	uint64_t key[2] = { blockSize, 0 };
+	_GFXMemNode data = { .left = NULL, .right = NULL, .free = 1 };
+
+	gfx_tree_init(
+		&block->free, sizeof(key), _gfx_allocator_cmp);
+
+	_GFXMemNode* node = gfx_tree_insert(
+		&block->free, sizeof(_GFXMemNode), &data, key);
+
+	if (node == NULL)
+		goto clean_block;
 
 	// Link into the allocator's free block list.
 	if (alloc->free != NULL)
@@ -112,7 +190,30 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	block->prev = NULL;
 	alloc->free = block;
 
+	// Yay!
+	gfx_log_debug(
+		"New Vulkan memory object allocated:\n"
+		"    Allocated block size: %llu bytes.\n"
+		"    Preferred block size: %llu bytes.\n",
+		(unsigned long long)blockSize,
+		(unsigned long long)prefBlockSize);
+
 	return block;
+
+
+	// Cleanup on failure.
+clean_block:
+	gfx_tree_clear(&block->free);
+	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+clean:
+	free(block);
+
+error:
+	gfx_log_error(
+		"Could not allocate a new Vulkan memory object of %llu bytes.",
+		(unsigned long long)blockSize);
+
+	return NULL;
 }
 
 /****************************/
@@ -216,11 +317,7 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	if (block == NULL)
 	{
 		block = _gfx_alloc_mem_block(alloc, type, key[0]);
-		if (block == NULL)
-		{
-			gfx_log_error("Could not allocate a new Vulkan memory block.");
-			return 0;
-		}
+		if (block == NULL) return 0;
 
 		// There's 1 free node, the entire block, just pick it :)
 		// We're at the beginning, so it always aligns, set offset of 0.

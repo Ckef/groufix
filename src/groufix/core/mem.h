@@ -121,6 +121,8 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
  * @param reqs  Must be valid (size > 0, align = a power of two, bits != 0).
  * @param flags Must have at least 1 bit set.
  * @return Non-zero on success.
+ *
+ * Not thread-safe at all.
  */
 int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
                          VkMemoryRequirements reqs, VkMemoryPropertyFlags flags);
@@ -129,6 +131,8 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
  * Free some Vulkan memory.
  * @param alloc Cannot be NULL.
  * @param mem   Cannot be NULL, must be allocated from alloc.
+ *
+ * Not thread-safe at all.
  */
 void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem);
 

@@ -492,6 +492,7 @@ static int _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
 		_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(AllocateCommandBuffers);
+		_GFX_GET_DEVICE_PROC_ADDR(AllocateMemory);
 		_GFX_GET_DEVICE_PROC_ADDR(BeginCommandBuffer);
 		_GFX_GET_DEVICE_PROC_ADDR(CmdBeginRenderPass);
 		_GFX_GET_DEVICE_PROC_ADDR(CmdBindPipeline);
@@ -520,6 +521,7 @@ static int _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
 		_GFX_GET_DEVICE_PROC_ADDR(EndCommandBuffer);
 		_GFX_GET_DEVICE_PROC_ADDR(FreeCommandBuffers);
+		_GFX_GET_DEVICE_PROC_ADDR(FreeMemory);
 		_GFX_GET_DEVICE_PROC_ADDR(GetDeviceQueue);
 		_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);

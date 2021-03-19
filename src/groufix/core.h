@@ -180,6 +180,7 @@ typedef struct _GFXContext
 
 		_GFX_VK_PFN(AcquireNextImageKHR);
 		_GFX_VK_PFN(AllocateCommandBuffers);
+		_GFX_VK_PFN(AllocateMemory);
 		_GFX_VK_PFN(BeginCommandBuffer);
 		_GFX_VK_PFN(CmdBeginRenderPass);
 		_GFX_VK_PFN(CmdBindPipeline);
@@ -209,6 +210,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(DeviceWaitIdle);
 		_GFX_VK_PFN(EndCommandBuffer);
 		_GFX_VK_PFN(FreeCommandBuffers);
+		_GFX_VK_PFN(FreeMemory);
 		_GFX_VK_PFN(GetDeviceQueue);
 		_GFX_VK_PFN(GetSwapchainImagesKHR);
 		_GFX_VK_PFN(QueuePresentKHR);
