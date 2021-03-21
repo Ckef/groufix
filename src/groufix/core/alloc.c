@@ -142,6 +142,10 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 	block->vk.memory = VK_NULL_HANDLE; // Necessary to not relink.
 	_gfx_relink_mem_block(alloc, block);
 
+	gfx_log_debug(
+		"Freed Vulkan memory object of %llu bytes.",
+		(unsigned long long)block->size);
+
 	free(block);
 }
 
@@ -449,6 +453,12 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	// Just free the memory block.
 	if (mem->node.left == NULL && mem->node.right == NULL)
 		_gfx_free_mem_block(alloc, mem->block);
+
+	// Unlink the allocation from the free tree.
+	if (mem->node.left != NULL)
+		mem->node.left->right = mem->node.right;
+	if (mem->node.right != NULL)
+		mem->node.right->left = mem->node.left;
 
 	// TODO: Implement the rest.
 }
