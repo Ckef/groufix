@@ -385,6 +385,8 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 
 		// Truly erase :)
 		gfx_tree_erase(&block->free, node);
+
+		// TODO: Move block to alloc->allocd if full.
 	}
 	else
 	{
