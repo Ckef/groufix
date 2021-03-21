@@ -66,7 +66,7 @@ typedef struct _GFXMemAlloc
 	// Vulkan fields.
 	struct
 	{
-		VkDeviceMemory memory; // May be redundant (for memory locality).
+		VkDeviceMemory memory; // Redundant for memory locality.
 
 	} vk;
 

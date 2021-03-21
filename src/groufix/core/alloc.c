@@ -13,15 +13,15 @@
 
 // Maximum size for a heap to be considered 'small' (2 GiB).
 // If a heap is 'small', blocks will be the size of the heap divided by 8.
-#define _GFX_SMALL_HEAP_SIZE (2048ull * 1024 * 1024)
+#define _GFX_MAX_SMALL_HEAP_SIZE (2048ull * 1024 * 1024)
 
 // Preferred memory block size of a 'large' heap (256 MiB).
-#define _GFX_PREFERRED_MEM_BLOCK_SIZE (256ull * 1024 * 2014)
+#define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 2014)
 
 
 // Check whether a value is a power of two (0 counts).
 #define _GFX_IS_POWER_OF_TWO(x) \
-	(((x) & ((x) - 1)) == 0)
+	(((x) & (x - 1)) == 0)
 
 // Get the strictest alignment (i.e. the least significant bit) of an offset.
 #define _GFX_GET_ALIGN(offset) \
@@ -94,6 +94,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
                                           uint64_t minSize)
 {
 	assert(alloc != NULL);
+	assert(sizeof(uint64_t) >= sizeof(VkDeviceSize)); // Needs to be true...
 
 	_GFXContext* context = alloc->context;
 	VkPhysicalDeviceMemoryProperties* pdmp = &alloc->vk.properties;
@@ -117,9 +118,9 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	// Lastly, if minimum requested size is greater than half the block size,
 	// we instead just allocate a dedicated block for it.
 	VkDeviceSize prefBlockSize =
-		(heapSize <= _GFX_SMALL_HEAP_SIZE) ?
+		(heapSize <= _GFX_MAX_SMALL_HEAP_SIZE) ?
 		heapSize / 8 :
-		_GFX_PREFERRED_MEM_BLOCK_SIZE;
+		_GFX_DEF_LARGE_HEAP_BLOCK_SIZE;
 
 	VkDeviceSize blockSize =
 		(prefBlockSize / 2 < minSize) ? minSize : prefBlockSize;
@@ -133,6 +134,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	for (unsigned int i = 0; 1; ++i) // Note: condition is always true!
 	{
 		// TODO: Support Vulkan dedicated allocation?
+		// TODO: Check against Vulkan's allocation limit.
 
 		VkMemoryAllocateInfo mai = {
 			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -259,7 +261,7 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 {
 	assert(alloc != NULL);
 
-	// Free all memory;
+	// Free all memory.
 	while (alloc->free != NULL)
 		_gfx_free_mem_block(alloc, alloc->free);
 
@@ -278,6 +280,9 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	assert(reqs.memoryTypeBits != 0);
 	assert(flags != 0);
 
+	// Alignment of 0 means 1.
+	reqs.alignment = (reqs.alignment > 0) ? reqs.alignment : 1;
+
 	// Get memory type index.
 	uint32_t type = _gfx_get_mem_type(alloc, flags, reqs.memoryTypeBits);
 	if (type == UINT32_MAX)
@@ -293,15 +298,12 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// The key of the memory block will store two uint64_t's:
 	// the first being the size, the second being the offset.
 	// Alignment is computed from offset to compare, so we can insert alignment.
-	// When found, we write back the actual offset to this key.
-	uint64_t key[2] = {
-		reqs.size,
-		(reqs.alignment > 0) ? reqs.alignment : 1
-	};
+	// When found, we override this alignment with the resulting offset.
+	uint64_t key[2] = { reqs.size, reqs.alignment };
 
 	// Find a free memory block with enough space.
 	_GFXMemBlock* block;
-	_GFXMemNode* node;
+	_GFXMemNode* node = NULL;
 
 	for (block = alloc->free; block != NULL; block = block->next)
 	{
@@ -314,12 +316,14 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		// so we search for a right match.
 		// If no exact size match was found, the least strict alignment of
 		// the next size class is returned, we need to linearly iterate
-		// over all subsequent successor nodes until we find a match.
+		// over all successor nodes until we find a match.
 		for (
 			node = gfx_tree_search(&block->free, key, GFX_TREE_MATCH_RIGHT);
 			node != NULL;
 			node = gfx_tree_succ(&block->free, node))
 		{
+			// fKey[0] is size.
+			// fKey[1] is offset.
 			const uint64_t* fKey = gfx_tree_key(&block->free, node);
 
 			// We align up because we can encounter less strict alignments.
@@ -350,8 +354,54 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	}
 
 	// Claim the memory.
-	// i.e. modify the tree and output the allocation.
-	// TODO: Implement.
+	// i.e. output the allocation data.
+	mem->node.free = 0;
+	mem->block = block;
+	mem->size = key[0];
+	mem->offset = key[1];
+	mem->vk.memory = block->vk.memory;
+
+	// Now fix the free tree and link the allocation in it...
+	// So we aligned the claimed memory, this means there could be some waste
+	// to the left of it, however we just ignore it and consider it unusable.
+	// However to the right of the memory we might still have a big free block.
+	const uint64_t* nKey = gfx_tree_key(&block->free, node);
+	uint64_t rOffset = key[1] + key[0];
+	uint64_t rSize = nKey[0] - (rOffset - nKey[1]);
+
+	// The waste we created to the left is at most (alignment - 1) in size.
+	// Similarly, if memory to the right is smaller than alignment, we skip it as well.
+	// Bit of an arbitrary heuristic, but hey we don't like small nodes :)
+	if (rSize < reqs.alignment)
+	{
+		// Replace node with the allocation.
+		mem->node.left = node->left;
+		mem->node.right = node->right;
+
+		if (node->left != NULL)
+			node->left->right = &mem->node;
+		if (node->right != NULL)
+			node->right->left = &mem->node;
+
+		// Truly erase :)
+		gfx_tree_erase(&block->free, node);
+	}
+	else
+	{
+		// We want to preserve memory to the right,
+		// so just insert the allocation between the nodes.
+		mem->node.left = node->left;
+		mem->node.right = node;
+
+		if (node->left != NULL)
+			node->left->right = &mem->node;
+
+		node->left = &mem->node;
+
+		// And update the node we're allocating from to its new size/offset.
+		uint64_t rKey[2] = { rSize, rOffset };
+		gfx_tree_update(&block->free, node, rKey);
+	}
 
 	return 1;
 }
@@ -362,5 +412,10 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	assert(alloc != NULL);
 	assert(mem != NULL);
 
-	// TODO: Implement.
+	// First the weird case that this allocation is the only memory node.
+	// Just free the memory block.
+	if (mem->node.left == NULL && mem->node.right == NULL)
+		_gfx_free_mem_block(alloc, mem->block);
+
+	// TODO: Implement the rest.
 }
