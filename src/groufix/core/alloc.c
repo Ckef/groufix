@@ -86,6 +86,66 @@ static uint32_t _gfx_get_mem_type(_GFXAllocator* alloc,
 }
 
 /****************************
+ * Unlinks and relinks a memory block back into the allocator, possible cases:
+ * - The block contains no Vulkan memory object, only unlink.
+ * - The block contains no free memory nodes, stick it in the allocated block list.
+ * - The block does contain free nodes, stick it in the free block list.
+ *
+ * A side-effect is that this will always put the block at the front of the list,
+ * making it the first to be searched when allocating memory.
+ */
+static void _gfx_relink_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
+{
+	assert(alloc != NULL);
+	assert(block != NULL);
+
+	// Unlink from the allocator.
+	if (alloc->free == block)
+		alloc->free = block->next;
+	if (alloc->allocd == block)
+		alloc->allocd = block->next;
+
+	if (block->next != NULL)
+		block->next->prev = block->prev;
+	if (block->prev != NULL)
+		block->prev->next = block->next;
+
+	// Relink into the allocator if we still have memory.
+	if (block->vk.memory != VK_NULL_HANDLE)
+	{
+		_GFXMemBlock** list =
+			(block->free.root == NULL) ? &alloc->allocd : &alloc->free;
+
+		if (*list != NULL)
+			(*list)->prev = block;
+
+		block->next = *list;
+		block->prev = NULL;
+		*list = block;
+	}
+}
+
+/****************************
+ * Frees a memory block, also freeing the Vulkan memory object.
+ */
+static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
+{
+	assert(alloc != NULL);
+	assert(block != NULL);
+
+	_GFXContext* context = alloc->context;
+
+	gfx_tree_clear(&block->free);
+	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+
+	// Unlink from the allocator.
+	block->vk.memory = VK_NULL_HANDLE; // Necessary to not relink.
+	_gfx_relink_mem_block(alloc, block);
+
+	free(block);
+}
+
+/****************************
  * Allocates and initializes a new Vulkan memory object.
  * @param minSize Use to force a minimum allocation (beyond default block sizes).
  * @return NULL on failure.
@@ -179,15 +239,11 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	if (gfx_tree_insert(&block->free, sizeof(_GFXMemNode), &data, key) == NULL)
 		goto clean_block;
 
-	// Link into the allocator's free block list.
-	if (alloc->free != NULL)
-		alloc->free->prev = block;
-
-	block->next = alloc->free;
+	// Finally link the block into the allocator.
+	block->next = NULL;
 	block->prev = NULL;
-	alloc->free = block;
+	_gfx_relink_mem_block(alloc, block);
 
-	// Yay!
 	gfx_log_debug(
 		"New Vulkan memory object allocated:\n"
 		"    Memory block size: %llu bytes.\n"
@@ -211,33 +267,6 @@ error:
 		(unsigned long long)blockSize);
 
 	return NULL;
-}
-
-/****************************
- * Frees a memory block, also freeing the Vulkan memory object.
- */
-static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
-{
-	assert(alloc != NULL);
-	assert(block != NULL);
-
-	_GFXContext* context = alloc->context;
-
-	gfx_tree_clear(&block->free);
-	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
-
-	// Unlink from the allocator.
-	if (alloc->free == block)
-		alloc->free = block->next;
-	if (alloc->allocd == block)
-		alloc->allocd = block->next;
-
-	if (block->next != NULL)
-		block->next->prev = block->prev;
-	if (block->prev != NULL)
-		block->prev->next = block->next;
-
-	free(block);
 }
 
 /****************************/
@@ -386,7 +415,9 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		// Truly erase :)
 		gfx_tree_erase(&block->free, node);
 
-		// TODO: Move block to alloc->allocd if full.
+		// Relink the block when it is now fully allocated.
+		if (block->free.root == NULL)
+			_gfx_relink_mem_block(alloc, block);
 	}
 	else
 	{
