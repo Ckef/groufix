@@ -556,7 +556,7 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 			gfx_tree_insert(&block->free, sizeof(_GFXMemNode), &data, nKey);
 
 		// On failure.. uuuuh.. well...
-		if (node != NULL)
+		if (node == NULL)
 		{
 			gfx_log_warn(
 				"Could not insert a new free node whilst freeing an allocation "
