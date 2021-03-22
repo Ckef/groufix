@@ -515,8 +515,8 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		}
 		else
 		{
-			const uint64_t* lKey = gfx_tree_key(&block->free, left);
-			nKey[1] = lKey[1] + lKey[0];
+			_GFXMemAlloc* lMem = (_GFXMemAlloc*)left;
+			nKey[1] = lMem->offset + lMem->size;
 			nKey[0] = rKey[0] + (rKey[1] - nKey[1]);
 		}
 
@@ -538,16 +538,16 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		if (left != NULL)
 		{
 			// If left exists, shrink.
-			const uint64_t* lKey = gfx_tree_key(&block->free, left);
-			nKey[1] = lKey[1] + lKey[0];
+			_GFXMemAlloc* lMem = (_GFXMemAlloc*)left;
+			nKey[1] = lMem->offset + lMem->size;
 			nKey[0] -= nKey[1];
 		}
 
 		if (right != NULL)
 		{
 			// If right exists, shrink also.
-			const uint64_t* rKey = gfx_tree_key(&block->free, right);
-			nKey[0] = rKey[1] - nKey[1];
+			_GFXMemAlloc* rMem = (_GFXMemAlloc*)right;
+			nKey[0] = rMem->offset - nKey[1];
 		}
 
 		_GFXMemNode data =
