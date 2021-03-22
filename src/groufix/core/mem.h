@@ -133,6 +133,8 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
  * @param mem   Cannot be NULL, must be allocated from alloc.
  *
  * Not thread-safe at all.
+ * Plus the content of mem is invalidated after this call.
+ * Silently warns when not able to modify the free structure appropriately.
  */
 void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem);
 

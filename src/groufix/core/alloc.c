@@ -449,16 +449,129 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	assert(alloc != NULL);
 	assert(mem != NULL);
 
+	_GFXMemBlock* block = mem->block;
+	_GFXMemNode* left = mem->node.left;
+	_GFXMemNode* right = mem->node.right;
+
 	// First the weird case that this allocation is the only memory node.
 	// Just free the memory block.
-	if (mem->node.left == NULL && mem->node.right == NULL)
-		_gfx_free_mem_block(alloc, mem->block);
+	if (left == NULL && right == NULL)
+	{
+		_gfx_free_mem_block(alloc, block);
+		return;
+	}
 
 	// Unlink the allocation from the free tree.
-	if (mem->node.left != NULL)
-		mem->node.left->right = mem->node.right;
-	if (mem->node.right != NULL)
-		mem->node.right->left = mem->node.left;
+	if (left != NULL) left->right = right;
+	if (right != NULL) right->left = left;
 
-	// TODO: Implement the rest.
+	// Now we regard the allocation as free and coalesce it with its neighbours.
+	// We may have created some wasted space during allocation, make sure to
+	// 'claim' those areas as free space as well.
+	// If the left neighbour is free, expand its space to the right.
+	if (left != NULL && left->free)
+	{
+		const uint64_t* lKey = gfx_tree_key(&block->free, left);
+		uint64_t nKey[2] = { 0, lKey[1] };
+
+		// If no right neighbor, expand to the end of the block.
+		// If right is allocated, expand up to its offset.
+		// If right is free, expand up to the end of right.
+		if (right == NULL)
+			nKey[0] = block->size - lKey[1];
+		else if (!right->free)
+			nKey[0] = ((_GFXMemAlloc*)right)->offset - lKey[1];
+		else
+		{
+			const uint64_t* rKey = gfx_tree_key(&block->free, right);
+			nKey[0] = rKey[0] + (rKey[1] - lKey[1]);
+
+			// If right is free, unlink and erase it, we replace it now.
+			if (right->right != NULL) right->right->left = left;
+			left->right = right->right;
+
+			gfx_tree_erase(&block->free, right);
+		}
+
+		// If left is the only node left, free the block instead.
+		if (left->left == NULL && left->right == NULL)
+			_gfx_free_mem_block(alloc, block);
+		else
+			gfx_tree_update(&block->free, left, nKey);
+	}
+
+	// Left is not free, if right is, expand its space to the left.
+	else if(right != NULL && right->free)
+	{
+		const uint64_t* rKey = gfx_tree_key(&block->free, right);
+		uint64_t nKey[2] = { 0, 0 };
+
+		// If no left neighbor, expand to the beginning of the block.
+		// If left exists, it must be allocated, expand to the end of it.
+		if (left == NULL)
+		{
+			nKey[0] = rKey[1] + rKey[0];
+			nKey[1] = 0;
+		}
+		else
+		{
+			const uint64_t* lKey = gfx_tree_key(&block->free, left);
+			nKey[1] = lKey[1] + lKey[0];
+			nKey[0] = rKey[0] + (rKey[1] - nKey[1]);
+		}
+
+		// If right is the only node left, free the block instead.
+		if (right->left == NULL && right->right == NULL)
+			_gfx_free_mem_block(alloc, block);
+		else
+			gfx_tree_update(&block->free, right, nKey);
+	}
+
+	// Left is not free AND right is not free AND there must be at least 1
+	// neighbor (meaning we do not want to free the memory block).
+	// Insert a new free node.
+	else
+	{
+		// Start out spanning the entire block
+		uint64_t nKey[2] = { block->size, 0 };
+
+		if (left != NULL)
+		{
+			// If left exists, shrink.
+			const uint64_t* lKey = gfx_tree_key(&block->free, left);
+			nKey[1] = lKey[1] + lKey[0];
+			nKey[0] -= nKey[1];
+		}
+
+		if (right != NULL)
+		{
+			// If right exists, shrink also.
+			const uint64_t* rKey = gfx_tree_key(&block->free, right);
+			nKey[0] = rKey[1] - nKey[1];
+		}
+
+		_GFXMemNode data =
+			{ .left = left, .right = right, .free = 1 };
+		_GFXMemNode* node =
+			gfx_tree_insert(&block->free, sizeof(_GFXMemNode), &data, nKey);
+
+		// On failure.. uuuuh.. well...
+		if (node != NULL)
+		{
+			gfx_log_warn(
+				"Could not insert a new free node whilst freeing an allocation "
+				"from a Vulkan memory object, potentially lost %llu bytes.",
+				(unsigned long long)nKey[0]);
+		}
+		else
+		{
+			// On success, link into the free list.
+			if (left != NULL) left->right = node;
+			if (right != NULL) right->left = node;
+		}
+
+		// Finally, we potentially freed some memory in a full block.
+		// Relink it in case it must move to the free list.
+		_gfx_relink_mem_block(alloc, block);
+	}
 }
