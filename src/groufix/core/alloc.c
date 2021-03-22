@@ -572,6 +572,9 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 
 		// Finally, we potentially freed some memory in a full block.
 		// Relink it in case it must move to the free list.
+		// Note: We inserted a free node, this means we caused fragmentation.
+		// Whenver this happens, this call will make this the first block to
+		// be searched in when allocating again. Nice accidental heuristic :)
 		_gfx_relink_mem_block(alloc, block);
 	}
 }
