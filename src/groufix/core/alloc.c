@@ -19,13 +19,21 @@
 #define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 2014)
 
 
+// Get the size of a key (is an lvalue).
+#define _GFX_KEY_SIZE(key) key[0]
+
+// Get the offset of a key (is an lvalue).
+#define _GFX_KEY_OFFSET(key) key[1]
+
+// Get the strictest alignment (i.e. the least significant bit) of a key.
+// Returns UINT64_MAX on no alignment, this so it compares as 'stricter'.
+#define _GFX_KEY_ALIGN(key) \
+	(key[1] == 0 ? UINT64_MAX : (key[1]) & (~(key[1]) + 1))
+
+
 // Check whether a value is a power of two (0 counts).
 #define _GFX_IS_POWER_OF_TWO(x) \
 	(((x) & (x - 1)) == 0)
-
-// Get the strictest alignment (i.e. the least significant bit) of an offset.
-#define _GFX_GET_ALIGN(offset) \
-	(offset == 0 ? UINT64_MAX : (offset) & (~(offset) + 1))
 
 // Aligns offset up/down to the nearest multiple of align,
 // which is assumed to be a power of two.
@@ -47,9 +55,10 @@ static int _gfx_allocator_cmp(const void* l, const void* r)
 	const uint64_t* kR = r;
 
 	return
-		(kL[0] < kR[0]) ? -1 : (kL[0] > kR[0]) ? 1 :
-		(_GFX_GET_ALIGN(kL[1]) < _GFX_GET_ALIGN(kR[1])) ? -1 :
-		(_GFX_GET_ALIGN(kL[1]) > _GFX_GET_ALIGN(kR[1])) ? 1 : 0;
+		(_GFX_KEY_SIZE(kL) < _GFX_KEY_SIZE(kR)) ? -1 :
+		(_GFX_KEY_SIZE(kL) > _GFX_KEY_SIZE(kR)) ?  1 :
+		(_GFX_KEY_ALIGN(kL) < _GFX_KEY_ALIGN(kR)) ? -1 :
+		(_GFX_KEY_ALIGN(kL) > _GFX_KEY_ALIGN(kR)) ?  1 : 0;
 }
 
 /****************************
@@ -355,17 +364,17 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 			node != NULL;
 			node = gfx_tree_succ(&block->free, node))
 		{
-			// fKey[0] is size.
-			// fKey[1] is offset.
 			const uint64_t* fKey = gfx_tree_key(&block->free, node);
 
 			// We align up because we can encounter less strict alignments.
-			uint64_t offset = _GFX_ALIGN_UP(fKey[1], key[1]);
-			uint64_t size = fKey[0] - (offset - fKey[1]);
+			uint64_t offset =
+				_GFX_ALIGN_UP(_GFX_KEY_OFFSET(fKey), _GFX_KEY_OFFSET(key));
+			uint64_t size =
+				_GFX_KEY_SIZE(fKey) - (offset - _GFX_KEY_OFFSET(fKey));
 
-			if (size >= key[0])
+			if (size >= _GFX_KEY_SIZE(key))
 			{
-				key[1] = offset; // Set the key's offset value.
+				_GFX_KEY_OFFSET(key) = offset; // Set the key's offset value.
 				break;
 			}
 		}
@@ -377,21 +386,21 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// Allocate a new memory block.
 	if (block == NULL)
 	{
-		block = _gfx_alloc_mem_block(alloc, type, key[0]);
+		block = _gfx_alloc_mem_block(alloc, type, _GFX_KEY_SIZE(key));
 		if (block == NULL) return 0;
 
 		// There's 1 free node, the entire block, just pick it :)
 		// We're at the beginning, so it always aligns, set offset of 0.
 		node = block->free.root;
-		key[1] = 0;
+		_GFX_KEY_OFFSET(key) = 0;
 	}
 
 	// Claim the memory.
 	// i.e. output the allocation data.
 	mem->node.free = 0;
 	mem->block = block;
-	mem->size = key[0];
-	mem->offset = key[1];
+	mem->size = _GFX_KEY_SIZE(key);
+	mem->offset = _GFX_KEY_OFFSET(key);
 	mem->vk.memory = block->vk.memory;
 
 	// Now fix the free tree and link the allocation in it...
@@ -399,8 +408,11 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// to the left of it, however we just ignore it and consider it unusable.
 	// However to the right of the memory we might still have a big free block.
 	const uint64_t* nKey = gfx_tree_key(&block->free, node);
-	uint64_t rOffset = key[1] + key[0];
-	uint64_t rSize = nKey[0] - (rOffset - nKey[1]);
+
+	uint64_t rOffset =
+		_GFX_KEY_OFFSET(key) + _GFX_KEY_SIZE(key);
+	uint64_t rSize =
+		_GFX_KEY_SIZE(nKey) - (rOffset - _GFX_KEY_OFFSET(nKey));
 
 	// The waste we created to the left is at most (alignment - 1) in size.
 	// Similarly, if memory to the right is smaller than alignment, we skip it as well.
@@ -472,19 +484,20 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	if (left != NULL && left->free)
 	{
 		const uint64_t* lKey = gfx_tree_key(&block->free, left);
-		uint64_t nKey[2] = { 0, lKey[1] };
+		uint64_t nKey[2] = { 0, _GFX_KEY_OFFSET(lKey) };
 
 		// If no right neighbor, expand to the end of the block.
 		// If right is allocated, expand up to its offset.
 		// If right is free, expand up to the end of right.
 		if (right == NULL)
-			nKey[0] = block->size - lKey[1];
+			_GFX_KEY_SIZE(nKey) = block->size - _GFX_KEY_OFFSET(lKey);
 		else if (!right->free)
-			nKey[0] = ((_GFXMemAlloc*)right)->offset - lKey[1];
+			_GFX_KEY_SIZE(nKey) = ((_GFXMemAlloc*)right)->offset - _GFX_KEY_OFFSET(lKey);
 		else
 		{
 			const uint64_t* rKey = gfx_tree_key(&block->free, right);
-			nKey[0] = rKey[0] + (rKey[1] - lKey[1]);
+			_GFX_KEY_SIZE(nKey) = _GFX_KEY_SIZE(rKey) +
+				(_GFX_KEY_OFFSET(rKey) - _GFX_KEY_OFFSET(lKey));
 
 			// If right is free, unlink and erase it, we replace it now.
 			if (right->right != NULL) right->right->left = left;
@@ -510,14 +523,15 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		// If left exists, it must be allocated, expand to the end of it.
 		if (left == NULL)
 		{
-			nKey[0] = rKey[1] + rKey[0];
-			nKey[1] = 0;
+			_GFX_KEY_SIZE(nKey) = _GFX_KEY_OFFSET(rKey) + _GFX_KEY_SIZE(rKey);
+			_GFX_KEY_OFFSET(nKey) = 0;
 		}
 		else
 		{
 			_GFXMemAlloc* lMem = (_GFXMemAlloc*)left;
-			nKey[1] = lMem->offset + lMem->size;
-			nKey[0] = rKey[0] + (rKey[1] - nKey[1]);
+			_GFX_KEY_OFFSET(nKey) = lMem->offset + lMem->size;
+			_GFX_KEY_SIZE(nKey) = _GFX_KEY_SIZE(rKey) +
+				(_GFX_KEY_OFFSET(rKey) - _GFX_KEY_OFFSET(nKey));
 		}
 
 		// If right is the only node left, free the block instead.
@@ -539,15 +553,15 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		{
 			// If left exists, shrink.
 			_GFXMemAlloc* lMem = (_GFXMemAlloc*)left;
-			nKey[1] = lMem->offset + lMem->size;
-			nKey[0] -= nKey[1];
+			_GFX_KEY_OFFSET(nKey) = lMem->offset + lMem->size;
+			_GFX_KEY_SIZE(nKey) -= _GFX_KEY_OFFSET(nKey);
 		}
 
 		if (right != NULL)
 		{
 			// If right exists, shrink also.
 			_GFXMemAlloc* rMem = (_GFXMemAlloc*)right;
-			nKey[0] = rMem->offset - nKey[1];
+			_GFX_KEY_SIZE(nKey) = rMem->offset - _GFX_KEY_OFFSET(nKey);
 		}
 
 		_GFXMemNode data =
@@ -561,7 +575,7 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 			gfx_log_warn(
 				"Could not insert a new free node whilst freeing an allocation "
 				"from a Vulkan memory object, potentially lost %llu bytes.",
-				(unsigned long long)nKey[0]);
+				(unsigned long long)_GFX_KEY_SIZE(nKey));
 		}
 		else
 		{
