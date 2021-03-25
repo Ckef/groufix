@@ -186,6 +186,7 @@ clean-all: clean clean-bin clean-deps
 # Dependency files for all builds
 
 OBJS = \
+ $(OUT)$(SUB)/groufix/containers/list.o \
  $(OUT)$(SUB)/groufix/containers/tree.o \
  $(OUT)$(SUB)/groufix/containers/vec.o \
  $(OUT)$(SUB)/groufix/core/alloc.o \
