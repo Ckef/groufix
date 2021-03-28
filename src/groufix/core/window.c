@@ -249,10 +249,11 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 	window->present.queue = NULL;
 	gfx_vec_init(&window->present.access, sizeof(uint32_t));
 
-	for (size_t i = 0; i < context->sets.size; ++i)
+	for(
+		_GFXQueueSet* set = (_GFXQueueSet*)context->sets.head;
+		set != NULL;
+		set = (_GFXQueueSet*)set->list.next)
 	{
-		_GFXQueueSet* set = *(_GFXQueueSet**)gfx_vec_at(&context->sets, i);
-
 		// Gather all families that need access to presentable images.
 		// We only care about the family if it is a graphics family OR
 		// it specifically tells us it is capable of presenting.

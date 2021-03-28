@@ -10,6 +10,7 @@
 #ifndef _GFX_CORE_H
 #define _GFX_CORE_H
 
+#include "groufix/containers/list.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/threads.h"
 #include "groufix.h"
@@ -158,6 +159,8 @@ typedef struct _GFXState
  */
 typedef struct _GFXQueueSet
 {
+	GFXListNode list; // Base-type.
+
 	uint32_t     family;  // Vulkan family index.
 	VkQueueFlags flags;
 	int          present; // Non-zero if chosen for presentation.
@@ -223,7 +226,7 @@ typedef struct _GFXContext
 	} vk;
 
 
-	GFXVec sets; // Stores _GFXQueueSet*.
+	GFXList sets; // References _GFXQueueSet*.
 
 	// Associated device group.
 	size_t           numDevices;

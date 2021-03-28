@@ -277,10 +277,11 @@ static void _gfx_renderer_pick_graphics(GFXRenderer* renderer)
 	// We assume there is at least a graphics family.
 	// Otherwise context creation would have failed.
 	// We just pick the first one we find.
-	for (size_t i = 0; i < context->sets.size; ++i)
+	for(
+		_GFXQueueSet* set = (_GFXQueueSet*)context->sets.head;
+		set != NULL;
+		set = (_GFXQueueSet*)set->list.next)
 	{
-		_GFXQueueSet* set = *(_GFXQueueSet**)gfx_vec_at(&context->sets, i);
-
 		if (set->flags & VK_QUEUE_GRAPHICS_BIT)
 		{
 			renderer->graphics.family = set->family;

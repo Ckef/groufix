@@ -454,7 +454,7 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 			((_GFXMemAlloc*)right)->offset;
 
 	// Now modify the list and free tree to reflect the claimed space.
-	uint64_t fKey[2] = { rBound - lBound, lBound };
+	uint64_t key[2] = { rBound - lBound, lBound };
 	int lFree = (left != NULL) && left->free;
 	int rFree = (right != NULL) && right->free;
 
@@ -475,7 +475,7 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		// expand a neighbour so it covers the new free space.
 		// If only one remains, just free the entire memory block.
 		if (block->nodes.list.head != block->nodes.list.tail)
-			gfx_tree_update(&block->nodes.free, lFree ? left : right, fKey);
+			gfx_tree_update(&block->nodes.free, lFree ? left : right, key);
 		else
 			_gfx_free_mem_block(alloc, block);
 	}
@@ -487,7 +487,7 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		// if no neighbour were to exist at all we exit early at the top.
 		// So just insert a new free node.
 		_GFXMemNode* node = gfx_tree_insert(
-			&block->nodes.free, sizeof(_GFXMemNode), NULL, fKey);
+			&block->nodes.free, sizeof(_GFXMemNode), NULL, key);
 
 		if (node == NULL)
 		{
@@ -495,7 +495,7 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 			gfx_log_warn(
 				"Could not insert a new free node whilst freeing an allocation "
 				"from a Vulkan memory object, potentially lost %llu bytes.",
-				(unsigned long long)_GFX_KEY_SIZE(fKey));
+				(unsigned long long)_GFX_KEY_SIZE(key));
 		}
 		else
 		{

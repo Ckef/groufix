@@ -41,50 +41,49 @@ static const float _gfx_vk_queue_priorities[] = { 1.0f };
 
 /****************************
  * Allocates a new queue set.
- * If not enough mutexes could be created, it returns with a smaller count.
- * @param sets Output vector to add the new set to.
- * @return Zero on failure (does not mean it's not allocated!).
+ * @param context Append created set to its _GFXQueueSet list.
+ * @param count   Number of mutexes to create.
+ * @return Non-zero on success.
  */
-static int _gfx_alloc_queue_set(GFXVec* sets, uint32_t family,
+static int _gfx_alloc_queue_set(_GFXContext* context, uint32_t family,
                                 VkQueueFlags flags, int present, size_t count)
 {
 	// Allocate a new queue set.
-	_GFXQueueSet* s = malloc(
-		sizeof(_GFXQueueSet) +
-		sizeof(_GFXMutex) * count);
-
-	if (s == NULL || !gfx_vec_push(sets, 1, &s))
-	{
-		free(s);
-		return 0;
-	}
+	_GFXQueueSet* s = malloc(sizeof(_GFXQueueSet) + sizeof(_GFXMutex) * count);
+	if (s == NULL) return 0;
 
 	s->family  = family;
 	s->flags   = flags;
 	s->present = present;
 
 	// Keep inserting a mutex for each queue and stop as soon as we fail.
-	// This so it's easy to clear later on.
 	for (s->count = 0; s->count < count; ++s->count)
-		if (!_gfx_mutex_init(&s->locks[s->count])) return 0;
+		if (!_gfx_mutex_init(&s->locks[s->count]))
+		{
+			while (s->count > 0) _gfx_mutex_clear(&s->locks[--s->count]);
+			free(s);
+
+			return 0;
+		}
+
+	// Insert into list.
+	gfx_list_insert_after(&context->sets, &s->list, NULL);
 
 	return 1;
 }
 
 /****************************
- * Creates an array of VkDeviceQueueCreateInfo structures and fills a vector
- * of _GFXQueueSet* objects, on failure, nothing added to sets is freed!
- * @param sets        Output vector to fill with queue sets.
+ * Creates an array of VkDeviceQueueCreateInfo structures and fills the
+ * _GFXQueueSet list of context, on failure, no list elements are freed!
  * @param createInfos Output create info, must call free() on success.
- * @return Non-zero on success.
+ * @return Number of created queue sets.
  *
  * Output describe the queue families desired by the groufix implementation.
  */
-static int _gfx_get_queue_sets(VkPhysicalDevice device, GFXVec* sets,
-                               VkDeviceQueueCreateInfo** createInfos)
+static size_t _gfx_get_queue_sets(_GFXContext* context, VkPhysicalDevice device,
+                                  VkDeviceQueueCreateInfo** createInfos)
 {
-	assert(sets != NULL);
-	assert(sets->size == 0);
+	assert(context != NULL);
 	assert(createInfos != NULL);
 	assert(*createInfos == NULL);
 
@@ -171,7 +170,7 @@ static int _gfx_get_queue_sets(VkPhysicalDevice device, GFXVec* sets,
 	size_t num = graphicsHasPresent ? 1 : 2;
 	*createInfos = malloc(sizeof(VkDeviceQueueCreateInfo) * num);
 
-	if (*createInfos == NULL || !gfx_vec_reserve(sets, num))
+	if (*createInfos == NULL)
 		goto clean;
 
 	// Just initialize all info structures to some defaults.
@@ -188,23 +187,21 @@ static int _gfx_get_queue_sets(VkPhysicalDevice device, GFXVec* sets,
 
 	// Allocate graphics queue.
 	(*createInfos)[0].queueFamilyIndex = graphics;
-
 	int success = _gfx_alloc_queue_set(
-		sets, graphics, props[graphics].queueFlags, graphicsHasPresent, 1);
+		context, graphics, props[graphics].queueFlags, graphicsHasPresent, 1);
 
 	// Allocate novel present queue if necessary.
 	if (!graphicsHasPresent)
 	{
 		(*createInfos)[1].queueFamilyIndex = present;
-
 		success = success && _gfx_alloc_queue_set(
-			sets, present, props[present].queueFlags, 1, 1);
+			context, present, props[present].queueFlags, 1, 1);
 	}
 
 	if (!success)
 		goto clean;
 
-	return 1;
+	return num;
 
 
 	// Cleanup on failure.
@@ -224,10 +221,10 @@ static void _gfx_destroy_context(_GFXContext* context)
 	assert(context != NULL);
 
 	// Loop over all its queue sets and free their resources.
-	for (size_t s = 0; s < context->sets.size; ++s)
+	while (context->sets.head != NULL)
 	{
-		_GFXQueueSet* set =
-			*(_GFXQueueSet**)gfx_vec_at(&context->sets, s);
+		_GFXQueueSet* set = (_GFXQueueSet*)context->sets.head;
+		gfx_list_erase(&context->sets, context->sets.head);
 
 		for (size_t q = 0; q < set->count; ++q)
 			_gfx_mutex_clear(&set->locks[q]);
@@ -243,7 +240,7 @@ static void _gfx_destroy_context(_GFXContext* context)
 	if (context->vk.DestroyDevice != NULL)
 		context->vk.DestroyDevice(context->vk.device, NULL);
 
-	gfx_vec_clear(&context->sets);
+	gfx_list_clear(&context->sets);
 	free(context);
 }
 
@@ -339,7 +336,7 @@ static int _gfx_create_context(_GFXDevice* device)
 		context->vk.DestroyDevice = NULL;
 		context->vk.DeviceWaitIdle = NULL;
 
-		gfx_vec_init(&context->sets, sizeof(_GFXQueueSet*));
+		gfx_list_init(&context->sets);
 		context->numDevices = groups[g].physicalDeviceCount;
 
 		memcpy(
@@ -356,8 +353,8 @@ static int _gfx_create_context(_GFXDevice* device)
 		// it is assumed it has equivalent queue family properties.
 		// If there are any device groups such that this is the case, you
 		// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
-		if (!_gfx_get_queue_sets(device->vk.device, &context->sets, &createInfos))
-			goto clean;
+		size_t sets = _gfx_get_queue_sets(context, device->vk.device, &createInfos);
+		if (!sets) goto clean;
 
 		// Pick device features to enable (i.e. disable stuff we dont' want).
 		// Again when devices use the same context, we assume they have
@@ -450,7 +447,7 @@ static int _gfx_create_context(_GFXDevice* device)
 
 			.pNext                   = &dgdci,
 			.flags                   = 0,
-			.queueCreateInfoCount    = (uint32_t)context->sets.size,
+			.queueCreateInfoCount    = (uint32_t)sets,
 			.pQueueCreateInfos       = createInfos,
 #if defined (NDEBUG)
 			.enabledLayerCount       = 0,
@@ -471,8 +468,8 @@ static int _gfx_create_context(_GFXDevice* device)
 		// This is like a moment to celebrate, right?
 		// We count the number of actual queues here.
 		uint32_t queueCount = 0;
-		for (size_t k = 0; k < context->sets.size; ++k)
-			queueCount += (*(_GFXQueueSet**)gfx_vec_at(&context->sets, k))->count;
+		for (GFXListNode* k = context->sets.head; k != NULL; k = k->next)
+			queueCount += ((_GFXQueueSet*)k)->count;
 
 		gfx_log_debug(
 			"Logical Vulkan device of version %u.%u.%u created:\n"
