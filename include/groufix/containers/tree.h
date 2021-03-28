@@ -112,6 +112,8 @@ GFX_API void gfx_tree_update(GFXTree* tree, const void* node, const void* key);
  * Erases a node from the tree, also freeing the modifiable element data.
  * @param tree Cannot be NULL.
  * @param node Must be a value returned by gfx_tree_insert.
+ *
+ * Note: node is freed, cannot access its memory after this call!
  */
 GFX_API void gfx_tree_erase(GFXTree* tree, void* node);
 

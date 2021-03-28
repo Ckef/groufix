@@ -109,4 +109,6 @@ GFX_API void gfx_list_erase(GFXList* list, GFXListNode* node)
 		node->next->prev = node->prev;
 	else
 		list->tail = node->prev;
+
+	// The node itself is invalidated.
 }

@@ -20,15 +20,15 @@
 
 
 // Get the size of a key (is an lvalue).
-#define _GFX_KEY_SIZE(key) key[0]
+#define _GFX_KEY_SIZE(key) (key)[0]
 
 // Get the offset of a key (is an lvalue).
-#define _GFX_KEY_OFFSET(key) key[1]
+#define _GFX_KEY_OFFSET(key) (key)[1]
 
 // Get the strictest alignment (i.e. the least significant bit) of a key.
-// Returns UINT64_MAX on no alignment, this so it compares as 'stricter'.
+// Returns UINT64_MAX on no alignment, this so it always compares as stricter.
 #define _GFX_KEY_ALIGN(key) \
-	(key[1] == 0 ? UINT64_MAX : (key[1]) & (~(key[1]) + 1))
+	((key)[1] == 0 ? UINT64_MAX : (key)[1] & (~((key)[1]) + 1))
 
 
 // Check whether a value is a power of two (0 counts).
@@ -92,70 +92,6 @@ static uint32_t _gfx_get_mem_type(_GFXAllocator* alloc,
 	}
 
 	return UINT32_MAX;
-}
-
-/****************************
- * Unlinks and relinks a memory block back into the allocator, possible cases:
- * - The block contains no Vulkan memory object, only unlink.
- * - The block contains no free memory nodes, stick it in the allocated block list.
- * - The block does contain free nodes, stick it in the free block list.
- *
- * A side-effect is that this will always put the block at the front of the list,
- * making it the first to be searched when allocating memory.
- */
-static void _gfx_relink_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
-{
-	assert(alloc != NULL);
-	assert(block != NULL);
-
-	// Unlink from the allocator.
-	if (alloc->free == block)
-		alloc->free = block->next;
-	if (alloc->allocd == block)
-		alloc->allocd = block->next;
-
-	if (block->next != NULL)
-		block->next->prev = block->prev;
-	if (block->prev != NULL)
-		block->prev->next = block->next;
-
-	// Relink into the allocator if we still have memory.
-	if (block->vk.memory != VK_NULL_HANDLE)
-	{
-		_GFXMemBlock** list =
-			(block->free.root == NULL) ? &alloc->allocd : &alloc->free;
-
-		if (*list != NULL)
-			(*list)->prev = block;
-
-		block->next = *list;
-		block->prev = NULL;
-		*list = block;
-	}
-}
-
-/****************************
- * Frees a memory block, also freeing the Vulkan memory object.
- */
-static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
-{
-	assert(alloc != NULL);
-	assert(block != NULL);
-
-	_GFXContext* context = alloc->context;
-
-	gfx_tree_clear(&block->free);
-	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
-
-	// Unlink from the allocator.
-	block->vk.memory = VK_NULL_HANDLE; // Necessary to not relink.
-	_gfx_relink_mem_block(alloc, block);
-
-	gfx_log_debug(
-		"Freed Vulkan memory object of %llu bytes.",
-		(unsigned long long)block->size);
-
-	free(block);
 }
 
 /****************************
@@ -243,20 +179,26 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	// At this point we have memory!
 	// Initialize and insert a single free memory node.
 	uint64_t key[2] = { blockSize, 0 };
-	_GFXMemNode data = { .left = NULL, .right = NULL, .free = 1 };
-
 	block->type = type;
 	block->size = blockSize;
-	gfx_tree_init(&block->free, sizeof(key), _gfx_allocator_cmp);
+	gfx_tree_init(&block->nodes.free, sizeof(key), _gfx_allocator_cmp);
 
-	if (gfx_tree_insert(&block->free, sizeof(_GFXMemNode), &data, key) == NULL)
-		goto clean_block;
+	_GFXMemNode* node = gfx_tree_insert(
+		&block->nodes.free, sizeof(_GFXMemNode), NULL, key);
 
-	// Finally link the block into the allocator.
-	block->next = NULL;
-	block->prev = NULL;
-	_gfx_relink_mem_block(alloc, block);
+	if (node == NULL)
+	{
+		// Ah well..
+		gfx_tree_clear(&block->nodes.free);
+		context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+		goto clean;
+	}
 
+	node->free = 1;
+	gfx_list_init(&block->nodes.list);
+	gfx_list_insert_after(&block->nodes.list, &node->list, NULL);
+
+	// Woop woop.
 	gfx_log_debug(
 		"New Vulkan memory object allocated:\n"
 		"    Memory block size: %llu bytes.\n"
@@ -264,22 +206,47 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		(unsigned long long)blockSize,
 		(unsigned long long)prefBlockSize);
 
+	// Finally link the block into the allocator.
+	gfx_list_insert_after(&alloc->free, &block->list, NULL);
+
 	return block;
 
 
 	// Cleanup on failure.
-clean_block:
-	gfx_tree_clear(&block->free);
-	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
 clean:
 	free(block);
-
 error:
 	gfx_log_error(
 		"Could not allocate a new Vulkan memory object of %llu bytes.",
 		(unsigned long long)blockSize);
 
 	return NULL;
+}
+
+/****************************
+ * Frees a memory block, also freeing the Vulkan memory object.
+ */
+static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
+{
+	assert(alloc != NULL);
+	assert(block != NULL);
+
+	_GFXContext* context = alloc->context;
+
+	// Unlink from the allocator.
+	gfx_list_erase(
+		(block->nodes.free.root == NULL) ? &alloc->allocd : &alloc->free,
+		&block->list);
+
+	gfx_list_clear(&block->nodes.list);
+	gfx_tree_clear(&block->nodes.free);
+	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+
+	gfx_log_debug(
+		"Freed Vulkan memory object of %llu bytes.",
+		(unsigned long long)block->size);
+
+	free(block);
 }
 
 /****************************/
@@ -290,8 +257,8 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 	assert(device->context != NULL);
 
 	alloc->context = device->context;
-	alloc->free = NULL;
-	alloc->allocd = NULL;
+	gfx_list_init(&alloc->free);
+	gfx_list_init(&alloc->allocd);
 
 	_groufix.vk.GetPhysicalDeviceMemoryProperties(
 		device->vk.device,
@@ -304,11 +271,15 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 	assert(alloc != NULL);
 
 	// Free all memory.
-	while (alloc->free != NULL)
-		_gfx_free_mem_block(alloc, alloc->free);
+	while (alloc->free.head != NULL)
+		_gfx_free_mem_block(alloc, (_GFXMemBlock*)alloc->free.head);
 
-	while (alloc->allocd != NULL)
-		_gfx_free_mem_block(alloc, alloc->allocd);
+	while (alloc->allocd.head != NULL)
+		_gfx_free_mem_block(alloc, (_GFXMemBlock*)alloc->allocd.head);
+
+	// Kind of a no-op, but for consistency.
+	gfx_list_clear(&alloc->free);
+	gfx_list_clear(&alloc->allocd);
 }
 
 /****************************/
@@ -347,7 +318,10 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	_GFXMemBlock* block;
 	_GFXMemNode* node = NULL;
 
-	for (block = alloc->free; block != NULL; block = block->next)
+	for (
+		block = (_GFXMemBlock*)alloc->free.head;
+		block != NULL;
+		block = (_GFXMemBlock*)block->list.next)
 	{
 		if (block->type != type)
 			continue;
@@ -360,13 +334,14 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		// the next size class is returned, we need to linearly iterate
 		// over all successor nodes until we find a match.
 		for (
-			node = gfx_tree_search(&block->free, key, GFX_TREE_MATCH_RIGHT);
+			node = gfx_tree_search(&block->nodes.free, key, GFX_TREE_MATCH_RIGHT);
 			node != NULL;
-			node = gfx_tree_succ(&block->free, node))
+			node = gfx_tree_succ(&block->nodes.free, node))
 		{
-			const uint64_t* fKey = gfx_tree_key(&block->free, node);
+			const uint64_t* fKey = gfx_tree_key(&block->nodes.free, node);
 
 			// We align up because we can encounter less strict alignments.
+			// Note: do not use the _GFX_KEY_ALIGN macro, we need 0 here!
 			uint64_t offset =
 				_GFX_ALIGN_UP(_GFX_KEY_OFFSET(fKey), _GFX_KEY_OFFSET(key));
 			uint64_t size =
@@ -391,12 +366,13 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 
 		// There's 1 free node, the entire block, just pick it :)
 		// We're at the beginning, so it always aligns, set offset of 0.
-		node = block->free.root;
+		node = block->nodes.free.root;
 		_GFX_KEY_OFFSET(key) = 0;
 	}
 
 	// Claim the memory.
 	// i.e. output the allocation data.
+	gfx_list_insert_before(&block->nodes.list, &mem->node.list, &node->list);
 	mem->node.free = 0;
 	mem->block = block;
 	mem->size = _GFX_KEY_SIZE(key);
@@ -407,49 +383,35 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// So we aligned the claimed memory, this means there could be some waste
 	// to the left of it, however we just ignore it and consider it unusable.
 	// However to the right of the memory we might still have a big free block.
-	const uint64_t* nKey = gfx_tree_key(&block->free, node);
+	const uint64_t* cKey = gfx_tree_key(&block->nodes.free, node);
 
 	uint64_t rOffset =
 		_GFX_KEY_OFFSET(key) + _GFX_KEY_SIZE(key);
 	uint64_t rSize =
-		_GFX_KEY_SIZE(nKey) - (rOffset - _GFX_KEY_OFFSET(nKey));
+		_GFX_KEY_SIZE(cKey) - (rOffset - _GFX_KEY_OFFSET(cKey));
 
 	// The waste we created to the left is at most (alignment - 1) in size.
 	// Similarly, if memory to the right is smaller than alignment, we skip it as well.
 	// Bit of an arbitrary heuristic, but hey we don't like small nodes :)
 	if (rSize < reqs.alignment)
 	{
-		// Replace node with the allocation.
-		mem->node.left = node->left;
-		mem->node.right = node->right;
+		// Not preserving any memory, erase claimed node.
+		gfx_list_erase(&block->nodes.list, &node->list);
+		gfx_tree_erase(&block->nodes.free, node);
 
-		if (node->left != NULL)
-			node->left->right = &mem->node;
-		if (node->right != NULL)
-			node->right->left = &mem->node;
-
-		// Truly erase :)
-		gfx_tree_erase(&block->free, node);
-
-		// Relink the block when it is now fully allocated.
-		if (block->free.root == NULL)
-			_gfx_relink_mem_block(alloc, block);
+		// Move block to allocd list if fully allocated now.
+		if (block->nodes.free.root == NULL)
+		{
+			gfx_list_erase(&alloc->free, &block->list);
+			gfx_list_insert_after(&alloc->allocd, &block->list, NULL);
+		}
 	}
 	else
 	{
 		// We want to preserve memory to the right,
-		// so just insert the allocation between the nodes.
-		mem->node.left = node->left;
-		mem->node.right = node;
-
-		if (node->left != NULL)
-			node->left->right = &mem->node;
-
-		node->left = &mem->node;
-
-		// And update the node we're allocating from to its new size/offset.
+		// so just update the node's key in the free tree.
 		uint64_t rKey[2] = { rSize, rOffset };
-		gfx_tree_update(&block->free, node, rKey);
+		gfx_tree_update(&block->nodes.free, node, rKey);
 	}
 
 	return 1;
@@ -462,8 +424,8 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	assert(mem != NULL);
 
 	_GFXMemBlock* block = mem->block;
-	_GFXMemNode* left = mem->node.left;
-	_GFXMemNode* right = mem->node.right;
+	_GFXMemNode* left = (_GFXMemNode*)mem->node.list.prev;
+	_GFXMemNode* right = (_GFXMemNode*)mem->node.list.next;
 
 	// First the weird case that this allocation is the only memory node.
 	// Just free the memory block.
@@ -473,122 +435,87 @@ void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		return;
 	}
 
-	// Unlink the allocation from the free tree.
-	if (left != NULL) left->right = right;
-	if (right != NULL) right->left = left;
-
 	// Now we regard the allocation as free and coalesce it with its neighbours.
 	// We may have created some wasted space during allocation, make sure to
-	// 'claim' those areas as free space as well.
-	// If the left neighbour is free, expand its space to the right.
-	if (left != NULL && left->free)
+	// reclaim those areas as free space as well.
+	// This is why we first calculate the range of space we can reclaim.
+	uint64_t lBound =
+		(left == NULL) ? 0 :
+		(left->free) ?
+			_GFX_KEY_OFFSET((const uint64_t*)gfx_tree_key(&block->nodes.free, left)) :
+			((_GFXMemAlloc*)left)->offset +
+			((_GFXMemAlloc*)left)->size;
+
+	uint64_t rBound =
+		(right == NULL) ? block->size :
+		(right->free) ?
+			_GFX_KEY_OFFSET((const uint64_t*)gfx_tree_key(&block->nodes.free, right)) +
+			_GFX_KEY_SIZE((const uint64_t*)gfx_tree_key(&block->nodes.free, right)) :
+			((_GFXMemAlloc*)right)->offset;
+
+	// Now modify the list and free tree to reflect the claimed space.
+	uint64_t fKey[2] = { rBound - lBound, lBound };
+	int lFree = (left != NULL) && left->free;
+	int rFree = (right != NULL) && right->free;
+
+	if (lFree || rFree)
 	{
-		const uint64_t* lKey = gfx_tree_key(&block->free, left);
-		uint64_t nKey[2] = { 0, _GFX_KEY_OFFSET(lKey) };
+		// If a free neighbour exists, just unlink the allocation.
+		// We are going to expand one of its neighbours.
+		gfx_list_erase(&block->nodes.list, &mem->node.list);
 
-		// If no right neighbor, expand to the end of the block.
-		// If right is allocated, expand up to its offset.
-		// If right is free, expand up to the end of right.
-		if (right == NULL)
-			_GFX_KEY_SIZE(nKey) = block->size - _GFX_KEY_OFFSET(lKey);
-		else if (!right->free)
-			_GFX_KEY_SIZE(nKey) = ((_GFXMemAlloc*)right)->offset - _GFX_KEY_OFFSET(lKey);
-		else
+		// If both are free, erase the right one.
+		if (lFree && rFree)
 		{
-			const uint64_t* rKey = gfx_tree_key(&block->free, right);
-			_GFX_KEY_SIZE(nKey) = _GFX_KEY_SIZE(rKey) +
-				(_GFX_KEY_OFFSET(rKey) - _GFX_KEY_OFFSET(lKey));
-
-			// If right is free, unlink and erase it, we replace it now.
-			if (right->right != NULL) right->right->left = left;
-			left->right = right->right;
-
-			gfx_tree_erase(&block->free, right);
+			gfx_list_erase(&block->nodes.list, &right->list);
+			gfx_tree_erase(&block->nodes.free, right);
 		}
 
-		// If left is the only node left, free the block instead.
-		if (left->left == NULL && left->right == NULL)
+		// If more than one node remains in the list,
+		// expand a neighbour so it covers the new free space.
+		// If only one remains, just free the entire memory block.
+		if (block->nodes.list.head != block->nodes.list.tail)
+			gfx_tree_update(&block->nodes.free, lFree ? left : right, fKey);
+		else
 			_gfx_free_mem_block(alloc, block);
-		else
-			gfx_tree_update(&block->free, left, nKey);
 	}
-
-	// Left is not free, if right is, expand its space to the left.
-	else if(right != NULL && right->free)
-	{
-		const uint64_t* rKey = gfx_tree_key(&block->free, right);
-		uint64_t nKey[2] = { 0, 0 };
-
-		// If no left neighbor, expand to the beginning of the block.
-		// If left exists, it must be allocated, expand to the end of it.
-		if (left == NULL)
-		{
-			_GFX_KEY_SIZE(nKey) = _GFX_KEY_OFFSET(rKey) + _GFX_KEY_SIZE(rKey);
-			_GFX_KEY_OFFSET(nKey) = 0;
-		}
-		else
-		{
-			_GFXMemAlloc* lMem = (_GFXMemAlloc*)left;
-			_GFX_KEY_OFFSET(nKey) = lMem->offset + lMem->size;
-			_GFX_KEY_SIZE(nKey) = _GFX_KEY_SIZE(rKey) +
-				(_GFX_KEY_OFFSET(rKey) - _GFX_KEY_OFFSET(nKey));
-		}
-
-		// If right is the only node left, free the block instead.
-		if (right->left == NULL && right->right == NULL)
-			_gfx_free_mem_block(alloc, block);
-		else
-			gfx_tree_update(&block->free, right, nKey);
-	}
-
-	// Left is not free AND right is not free AND there must be at least 1
-	// neighbor (meaning we do not want to free the memory block).
-	// Insert a new free node.
 	else
 	{
-		// Start out spanning the entire block
-		uint64_t nKey[2] = { block->size, 0 };
+		int full = (block->nodes.free.root == NULL);
 
-		if (left != NULL)
-		{
-			// If left exists, shrink.
-			_GFXMemAlloc* lMem = (_GFXMemAlloc*)left;
-			_GFX_KEY_OFFSET(nKey) = lMem->offset + lMem->size;
-			_GFX_KEY_SIZE(nKey) -= _GFX_KEY_OFFSET(nKey);
-		}
+		// We know no free neighbour exists AND at least one neighbour exists,
+		// if no neighbour were to exist at all we exit early at the top.
+		// So just insert a new free node.
+		_GFXMemNode* node = gfx_tree_insert(
+			&block->nodes.free, sizeof(_GFXMemNode), NULL, fKey);
 
-		if (right != NULL)
-		{
-			// If right exists, shrink also.
-			_GFXMemAlloc* rMem = (_GFXMemAlloc*)right;
-			_GFX_KEY_SIZE(nKey) = rMem->offset - _GFX_KEY_OFFSET(nKey);
-		}
-
-		_GFXMemNode data =
-			{ .left = left, .right = right, .free = 1 };
-		_GFXMemNode* node =
-			gfx_tree_insert(&block->free, sizeof(_GFXMemNode), &data, nKey);
-
-		// On failure.. uuuuh.. well...
 		if (node == NULL)
 		{
+			// Ah well crud..
 			gfx_log_warn(
 				"Could not insert a new free node whilst freeing an allocation "
 				"from a Vulkan memory object, potentially lost %llu bytes.",
-				(unsigned long long)_GFX_KEY_SIZE(nKey));
+				(unsigned long long)_GFX_KEY_SIZE(fKey));
 		}
 		else
 		{
-			// On success, link into the free list.
-			if (left != NULL) left->right = node;
-			if (right != NULL) right->left = node;
+			// Yey we have a node, link it in..
+			node->free = 1;
+			gfx_list_insert_after(&block->nodes.list, &node->list, &mem->node.list);
+
+			if (full)
+			{
+				// If the block was full, move it to the free list now :)
+				// Make sure we append it to the list to avoid swapping the
+				// same block over and over again.
+				gfx_list_erase(&alloc->allocd, &block->list);
+				gfx_list_insert_after(&alloc->free, &block->list, NULL);
+			}
 		}
 
-		// Finally, we potentially freed some memory in a full block.
-		// Relink it in case it must move to the free list.
-		// Note: We inserted a free node, this means we caused fragmentation.
-		// Whenver this happens, this call will make this the first block to
-		// be searched in when allocating again. Nice accidental heuristic :)
-		_gfx_relink_mem_block(alloc, block);
+		// Unlink the allocation from the list.
+		// Do this on failure of node insertion as well, as the allocation
+		// must always be invalidated as a result of calling this function.
+		gfx_list_erase(&block->nodes.list, &mem->node.list);
 	}
 }

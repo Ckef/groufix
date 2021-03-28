@@ -257,7 +257,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		goto clean_result;
 	}
 
-	/// Get bytecode.
+	// Get bytecode.
 	size_t size = shaderc_result_get_length(result);
 	const char* bytes = shaderc_result_get_bytes(result);
 

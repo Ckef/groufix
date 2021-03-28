@@ -37,7 +37,7 @@ typedef struct GFXList
 
 
 /**
- * Get a pointer to a struct from a pointer to its GFXListNode member.
+ * Get pointer to a struct (element) from pointer to its GFXListNode member.
  * Defined as follows:
  * struct Type { ... GFXListNode node; ... };
  * ...
@@ -55,7 +55,7 @@ typedef struct GFXList
 GFX_API void gfx_list_init(GFXList* list);
 
 /**
- * Clears a list, invalidating all nodes.
+ * Clears a list, erasing all nodes.
  * @param list Cannot be NULL.
  */
 GFX_API void gfx_list_clear(GFXList* list);

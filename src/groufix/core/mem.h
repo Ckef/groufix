@@ -10,6 +10,7 @@
 #ifndef _GFX_CORE_MEM_H
 #define _GFX_CORE_MEM_H
 
+#include "groufix/containers/list.h"
 #include "groufix/containers/tree.h"
 #include "groufix/core.h"
 
@@ -19,12 +20,19 @@
  */
 typedef struct _GFXMemBlock
 {
-	struct _GFXMemBlock* next;
-	struct _GFXMemBlock* prev;
+	GFXListNode list; // Base-type.
 
 	uint32_t type; // Vulkan memory type index.
 	uint64_t size;
-	GFXTree  free; // Stores { uint64_t, uint64_t } : _GFXMemNode.
+
+
+	// Related memory nodes.
+	struct
+	{
+		GFXTree free; // Stores { uint64_t, uint64_t } : _GFXMemNode.
+		GFXList list; // References _GFXMemNode | _GFXMemAlloc.
+
+	} nodes;
 
 
 	// Vulkan fields.
@@ -38,13 +46,11 @@ typedef struct _GFXMemBlock
 
 
 /**
- * Memory node, allocated or free.
+ * Memory node, linked to neighbours in actual memory.
  */
 typedef struct _GFXMemNode
 {
-	// Neighbours in actual memory.
-	struct _GFXMemNode* left;
-	struct _GFXMemNode* right;
+	GFXListNode list; // Base-type.
 
 	int free; // isa _GFXMemAlloc if zero, isa search tree node if non-zero.
 
@@ -56,7 +62,7 @@ typedef struct _GFXMemNode
  */
 typedef struct _GFXMemAlloc
 {
-	_GFXMemNode   node;
+	_GFXMemNode   node; // Base-type.
 	_GFXMemBlock* block;
 
 	uint64_t size;
@@ -80,8 +86,8 @@ typedef struct _GFXAllocator
 {
 	_GFXContext* context;
 
-	_GFXMemBlock* free;
-	_GFXMemBlock* allocd;
+	GFXList free;   // References _GFXMemBlock.
+	GFXList allocd; // References _GFXMemBlock.
 
 
 	// Vulkan fields.
@@ -133,7 +139,7 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
  * @param mem   Cannot be NULL, must be allocated from alloc.
  *
  * Not thread-safe at all.
- * Plus the content of mem is invalidated after this call.
+ * The content of mem is invalidated after this call.
  * Silently warns when not able to modify the free structure appropriately.
  */
 void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem);
