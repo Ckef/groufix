@@ -220,6 +220,9 @@ static void _gfx_destroy_context(_GFXContext* context)
 {
 	assert(context != NULL);
 
+	// Erase itself from the context list.
+	gfx_list_erase(&_groufix.contexts, &context->list);
+
 	// Loop over all its queue sets and free their resources.
 	while (context->sets.head != NULL)
 	{
@@ -248,11 +251,12 @@ static void _gfx_destroy_context(_GFXContext* context)
  * Creates an appropriate context (Vulkan device + fp's) suited for a device.
  * device->context must be NULL, no prior context can be assigned.
  * @param device Cannot be NULL.
- * @return Zero on failure.
  *
  * Not thread-safe for the same device, it modifies.
+ * device->context will remain NULL on failure, on success it will be set to
+ * the newly created context (context->index will be set also).
  */
-static int _gfx_create_context(_GFXDevice* device)
+static void _gfx_create_context(_GFXDevice* device)
 {
 	assert(_groufix.vk.instance != NULL);
 	assert(device != NULL);
@@ -295,8 +299,10 @@ static int _gfx_create_context(_GFXDevice* device)
 
 		// Loop over all groups and see if one contains this device.
 		// We keep track of the index of the group and the device in it.
-		size_t g, i;
-		for (g = 0; g < count; ++g)
+		size_t g = 0;
+		size_t i = 0;
+
+		for (; g < count; ++g)
 		{
 			for (i = 0; i < groups[g].physicalDeviceCount; ++i)
 				if (groups[g].physicalDevices[i] == device->vk.device)
@@ -326,16 +332,11 @@ static int _gfx_create_context(_GFXDevice* device)
 		if (context == NULL)
 			goto error;
 
-		if (!gfx_vec_push(&_groufix.contexts, 1, &context))
-		{
-			free(context);
-			goto error;
-		}
-
 		// Set these to NULL so we don't accidentally call garbage on cleanup.
 		context->vk.DestroyDevice = NULL;
 		context->vk.DeviceWaitIdle = NULL;
 
+		gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
 		gfx_list_init(&context->sets);
 		context->numDevices = groups[g].physicalDeviceCount;
 
@@ -343,9 +344,6 @@ static int _gfx_create_context(_GFXDevice* device)
 			context->devices,
 			groups[g].physicalDevices,
 			sizeof(VkPhysicalDevice) * context->numDevices);
-
-		device->index = i;
-		device->context = context;
 
 		// Call the thing that gets us the desired queues to create.
 		// createInfos is explicitly freed on cleanup or success.
@@ -528,17 +526,19 @@ static int _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(ResetFences);
 		_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);
 
+		// Set device's reference to this context.
+		device->index = i;
+		device->context = context;
+
 		free(createInfos);
 
-		return 1;
+		return;
 	}
 
 
 	// Cleanup on failure.
 clean:
 	_gfx_destroy_context(context);
-	gfx_vec_pop(&_groufix.contexts, 1);
-
 	free(createInfos);
 
 error:
@@ -546,11 +546,6 @@ error:
 		"Could not create or initialize a logical Vulkan device for physical "
 		"device group containing at least: %s.",
 		device->base.name);
-
-	device->index = 0;
-	device->context = NULL;
-
-	return 0;
 }
 
 /****************************/
@@ -652,22 +647,21 @@ terminate:
 void _gfx_devices_terminate(void)
 {
 	// Destroy all Vulkan contexts.
-	for (size_t i = 0; i < _groufix.contexts.size; ++i)
-		_gfx_destroy_context(*(_GFXContext**)gfx_vec_at(&_groufix.contexts, i));
+	while (_groufix.contexts.head != NULL)
+		_gfx_destroy_context((_GFXContext*)_groufix.contexts.head);
 
 	// And free all groufix devices, this only entails freeing the name string.
 	// Devices are allocated in-place so no need to free anything else.
 	for (size_t i = 0; i < _groufix.devices.size; ++i)
 	{
 		_GFXDevice* device = gfx_vec_at(&_groufix.devices, i);
-
 		free((char*)device->base.name);
 		_gfx_mutex_clear(&device->lock);
 	}
 
 	// Regular cleanup.
 	gfx_vec_clear(&_groufix.devices);
-	gfx_vec_clear(&_groufix.contexts);
+	gfx_list_clear(&_groufix.contexts);
 }
 
 /****************************/
@@ -689,11 +683,11 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device)
 		_gfx_mutex_lock(&_groufix.contextLock);
 
 		// No context, go search for a compatible one.
-		for (size_t i = 0; i < _groufix.contexts.size; ++i)
+		for (
+			_GFXContext* context = (_GFXContext*)_groufix.contexts.head;
+			context != NULL;
+			context = (_GFXContext*)context->list.next)
 		{
-			_GFXContext* context =
-				*(_GFXContext**)gfx_vec_at(&_groufix.contexts, i);
-
 			for (size_t j = 0; j < context->numDevices; ++j)
 				if (context->devices[j] == device->vk.device)
 				{

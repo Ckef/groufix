@@ -90,9 +90,9 @@ typedef struct _GFXState
 
 	GFXLogLevel logDef; // Only pre-initialized field besides `initialized`.
 
-	GFXVec devices;  // Stores _GFXDevice (never changes, so not dynamic).
-	GFXVec contexts; // Stores _GFXContext*.
-	GFXVec monitors; // Stores _GFXMonitor*.
+	GFXVec  devices;  // Stores _GFXDevice (never changes, so not dynamic).
+	GFXList contexts; // References _GFXContext.
+	GFXVec  monitors; // Stores _GFXMonitor* (pointers for access by index).
 
 	_GFXMutex contextLock;
 
@@ -176,6 +176,9 @@ typedef struct _GFXQueueSet
  */
 typedef struct _GFXContext
 {
+	GFXListNode list; // Base-type.
+
+
 	// Vulkan fields.
 	struct
 	{
@@ -226,7 +229,7 @@ typedef struct _GFXContext
 	} vk;
 
 
-	GFXList sets; // References _GFXQueueSet*.
+	GFXList sets; // References _GFXQueueSet.
 
 	// Associated device group.
 	size_t           numDevices;

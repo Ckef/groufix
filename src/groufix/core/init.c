@@ -39,7 +39,7 @@ int _gfx_init(void)
 		goto clean_local;
 
 	gfx_vec_init(&_groufix.devices, sizeof(_GFXDevice));
-	gfx_vec_init(&_groufix.contexts, sizeof(_GFXContext*));
+	gfx_list_init(&_groufix.contexts);
 	gfx_vec_init(&_groufix.monitors, sizeof(_GFXMonitor*));
 
 	_groufix.monitorEvent = NULL;
@@ -70,7 +70,7 @@ void _gfx_terminate(void)
 	assert(_groufix.initialized);
 
 	gfx_vec_clear(&_groufix.devices);
-	gfx_vec_clear(&_groufix.contexts);
+	gfx_list_clear(&_groufix.contexts);
 	gfx_vec_clear(&_groufix.monitors);
 
 	_gfx_thread_key_clear(_groufix.thread.key);
