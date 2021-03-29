@@ -191,6 +191,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		// Ah well..
 		gfx_tree_clear(&block->nodes.free);
 		context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+
 		goto clean;
 	}
 
@@ -283,8 +284,8 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 }
 
 /****************************/
-int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-                         VkMemoryRequirements reqs, VkMemoryPropertyFlags flags)
+int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+               VkMemoryRequirements reqs, VkMemoryPropertyFlags flags)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
@@ -418,7 +419,7 @@ int _gfx_allocator_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 }
 
 /****************************/
-void _gfx_allocator_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
+void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
