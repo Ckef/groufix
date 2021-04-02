@@ -227,35 +227,28 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 		"  outColor = vec4(fragColor, 1.0);\n"
 		"}\n";
 
-	pass->vertex = gfx_create_shader(GFX_SHADER_VERTEX, NULL);
-	pass->fragment = gfx_create_shader(GFX_SHADER_FRAGMENT, NULL);
+	pass->build.vertex = gfx_create_shader(GFX_SHADER_VERTEX, NULL);
+	pass->build.fragment = gfx_create_shader(GFX_SHADER_FRAGMENT, NULL);
 
-	if (pass->vertex == NULL || pass->fragment == NULL)
+	if (pass->build.vertex == NULL || pass->build.fragment == NULL)
 		return NULL;
 
-	gfx_shader_compile(pass->vertex, GFX_GLSL, vert, 1, NULL);
-	gfx_shader_compile(pass->fragment, GFX_GLSL, frag, 1, NULL);
+	gfx_shader_compile(pass->build.vertex, GFX_GLSL, vert, 1, NULL);
+	gfx_shader_compile(pass->build.fragment, GFX_GLSL, frag, 1, NULL);
 
 
 	// Initialize things.
 	pass->renderer = renderer;
 	pass->level = 0;
-	pass->refs = 0;
 	pass->numDeps = numDeps;
 
 	if (numDeps) memcpy(
 		pass->deps, deps, sizeof(GFXRenderPass*) * numDeps);
 
+	// The level is the highest level of all dependencies + 1.
 	for (size_t d = 0; d < numDeps; ++d)
-	{
-		// The level is the highest level of all dependencies + 1.
 		if (deps[d]->level >= pass->level)
 			pass->level = deps[d]->level + 1;
-
-		// Increase the reference count of each dependency.
-		// TODO: Maybe we want to filter out duplicates?
-		++deps[d]->refs;
-	}
 
 	// Initialize building stuff.
 	pass->build.backing = SIZE_MAX;
@@ -280,8 +273,8 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 
 
 	// TODO: Super temporary!!
-	gfx_destroy_shader(pass->vertex);
-	gfx_destroy_shader(pass->fragment);
+	gfx_destroy_shader(pass->build.vertex);
+	gfx_destroy_shader(pass->build.fragment);
 
 
 	// Destroy Vulkan object structure.
@@ -291,16 +284,11 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 	gfx_vec_clear(&pass->reads);
 	gfx_vec_clear(&pass->writes);
 
-	// Decrease the reference count of each dependency.
-	// TODO: Maybe we want to filter out duplicates?
-	for (size_t d = 0; d < pass->numDeps; ++d)
-		--pass->deps[d]->refs;
-
 	free(pass);
 }
 
 /****************************/
-int _gfx_render_pass_rebuild(GFXRenderPass* pass)
+int _gfx_render_pass_build(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 
@@ -404,7 +392,7 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 			.pNext               = NULL,
 			.flags               = 0,
 			.stage               = VK_SHADER_STAGE_VERTEX_BIT,
-			.module              = pass->vertex->vk.module,
+			.module              = pass->build.vertex->vk.module,
 			.pName               = "main",
 			.pSpecializationInfo = NULL
 
@@ -414,7 +402,7 @@ int _gfx_render_pass_rebuild(GFXRenderPass* pass)
 			.pNext               = NULL,
 			.flags               = 0,
 			.stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
-			.module              = pass->fragment->vk.module,
+			.module              = pass->build.fragment->vk.module,
 			.pName               = "main",
 			.pSpecializationInfo = NULL
 		}

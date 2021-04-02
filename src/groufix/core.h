@@ -466,7 +466,7 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device);
 
 
 /****************************
- * The window's swapchain.
+ * Window's swapchain.
  ****************************/
 
 /**

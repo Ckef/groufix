@@ -80,8 +80,8 @@ static int _gfx_alloc_queue_set(_GFXContext* context, uint32_t family,
  *
  * Output describe the queue families desired by the groufix implementation.
  */
-static size_t _gfx_get_queue_sets(_GFXContext* context, VkPhysicalDevice device,
-                                  VkDeviceQueueCreateInfo** createInfos)
+static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice device,
+                                     VkDeviceQueueCreateInfo** createInfos)
 {
 	assert(context != NULL);
 	assert(createInfos != NULL);
@@ -351,7 +351,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		// it is assumed it has equivalent queue family properties.
 		// If there are any device groups such that this is the case, you
 		// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
-		size_t sets = _gfx_get_queue_sets(context, device->vk.device, &createInfos);
+		size_t sets = _gfx_create_queue_sets(context, device->vk.device, &createInfos);
 		if (!sets) goto clean;
 
 		// Pick device features to enable (i.e. disable stuff we dont' want).
@@ -596,6 +596,8 @@ int _gfx_devices_init(void)
 				.vk      = { .device = devices[i] }
 			};
 
+			// TODO: BUG: the mutex object can later be moved by the
+			// gfx_vec_insert, which cannot happen, must rewrite.
 			// Init mutex and name string.
 			if (!_gfx_mutex_init(&dev.lock))
 				goto terminate;
