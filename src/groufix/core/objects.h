@@ -208,8 +208,6 @@ void _gfx_render_frame_clear(GFXRenderer* renderer);
  * Will resolve to a no-op if everything is already built.
  * @param renderer Cannot be NULL.
  * @return Non-zero if the entire frame is in a built state.
- *
- * If rebuilding swapchain resources, this will block until rendering is done!
  */
 int _gfx_render_frame_build(GFXRenderer* renderer);
 
@@ -241,6 +239,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @param Non-zero if the entire graph is in a built state.
  *
+ * TODO: This somehow needs to reset command pools when rebuilding anything.
  * Does not synchronize anything before potentially rebuilding!
  */
 int _gfx_render_graph_build(GFXRenderer* renderer);
