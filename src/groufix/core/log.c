@@ -228,19 +228,15 @@ GFX_API int gfx_log_set_file(const char* file)
 		// Now find the point at which to insert the thread id.
 		// This is before the first '.' character.
 		// Append to end if no '.' found.
+		size_t s = strlen(file);
 		size_t i;
-		size_t li = strlen(file);
 
-		for (i = 0; file[i] != '\0'; ++i)
-			if (file[i] == '.')
-			{
-				li = i;
-				break;
-			}
+		for (i = 0; i < s; ++i)
+			if (file[i] == '.') break;
 
 		// Create a string for the file name.
-		char f[i + idLen + 1];
-		sprintf(f, "%.*s%.4u%s", (int)li, file, state->id, file + li);
+		char f[s + idLen + 1];
+		sprintf(f, "%.*s%.4u%s", (int)i, file, state->id, file + i);
 
 		// Now finally attempt to open the file.
 		state->log.file = fopen(f, "w");

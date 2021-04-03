@@ -261,7 +261,7 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index);
  * This will implicitly trigger a rebuild for obvious reasons.
  * @param renderer Cannot be NULL.
  *
- * Must be called before detaching any attachment!
+ * Must be called before detaching the attachment at index!
  * It will in turn call the relevant _gfx_render_pass_destruct calls.
  * Also, does not synchronize anything before destructing!
  */
