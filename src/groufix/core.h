@@ -249,6 +249,7 @@ typedef struct _GFXDevice
 {
 	GFXDevice    base;
 	uint32_t     api; // Vulkan API version.
+	char         name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
 
 	size_t       index; // Index into the device group.
 	_GFXContext* context;
@@ -466,7 +467,7 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device);
 
 
 /****************************
- * The window's swapchain.
+ * Window's swapchain.
  ****************************/
 
 /**

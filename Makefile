@@ -191,6 +191,8 @@ OBJS = \
  $(OUT)$(SUB)/groufix/containers/vec.o \
  $(OUT)$(SUB)/groufix/core/alloc.o \
  $(OUT)$(SUB)/groufix/core/device.o \
+ $(OUT)$(SUB)/groufix/core/frame.o \
+ $(OUT)$(SUB)/groufix/core/graph.o \
  $(OUT)$(SUB)/groufix/core/init.o \
  $(OUT)$(SUB)/groufix/core/log.o \
  $(OUT)$(SUB)/groufix/core/monitor.o \

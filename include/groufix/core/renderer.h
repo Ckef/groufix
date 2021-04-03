@@ -77,26 +77,29 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device);
 
 /**
  * Destroys a renderer.
+ * This will block until rendering using its resources is done!
  */
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
  * Describes the properties of an attachment index of the renderer.
  * @param renderer Cannot be NULL.
- * @return Zero if a window is attached at the given index.
+ * @return Zero on failure.
+ *
+ * If a window needs to be detached, this will block until rendering is done!
  */
 GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
                                 size_t index, GFXAttachment attachment);
 
 /**
  * Attaches a window to an attachment index of a renderer.
- * If a window needs to be detached, this will block until rendering is done!
  * @param renderer Cannot be NULL.
- * @param window   NULL to detach the current window.
- * @return Zero if the window and renderer do not share a compatible device.
+ * @param window   NULL to detach the current window, if any.
+ * @return Zero on failure.
  *
- * Also fails if the window was already attached to a renderer or
- * gfx_renderer_attach was previously called with the same index.
+ * If a window needs to be detached, this will block until rendering is done!
+ * Fails if the window was already attached to a renderer or the window and
+ * renderer do not share a compatible device.
  */
 GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
                                        size_t index, GFXWindow* window);
@@ -139,12 +142,11 @@ GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
 
 /**
  * TODO: Totally under construction.
- * TODO: Separate in submit() and swap/block() (where the latter is optional)?
  * Submits all passes of the renderer to the GPU.
  * @param renderer Cannot be NULL.
  * @return Zero if the renderer could not build.
  *
- * Returns non-zero if build was successful. Errors during submission are
+ * Returns non-zero if build was successful. Most errors during submission are
  * considered pseudo-fatal and ignored, processing continues.
  */
 GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
