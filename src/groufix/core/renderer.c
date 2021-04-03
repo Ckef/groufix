@@ -9,7 +9,6 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 
 
 /****************************
@@ -76,6 +75,8 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	if (renderer == NULL)
 		return;
 
+	// Clear the frame and graph in the order that makes sense,
+	// considering the graph depends on the frame :)
 	_gfx_render_graph_clear(renderer);
 	_gfx_render_frame_clear(renderer);
 
@@ -95,17 +96,23 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	// Acquire next image of all windows.
 	// We do this in a separate loop because otherwise we'd be synchronizing
 	// on _gfx_swapchain_acquire at the most random times.
-	for (size_t i = 0; i < renderer->windows.size; ++i)
+	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
 	{
 		int recreate;
-		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
+		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
+		if (at->type != _GFX_ATTACH_WINDOW)
+			continue;
 
 		// Acquire next image.
-		if (!_gfx_swapchain_acquire(attach->window, &attach->image, &recreate))
-			attach->image = UINT32_MAX;
+		if (!_gfx_swapchain_acquire(at->window.window, &at->window.image, &recreate))
+			at->window.image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
+		if (recreate)
+		{
+			_gfx_render_frame_rebuild(renderer, i);
+			_gfx_render_graph_rebuild(renderer, i);
+		}
 	}
 
 	// TODO: Kinda need a return or a hook here for processing input?
@@ -117,31 +124,32 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	// If not blocking, we make present block until it started rendering,
 	// so we have 2 frames input delay.
 
-	// We build the renderer if it is required.
+	// We build the frame and graph, which will not built if not necessary.
 	// This is the only part that can return an error value.
-	if (!renderer->built)
-		if (!_gfx_renderer_rebuild(renderer))
-		{
-			gfx_log_error("Could not submit renderer due to faulty build.");
-			return 0;
-		}
+	if (
+		!_gfx_render_frame_build(renderer) ||
+		!_gfx_render_graph_build(renderer))
+	{
+		gfx_log_error("Could not submit renderer due to faulty build.");
+		return 0;
+	}
 
 	// Submit all passes in submission order.
 	// TODO: Do this in the render passes?
-	for (size_t i = 0; i < renderer->passes.size; ++i)
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
 		GFXRenderPass* pass =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->passes, i);
+			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i);
 
 		// TODO: Future: if we don't have a back-buffer, do smth else.
 		if (pass->build.backing == SIZE_MAX)
 			continue;
 
-		_GFXWindowAttach* attach =
-			gfx_vec_at(&renderer->windows, pass->build.backing);
+		_GFXAttach* at =
+			gfx_vec_at(&renderer->frame.attachs, pass->build.backing);
 
 		// No image (e.g. minimized).
-		if (attach->image == UINT32_MAX)
+		if (at->window.image == UINT32_MAX)
 			continue;
 
 		// Submit the associated command buffer.
@@ -150,7 +158,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		// Plus we signal the rendered semaphore of the window, allowing it
 		// to present at some point.
 		VkCommandBuffer* buffer =
-			gfx_vec_at(&pass->vk.commands, attach->image);
+			gfx_vec_at(&pass->vk.commands, at->window.image);
 		VkPipelineStageFlags waitStage =
 			VK_PIPELINE_STAGE_TRANSFER_BIT;
 
@@ -159,12 +167,12 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 
 			.pNext                = NULL,
 			.waitSemaphoreCount   = 1,
-			.pWaitSemaphores      = &attach->window->vk.available,
+			.pWaitSemaphores      = &at->window.window->vk.available,
 			.pWaitDstStageMask    = &waitStage,
 			.commandBufferCount   = 1,
 			.pCommandBuffers      = buffer,
 			.signalSemaphoreCount = 1,
-			.pSignalSemaphores    = &attach->window->vk.rendered
+			.pSignalSemaphores    = &at->window.window->vk.rendered
 		};
 
 		// Lock queue and submit.
@@ -178,21 +186,27 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	}
 
 	// Present image of all windows.
-	for (size_t i = 0; i < renderer->windows.size; ++i)
+	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
 	{
 		int recreate;
-		_GFXWindowAttach* attach = gfx_vec_at(&renderer->windows, i);
+		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
+		if (at->type != _GFX_ATTACH_WINDOW)
+			continue;
 
 		// Nowhere to present to.
-		if (attach->image == UINT32_MAX)
+		if (at->window.image == UINT32_MAX)
 			continue;
 
 		// Present the image.
-		_gfx_swapchain_present(attach->window, attach->image, &recreate);
-		attach->image = UINT32_MAX;
+		_gfx_swapchain_present(at->window.window, at->window.image, &recreate);
+		at->window.image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		if (recreate) _gfx_renderer_recreate_swap(renderer, attach, 1);
+		if (recreate)
+		{
+			_gfx_render_frame_rebuild(renderer, i);
+			_gfx_render_graph_rebuild(renderer, i);
+		}
 	}
 
 	return 1;

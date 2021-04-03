@@ -67,6 +67,61 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 }
 
 /****************************
+ * Destructs the attachment at index, does nothing if nothing is attached.
+ * If actually destructing something, this will block until rendering is done.
+ * @see _gfx_build_attachment.
+ */
+static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
+{
+	assert(renderer != NULL);
+	assert(index < renderer->frame.attachs.size);
+
+	_GFXContext* context = renderer->context;
+	_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, index);
+
+	// Prepare for destruction.
+	if (at->type != _GFX_ATTACH_EMPTY)
+	{
+		// We must wait until pending rendering is done before destroying.
+		_gfx_mutex_lock(renderer->graphics.lock);
+		context->vk.QueueWaitIdle(renderer->graphics.queue);
+		_gfx_mutex_unlock(renderer->graphics.lock);
+
+		// Also destruct the parts of the graph dependent on the attachment.
+		// Very important indeed!
+		_gfx_render_graph_destruct(renderer, index);
+	}
+
+	// Destruct an implicit image.
+	if (at->type == _GFX_ATTACH_IMAGE)
+	{
+		// TODO: Destroy image or smth.
+	}
+
+	// Destruct a window.
+	if (at->type == _GFX_ATTACH_WINDOW)
+	{
+		// Destroy all swapchain-dependent resources.
+		// Destroy all image views.
+		for (size_t i = 0; i < at->window.vk.views.size; ++i)
+			context->vk.DestroyImageView(
+				context->vk.device,
+				*(VkImageView*)gfx_vec_at(&at->window.vk.views, i),
+				NULL);
+
+		gfx_vec_clear(&at->window.vk.views);
+		at->window.image = UINT32_MAX;
+
+		// Destroy command pool.
+		// Implicitly frees all command buffers.
+		context->vk.DestroyCommandPool(
+			context->vk.device, at->window.vk.pool, NULL);
+
+		at->window.vk.pool = VK_NULL_HANDLE;
+	}
+}
+
+/****************************
  * (Re)builds the attachment if it was not built yet (and not empty).
  * @param renderer Cannot be NULL.
  * @param index    Must be < number of attachment.
@@ -176,64 +231,10 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 
 	// Cleanup on failure.
 clean:
-	gfx_log_fatal("Could not (re)create swapchain-dependent resources.");
+	gfx_log_error("Could not (re)create swapchain-dependent resources.");
 	_gfx_destruct_attachment(renderer, index);
 
 	return 0;
-}
-
-/****************************
- * Destructs the attachment at index, does nothing if nothing is attached.
- * If actually destructing something, this will block until rendering is done.
- * @see _gfx_build_attachment.
- */
-static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
-{
-	assert(renderer != NULL);
-	assert(index < renderer->frame.attachs.size);
-
-	_GFXContext* context = renderer->context;
-	_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, index);
-
-	// Prepare for destruction.
-	if (at->type != _GFX_ATTACH_EMPTY)
-	{
-		// We must wait until pending rendering is done before destroying.
-		_gfx_mutex_lock(renderer->graphics.lock);
-		context->vk.QueueWaitIdle(renderer->graphics.queue);
-		_gfx_mutex_unlock(renderer->graphics.lock);
-
-		// Also destruct the parts of the graph dependent on the attachment.
-		_gfx_render_graph_destruct(renderer, index);
-	}
-
-	// Destruct an implicit image.
-	if (at->type == _GFX_ATTACH_IMAGE)
-	{
-		// TODO: Destroy image or smth.
-	}
-
-	// Destruct a window.
-	if (at->type == _GFX_ATTACH_WINDOW)
-	{
-		// Destroy all swapchain-dependent resources.
-		// Destroy all image views.
-		for (size_t i = 0; i < at->window.vk.views.size; ++i)
-			context->vk.DestroyImageView(
-				context->vk.device,
-				*(VkImageView*)gfx_vec_at(&at->window.vk.views, i),
-				NULL);
-
-		gfx_vec_clear(&at->window.vk.views);
-		at->window.image = UINT32_MAX;
-
-		// Destroy command pool.
-		// Implicitly frees all command buffers.
-		context->vk.DestroyCommandPool(
-			context->vk.device, at->window.vk.pool, NULL);
-
-		at->window.vk.pool = VK_NULL_HANDLE;
-	}
 }
 
 /****************************
@@ -266,9 +267,9 @@ void _gfx_render_frame_init(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	gfx_vec_init(&rend->frame.attachs, sizeof(_GFXAttach));
+	gfx_vec_init(&renderer->frame.attachs, sizeof(_GFXAttach));
 
-	rend->frame.built = 0;
+	renderer->frame.built = 0;
 }
 
 /****************************/
@@ -383,9 +384,6 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	renderer->frame.built = 0;
 	renderer->graph.built = 0;
 
-	// Signal the graph that it must rebuild if it depends on index.
-	_gfx_render_graph_rebuild(renderer, index);
-
 	return 1;
 }
 
@@ -464,9 +462,6 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	// Also force the graph to postpone rebuilding everything.
 	renderer->frame.built = 0;
 	renderer->graph.built = 0;
-
-	// Signal the graph that it must rebuild if it depends on index.
-	_gfx_render_graph_rebuild(renderer, index);
 
 	return 1;
 }

@@ -13,6 +13,124 @@
 
 
 /****************************
+ * Validates and picks a window to use as back-buffer and (re)builds
+ * appropriate resources if necessary.
+ * @param pass Cannot be NULL.
+ * @return Non-zero if successful (zero if multiple windows found).
+ */
+static int _gfx_render_pass_rebuild_backing(GFXRenderPass* pass)
+{
+	assert(pass != NULL);
+
+	GFXRenderer* rend = pass->renderer;
+	_GFXContext* context = rend->context;
+
+	// Validate that there is exactly 1 window we write to.
+	// We don't have to but we're nice, otherwise Vulkan would spam the logs.
+	size_t backing = SIZE_MAX;
+
+	// Check out all write attachments.
+	for (size_t w = 0; w < pass->writes.size; ++w)
+	{
+		size_t index = *(size_t*)gfx_vec_at(&pass->writes, w);
+
+		// Validate that the attachment exists and is a window.
+		if (index < rend->frame.attachs.size)
+		{
+			_GFXAttach* at = gfx_vec_at(&rend->frame.attachs, index);
+			if (at->type == _GFX_ATTACH_WINDOW)
+			{
+				// If it is, check if we already had a backing window.
+				if (backing == SIZE_MAX)
+					backing = index;
+				else
+				{
+					// If so, well we cannot so we error.
+					gfx_log_error(
+						"A single render pass can only write to a single "
+						"window attachment at a time.");
+
+					return 0;
+				}
+			}
+		}
+	}
+
+	// Now if the current backing window was detached,
+	// the render frame was required to call _gfx_render_graph_destruct,
+	// which will have called the relevant _gfx_render_pass_destruct calls.
+	// Meaning there is no current backing or it's the same.
+	pass->build.backing = backing;
+
+	// Render pass doesn't write to a window, perfect.
+	if (pass->build.backing == SIZE_MAX)
+		return 1;
+
+	// Ok so we chose a backing window.
+	// Now we allocate more command buffers or free some.
+	_GFXAttach* at = gfx_vec_at(&rend->frame.attachs, backing);
+	size_t currCount = pass->vk.commands.size;
+	size_t count = at->window.vk.views.size;
+
+	if (currCount < count)
+	{
+		// If we have too few, allocate some more.
+		// Reserve the exact amount cause it's most likely not gonna change.
+		if (!gfx_vec_reserve(&pass->vk.commands, count))
+			goto error;
+
+		size_t newCount = count - currCount;
+		gfx_vec_push(&pass->vk.commands, newCount, NULL);
+
+		VkCommandBufferAllocateInfo cbai = {
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+
+			.pNext              = NULL,
+			.commandPool        = at->window.vk.pool,
+			.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+			.commandBufferCount = (uint32_t)newCount
+		};
+
+		int res = 1;
+		_GFX_VK_CHECK(
+			context->vk.AllocateCommandBuffers(
+				context->vk.device, &cbai,
+				gfx_vec_at(&pass->vk.commands, currCount)),
+			res = 0);
+
+		// Throw away the items we just tried to insert.
+		if (!res)
+		{
+			gfx_vec_pop(&pass->vk.commands, newCount);
+			goto error;
+		}
+	}
+
+	else if (currCount > count)
+	{
+		// If we have too many, free some.
+		context->vk.FreeCommandBuffers(
+			context->vk.device,
+			at->window.vk.pool,
+			(uint32_t)(currCount - count),
+			gfx_vec_at(&pass->vk.commands, count));
+
+		gfx_vec_pop(&pass->vk.commands, currCount - count);
+	}
+
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error(
+		"Could not allocate resources for a window attachment written to "
+		"by a render pass.");
+
+	return 0;
+}
+
+/****************************
  * Destructs the Vulkan object structure, non-recursively.
  * Partial destruct, assumes any output window attachments still exists.
  * Useful when the swapchain got recreated because of a resize or smth.
@@ -46,126 +164,6 @@ static void _gfx_render_pass_destruct_partial(GFXRenderPass* pass)
 	pass->vk.pipeline = VK_NULL_HANDLE;
 
 	gfx_vec_release(&pass->vk.framebuffers);
-}
-
-/****************************
- * Validates and picks a window to use as back-buffer and (re)builds
- * appropriate resources if necessary.
- * @param pass Cannot be NULL.
- * @return Non-zero if successful (zero if multiple windows found).
- */
-static int _gfx_render_pass_rebuild_backing(GFXRenderPass* pass)
-{
-	assert(pass != NULL);
-
-	GFXRenderer* rend = pass->renderer;
-	_GFXContext* context = rend->context;
-
-	// Validate that there is exactly 1 window we write to.
-	// We don't have to but we're nice, otherwise Vulkan would spam the logs.
-	size_t backing = SIZE_MAX;
-
-	// Check out all write attachments.
-	for (size_t w = 0; w < pass->writes.size; ++w)
-	{
-		size_t index = *(size_t*)gfx_vec_at(&pass->writes, w);
-
-		// Try to find the write attachment as window.
-		size_t b;
-		for (b = 0; b < rend->windows.size; ++b)
-		{
-			_GFXWindowAttach* at = gfx_vec_at(&rend->windows, b);
-			if (at->index == index) break;
-		}
-
-		if (b >= rend->windows.size)
-			continue;
-
-		// If found, check if we already had a window.
-		if (backing == SIZE_MAX)
-			backing = b;
-		else
-		{
-			// If so, well we cannot so we error.
-			gfx_log_error(
-				"A single render pass can only write to a single "
-				"window attachments at a time.");
-
-			return 0;
-		}
-	}
-
-	// Now if the current backing window was detached,
-	// the renderer is required to call _gfx_render_pass_destruct,
-	// meaning there is no current backing or it's the same.
-	pass->build.backing = backing;
-
-	// Render pass doesn't write to a window, perfect.
-	if (pass->build.backing == SIZE_MAX)
-		return 1;
-
-	// Ok so we chose a backing window.
-	// Now we allocate more command buffers or free some.
-	_GFXWindowAttach* attach = gfx_vec_at(&rend->windows, backing);
-	size_t currCount = pass->vk.commands.size;
-	size_t count = attach->vk.views.size;
-
-	if (currCount < count)
-	{
-		// If we have too few, allocate some more.
-		// Reserve the exact amount cause it's most likely not gonna change.
-		if (!gfx_vec_reserve(&pass->vk.commands, count))
-			goto error;
-
-		size_t newCount = count - currCount;
-		gfx_vec_push(&pass->vk.commands, newCount, NULL);
-
-		VkCommandBufferAllocateInfo cbai = {
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-
-			.pNext              = NULL,
-			.commandPool        = attach->vk.pool,
-			.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = (uint32_t)newCount
-		};
-
-		int res = 1;
-		_GFX_VK_CHECK(
-			context->vk.AllocateCommandBuffers(
-				context->vk.device, &cbai,
-				gfx_vec_at(&pass->vk.commands, currCount)),
-			res = 0);
-
-		// Throw away the items we just tried to insert.
-		if (!res)
-		{
-			gfx_vec_pop(&pass->vk.commands, newCount);
-			goto error;
-		}
-	}
-
-	else if (currCount > count)
-	{
-		// If we have too many, free some.
-		context->vk.FreeCommandBuffers(
-			context->vk.device,
-			attach->vk.pool,
-			(uint32_t)(currCount - count),
-			gfx_vec_at(&pass->vk.commands, count));
-
-		gfx_vec_pop(&pass->vk.commands, currCount - count);
-	}
-
-	return 1;
-
-
-	// Error on failure.
-error:
-	gfx_log_error(
-		"Could not allocate resources for a window attachment written to "
-		"by a render pass.");
-
-	return 0;
 }
 
 /****************************/
@@ -294,7 +292,7 @@ int _gfx_render_pass_build(GFXRenderPass* pass)
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->context;
-	_GFXWindowAttach* attach = NULL;
+	_GFXAttach* at = NULL;
 
 	// Destruct previous build.
 	_gfx_render_pass_destruct_partial(pass);
@@ -304,16 +302,16 @@ int _gfx_render_pass_build(GFXRenderPass* pass)
 		goto clean;
 
 	if (pass->build.backing != SIZE_MAX)
-		attach = gfx_vec_at(&rend->windows, pass->build.backing);
+		at = gfx_vec_at(&rend->frame.attachs, pass->build.backing);
 
 	// TODO: Future: if no back-buffer, do smth else.
-	if (attach == NULL)
+	if (at == NULL)
 		goto clean;
 
 	// Go build a new render pass.
 	VkAttachmentDescription ad = {
 		.flags          = 0,
-		.format         = attach->window->frame.format,
+		.format         = at->window.window->frame.format,
 		.samples        = VK_SAMPLE_COUNT_1_BIT,
 		.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -360,10 +358,10 @@ int _gfx_render_pass_build(GFXRenderPass* pass)
 	// Create framebuffers.
 	// Reserve the exact amount, it's probably not gonna change.
 	// TODO: Do we really need multiple framebuffers? Maybe just blit into image?
-	if (!gfx_vec_reserve(&pass->vk.framebuffers, attach->vk.views.size))
+	if (!gfx_vec_reserve(&pass->vk.framebuffers, at->window.vk.views.size))
 		goto clean;
 
-	for (size_t i = 0; i < attach->vk.views.size; ++i)
+	for (size_t i = 0; i < at->window.vk.views.size; ++i)
 	{
 		VkFramebufferCreateInfo fci = {
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -372,9 +370,9 @@ int _gfx_render_pass_build(GFXRenderPass* pass)
 			.flags           = 0,
 			.renderPass      = pass->vk.pass,
 			.attachmentCount = 1,
-			.pAttachments    = gfx_vec_at(&attach->vk.views, i),
-			.width           = (uint32_t)attach->window->frame.width,
-			.height          = (uint32_t)attach->window->frame.height,
+			.pAttachments    = gfx_vec_at(&at->window.vk.views, i),
+			.width           = (uint32_t)at->window.window->frame.width,
+			.height          = (uint32_t)at->window.window->frame.height,
 			.layers          = 1
 		};
 
@@ -434,8 +432,8 @@ int _gfx_render_pass_build(GFXRenderPass* pass)
 	VkViewport viewport = {
 		.x        = 0.0f,
 		.y        = 0.0f,
-		.width    = (float)attach->window->frame.width,
-		.height   = (float)attach->window->frame.height,
+		.width    = (float)at->window.window->frame.width,
+		.height   = (float)at->window.window->frame.height,
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f
 	};
@@ -443,8 +441,8 @@ int _gfx_render_pass_build(GFXRenderPass* pass)
 	VkRect2D scissor = {
 		.offset = { 0, 0 },
 		.extent = {
-			(uint32_t)attach->window->frame.width,
-			(uint32_t)attach->window->frame.height
+			(uint32_t)at->window.window->frame.width,
+			(uint32_t)at->window.window->frame.height
 		}
 	};
 
@@ -642,16 +640,16 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 	// If we use a window as back-buffer, destroy those resources.
 	if (pass->build.backing != SIZE_MAX)
 	{
-		// Because it is required to call this before detaching any window
-		// attachments, pass->build.backing must still be valid.
-		_GFXWindowAttach* attach =
-			gfx_vec_at(&pass->renderer->windows, pass->build.backing);
+		// This will have been called before detaching any window attachments,
+		// by requirements, meaning pass->build.backing must still be valid.
+		_GFXAttach* at =
+			gfx_vec_at(&pass->renderer->frame.attachs, pass->build.backing);
 
 		// Free all command buffers.
 		if (pass->vk.commands.size > 0)
 			context->vk.FreeCommandBuffers(
 				context->vk.device,
-				attach->vk.pool,
+				at->window.vk.pool,
 				(uint32_t)pass->vk.commands.size,
 				pass->vk.commands.data);
 
@@ -676,8 +674,8 @@ GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index)
 	if (!gfx_vec_push(&pass->reads, 1, &index))
 		return 0;
 
-	// Changed a pass, the renderer must rebuild.
-	pass->renderer->built = 0;
+	// Changed a pass, the graph must entirely rebuild.
+	pass->renderer->graph.built = 0;
 
 	return 1;
 }
@@ -695,8 +693,8 @@ GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index)
 	if (!gfx_vec_push(&pass->writes, 1, &index))
 		return 0;
 
-	// Changed a pass, the renderer must rebuild.
-	pass->renderer->built = 0;
+	// Changed a pass, the graph must entirely rebuild.
+	pass->renderer->graph.built = 0;
 
 	return 1;
 }

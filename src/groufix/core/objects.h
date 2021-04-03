@@ -100,7 +100,7 @@ typedef struct _GFXAttach
 	{
 		_GFXImageAttach image;
 		_GFXWindowAttach window;
-	}
+	};
 
 } _GFXAttach;
 
@@ -146,7 +146,6 @@ struct GFXRenderer
 
 
 /**
- * TODO: Reimplement.
  * Internal render pass.
  */
 struct GFXRenderPass
@@ -200,6 +199,8 @@ void _gfx_render_frame_init(GFXRenderer* renderer);
 /**
  * Clears the render frame of a renderer, destroying all images.
  * @param renderer Cannot be NULL.
+ *
+ * If attachments exist, will block until rendering is done!
  */
 void _gfx_render_frame_clear(GFXRenderer* renderer);
 
@@ -230,6 +231,8 @@ void _gfx_render_graph_init(GFXRenderer* renderer);
 /**
  * Clears the render graph of a renderer, destroying all passes.
  * @param renderer Cannot be NULL.
+ *
+ * If passes exist, will block until rendering is done!
  */
 void _gfx_render_graph_clear(GFXRenderer* renderer);
 
@@ -258,7 +261,9 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index);
  * This will implicitly trigger a rebuild for obvious reasons.
  * @param renderer Cannot be NULL.
  *
- * Does not synchronize anything before destructing!
+ * Must be called before detaching any attachment!
+ * It will in turn call the relevant _gfx_render_pass_destruct calls.
+ * Also, does not synchronize anything before destructing!
  */
 void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index);
 
@@ -281,7 +286,6 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 void _gfx_destroy_render_pass(GFXRenderPass* pass);
 
 /**
- * TODO: Redesign/reimplement.
  * TODO: Dependencies.
  * TODO: Build recursively?
  * TODO: Merge passes with the same resolution into subpasses.
@@ -290,18 +294,15 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass);
  * @return Non-zero if valid and built.
  *
  * Does not synchronize anything before rebuilding!
- * If writing to a window attachment, _gfx_render_pass_destruct must be called
- * before the window is detached.
  */
 int _gfx_render_pass_build(GFXRenderPass* pass);
 
 /**
- * TODO: Redesign/reimplement.
  * Destructs the Vulkan object structure, non-recursively.
  * @param pass Cannot be NULL.
  *
- * Does not synchronize anything before destructing!
- * If built, this must be called before detaching the output window attachment.
+ * Must be called before detaching any attachment it uses!
+ * Also, does not synchronize anything before destructing!
  */
 void _gfx_render_pass_destruct(GFXRenderPass* pass);
 

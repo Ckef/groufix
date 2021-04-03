@@ -15,16 +15,25 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	gfx_vec_init(&rend->graph.targets, sizeof(GFXRenderPass*));
-	gfx_vec_init(&rend->graph.passes, sizeof(GFXRenderPass*));
+	gfx_vec_init(&renderer->graph.targets, sizeof(GFXRenderPass*));
+	gfx_vec_init(&renderer->graph.passes, sizeof(GFXRenderPass*));
 
-	rend->graph.built = 0;
+	renderer->graph.built = 0;
 }
 
 /****************************/
 void _gfx_render_graph_clear(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
+
+	// If there are passes we are going to destroy,
+	// we first have to wait until all pending rendering is done.
+	if (renderer->graph.passes.size > 0)
+	{
+		_gfx_mutex_lock(renderer->graphics.lock);
+		renderer->context->vk.QueueWaitIdle(renderer->graphics.queue);
+		_gfx_mutex_unlock(renderer->graphics.lock);
+	}
 
 	// Destroy all passes, we want to make sure we do not destroy any pass
 	// before all passes that reference it are destroyed.
@@ -65,6 +74,8 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 			at->type == _GFX_ATTACH_WINDOW &&
 			at->window.vk.pool != VK_NULL_HANDLE)
 		{
+			_GFXContext* context = renderer->context;
+
 			// But first wait until all pending rendering is done.
 			// TODO: Only do this once?
 			_gfx_mutex_lock(renderer->graphics.lock);

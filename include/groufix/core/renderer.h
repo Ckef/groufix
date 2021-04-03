@@ -77,6 +77,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device);
 
 /**
  * Destroys a renderer.
+ * This will block until rendering using its resources is done!
  */
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
@@ -145,7 +146,7 @@ GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
  * @param renderer Cannot be NULL.
  * @return Zero if the renderer could not build.
  *
- * Returns non-zero if build was successful. Errors during submission are
+ * Returns non-zero if build was successful. Most errors during submission are
  * considered pseudo-fatal and ignored, processing continues.
  */
 GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
