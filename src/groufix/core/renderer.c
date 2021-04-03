@@ -88,8 +88,6 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	// TODO: Reimplement.
-
 	_GFXContext* context = renderer->context;
 
 	// Note: on failures we continue processing, maybe something will show?

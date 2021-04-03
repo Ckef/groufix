@@ -584,35 +584,24 @@ int _gfx_devices_init(void)
 
 		for (uint32_t i = 0; i < count; ++i)
 		{
-			// Get some Vulkan properties and create new device.
+			// Get some Vulkan properties and define a new device.
 			VkPhysicalDeviceProperties pdp;
 			_groufix.vk.GetPhysicalDeviceProperties(devices[i], &pdp);
 
 			_GFXDevice dev = {
-				.base    = { .type = _GFX_GET_DEVICE_TYPE(pdp.deviceType) },
+				.base = {
+					.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
+					.name = NULL
+				},
 				.api     = pdp.apiVersion,
 				.index   = 0,
 				.context = NULL,
 				.vk      = { .device = devices[i] }
 			};
 
-			// TODO: BUG: the mutex object can later be moved by the
-			// gfx_vec_insert, which cannot happen, must rewrite.
-			// Init mutex and name string.
-			if (!_gfx_mutex_init(&dev.lock))
-				goto terminate;
-
-			size_t len = strlen(pdp.deviceName);
-			dev.base.name = malloc(sizeof(char*) * (len+1));
-
-			if (dev.base.name == NULL)
-			{
-				_gfx_mutex_clear(&dev.lock);
-				goto terminate;
-			}
-
-			strcpy((char*)dev.base.name, pdp.deviceName);
-			((char*)dev.base.name)[len] = '\0';
+			memcpy(
+				dev.name, pdp.deviceName,
+				VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
 
 			// Check if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.
@@ -630,6 +619,29 @@ int _gfx_devices_init(void)
 				gfx_vec_insert(&_groufix.devices, 1, &dev, 0);
 				type = dev.base.type;
 				ver = pdp.apiVersion;
+			}
+		}
+
+		// Now loop over 'm again to init its mutex and
+		// point the public name pointer to the right smth.
+		// Because the number of devices never changes, the vector never
+		// gets reallocated, thus we store & init these mutexes here.
+		for (uint32_t i = 0; i < count; ++i)
+		{
+			_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
+			dev->base.name = dev->name;
+
+			if (!_gfx_mutex_init(&dev->lock))
+			{
+				// If it could not init, clear all previous devices.
+				while (i > 0)
+				{
+					dev = gfx_vec_at(&_groufix.devices, --i);
+					_gfx_mutex_clear(&dev->lock);
+				}
+
+				gfx_vec_clear(&_groufix.devices);
+				goto terminate;
 			}
 		}
 
@@ -652,14 +664,10 @@ void _gfx_devices_terminate(void)
 	while (_groufix.contexts.head != NULL)
 		_gfx_destroy_context((_GFXContext*)_groufix.contexts.head);
 
-	// And free all groufix devices, this only entails freeing the name string.
+	// And free all groufix devices, this only entails clearing its mutex.
 	// Devices are allocated in-place so no need to free anything else.
 	for (size_t i = 0; i < _groufix.devices.size; ++i)
-	{
-		_GFXDevice* device = gfx_vec_at(&_groufix.devices, i);
-		free((char*)device->base.name);
-		_gfx_mutex_clear(&device->lock);
-	}
+		_gfx_mutex_clear(&((_GFXDevice*)gfx_vec_at(&_groufix.devices, i))->lock);
 
 	// Regular cleanup.
 	gfx_vec_clear(&_groufix.devices);
