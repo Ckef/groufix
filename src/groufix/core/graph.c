@@ -52,6 +52,30 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 	if (renderer->graph.built)
 		return 1;
 
+	// When the graph needs to be rebuilt, we want to rebuild everything.
+	// Optimizations such as merging passes may change, we want to capture
+	// these changes on every build.
+	// Rebuilding causes the passes to re-record command buffers allocated
+	// from swapchain pools, so we need to reset them.
+	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
+	{
+		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
+
+		if (
+			at->type == _GFX_ATTACH_WINDOW &&
+			at->window.vk.pool != VK_NULL_HANDLE)
+		{
+			// But first wait until all pending rendering is done.
+			// TODO: Only do this once?
+			_gfx_mutex_lock(renderer->graphics.lock);
+			context->vk.QueueWaitIdle(renderer->graphics.queue);
+			_gfx_mutex_unlock(renderer->graphics.lock);
+
+			context->vk.ResetCommandPool(
+				context->vk.device, at->window.vk.pool, 0);
+		}
+	}
+
 	// We only build the targets, as they will recursively build the tree.
 	// TODO: Will target passes recursively build the tree?
 	for (size_t i = 0; i < renderer->graph.targets.size; ++i)
@@ -60,7 +84,6 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.targets, i);
 
 		// We cannot continue, the pass itself should log errors.
-		// TODO: Split into build and rebuild too?
 		if (!_gfx_render_pass_build(pass))
 		{
 			gfx_log_error("Renderer's graph build incomplete.");
