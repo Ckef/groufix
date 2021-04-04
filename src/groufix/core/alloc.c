@@ -18,17 +18,6 @@
 // Preferred memory block size of a 'large' heap (256 MiB).
 #define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 2014)
 
-// Auto log when a memory heap does not have enough space.
-#define _GFX_VK_HEAP_CHECK(hSize, size, action) \
-	do { \
-		if (size > hSize) { \
-			gfx_log_error( \
-				"Memory heap of %llu bytes is too small to allocate %llu bytes from.", \
-				(unsigned long long)hSize, (unsigned long long)size); \
-			action; \
-		} \
-	} while (0)
-
 
 // Get the size of a key (is an lvalue).
 #define _GFX_KEY_SIZE(key) (key)[0]
@@ -53,6 +42,29 @@
 
 #define _GFX_ALIGN_DOWN(offset, align) \
 	((offset) & ~(align - 1))
+
+
+// Auto log when a memory heap does not have enough space.
+#define _GFX_VK_HEAP_CHECK(hSize, size, action) \
+	do { \
+		if (size > hSize) { \
+			gfx_log_error( \
+				"Memory heap of %llu bytes is too small to allocate %llu bytes from.", \
+				(unsigned long long)hSize, (unsigned long long)size); \
+			action; \
+		} \
+	} while (0)
+
+// Gets suitable memory type (auto log when none found), assigned to an lvalue.
+#define _GFX_GET_MEM_TYPE(lvalue, alloc, required, optimal, types, action) \
+	do { \
+		lvalue = _gfx_get_mem_type(alloc, required, optimal, types); \
+		if (lvalue == UINT32_MAX) { \
+			gfx_log_error( \
+				"Could not find suitable Vulkan memory type for allocation."); \
+			action; \
+		} \
+	} while (0)
 
 
 /****************************
@@ -113,10 +125,6 @@ search:
 		goto search;
 	}
 
-	// No code depending on this can continue, error :)
-	gfx_log_error(
-		"Could not find suitable Vulkan memory type for allocation.");
-
 	return UINT32_MAX;
 }
 
@@ -144,15 +152,13 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 
 	// Calculate block size in Vulkan units.
 	// If it is a 'small' heap, we allocate the heap's size divided by 8.
-	// Lastly, if minimum requested size is greater than half the block size,
-	// we instead just allocate a dedicated block for it.
 	VkDeviceSize prefBlockSize =
 		(heapSize <= _GFX_MAX_SMALL_HEAP_SIZE) ?
 		heapSize / 8 :
 		_GFX_DEF_LARGE_HEAP_BLOCK_SIZE;
 
 	VkDeviceSize blockSize =
-		(prefBlockSize / 2 < minSize) ? minSize : prefBlockSize;
+		(prefBlockSize < minSize) ? minSize : prefBlockSize;
 
 	// Allocate handle & actual Vulkan memory object.
 	// If the allocation failed, we try again at 1/2, 1/4 and 1/8 of the size.
@@ -320,11 +326,10 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	reqs.alignment = (reqs.alignment > 0) ? reqs.alignment : 1;
 
 	// Get memory type index.
-	uint32_t type =
-		_gfx_get_mem_type(alloc, required, optimal, reqs.memoryTypeBits);
-
-	if (type == UINT32_MAX)
-		return 0;
+	uint32_t type;
+	_GFX_GET_MEM_TYPE(
+		type, alloc, required, optimal, reqs.memoryTypeBits,
+		return 0);
 
 	// Construct a search key:
 	// The key of the memory block will store two uint64_t's:
@@ -455,11 +460,10 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// TODO: Check against Vulkan's allocation limit?
 
 	// Get memory type index.
-	uint32_t type =
-		_gfx_get_mem_type(alloc, required, optimal, reqs.memoryTypeBits);
-
-	if (type == UINT32_MAX)
-		return 0;
+	uint32_t type;
+	_GFX_GET_MEM_TYPE(
+		type, alloc, required, optimal, reqs.memoryTypeBits,
+		return 0);
 
 	// Validate that we have enough memory.
 	VkPhysicalDeviceMemoryProperties* pdmp =
@@ -479,7 +483,7 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	};
 
 	_GFX_VK_CHECK(context->vk.AllocateMemory(
-		context->vk.device, &mai, NULL, &mem->vk.memory), return 0);
+		context->vk.device, &mai, NULL, &mem->vk.memory), goto error);
 
 	// Claim memory,
 	// i.e. iutput the allocation data.
@@ -500,6 +504,15 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		(unsigned long long)reqs.size);
 
 	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error(
+		"Could not allocate a new dedicated Vulkan memory object of %llu bytes.",
+		(unsigned long long)reqs.size);
+
+	return 0;
 }
 
 /****************************/
