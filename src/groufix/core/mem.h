@@ -16,20 +16,20 @@
 
 
 /**
- * Vulkan memory object (e.g. VRAM memory block).
+ * Memory block (i.e. Vulkan memory object to be subdivided).
  */
 typedef struct _GFXMemBlock
 {
 	GFXListNode list; // Base-type.
 
-	uint32_t type; // Vulkan memory type index.
-	uint64_t size;
+	uint32_t     type; // Vulkan memory type index.
+	VkDeviceSize size;
 
 
 	// Related memory nodes.
 	struct
 	{
-		GFXTree free; // Stores { uint64_t, uint64_t } : _GFXMemNode.
+		GFXTree free; // Stores { VkDeviceSize, VkDeviceSize } : _GFXMemNode.
 		GFXList list; // References _GFXMemNode | _GFXMemAlloc.
 
 	} nodes;
@@ -62,17 +62,17 @@ typedef struct _GFXMemNode
  */
 typedef struct _GFXMemAlloc
 {
-	_GFXMemNode   node; // Base-type.
-	_GFXMemBlock* block;
+	_GFXMemNode   node;  // Base-type.
+	_GFXMemBlock* block; // NULL when dedicated.
 
-	uint64_t size;
-	uint64_t offset;
+	VkDeviceSize size;
+	VkDeviceSize offset;
 
 
 	// Vulkan fields.
 	struct
 	{
-		VkDeviceMemory memory; // Redundant for memory locality.
+		VkDeviceMemory memory; // Redundant if not dedicated (for locality).
 
 	} vk;
 
@@ -88,6 +88,8 @@ typedef struct _GFXAllocator
 
 	GFXList free;   // References _GFXMemBlock.
 	GFXList allocd; // References _GFXMemBlock.
+
+	GFXList dedicated; // References _GFXMemAlloc.
 
 
 	// Vulkan fields.
@@ -135,6 +137,16 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
 int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
                VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
                VkMemoryRequirements reqs);
+
+/**
+ * TODO: Add image and buffer arguments so we can do true 'Vulkan'-dedication?
+ * Allocate some dedicated Vulkan memory, meaning it will not be sub-allocated
+ * from a larger memory block.
+ * @see _gfx_alloc.
+ */
+int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+                VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
+                VkMemoryRequirements reqs);
 
 /**
  * Free some Vulkan memory.
