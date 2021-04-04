@@ -18,7 +18,7 @@
 // Preferred memory block size of a 'large' heap (256 MiB).
 #define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 2014)
 
-// Auto log when a memory type's heap does not have enough space.
+// Auto log when a memory heap does not have enough space.
 #define _GFX_VK_HEAP_CHECK(hSize, size, action) \
 	do { \
 		if (size > hSize) { \
@@ -391,12 +391,16 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 
 	// Claim the memory.
 	// i.e. output the allocation data.
+	*mem = (_GFXMemAlloc){
+		.node   = { .free = 0 },
+		.block  = block,
+		.flags  = alloc->vk.properties.memoryTypes[type].propertyFlags,
+		.size   = _GFX_KEY_SIZE(key),
+		.offset = _GFX_KEY_OFFSET(key),
+		.vk     = { .memory = block->vk.memory }
+	};
+
 	gfx_list_insert_before(&block->nodes.list, &mem->node.list, &node->list);
-	mem->node.free = 0;
-	mem->block = block;
-	mem->size = _GFX_KEY_SIZE(key);
-	mem->offset = _GFX_KEY_OFFSET(key);
-	mem->vk.memory = block->vk.memory;
 
 	// Now fix the free tree and link the allocation in it...
 	// So we aligned the claimed memory, this means there could be some waste
@@ -479,11 +483,15 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 
 	// Claim memory,
 	// i.e. iutput the allocation data.
+	*mem = (_GFXMemAlloc){
+		.node   = { .free = 0 },
+		.block  = NULL,
+		.flags  = pdmp->memoryTypes[type].propertyFlags,
+		.size   = reqs.size,
+		.offset = 0
+	};
+
 	gfx_list_insert_after(&alloc->dedicated, &mem->node.list, NULL);
-	mem->node.free = 0;
-	mem->block = NULL;
-	mem->size = reqs.size;
-	mem->offset = 0;
 
 	// Weeee!
 	gfx_log_debug(

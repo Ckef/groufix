@@ -58,12 +58,14 @@ typedef struct _GFXMemNode
 
 
 /**
- * Allocated memory node.
+ * Allocated memory node (contains everything necessary for use).
  */
 typedef struct _GFXMemAlloc
 {
 	_GFXMemNode   node;  // Base-type.
 	_GFXMemBlock* block; // NULL when dedicated.
+
+	VkMemoryPropertyFlags flags; // Actual used flags.
 
 	VkDeviceSize size;
 	VkDeviceSize offset;
@@ -140,8 +142,8 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 
 /**
  * TODO: Add image and buffer arguments so we can do true 'Vulkan'-dedication?
- * Allocate some dedicated Vulkan memory, meaning it will not be sub-allocated
- * from a larger memory block.
+ * Allocate some dedicated Vulkan memory,
+ * meaning it will not be sub-allocated from a larger memory block.
  * @see _gfx_alloc.
  */
 int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
