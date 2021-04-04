@@ -123,16 +123,18 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
 /**
  * Allocate some Vulkan memory.
  * The object pointed to by mem cannot be moved or copied!
- * @param alloc Cannot be NULL.
- * @param mem   Cannot be NULL.
- * @param reqs  Must be valid (size > 0, align = a power of two, bits != 0).
- * @param flags Must have at least 1 bit set.
+ * @param alloc    Cannot be NULL.
+ * @param mem      Cannot be NULL.
+ * @param required Required flags, if they cannot be satisfied, it will fail.
+ * @param optimal  Optimal, i.e. preferred flags.
+ * @param reqs     Must be valid (size > 0, align = a power of two, bits != 0).
  * @return Non-zero on success.
  *
  * Not thread-safe at all.
  */
 int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-               VkMemoryRequirements reqs, VkMemoryPropertyFlags flags);
+               VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
+               VkMemoryRequirements reqs);
 
 /**
  * Free some Vulkan memory.

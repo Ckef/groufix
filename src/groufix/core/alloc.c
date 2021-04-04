@@ -95,6 +95,22 @@ static uint32_t _gfx_get_mem_type(_GFXAllocator* alloc,
 }
 
 /****************************
+ * Find the best fitting memory type based on optimal and required flags.
+ * @see _gfx_get_mem_type.
+ */
+static uint32_t _gfx_get_opt_mem_type(_GFXAllocator* alloc,
+                                      VkMemoryPropertyFlags required,
+                                      VkMemoryPropertyFlags optimal,
+                                      uint32_t types)
+{
+	uint32_t type =
+		_gfx_get_mem_type(alloc, optimal, types);
+
+	return (type != UINT32_MAX) ? type :
+		_gfx_get_mem_type(alloc, required, types);
+}
+
+/****************************
  * Allocates and initializes a new Vulkan memory object.
  * @param minSize Use to force a minimum allocation (beyond default block sizes).
  * @return NULL on failure.
@@ -285,20 +301,22 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 
 /****************************/
 int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-               VkMemoryRequirements reqs, VkMemoryPropertyFlags flags)
+               VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
+               VkMemoryRequirements reqs)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
 	assert(reqs.size > 0);
 	assert(_GFX_IS_POWER_OF_TWO(reqs.alignment));
 	assert(reqs.memoryTypeBits != 0);
-	assert(flags != 0);
 
 	// Alignment of 0 means 1.
 	reqs.alignment = (reqs.alignment > 0) ? reqs.alignment : 1;
 
 	// Get memory type index.
-	uint32_t type = _gfx_get_mem_type(alloc, flags, reqs.memoryTypeBits);
+	uint32_t type =
+		_gfx_get_opt_mem_type(alloc, required, optimal, reqs.memoryTypeBits);
+
 	if (type == UINT32_MAX)
 	{
 		gfx_log_error(
