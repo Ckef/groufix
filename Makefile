@@ -247,6 +247,7 @@ unix-tests:
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/fps
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/minimal
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/threaded
+	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/windows
 
 win:
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/libgroufix.dll
@@ -254,3 +255,4 @@ win-tests:
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/fps.exe
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/minimal.exe
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/threaded.exe
+	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/windows.exe
