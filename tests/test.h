@@ -18,6 +18,7 @@
  *
  * TEST_RUN(name)
  *   Call from within a test, run another test by name.
+ *   Becomes a no-op if an instance of name is already running.
  *
  * TEST_RUN_THREAD(name)
  *   Same as TEST_RUN(name), except the test will run in a new thread.
@@ -25,6 +26,7 @@
  *
  * TEST_JOIN(name)
  *   Joins a threaded test by name.
+ *   Becomes a no-op if no threaded instance of name is running.
  *
  * TEST_MAIN(name)
  *   Main entry point of the program by test name, use as follows:
@@ -61,6 +63,7 @@
 
 // Describes a test function that can be called.
 #define TEST_DESCRIBE(name, base) \
+	static TestState _test_state_##name = { .state = TEST_IDLE }; \
 	void _test_func_##name(TestBase* base)
 
 // Forces the test to fail.
@@ -69,26 +72,42 @@
 
 // Runs a test function from within another test function.
 #define TEST_RUN(name) \
-	_test_func_##name(&_test_base)
+	do { \
+		if (_test_state_##name.state == TEST_IDLE) { \
+			_test_state_##name.state = TEST_RUNNING; \
+			_test_func_##name(&_test_base) \
+			_test_state_##name.state = TEST_IDLE; \
+		} \
+	} while (0)
 
 // Runs a test in a new thread.
 #define TEST_RUN_THREAD(name) \
-	TestThread _test_thrd_##name = { .f = &_test_func_##name }; \
-	if (pthread_create(&_test_thrd_##name.thrd, NULL, &_test_thrd, &_test_thrd_##name) != 0) \
-		TEST_FAIL(); \
+	do { \
+		if (_test_state_##name.state == TEST_IDLE) { \
+			_test_state_##name.state = TEST_RUNNING_THRD; \
+			_test_state_##name.f = _test_func_##name; \
+			if (pthread_create(&_test_state_##name.thrd, NULL, _test_thrd, &_test_state_##name)) \
+				TEST_FAIL(); \
+		} \
+	} while (0)
 
 // Joins a threaded test function.
 #define TEST_JOIN(name) \
 	do { \
-		void* _test_ret; \
-		pthread_join(_test_thrd_##name.thrd, &_test_ret); \
+		if (_test_state_##name.state == TEST_RUNNING_THRD) { \
+			void* _test_ret; \
+			pthread_join(_test_state_##name.thrd, &_test_ret); \
+			_test_state_##name.state = TEST_IDLE; \
+		} \
 	} while(0)
 
 // Main entry point for a test program, runs the given test name.
 #define TEST_MAIN(name) \
 	int main(void) { \
 		_test_init(); \
+		_test_state_##name.state = TEST_RUNNING; \
 		_test_func_##name(&_test_base); \
+		_test_state_##name.state = TEST_IDLE; \
 		_test_end(); \
 	} \
 	int _test_unused_for_semicolon
@@ -105,19 +124,25 @@ typedef struct
 } TestBase;
 
 
-#if defined (TEST_ENABLE_THREADS)
-
 /**
  * Thread handle.
  */
 typedef struct
 {
+	enum
+	{
+		TEST_IDLE,
+		TEST_RUNNING,
+		TEST_RUNNING_THRD
+
+	} state;
+
+#if defined (TEST_ENABLE_THREADS)
 	void (*f)(TestBase*);
 	pthread_t thrd;
-
-} TestThread;
-
 #endif
+
+} TestState;
 
 
 /**
@@ -207,12 +232,12 @@ static void _test_end(void)
  */
 static void* _test_thrd(void* arg)
 {
-	TestThread* thrd = arg;
+	TestState* test = arg;
 
 	if (!gfx_attach())
 		TEST_FAIL();
 
-	thrd->f(&_test_base);
+	test->f(&_test_base);
 	gfx_detach();
 
 	return NULL;
