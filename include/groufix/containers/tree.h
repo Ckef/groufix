@@ -82,6 +82,12 @@ GFX_API void* gfx_tree_insert(GFXTree* tree, size_t elemSize, const void* elem,
  * @param tree Cannot be NULL.
  * @param key  Cannot be NULL.
  * @return The found node (modifiable element data), NULL if no match found.
+ *
+ * When duplicates exist, the returned node depends on matchType:
+ *  MATCH_STRICT or MATCH_RIGHT
+ *   The left-most duplicate (its predecessor is smaller).
+ *  MATCH_LEFT
+ *   The right-most duplicate (its successor is greater).
  */
 GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
                               GFXTreeMatchType matchType);

@@ -424,10 +424,10 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 		return NULL;
 
 	// Search for the node with the exact key,
-	// keep track of its predecessor and successor for when we're not
-	// going to match strictly.
+	// keep track of its predecessor and successor as well as an exact match.
 	_GFXTreeNode* tNode = _GFX_GET_NODE(tree, tree->root);
 	_GFXTreeNode* pred = NULL;
+	_GFXTreeNode* exac = NULL;
 	_GFXTreeNode* succ = NULL;
 
 	while (tNode != NULL)
@@ -446,14 +446,28 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 		}
 		else
 		{
-			// Found an exact match.
-			return _GFX_GET_ELEMENT(tree, tNode);
+			exac = tNode;
+
+			switch (matchType)
+			{
+			case GFX_TREE_MATCH_STRICT:
+			case GFX_TREE_MATCH_RIGHT:
+				// Go to the left to scout for duplicates.
+				tNode = tNode->left;
+				break;
+
+			case GFX_TREE_MATCH_LEFT:
+				// Go to the right to scout for duplicates.
+				tNode = tNode->right;
+				break;
+			}
 		}
 	}
 
-	// Return the predecessor or successor,
-	// or NULL if we only want strict matches.
+	// Return the exact match, otherwise the predecessor, successor
+	// or NULL (for strict matches only).
 	tNode =
+		(exac != NULL) ? exac :
 		(matchType == GFX_TREE_MATCH_LEFT) ? pred :
 		(matchType == GFX_TREE_MATCH_RIGHT) ? succ :
 		NULL;
