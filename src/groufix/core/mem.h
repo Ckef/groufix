@@ -70,6 +70,9 @@ typedef struct _GFXMemAlloc
 	VkDeviceSize size;
 	VkDeviceSize offset;
 
+	// For granularity constraints.
+	int linear;
+
 
 	// Vulkan fields.
 	struct
@@ -92,6 +95,9 @@ typedef struct _GFXAllocator
 	GFXList allocd; // References _GFXMemBlock.
 
 	GFXList dedicated; // References _GFXMemAlloc.
+
+	// Constant, queried once.
+	VkDeviceSize granularity;
 
 
 	// Vulkan fields.
@@ -129,6 +135,7 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
  * The object pointed to by mem cannot be moved or copied!
  * @param alloc    Cannot be NULL.
  * @param mem      Cannot be NULL.
+ * @param linear   Must be non-zero if meant for a liear resource.
  * @param required Required flags, if they cannot be satisfied, it will fail.
  * @param optimal  Optimal, i.e. preferred flags.
  * @param reqs     Must be valid (size > 0, align = a power of two, bits != 0).
@@ -136,7 +143,7 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
  *
  * Not thread-safe at all.
  */
-int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
                VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
                VkMemoryRequirements reqs);
 

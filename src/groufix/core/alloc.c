@@ -285,6 +285,11 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 	gfx_list_init(&alloc->allocd);
 	gfx_list_init(&alloc->dedicated);
 
+	VkPhysicalDeviceProperties pdp;
+	_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
+
+	alloc->granularity = pdp.limits.bufferImageGranularity;
+
 	_groufix.vk.GetPhysicalDeviceMemoryProperties(
 		device->vk.device,
 		&alloc->vk.properties);
@@ -312,7 +317,7 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 }
 
 /****************************/
-int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
                VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
                VkMemoryRequirements reqs)
 {
@@ -321,6 +326,9 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	assert(reqs.size > 0);
 	assert(_GFX_IS_POWER_OF_TWO(reqs.alignment));
 	assert(reqs.memoryTypeBits != 0);
+
+	// Normalize linear to 0 or 1 for easy calculation.
+	linear = linear ? 1 : 0;
 
 	// Alignment of 0 means 1.
 	reqs.alignment = (reqs.alignment > 0) ? reqs.alignment : 1;
@@ -335,7 +343,8 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// The key of the memory block will store two uint64_t's:
 	// the first being the size, the second being the offset.
 	// Alignment is computed from offset to compare, so we can insert alignment.
-	// When found, we override this alignment with the resulting offset.
+	// When found, we override this alignment with the resulting offset,
+	// at that point we will use the key's values for consistency.
 	VkDeviceSize key[2] = { reqs.size, reqs.alignment };
 
 	// Find a free memory block with enough space.
@@ -351,12 +360,14 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 			continue;
 
 		// Search for free space.
-		// If there are nodes with an exact size match, we need the least
-		// strict alignment that is >= than the key's alignment,
-		// so we search for a right match.
-		// If no exact size match was found, the least strict alignment of
-		// the next size class is returned, we need to linearly iterate
-		// over all successor nodes until we find a match.
+		// If there are no nodes with an exact size match, we need the least
+		// strict alignment of the next size class, the tree does this for us
+		// by searching for a right match.
+		// If there are exact size matches, we want the least strict alignment
+		// that is >= than the key's alignment, so again, right match.
+		// Lastly, for granularity constraints we need to search all exact
+		// size/alignment duplicates, luckily right match will return the
+		// left-most duplicate, so gfx_tree_succ will cover them all.
 		for (
 			node = gfx_tree_search(&block->nodes.free, key, GFX_TREE_MATCH_RIGHT);
 			node != NULL;
@@ -364,14 +375,42 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		{
 			const VkDeviceSize* fKey = gfx_tree_key(&block->nodes.free, node);
 
-			// We align up because we can encounter less strict alignments.
-			// Note: do not use the _GFX_KEY_ALIGN macro, we need 0 here!
-			VkDeviceSize offset =
-				_GFX_ALIGN_UP(_GFX_KEY_OFFSET(fKey), _GFX_KEY_OFFSET(key));
-			VkDeviceSize size =
-				_GFX_KEY_SIZE(fKey) - (offset - _GFX_KEY_OFFSET(fKey));
+			// Check if granularity constraints apply.
+			_GFXMemAlloc* left = (_GFXMemAlloc*)node->list.prev;
+			_GFXMemAlloc* right = (_GFXMemAlloc*)node->list.next;
 
-			if (size >= _GFX_KEY_SIZE(key))
+			// If neighbors exist, they must be an allocation.
+			int lGran = (left != NULL && left->linear != linear);
+			int rGran = (right != NULL && right->linear != linear);
+
+			// Get the alignment we want, if left granularity applies,
+			// we use the largest of the asked alignment and the granularity.
+			// We can do this because granularity must be a power of two.
+			// This is necessary because a free block directly starts at the
+			// end of a claimed block, so we need to align up.
+			// Otherwise we still need to align up because we can encounter
+			// less strict alignments when the node's size is larger.
+			VkDeviceSize align = !lGran ?
+				reqs.alignment :
+				(alloc->granularity > reqs.alignment) ?
+				alloc->granularity : reqs.alignment;
+
+			VkDeviceSize offset =
+				_GFX_ALIGN_UP(_GFX_KEY_OFFSET(fKey), align);
+			VkDeviceSize waste =
+				offset - _GFX_KEY_OFFSET(fKey);
+
+			// If right granularity applies, we want to align down.
+			// This is necessary because a free block also directly ends at
+			// the start of a claimed block.
+			if (rGran) waste +=
+				right->offset - _GFX_ALIGN_DOWN(right->offset, alloc->granularity);
+
+			// Check if we didn't waste all space and
+			// we have enough for the asked size.
+			if (
+				_GFX_KEY_SIZE(fKey) > waste &&
+				_GFX_KEY_SIZE(fKey) - waste >= reqs.size)
 			{
 				_GFX_KEY_OFFSET(key) = offset; // Set the key's offset value.
 				break;
@@ -385,7 +424,7 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// Allocate a new memory block.
 	if (block == NULL)
 	{
-		block = _gfx_alloc_mem_block(alloc, type, _GFX_KEY_SIZE(key));
+		block = _gfx_alloc_mem_block(alloc, type, reqs.size);
 		if (block == NULL) return 0;
 
 		// There's 1 free node, the entire block, just pick it :)
@@ -402,6 +441,7 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		.flags  = alloc->vk.properties.memoryTypes[type].propertyFlags,
 		.size   = _GFX_KEY_SIZE(key),
 		.offset = _GFX_KEY_OFFSET(key),
+		.linear = linear,
 		.vk     = { .memory = block->vk.memory }
 	};
 
@@ -418,8 +458,9 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	VkDeviceSize rSize =
 		_GFX_KEY_SIZE(cKey) - (rOffset - _GFX_KEY_OFFSET(cKey));
 
-	// The waste we created to the left is at most (alignment - 1) in size.
-	// Similarly, if memory to the right is smaller than alignment, we skip it as well.
+	// The waste we created to the left is at most (alignment - 1) in size,
+	// ignoring granularity. Similarly, if memory to the right is smaller
+	// than the waste, we skip it as well.
 	// Bit of an arbitrary heuristic, but hey we don't like small nodes :)
 	if (rSize < reqs.alignment)
 	{
@@ -482,8 +523,9 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		.memoryTypeIndex = type
 	};
 
+	VkDeviceMemory memory;
 	_GFX_VK_CHECK(context->vk.AllocateMemory(
-		context->vk.device, &mai, NULL, &mem->vk.memory), goto error);
+		context->vk.device, &mai, NULL, &memory), goto error);
 
 	// Claim memory,
 	// i.e. iutput the allocation data.
@@ -492,7 +534,9 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		.block  = NULL,
 		.flags  = pdmp->memoryTypes[type].propertyFlags,
 		.size   = reqs.size,
-		.offset = 0
+		.offset = 0,
+		.linear = 0,
+		.vk     = { .memory = memory }
 	};
 
 	gfx_list_insert_after(&alloc->dedicated, &mem->node.list, NULL);
