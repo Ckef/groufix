@@ -22,14 +22,15 @@
  */
 typedef enum GFXWindowFlags
 {
-	GFX_WINDOW_BORDERLESS    = 0x0001,
-	GFX_WINDOW_FOCUS         = 0x0002, // One-time action.
-	GFX_WINDOW_MAXIMIZE      = 0x0004, // One-time action.
-	GFX_WINDOW_RESIZABLE     = 0x0008,
-	GFX_WINDOW_CAPTURE_MOUSE = 0x0010, // Implies GFX_WINDOW_HIDE_MOUSE.
-	GFX_WINDOW_HIDE_MOUSE    = 0x0020,
-	GFX_WINDOW_DOUBLE_BUFFER = 0x0040,
-	GFX_WINDOW_TRIPLE_BUFFER = 0x0080  // Overrules GFX_WINDOW_DOUBLE_BUFFER.
+	GFX_WINDOW_HIDDEN        = 0x0001, // Overrules all.
+	GFX_WINDOW_BORDERLESS    = 0x0002,
+	GFX_WINDOW_FOCUS         = 0x0004, // One-time action.
+	GFX_WINDOW_MAXIMIZE      = 0x0008, // One-time action.
+	GFX_WINDOW_RESIZABLE     = 0x0010,
+	GFX_WINDOW_CAPTURE_MOUSE = 0x0020, // Implies GFX_WINDOW_HIDE_MOUSE.
+	GFX_WINDOW_HIDE_MOUSE    = 0x0040,
+	GFX_WINDOW_DOUBLE_BUFFER = 0x0080,
+	GFX_WINDOW_TRIPLE_BUFFER = 0x0100  // Overrules GFX_WINDOW_DOUBLE_BUFFER.
 
 } GFXWindowFlags;
 
@@ -193,6 +194,9 @@ GFX_API GFXWindowFlags gfx_window_get_flags(GFXWindow* window);
 /**
  * Sets new window flags.
  * @param window Cannot be NULL.
+ *
+ * If the window is in fullscreen and GFX_WINDOW_HIDDEN is set,
+ * the window will exit fullscreen first.
  */
 GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags);
 
@@ -210,6 +214,7 @@ GFX_API GFXMonitor* gfx_window_get_monitor(GFXWindow* window);
  * @param mode    Width and height must be > 0.
  *
  * mode.refresh is ignored if monitor is set to NULL.
+ * If the window is hidden and monitor is not NULL, this will unhide it.
  */
 GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
                                     GFXVideoMode mode);
@@ -228,6 +233,7 @@ GFX_API GFXVideoMode gfx_window_get_video(GFXWindow* window);
  * @param mode   Width and height must be > 0.
  *
  * mode.refresh is ignored if window is not assigned to a monitor.
+ * If the window is hidden, this will do nothing.
  */
 GFX_API void gfx_window_set_video(GFXWindow* window, GFXVideoMode mode);
 
@@ -253,20 +259,35 @@ GFX_API int gfx_window_should_close(GFXWindow* window);
 GFX_API void gfx_window_set_close(GFXWindow* window, int close);
 
 /**
+ * Focusses the window, bringing it to the front and sets input focus.
+ * Does nothing if the window is hidden or minimized.
+ * @param window Cannot be NULL.
+ *
+ * If the window is hidden, this will do nothing.
+ */
+GFX_API void gfx_window_focus(GFXWindow* window);
+
+/**
  * Maximizes the window.
  * @param window Cannot be NULL.
+ *
+ * If the window is hidden, this will do nothing.
  */
 GFX_API void gfx_window_maximize(GFXWindow* window);
 
 /**
  * Minimizes the window.
  * @param window Cannot be NULL.
+ *
+ * If the window is hidden, this will do nothing.
  */
 GFX_API void gfx_window_minimize(GFXWindow* window);
 
 /**
  * Restores the window from maximization or minimization.
  * @param window Cannot be NULL.
+ *
+ * If the window is hidden, this will do nothing.
  */
 GFX_API void gfx_window_restore(GFXWindow* window);
 

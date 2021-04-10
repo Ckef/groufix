@@ -135,7 +135,7 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
  * The object pointed to by mem cannot be moved or copied!
  * @param alloc    Cannot be NULL.
  * @param mem      Cannot be NULL.
- * @param linear   Must be non-zero if meant for a liear resource.
+ * @param linear   Non-zero for a linear resource, 0 for a non-linear one.
  * @param required Required flags, if they cannot be satisfied, it will fail.
  * @param optimal  Optimal, i.e. preferred flags.
  * @param reqs     Must be valid (size > 0, align = a power of two, bits != 0).

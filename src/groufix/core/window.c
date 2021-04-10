@@ -323,6 +323,8 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	glfwDefaultWindowHints();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
+	glfwWindowHint(GLFW_VISIBLE,
+		flags & GFX_WINDOW_HIDDEN ? GLFW_FALSE : GLFW_TRUE);
 	glfwWindowHint(GLFW_DECORATED,
 		flags & GFX_WINDOW_BORDERLESS ? GLFW_FALSE : GLFW_TRUE);
 	glfwWindowHint(GLFW_FOCUSED,
@@ -582,6 +584,24 @@ GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags)
 
 	_GFXWindow* win = (_GFXWindow*)window;
 
+	// Always hide/unhide at the start, so all other flags act appropriately.
+	if (!(flags & GFX_WINDOW_HIDDEN))
+		glfwShowWindow(win->handle);
+	else
+	{
+		// If fullscreen, exit fullscreen before hiding.
+		GLFWmonitor* monitor = glfwGetWindowMonitor(win->handle);
+		if (monitor != NULL)
+		{
+			int width;
+			int height;
+			glfwGetWindowSize(win->handle, &width, &height);
+			glfwSetWindowMonitor(win->handle, NULL, 0, 0, width, height, 0);
+		}
+
+		glfwHideWindow(win->handle);
+	}
+
 	// Set attributes and perform one-time actions.
 	// Preemptively maximize window in case resizable is set to false here.
 	if ((flags & GFX_WINDOW_MAXIMIZE) && !(flags & GFX_WINDOW_RESIZABLE))
@@ -647,6 +667,7 @@ GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
 	assert(mode.width > 0);
 	assert(mode.height > 0);
 
+	// If it's hidden, GLFW unhides for us.
 	glfwSetWindowMonitor(
 		((_GFXWindow*)window)->handle,
 		(monitor != NULL) ? ((_GFXMonitor*)monitor)->handle : NULL,
@@ -697,6 +718,7 @@ GFX_API void gfx_window_set_video(GFXWindow* window, GFXVideoMode mode)
 	_GFXWindow* win = (_GFXWindow*)window;
 	GLFWmonitor* monitor = glfwGetWindowMonitor(win->handle);
 
+	// If it's hidden, monitor will be NULL and nothing will happen.
 	if (monitor == NULL)
 		glfwSetWindowSize(
 			win->handle,
@@ -738,10 +760,20 @@ GFX_API void gfx_window_set_close(GFXWindow* window, int close)
 }
 
 /****************************/
+GFX_API void gfx_window_focus(GFXWindow* window)
+{
+	assert(window != NULL);
+
+	// GLFW won't do anything if hidden.
+	glfwFocusWindow(((_GFXWindow*)window)->handle);
+}
+
+/****************************/
 GFX_API void gfx_window_maximize(GFXWindow* window)
 {
 	assert(window != NULL);
 
+	// GLFW won't do anything if hidden.
 	glfwMaximizeWindow(((_GFXWindow*)window)->handle);
 }
 
@@ -750,6 +782,7 @@ GFX_API void gfx_window_minimize(GFXWindow* window)
 {
 	assert(window != NULL);
 
+	// GLFW won't do anything if hidden.
 	glfwIconifyWindow(((_GFXWindow*)window)->handle);
 }
 
@@ -758,5 +791,6 @@ GFX_API void gfx_window_restore(GFXWindow* window)
 {
 	assert(window != NULL);
 
+	// GLFW won't do anything if hidden.
 	glfwRestoreWindow(((_GFXWindow*)window)->handle);
 }
