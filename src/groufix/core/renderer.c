@@ -96,17 +96,17 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	// on _gfx_swapchain_acquire at the most random times.
 	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
 	{
-		int recreate;
 		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
 		if (at->type != _GFX_ATTACH_WINDOW)
 			continue;
 
 		// Acquire next image.
-		if (!_gfx_swapchain_acquire(at->window.window, &at->window.image, &recreate))
+		_GFXRecreateFlags flags;
+		if (!_gfx_swapchain_acquire(at->window.window, &at->window.image, &flags))
 			at->window.image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		if (recreate)
+		if (flags & _GFX_RECREATE)
 		{
 			_gfx_render_frame_rebuild(renderer, i);
 			_gfx_render_graph_rebuild(renderer, i);
@@ -186,7 +186,6 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	// Present image of all windows.
 	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
 	{
-		int recreate;
 		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
 		if (at->type != _GFX_ATTACH_WINDOW)
 			continue;
@@ -196,11 +195,12 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 			continue;
 
 		// Present the image.
-		_gfx_swapchain_present(at->window.window, at->window.image, &recreate);
+		_GFXRecreateFlags flags;
+		_gfx_swapchain_present(at->window.window, at->window.image, &flags);
 		at->window.image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		if (recreate)
+		if (flags & _GFX_RECREATE)
 		{
 			_gfx_render_frame_rebuild(renderer, i);
 			_gfx_render_graph_rebuild(renderer, i);

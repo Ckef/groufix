@@ -471,6 +471,18 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device);
  ****************************/
 
 /**
+ * Image/Swapchain recreate flags.
+ */
+typedef enum _GFXRecreateFlags
+{
+	_GFX_RECREATE = 0x0001, // Always set if other flags are set.
+	_GFX_REFORMAT = 0x0002,
+	_GFX_RESIZE   = 0x0004
+
+} _GFXRecreateFlags;
+
+
+/**
  * Attempt to 'claim' (i.e. lock) the swapchain by atomically reading if
  * window->swap is already set to one and subsequentally setting it to 1.
  * This is used to ensure no two objects try to use the swapchain.
@@ -488,29 +500,31 @@ void _gfx_swapchain_unlock(_GFXWindow* window);
 /**
  * TODO: Wait until current vsync (instead of previous)?
  * Acquires the next available image from the swapchain of a window.
- * @param window   Cannot be NULL.
- * @param index    Cannot be NULL, index into window->frame.images.
- * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
+ * @param window Cannot be NULL.
+ * @param index  Cannot be NULL, index into window->frame.images.
+ * @param flags  Cannot be NULL, encodes how the swapchain has been recreated.
  * @return Non-zero on success.
  *
  * Not thread-affine, but also not thread-safe.
  * This will signal window->vk.available when the current image is acquired.
  */
-int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index, int* recreate);
+int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index,
+                           _GFXRecreateFlags* flags);
 
 /**
  * TODO: Or wait for vsync here? This does actual submission after all.
  * Submits a present command for the swapchain of a window.
  * _gfx_swapchain_acquire must have returned succesfully before this call.
- * @param window   Cannot be NULL.
- * @param index    Must be an index retrieved by _gfx_swapchain_acquire.
- * @param recreate Cannot be NULL, non-zero if swapchain has been recreated.
+ * @param window Cannot be NULL.
+ * @param index  Must be an index retrieved by _gfx_swapchain_acquire.
+ * @param flags  Cannot be NULL, encodes how the swapchain has been recreated.
  *
  * Not thread-affine, but also not thread-safe.
  * window->vk.rendered must be signaled or pending.
  * This will silently log failures.
  */
-void _gfx_swapchain_present(_GFXWindow* window, uint32_t index, int* recreate);
+void _gfx_swapchain_present(_GFXWindow* window, uint32_t index,
+                            _GFXRecreateFlags* flags);
 
 
 #endif
