@@ -102,8 +102,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 
 		// Acquire next image.
 		_GFXRecreateFlags flags;
-		if (!_gfx_swapchain_acquire(at->window.window, &at->window.image, &flags))
-			at->window.image = UINT32_MAX;
+		at->window.image = _gfx_swapchain_acquire(at->window.window, &flags);
 
 		// Recreate swapchain-dependent resources.
 		if (flags & _GFX_RECREATE)

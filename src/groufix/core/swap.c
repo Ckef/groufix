@@ -336,11 +336,10 @@ void _gfx_swapchain_unlock(_GFXWindow* window)
 }
 
 /****************************/
-int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index,
-                           _GFXRecreateFlags* flags)
+uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
+                                _GFXRecreateFlags* flags)
 {
 	assert(window != NULL);
-	assert(index != NULL);
 	assert(flags != NULL);
 
 	*flags = 0;
@@ -373,20 +372,21 @@ recreate:
 	// Check non-error invalidity, could happen when framebuffer size is 0x0.
 	// Don't log an error as the window could simply be minimized.
 	if (window->vk.swapchain == VK_NULL_HANDLE)
-		return 0;
+		return UINT32_MAX;
 
 	// Acquires an available presentable image from the swapchain.
 	// Wait indefinitely (on the host) until an image is available,
 	// driver dependent, probably before actually available?
 	// We could use vkAcquireNextImage2KHR, but we don't,
 	// just make the images available to all devices.
+	uint32_t index;
 	VkResult result = context->vk.AcquireNextImageKHR(
 		context->vk.device,
 		window->vk.swapchain,
 		UINT64_MAX,
 		window->vk.available,
 		window->vk.fence,
-		index);
+		&index);
 
 	switch (result)
 	{
@@ -394,7 +394,7 @@ recreate:
 	// We may have done precious work, just go ahead and present things.
 	case VK_SUCCESS:
 	case VK_SUBOPTIMAL_KHR:
-		return 1;
+		return index;
 
 	// If swapchain out of date, recreate it and try acquiring again.
 	// We warn here, cause not sure what should happen?
@@ -419,7 +419,7 @@ error:
 		"Could not acquire an image from a swapchain on physical device: %s.",
 		window->device->base.name);
 
-	return 0;
+	return UINT32_MAX;
 }
 
 /****************************/

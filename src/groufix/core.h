@@ -501,16 +501,15 @@ void _gfx_swapchain_unlock(_GFXWindow* window);
  * TODO: Wait until current vsync (instead of previous)?
  * Acquires the next available image from the swapchain of a window.
  * @param window Cannot be NULL.
- * @param index  Cannot be NULL, index into window->frame.images.
  * @param flags  Cannot be NULL, encodes how the swapchain has been recreated.
- * @return Non-zero on success.
+ * @return The index into window->frame.images, or UINT32_MAX on failure.
  *
  * Not thread-affine, but also not thread-safe.
  * If a swapchain got destroyed, flags will be set to _GFX_RECREATE.
  * This will signal window->vk.available when the current image is acquired.
  */
-int _gfx_swapchain_acquire(_GFXWindow* window, uint32_t* index,
-                           _GFXRecreateFlags* flags);
+uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
+                                _GFXRecreateFlags* flags);
 
 /**
  * TODO: Or wait for vsync here? This does actual submission after all.
