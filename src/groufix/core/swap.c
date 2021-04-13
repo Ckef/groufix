@@ -44,6 +44,8 @@ static int _gfx_swapchain_sig(_GFXWindow* window)
  * @return Non-zero on success.
  *
  * Not thread-affine, but also not thread-safe.
+ * The current contents of flags is taken in consideration for its new value,
+ * only thrown out when overridden.
  */
 static int _gfx_swapchain_recreate(_GFXWindow* window,
                                    _GFXRecreateFlags* flags)
@@ -53,14 +55,6 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 
 	_GFXDevice* device = window->device;
 	_GFXContext* context = window->context;
-
-	// On failure or destruction, return no recreate flags.
-	// Keep track of actual return flags.
-	*flags = 0;
-	_GFXRecreateFlags retFlags =
-		(window->vk.swapchain == VK_NULL_HANDLE) ?
-			_GFX_RECREATE | _GFX_REFORMAT | _GFX_RESIZE :
-			_GFX_RECREATE;
 
 	// We do not free the images as the count will likely never change.
 	gfx_vec_release(&window->frame.images);
@@ -88,9 +82,11 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, window->vk.swapchain, NULL);
 
+		*flags = (window->vk.swapchain != VK_NULL_HANDLE) ? _GFX_RECREATE : 0;
 		gfx_vec_clear(&window->frame.images);
 		window->vk.swapchain = VK_NULL_HANDLE;
 
+		window->frame.format = VK_FORMAT_UNDEFINED;
 		window->frame.width = 0;
 		window->frame.height = 0;
 
@@ -98,6 +94,12 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 	}
 
 	// Get all formats, present modes and capabilities of the device.
+	// Keep track of recreate flags to add on success.
+	_GFXRecreateFlags addFlags =
+		(window->vk.swapchain == NULL) ?
+			_GFX_RECREATE | _GFX_REFORMAT | _GFX_RESIZE :
+			_GFX_RECREATE;
+
 	uint32_t fCount;
 	uint32_t mCount;
 
@@ -169,7 +171,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		VkSurfaceFormatKHR format = formats[0];
 
 		if (window->frame.format != format.format)
-			retFlags |= _GFX_REFORMAT;
+			addFlags |= _GFX_REFORMAT;
 
 		window->frame.format = format.format;
 
@@ -196,7 +198,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			window->frame.width != (size_t)extent.width ||
 			window->frame.height != (size_t)extent.height)
 		{
-			retFlags |= _GFX_RESIZE;
+			addFlags |= _GFX_RESIZE;
 		}
 
 		window->frame.width = (size_t)extent.width;
@@ -275,8 +277,8 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			goto clean);
 
 
-		// Finally return the recreate flags.
-		*flags = retFlags;
+		// Finally add the recreate flags.
+		*flags |= addFlags;
 
 		return 1;
 	}
@@ -293,6 +295,7 @@ clean:
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, window->vk.swapchain, NULL);
 
+	*flags = (window->vk.swapchain != VK_NULL_HANDLE) ? _GFX_RECREATE : 0;
 	gfx_vec_clear(&window->frame.images);
 	window->vk.swapchain = VK_NULL_HANDLE;
 
