@@ -79,10 +79,12 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 	// Actually destroy things.
 	if (width == 0 || height == 0)
 	{
+		*flags = (window->vk.swapchain != VK_NULL_HANDLE) ?
+			_GFX_RECREATE_ALL : 0;
+
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, window->vk.swapchain, NULL);
 
-		*flags = (window->vk.swapchain != VK_NULL_HANDLE) ? _GFX_RECREATE : 0;
 		gfx_vec_clear(&window->frame.images);
 		window->vk.swapchain = VK_NULL_HANDLE;
 
@@ -93,13 +95,12 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		return 1;
 	}
 
-	// Get all formats, present modes and capabilities of the device.
-	// Keep track of recreate flags to add on success.
-	_GFXRecreateFlags addFlags =
-		(window->vk.swapchain == NULL) ?
-			_GFX_RECREATE | _GFX_REFORMAT | _GFX_RESIZE :
-			_GFX_RECREATE;
+	// Ok we are recreating, add flags to the recreate output as necessary,
+	// in case the swapchain got rejected because it was already out of date..
+	*flags |= (window->vk.swapchain == VK_NULL_HANDLE) ?
+		_GFX_RECREATE_ALL : _GFX_RECREATE;
 
+	// Get all formats, present modes and capabilities of the device.
 	uint32_t fCount;
 	uint32_t mCount;
 
@@ -171,9 +172,10 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		VkSurfaceFormatKHR format = formats[0];
 
 		if (window->frame.format != format.format)
-			addFlags |= _GFX_REFORMAT;
-
-		window->frame.format = format.format;
+		{
+			*flags |= _GFX_REFORMAT;
+			window->frame.format = format.format;
+		}
 
 		// Decide on the extend of the swapchain (i.e. the width and height).
 		// We just pick the current extent of the surface, if it doesn't have
@@ -198,11 +200,10 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			window->frame.width != (size_t)extent.width ||
 			window->frame.height != (size_t)extent.height)
 		{
-			addFlags |= _GFX_RESIZE;
+			*flags |= _GFX_RESIZE;
+			window->frame.width = (size_t)extent.width;
+			window->frame.height = (size_t)extent.height;
 		}
-
-		window->frame.width = (size_t)extent.width;
-		window->frame.height = (size_t)extent.height;
 
 		// Finally create the actual swapchain.
 		// Remember the old swapchain so we can destroy its resources.
@@ -276,10 +277,6 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 				window->frame.images.data),
 			goto clean);
 
-
-		// Finally add the recreate flags.
-		*flags |= addFlags;
-
 		return 1;
 	}
 
@@ -288,16 +285,18 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 clean:
 	gfx_log_fatal(
 		"Could not (re)create a swapchain on physical device: %s.",
-		device->base.name);
+		device->name);
 
 	// On failure, destroy everything, we obviously wanted a new swapchain
 	// and we can't get it, so reset to empty state.
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, window->vk.swapchain, NULL);
 
-	*flags = (window->vk.swapchain != VK_NULL_HANDLE) ? _GFX_RECREATE : 0;
 	gfx_vec_clear(&window->frame.images);
 	window->vk.swapchain = VK_NULL_HANDLE;
+
+	// We do not want to recreate anything because values are invalid...
+	*flags = 0;
 
 	return 0;
 }
@@ -402,7 +401,7 @@ recreate:
 		gfx_log_warn(
 			"Could not acquire an image from a swapchain and will instead "
 			"recreate the swapchain and try again on physical device: %s.",
-			window->device->base.name);
+			window->device->name);
 
 		recreate = 1;
 		goto recreate;
@@ -417,7 +416,7 @@ recreate:
 error:
 	gfx_log_fatal(
 		"Could not acquire an image from a swapchain on physical device: %s.",
-		window->device->base.name);
+		window->device->name);
 
 	return UINT32_MAX;
 }
@@ -479,7 +478,7 @@ void _gfx_swapchain_present(_GFXWindow* window, uint32_t index,
 		gfx_log_warn(
 			"Could not present an image to a swapchain and will instead "
 			"try to recreate the swapchain on physical device: %s.",
-			window->device->base.name);
+			window->device->name);
 
 		_gfx_swapchain_recreate(window, flags);
 		break;
@@ -489,6 +488,6 @@ void _gfx_swapchain_present(_GFXWindow* window, uint32_t index,
 		_GFX_VK_CHECK(result, {});
 		gfx_log_fatal(
 			"Could not present an image to a swapchain on physical device: %s.",
-			window->device->base.name);
+			window->device->name);
 	}
 }

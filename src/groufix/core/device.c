@@ -272,7 +272,7 @@ static void _gfx_create_context(_GFXDevice* device)
 			(unsigned int)VK_VERSION_MAJOR(_GFX_VK_VERSION),
 			(unsigned int)VK_VERSION_MINOR(_GFX_VK_VERSION),
 			(unsigned int)VK_VERSION_PATCH(_GFX_VK_VERSION),
-			device->base.name);
+			device->name);
 
 		goto error;
 	}
@@ -317,7 +317,7 @@ static void _gfx_create_context(_GFXDevice* device)
 			// Probably want to know when a device is somehow invalid...
 			gfx_log_error(
 				"Physical device could not be found in any device group: %s.",
-				device->base.name);
+				device->name);
 
 			goto error;
 		}
@@ -363,11 +363,11 @@ static void _gfx_create_context(_GFXDevice* device)
 		// For features we do want, warn if not present.
 		if (pdf.geometryShader == VK_FALSE) gfx_log_warn(
 			"Physical device does not support geometry shaders: %s.",
-			device->base.name);
+			device->name);
 
 		if (pdf.tessellationShader == VK_FALSE) gfx_log_warn(
 			"Physical device does not support tessellation shaders: %s.",
-			device->base.name);
+			device->name);
 
 		pdf.robustBufferAccess                      = VK_FALSE;
 		pdf.fullDrawIndexUint32                     = VK_FALSE;
@@ -477,7 +477,7 @@ static void _gfx_create_context(_GFXDevice* device)
 			(unsigned int)VK_VERSION_MAJOR(device->api),
 			(unsigned int)VK_VERSION_MINOR(device->api),
 			(unsigned int)VK_VERSION_PATCH(device->api),
-			device->base.name,
+			device->name,
 			(unsigned int)context->numDevices,
 			(unsigned int)queueCount);
 #endif
@@ -545,7 +545,7 @@ error:
 	gfx_log_error(
 		"Could not create or initialize a logical Vulkan device for physical "
 		"device group containing at least: %s.",
-		device->base.name);
+		device->name);
 }
 
 /****************************/

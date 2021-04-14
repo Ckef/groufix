@@ -95,7 +95,7 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.targets, i);
 
 		// We cannot continue, the pass itself should log errors.
-		if (!_gfx_render_pass_build(pass))
+		if (!_gfx_render_pass_build(pass, _GFX_RECREATE_ALL))
 		{
 			gfx_log_error("Renderer's graph build incomplete.");
 			return 0;
@@ -109,13 +109,14 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 }
 
 /****************************/
-void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index)
+void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
+                               _GFXRecreateFlags flags)
 {
 	assert(renderer != NULL);
 
 	// We only rebuild if the graph is already built, if not, we skip this
 	// and postpone it until _gfx_render_graph_build is called.
-	if (!renderer->graph.built)
+	if (!(flags & _GFX_RECREATE) || !renderer->graph.built)
 		return;
 
 	// Loop over all passes and check if they read from or write to the
@@ -131,7 +132,7 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index)
 		{
 			// If we fail, just ignore and signal we're not built.
 			// Will be tried again in _gfx_render_graph_build.
-			if (!_gfx_render_pass_build(pass))
+			if (!_gfx_render_pass_build(pass, flags))
 			{
 				gfx_log_warn("Renderer's graph rebuild failed.");
 				renderer->graph.built = 0;

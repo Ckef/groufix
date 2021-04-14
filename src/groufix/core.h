@@ -477,7 +477,9 @@ typedef enum _GFXRecreateFlags
 {
 	_GFX_RECREATE = 0x0001, // Always set if other flags are set.
 	_GFX_REFORMAT = 0x0002,
-	_GFX_RESIZE   = 0x0004
+	_GFX_RESIZE   = 0x0004,
+
+	_GFX_RECREATE_ALL = 0x0007
 
 } _GFXRecreateFlags;
 
@@ -505,7 +507,7 @@ void _gfx_swapchain_unlock(_GFXWindow* window);
  * @return The index into window->frame.images, or UINT32_MAX on failure.
  *
  * Not thread-affine, but also not thread-safe.
- * If a swapchain got destroyed, flags will be set to _GFX_RECREATE.
+ * Recreate flags are also set if resized to 0x0 and resources are destroyed.
  * This will signal window->vk.available when the current image is acquired.
  */
 uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
@@ -520,9 +522,8 @@ uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
  * @param flags  Cannot be NULL, encodes how the swapchain has been recreated.
  *
  * Not thread-affine, but also not thread-safe.
- * If a swapchain got destroyed, flags will be set to _GFX_RECREATE.
+ * Recreate flags are also set if resized to 0x0 and resources are destroyed.
  * window->vk.rendered must be signaled or pending.
- * This will silently log failures.
  */
 void _gfx_swapchain_present(_GFXWindow* window, uint32_t index,
                             _GFXRecreateFlags* flags);

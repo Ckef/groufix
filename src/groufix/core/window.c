@@ -293,7 +293,7 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 		gfx_log_error(
 			"Could not find a queue family with surface presentation "
 			"support on physical device: %s.",
-			window->device->base.name);
+			window->device->name);
 
 		return 0;
 	}

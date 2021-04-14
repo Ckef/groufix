@@ -326,14 +326,19 @@ int _gfx_render_frame_build(GFXRenderer* renderer)
 }
 
 /****************************/
-void _gfx_render_frame_rebuild(GFXRenderer* renderer, size_t index)
+void _gfx_render_frame_rebuild(GFXRenderer* renderer, size_t index,
+                               _GFXRecreateFlags flags)
 {
 	assert(renderer != NULL);
 
 	// We only rebuild if the frame is already built, if not, we skip this
 	// and postpone it until _gfx_render_frame_build is called.
-	if (!renderer->frame.built)
+	if (!(flags & _GFX_RECREATE) || !renderer->frame.built)
 		return;
+
+	// TODO: Flags will be useful when implementing image attachments, as they
+	// need to be resized/reformated as well when their size is relative to
+	// that of a window attachment.
 
 	// Well, rebuild it.
 	if (!_gfx_build_attachment(renderer, index))

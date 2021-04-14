@@ -105,11 +105,8 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		at->window.image = _gfx_swapchain_acquire(at->window.window, &flags);
 
 		// Recreate swapchain-dependent resources.
-		if (flags & _GFX_RECREATE)
-		{
-			_gfx_render_frame_rebuild(renderer, i);
-			_gfx_render_graph_rebuild(renderer, i);
-		}
+		_gfx_render_frame_rebuild(renderer, i, flags);
+		_gfx_render_graph_rebuild(renderer, i, flags);
 	}
 
 	// TODO: Kinda need a return or a hook here for processing input?
@@ -199,11 +196,8 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		at->window.image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		if (flags & _GFX_RECREATE)
-		{
-			_gfx_render_frame_rebuild(renderer, i);
-			_gfx_render_graph_rebuild(renderer, i);
-		}
+		_gfx_render_frame_rebuild(renderer, i, flags);
+		_gfx_render_graph_rebuild(renderer, i, flags);
 	}
 
 	return 1;
