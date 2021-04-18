@@ -87,6 +87,10 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 		}
 	}
 
+	// TODO: Maybe somehow incorporate a 'soft' rebuild, where we call
+	// _gfx_render_pass_build with 0 as flags, that only builds stuff that
+	// hasn't been built yet? (is this even necessary?)
+
 	// We only build the targets, as they will recursively build the tree.
 	// TODO: Will target passes recursively build the tree?
 	for (size_t i = 0; i < renderer->graph.targets.size; ++i)

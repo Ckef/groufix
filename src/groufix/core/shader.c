@@ -98,7 +98,7 @@ static int _gfx_shader_build(GFXShader* shader,
 GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 {
 	// Allocate a new shader.
-	GFXShader* shader = malloc(sizeof(GFXRenderer));
+	GFXShader* shader = malloc(sizeof(GFXShader));
 	if (shader == NULL) goto clean;
 
 	// Get context associated with the device.

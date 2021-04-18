@@ -62,6 +62,7 @@ GFX_API void gfx_list_clear(GFXList* list);
 
 /**
  * Initializes and inserts a new node after a given list's node.
+ * The object pointed to by node cannot be moved or copied!
  * @param list Cannot be NULL.
  * @param node To insert, cannot be NULL, cannot already be in a list.
  * @param kin  To insert after, must be in list, or NULL to append to the list.
@@ -71,6 +72,7 @@ GFX_API void gfx_list_insert_after(GFXList* list, GFXListNode* node,
 
 /**
  * Initializes and inserts a new node before a given list's node.
+ * The object pointed to by node cannot be moved or copied!
  * @see gfx_list_insert_after, but we prepend instead of append.
  */
 GFX_API void gfx_list_insert_before(GFXList* list, GFXListNode* node,

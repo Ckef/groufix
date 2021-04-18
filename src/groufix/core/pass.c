@@ -286,11 +286,14 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 }
 
 /****************************/
-int _gfx_render_pass_build(GFXRenderPass* pass, _GFXRecreateFlags flags)
+int _gfx_render_pass_build(GFXRenderPass* pass,
+                           _GFXRecreateFlags flags)
 {
 	assert(pass != NULL);
 
 	// TODO: Does not use flags yet, reimplement!
+	// TODO: First destroy all things that should be recreated, then continue
+	// as if called with flags = 0 (i.e. build all missing bits).
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->context;

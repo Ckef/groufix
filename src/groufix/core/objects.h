@@ -187,7 +187,7 @@ struct GFXRenderPass
 
 
 /****************************
- * Renderer's render- frame, graph and pass.
+ * Render- frame and graph.
  ****************************/
 
 /**
@@ -271,6 +271,11 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
  */
 void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index);
 
+
+/****************************
+ * Render pass (nodes in the render graph).
+ ****************************/
+
 /**
  * Creates a render pass, referencing all dependencies.
  * Each element in deps must be associated with the same renderer.
@@ -301,7 +306,8 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass);
  * If a resource does not exist yet, it will be built no matter what flags is.
  * Does not synchronize anything before rebuilding!
  */
-int _gfx_render_pass_build(GFXRenderPass* pass, _GFXRecreateFlags flags);
+int _gfx_render_pass_build(GFXRenderPass* pass,
+                           _GFXRecreateFlags flags);
 
 /**
  * Destructs the Vulkan object structure, non-recursively.
