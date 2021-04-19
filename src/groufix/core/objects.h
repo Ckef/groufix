@@ -244,7 +244,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @param Non-zero if the entire graph is in a built state.
  *
- * If using swapchain resources, this will block until rendering is done!
+ * TODO: If using swapchain resources, this will block until rendering is done?
  */
 int _gfx_render_graph_build(GFXRenderer* renderer);
 
@@ -295,7 +295,6 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 void _gfx_destroy_render_pass(GFXRenderPass* pass);
 
 /**
- * TODO: Dependencies, build recursively?
  * TODO: Merge passes with the same resolution into subpasses.
  * (Re)builds the Vulkan object structure.
  * @param pass  Cannot be NULL.
