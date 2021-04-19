@@ -231,7 +231,11 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 
 	// Cleanup on failure.
 clean:
-	gfx_log_error("Could not (re)create swapchain-dependent resources.");
+	gfx_log_error(
+		"Could not (re)create swapchain-dependent resources of "
+		"attachment index %u at a renderer.",
+		(unsigned int)index);
+
 	_gfx_destruct_attachment(renderer, index);
 
 	return 0;
@@ -385,9 +389,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	};
 
 	// New attachment is not yet built.
-	// Also force the graph to postpone rebuilding everything.
 	renderer->frame.built = 0;
-	renderer->graph.built = 0;
 
 	return 1;
 }
@@ -464,9 +466,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	gfx_vec_init(&attach->window.vk.views, sizeof(VkImageView));
 
 	// New attachment is not yet built.
-	// Also force the graph to postpone rebuilding everything.
 	renderer->frame.built = 0;
-	renderer->graph.built = 0;
 
 	return 1;
 }

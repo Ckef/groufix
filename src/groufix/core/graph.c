@@ -66,7 +66,8 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 	// these changes on every build.
 	// Rebuilding causes the passes to re-record command buffers allocated
 	// from swapchain pools, so we need to reset them.
-	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
+	// TODO: Only do this bit when we destruct all passes first.
+	/*for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
 	{
 		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
 
@@ -85,21 +86,16 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 			context->vk.ResetCommandPool(
 				context->vk.device, at->window.vk.pool, 0);
 		}
-	}
+	}*/
 
-	// TODO: Maybe somehow incorporate a 'soft' rebuild, where we call
-	// _gfx_render_pass_build with 0 as flags, that only builds stuff that
-	// hasn't been built yet? (is this even necessary?)
-
-	// We only build the targets, as they will recursively build the tree.
-	// TODO: Will target passes recursively build the tree?
-	for (size_t i = 0; i < renderer->graph.targets.size; ++i)
+	// Make sure all the passes in the graph are built.
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
 		GFXRenderPass* pass =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.targets, i);
+			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i);
 
 		// We cannot continue, the pass itself should log errors.
-		if (!_gfx_render_pass_build(pass, _GFX_RECREATE_ALL))
+		if (!_gfx_render_pass_build(pass, 0))
 		{
 			gfx_log_error("Renderer's graph build incomplete.");
 			return 0;

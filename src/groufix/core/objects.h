@@ -295,7 +295,6 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 void _gfx_destroy_render_pass(GFXRenderPass* pass);
 
 /**
- * TODO: Reimplement!
  * TODO: Dependencies, build recursively?
  * TODO: Merge passes with the same resolution into subpasses.
  * (Re)builds the Vulkan object structure.
