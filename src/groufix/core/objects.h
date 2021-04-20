@@ -140,6 +140,7 @@ struct GFXRenderer
 		GFXVec passes;  // Stores GFXRenderPass* (in submission order).
 
 		int built;
+		int valid;
 
 	} graph;
 };
@@ -244,7 +245,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @param Non-zero if the entire graph is in a built state.
  *
- * TODO: If using swapchain resources, this will block until rendering is done?
+ * If the graph got invalidated, this will block until rendering is done!
  */
 int _gfx_render_graph_build(GFXRenderer* renderer);
 
@@ -270,6 +271,13 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
  * Also, does not synchronize anything before destructing!
  */
 void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index);
+
+/**
+ * Invalidates the render graph, forcing it to destruct and rebuild everything
+ * the next time _gfx_render_graph_build is called.
+ * @param renderer Cannot be NULL.
+ */
+void _gfx_render_graph_invalidate(GFXRenderer* renderer);
 
 
 /****************************

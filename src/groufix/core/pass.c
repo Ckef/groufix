@@ -745,9 +745,8 @@ GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index)
 	if (!gfx_vec_push(&pass->reads, 1, &index))
 		return 0;
 
-	// Changed a pass, the graph must entirely rebuild.
-	// TODO: Here we might signal the graph to destruct all?
-	pass->renderer->graph.built = 0;
+	// Changed a pass, the graph is invalidated.
+	_gfx_render_graph_invalidate(pass->renderer);
 
 	return 1;
 }
@@ -765,9 +764,8 @@ GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index)
 	if (!gfx_vec_push(&pass->writes, 1, &index))
 		return 0;
 
-	// Changed a pass, the graph must entirely rebuild.
-	// TODO: Here we might signal the graph to destruct all?
-	pass->renderer->graph.built = 0;
+	// Changed a pass, the graph is invalidated.
+	_gfx_render_graph_invalidate(pass->renderer);
 
 	return 1;
 }

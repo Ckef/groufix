@@ -19,6 +19,7 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 	gfx_vec_init(&renderer->graph.passes, sizeof(GFXRenderPass*));
 
 	renderer->graph.built = 0;
+	renderer->graph.valid = 0;
 }
 
 /****************************/
@@ -41,12 +42,8 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 	// submission order, which is always honored.
 	// So we manually destroy 'em all in reverse order :)
 	for (size_t i = renderer->graph.passes.size; i > 0; --i)
-	{
-		GFXRenderPass* pass =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i-1);
-
-		_gfx_destroy_render_pass(pass);
-	}
+		_gfx_destroy_render_pass(
+			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i-1));
 
 	gfx_vec_clear(&renderer->graph.passes);
 	gfx_vec_clear(&renderer->graph.targets);
@@ -58,37 +55,33 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Already done.
-	if (renderer->graph.built)
+	if (renderer->graph.built && renderer->graph.valid)
 		return 1;
 
-	// When the graph needs to be rebuilt, we want to rebuild everything.
-	// Optimizations such as merging passes may change, we want to capture
-	// these changes on every build.
-	// Rebuilding causes the passes to re-record command buffers allocated
-	// from swapchain pools, so we need to reset them.
-	// TODO: Only do this bit when we destruct all passes first.
-	/*for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
+	// When the graph is not valid (either its not built yet or explicitly
+	// invalidated), it needs to be entirely rebuilt. Optimizations such as
+	// merging passes may change, we want to capture these changes.
+	if (!renderer->graph.valid)
 	{
-		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
+		_GFXContext* context = renderer->context;
 
-		if (
-			at->type == _GFX_ATTACH_WINDOW &&
-			at->window.vk.pool != VK_NULL_HANDLE)
-		{
-			_GFXContext* context = renderer->context;
+		// So we destruct all the things before building.
+		// But for that we need to wait until all pending rendering is done.
+		_gfx_mutex_lock(renderer->graphics.lock);
+		context->vk.QueueWaitIdle(renderer->graphics.queue);
+		_gfx_mutex_unlock(renderer->graphics.lock);
 
-			// But first wait until all pending rendering is done.
-			// TODO: Only do this once?
-			_gfx_mutex_lock(renderer->graphics.lock);
-			context->vk.QueueWaitIdle(renderer->graphics.queue);
-			_gfx_mutex_unlock(renderer->graphics.lock);
+		for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+			_gfx_render_pass_destruct(
+				*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i));
+	}
 
-			context->vk.ResetCommandPool(
-				context->vk.device, at->window.vk.pool, 0);
-		}
-	}*/
+	// TODO: Here we analyze the graph for e.g. pass merging.
+	// That or do it within _gfx_render_pass_build?
 
-	// Make sure all the passes in the graph are built.
+	// Ok so we either need to finish the build or the entire thing got
+	// invalidated and we destructed all the things.
+	// So now make sure all the passes in the graph are built.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
 		GFXRenderPass* pass =
@@ -104,6 +97,7 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 
 	// Yep it's built.
 	renderer->graph.built = 1;
+	renderer->graph.valid = 1;
 
 	return 1;
 }
@@ -164,6 +158,16 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index)
 }
 
 /****************************/
+void _gfx_render_graph_invalidate(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// Just set the flag, it is used to destruct everything at the start of
+	// the next build call. This way we can re-analyze it.
+	renderer->graph.valid = 0;
+}
+
+/****************************/
 GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
                                         size_t numDeps, GFXRenderPass** deps)
 {
@@ -219,7 +223,9 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 	}
 
 	// We added a render pass, clearly we need to rebuild.
+	// Plus we need to re-analyze because we may have new dependencies.
 	renderer->graph.built = 0;
+	renderer->graph.valid = 0;
 
 	return pass;
 
