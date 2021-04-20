@@ -415,6 +415,18 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	}
 
 	// Ok we want to attach a window..
+	// Check if the window is already attached at this index.
+	if (index < renderer->frame.attachs.size)
+	{
+		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, index);
+		if (
+			at->type == _GFX_ATTACH_WINDOW &&
+			at->window.window == (_GFXWindow*)window)
+		{
+			return 1;
+		}
+	}
+
 	// Check if the renderer and the window share the same context.
 	if (renderer->context != ((_GFXWindow*)window)->context)
 	{
@@ -426,8 +438,6 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	}
 
 	// Try to lock the window to this attachment.
-	// Yes this will trigger when trying to attach the same window,
-	// don't do that >:(
 	if (!_gfx_swapchain_try_lock((_GFXWindow*)window))
 	{
 		gfx_log_warn(
