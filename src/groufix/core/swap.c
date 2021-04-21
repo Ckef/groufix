@@ -11,6 +11,11 @@
 #include <stdlib.h>
 
 
+// This is just very helpful, love it.
+#define _GFX_CLAMP(x, l, u) \
+	((x < l) ? l : (x > u) ? u : x);
+
+
 /****************************
  * Retrieves whether the GLFW recreate signal was set (and resets the signal).
  * @param window Cannot be NULL.
@@ -18,7 +23,7 @@
  *
  * Completely thread-safe.
  */
-static int _gfx_swapchain_sig(_GFXWindow* window)
+static inline int _gfx_swapchain_sig(_GFXWindow* window)
 {
 	assert(window != NULL);
 
@@ -128,13 +133,6 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfacePresentModesKHR(
 			device->vk.device, window->vk.surface, &mCount, modes), goto clean);
 
-		// Check if our desired image usage is supported.
-		if (!(sc.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
-		{
-			gfx_log_error("VK_IMAGE_USAGE_TRANSFER_DST_BIT is not supported.");
-			goto clean;
-		}
-
 		// Decide on the number of required present images.
 		// We select the correct amount for single, double or triple
 		// buffering and then clamp it between what is supported.
@@ -143,9 +141,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			wFlags & GFX_WINDOW_DOUBLE_BUFFER ? 2 : 1;
 
 		imageCount =
-			sc.minImageCount > imageCount ? sc.minImageCount :
-			sc.maxImageCount < imageCount ? sc.maxImageCount :
-			imageCount;
+			_GFX_CLAMP(imageCount, sc.minImageCount, sc.maxImageCount);
 
 		// Decide on the presentation mode.
 		// - single buffered: Immediate.
@@ -185,15 +181,11 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		if (extent.width == 0xFFFFFFFF || extent.height == 0xFFFFFFFF)
 		{
 			// Clamp it between the supported extents.
-			extent.width =
-				sc.minImageExtent.width > width ? sc.minImageExtent.width :
-				sc.maxImageExtent.width < width ? sc.maxImageExtent.width :
-				width;
+			extent.width = _GFX_CLAMP(width,
+				sc.minImageExtent.width, sc.maxImageExtent.width);
 
-			extent.height =
-				sc.minImageExtent.height > height ? sc.minImageExtent.height :
-				sc.maxImageExtent.height < height ? sc.maxImageExtent.height :
-				height;
+			extent.height = _GFX_CLAMP(height,
+				sc.minImageExtent.height, sc.maxImageExtent.height);
 		}
 
 		if (

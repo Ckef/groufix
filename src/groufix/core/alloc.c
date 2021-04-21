@@ -20,15 +20,16 @@
 
 
 // Get the size of a key (is an lvalue).
-#define _GFX_KEY_SIZE(key) (key)[0]
+#define _GFX_KEY_SIZE(key) ((VkDeviceSize*)(key))[0]
 
 // Get the offset of a key (is an lvalue).
-#define _GFX_KEY_OFFSET(key) (key)[1]
+#define _GFX_KEY_OFFSET(key) ((VkDeviceSize*)(key))[1]
 
 // Get the strictest alignment (i.e. the least significant bit) of a key.
 // Returns all 1's on no alignment, this so it always compares as stricter.
 #define _GFX_KEY_ALIGN(key) \
-	((key)[1] == 0 ? ~((VkDeviceSize)0) : (key)[1] & (~((key)[1]) + 1))
+	(_GFX_KEY_OFFSET(key) == 0 ? ~((VkDeviceSize)0) : \
+	_GFX_KEY_OFFSET(key) & (~_GFX_KEY_OFFSET(key) + 1))
 
 
 // Check whether a value is a power of two (0 counts).
@@ -601,15 +602,15 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	VkDeviceSize lBound =
 		(left == NULL) ? 0 :
 		(left->free) ?
-			_GFX_KEY_OFFSET((const VkDeviceSize*)gfx_tree_key(&block->nodes.free, left)) :
+			_GFX_KEY_OFFSET(gfx_tree_key(&block->nodes.free, left)) :
 			((_GFXMemAlloc*)left)->offset +
 			((_GFXMemAlloc*)left)->size;
 
 	VkDeviceSize rBound =
 		(right == NULL) ? block->size :
 		(right->free) ?
-			_GFX_KEY_OFFSET((const VkDeviceSize*)gfx_tree_key(&block->nodes.free, right)) +
-			_GFX_KEY_SIZE((const VkDeviceSize*)gfx_tree_key(&block->nodes.free, right)) :
+			_GFX_KEY_OFFSET(gfx_tree_key(&block->nodes.free, right)) +
+			_GFX_KEY_SIZE(gfx_tree_key(&block->nodes.free, right)) :
 			((_GFXMemAlloc*)right)->offset;
 
 	// Now modify the list and free tree to reflect the claimed space.

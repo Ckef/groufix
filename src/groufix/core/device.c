@@ -425,6 +425,7 @@ static void _gfx_create_context(_GFXDevice* device)
 
 		// Finally go create the logical Vulkan device.
 		// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
+		// TODO: Enable VK_EXT_memory_budget?
 		// Enable VK_LAYER_KHRONOS_validation if debug,
 		// this is deprecated by now, but for older Vulkan versions.
 		const char* extensions[] = { "VK_KHR_swapchain" };

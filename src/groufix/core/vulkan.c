@@ -141,12 +141,12 @@ const char* _gfx_vulkan_result_string(VkResult result)
 		return "A buffer creation or memory allocation failed because the "
 			"requested address is not available.";
 
-	case VK_ERROR_SURFACE_LOST_KHR:
-		return "A surface is no longer available.";
-
 	case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR:
 		return "The requested window is already in use by Vulkan or another "
 			"Vulkan API in a manner which prevents it from being used again.";
+
+	case VK_ERROR_SURFACE_LOST_KHR:
+		return "A surface is no longer available.";
 
 	default:
 		return "Unknown error.";
