@@ -177,6 +177,7 @@ typedef struct _GFXQueueSet
 typedef struct _GFXContext
 {
 	GFXListNode list; // Base-type.
+	GFXList     sets; // References _GFXQueueSet.
 
 
 	// Vulkan fields.
@@ -228,8 +229,6 @@ typedef struct _GFXContext
 
 	} vk;
 
-
-	GFXList sets; // References _GFXQueueSet.
 
 	// Associated device group.
 	size_t           numDevices;
