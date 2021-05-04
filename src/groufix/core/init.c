@@ -111,7 +111,7 @@ int _gfx_create_local(void)
 
 	// Initialize the logging stuff.
 	state->log.level = _groufix.logDef;
-	state->log.std = 0;
+	state->log.std = 1; // For initial identification.
 	state->log.file = NULL;
 
 	return 1;

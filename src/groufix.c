@@ -41,7 +41,7 @@ GFX_API int gfx_init(void)
 	if (!gfx_attach())
 		goto terminate;
 
-	// For ONLY the main thread: always default to logging to stderr.
+	// During initialization we log to stderr.
 	// This because no logging file can be set, but we want the logs somewhere.
 	// After logging is setup, init GLFW and the Vulkan loader.
 	gfx_log_set_out(1);
@@ -67,8 +67,7 @@ GFX_API int gfx_init(void)
 
 	gfx_log_info("All internal state initialized succesfully, ready.");
 
-	// If not in debug mode, default back to no logging to stderr,
-	// it's now the user's responsibility.
+	// If not in debug mode, disable logging to stderr again.
 #if defined (NDEBUG)
 	gfx_log_set_out(0);
 #endif
@@ -121,9 +120,13 @@ GFX_API int gfx_attach(void)
 		return 0;
 	}
 
-	// If debug mode, default to logging to stderr.
-#if !defined (NDEBUG)
-	gfx_log_set_out(1);
+	// Every thread identifies itself on stderr.
+	gfx_log_info("Attached self to groufix.");
+
+	// If not in debug mode, disable logging to stderr,
+	// it's now the user's responsibility.
+#if defined (NDEBUG)
+	gfx_log_set_out(0);
 #endif
 
 	return 1;
@@ -135,6 +138,10 @@ GFX_API void gfx_detach(void)
 	// Not yet initialized or attached.
 	if (!_groufix.initialized || !_gfx_get_local())
 		return;
+
+	// Every thread may have one last say :)
+	gfx_log_set_out(1);
+	gfx_log_info("Detaching self from groufix.");
 
 	_gfx_destroy_local();
 }

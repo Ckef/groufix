@@ -324,8 +324,8 @@ typedef struct _GFXWindow
 #else
 		atomic_int     recreate;
 #endif
-		size_t         rWidth;  // Future width;
-		size_t         rHeight; // Future height;
+		size_t         rWidth;  // Future width.
+		size_t         rHeight; // Future height.
 		GFXWindowFlags flags;   // Determines number of images.
 		_GFXMutex      lock;
 

@@ -29,6 +29,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 
 	// If there are passes we are going to destroy,
 	// we first have to wait until all pending rendering is done.
+	// TODO: Use a fence instead?
 	if (renderer->graph.passes.size > 0)
 	{
 		_gfx_mutex_lock(renderer->graphics.lock);
@@ -67,6 +68,7 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 
 		// So we destruct all the things before building.
 		// But for that we need to wait until all pending rendering is done.
+		// TODO: Use a fence instead?
 		_gfx_mutex_lock(renderer->graphics.lock);
 		context->vk.QueueWaitIdle(renderer->graphics.queue);
 		_gfx_mutex_unlock(renderer->graphics.lock);

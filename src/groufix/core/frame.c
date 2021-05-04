@@ -83,6 +83,7 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 	if (at->type != _GFX_ATTACH_EMPTY)
 	{
 		// We must wait until pending rendering is done before destroying.
+		// TODO: Use a fence instead?
 		_gfx_mutex_lock(renderer->graphics.lock);
 		context->vk.QueueWaitIdle(renderer->graphics.queue);
 		_gfx_mutex_unlock(renderer->graphics.lock);
@@ -151,6 +152,7 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 		{
 			// If it exists, reset it.
 			// But first wait until all pending rendering is done.
+			// TODO: Use a fence instead?
 			_gfx_mutex_lock(renderer->graphics.lock);
 			context->vk.QueueWaitIdle(renderer->graphics.queue);
 			_gfx_mutex_unlock(renderer->graphics.lock);

@@ -55,7 +55,10 @@ static inline const void* gfx_tree_key(GFXTree* tree, const void* node)
  * @param keySize Must be > 0.
  * @param cmp     Cannot be NULL.
  *
- * cmp takes two keys and should return -1 if <, 0 if == and 1 if >.
+ * cmp takes two keys, l and r, it should return:
+ *  < 0 if l < r
+ *  > 0 if l > r
+ *  0 if l == r
  */
 GFX_API void gfx_tree_init(GFXTree* tree, size_t keySize,
                            int (*cmp)(const void*, const void*));
@@ -72,7 +75,7 @@ GFX_API void gfx_tree_clear(GFXTree* tree);
  * @param elemSize Can be 0 for a truly empty node.
  * @param elem     Can be NULL for an empty node.
  * @param key      Cannot be NULL.
- * @return The inserted node (modifiable element data), NULL when out of memory.
+ * @return The inserted node (constant address), NULL when out of memory.
  */
 GFX_API void* gfx_tree_insert(GFXTree* tree, size_t elemSize, const void* elem,
                               const void* key);
@@ -81,7 +84,7 @@ GFX_API void* gfx_tree_insert(GFXTree* tree, size_t elemSize, const void* elem,
  * Searches for a node in the tree.
  * @param tree Cannot be NULL.
  * @param key  Cannot be NULL.
- * @return The found node (modifiable element data), NULL if no match found.
+ * @return The found node, NULL if no match found.
  *
  * When duplicates exist, the returned node depends on matchType:
  *  MATCH_STRICT or MATCH_RIGHT
