@@ -11,7 +11,21 @@
 #define _GFX_CORE_OBJECTS_H
 
 #include "groufix/containers/vec.h"
+#include "groufix/core/mem.h"
 #include "groufix/core.h"
+
+
+/****************************
+ * Memory objects.
+ ****************************/
+
+/**
+ * Internal heap.
+ */
+struct GFXHeap
+{
+	_GFXAllocator allocator;
+};
 
 
 /****************************

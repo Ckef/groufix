@@ -119,6 +119,7 @@
 typedef struct
 {
 	GFXWindow*   window;
+	GFXHeap*     heap;
 	GFXRenderer* renderer; // Window is attached at index 0.
 
 } TestBase;
@@ -196,6 +197,7 @@ static void _test_key_release(GFXWindow* window,
 static void _test_clear(void)
 {
 	gfx_destroy_renderer(_test_base.renderer);
+	gfx_destroy_heap(_test_base.heap);
 	gfx_destroy_window(_test_base.window);
 	gfx_terminate();
 
@@ -261,6 +263,11 @@ static void _test_init(void)
 		NULL, NULL, (GFXVideoMode){ .width = 600, .height = 400 }, "groufix");
 
 	if (_test_base.window == NULL)
+		TEST_FAIL();
+
+	// Create a heap.
+	_test_base.heap = gfx_create_heap(NULL);
+	if (_test_base.heap == NULL)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_EVENT_HANDLERS)

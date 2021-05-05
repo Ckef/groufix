@@ -11,6 +11,7 @@
 #define GROUFIX_H
 
 #include "groufix/core/device.h"
+#include "groufix/core/heap.h"
 #include "groufix/core/keys.h"
 #include "groufix/core/log.h"
 #include "groufix/core/renderer.h"

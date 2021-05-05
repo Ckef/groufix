@@ -48,7 +48,6 @@ typedef struct GFXShader GFXShader;
 /**
  * Creates a shader.
  * @param device NULL is equivalent to gfx_get_primary_device().
- * @param src    Source string, cannot be NULL, must be NULL-terminated.
  * @return NULL on failure.
  */
 GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device);
