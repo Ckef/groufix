@@ -13,21 +13,29 @@
 /****************************/
 GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 {
+	_GFXDevice* dev;
+	_GFXContext* con;
+
 	// Allocate a new heap.
 	GFXHeap* heap = malloc(sizeof(GFXHeap));
-	if (heap == NULL)
-	{
-		gfx_log_error("Could not create a new heap.");
-		return NULL;
-	}
+	if (heap == NULL) goto clean;
 
-	// Init things, get device to init the allocator with.
-	_GFXDevice* dev;
+	// Init things, get context associated with device,
+	// this is necessary to init the allocator with, which assumes a context.
 	_GFX_GET_DEVICE(dev, device);
+	_GFX_GET_CONTEXT(con, device, goto clean);
 
 	_gfx_allocator_init(&heap->allocator, dev);
 
 	return heap;
+
+
+	// Clean on failure.
+clean:
+	gfx_log_error("Could not create a new heap.");
+	free(heap);
+
+	return NULL;
 }
 
 /****************************/
