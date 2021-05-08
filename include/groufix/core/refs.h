@@ -14,48 +14,38 @@
 
 
 /**
- * Unified buffer reference.
+ * Unified memory resource reference.
  */
-typedef struct GFXBufferRef
+typedef struct GFXReference
 {
 	// Reference type.
 	enum
 	{
-		GFX_BUFFER_REF,
-		GFX_BUFFER_REF_MESH_VERTICES,
-		GFX_BUFFER_REF_MESH_INDICES
+		GFX_REF_BUFFER,
+		GFX_REF_MESH_VERTICES,
+		GFX_REF_MESH_INDICES,
+		GFX_REF_IMAGE,
+		GFX_REF_ATTACHMENT,
+
+		GFX_REF_EMPTY
 
 	} type;
 
 	// Referenced object, isa GFXBuffer* | GFXMesh*.
 	void* obj;
 
-	// Offset into the buffer.
-	size_t offset;
+	// Reference value, buffer offset | attachment index.
+	size_t value;
 
-} GFXBufferRef;
+} GFXReference;
 
 
 /**
- * Unified image reference.
+ * Empty reference macro (i.e. null reference),
+ * could and should be considered a constant value.
  */
-typedef struct GFXImageRef
-{
-	// Reference type.
-	enum
-	{
-		GFX_IMAGE_REF,
-		GFX_IMAGE_REF_ATTACHMENT
-
-	} type;
-
-	// Referenced object, isa GFXImage* | GFXRenderer*.
-	void* obj;
-
-	// Attachment index.
-	size_t index;
-
-} GFXImageRef;
+#define GFX_REF_NULL \
+	(GFXReference){ .type = GFX_REF_EMPTY }
 
 
 /**
@@ -65,38 +55,38 @@ typedef struct GFXImageRef
  *  GFXImage
  *  GFXRenderer (its image attachments)
  */
-#define gfx_ref_buffer(buffer, off) \
-	(GFXBufferRef){ \
-		.type = GFX_BUFFER_REF, \
+#define gfx_ref_buffer(buffer, offset) \
+	(GFXReference){ \
+		.type = GFX_REF_BUFFER, \
 		.obj = buffer, \
-		.offset = off \
+		.value = offset \
 	}
 
-#define gfx_ref_mesh_vertices(mesh, off) \
-	(GFXBufferRef){ \
-		.type = GFX_BUFFER_REF_MESH_VERTICES, \
+#define gfx_ref_mesh_vertices(mesh, offset) \
+	(GFXReference){ \
+		.type = GFX_REF_MESH_VERTICES, \
 		.obj = mesh, \
-		.offset = off \
+		.value = offset \
 	}
 
-#define gfx_ref_mesh_indices(mesh, off) \
-	(GFXBufferRef){ \
-		.type = GFX_BUFFER_REF_MESH_INDICES, \
+#define gfx_ref_mesh_indices(mesh, offset) \
+	(GFXReference){ \
+		.type = GFX_REF_MESH_INDICES, \
 		.obj = mesh, \
-		.offset = off \
+		.value = offset \
 	}
 
 #define gfx_ref_image(image) \
-	(GFXImageRef){ \
-		.type = GFX_IMAGE_REF, \
+	(GFXReference){ \
+		.type = GFX_REF_IMAGE, \
 		.obj = image, \
 	}
 
-#define gfx_ref_attachment(renderer, ind) \
-	(GFXImageRef){ \
-		.type = GFX_IMAGE_REF_ATTACHMENT, \
+#define gfx_ref_attachment(renderer, index) \
+	(GFXReference){ \
+		.type = GFX_REF_ATTACHMENT, \
 		.obj = renderer, \
-		.index = ind \
+		.value = index \
 	}
 
 
