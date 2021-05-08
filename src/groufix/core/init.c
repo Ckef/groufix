@@ -12,7 +12,11 @@
 
 
 /****************************/
-_GFXState _groufix = { .initialized = 0, .logDef = GFX_LOG_DEFAULT };
+_GFXState _groufix =
+{
+	.initialized = 0,
+	.logDef = GFX_LOG_DEFAULT
+};
 
 
 /****************************/
