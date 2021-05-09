@@ -27,7 +27,7 @@ typedef enum GFXSizeClass
 
 
 /**
- * Attachment description (of renderer).
+ * Attachment description.
  */
 typedef struct GFXAttachment
 {

@@ -11,6 +11,7 @@
 #define GFX_CORE_HEAP_H
 
 #include "groufix/core/device.h"
+#include "groufix/core/refs.h"
 
 
 /**
@@ -22,7 +23,13 @@ typedef struct GFXHeap GFXHeap;
 /**
  * Mesh (geometry) definition.
  */
-typedef struct GFXMesh GFXMesh;
+typedef struct GFXMesh
+{
+	// Read-only.
+	size_t sizeVertices; // Vertex buffer size.
+	size_t sizeIndices;  // Index buffer size.
+
+} GFXMesh;
 
 
 /**
@@ -30,6 +37,7 @@ typedef struct GFXMesh GFXMesh;
  */
 typedef struct GFXBuffer
 {
+	// Read-only.
 	size_t size;
 
 } GFXBuffer;
@@ -40,6 +48,7 @@ typedef struct GFXBuffer
  */
 typedef struct GFXImage
 {
+	// Read-only.
 	size_t width;
 	size_t height;
 	size_t depth;

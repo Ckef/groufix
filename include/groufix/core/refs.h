@@ -31,13 +31,28 @@ typedef struct GFXReference
 
 	} type;
 
-	// Referenced object, isa GFXBuffer* | GFXMesh*.
+
+	// Referenced object, isa
+	//  GFXBuffer* | GFXMesh* | GFXImage* | GFXRenderer*.
 	void* obj;
 
-	// Reference value, buffer offset | attachment index.
+	// Reference value,
+	//  buffer offset | attachment index.
 	size_t value;
 
 } GFXReference;
+
+
+/**
+ * Unified buffer reference.
+ */
+typedef GFXReference GFXBufferRef;
+
+
+/**
+ * Unified image reference.
+ */
+typedef GFXReference GFXImageRef;
 
 
 /**
@@ -56,34 +71,34 @@ typedef struct GFXReference
  *  GFXRenderer (its image attachments)
  */
 #define gfx_ref_buffer(buffer, offset) \
-	(GFXReference){ \
+	(GFXBufferRef){ \
 		.type = GFX_REF_BUFFER, \
 		.obj = buffer, \
 		.value = offset \
 	}
 
 #define gfx_ref_mesh_vertices(mesh, offset) \
-	(GFXReference){ \
+	(GFXBufferRef){ \
 		.type = GFX_REF_MESH_VERTICES, \
 		.obj = mesh, \
 		.value = offset \
 	}
 
 #define gfx_ref_mesh_indices(mesh, offset) \
-	(GFXReference){ \
+	(GFXBufferRef){ \
 		.type = GFX_REF_MESH_INDICES, \
 		.obj = mesh, \
 		.value = offset \
 	}
 
 #define gfx_ref_image(image) \
-	(GFXReference){ \
+	(GFXImageRef){ \
 		.type = GFX_REF_IMAGE, \
 		.obj = image, \
 	}
 
 #define gfx_ref_attachment(renderer, index) \
-	(GFXReference){ \
+	(GFXImageRef){ \
 		.type = GFX_REF_ATTACHMENT, \
 		.obj = renderer, \
 		.value = index \
