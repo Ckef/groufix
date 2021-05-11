@@ -40,10 +40,9 @@ typedef struct _GFXBuffer
 {
 	GFXBuffer   base;
 	GFXListNode list;
-	GFXHeap*    heap;
 
-	VkBufferUsageFlags usage;
-	_GFXMemAlloc       alloc;
+	GFXHeap*     heap;
+	_GFXMemAlloc alloc;
 
 
 	// Vulkan fields.
@@ -64,8 +63,8 @@ typedef struct _GFXImage
 {
 	GFXImage    base;
 	GFXListNode list;
-	GFXHeap*    heap;
 
+	GFXHeap*     heap;
 	_GFXMemAlloc alloc;
 
 
@@ -85,17 +84,16 @@ typedef struct _GFXImage
 typedef struct _GFXMesh
 {
 	GFXMesh    base;
-	size_t     stride; // i.e. vertex size in bytes.
 	_GFXBuffer buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
 
-	// Referenced buffers, can be GFX_REF_NULL.
-	GFXBufferRef refVertex;
-	GFXBufferRef refIndex;
+	GFXBufferRef refVertex; // Can be GFX_REF_NULL.
+	GFXBufferRef refIndex;  // Can be GFX_REF_NULL.
 
-	// Vertex attributes.
-	// TODO: Add format to attributes?
+	size_t stride; // i.e. vertex size in bytes.
+	size_t indexSize;
+
 	size_t numAttribs;
-	size_t offsets[];
+	size_t offsets[]; // TODO: Add format to attributes?
 
 } _GFXMesh;
 
@@ -160,7 +158,7 @@ typedef struct _GFXWindowAttach
 	struct
 	{
 		GFXVec        views; // Stores VkImageView, on-swapchain recreate.
-		VkCommandPool pool;
+		VkCommandPool pool;  // TODO: Temporary?
 
 	} vk;
 
@@ -259,6 +257,7 @@ struct GFXRenderPass
 	// Vulkan fields.
 	struct
 	{
+		// TODO: Most of these are temporary..
 		VkRenderPass     pass;
 		VkPipelineLayout layout;
 		VkPipeline       pipeline;
@@ -389,6 +388,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 void _gfx_destroy_render_pass(GFXRenderPass* pass);
 
 /**
+ * TODO: Currently it builds a lot, this will be offloaded to different objects.
  * TODO: Merge passes with the same resolution into subpasses.
  * (Re)builds the Vulkan object structure.
  * @param pass  Cannot be NULL.

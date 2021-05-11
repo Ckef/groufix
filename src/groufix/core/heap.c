@@ -62,9 +62,11 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 		return;
 
 	// Free all things.
-	// TODO: Free images.
 	while (heap->buffers.head != NULL) gfx_free_buffer(
 		(GFXBuffer*)_GFX_BUFFER_FROM_LIST(heap->buffers.head));
+
+	while (heap->images.head != NULL) gfx_free_image(
+		(GFXImage*)_GFX_IMAGE_FROM_LIST(heap->images.head));
 
 	while (heap->meshes.head != NULL) gfx_free_mesh(
 		(GFXMesh*)_GFX_MESH_FROM_LIST(heap->meshes.head));
@@ -79,9 +81,11 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 }
 
 /****************************/
-GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, size_t size)
+GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferUsage usage,
+                                    size_t size)
 {
 	assert(heap != NULL);
+	assert(usage != 0);
 	assert(size > 0);
 
 	// TODO: Implement.
@@ -99,19 +103,47 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 }
 
 /****************************/
-GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
+GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap, GFXImageUsage usage,
+                                  size_t width, size_t height, size_t depth)
+{
+	assert(heap != NULL);
+	assert(usage != 0);
+	assert(width > 0);
+	assert(height > 0);
+	assert(depth > 0);
+
+	// TODO: Implement.
+
+	return NULL;
+}
+
+/****************************/
+GFX_API void gfx_free_image(GFXImage* image)
+{
+	if (image == NULL)
+		return;
+
+	// TODO: Implement.
+}
+
+/****************************/
+GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
-                                size_t sizeVertices, size_t sizeIndices,
-                                size_t stride,
+                                size_t numVertices, size_t stride,
+                                size_t numIndicies, size_t indexSize,
                                 size_t numAttribs, size_t* offsets)
 {
 	assert(heap != NULL);
 	assert(GFX_REF_IS_NULL(vertex) || GFX_REF_IS_BUFFER(vertex));
 	assert(GFX_REF_IS_NULL(index) || GFX_REF_IS_BUFFER(index));
-	assert(sizeVertices > 0);
+	assert(numVertices > 0);
 	assert(stride > 0);
+	assert(indexSize == 0 || indexSize == sizeof(uint16_t) || indexSize == sizeof(uint32_t));
 	assert(numAttribs > 0);
 	assert(offsets != NULL);
+
+	// We'll always be using it as vertex & index buffer.
+	usage |= GFX_USAGE_VERTEX_BUFFER | GFX_USAGE_INDEX_BUFFER;
 
 	// TODO: Implement.
 
