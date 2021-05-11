@@ -56,11 +56,22 @@ typedef GFXReference GFXImageRef;
 
 
 /**
- * Empty reference macro (i.e. null reference),
- * could and should be considered a constant value.
+ * Empty reference macro (i.e. null reference) & type checkers.
  */
 #define GFX_REF_NULL \
 	(GFXReference){ .type = GFX_REF_EMPTY }
+
+#define GFX_REF_IS_NULL(ref) \
+	(ref.type == GFX_REF_EMPTY)
+
+#define GFX_REF_IS_BUFFER(ref) \
+	(ref.type == GFX_REF_BUFFER || \
+	ref.type == GFX_REF_MESH_VERTICES || \
+	ref.type == GFX_REF_MESH_INDICES)
+
+#define GFX_REF_IS_IMAGE(ref) \
+	(ref.type == GFX_REF_IMAGE || \
+	ref.type == GFX_REF_ATTACHMENT)
 
 
 /**

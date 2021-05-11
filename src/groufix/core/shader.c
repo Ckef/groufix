@@ -69,9 +69,10 @@
 static int _gfx_shader_build(GFXShader* shader,
                              size_t size, const uint32_t* code)
 {
+	static_assert(sizeof(uint32_t) == 4); // Has to be according to Vulkan.
+
 	assert(shader != NULL);
 	assert(shader->vk.module == VK_NULL_HANDLE);
-	assert(sizeof(uint32_t) == 4); // Has to be according to Vulkan.
 	assert(size % sizeof(uint32_t) == 0);
 
 	_GFXContext* context = shader->context;

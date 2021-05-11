@@ -10,6 +10,7 @@
 #ifndef _GFX_CORE_OBJECTS_H
 #define _GFX_CORE_OBJECTS_H
 
+#include "groufix/containers/list.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/mem.h"
 #include "groufix/core.h"
@@ -25,7 +26,78 @@
 struct GFXHeap
 {
 	_GFXAllocator allocator;
+
+	GFXList buffers; // References _GFXBuffer.
+	GFXList images;  // References _GFXImage.
+	GFXList meshes;  // References _GFXMesh.
 };
+
+
+/**
+ * Internal buffer.
+ */
+typedef struct _GFXBuffer
+{
+	GFXBuffer   base;
+	GFXListNode list;
+	GFXHeap*    heap;
+
+	VkBufferUsageFlags usage;
+	_GFXMemAlloc       alloc;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkBuffer buffer;
+
+	} vk;
+
+} _GFXBuffer;
+
+
+/**
+ * TODO: Incomplete definition.
+ * Internal image.
+ */
+typedef struct _GFXImage
+{
+	GFXImage    base;
+	GFXListNode list;
+	GFXHeap*    heap;
+
+	_GFXMemAlloc alloc;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkImage image;
+
+	} vk;
+
+} _GFXImage;
+
+
+/**
+ * Internal mesh (superset of buffer).
+ */
+typedef struct _GFXMesh
+{
+	GFXMesh    base;
+	size_t     stride; // i.e. vertex size in bytes.
+	_GFXBuffer buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
+
+	// Referenced buffers, can be GFX_REF_NULL.
+	GFXBufferRef refVertex;
+	GFXBufferRef refIndex;
+
+	// Vertex attributes.
+	// TODO: Add format to attributes?
+	size_t numAttribs;
+	size_t offsets[];
+
+} _GFXMesh;
 
 
 /****************************

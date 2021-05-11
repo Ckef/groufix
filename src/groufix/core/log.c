@@ -101,6 +101,11 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 
 	va_list args;
 
+	// If file contains 'groufix' in it, only print it from there.
+	// Makes the logs a little less bulky, cheeky but nice :)
+	const char* f = strstr(file, "groufix");
+	file = (f == NULL) ? file : f;
+
 	// So we get seconds that the CPU has spent on this program...
 	// We calculate it here so stderr and the file record the same time.
 	double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
