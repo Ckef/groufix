@@ -489,11 +489,13 @@ static void _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(AllocateCommandBuffers);
 		_GFX_GET_DEVICE_PROC_ADDR(AllocateMemory);
+		_GFX_GET_DEVICE_PROC_ADDR(BindBufferMemory);
 		_GFX_GET_DEVICE_PROC_ADDR(BeginCommandBuffer);
 		_GFX_GET_DEVICE_PROC_ADDR(CmdBeginRenderPass);
 		_GFX_GET_DEVICE_PROC_ADDR(CmdBindPipeline);
 		_GFX_GET_DEVICE_PROC_ADDR(CmdDraw);
 		_GFX_GET_DEVICE_PROC_ADDR(CmdEndRenderPass);
+		_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateFence);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateFramebuffer);
@@ -504,6 +506,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(CreateSemaphore);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateShaderModule);
 		_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
+		_GFX_GET_DEVICE_PROC_ADDR(DestroyBuffer);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyCommandPool);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyFence);
 		_GFX_GET_DEVICE_PROC_ADDR(DestroyFramebuffer);
@@ -518,6 +521,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		_GFX_GET_DEVICE_PROC_ADDR(EndCommandBuffer);
 		_GFX_GET_DEVICE_PROC_ADDR(FreeCommandBuffers);
 		_GFX_GET_DEVICE_PROC_ADDR(FreeMemory);
+		_GFX_GET_DEVICE_PROC_ADDR(GetBufferMemoryRequirements);
 		_GFX_GET_DEVICE_PROC_ADDR(GetDeviceQueue);
 		_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
 		_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);

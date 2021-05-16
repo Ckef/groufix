@@ -150,7 +150,7 @@ GFX_API void gfx_free_image(GFXImage* image);
 GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 size_t numVertices, size_t stride,
-                                size_t numIndicies, size_t indexSize,
+                                size_t numIndices, size_t indexSize,
                                 size_t numAttribs, size_t* offsets);
 
 /**

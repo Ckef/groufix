@@ -11,12 +11,12 @@
 #include <stdlib.h>
 
 
-// Maximum size for a heap to be considered 'small' (2 GiB).
+// Maximum size for a heap to be considered 'small' (1 GiB).
 // If a heap is 'small', blocks will be the size of the heap divided by 8.
-#define _GFX_MAX_SMALL_HEAP_SIZE (2048ull * 1024 * 1024)
+#define _GFX_MAX_SMALL_HEAP_SIZE (1024ull * 1024 * 1024)
 
 // Preferred memory block size of a 'large' heap (256 MiB).
-#define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 2014)
+#define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 1024)
 
 
 // Get the size of a key (is an lvalue).
@@ -165,7 +165,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	// If the allocation failed, we try again at 1/2, 1/4 and 1/8 of the size.
 	// During the process we keep track of the actual allocated size.
 	_GFXMemBlock* block = malloc(sizeof(_GFXMemBlock));
-	if (block == NULL) goto error;
+	if (block == NULL) goto clean;
 
 	for (unsigned int i = 0; 1; ++i) // Note: condition is always true!
 	{
@@ -227,9 +227,11 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	gfx_log_debug(
 		"New Vulkan memory object allocated:\n"
 		"    Memory block size: %llu bytes.\n"
-		"    Preferred block size: %llu bytes.\n",
+		"    Preferred block size: %llu bytes.\n"
+		"    Memory heap size: %llu bytes.\n",
 		(unsigned long long)blockSize,
-		(unsigned long long)prefBlockSize);
+		(unsigned long long)prefBlockSize,
+		(unsigned long long)heapSize);
 
 	// Finally link the block into the allocator.
 	gfx_list_insert_after(&alloc->free, &block->list, NULL);
@@ -239,11 +241,11 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 
 	// Cleanup on failure.
 clean:
-	free(block);
-error:
 	gfx_log_error(
 		"Could not allocate a new Vulkan memory object of %llu bytes.",
 		(unsigned long long)blockSize);
+
+	free(block);
 
 	return NULL;
 }
@@ -545,8 +547,10 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// Weeee!
 	gfx_log_debug(
 		"New dedicated Vulkan memory object allocated:\n"
-		"    Memory block size: %llu bytes.\n",
-		(unsigned long long)reqs.size);
+		"    Memory block size: %llu bytes.\n"
+		"    Memory heap size: %llu bytes.\n",
+		(unsigned long long)reqs.size,
+		(unsigned long long)heapSize);
 
 	return 1;
 

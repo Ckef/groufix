@@ -189,10 +189,12 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(AllocateCommandBuffers);
 		_GFX_VK_PFN(AllocateMemory);
 		_GFX_VK_PFN(BeginCommandBuffer);
+		_GFX_VK_PFN(BindBufferMemory);
 		_GFX_VK_PFN(CmdBeginRenderPass);
 		_GFX_VK_PFN(CmdBindPipeline);
 		_GFX_VK_PFN(CmdDraw);
 		_GFX_VK_PFN(CmdEndRenderPass);
+		_GFX_VK_PFN(CreateBuffer);
 		_GFX_VK_PFN(CreateCommandPool);
 		_GFX_VK_PFN(CreateFence);
 		_GFX_VK_PFN(CreateFramebuffer);
@@ -203,6 +205,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CreateSemaphore);
 		_GFX_VK_PFN(CreateShaderModule);
 		_GFX_VK_PFN(CreateSwapchainKHR);
+		_GFX_VK_PFN(DestroyBuffer);
 		_GFX_VK_PFN(DestroyCommandPool);
 		_GFX_VK_PFN(DestroyDevice);
 		_GFX_VK_PFN(DestroyFence);
@@ -218,6 +221,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(EndCommandBuffer);
 		_GFX_VK_PFN(FreeCommandBuffers);
 		_GFX_VK_PFN(FreeMemory);
+		_GFX_VK_PFN(GetBufferMemoryRequirements);
 		_GFX_VK_PFN(GetDeviceQueue);
 		_GFX_VK_PFN(GetSwapchainImagesKHR);
 		_GFX_VK_PFN(QueuePresentKHR);

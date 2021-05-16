@@ -25,6 +25,7 @@
  */
 struct GFXHeap
 {
+	_GFXContext*  context;
 	_GFXAllocator allocator;
 
 	GFXList buffers; // References _GFXBuffer.
@@ -39,9 +40,9 @@ struct GFXHeap
 typedef struct _GFXBuffer
 {
 	GFXBuffer   base;
+	GFXHeap*    heap;
 	GFXListNode list;
 
-	GFXHeap*     heap;
 	_GFXMemAlloc alloc;
 
 
@@ -62,9 +63,9 @@ typedef struct _GFXBuffer
 typedef struct _GFXImage
 {
 	GFXImage    base;
+	GFXHeap*    heap;
 	GFXListNode list;
 
-	GFXHeap*     heap;
 	_GFXMemAlloc alloc;
 
 
