@@ -23,24 +23,24 @@
 #define _GFX_MESH_FROM_LIST(node) \
 	_GFX_MESH_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
 
-#define _GFX_GET_VK_BUFFER_USAGE(usage) \
-	((usage & GFX_USAGE_VERTEX_BUFFER ? \
+#define _GFX_GET_VK_BUFFER_USAGE(flags) \
+	((flags & GFX_BUFFER_VERTEX ? \
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_USAGE_INDEX_BUFFER ? \
+	(flags & GFX_BUFFER_INDEX ? \
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_USAGE_UNIFORM_BUFFER ? \
+	(flags & GFX_BUFFER_UNIFORM ? \
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_USAGE_STORAGE_BUFFER ? \
+	(flags & GFX_BUFFER_STORAGE ? \
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_USAGE_UNIFORM_TEXEL_BUFFER ? \
+	(flags & GFX_BUFFER_UNIFORM_TEXEL ? \
 		VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_USAGE_STORAGE_TEXEL_BUFFER ? \
+	(flags & GFX_BUFFER_STORAGE_TEXEL ? \
 		VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT : (VkBufferUsageFlags)0))
 
-#define _GFX_GET_VK_IMAGE_USAGE(usage) \
-	((usage & GFX_USAGE_SAMPLED_IMAGE ? \
+#define _GFX_GET_VK_IMAGE_USAGE(flags) \
+	((flags & GFX_IMAGE_SAMPLED ? \
 		VK_IMAGE_USAGE_SAMPLED_BIT : (VkImageUsageFlags)0) | \
-	(usage & GFX_USAGE_STORAGE_IMAGE ? \
+	(flags & GFX_IMAGE_STORAGE ? \
 		VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlags)0))
 
 
@@ -99,11 +99,11 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 }
 
 /****************************/
-GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferUsage usage,
+GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferFlags flags,
                                     size_t size)
 {
 	assert(heap != NULL);
-	assert(usage != 0);
+	assert(flags != 0);
 	assert(size > 0);
 
 	_GFXContext* context = heap->context;
@@ -112,7 +112,7 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferUsage usage,
 	_GFXBuffer* buffer = malloc(sizeof(_GFXBuffer));
 	if (buffer == NULL) goto clean;
 
-	buffer->base.usage = usage;
+	buffer->base.flags = flags;
 	buffer->base.size = size;
 	buffer->heap = heap;
 
@@ -123,7 +123,7 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferUsage usage,
 		.pNext                 = NULL,
 		.flags                 = 0,
 		.size                  = (VkDeviceSize)size,
-		.usage                 = _GFX_GET_VK_BUFFER_USAGE(usage),
+		.usage                 = _GFX_GET_VK_BUFFER_USAGE(flags),
 		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 0,
 		.pQueueFamilyIndices   = NULL
@@ -201,11 +201,11 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 }
 
 /****************************/
-GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap, GFXImageUsage usage,
+GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap, GFXImageFlags flags,
                                   size_t width, size_t height, size_t depth)
 {
 	assert(heap != NULL);
-	assert(usage != 0);
+	assert(flags != 0);
 	assert(width > 0);
 	assert(height > 0);
 	assert(depth > 0);
@@ -225,7 +225,7 @@ GFX_API void gfx_free_image(GFXImage* image)
 }
 
 /****************************/
-GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferUsage usage,
+GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 size_t numVertices, size_t stride,
                                 size_t numIndices, size_t indexSize,
@@ -241,9 +241,9 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferUsage usage,
 	assert(offsets != NULL);
 
 	// We'll always be using it as vertex & index buffer.
-	usage |=
-		GFX_USAGE_VERTEX_BUFFER |
-		(numIndices > 0 ? GFX_USAGE_INDEX_BUFFER : (GFXBufferUsage)0);
+	flags |=
+		GFX_BUFFER_VERTEX |
+		(numIndices > 0 ? GFX_BUFFER_INDEX : (GFXBufferFlags)0);
 
 	// TODO: Implement.
 
