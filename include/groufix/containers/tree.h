@@ -11,7 +11,6 @@
 #define GFX_CONTAINERS_TREE_H
 
 #include "groufix/def.h"
-#include <stddef.h>
 
 
 /**

@@ -265,15 +265,15 @@ static void _test_init(void)
 	if (_test_base.window == NULL)
 		TEST_FAIL();
 
-	// Create a heap.
-	_test_base.heap = gfx_create_heap(NULL);
-	if (_test_base.heap == NULL)
-		TEST_FAIL();
-
 #if !defined (TEST_SKIP_EVENT_HANDLERS)
 	// Register the default key release event.
 	_test_base.window->events.key.release = _test_key_release;
 #endif
+
+	// Create a heap.
+	_test_base.heap = gfx_create_heap(NULL);
+	if (_test_base.heap == NULL)
+		TEST_FAIL();
 
 	// Create a renderer and attach the window at index 0.
 	_test_base.renderer = gfx_create_renderer(NULL);

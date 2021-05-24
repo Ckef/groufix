@@ -74,6 +74,7 @@ GFX_API int gfx_init(void)
 
 	return 1;
 
+
 	// Cleanup on failure.
 terminate:
 	gfx_log_fatal("Could not initialize the engine.");

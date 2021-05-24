@@ -11,7 +11,6 @@
 #define GFX_CONTAINERS_VEC_H
 
 #include "groufix/def.h"
-#include <stddef.h>
 
 
 /**

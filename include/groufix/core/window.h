@@ -13,7 +13,6 @@
 #include "groufix/core/device.h"
 #include "groufix/core/keys.h"
 #include "groufix/def.h"
-#include <stddef.h>
 #include <uchar.h>
 
 

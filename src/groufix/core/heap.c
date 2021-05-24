@@ -9,6 +9,7 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 #define _GFX_BUFFER_FROM_LIST(node) \
@@ -43,6 +44,155 @@
 	(flags & GFX_IMAGE_STORAGE ? \
 		VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlags)0))
 
+
+/****************************
+ * Resolves a unified memory reference, meaning:
+ * if it references a reference, it will recursively return that reference.
+ * @return A reference to the object actually holding the memory.
+ *
+ * Assumes no self-references exist!
+ */
+static GFXReference _gfx_ref_resolve(GFXReference ref)
+{
+	// Potential recursive reference.
+	GFXReference rec = GFX_REF_NULL;
+
+	// Retrieve recursive reference.
+	// Modify the reference's 'index' value as appropriate.
+	switch (ref.type)
+	{
+	case GFX_REF_MESH_VERTICES:
+		rec = ((_GFXMesh*)ref.obj)->refVertex;
+		rec.value += ref.value;
+		break;
+
+	case GFX_REF_MESH_INDICES:
+		rec = ((_GFXMesh*)ref.obj)->refIndex;
+		rec.value += ref.value;
+		break;
+
+	default:
+		break;
+	}
+
+	// Recursively resolve.
+	if (GFX_REF_IS_NULL(rec))
+		return ref;
+	else
+		return _gfx_ref_resolve(rec);
+}
+
+/****************************
+ * Retrieves a pointer to the _GFXBuffer object referenced by any reference.
+ * @return NULL if no such buffer object is referenced.
+ *
+ * Does NOT recursively resolve, only looks at the object directly referenced!
+ */
+static _GFXBuffer* _gfx_ref_get_buffer(GFXReference ref)
+{
+	switch (ref.type)
+	{
+	case GFX_REF_BUFFER:
+		return (_GFXBuffer*)ref.obj;
+
+	case GFX_REF_MESH_VERTICES:
+	case GFX_REF_MESH_INDICES:
+		return &((_GFXMesh*)ref.obj)->buffer;
+
+	default:
+		return NULL;
+	}
+}
+
+/****************************
+ * Populates the `vk.buffer` and `alloc` fields of a _GFXBuffer object,
+ * allocating a new Vulkan buffer in the process.
+ * @param buffer Cannot be NULL.
+ * @return Zero on failure.
+ *
+ * The `base` and `heap` fields of buffer must be properly initialized,
+ * these values are read for the allocation!
+ */
+static int _gfx_buffer_alloc(_GFXBuffer* buffer)
+{
+	assert(buffer != NULL);
+
+	GFXHeap* heap = buffer->heap;
+	_GFXContext* context = heap->context;
+
+	// Create a new Vulkan buffer.
+	VkBufferCreateInfo bci = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+
+		.pNext                 = NULL,
+		.flags                 = 0,
+		.size                  = (VkDeviceSize)buffer->base.size,
+		.usage                 = _GFX_GET_VK_BUFFER_USAGE(buffer->base.flags),
+		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices   = NULL
+	};
+
+	_GFX_VK_CHECK(context->vk.CreateBuffer(
+		context->vk.device, &bci, NULL, &buffer->vk.buffer), return 0);
+
+	// Allocate memory for it.
+	// TODO: Query whether the buffer prefers a dedicated allocation?
+	VkMemoryRequirements reqs;
+	context->vk.GetBufferMemoryRequirements(
+		context->vk.device, buffer->vk.buffer, &reqs);
+
+	// TODO: Other memory property flags, e.g. device local + staging.
+	if (!_gfx_alloc(&heap->allocator, &buffer->alloc, 1,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		reqs))
+	{
+		goto clean;
+	}
+
+	// Bind the buffer to the memory.
+	_GFX_VK_CHECK(
+		context->vk.BindBufferMemory(
+			context->vk.device,
+			buffer->vk.buffer,
+			buffer->alloc.vk.memory, buffer->alloc.offset),
+		goto clean_alloc);
+
+	return 1;
+
+
+	// Clean on failure.
+clean_alloc:
+	_gfx_free(&heap->allocator, &buffer->alloc);
+clean:
+	context->vk.DestroyBuffer(
+		context->vk.device, buffer->vk.buffer, NULL);
+
+	return 0;
+}
+
+/****************************
+ * Frees all resources created by _gfx_buffer_alloc.
+ * @param buffer Cannot be NULL.
+ */
+static void _gfx_buffer_free(_GFXBuffer* buffer)
+{
+	assert(buffer != NULL);
+
+	GFXHeap* heap = buffer->heap;
+	_GFXContext* context = heap->context;
+
+	// Destroy Vulkan buffer.
+	context->vk.DestroyBuffer(
+		context->vk.device, buffer->vk.buffer, NULL);
+
+	// Free the memory.
+	_gfx_free(&heap->allocator, &buffer->alloc);
+}
 
 /****************************/
 GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
@@ -106,70 +256,26 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferFlags flags,
 	assert(flags != 0);
 	assert(size > 0);
 
-	_GFXContext* context = heap->context;
-
 	// Allocate a new buffer & initialize.
 	_GFXBuffer* buffer = malloc(sizeof(_GFXBuffer));
-	if (buffer == NULL) goto clean;
+	if (buffer == NULL)
+		goto clean;
 
+	buffer->heap = heap;
 	buffer->base.flags = flags;
 	buffer->base.size = size;
-	buffer->heap = heap;
 
-	// Create a new Vulkan buffer.
-	VkBufferCreateInfo bci = {
-		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+	// Allocate the Vulkan buffer.
+	if (!_gfx_buffer_alloc(buffer))
+		goto clean;
 
-		.pNext                 = NULL,
-		.flags                 = 0,
-		.size                  = (VkDeviceSize)size,
-		.usage                 = _GFX_GET_VK_BUFFER_USAGE(flags),
-		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-		.queueFamilyIndexCount = 0,
-		.pQueueFamilyIndices   = NULL
-	};
-
-	_GFX_VK_CHECK(context->vk.CreateBuffer(
-		context->vk.device, &bci, NULL, &buffer->vk.buffer), goto clean);
-
-	// Allocate memory for it.
-	// TODO: Query whether the buffer prefers a dedicated allocation?
-	VkMemoryRequirements reqs;
-	context->vk.GetBufferMemoryRequirements(
-		context->vk.device, buffer->vk.buffer, &reqs);
-
-	// TODO: Other memory property flags, e.g. device local + staging.
-	if (!_gfx_alloc(&heap->allocator, &buffer->alloc, 1,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		reqs))
-	{
-		goto clean_buffer;
-	}
-
-	// Bind the buffer to the memory.
-	_GFX_VK_CHECK(
-		context->vk.BindBufferMemory(
-			context->vk.device,
-			buffer->vk.buffer,
-			buffer->alloc.vk.memory, buffer->alloc.offset),
-		goto clean_alloc);
-
-	// Finally link into the heap.
+	// Link into the heap.
 	gfx_list_insert_after(&heap->buffers, &buffer->list, NULL);
 
 	return &buffer->base;
 
 
 	// Clean on failure.
-clean_alloc:
-	_gfx_free(&heap->allocator, &buffer->alloc);
-clean_buffer:
-	context->vk.DestroyBuffer(
-		context->vk.device, buffer->vk.buffer, NULL);
 clean:
 	gfx_log_error("Could not allocate a new buffer.");
 	free(buffer);
@@ -185,19 +291,12 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 
 	_GFXBuffer* buff = (_GFXBuffer*)buffer;
 	GFXHeap* heap = buff->heap;
-	_GFXContext* context = heap->context;
 
-	// Unlink from heap.
+	// Unlink from heap & free.
 	gfx_list_erase(&heap->buffers, &buff->list);
+	_gfx_buffer_free(buff);
 
-	// Destroy Vulkan buffer.
-	context->vk.DestroyBuffer(
-		context->vk.device, buff->vk.buffer, NULL);
-
-	// Free the memory.
-	_gfx_free(&heap->allocator, &buff->alloc);
-
-	free(buffer);
+	free(buff);
 }
 
 /****************************/
@@ -240,12 +339,70 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 	assert(numAttribs > 0);
 	assert(offsets != NULL);
 
-	// We'll always be using it as vertex & index buffer.
-	flags |=
-		GFX_BUFFER_VERTEX |
-		(numIndices > 0 ? GFX_BUFFER_INDEX : (GFXBufferFlags)0);
+	// Not using an index buffer...
+	if (numIndices == 0) index = GFX_REF_NULL;
 
-	// TODO: Implement.
+	// Determine whether we allocate a new vertex and/or index buffer.
+	int allocVertex = GFX_REF_IS_NULL(vertex);
+	int allocIndex = GFX_REF_IS_NULL(index) && numIndices > 0;
+
+	// Allocate a new mesh & initialize.
+	_GFXMesh* mesh = malloc(
+		sizeof(_GFXMesh) +
+		sizeof(size_t) * numAttribs);
+
+	if (mesh == NULL)
+		goto clean;
+
+	mesh->base.sizeVertices = numVertices * stride;
+	mesh->base.sizeIndices = numIndices * indexSize;
+
+	mesh->buffer.vk.buffer = VK_NULL_HANDLE; // Important!
+	mesh->buffer.heap = heap;
+	mesh->buffer.base.flags =
+		flags |
+		(allocVertex ? GFX_BUFFER_VERTEX : (GFXBufferFlags)0) |
+		(allocIndex ? GFX_BUFFER_INDEX : (GFXBufferFlags)0);
+	mesh->buffer.base.size =
+		(allocVertex ? mesh->base.sizeVertices : 0) +
+		(allocIndex ? mesh->base.sizeIndices : 0);
+
+	mesh->refVertex = _gfx_ref_resolve(vertex);
+	mesh->refIndex = _gfx_ref_resolve(index);
+
+	mesh->stride = stride;
+	mesh->indexSize = indexSize;
+	mesh->numAttribs = numAttribs;
+
+	if (numAttribs) memcpy(
+		mesh->offsets, offsets, sizeof(size_t) * numAttribs);
+
+	// Get appropriate public flags.
+	_GFXBuffer* vertexBuff = _gfx_ref_get_buffer(mesh->refVertex);
+	_GFXBuffer* indexBuff = _gfx_ref_get_buffer(mesh->refIndex);
+
+	mesh->base.flagsVertex =
+		vertexBuff ? vertexBuff->base.flags :
+		mesh->buffer.base.flags;
+	mesh->base.flagsIndex =
+		indexBuff ? indexBuff->base.flags :
+		(numIndices > 0 ? mesh->buffer.base.flags : 0);
+
+	// Allocate a buffer if required.
+	if (mesh->buffer.base.size > 0)
+		if (!_gfx_buffer_alloc(&mesh->buffer))
+			goto clean;
+
+	// Link into the heap.
+	gfx_list_insert_after(&heap->meshes, &mesh->buffer.list, NULL);
+
+	return &mesh->base;
+
+
+	// Clean on failure.
+clean:
+	gfx_log_error("Could not allocate a new mesh.");
+	free(mesh);
 
 	return NULL;
 }
@@ -256,5 +413,15 @@ GFX_API void gfx_free_mesh(GFXMesh* mesh)
 	if (mesh == NULL)
 		return;
 
-	// TODO: Implement.
+	_GFXMesh* msh = (_GFXMesh*)mesh;
+	GFXHeap* heap = msh->buffer.heap;
+
+	// Unlink from heap.
+	gfx_list_erase(&heap->meshes, &msh->buffer.list);
+
+	// Free buffer & mesh.
+	if (msh->buffer.vk.buffer != VK_NULL_HANDLE)
+		_gfx_buffer_free(&msh->buffer);
+
+	free(msh);
 }

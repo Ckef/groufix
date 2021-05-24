@@ -10,6 +10,9 @@
 #ifndef GFX_DEF_H
 #define GFX_DEF_H
 
+#include <stddef.h>
+#include <stdint.h>
+
 
 /**
  * Identification of the host platform.

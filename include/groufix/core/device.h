@@ -11,7 +11,6 @@
 #define GFX_CORE_DEVICE_H
 
 #include "groufix/def.h"
-#include <stddef.h>
 
 
 /**
