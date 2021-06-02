@@ -342,11 +342,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 	// Not using an index buffer...
 	if (numIndices == 0) index = GFX_REF_NULL;
 
-	// Determine whether we allocate a new vertex and/or index buffer.
-	int allocVertex = GFX_REF_IS_NULL(vertex);
-	int allocIndex = GFX_REF_IS_NULL(index) && numIndices > 0;
-
-	// Allocate a new mesh & initialize.
+	// Allocate a new mesh.
 	_GFXMesh* mesh = malloc(
 		sizeof(_GFXMesh) +
 		sizeof(size_t) * numAttribs);
@@ -354,18 +350,18 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 	if (mesh == NULL)
 		goto clean;
 
+	// First get size of buffers to allocate then init the rest.
 	mesh->base.sizeVertices = numVertices * stride;
 	mesh->base.sizeIndices = numIndices * indexSize;
 
-	mesh->buffer.vk.buffer = VK_NULL_HANDLE; // Important!
 	mesh->buffer.heap = heap;
 	mesh->buffer.base.flags =
 		flags |
-		(allocVertex ? GFX_BUFFER_VERTEX : (GFXBufferFlags)0) |
-		(allocIndex ? GFX_BUFFER_INDEX : (GFXBufferFlags)0);
+		(GFX_REF_IS_NULL(vertex) ? GFX_BUFFER_VERTEX : 0) |
+		(GFX_REF_IS_NULL(index) ? GFX_BUFFER_INDEX : 0);
 	mesh->buffer.base.size =
-		(allocVertex ? mesh->base.sizeVertices : 0) +
-		(allocIndex ? mesh->base.sizeIndices : 0);
+		(GFX_REF_IS_NULL(vertex) ? mesh->base.sizeVertices : 0) +
+		(GFX_REF_IS_NULL(index) ? mesh->base.sizeIndices : 0);
 
 	mesh->refVertex = _gfx_ref_resolve(vertex);
 	mesh->refIndex = _gfx_ref_resolve(index);
@@ -389,6 +385,9 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 		(numIndices > 0 ? mesh->buffer.base.flags : 0);
 
 	// Allocate a buffer if required.
+	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.
+	mesh->buffer.vk.buffer = VK_NULL_HANDLE;
+
 	if (mesh->buffer.base.size > 0)
 		if (!_gfx_buffer_alloc(&mesh->buffer))
 			goto clean;

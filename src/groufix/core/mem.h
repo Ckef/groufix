@@ -63,7 +63,7 @@ typedef struct _GFXMemNode
 typedef struct _GFXMemAlloc
 {
 	_GFXMemNode   node;  // Base-type.
-	_GFXMemBlock* block; // NULL when dedicated.
+	_GFXMemBlock* block;
 
 	VkMemoryPropertyFlags flags; // Actual used flags.
 
@@ -77,7 +77,7 @@ typedef struct _GFXMemAlloc
 	// Vulkan fields.
 	struct
 	{
-		VkDeviceMemory memory; // Redundant if not dedicated (for locality).
+		VkDeviceMemory memory; // Redundant for locality.
 
 	} vk;
 
@@ -93,8 +93,6 @@ typedef struct _GFXAllocator
 
 	GFXList free;   // References _GFXMemBlock.
 	GFXList allocd; // References _GFXMemBlock.
-
-	GFXList dedicated; // References _GFXMemAlloc.
 
 	// Constant, queried once.
 	VkDeviceSize granularity;

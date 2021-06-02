@@ -27,6 +27,10 @@
 #include <GLFW/glfw3.h>
 
 
+// General usefulness.
+#define _GFX_CLAMP(x, l, u) \
+	((x < l) ? l : (x > u) ? u : x);
+
 // Least Vulkan version that must be supported.
 #define _GFX_VK_VERSION VK_MAKE_VERSION(1,1,0)
 

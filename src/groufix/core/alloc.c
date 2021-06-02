@@ -130,18 +130,21 @@ search:
 }
 
 /****************************
+ * TODO: Check against Vulkan's allocation limit?
  * Allocates and initializes a new Vulkan memory 'block' to be subdivided.
  * @param minSize Use to force a minimum allocation (beyond default block sizes).
+ * @param maxSize Use to force a maximum allocation.
  * @return NULL on failure.
+ *
+ * For a dedicated allocation of an exact size, set minSize == maxSize.
+ * If minSize == maxSize, the free root node _WILL NOT_ be inserted.
  */
 static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
-                                          VkDeviceSize minSize)
+                                          VkDeviceSize minSize, VkDeviceSize maxSize)
 {
 	assert(alloc != NULL);
 
 	_GFXContext* context = alloc->context;
-
-	// TODO: Check against Vulkan's allocation limit?
 
 	// Validate that we have enough memory.
 	VkPhysicalDeviceMemoryProperties* pdmp =
@@ -159,7 +162,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		_GFX_DEF_LARGE_HEAP_BLOCK_SIZE;
 
 	VkDeviceSize blockSize =
-		(prefBlockSize < minSize) ? minSize : prefBlockSize;
+		_GFX_CLAMP(prefBlockSize, minSize, maxSize);
 
 	// Allocate handle & actual Vulkan memory object.
 	// If the allocation failed, we try again at 1/2, 1/4 and 1/8 of the size.
@@ -201,40 +204,51 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	}
 
 	// At this point we have memory!
-	// Initialize and insert a single free memory node.
+	// Initialize the block & the list of nodes and free tree.
 	VkDeviceSize key[2] = { blockSize, 0 };
 	block->type = type;
 	block->size = blockSize;
+
 	gfx_tree_init(&block->nodes.free, sizeof(key), _gfx_allocator_cmp);
-
-	_GFXMemNode* node = gfx_tree_insert(
-		&block->nodes.free, sizeof(_GFXMemNode), NULL, key);
-
-	if (node == NULL)
-	{
-		// Ah well..
-		gfx_tree_clear(&block->nodes.free);
-		context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
-
-		goto clean;
-	}
-
-	node->free = 1;
 	gfx_list_init(&block->nodes.list);
-	gfx_list_insert_after(&block->nodes.list, &node->list, NULL);
+
+	// If dedicated, link the block into the allocd list.
+	// As there is no free root node, it will be regarded as full.
+	if (minSize == maxSize)
+		gfx_list_insert_after(&alloc->allocd, &block->list, NULL);
+	else
+	{
+		// If not dedicated however (!), insert a free root node.
+		_GFXMemNode* node = gfx_tree_insert(
+			&block->nodes.free, sizeof(_GFXMemNode), NULL, key);
+
+		if (node == NULL)
+		{
+			// Ah well..
+			gfx_tree_clear(&block->nodes.free);
+			gfx_list_clear(&block->nodes.list);
+			context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+
+			goto clean;
+		}
+
+		node->free = 1;
+		gfx_list_insert_after(&block->nodes.list, &node->list, NULL);
+
+		// And link the block in the free list instead.
+		gfx_list_insert_after(&alloc->free, &block->list, NULL);
+	}
 
 	// Woop woop.
 	gfx_log_debug(
 		"New Vulkan memory object allocated:\n"
-		"    Memory block size: %llu bytes.\n"
+		"    Memory block size: %llu bytes%s.\n"
 		"    Preferred block size: %llu bytes.\n"
 		"    Memory heap size: %llu bytes.\n",
 		(unsigned long long)blockSize,
+		(minSize == maxSize) ? " (dedicated)" : "",
 		(unsigned long long)prefBlockSize,
 		(unsigned long long)heapSize);
-
-	// Finally link the block into the allocator.
-	gfx_list_insert_after(&alloc->free, &block->list, NULL);
 
 	return block;
 
@@ -242,7 +256,8 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	// Cleanup on failure.
 clean:
 	gfx_log_error(
-		"Could not allocate a new Vulkan memory object of %llu bytes.",
+		"Could not allocate a new %sVulkan memory object of %llu bytes.",
+		(minSize == maxSize) ? "(dedicated) " : "",
 		(unsigned long long)blockSize);
 
 	free(block);
@@ -286,7 +301,6 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 	alloc->context = device->context;
 	gfx_list_init(&alloc->free);
 	gfx_list_init(&alloc->allocd);
-	gfx_list_init(&alloc->dedicated);
 
 	VkPhysicalDeviceProperties pdp;
 	_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
@@ -310,13 +324,9 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 	while (alloc->allocd.head != NULL)
 		_gfx_free_mem_block(alloc, (_GFXMemBlock*)alloc->allocd.head);
 
-	while (alloc->dedicated.head != NULL)
-		_gfx_free(alloc, (_GFXMemAlloc*)alloc->dedicated.head);
-
 	// Kind of a no-op, but for consistency.
 	gfx_list_clear(&alloc->free);
 	gfx_list_clear(&alloc->allocd);
-	gfx_list_clear(&alloc->dedicated);
 }
 
 /****************************/
@@ -427,7 +437,10 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 	// Allocate a new memory block.
 	if (block == NULL)
 	{
-		block = _gfx_alloc_mem_block(alloc, type, reqs.size);
+		block = _gfx_alloc_mem_block(alloc, type, reqs.size,
+			reqs.size > _GFX_DEF_LARGE_HEAP_BLOCK_SIZE ?
+			reqs.size : _GFX_DEF_LARGE_HEAP_BLOCK_SIZE);
+
 		if (block == NULL) return 0;
 
 		// There's 1 free node, the entire block, just pick it :)
@@ -448,9 +461,15 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 		.vk     = { .memory = block->vk.memory }
 	};
 
-	gfx_list_insert_before(&block->nodes.list, &mem->node.list, &node->list);
+	gfx_list_insert_before(
+		&block->nodes.list, &mem->node.list,
+		(node == NULL) ? NULL : &node->list);
 
 	// Now fix the free tree and link the allocation in it...
+	// If there was no free root node to begin with, we're done!
+	if (node == NULL)
+		return 1;
+
 	// So we aligned the claimed memory, this means there could be some waste
 	// to the left of it, however we just ignore it and consider it unusable.
 	// However to the right of the memory we might still have a big free block.
@@ -499,69 +518,34 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	assert(reqs.size > 0);
 	assert(reqs.memoryTypeBits != 0);
 
-	_GFXContext* context = alloc->context;
-
-	// TODO: Check against Vulkan's allocation limit?
-
 	// Get memory type index.
 	uint32_t type;
 	_GFX_GET_MEM_TYPE(
 		type, alloc, required, optimal, reqs.memoryTypeBits,
 		return 0);
 
-	// Validate that we have enough memory.
-	VkPhysicalDeviceMemoryProperties* pdmp =
-		&alloc->vk.properties;
-	VkDeviceSize heapSize =
-		pdmp->memoryHeaps[pdmp->memoryTypes[type].heapIndex].size;
+	// Allocate a memory block.
+	// No free root node is inserted by setting minSize == maxSize.
+	_GFXMemBlock* block =
+		_gfx_alloc_mem_block(alloc, type, reqs.size, reqs.size);
 
-	_GFX_VK_HEAP_CHECK(heapSize, reqs.size, return 0);
-
-	// Allocate Vulkan memory object.
-	VkMemoryAllocateInfo mai = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-
-		.pNext           = NULL,
-		.allocationSize  = reqs.size,
-		.memoryTypeIndex = type
-	};
-
-	VkDeviceMemory memory;
-	_GFX_VK_CHECK(context->vk.AllocateMemory(
-		context->vk.device, &mai, NULL, &memory), goto error);
+	if (block == NULL) return 0;
 
 	// Claim memory,
-	// i.e. iutput the allocation data.
+	// i.e. output the allocation data.
 	*mem = (_GFXMemAlloc){
 		.node   = { .free = 0 },
-		.block  = NULL,
-		.flags  = pdmp->memoryTypes[type].propertyFlags,
+		.block  = block,
+		.flags  = alloc->vk.properties.memoryTypes[type].propertyFlags,
 		.size   = reqs.size,
 		.offset = 0,
 		.linear = 0,
-		.vk     = { .memory = memory }
+		.vk     = { .memory = block->vk.memory }
 	};
 
-	gfx_list_insert_after(&alloc->dedicated, &mem->node.list, NULL);
-
-	// Weeee!
-	gfx_log_debug(
-		"New dedicated Vulkan memory object allocated:\n"
-		"    Memory block size: %llu bytes.\n"
-		"    Memory heap size: %llu bytes.\n",
-		(unsigned long long)reqs.size,
-		(unsigned long long)heapSize);
+	gfx_list_insert_before(&block->nodes.list, &mem->node.list, NULL);
 
 	return 1;
-
-
-	// Error on failure.
-error:
-	gfx_log_error(
-		"Could not allocate a new dedicated Vulkan memory object of %llu bytes.",
-		(unsigned long long)reqs.size);
-
-	return 0;
 }
 
 /****************************/
@@ -570,25 +554,10 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	assert(alloc != NULL);
 	assert(mem != NULL);
 
-	_GFXContext* context = alloc->context;
 	_GFXMemBlock* block = mem->block;
 
-	// First the case that this is a dedicated memory block.
-	if (block == NULL)
-	{
-		gfx_list_erase(&alloc->dedicated, &mem->node.list);
-		context->vk.FreeMemory(context->vk.device, mem->vk.memory, NULL);
-
-		gfx_log_debug(
-			"Freed dedicated Vulkan memory object of %llu bytes.",
-			(unsigned long long)mem->size);
-
-		return;
-	}
-
-	// Ok so the case for a normal allocation is much more annoying, we deal
-	// with the list and free tree of memory nodes...
-	// First the weird case that this allocation is the only memory node.
+	// Ok we have to deal with the list of memory nodes and the free tree..
+	// First the case that this allocation is the only memory node.
 	// Just free the memory block.
 	_GFXMemNode* left = (_GFXMemNode*)mem->node.list.prev;
 	_GFXMemNode* right = (_GFXMemNode*)mem->node.list.next;

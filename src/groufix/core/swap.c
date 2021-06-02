@@ -11,11 +11,6 @@
 #include <stdlib.h>
 
 
-// This is just very helpful, love it.
-#define _GFX_CLAMP(x, l, u) \
-	((x < l) ? l : (x > u) ? u : x);
-
-
 /****************************
  * Retrieves whether the GLFW recreate signal was set (and resets the signal).
  * @param window Cannot be NULL.

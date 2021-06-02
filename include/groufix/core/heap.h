@@ -135,16 +135,16 @@ GFX_API void gfx_free_image(GFXImage* image);
 
 /**
  * Allocates a mesh (i.e. a geometry) from a heap.
- * @param heap         Cannot be NULL.
- * @param flags        Added intended 'usage' for any newly allocated buffer.
- * @param vertex       Vertex buffer to use, GFX_REF_NULL to allocate a new one.
- * @param index        Index buffer to use, GFX_REF_NULL to allocate a new one.
- * @param numVertices  Number of vertices to claim, must be > 0.
- * @param stride       Vertex size in bytes, must be > 0.
- * @param numIndices   Number of indices to claim.
- * @param indexSize    Index size, must be 0 or sizeof(uint16_t | uint32_t).
- * @param numAttribs   Number of vertex attributes, must be > 0.
- * @param offsets      Array of numAttribs offsets, in bytes, cannot be NULL.
+ * @param heap        Cannot be NULL.
+ * @param flags       Added intended 'usage' for any newly allocated buffer.
+ * @param vertex      Vertex buffer to use, GFX_REF_NULL to allocate a new one.
+ * @param index       Index buffer to use, GFX_REF_NULL to allocate a new one.
+ * @param numVertices Number of vertices to claim, must be > 0.
+ * @param stride      Vertex size in bytes, must be > 0.
+ * @param numIndices  Number of indices to claim.
+ * @param indexSize   Index size, must be 0 or sizeof(uint16_t | uint32_t).
+ * @param numAttribs  Number of vertex attributes, must be > 0.
+ * @param offsets     Array of numAttribs offsets, in bytes, cannot be NULL.
  * @return NULL on failure.
  */
 GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
