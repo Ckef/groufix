@@ -228,11 +228,13 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(GetBufferMemoryRequirements);
 		_GFX_VK_PFN(GetDeviceQueue);
 		_GFX_VK_PFN(GetSwapchainImagesKHR);
+		_GFX_VK_PFN(MapMemory);
 		_GFX_VK_PFN(QueuePresentKHR);
 		_GFX_VK_PFN(QueueSubmit);
 		_GFX_VK_PFN(QueueWaitIdle);
 		_GFX_VK_PFN(ResetCommandPool);
 		_GFX_VK_PFN(ResetFences);
+		_GFX_VK_PFN(UnmapMemory);
 		_GFX_VK_PFN(WaitForFences);
 
 	} vk;

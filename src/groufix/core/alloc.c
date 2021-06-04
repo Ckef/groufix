@@ -666,19 +666,72 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 }
 
 /****************************/
-void* _gfx_map(_GFXMemAlloc* mem)
+void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 {
+	assert(alloc != NULL);
 	assert(mem != NULL);
+	assert((mem->flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0);
 
-	// TODO: Implement.
+	void* ptr;
+	_GFXMemBlock* block = mem->block;
 
-	return NULL;
+	// Ok so we are going to map entire memory blocks, this way we can
+	// map any allocation in any memory block concurrently, because in reality
+	// there is only 1 mapping, ever.
+	// Lock access to the mapping so the check and the actual mapping of
+	// the Vulkan memory object are in the same atomic operation.
+	_gfx_mutex_lock(&block->map.lock);
+
+	// If the block is not mapped yet, map it.
+	if (block->map.ptr == NULL)
+	{
+		void* vkPtr;
+		_GFXContext* context = alloc->context;
+
+		_GFX_VK_CHECK(
+			context->vk.MapMemory(
+				context->vk.device, block->vk.memory, 0, VK_WHOLE_SIZE, 0,
+				&vkPtr),
+			goto unlock);
+
+		block->map.ptr = vkPtr;
+	}
+
+	// Increase reference count.
+	++block->map.refs;
+
+unlock:
+	// Read the result before unlock just in case it failed,
+	// only when succeeded are we sure we don't write to it anymore.
+	ptr = (block->map.ptr == NULL) ? NULL :
+		(void*)((char*)block->map.ptr + mem->offset);
+
+	_gfx_mutex_unlock(&block->map.lock);
+
+	return ptr;
 }
 
 /****************************/
-void _gfx_unmap(_GFXMemAlloc* mem)
+void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 {
+	assert(alloc != NULL);
 	assert(mem != NULL);
 
-	// TODO: Implement.
+	_GFXMemBlock* block = mem->block;
+
+	// Obviously we lock again so dereferencing and unmapping are atomic.
+	_gfx_mutex_lock(&block->map.lock);
+
+	// Decrease reference count & unmap when we hit 0.
+	// Function is required to be called once for every _gfx_map,
+	// therefore we can assume this is legal.
+	if ((--block->map.refs) == 0)
+	{
+		_GFXContext* context = alloc->context;
+		context->vk.UnmapMemory(context->vk.device, block->vk.memory);
+
+		block->map.ptr = NULL;
+	}
+
+	_gfx_mutex_unlock(&block->map.lock);
 }
