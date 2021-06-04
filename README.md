@@ -65,4 +65,4 @@ Similarly to initializing the engine, any thread that wants to make any _groufix
 
 * _All functions directly related to the window manager of the host platform are thread affine_. These functions can __only__ be called from the main thread. These functions are `gfx_poll_events`, `gfx_wait_events` and all functions defined in `groufix/core/window.h` (these are the `gfx_*monitor*` and `gfx_*window*` function families). All other functions can be called from any thread.
 
-When an exception is made to any of the listed rules, this will always be documented at the relevant functions of the object in question.
+When an exception is made to any of the listed rules, this will always be noted alongside the relevant functions of the object in question.

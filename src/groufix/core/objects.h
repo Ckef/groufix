@@ -84,8 +84,8 @@ typedef struct _GFXImage
  */
 typedef struct _GFXMesh
 {
-	GFXMesh    base;
-	_GFXBuffer buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
+	GFXMesh      base;
+	_GFXBuffer   buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
 
 	GFXBufferRef refVertex; // Can be GFX_REF_NULL.
 	GFXBufferRef refIndex;  // Can be GFX_REF_NULL.

@@ -164,12 +164,17 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	VkDeviceSize blockSize =
 		_GFX_CLAMP(prefBlockSize, minSize, maxSize);
 
-	// Allocate handle & actual Vulkan memory object.
+	// Allocate block & init.
+	_GFXMemBlock* block = malloc(sizeof(_GFXMemBlock));
+	if (block == NULL)
+		goto clean;
+
+	if (!_gfx_mutex_init(&block->map.lock))
+		goto clean;
+
+	// Allocate the actual Vulkan memory object.
 	// If the allocation failed, we try again at 1/2, 1/4 and 1/8 of the size.
 	// During the process we keep track of the actual allocated size.
-	_GFXMemBlock* block = malloc(sizeof(_GFXMemBlock));
-	if (block == NULL) goto clean;
-
 	for (unsigned int i = 0; 1; ++i) // Note: condition is always true!
 	{
 		VkMemoryAllocateInfo mai = {
@@ -186,7 +191,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		if (result != VK_ERROR_OUT_OF_DEVICE_MEMORY)
 		{
 			// Success?
-			_GFX_VK_CHECK(result, goto clean);
+			_GFX_VK_CHECK(result, goto clean_lock);
 			break;
 		}
 
@@ -196,7 +201,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		if (i >= 3 || blockSize <= minSize)
 		{
 			_GFX_VK_CHECK(result, {});
-			goto clean;
+			goto clean_lock;
 		}
 
 		blockSize /= 2;
@@ -208,6 +213,9 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	VkDeviceSize key[2] = { blockSize, 0 };
 	block->type = type;
 	block->size = blockSize;
+
+	block->map.refs = 0;
+	block->map.ptr = NULL;
 
 	gfx_tree_init(&block->nodes.free, sizeof(key), _gfx_allocator_cmp);
 	gfx_list_init(&block->nodes.list);
@@ -222,15 +230,9 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		_GFXMemNode* node = gfx_tree_insert(
 			&block->nodes.free, sizeof(_GFXMemNode), NULL, key);
 
+		// Ah well..
 		if (node == NULL)
-		{
-			// Ah well..
-			gfx_tree_clear(&block->nodes.free);
-			gfx_list_clear(&block->nodes.list);
-			context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
-
-			goto clean;
-		}
+			goto clean_memory;
 
 		node->free = 1;
 		gfx_list_insert_after(&block->nodes.list, &node->list, NULL);
@@ -254,6 +256,12 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 
 
 	// Cleanup on failure.
+clean_memory:
+	gfx_list_clear(&block->nodes.list);
+	gfx_tree_clear(&block->nodes.free);
+	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+clean_lock:
+	_gfx_mutex_clear(&block->map.lock);
 clean:
 	gfx_log_error(
 		"Could not allocate a new %sVulkan memory object of %llu bytes.",
@@ -280,6 +288,7 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 		(block->nodes.free.root == NULL) ? &alloc->allocd : &alloc->free,
 		&block->list);
 
+	// Free all the things.
 	gfx_list_clear(&block->nodes.list);
 	gfx_tree_clear(&block->nodes.free);
 	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
@@ -288,6 +297,7 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 		"Freed Vulkan memory object of %llu bytes.",
 		(unsigned long long)block->size);
 
+	_gfx_mutex_clear(&block->map.lock);
 	free(block);
 }
 
@@ -441,7 +451,8 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 			reqs.size > _GFX_DEF_LARGE_HEAP_BLOCK_SIZE ?
 			reqs.size : _GFX_DEF_LARGE_HEAP_BLOCK_SIZE);
 
-		if (block == NULL) return 0;
+		if (block == NULL)
+			return 0;
 
 		// There's 1 free node, the entire block, just pick it :)
 		// We're at the beginning, so it always aligns, set offset of 0.
@@ -454,9 +465,9 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 	*mem = (_GFXMemAlloc){
 		.node   = { .free = 0 },
 		.block  = block,
-		.flags  = alloc->vk.properties.memoryTypes[type].propertyFlags,
 		.size   = _GFX_KEY_SIZE(key),
 		.offset = _GFX_KEY_OFFSET(key),
+		.flags  = alloc->vk.properties.memoryTypes[type].propertyFlags,
 		.linear = linear,
 		.vk     = { .memory = block->vk.memory }
 	};
@@ -465,7 +476,7 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 		&block->nodes.list, &mem->node.list,
 		(node == NULL) ? NULL : &node->list);
 
-	// Now fix the free tree and link the allocation in it...
+	// Now fix the free tree...
 	// If there was no free root node to begin with, we're done!
 	if (node == NULL)
 		return 1;
@@ -529,16 +540,17 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	_GFXMemBlock* block =
 		_gfx_alloc_mem_block(alloc, type, reqs.size, reqs.size);
 
-	if (block == NULL) return 0;
+	if (block == NULL)
+		return 0;
 
 	// Claim memory,
 	// i.e. output the allocation data.
 	*mem = (_GFXMemAlloc){
 		.node   = { .free = 0 },
 		.block  = block,
-		.flags  = alloc->vk.properties.memoryTypes[type].propertyFlags,
 		.size   = reqs.size,
 		.offset = 0,
+		.flags  = alloc->vk.properties.memoryTypes[type].propertyFlags,
 		.linear = 0,
 		.vk     = { .memory = block->vk.memory }
 	};
@@ -651,4 +663,22 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		// must always be invalidated as a result of calling this function.
 		gfx_list_erase(&block->nodes.list, &mem->node.list);
 	}
+}
+
+/****************************/
+void* _gfx_map(_GFXMemAlloc* mem)
+{
+	assert(mem != NULL);
+
+	// TODO: Implement.
+
+	return NULL;
+}
+
+/****************************/
+void _gfx_unmap(_GFXMemAlloc* mem)
+{
+	assert(mem != NULL);
+
+	// TODO: Implement.
 }

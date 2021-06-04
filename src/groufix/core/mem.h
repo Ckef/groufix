@@ -20,8 +20,7 @@
  */
 typedef struct _GFXMemBlock
 {
-	GFXListNode list; // Base-type.
-
+	GFXListNode  list; // Base-type.
 	uint32_t     type; // Vulkan memory type index.
 	VkDeviceSize size;
 
@@ -33,6 +32,20 @@ typedef struct _GFXMemBlock
 		GFXList list; // References _GFXMemNode | _GFXMemAlloc.
 
 	} nodes;
+
+
+	// Mapped memory pointer.
+	struct
+	{
+#if defined (__STDC_NO_ATOMICS__)
+		unsigned int refs;
+#else
+		atomic_uint  refs;
+#endif
+		void*        ptr; // NULL if not mapped.
+		_GFXMutex    lock;
+
+	} map;
 
 
 	// Vulkan fields.
@@ -65,10 +78,10 @@ typedef struct _GFXMemAlloc
 	_GFXMemNode   node;  // Base-type.
 	_GFXMemBlock* block;
 
-	VkMemoryPropertyFlags flags; // Actual used flags.
+	VkDeviceSize  size;
+	VkDeviceSize  offset;
 
-	VkDeviceSize size;
-	VkDeviceSize offset;
+	VkMemoryPropertyFlags flags; // Actual used flags.
 
 	// For granularity constraints.
 	int linear;
@@ -165,6 +178,25 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
  * Silently warns when not able to modify the free structure appropriately.
  */
 void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem);
+
+/**
+ * Maps some Vulkan memory to a host virtual address pointer, this can be
+ * called multiple times, the actual memory object is reference counted.
+ * @param mem Cannot be NULL.
+ * @return NULL on failure.
+ *
+ * Thread-safe!
+ */
+void* _gfx_map(_GFXMemAlloc* mem);
+
+/**
+ * Unmaps Vulkan memory when host access is no longer needed.
+ * Needs to be called exactly once for every call to _gfx_unmap(mem).
+ * @param mem Cannot be NULL.
+ *
+ * Thread-safe!
+ */
+void _gfx_unmap(_GFXMemAlloc* mem);
 
 
 #endif
