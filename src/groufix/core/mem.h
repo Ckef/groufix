@@ -182,7 +182,7 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem);
  * @param mem   Cannot be NULL.
  * @return NULL on failure.
  *
- * This is, in fact, very thread safe!
+ * This function is reentrant!
  * The given object must be allocated with VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT.
  */
 void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem);
@@ -193,7 +193,7 @@ void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem);
  * @param alloc Cannot be NULL.
  * @param mem   Cannot be NULL.
  *
- * Thread-safe!
+ * This function is reentrant!
  */
 void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem);
 

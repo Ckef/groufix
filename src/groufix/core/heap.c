@@ -46,9 +46,31 @@
 
 
 /****************************
- * Resolves a unified memory reference, meaning:
+ * Unpacked memory resource reference.
+ */
+typedef struct _GFXUnpackRef
+{
+	// Referenced object.
+	struct
+	{
+		_GFXBuffer*   buffer;
+		_GFXMesh*     mesh;
+		_GFXImage*    image;
+		GFXRenderer*  renderer;
+
+	} obj;
+
+	// Reference value,
+	//  buffer offset | attachment index.
+	size_t value;
+
+} _GFXUnpackRef;
+
+
+/****************************
+ * Resolves a memory reference, meaning:
  * if it references a reference, it will recursively return that reference.
- * @return A reference to the object actually holding the memory.
+ * @return A reference to the user-visible object actually holding the memory.
  *
  * Assumes no self-references exist!
  */
@@ -83,25 +105,55 @@ static GFXReference _gfx_ref_resolve(GFXReference ref)
 }
 
 /****************************
- * Retrieves a pointer to the _GFXBuffer object referenced by any reference.
- * @return NULL if no such buffer object is referenced.
- *
- * Does NOT recursively resolve, only looks at the object directly referenced!
+ * Unpacks a memory resource reference.
+ * Meaning the related referenced objects and values are retrieved.
  */
-static _GFXBuffer* _gfx_ref_get_buffer(GFXReference ref)
+static _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 {
+	// Init an empty unpacked reference.
+	_GFXUnpackRef unpack = {
+		.obj = {
+			.buffer = NULL,
+			.mesh = NULL,
+			.image = NULL,
+			.renderer = NULL
+		},
+		.value = 0
+	};
+
+	// Fill it.
 	switch (ref.type)
 	{
 	case GFX_REF_BUFFER:
-		return (_GFXBuffer*)ref.obj;
+		unpack.obj.buffer = (_GFXBuffer*)ref.obj;
+		unpack.value = ref.value;
+		break;
 
 	case GFX_REF_MESH_VERTICES:
+		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
+		unpack.obj.mesh = (_GFXMesh*)ref.obj;
+		unpack.value = ref.value;
+		break;
+
 	case GFX_REF_MESH_INDICES:
-		return &((_GFXMesh*)ref.obj)->buffer;
+		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
+		unpack.obj.mesh = (_GFXMesh*)ref.obj;
+		unpack.value = ref.value + ((GFXMesh*)ref.obj)->sizeVertices;
+		break;
+
+	case GFX_REF_IMAGE:
+		unpack.obj.image = (_GFXImage*)ref.obj;
+		break;
+
+	case GFX_REF_ATTACHMENT:
+		unpack.obj.renderer = (GFXRenderer*)ref.obj;
+		unpack.value = ref.value;
 
 	default:
-		return NULL;
+		break;
 	}
+
+	return unpack;
 }
 
 /****************************
@@ -255,7 +307,7 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferFlags flags,
                                     size_t size)
 {
 	assert(heap != NULL);
-	assert(flags != 0);
+	assert((flags & ~(GFXBufferFlags)GFX_BUFFER_HOST_VISIBLE) != 0);
 	assert(size > 0);
 
 	// Allocate a new buffer & initialize.
@@ -306,7 +358,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap, GFXImageFlags flags,
                                   size_t width, size_t height, size_t depth)
 {
 	assert(heap != NULL);
-	assert(flags != 0);
+	assert((flags & ~(GFXImageFlags)GFX_IMAGE_HOST_VISIBLE) != 0);
 	assert(width > 0);
 	assert(height > 0);
 	assert(depth > 0);
@@ -376,8 +428,8 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 		mesh->offsets, offsets, sizeof(size_t) * numAttribs);
 
 	// Get appropriate public flags.
-	_GFXBuffer* vertexBuff = _gfx_ref_get_buffer(mesh->refVertex);
-	_GFXBuffer* indexBuff = _gfx_ref_get_buffer(mesh->refIndex);
+	_GFXBuffer* vertexBuff = _gfx_ref_unpack(mesh->refVertex).obj.buffer;
+	_GFXBuffer* indexBuff = _gfx_ref_unpack(mesh->refIndex).obj.buffer;
 
 	mesh->base.flagsVertex =
 		vertexBuff ? vertexBuff->base.flags :
@@ -425,4 +477,89 @@ GFX_API void gfx_free_mesh(GFXMesh* mesh)
 		_gfx_buffer_free(&msh->buffer);
 
 	free(msh);
+}
+
+/****************************/
+GFX_API void* gfx_map(GFXReference ref)
+{
+	assert(!GFX_REF_IS_NULL(ref));
+
+	// Resolve and unpack.
+	_GFXUnpackRef unp = _gfx_ref_unpack(_gfx_ref_resolve(ref));
+
+	// Validate host visibility.
+	if (unp.obj.buffer && !(unp.obj.buffer->base.flags & GFX_BUFFER_HOST_VISIBLE))
+	{
+		gfx_log_error("Cannot map a buffer that was not created with GFX_BUFFER_HOST_VISIBLE.");
+		return NULL;
+	}
+
+	if (unp.obj.image && !(unp.obj.image->base.flags & GFX_IMAGE_HOST_VISIBLE))
+	{
+		gfx_log_error("Cannot map an image that was not created with GFX_IMAGE_HOST_VISIBLE.");
+		return NULL;
+	}
+
+	// Map the memory bits.
+	void* ptr = NULL;
+
+	switch (ref.type)
+	{
+	case GFX_REF_BUFFER:
+	case GFX_REF_MESH_VERTICES:
+	case GFX_REF_MESH_INDICES:
+		ptr = _gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+		ptr = (void*)((char*)ptr + unp.value);
+		break;
+
+	case GFX_REF_IMAGE:
+		ptr = _gfx_map(&unp.obj.image->heap->allocator, &unp.obj.image->alloc);
+		break;
+
+	case GFX_REF_ATTACHMENT:
+		// TODO: Implement.
+		break;
+
+	default:
+		break;
+	}
+
+	// Uh, some feedback..
+	if (ptr == NULL)
+		gfx_log_error("Could not map a memory resource reference.");
+
+	return ptr;
+}
+
+/****************************/
+GFX_API void gfx_unmap(GFXReference ref)
+{
+	assert(!GFX_REF_IS_NULL(ref));
+
+	// Resolve and unpack.
+	_GFXUnpackRef unp = _gfx_ref_unpack(_gfx_ref_resolve(ref));
+
+	// Unmap the memory bits.
+	// This function is required to be called _exactly_ once (and no more)
+	// for every gfx_map, given this is the exact same assumption as
+	// _gfx_unmap makes, this should all work out...
+	switch (ref.type)
+	{
+	case GFX_REF_BUFFER:
+	case GFX_REF_MESH_VERTICES:
+	case GFX_REF_MESH_INDICES:
+		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+		break;
+
+	case GFX_REF_IMAGE:
+		_gfx_unmap(&unp.obj.image->heap->allocator, &unp.obj.image->alloc);
+		break;
+
+	case GFX_REF_ATTACHMENT:
+		// TODO: Implement.
+		break;
+
+	default:
+		break;
+	}
 }

@@ -91,6 +91,10 @@ typedef struct GFXMesh
 } GFXMesh;
 
 
+/****************************
+ * Heap handling & allocation.
+ ****************************/
+
 /**
  * Creates a memory heap.
  * @param device NULL is equivalent to gfx_get_primary_device().
@@ -104,9 +108,10 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device);
 GFX_API void gfx_destroy_heap(GFXHeap* heap);
 
 /**
+ * TODO: Make thread-safe.
  * Allocates a buffer from a heap.
  * @param heap  Cannot be NULL.
- * @param flags Intended 'usage' for the buffer, cannot be 0.
+ * @param flags Intended 'usage' for the buffer, cannot be only host-visible.
  * @param size  Size of the buffer in bytes, must be > 0.
  * @return NULL on failure.
  */
@@ -114,6 +119,7 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferFlags flags,
                                     size_t size);
 
 /**
+ * TODO: Make thread-safe.
  * Frees a buffer.
  */
 GFX_API void gfx_free_buffer(GFXBuffer* buffer);
@@ -121,7 +127,7 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
 /**
  * Allocates an image from a heap.
  * @param heap   Cannot be NULL.
- * @param flags  Intended 'usage' for the image, cannot be 0.
+ * @param flags  Intended 'usage' for the image, cannot be only host-visible.
  * @param width  Must be > 0.
  * @param height Must be > 0.
  * @param depth  Must be > 0.
@@ -136,6 +142,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap, GFXImageFlags flags,
 GFX_API void gfx_free_image(GFXImage* image);
 
 /**
+ * TODO: Make thread-safe.
  * Allocates a mesh (i.e. a geometry) from a heap.
  * @param heap        Cannot be NULL.
  * @param flags       Added intended 'usage' for any newly allocated buffer.
@@ -156,9 +163,36 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
                                 size_t numAttribs, size_t* offsets);
 
 /**
+ * TODO: Make thread-safe.
  * Frees a mesh, excluding any buffers it references.
  */
 GFX_API void gfx_free_mesh(GFXMesh* mesh);
+
+
+/****************************
+ * Memory resource operations.
+ ****************************/
+
+/**
+ * Maps a memory resource reference to a host virtual address pointer.
+ * @param ref Cannot be GFX_REF_NULL.
+ * @return NULL on failure.
+ *
+ * This function is reentrant, meaning any resource can be mapped any number
+ * of times, from any thread.
+ * The referenced resource must be created with GFX_BUFFER_HOST_VISIBLE or
+ * GFX_IMAGE_HOST_VISIBLE.
+ */
+GFX_API void* gfx_map(GFXReference ref);
+
+/**
+ * Unmaps a memory resource reference, invalidating a mapped pointer.
+ * Must be called exactly once for every successful call to gfx_map.
+ * @param ref Cannot be GFX_REF_NULL.
+ *
+ * Any offset value is ignored, only the correct object should be referenced.
+ */
+GFX_API void gfx_unmap(GFXReference ref);
 
 
 #endif

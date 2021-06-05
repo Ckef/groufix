@@ -678,12 +678,13 @@ void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	// Ok so we are going to map entire memory blocks, this way we can
 	// map any allocation in any memory block concurrently, because in reality
 	// there is only 1 mapping, ever.
-	// Lock access to the mapping so the check and the actual mapping of
-	// the Vulkan memory object are in the same atomic operation.
+	// Lock access to the mapping so checking refs and the actual mapping of
+	// the Vulkan memory object are one atomic operation.
 	_gfx_mutex_lock(&block->map.lock);
 
 	// If the block is not mapped yet, map it.
-	if (block->map.ptr == NULL)
+	// refs must be >= 0 because of requirements of _gfx_unmap (!).
+	if (block->map.refs == 0)
 	{
 		void* vkPtr;
 		_GFXContext* context = alloc->context;
@@ -722,8 +723,8 @@ void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	_gfx_mutex_lock(&block->map.lock);
 
 	// Decrease reference count & unmap when we hit 0.
-	// Function is required to be called once for every _gfx_map,
-	// therefore we can assume this is legal.
+	// This function is required to be called _exactly_ once (and no more)
+	// for every _gfx_map, therefore we can assume refs is > 0.
 	if ((--block->map.refs) == 0)
 	{
 		_GFXContext* context = alloc->context;
