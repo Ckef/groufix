@@ -108,19 +108,20 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device);
 GFX_API void gfx_destroy_heap(GFXHeap* heap);
 
 /**
- * TODO: Make thread-safe.
  * Allocates a buffer from a heap.
  * @param heap  Cannot be NULL.
  * @param flags Intended 'usage' for the buffer, cannot be only host-visible.
  * @param size  Size of the buffer in bytes, must be > 0.
  * @return NULL on failure.
+ *
+ * Thread-safe!
  */
 GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferFlags flags,
                                     size_t size);
 
 /**
- * TODO: Make thread-safe.
  * Frees a buffer.
+ * Thread-safe!
  */
 GFX_API void gfx_free_buffer(GFXBuffer* buffer);
 
@@ -132,17 +133,19 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
  * @param height Must be > 0.
  * @param depth  Must be > 0.
  * @return NULL on failure.
+ *
+ * Thread-safe!
  */
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap, GFXImageFlags flags,
                                   size_t width, size_t height, size_t depth);
 
 /**
  * Frees an image.
+ * Thread-safe!
  */
 GFX_API void gfx_free_image(GFXImage* image);
 
 /**
- * TODO: Make thread-safe.
  * Allocates a mesh (i.e. a geometry) from a heap.
  * @param heap        Cannot be NULL.
  * @param flags       Added intended 'usage' for any newly allocated buffer.
@@ -155,6 +158,8 @@ GFX_API void gfx_free_image(GFXImage* image);
  * @param numAttribs  Number of vertex attributes, must be > 0.
  * @param offsets     Array of numAttribs offsets, in bytes, cannot be NULL.
  * @return NULL on failure.
+ *
+ * Thread-safe!
  */
 GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
                                 GFXBufferRef vertex, GFXBufferRef index,
@@ -163,8 +168,8 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
                                 size_t numAttribs, size_t* offsets);
 
 /**
- * TODO: Make thread-safe.
  * Frees a mesh, excluding any buffers it references.
+ * Thread-safe!
  */
 GFX_API void gfx_free_mesh(GFXMesh* mesh);
 

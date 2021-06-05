@@ -27,6 +27,7 @@ struct GFXHeap
 {
 	_GFXContext*  context;
 	_GFXAllocator allocator;
+	_GFXMutex     lock;
 
 	GFXList buffers; // References _GFXBuffer.
 	GFXList images;  // References _GFXImage.

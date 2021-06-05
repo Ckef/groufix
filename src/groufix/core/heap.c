@@ -110,6 +110,8 @@ static GFXReference _gfx_ref_resolve(GFXReference ref)
  */
 static _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 {
+	ref = _gfx_ref_resolve(ref);
+
 	// Init an empty unpacked reference.
 	_GFXUnpackRef unpack = {
 		.obj = {
@@ -251,16 +253,20 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
 /****************************/
 GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 {
-	// Allocate a new heap.
+	// Allocate a new heap & init.
 	GFXHeap* heap = malloc(sizeof(GFXHeap));
-	if (heap == NULL) goto clean;
+	if (heap == NULL)
+		goto clean;
+
+	if (!_gfx_mutex_init(&heap->lock))
+		goto clean;
 
 	// Get context associated with the device.
 	_GFXDevice* dev;
 	_GFX_GET_DEVICE(dev, device);
-	_GFX_GET_CONTEXT(heap->context, device, goto clean);
+	_GFX_GET_CONTEXT(heap->context, device, goto clean_lock);
 
-	// Initialize things.
+	// Initialize allocator things.
 	_gfx_allocator_init(&heap->allocator, dev);
 	gfx_list_init(&heap->buffers);
 	gfx_list_init(&heap->images);
@@ -270,6 +276,8 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 
 
 	// Clean on failure.
+clean_lock:
+	_gfx_mutex_clear(&heap->lock);
 clean:
 	gfx_log_error("Could not create a new heap.");
 	free(heap);
@@ -299,6 +307,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	gfx_list_clear(&heap->images);
 	gfx_list_clear(&heap->meshes);
 
+	_gfx_mutex_clear(&heap->lock);
 	free(heap);
 }
 
@@ -320,11 +329,19 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferFlags flags,
 	buffer->base.size = size;
 
 	// Allocate the Vulkan buffer.
-	if (!_gfx_buffer_alloc(buffer))
-		goto clean;
+	// Now we will actually modify the heap, so we lock!
+	_gfx_mutex_lock(&heap->lock);
 
-	// Link into the heap.
+	if (!_gfx_buffer_alloc(buffer))
+	{
+		_gfx_mutex_unlock(&heap->lock);
+		goto clean;
+	}
+
+	// Link into the heap & unlock.
 	gfx_list_insert_after(&heap->buffers, &buffer->list, NULL);
+
+	_gfx_mutex_unlock(&heap->lock);
 
 	return &buffer->base;
 
@@ -347,8 +364,12 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 	GFXHeap* heap = buff->heap;
 
 	// Unlink from heap & free.
+	_gfx_mutex_lock(&heap->lock);
+
 	gfx_list_erase(&heap->buffers, &buff->list);
 	_gfx_buffer_free(buff);
+
+	_gfx_mutex_unlock(&heap->lock);
 
 	free(buff);
 }
@@ -442,12 +463,20 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.
 	mesh->buffer.vk.buffer = VK_NULL_HANDLE;
 
+	// Now we will actually modify the heap, so we lock!
+	_gfx_mutex_lock(&heap->lock);
+
 	if (mesh->buffer.base.size > 0)
 		if (!_gfx_buffer_alloc(&mesh->buffer))
+		{
+			_gfx_mutex_unlock(&heap->lock);
 			goto clean;
+		}
 
-	// Link into the heap.
+	// Link into the heap & unlock.
 	gfx_list_insert_after(&heap->meshes, &mesh->buffer.list, NULL);
+
+	_gfx_mutex_unlock(&heap->lock);
 
 	return &mesh->base;
 
@@ -469,12 +498,15 @@ GFX_API void gfx_free_mesh(GFXMesh* mesh)
 	_GFXMesh* msh = (_GFXMesh*)mesh;
 	GFXHeap* heap = msh->buffer.heap;
 
-	// Unlink from heap.
+	// Unlink from heap & free.
+	_gfx_mutex_lock(&heap->lock);
+
 	gfx_list_erase(&heap->meshes, &msh->buffer.list);
 
-	// Free buffer & mesh.
 	if (msh->buffer.vk.buffer != VK_NULL_HANDLE)
 		_gfx_buffer_free(&msh->buffer);
+
+	_gfx_mutex_unlock(&heap->lock);
 
 	free(msh);
 }
@@ -484,8 +516,8 @@ GFX_API void* gfx_map(GFXReference ref)
 {
 	assert(!GFX_REF_IS_NULL(ref));
 
-	// Resolve and unpack.
-	_GFXUnpackRef unp = _gfx_ref_unpack(_gfx_ref_resolve(ref));
+	// Unpack reference.
+	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
 	// Validate host visibility.
 	if (unp.obj.buffer && !(unp.obj.buffer->base.flags & GFX_BUFFER_HOST_VISIBLE))
@@ -517,16 +549,12 @@ GFX_API void* gfx_map(GFXReference ref)
 		break;
 
 	case GFX_REF_ATTACHMENT:
-		// TODO: Implement.
+		gfx_log_error("Cannot map an image attachment of a renderer.");
 		break;
 
 	default:
 		break;
 	}
-
-	// Uh, some feedback..
-	if (ptr == NULL)
-		gfx_log_error("Could not map a memory resource reference.");
 
 	return ptr;
 }
@@ -536,8 +564,8 @@ GFX_API void gfx_unmap(GFXReference ref)
 {
 	assert(!GFX_REF_IS_NULL(ref));
 
-	// Resolve and unpack.
-	_GFXUnpackRef unp = _gfx_ref_unpack(_gfx_ref_resolve(ref));
+	// Unpack reference.
+	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
 	// Unmap the memory bits.
 	// This function is required to be called _exactly_ once (and no more)
@@ -553,10 +581,6 @@ GFX_API void gfx_unmap(GFXReference ref)
 
 	case GFX_REF_IMAGE:
 		_gfx_unmap(&unp.obj.image->heap->allocator, &unp.obj.image->alloc);
-		break;
-
-	case GFX_REF_ATTACHMENT:
-		// TODO: Implement.
 		break;
 
 	default:
