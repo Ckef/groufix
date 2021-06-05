@@ -136,20 +136,22 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	_GFX_VK_CHECK(context->vk.CreateBuffer(
 		context->vk.device, &bci, NULL, &buffer->vk.buffer), return 0);
 
-	// Allocate memory for it.
 	// TODO: Query whether the buffer prefers a dedicated allocation?
 	VkMemoryRequirements reqs;
 	context->vk.GetBufferMemoryRequirements(
 		context->vk.device, buffer->vk.buffer, &reqs);
 
-	// TODO: Other memory property flags, e.g. device local + staging.
+	// Get appropriate memory flags & allocate.
+	// We always add device local to the optimal flags,
+	// wouldn't it be wonderful if everything was always device local :)
+	VkMemoryPropertyFlags flags =
+		(buffer->base.flags & GFX_BUFFER_HOST_VISIBLE) ?
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT :
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
 	if (!_gfx_alloc(&heap->allocator, &buffer->alloc, 1,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		reqs))
+		flags, flags | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, reqs))
 	{
 		goto clean;
 	}

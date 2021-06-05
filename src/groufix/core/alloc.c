@@ -701,8 +701,7 @@ void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	++block->map.refs;
 
 unlock:
-	// Read the result before unlock just in case it failed,
-	// only when succeeded are we sure we don't write to it anymore.
+	// Read resulting pointer just before unlock :)
 	ptr = (block->map.ptr == NULL) ? NULL :
 		(void*)((char*)block->map.ptr + mem->offset);
 
@@ -719,7 +718,7 @@ void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 
 	_GFXMemBlock* block = mem->block;
 
-	// Obviously we lock again so dereferencing and unmapping are atomic.
+	// Obviously we lock again so dereferencing and unmapping is atomic.
 	_gfx_mutex_lock(&block->map.lock);
 
 	// Decrease reference count & unmap when we hit 0.
