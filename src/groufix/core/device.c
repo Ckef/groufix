@@ -34,20 +34,165 @@
 
 /****************************
  * Array of Vulkan queue priority values in [0,1].
- * TODO: For now just a singular 1, changes when more queues get created...
+ * TODO: For now just a singular 1, maybe we want varying values?
  */
 static const float _gfx_vk_queue_priorities[] = { 1.0f };
 
 
 /****************************
+ * Fills a VkPhysicalDeviceFeatures struct with features to enable,
+ * in other words; it disables feature we don't want.
+ * @param device Cannot be NULL.
+ * @param pdf    Output data, cannot be NULL.
+ */
+static void _gfx_get_device_features(_GFXDevice* device,
+                                     VkPhysicalDeviceFeatures* pdf)
+{
+	assert(device != NULL);
+	assert(pdf != NULL);
+
+	_groufix.vk.GetPhysicalDeviceFeatures(device->vk.device, pdf);
+
+	// For features we do want, warn if not present.
+	if (pdf->geometryShader == VK_FALSE) gfx_log_warn(
+		"Physical device does not support geometry shaders: %s.",
+		device->name);
+
+	if (pdf->tessellationShader == VK_FALSE) gfx_log_warn(
+		"Physical device does not support tessellation shaders: %s.",
+		device->name);
+
+	pdf->robustBufferAccess                      = VK_FALSE;
+	pdf->fullDrawIndexUint32                     = VK_FALSE;
+	pdf->imageCubeArray                          = VK_FALSE;
+	pdf->independentBlend                        = VK_FALSE;
+	pdf->sampleRateShading                       = VK_FALSE;
+	pdf->dualSrcBlend                            = VK_FALSE;
+	pdf->logicOp                                 = VK_FALSE;
+	pdf->multiDrawIndirect                       = VK_FALSE;
+	pdf->drawIndirectFirstInstance               = VK_FALSE;
+	pdf->depthClamp                              = VK_FALSE;
+	pdf->depthBiasClamp                          = VK_FALSE;
+	pdf->fillModeNonSolid                        = VK_FALSE;
+	pdf->depthBounds                             = VK_FALSE;
+	pdf->wideLines                               = VK_FALSE;
+	pdf->largePoints                             = VK_FALSE;
+	pdf->alphaToOne                              = VK_FALSE;
+	pdf->multiViewport                           = VK_FALSE;
+	pdf->samplerAnisotropy                       = VK_FALSE;
+	pdf->textureCompressionETC2                  = VK_FALSE;
+	pdf->textureCompressionASTC_LDR              = VK_FALSE;
+	pdf->textureCompressionBC                    = VK_FALSE;
+	pdf->occlusionQueryPrecise                   = VK_FALSE;
+	pdf->pipelineStatisticsQuery                 = VK_FALSE;
+	pdf->vertexPipelineStoresAndAtomics          = VK_FALSE;
+	pdf->fragmentStoresAndAtomics                = VK_FALSE;
+	pdf->shaderTessellationAndGeometryPointSize  = VK_FALSE;
+	pdf->shaderImageGatherExtended               = VK_FALSE;
+	pdf->shaderStorageImageExtendedFormats       = VK_FALSE;
+	pdf->shaderStorageImageMultisample           = VK_FALSE;
+	pdf->shaderStorageImageReadWithoutFormat     = VK_FALSE;
+	pdf->shaderStorageImageWriteWithoutFormat    = VK_FALSE;
+	pdf->shaderUniformBufferArrayDynamicIndexing = VK_FALSE;
+	pdf->shaderSampledImageArrayDynamicIndexing  = VK_FALSE;
+	pdf->shaderStorageBufferArrayDynamicIndexing = VK_FALSE;
+	pdf->shaderStorageImageArrayDynamicIndexing  = VK_FALSE;
+	pdf->shaderClipDistance                      = VK_FALSE;
+	pdf->shaderCullDistance                      = VK_FALSE;
+	pdf->shaderFloat64                           = VK_FALSE;
+	pdf->shaderInt64                             = VK_FALSE;
+	pdf->shaderInt16                             = VK_FALSE;
+	pdf->shaderResourceResidency                 = VK_FALSE;
+	pdf->shaderResourceMinLod                    = VK_FALSE;
+	pdf->sparseBinding                           = VK_FALSE;
+	pdf->sparseResidencyBuffer                   = VK_FALSE;
+	pdf->sparseResidencyImage2D                  = VK_FALSE;
+	pdf->sparseResidencyImage3D                  = VK_FALSE;
+	pdf->sparseResidency2Samples                 = VK_FALSE;
+	pdf->sparseResidency4Samples                 = VK_FALSE;
+	pdf->sparseResidency8Samples                 = VK_FALSE;
+	pdf->sparseResidency16Samples                = VK_FALSE;
+	pdf->sparseResidencyAliased                  = VK_FALSE;
+	pdf->variableMultisampleRate                 = VK_FALSE;
+	pdf->inheritedQueries                        = VK_FALSE;
+}
+
+/****************************
+ * Retrieves the device group a device is part of.
+ * @param device  Cannot be NULL.
+ * @param index   Output device index into the group, cannot be NULL.
+ * @param count   Output number of devices in the group, cannot be NULL.
+ * @param devices Output device array, cannot be NULL.
+ * @return Zero on failure.
+ */
+static int _gfx_get_device_group(_GFXDevice* device, size_t* index,
+                                 size_t* count, VkPhysicalDevice* devices)
+{
+	assert(device != NULL);
+	assert(index != NULL);
+	assert(count != NULL);
+	assert(devices != NULL);
+
+	// Enumerate all device groups.
+	uint32_t cnt;
+	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDeviceGroups(
+		_groufix.vk.instance, &cnt, NULL), return 0);
+
+	if (cnt == 0) return 0;
+
+	VkPhysicalDeviceGroupProperties groups[cnt];
+
+	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDeviceGroups(
+		_groufix.vk.instance, &cnt, groups), return 0);
+
+	// Loop over all groups and see if one contains the device.
+	// We take the first device group we find it in, this assumes a device is
+	// never seen in multiple groups, which should be reasonable...
+	size_t g, i;
+
+	for (g = 0; g < cnt; ++g)
+	{
+		for (i = 0; i < groups[g].physicalDeviceCount; ++i)
+			if (groups[g].physicalDevices[i] == device->vk.device)
+				break;
+
+		if (i < groups[g].physicalDeviceCount)
+			break;
+	}
+
+	if (g >= cnt)
+	{
+		// Probably want to know when a device is somehow invalid..
+		gfx_log_error(
+			"Physical device could not be found in any device group: %s.",
+			device->name);
+
+		return 0;
+	}
+
+	*index = i;
+	*count = groups[g].physicalDeviceCount;
+
+	memcpy(
+		devices,
+		groups[g].physicalDevices,
+		sizeof(VkPhysicalDevice) * groups[g].physicalDeviceCount);
+
+	return 1;
+}
+
+/****************************
  * Allocates a new queue set.
  * @param context Append created set to its _GFXQueueSet list.
- * @param count   Number of mutexes to create.
+ * @param count   Number of mutexes to create, must be > 0.
  * @return Non-zero on success.
  */
 static int _gfx_alloc_queue_set(_GFXContext* context, uint32_t family,
                                 VkQueueFlags flags, int present, size_t count)
 {
+	assert(context != NULL);
+	assert(count > 0);
+
 	// Allocate a new queue set.
 	_GFXQueueSet* s = malloc(sizeof(_GFXQueueSet) + sizeof(_GFXMutex) * count);
 	if (s == NULL) return 0;
@@ -171,7 +316,7 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice devi
 	*createInfos = malloc(sizeof(VkDeviceQueueCreateInfo) * num);
 
 	if (*createInfos == NULL)
-		goto clean;
+		return 0;
 
 	// Just initialize all info structures to some defaults.
 	// Default is to create 1 queue of each family.
@@ -199,17 +344,13 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice devi
 	}
 
 	if (!success)
-		goto clean;
+	{
+		free(*createInfos);
+		*createInfos = NULL;
+		return 0;
+	}
 
 	return num;
-
-
-	// Cleanup on failure.
-clean:
-	free(*createInfos);
-	*createInfos = NULL;
-
-	return 0;
 }
 
 /****************************
@@ -277,277 +418,166 @@ static void _gfx_create_context(_GFXDevice* device)
 		goto error;
 	}
 
-	// So first of all we find a device group which this device is part of.
-	// We take the first device group we find, this assumes a device is never
-	// seen in multiple groups...
-	// Then we create a logical Vulkan device for this entire group.
-	// Later on, any other device in the group will also use this context.
-	uint32_t count;
-	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDeviceGroups(
-		_groufix.vk.instance, &count, NULL), goto error);
+	// Allocate a new context, we are allocating an array of physical devices
+	// at the end, just allocate the maximum number, who cares..
+	// These are used to check if a future device can use this context.
+	context = malloc(
+		sizeof(_GFXContext) +
+		sizeof(VkPhysicalDevice) * VK_MAX_DEVICE_GROUP_SIZE);
 
-	if (count == 0)
+	if (context == NULL)
 		goto error;
 
-	// We use a scope here so the goto above is allowed.
-	{
-		// Enumerate all device groups.
-		VkPhysicalDeviceGroupProperties groups[count];
+	// Set these to NULL so we don't accidentally call garbage on cleanup.
+	context->vk.DestroyDevice = NULL;
+	context->vk.DeviceWaitIdle = NULL;
 
-		_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDeviceGroups(
-			_groufix.vk.instance, &count, groups), goto error);
+	gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
+	gfx_list_init(&context->sets);
 
-		// Loop over all groups and see if one contains this device.
-		// We keep track of the index of the group and the device in it.
-		size_t g = 0;
-		size_t i = 0;
+	// Get desired device features, when a future device also uses this,
+	// context, it is assumed it has equivalent features.
+	// If there are any device groups such that this is the case, you
+	// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
+	VkPhysicalDeviceFeatures pdf;
+	_gfx_get_device_features(device, &pdf);
 
-		for (; g < count; ++g)
-		{
-			for (i = 0; i < groups[g].physicalDeviceCount; ++i)
-				if (groups[g].physicalDevices[i] == device->vk.device)
-					break;
+	// Now find the device group which this device is part of.
+	size_t index;
+	if (!_gfx_get_device_group(device, &index, &context->numDevices, context->devices))
+		goto clean;
 
-			if (i < groups[g].physicalDeviceCount)
-				break;
-		}
+	// Call the thing that gets us the desired queues to create.
+	// createInfos is explicitly freed on cleanup or success.
+	// Similarly to the features, we assume that any device that uses the same
+	// context has equivalent queue family properties.
+	size_t sets;
+	if (!(sets = _gfx_create_queue_sets(context, device->vk.device, &createInfos)))
+		goto clean;
 
-		if (g >= count)
-		{
-			// Probably want to know when a device is somehow invalid...
-			gfx_log_error(
-				"Physical device could not be found in any device group: %s.",
-				device->name);
-
-			goto error;
-		}
-
-		// Ok so we found a group, now go create a context.
-		// Allocate array of physical devices in the group at the end,
-		// this is used to check if a future device can use this context.
-		context = malloc(
-			sizeof(_GFXContext) +
-			sizeof(VkPhysicalDevice) * groups[g].physicalDeviceCount);
-
-		if (context == NULL)
-			goto error;
-
-		// Set these to NULL so we don't accidentally call garbage on cleanup.
-		context->vk.DestroyDevice = NULL;
-		context->vk.DeviceWaitIdle = NULL;
-
-		gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
-		gfx_list_init(&context->sets);
-		context->numDevices = groups[g].physicalDeviceCount;
-
-		memcpy(
-			context->devices,
-			groups[g].physicalDevices,
-			sizeof(VkPhysicalDevice) * context->numDevices);
-
-		// Call the thing that gets us the desired queues to create.
-		// createInfos is explicitly freed on cleanup or success.
-		// When a future device also uses this context,
-		// it is assumed it has equivalent queue family properties.
-		// If there are any device groups such that this is the case, you
-		// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
-		size_t sets = _gfx_create_queue_sets(context, device->vk.device, &createInfos);
-		if (!sets) goto clean;
-
-		// Pick device features to enable (i.e. disable stuff we dont' want).
-		// Again when devices use the same context, we assume they have
-		// equivalent features.
-		VkPhysicalDeviceFeatures pdf;
-		_groufix.vk.GetPhysicalDeviceFeatures(device->vk.device, &pdf);
-
-		// For features we do want, warn if not present.
-		if (pdf.geometryShader == VK_FALSE) gfx_log_warn(
-			"Physical device does not support geometry shaders: %s.",
-			device->name);
-
-		if (pdf.tessellationShader == VK_FALSE) gfx_log_warn(
-			"Physical device does not support tessellation shaders: %s.",
-			device->name);
-
-		pdf.robustBufferAccess                      = VK_FALSE;
-		pdf.fullDrawIndexUint32                     = VK_FALSE;
-		pdf.imageCubeArray                          = VK_FALSE;
-		pdf.independentBlend                        = VK_FALSE;
-		pdf.sampleRateShading                       = VK_FALSE;
-		pdf.dualSrcBlend                            = VK_FALSE;
-		pdf.logicOp                                 = VK_FALSE;
-		pdf.multiDrawIndirect                       = VK_FALSE;
-		pdf.drawIndirectFirstInstance               = VK_FALSE;
-		pdf.depthClamp                              = VK_FALSE;
-		pdf.depthBiasClamp                          = VK_FALSE;
-		pdf.fillModeNonSolid                        = VK_FALSE;
-		pdf.depthBounds                             = VK_FALSE;
-		pdf.wideLines                               = VK_FALSE;
-		pdf.largePoints                             = VK_FALSE;
-		pdf.alphaToOne                              = VK_FALSE;
-		pdf.multiViewport                           = VK_FALSE;
-		pdf.samplerAnisotropy                       = VK_FALSE;
-		pdf.textureCompressionETC2                  = VK_FALSE;
-		pdf.textureCompressionASTC_LDR              = VK_FALSE;
-		pdf.textureCompressionBC                    = VK_FALSE;
-		pdf.occlusionQueryPrecise                   = VK_FALSE;
-		pdf.pipelineStatisticsQuery                 = VK_FALSE;
-		pdf.vertexPipelineStoresAndAtomics          = VK_FALSE;
-		pdf.fragmentStoresAndAtomics                = VK_FALSE;
-		pdf.shaderTessellationAndGeometryPointSize  = VK_FALSE;
-		pdf.shaderImageGatherExtended               = VK_FALSE;
-		pdf.shaderStorageImageExtendedFormats       = VK_FALSE;
-		pdf.shaderStorageImageMultisample           = VK_FALSE;
-		pdf.shaderStorageImageReadWithoutFormat     = VK_FALSE;
-		pdf.shaderStorageImageWriteWithoutFormat    = VK_FALSE;
-		pdf.shaderUniformBufferArrayDynamicIndexing = VK_FALSE;
-		pdf.shaderSampledImageArrayDynamicIndexing  = VK_FALSE;
-		pdf.shaderStorageBufferArrayDynamicIndexing = VK_FALSE;
-		pdf.shaderStorageImageArrayDynamicIndexing  = VK_FALSE;
-		pdf.shaderClipDistance                      = VK_FALSE;
-		pdf.shaderCullDistance                      = VK_FALSE;
-		pdf.shaderFloat64                           = VK_FALSE;
-		pdf.shaderInt64                             = VK_FALSE;
-		pdf.shaderInt16                             = VK_FALSE;
-		pdf.shaderResourceResidency                 = VK_FALSE;
-		pdf.shaderResourceMinLod                    = VK_FALSE;
-		pdf.sparseBinding                           = VK_FALSE;
-		pdf.sparseResidencyBuffer                   = VK_FALSE;
-		pdf.sparseResidencyImage2D                  = VK_FALSE;
-		pdf.sparseResidencyImage3D                  = VK_FALSE;
-		pdf.sparseResidency2Samples                 = VK_FALSE;
-		pdf.sparseResidency4Samples                 = VK_FALSE;
-		pdf.sparseResidency8Samples                 = VK_FALSE;
-		pdf.sparseResidency16Samples                = VK_FALSE;
-		pdf.sparseResidencyAliased                  = VK_FALSE;
-		pdf.variableMultisampleRate                 = VK_FALSE;
-		pdf.inheritedQueries                        = VK_FALSE;
-
-		// Finally go create the logical Vulkan device.
-		// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
-		// TODO: Enable VK_EXT_memory_budget?
-		// Enable VK_LAYER_KHRONOS_validation if debug,
-		// this is deprecated by now, but for older Vulkan versions.
-		const char* extensions[] = { "VK_KHR_swapchain" };
+	// Finally go create the logical Vulkan device.
+	// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
+	// TODO: Enable VK_EXT_memory_budget?
+	// Enable VK_LAYER_KHRONOS_validation if debug,
+	// this is deprecated by now, but for older Vulkan versions.
+	const char* extensions[] = { "VK_KHR_swapchain" };
 #if !defined (NDEBUG)
-		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
+	const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 #endif
 
-		VkDeviceGroupDeviceCreateInfo dgdci = {
-			.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO,
+	VkDeviceGroupDeviceCreateInfo dgdci = {
+		.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO,
 
-			.pNext               = NULL,
-			.physicalDeviceCount = (uint32_t)context->numDevices,
-			.pPhysicalDevices    = context->devices
-		};
+		.pNext               = NULL,
+		.physicalDeviceCount = (uint32_t)context->numDevices,
+		.pPhysicalDevices    = context->devices
+	};
 
-		VkDeviceCreateInfo dci = {
-			.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+	VkDeviceCreateInfo dci = {
+		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 
-			.pNext                   = &dgdci,
-			.flags                   = 0,
-			.queueCreateInfoCount    = (uint32_t)sets,
-			.pQueueCreateInfos       = createInfos,
+		.pNext                   = &dgdci,
+		.flags                   = 0,
+		.queueCreateInfoCount    = (uint32_t)sets,
+		.pQueueCreateInfos       = createInfos,
 #if defined (NDEBUG)
-			.enabledLayerCount       = 0,
-			.ppEnabledLayerNames     = NULL,
+		.enabledLayerCount       = 0,
+		.ppEnabledLayerNames     = NULL,
 #else
-			.enabledLayerCount       = sizeof(layers)/sizeof(char*),
-			.ppEnabledLayerNames     = layers,
+		.enabledLayerCount       = sizeof(layers)/sizeof(char*),
+		.ppEnabledLayerNames     = layers,
 #endif
-			.enabledExtensionCount   = sizeof(extensions)/sizeof(char*),
-			.ppEnabledExtensionNames = extensions,
-			.pEnabledFeatures        = &pdf
-		};
+		.enabledExtensionCount   = sizeof(extensions)/sizeof(char*),
+		.ppEnabledExtensionNames = extensions,
+		.pEnabledFeatures        = &pdf
+	};
 
-		_GFX_VK_CHECK(_groufix.vk.CreateDevice(
-			device->vk.device, &dci, NULL, &context->vk.device), goto clean);
+	_GFX_VK_CHECK(_groufix.vk.CreateDevice(
+		device->vk.device, &dci, NULL, &context->vk.device), goto clean);
 
 #if !defined (NDEBUG)
-		// This is like a moment to celebrate, right?
-		// We count the number of actual queues here.
-		uint32_t queueCount = 0;
-		for (GFXListNode* k = context->sets.head; k != NULL; k = k->next)
-			queueCount += ((_GFXQueueSet*)k)->count;
+	// This is like a moment to celebrate, right?
+	// We count the number of actual queues here.
+	uint32_t queueCount = 0;
+	for (GFXListNode* k = context->sets.head; k != NULL; k = k->next)
+		queueCount += ((_GFXQueueSet*)k)->count;
 
-		gfx_log_debug(
-			"Logical Vulkan device of version %u.%u.%u created:\n"
-			"    Contains at least: %s.\n"
-			"    #physical devices: %u.\n"
-			"    #queues: %u.\n",
-			(unsigned int)VK_VERSION_MAJOR(device->api),
-			(unsigned int)VK_VERSION_MINOR(device->api),
-			(unsigned int)VK_VERSION_PATCH(device->api),
-			device->name,
-			(unsigned int)context->numDevices,
-			(unsigned int)queueCount);
+	gfx_log_debug(
+		"Logical Vulkan device of version %u.%u.%u created:\n"
+		"    Contains at least: %s.\n"
+		"    #physical devices: %u.\n"
+		"    #queues: %u.\n",
+		(unsigned int)VK_VERSION_MAJOR(device->api),
+		(unsigned int)VK_VERSION_MINOR(device->api),
+		(unsigned int)VK_VERSION_PATCH(device->api),
+		device->name,
+		(unsigned int)context->numDevices,
+		(unsigned int)queueCount);
 #endif
 
-		// Now load all device level Vulkan functions.
-		// Load vkDestroyDevice first so we can clean properly.
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
-		_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
-		_GFX_GET_DEVICE_PROC_ADDR(AllocateCommandBuffers);
-		_GFX_GET_DEVICE_PROC_ADDR(AllocateMemory);
-		_GFX_GET_DEVICE_PROC_ADDR(BindBufferMemory);
-		_GFX_GET_DEVICE_PROC_ADDR(BeginCommandBuffer);
-		_GFX_GET_DEVICE_PROC_ADDR(CmdBeginRenderPass);
-		_GFX_GET_DEVICE_PROC_ADDR(CmdBindPipeline);
-		_GFX_GET_DEVICE_PROC_ADDR(CmdDraw);
-		_GFX_GET_DEVICE_PROC_ADDR(CmdEndRenderPass);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateFence);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateFramebuffer);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateGraphicsPipelines);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateImageView);
-		_GFX_GET_DEVICE_PROC_ADDR(CreatePipelineLayout);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateRenderPass);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateSemaphore);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateShaderModule);
-		_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyBuffer);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyCommandPool);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyFence);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyFramebuffer);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyImageView);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyPipeline);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyPipelineLayout);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyRenderPass);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroySemaphore);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroyShaderModule);
-		_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);
-		_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
-		_GFX_GET_DEVICE_PROC_ADDR(EndCommandBuffer);
-		_GFX_GET_DEVICE_PROC_ADDR(FreeCommandBuffers);
-		_GFX_GET_DEVICE_PROC_ADDR(FreeMemory);
-		_GFX_GET_DEVICE_PROC_ADDR(GetBufferMemoryRequirements);
-		_GFX_GET_DEVICE_PROC_ADDR(GetDeviceQueue);
-		_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
-		_GFX_GET_DEVICE_PROC_ADDR(MapMemory);
-		_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
-		_GFX_GET_DEVICE_PROC_ADDR(QueueSubmit);
-		_GFX_GET_DEVICE_PROC_ADDR(QueueWaitIdle);
-		_GFX_GET_DEVICE_PROC_ADDR(ResetCommandPool);
-		_GFX_GET_DEVICE_PROC_ADDR(ResetFences);
-		_GFX_GET_DEVICE_PROC_ADDR(UnmapMemory);
-		_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);
+	// Now load all device level Vulkan functions.
+	// Load vkDestroyDevice first so we can clean properly.
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
+	_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
+	_GFX_GET_DEVICE_PROC_ADDR(AllocateCommandBuffers);
+	_GFX_GET_DEVICE_PROC_ADDR(AllocateMemory);
+	_GFX_GET_DEVICE_PROC_ADDR(BindBufferMemory);
+	_GFX_GET_DEVICE_PROC_ADDR(BeginCommandBuffer);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdBeginRenderPass);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdBindPipeline);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdDraw);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdEndRenderPass);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateFence);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateFramebuffer);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateGraphicsPipelines);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateImageView);
+	_GFX_GET_DEVICE_PROC_ADDR(CreatePipelineLayout);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateRenderPass);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateSemaphore);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateShaderModule);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyBuffer);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyCommandPool);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyFence);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyFramebuffer);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyImageView);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipeline);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipelineLayout);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyRenderPass);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroySemaphore);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyShaderModule);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);
+	_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
+	_GFX_GET_DEVICE_PROC_ADDR(EndCommandBuffer);
+	_GFX_GET_DEVICE_PROC_ADDR(FreeCommandBuffers);
+	_GFX_GET_DEVICE_PROC_ADDR(FreeMemory);
+	_GFX_GET_DEVICE_PROC_ADDR(GetBufferMemoryRequirements);
+	_GFX_GET_DEVICE_PROC_ADDR(GetDeviceQueue);
+	_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
+	_GFX_GET_DEVICE_PROC_ADDR(MapMemory);
+	_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
+	_GFX_GET_DEVICE_PROC_ADDR(QueueSubmit);
+	_GFX_GET_DEVICE_PROC_ADDR(QueueWaitIdle);
+	_GFX_GET_DEVICE_PROC_ADDR(ResetCommandPool);
+	_GFX_GET_DEVICE_PROC_ADDR(ResetFences);
+	_GFX_GET_DEVICE_PROC_ADDR(UnmapMemory);
+	_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);
 
-		// Set device's reference to this context.
-		device->index = i;
-		device->context = context;
+	// Set device's reference to this context.
+	device->index = index;
+	device->context = context;
 
-		free(createInfos);
+	free(createInfos);
 
-		return;
-	}
+	return;
 
 
 	// Cleanup on failure.
 clean:
 	_gfx_destroy_context(context);
 	free(createInfos);
-
 error:
 	gfx_log_error(
 		"Could not create or initialize a logical Vulkan device for physical "
@@ -589,6 +619,8 @@ int _gfx_devices_init(void)
 		GFXDeviceType type = GFX_DEVICE_UNKNOWN;
 		uint32_t ver = 0;
 
+		// We keep moving around all the devices to sort the primary one to
+		// the front, so we leave its mutex and name pointer blank.
 		for (uint32_t i = 0; i < count; ++i)
 		{
 			// Get some Vulkan properties and define a new device.
