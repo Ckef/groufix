@@ -80,6 +80,9 @@ typedef GFXReference GFXImageRef;
  *  GFXMesh (its vertex or index buffer)
  *  GFXImage
  *  GFXRenderer (its image attachments)
+ *
+ * No argument can be NULL, any referenced memory resource must exist.
+ * If any of these constraints are not met, behaviour is undefined.
  */
 #define gfx_ref_buffer(buffer, offset) \
 	(GFXBufferRef){ \

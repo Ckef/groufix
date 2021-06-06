@@ -107,6 +107,8 @@ static GFXReference _gfx_ref_resolve(GFXReference ref)
 /****************************
  * Unpacks a memory resource reference.
  * Meaning the related referenced objects and values are retrieved.
+ *
+ * Comes with free reference validation when in debug mode!
  */
 static _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 {
@@ -132,15 +134,15 @@ static _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		break;
 
 	case GFX_REF_MESH_VERTICES:
-		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
 		unpack.obj.mesh = (_GFXMesh*)ref.obj;
+		unpack.obj.buffer = &unpack.obj.mesh->buffer;
 		unpack.value = ref.value;
 		break;
 
 	case GFX_REF_MESH_INDICES:
-		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
 		unpack.obj.mesh = (_GFXMesh*)ref.obj;
-		unpack.value = ref.value + ((GFXMesh*)ref.obj)->sizeVertices;
+		unpack.obj.buffer = &unpack.obj.mesh->buffer;
+		unpack.value = ref.value + unpack.obj.mesh->base.sizeVertices;
 		break;
 
 	case GFX_REF_IMAGE:
@@ -150,10 +152,48 @@ static _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	case GFX_REF_ATTACHMENT:
 		unpack.obj.renderer = (GFXRenderer*)ref.obj;
 		unpack.value = ref.value;
+		break;
 
 	default:
 		break;
 	}
+
+	// And finally some more debug validation.
+#if !defined (NDEBUG)
+	switch (ref.type)
+	{
+	case GFX_REF_BUFFER:
+		if (unpack.value >= unpack.obj.buffer->base.size)
+			gfx_log_warn("Buffer reference out of bounds!");
+
+		break;
+
+	case GFX_REF_MESH_VERTICES:
+		if (unpack.obj.mesh->base.sizeVertices == 0)
+			gfx_log_warn("Referencing a non-existent vertex buffer!");
+
+		if (unpack.value >= unpack.obj.mesh->base.sizeVertices)
+			gfx_log_warn("Vertex buffer reference out of bounds!");
+
+		break;
+
+	case GFX_REF_MESH_INDICES:
+		if (unpack.obj.mesh->base.sizeIndices == 0)
+			gfx_log_warn("Referencing a non-existent index buffer!");
+
+		if (unpack.value >= unpack.obj.mesh->base.sizeIndices)
+			gfx_log_warn("Index buffer reference out of bounds!");
+
+		break;
+
+	case GFX_REF_ATTACHMENT:
+		// TODO: Validate if the attachment index exists?
+		break;
+
+	default:
+		break;
+	}
+#endif
 
 	return unpack;
 }
@@ -448,7 +488,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 	if (numAttribs) memcpy(
 		mesh->offsets, offsets, sizeof(size_t) * numAttribs);
 
-	// Get appropriate public flags.
+	// Get appropriate public flags (also happens to unpack & validate).
 	_GFXBuffer* vertexBuff = _gfx_ref_unpack(mesh->refVertex).obj.buffer;
 	_GFXBuffer* indexBuff = _gfx_ref_unpack(mesh->refIndex).obj.buffer;
 
@@ -549,7 +589,7 @@ GFX_API void* gfx_map(GFXReference ref)
 		break;
 
 	case GFX_REF_ATTACHMENT:
-		gfx_log_error("Cannot map an image attachment of a renderer.");
+		gfx_log_error("Cannot map an attachment index of a renderer.");
 		break;
 
 	default:
