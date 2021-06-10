@@ -201,7 +201,7 @@ static _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 /****************************
  * Populates the `vk.buffer` and `alloc` fields of a _GFXBuffer object,
  * allocating a new Vulkan buffer in the process.
- * @param buffer Cannot be NULL.
+ * @param buffer Cannot be NULL, vk.buffer will be overwritten.
  * @return Zero on failure.
  *
  * The `base` and `heap` fields of buffer must be properly initialized,
@@ -273,11 +273,12 @@ clean:
 
 /****************************
  * Frees all resources created by _gfx_buffer_alloc.
- * @param buffer Cannot be NULL.
+ * @param buffer Cannot be NULL and vk.buffer cannot be VK_NULL_HANDLE.
  */
 static void _gfx_buffer_free(_GFXBuffer* buffer)
 {
 	assert(buffer != NULL);
+	assert(buffer->vk.buffer != VK_NULL_HANDLE);
 
 	GFXHeap* heap = buffer->heap;
 	_GFXContext* context = heap->context;

@@ -34,7 +34,7 @@
 
 /****************************
  * Array of Vulkan queue priority values in [0,1].
- * TODO: For now just a singular 1, maybe we want varying values?
+ * TODO: For now just a single queue, maybe we want more with varying values?
  */
 static const float _gfx_vk_queue_priorities[] = { 1.0f };
 
@@ -119,19 +119,17 @@ static void _gfx_get_device_features(_GFXDevice* device,
 
 /****************************
  * Retrieves the device group a device is part of.
+ * @param context Populates its numDevices and devices members.
  * @param device  Cannot be NULL.
  * @param index   Output device index into the group, cannot be NULL.
- * @param count   Output number of devices in the group, cannot be NULL.
- * @param devices Output device array, cannot be NULL.
  * @return Zero on failure.
  */
-static int _gfx_get_device_group(_GFXDevice* device, size_t* index,
-                                 size_t* count, VkPhysicalDevice* devices)
+static int _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
+                                 size_t* index)
 {
+	assert(context != NULL);
 	assert(device != NULL);
 	assert(index != NULL);
-	assert(count != NULL);
-	assert(devices != NULL);
 
 	// Enumerate all device groups.
 	uint32_t cnt;
@@ -171,10 +169,10 @@ static int _gfx_get_device_group(_GFXDevice* device, size_t* index,
 	}
 
 	*index = i;
-	*count = groups[g].physicalDeviceCount;
+	context->numDevices = groups[g].physicalDeviceCount;
 
 	memcpy(
-		devices,
+		context->devices,
 		groups[g].physicalDevices,
 		sizeof(VkPhysicalDevice) * groups[g].physicalDeviceCount);
 
@@ -183,36 +181,51 @@ static int _gfx_get_device_group(_GFXDevice* device, size_t* index,
 
 /****************************
  * Allocates a new queue set.
- * @param context Append created set to its _GFXQueueSet list.
- * @param count   Number of mutexes to create, must be > 0.
+ * @param context    Appends created set to its sets member.
+ * @param count      Number of queues/mutexes to create, must be > 0.
+ * @param createInfo Queue create info output, cannot be NULL.
  * @return Non-zero on success.
  */
 static int _gfx_alloc_queue_set(_GFXContext* context, uint32_t family,
-                                VkQueueFlags flags, int present, size_t count)
+                                VkQueueFlags flags, int present, size_t count,
+                                VkDeviceQueueCreateInfo* createInfo)
 {
 	assert(context != NULL);
 	assert(count > 0);
+	assert(createInfo != NULL);
 
 	// Allocate a new queue set.
-	_GFXQueueSet* s = malloc(sizeof(_GFXQueueSet) + sizeof(_GFXMutex) * count);
-	if (s == NULL) return 0;
+	_GFXQueueSet* set = malloc(sizeof(_GFXQueueSet) + sizeof(_GFXMutex) * count);
+	if (set == NULL) return 0;
 
-	s->family  = family;
-	s->flags   = flags;
-	s->present = present;
+	set->family  = family;
+	set->flags   = flags;
+	set->present = present;
 
 	// Keep inserting a mutex for each queue and stop as soon as we fail.
-	for (s->count = 0; s->count < count; ++s->count)
-		if (!_gfx_mutex_init(&s->locks[s->count]))
+	for (set->count = 0; set->count < count; ++set->count)
+		if (!_gfx_mutex_init(&set->locks[set->count]))
 		{
-			while (s->count > 0) _gfx_mutex_clear(&s->locks[--s->count]);
-			free(s);
+			while (set->count > 0) _gfx_mutex_clear(&set->locks[--set->count]);
+			free(set);
 
 			return 0;
 		}
 
-	// Insert into list.
-	gfx_list_insert_after(&context->sets, &s->list, NULL);
+	// Insert into set list of the context.
+	gfx_list_insert_after(&context->sets, &set->list, NULL);
+
+	// Fill create info.
+	// TODO: There is only 1 value for priorities for now.
+	*createInfo = (VkDeviceQueueCreateInfo){
+		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+
+		.pNext            = NULL,
+		.flags            = 0,
+		.queueFamilyIndex = family,
+		.queueCount       = (uint32_t)count,
+		.pQueuePriorities = _gfx_vk_queue_priorities
+	};
 
 	return 1;
 }
@@ -225,10 +238,11 @@ static int _gfx_alloc_queue_set(_GFXContext* context, uint32_t family,
  *
  * Output describe the queue families desired by the groufix implementation.
  */
-static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice device,
+static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
                                      VkDeviceQueueCreateInfo** createInfos)
 {
 	assert(context != NULL);
+	assert(device != NULL);
 	assert(createInfos != NULL);
 	assert(*createInfos == NULL);
 
@@ -244,10 +258,17 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice devi
 
 	// So get all queue families, do the searching...
 	uint32_t count;
-	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(device, &count, NULL);
+	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+		device->vk.device, &count, NULL);
 
 	VkQueueFamilyProperties props[count];
-	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(device, &count, props);
+	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+		device->vk.device, &count, props);
+
+	// TODO: Implement function '_gfx_find_queue_family' that finds a family
+	// with given flags & presentation support with as few as possible other
+	// flags. Then move the initialization of device group create info structs
+	// to the '_gfx_alloc_queue_set' function. That should clean up this mess.
 
 	// 1) A general graphics family:
 	// We use the family with VK_QUEUE_GRAPHICS_BIT set and
@@ -260,7 +281,7 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice devi
 		if (props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 		{
 			int pres = glfwGetPhysicalDevicePresentationSupport(
-				_groufix.vk.instance, device, i);
+				_groufix.vk.instance, device->vk.device, i);
 
 			int better = (graphics == UINT32_MAX) ||
 				(!graphicsHasPresent && pres) ||
@@ -281,7 +302,10 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice devi
 	// Check if we found a graphics family.
 	if (graphics == UINT32_MAX)
 	{
-		gfx_log_error("Could not find a queue family with VK_QUEUE_GRAPHICS_BIT set.");
+		gfx_log_error(
+			"Physical device does not have a queue family with VK_QUEUE_GRAPHICS_BIT set: %s.",
+			device->name);
+
 		return 0;
 	}
 
@@ -291,7 +315,7 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice devi
 	if (present == UINT32_MAX)
 		for (uint32_t i = 0; i < count; ++i)
 			if (glfwGetPhysicalDevicePresentationSupport(
-				_groufix.vk.instance, device, i))
+				_groufix.vk.instance, device->vk.device, i))
 			{
 				int better = (present == UINT32_MAX) ||
 					props[i].queueFlags < props[present].queueFlags;
@@ -303,7 +327,10 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice devi
 	// Check if we found a presentation family.
 	if (present == UINT32_MAX)
 	{
-		gfx_log_error("Could not find a queue family with presentation support.");
+		gfx_log_error(
+			"Physical device does not have a queue family with presentaion support: %s.",
+			device->name);
+
 		return 0;
 	}
 
@@ -318,30 +345,18 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, VkPhysicalDevice devi
 	if (*createInfos == NULL)
 		return 0;
 
-	// Just initialize all info structures to some defaults.
-	// Default is to create 1 queue of each family.
-	for (uint32_t i = 0; i < num; ++i)
-		(*createInfos)[i] = (VkDeviceQueueCreateInfo){
-			.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-
-			.pNext            = NULL,
-			.flags            = 0,
-			.queueCount       = 1,
-			.pQueuePriorities = _gfx_vk_queue_priorities
-		};
-
 	// Allocate graphics queue.
-	(*createInfos)[0].queueFamilyIndex = graphics;
 	int success = _gfx_alloc_queue_set(
-		context, graphics, props[graphics].queueFlags, graphicsHasPresent, 1);
+		context, graphics,
+		props[graphics].queueFlags, graphicsHasPresent, 1,
+		(*createInfos) + 0);
 
 	// Allocate novel present queue if necessary.
 	if (!graphicsHasPresent)
-	{
-		(*createInfos)[1].queueFamilyIndex = present;
 		success = success && _gfx_alloc_queue_set(
-			context, present, props[present].queueFlags, 1, 1);
-	}
+			context, present,
+			props[present].queueFlags, 1, 1,
+			(*createInfos) + 1);
 
 	if (!success)
 	{
@@ -403,9 +418,6 @@ static void _gfx_create_context(_GFXDevice* device)
 	assert(device != NULL);
 	assert(device->context == NULL);
 
-	_GFXContext* context = NULL;
-	VkDeviceQueueCreateInfo* createInfos = NULL;
-
 	// First of all, check Vulkan version.
 	if (device->api < _GFX_VK_VERSION)
 	{
@@ -418,10 +430,13 @@ static void _gfx_create_context(_GFXDevice* device)
 		goto error;
 	}
 
+	// Define this preemptively, this will be explicitly freed.
+	VkDeviceQueueCreateInfo* createInfos = NULL;
+
 	// Allocate a new context, we are allocating an array of physical devices
 	// at the end, just allocate the maximum number, who cares..
 	// These are used to check if a future device can use this context.
-	context = malloc(
+	_GFXContext* context = malloc(
 		sizeof(_GFXContext) +
 		sizeof(VkPhysicalDevice) * VK_MAX_DEVICE_GROUP_SIZE);
 
@@ -435,25 +450,27 @@ static void _gfx_create_context(_GFXDevice* device)
 	gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
 	gfx_list_init(&context->sets);
 
-	// Get desired device features, when a future device also uses this,
-	// context, it is assumed it has equivalent features.
+	// Now find the device group which this device is part of.
+	// This fills numDevices and devices of context!
+	size_t index;
+	if (!_gfx_get_device_group(context, device, &index))
+		goto clean;
+
+	// Call the thing that allocates the desired queues (i.e. fills sets of context!)
+	// and gets us the creation info to pass to Vulkan.
+	// When a a future device also uses this context, it is assumed it has
+	// equivalent queue family properties.
 	// If there are any device groups such that this is the case, you
 	// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
+	size_t sets;
+	if (!(sets = _gfx_create_queue_sets(context, device, &createInfos)))
+		goto clean;
+
+	// Get desired device features.
+	// Similarly to the families, we assume that any device that uses the same
+	// context has equivalent features.
 	VkPhysicalDeviceFeatures pdf;
 	_gfx_get_device_features(device, &pdf);
-
-	// Now find the device group which this device is part of.
-	size_t index;
-	if (!_gfx_get_device_group(device, &index, &context->numDevices, context->devices))
-		goto clean;
-
-	// Call the thing that gets us the desired queues to create.
-	// createInfos is explicitly freed on cleanup or success.
-	// Similarly to the features, we assume that any device that uses the same
-	// context has equivalent queue family properties.
-	size_t sets;
-	if (!(sets = _gfx_create_queue_sets(context, device->vk.device, &createInfos)))
-		goto clean;
 
 	// Finally go create the logical Vulkan device.
 	// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
