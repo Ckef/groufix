@@ -32,9 +32,15 @@
 		GFX_DEVICE_UNKNOWN)
 
 // Gets the complete set of queue flags (adding optional left out bits).
-#define _GFX_GET_ALL_QUEUE_FLAGS(vFlags) \
+#define _GFX_QUEUE_FLAGS_ALL(vFlags) \
 	((vFlags & VK_QUEUE_GRAPHICS_BIT || vFlags & VK_QUEUE_COMPUTE_BIT) ? \
 		vFlags | VK_QUEUE_TRANSFER_BIT : vFlags)
+
+// Counts the number of (relevant) set bits in a set of queue flags.
+#define _GFX_QUEUE_FLAGS_COUNT(vFlags) \
+	((vFlags & VK_QUEUE_GRAPHICS_BIT ? 1 : 0) + \
+	(vFlags & VK_QUEUE_COMPUTE_BIT ? 1 : 0) + \
+	(vFlags & VK_QUEUE_TRANSFER_BIT ? 1 : 0))
 
 
 /****************************
@@ -200,11 +206,12 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
 	// Since we don't know anything about the order of the queues,
 	// we loop over all the things and keep track of the best fit.
 	uint32_t found = UINT32_MAX;
+	VkQueueFlags foundFlags;
 
 	for (uint32_t i = 0; i < count; ++i)
 	{
 		VkQueueFlags iFlags =
-			_GFX_GET_ALL_QUEUE_FLAGS(props[i].queueFlags);
+			_GFX_QUEUE_FLAGS_ALL(props[i].queueFlags);
 
 		// If it does not include all required flags OR
 		// it needs presentation support but it doesn't have it,
@@ -221,9 +228,10 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
 		// Evaluate if it's better, i.e. check which has less flags.
 		if (
 			found == UINT32_MAX ||
-			iFlags < _GFX_GET_ALL_QUEUE_FLAGS(props[found].queueFlags))
+			_GFX_QUEUE_FLAGS_COUNT(iFlags) < _GFX_QUEUE_FLAGS_COUNT(foundFlags))
 		{
 			found = i;
+			foundFlags = iFlags;
 		}
 	}
 
