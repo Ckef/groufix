@@ -172,7 +172,7 @@ static _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		if (unpack.obj.mesh->base.sizeVertices == 0)
 			gfx_log_warn("Referencing a non-existent vertex buffer!");
 
-		if (unpack.value >= unpack.obj.mesh->base.sizeVertices)
+		if (unpack.value >= unpack.obj.buffer->base.size)
 			gfx_log_warn("Vertex buffer reference out of bounds!");
 
 		break;
@@ -181,7 +181,7 @@ static _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		if (unpack.obj.mesh->base.sizeIndices == 0)
 			gfx_log_warn("Referencing a non-existent index buffer!");
 
-		if (unpack.value >= unpack.obj.mesh->base.sizeIndices)
+		if (unpack.value >= unpack.obj.buffer->base.size)
 			gfx_log_warn("Index buffer reference out of bounds!");
 
 		break;
