@@ -31,6 +31,11 @@
 		GFX_DEVICE_CPU : \
 		GFX_DEVICE_UNKNOWN)
 
+// Gets the complete set of queue flags (adding optional left out bits).
+#define _GFX_GET_ALL_QUEUE_FLAGS(vFlags) \
+	((vFlags & VK_QUEUE_GRAPHICS_BIT || vFlags & VK_QUEUE_COMPUTE_BIT) ? \
+		vFlags | VK_QUEUE_TRANSFER_BIT : vFlags)
+
 
 /****************************
  * Array of Vulkan queue priority values in [0,1].
@@ -180,6 +185,52 @@ static int _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
 }
 
 /****************************
+ * Finds the optimal (least flags) queue family from count properties
+ * that includes the required flags and presentation support.
+ * @param props Cannot be NULL if count > 0.
+ * @return Index into props, UINT32_MAX if none found.
+ */
+static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
+                                       VkQueueFamilyProperties* props,
+                                       VkQueueFlags flags, int present)
+{
+	assert(device != NULL);
+	assert(count == 0 || props != NULL);
+
+	// Since we don't know anything about the order of the queues,
+	// we loop over all the things and keep track of the best fit.
+	uint32_t found = UINT32_MAX;
+
+	for (uint32_t i = 0; i < count; ++i)
+	{
+		VkQueueFlags iFlags =
+			_GFX_GET_ALL_QUEUE_FLAGS(props[i].queueFlags);
+
+		// If it does not include all required flags OR
+		// it needs presentation support but it doesn't have it,
+		// skip it.
+		// (make sure to short circuit the presentation call..)
+		if (
+			(iFlags & flags) != flags ||
+			(present && !glfwGetPhysicalDevicePresentationSupport(
+				_groufix.vk.instance, device->vk.device, i)))
+		{
+			continue;
+		}
+
+		// Evaluate if it's better, i.e. check which has less flags.
+		if (
+			found == UINT32_MAX ||
+			iFlags < _GFX_GET_ALL_QUEUE_FLAGS(props[found].queueFlags))
+		{
+			found = i;
+		}
+	}
+
+	return found;
+}
+
+/****************************
  * Allocates a new queue set.
  * @param context    Appends created set to its sets member.
  * @param count      Number of queues/mutexes to create, must be > 0.
@@ -246,6 +297,9 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	assert(createInfos != NULL);
 	assert(*createInfos == NULL);
 
+	// TODO: Use the function '_gfx_find_queue_family' defined above,
+	// that should clean up thi smess.
+
 	// The following properties need to be supported by at least one queue:
 	// 1) A general graphics family.
 	// 2) A family that supports presentation to surfaces.
@@ -264,11 +318,6 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	VkQueueFamilyProperties props[count];
 	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
 		device->vk.device, &count, props);
-
-	// TODO: Implement function '_gfx_find_queue_family' that finds a family
-	// with given flags & presentation support with as few as possible other
-	// flags. Then move the initialization of device group create info structs
-	// to the '_gfx_alloc_queue_set' function. That should clean up this mess.
 
 	// 1) A general graphics family:
 	// We use the family with VK_QUEUE_GRAPHICS_BIT set and
@@ -619,7 +668,7 @@ int _gfx_devices_init(void)
 	if (count == 0)
 		goto terminate;
 
-	// Again with the goto-proof scope.
+	// We use a scope here so the goto above is allowed.
 	{
 		// Enumerate all devices.
 		VkPhysicalDevice devices[count];

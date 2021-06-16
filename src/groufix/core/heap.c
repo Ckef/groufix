@@ -54,7 +54,7 @@ typedef struct _GFXUnpackRef
 	struct
 	{
 		_GFXBuffer*   buffer;
-		_GFXMesh*     mesh;
+		_GFXMesh*     mesh; // If not NULL, buffer will not be NULL either!
 		_GFXImage*    image;
 		GFXRenderer*  renderer;
 
