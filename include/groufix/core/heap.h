@@ -43,6 +43,26 @@ typedef enum GFXImageFlags
 
 
 /**
+ * Primitive topology.
+ */
+typedef enum GFXTopology
+{
+	GFX_TOPO_POINT_LIST,
+	GFX_TOPO_LINE_LIST,
+	GFX_TOPO_LINE_STRIP,
+	GFX_TOPO_TRIANGLE_LIST,
+	GFX_TOPO_TRIANGLE_STRIP,
+	GFX_TOPO_TRIANGLE_FAN,
+	GFX_TOPO_LINE_LIST_ADJACENT,
+	GFX_TOPO_LINE_STRIP_ADJACENT,
+	GFX_TOPO_TRIANGLE_LIST_ADJACENT,
+	GFX_TOPO_TRIANGLE_STRIP_ADJACENT,
+	GFX_TOPO_PATCH_LIST
+
+} GFXTopology;
+
+
+/**
  * Memory heap definition.
  */
 typedef struct GFXHeap GFXHeap;
@@ -84,6 +104,8 @@ typedef struct GFXMesh
 	// All read-only.
 	GFXBufferFlags flagsVertex;
 	GFXBufferFlags flagsIndex;
+
+	GFXTopology topology;
 
 	size_t sizeVertices; // Vertex buffer size (in bytes).
 	size_t sizeIndices;  // Index buffer size (in bytes).
@@ -165,7 +187,8 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 size_t numVertices, size_t stride,
                                 size_t numIndices, size_t indexSize,
-                                size_t numAttribs, size_t* offsets);
+                                size_t numAttribs, size_t* offsets,
+                                GFXTopology topology);
 
 /**
  * Frees a mesh, excluding any buffers it references.

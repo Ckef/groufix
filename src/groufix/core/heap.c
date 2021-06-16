@@ -444,7 +444,8 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 size_t numVertices, size_t stride,
                                 size_t numIndices, size_t indexSize,
-                                size_t numAttribs, size_t* offsets)
+                                size_t numAttribs, size_t* offsets,
+                                GFXTopology topology)
 {
 	assert(heap != NULL);
 	assert(GFX_REF_IS_NULL(vertex) || GFX_REF_IS_BUFFER(vertex));
@@ -469,6 +470,8 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 	// First get size of buffers to allocate then init the rest.
 	mesh->base.sizeVertices = numVertices * stride;
 	mesh->base.sizeIndices = numIndices * indexSize;
+
+	mesh->base.topology = topology;
 
 	mesh->buffer.heap = heap;
 	mesh->buffer.base.flags =
