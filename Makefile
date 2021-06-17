@@ -77,8 +77,13 @@ endif
 
 # Linker flags
 LFLAGS_ALL  = -shared -pthread
-LFLAGS_UNIX = $(LFLAGS_ALL) -ldl
 LFLAGS_WIN  = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
+
+ifeq ($(USE_WAYLAND),YES)
+ LFLAGS_UNIX = $(LFLAGS_ALL) -ldl -lwayland-client
+else
+ LFLAGS_UNIX = $(LFLAGS_ALL) -ldl -lX11
+endif
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
  LFLAGS = $(LFLAGS_WIN)
