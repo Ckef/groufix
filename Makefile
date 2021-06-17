@@ -36,6 +36,8 @@ BIN   = bin
 BUILD = build
 OUT   = obj
 
+USE_WAYLAND = NO
+
 
 # Compiler prefix (None if not a cross-compile)
 ifeq ($(CC),i686-w64-mingw32-gcc)
@@ -94,6 +96,12 @@ GLFW_FLAGS_ALL = \
  -DGLFW_BUILD_TESTS=OFF \
  -DGLFW_BUILD_DOCS=OFF
 
+ifeq ($(USE_WAYLAND),YES)
+ GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_USE_WAYLAND
+else
+ GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL)
+endif
+
 SHADERC_FLAGS_ALL = \
  -Wno-dev \
  -DCMAKE_BUILD_TYPE=Release \
@@ -115,7 +123,7 @@ else ifeq ($(OS),Windows_NT)
  GLFW_FLAGS    = $(GLFW_FLAGS_ALL) -DCMAKE_C_COMPILER=$(CC) -G "MinGW Makefiles"
  SHADERC_FLAGS = $(SHADERC_FLAGS_WIN)
 else
- GLFW_FLAGS    = $(GLFW_FLAGS_ALL)
+ GLFW_FLAGS    = $(GLFW_FLAGS_UNIX)
  SHADERC_FLAGS = $(SHADERC_FLAGS_UNIX)
 endif
 
