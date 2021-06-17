@@ -82,7 +82,7 @@ LFLAGS_WIN  = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
 ifeq ($(USE_WAYLAND),YES)
  LFLAGS_UNIX = $(LFLAGS_ALL) -ldl -lwayland-client
 else
- LFLAGS_UNIX = $(LFLAGS_ALL) -ldl -lX11
+ LFLAGS_UNIX = $(LFLAGS_ALL) -ldl
 endif
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
