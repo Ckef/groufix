@@ -197,16 +197,7 @@ typedef struct _GFXAttach
 struct GFXRenderer
 {
 	_GFXContext* context;
-
-
-	// Chosen graphics family.
-	struct
-	{
-		uint32_t   family;
-		VkQueue    queue; // Queue chosen from the family.
-		_GFXMutex* lock;
-
-	} graphics;
+	_GFXQueue    graphics; // Chosen graphics queue.
 
 
 	// Render frame (i.e. attachments).

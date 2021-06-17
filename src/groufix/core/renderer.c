@@ -11,38 +11,6 @@
 #include <stdlib.h>
 
 
-/****************************
- * Picks a graphics queue family (including a specific graphics queue).
- * @param renderer Cannot be NULL.
- * @return Non-zero on success.
- */
-static void _gfx_renderer_pick_graphics(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	_GFXContext* context = renderer->context;
-
-	// We assume there is at least a graphics family.
-	// Otherwise context creation would have failed.
-	// We just pick the first one we find.
-	for(
-		_GFXQueueSet* set = (_GFXQueueSet*)context->sets.head;
-		set != NULL;
-		set = (_GFXQueueSet*)set->list.next)
-	{
-		if (set->flags & VK_QUEUE_GRAPHICS_BIT)
-		{
-			renderer->graphics.family = set->family;
-			renderer->graphics.lock = &set->locks[0];
-
-			context->vk.GetDeviceQueue(
-				context->vk.device, set->family, 0, &renderer->graphics.queue);
-
-			break;
-		}
-	}
-}
-
 /****************************/
 GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 {
@@ -53,8 +21,13 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 	// Get context associated with the device.
 	_GFX_GET_CONTEXT(rend->context, device, goto clean);
 
-	// Initialize things.
-	_gfx_renderer_pick_graphics(rend);
+	// Pick the first graphics queue we can find.
+	_GFXQueueSet* set =
+		_gfx_pick_queue_set(rend->context, VK_QUEUE_GRAPHICS_BIT, 0);
+
+	rend->graphics = _gfx_get_queue(rend->context, set, 0);
+
+	// Initialize the render frame & graph.
 	_gfx_render_frame_init(rend);
 	_gfx_render_graph_init(rend);
 

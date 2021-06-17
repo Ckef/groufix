@@ -216,7 +216,8 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
 		// If it does not include all required flags OR
 		// it needs presentation support but it doesn't have it,
 		// skip it.
-		// (make sure to short circuit the presentation call..)
+		// Note we do not check for presentation to a specific surface yet.
+		// (make sure to short circuit the presentation call tho..)
 		if (
 			(iFlags & flags) != flags ||
 			(present && !glfwGetPhysicalDevicePresentationSupport(
@@ -330,7 +331,6 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	uint32_t transfer = UINT32_MAX;
 
 	// Start with finding a graphics family, hopefully with presentation.
-	// Note we do not check for presentation to a specific surface yet.
 	// Oh and find a (hopefully better) transfer queue.
 	graphics = _gfx_find_queue_family(
 		device, count, props, VK_QUEUE_GRAPHICS_BIT, 1);
@@ -550,7 +550,7 @@ static void _gfx_create_context(_GFXDevice* device)
 #if !defined (NDEBUG)
 	// This is like a moment to celebrate, right?
 	// We count the number of actual queues here.
-	uint32_t queueCount = 0;
+	size_t queueCount = 0;
 	for (GFXListNode* k = context->sets.head; k != NULL; k = k->next)
 		queueCount += ((_GFXQueueSet*)k)->count;
 
@@ -558,7 +558,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		"Logical Vulkan device of version %u.%u.%u created:\n"
 		"    Contains at least: %s.\n"
 		"    #physical devices: %u.\n"
-		"    #queue families: %u.\n"
+		"    #queue sets: %u.\n"
 		"    #queues (total): %u.\n",
 		(unsigned int)VK_VERSION_MAJOR(device->api),
 		(unsigned int)VK_VERSION_MINOR(device->api),
@@ -816,6 +816,49 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device)
 	_gfx_mutex_unlock(&device->lock);
 
 	return ret;
+}
+
+/****************************/
+_GFXQueueSet* _gfx_pick_queue_set(_GFXContext* context,
+                                  VkQueueFlags flags, int present)
+{
+	assert(context != NULL);
+
+	// Generaly speaking (!?), queue sets only report the flags they were
+	// specifically picked for, including the presentation flag.
+	// Therefore we just loop over the queue sets and pick the first that
+	// satisfies our requirements :)
+	for (
+		_GFXQueueSet* set = (_GFXQueueSet*)context->sets.head;
+		set != NULL;
+		set = (_GFXQueueSet*)set->list.next)
+	{
+		// Check if the required flags and present bit are set.
+		if ((set->flags & flags) == flags && (!present || set->present))
+			return set;
+	}
+
+	// Tough luck.
+	return NULL;
+}
+
+/****************************/
+_GFXQueue _gfx_get_queue(_GFXContext* context,
+                         _GFXQueueSet* set, size_t index)
+{
+	assert(context != NULL);
+	assert(set != NULL);
+	assert(index < set->count);
+
+	VkQueue queue;
+	context->vk.GetDeviceQueue(
+		context->vk.device, set->family, (uint32_t)index, &queue);
+
+	return (_GFXQueue){
+		.family = set->family,
+		.queue = queue,
+		.lock = &set->locks[index]
+	};
 }
 
 /****************************/

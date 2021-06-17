@@ -169,10 +169,22 @@ typedef struct _GFXQueueSet
 	VkQueueFlags flags;   // Only contains flags it was chosen for.
 	int          present; // Non-zero if chosen for presentation.
 
-	uint32_t     count;
+	size_t       count;
 	_GFXMutex    locks[]; // Count mutexes, one for each queue.
 
 } _GFXQueueSet;
+
+
+/**
+ * Logical Vulkan queue handle.
+ */
+typedef struct _GFXQueue
+{
+	uint32_t   family; // Vulkan family index.
+	VkQueue    queue;
+	_GFXMutex* lock;
+
+} _GFXQueue;
 
 
 /**
@@ -300,6 +312,9 @@ typedef struct _GFXWindow
 	_GFXDevice*  device; // Associated GPU to build a swapchain on.
 	_GFXContext* context;
 
+	_GFXQueue    present; // Chosen presentation queue.
+	GFXVec       access;  // Stores uint32_t, all Vulkan family indicies with image access.
+
 	// Swapchain lock (window can only be used by one renderer).
 #if defined (__STDC_NO_ATOMICS__)
 	int        swap;
@@ -307,18 +322,6 @@ typedef struct _GFXWindow
 #else
 	atomic_int swap;
 #endif
-
-
-	// Chosen presentation queue.
-	struct
-	{
-		uint32_t   family;
-		VkQueue    queue; // Queue chosen from the family.
-		_GFXMutex* lock;
-
-		GFXVec access; // Stores uint32_t, all Vulkan family indices with image access.
-
-	} present;
 
 
 	// Frame (i.e Vulkan surface + swapchain) properties.
@@ -473,6 +476,23 @@ void _gfx_monitors_terminate(void);
  * we can read device->index and device->context directly without locking.
  */
 _GFXContext* _gfx_device_init_context(_GFXDevice* device);
+
+/**
+ * Picks the queue set supporting the given flag and presentation support.
+ * @param context Cannot be NULL.
+ * @return NULL if not found.
+ */
+_GFXQueueSet* _gfx_pick_queue_set(_GFXContext* context,
+                                  VkQueueFlags flags, int present);
+
+/**
+ * Retrieves a handle to a queue from a queue set.
+ * @param context Cannot be NULL.
+ * @param set     Cannot be NULL, must be picked from context.
+ * @index Index of the queue, must be < set->count.
+ */
+_GFXQueue _gfx_get_queue(_GFXContext* context,
+                         _GFXQueueSet* set, size_t index);
 
 
 /****************************

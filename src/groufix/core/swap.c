@@ -215,17 +215,14 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			.clipped          = VK_TRUE,
 			.oldSwapchain     = oldSwapchain,
 
-			.imageSharingMode =
-				(window->present.access.size > 1) ?
+			.imageSharingMode = (window->access.size > 1) ?
 				VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
 
-			.queueFamilyIndexCount =
-				(window->present.access.size > 1) ?
-				(uint32_t)window->present.access.size : 0,
+			.queueFamilyIndexCount = (window->access.size > 1) ?
+				(uint32_t)window->access.size : 0,
 
-			.pQueueFamilyIndices =
-				(window->present.access.size > 1) ?
-				window->present.access.data : NULL
+			.pQueueFamilyIndices = (window->access.size > 1) ?
+				window->access.data : NULL
 		};
 
 		int res = 1;

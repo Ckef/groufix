@@ -233,7 +233,7 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 }
 
 /****************************
- * Picks a presentation queue family (including a specific presentation queue).
+ * Picks a presentation queue & fills the image access vector of a window.
  * window->vk.surface must be initialized to a valid Vulkan surface.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
@@ -246,57 +246,44 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 
 	_GFXContext* context = window->context;
 
-	window->present.queue = NULL;
-	gfx_vec_init(&window->present.access, sizeof(uint32_t));
+	// Pick the presentation AND graphics queues.
+	// The graphics queue will need access to these images.
+	_GFXQueueSet* graphics =
+		_gfx_pick_queue_set(context, VK_QUEUE_GRAPHICS_BIT, 0);
+	_GFXQueueSet* present =
+		_gfx_pick_queue_set(context, 0, 1);
 
-	for(
-		_GFXQueueSet* set = (_GFXQueueSet*)context->sets.head;
-		set != NULL;
-		set = (_GFXQueueSet*)set->list.next)
-	{
-		// Gather all families that need access to presentable images.
-		// We only care about the family if it is a graphics family OR
-		// it specifically tells us it is capable of presenting.
-		if (!(set->flags & VK_QUEUE_GRAPHICS_BIT || set->present))
-			continue;
+	// So we checked presentation support in a surface-agnostic manner during
+	// logical device creation, now go check for the given surface.
+	// What if a queue not chosen for presentation supports this surface
+	// I hear you asking.. well.. shutup >:(
+	VkBool32 support = VK_FALSE;
+	_groufix.vk.GetPhysicalDeviceSurfaceSupportKHR(
+		window->device->vk.device, present->family, window->vk.surface, &support);
 
-		if (!gfx_vec_push(&window->present.access, 1, &set->family))
-			return 0;
-
-		// Pick the first family that can present.
-		if (window->present.queue != NULL || !set->present)
-			continue;
-
-		// We checked presentation support in a surface-agnostic manner
-		// during logical device creation, now go check for the given surface.
-		VkBool32 support = VK_FALSE;
-		_groufix.vk.GetPhysicalDeviceSurfaceSupportKHR(
-			window->device->vk.device,
-			set->family,
-			window->vk.surface,
-			&support);
-
-		if (support == VK_TRUE)
-		{
-			// We take the first queue in this family.
-			window->present.family = set->family;
-			window->present.lock = &set->locks[0];
-
-			context->vk.GetDeviceQueue(
-				context->vk.device, set->family, 0, &window->present.queue);
-		}
-	}
-
-	// Uuuuuh hold up...
-	if (window->present.queue == NULL)
+	if (support == VK_FALSE)
 	{
 		gfx_log_error(
-			"Could not find a queue family with surface presentation "
-			"support on physical device: %s.",
+			"The queue set (family) picked for presentation does not "
+			"support presentation to a surface on physical device: %s.",
 			window->device->name);
 
 		return 0;
 	}
+
+	// Get the desired queue, we take the first.
+	window->present = _gfx_get_queue(context, present, 0);
+
+	// Now initialize & fill the access vector.
+	// Don't put in duplicate queue families!
+	gfx_vec_init(&window->access, sizeof(uint32_t));
+
+	if (!gfx_vec_push(&window->access, 1, &present->family))
+		return 0;
+
+	if (graphics != present)
+		if (!gfx_vec_push(&window->access, 1, &graphics->family))
+			return 0;
 
 	return 1;
 }
@@ -501,7 +488,7 @@ clean_sync:
 		context->vk.device, window->vk.available, NULL);
 
 clean_present:
-	gfx_vec_clear(&window->present.access);
+	gfx_vec_clear(&window->access);
 clean_surface:
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, window->vk.surface, NULL);
@@ -552,7 +539,7 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, win->vk.surface, NULL);
 
-	gfx_vec_clear(&win->present.access);
+	gfx_vec_clear(&win->access);
 	gfx_vec_clear(&win->frame.images);
 	_gfx_mutex_clear(&win->frame.lock);
 #if defined (__STDC_NO_ATOMICS__)
