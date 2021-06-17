@@ -36,7 +36,7 @@ BIN   = bin
 BUILD = build
 OUT   = obj
 
-USE_WAYLAND = NO
+USE_WAYLAND = OFF
 
 
 # Compiler prefix (None if not a cross-compile)
@@ -79,7 +79,7 @@ endif
 LFLAGS_ALL  = -shared -pthread
 LFLAGS_WIN  = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
 
-ifeq ($(USE_WAYLAND),YES)
+ifeq ($(USE_WAYLAND),ON)
  LFLAGS_UNIX = $(LFLAGS_ALL) -ldl -lwayland-client
 else
  LFLAGS_UNIX = $(LFLAGS_ALL) -ldl
@@ -101,7 +101,7 @@ GLFW_FLAGS_ALL = \
  -DGLFW_BUILD_TESTS=OFF \
  -DGLFW_BUILD_DOCS=OFF
 
-ifeq ($(USE_WAYLAND),YES)
+ifeq ($(USE_WAYLAND),ON)
  GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_USE_WAYLAND
 else
  GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL)

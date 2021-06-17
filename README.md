@@ -27,7 +27,7 @@ The Makefile takes the following flags:
 
 * `CC=xxx` tells the Makefile to use a given compiler collection. `xxx` defaults to `gcc`, to cross-compile to Windows, this must be set to `i686-w64-mingw32-gcc` or `x86_64-w64-mingw32-gcc`.
 
-* `USE_WAYLAND=xxx` tells the Makefile whether to compile [GLFW](https://www.glfw.org/) for Wayland or not, as it will default to X11 when building on Linux. `xxx` can be either `YES` or `NO` and defaults to `NO`.
+* `USE_WAYLAND=xxx` tells the Makefile whether to compile [GLFW](https://www.glfw.org/) for Wayland or not, as it will default to X11 when building on Linux. `xxx` can be either `ON` or `OFF` and defaults to `OFF`.
 
 ### Dependencies
 
