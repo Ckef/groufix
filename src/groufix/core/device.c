@@ -382,13 +382,13 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 
 	// Allocate novel present queue if necessary.
 	if (present != graphics)
-		success = _gfx_alloc_queue_set(context,
+		success = success && _gfx_alloc_queue_set(context,
 			present, 1, 1, (*createInfos) + (sets++),
 			(transfer == present ? VK_QUEUE_TRANSFER_BIT : 0));
 
 	// Allocate a novel transfer queue if necessary.
 	if (transfer != graphics && transfer != present)
-		success = _gfx_alloc_queue_set(context,
+		success = success && _gfx_alloc_queue_set(context,
 			transfer, 0, 1, (*createInfos) + (sets++),
 			VK_QUEUE_TRANSFER_BIT);
 
