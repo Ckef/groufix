@@ -166,7 +166,7 @@ typedef struct _GFXQueueSet
 	GFXListNode list; // Base-type.
 
 	uint32_t     family;  // Vulkan family index.
-	VkQueueFlags flags;
+	VkQueueFlags flags;   // Only contains flags it was chosen for.
 	int          present; // Non-zero if chosen for presentation.
 
 	uint32_t     count;
