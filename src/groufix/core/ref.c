@@ -73,8 +73,11 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	case GFX_REF_MESH_INDICES:
 		unpack.obj.mesh = (_GFXMesh*)ref.obj;
 		unpack.obj.buffer = &unpack.obj.mesh->buffer;
+
 		// Augment offset into the vertex/index buffer.
-		unpack.value = ref.value + unpack.obj.mesh->base.sizeVertices;
+		unpack.value = ref.value +
+			GFX_REF_IS_NULL(unpack.obj.mesh->refVertex) ?
+				unpack.obj.mesh->base.sizeVertices : 0;
 		break;
 
 	case GFX_REF_IMAGE:

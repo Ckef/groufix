@@ -11,6 +11,7 @@
 #define GFX_CORE_RENDERER_H
 
 #include "groufix/core/device.h"
+#include "groufix/core/heap.h" // TODO: Totally temporary!
 #include "groufix/core/window.h"
 #include "groufix/def.h"
 
@@ -182,6 +183,12 @@ GFX_API size_t gfx_render_pass_get_num_deps(GFXRenderPass* pass);
  * @param dep  Dependency index, must be < gfx_render_pass_get_num(pass).
  */
 GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep);
+
+/**
+ * TODO: Totally temporary!
+ * Makes the render pass render the given things.
+ */
+GFX_API void gfx_render_pass_use(GFXRenderPass* pass, GFXMesh* mesh);
 
 
 #endif

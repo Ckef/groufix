@@ -241,6 +241,7 @@ struct GFXRenderPass
 		size_t backing; // Attachment index (or SIZE_MAX).
 
 		// TODO: Super temporary!!
+		_GFXMesh*  mesh;
 		GFXShader* vertex;
 		GFXShader* fragment;
 

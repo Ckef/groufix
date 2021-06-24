@@ -99,6 +99,8 @@ static void _gfx_render_pass_pick_backing(GFXRenderPass* pass)
 			gfx_log_warn(
 				"A single render pass can only write to a single "
 				"window attachment at a time.");
+
+			break;
 		}
 	}
 }
@@ -189,10 +191,12 @@ error:
 static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
+	assert(pass->build.mesh != NULL); // TODO: Obviously temporary.
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->context;
 	_GFXAttach* at = NULL;
+	_GFXMesh* mesh = pass->build.mesh;
 
 	// At this point, we should check if we should re-record,
 	// as now we know if we're missing resources from a previous record.
@@ -343,15 +347,29 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		};
 
 		// Pipeline vertex input state.
+		VkVertexInputAttributeDescription viad[mesh->numAttribs];
+
+		for (size_t i = 0; i < mesh->numAttribs; ++i)
+			viad[i] = (VkVertexInputAttributeDescription){
+				.location = (uint32_t)i,
+				.binding  = 0,
+				.format   = VK_FORMAT_R32G32B32_SFLOAT,
+				.offset   = (uint32_t)mesh->offsets[i]
+			};
+
 		VkPipelineVertexInputStateCreateInfo pvisci = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 
 			.pNext                           = NULL,
 			.flags                           = 0,
-			.vertexBindingDescriptionCount   = 0,
-			.pVertexBindingDescriptions      = NULL,
-			.vertexAttributeDescriptionCount = 0,
-			.pVertexAttributeDescriptions    = NULL
+			.vertexAttributeDescriptionCount = (uint32_t)mesh->numAttribs,
+			.pVertexAttributeDescriptions    = viad,
+			.vertexBindingDescriptionCount   = 1,
+			.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]){{
+				.binding   = 0,
+				.stride    = (uint32_t)mesh->stride,
+				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+			}}
 		};
 
 		// Pipeline input assembly state.
@@ -360,7 +378,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 
 			.pNext                  = NULL,
 			.flags                  = 0,
-			.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			.topology               = mesh->base.topology,
 			.primitiveRestartEnable = VK_FALSE
 		};
 
@@ -503,7 +521,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 			_GFX_VK_CHECK(context->vk.BeginCommandBuffer(buffer, &cbbi),
 				goto error);
 
-			// Begin render pass, bind pipeline, draw, and end pass.
+			// Begin render pass, bind pipeline.
 			VkRenderPassBeginInfo rpbi = {
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 
@@ -521,8 +539,40 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 			context->vk.CmdBindPipeline(
 				buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->vk.pipeline);
 
-			context->vk.CmdDraw(
-				buffer, 3, 1, 0, 0);
+			// Bind index buffer.
+			if (mesh->base.sizeIndices > 0)
+			{
+				_GFXUnpackRef index = _gfx_ref_unpack(
+					gfx_ref_mesh_indices((GFXMesh*)mesh, 0));
+
+				context->vk.CmdBindIndexBuffer(
+					buffer,
+					index.obj.buffer->vk.buffer,
+					index.value,
+					mesh->indexSize == sizeof(uint16_t) ?
+						VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+			}
+
+			// Bind vertex buffer.
+			_GFXUnpackRef vertex = _gfx_ref_unpack(
+				gfx_ref_mesh_vertices((GFXMesh*)mesh, 0));
+
+			context->vk.CmdBindVertexBuffers(
+				buffer, 0, 1,
+				(VkBuffer[]){ vertex.obj.buffer->vk.buffer },
+				(VkDeviceSize[]){ vertex.value });
+
+			// Draw.
+			if (mesh->base.sizeIndices > 0)
+				context->vk.CmdDrawIndexed(
+					buffer,
+					(uint32_t)(mesh->base.sizeIndices / mesh->indexSize),
+					1, 0, 0, 0);
+			else
+				context->vk.CmdDraw(
+					buffer,
+					(uint32_t)(mesh->base.sizeVertices / mesh->stride),
+					1, 0, 0);
 
 			context->vk.CmdEndRenderPass(
 				buffer);
@@ -601,23 +651,15 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	const char vert[] =
 		"#version 450\n"
 		"#extension GL_ARB_separate_shader_objects : enable\n"
+		"layout(location = 0) in vec3 position;\n"
+		"layout(location = 1) in vec3 color;\n"
 		"layout(location = 0) out vec3 fragColor;\n"
 		"out gl_PerVertex {\n"
 		"  vec4 gl_Position;\n"
 		"};\n"
-		"vec2 positions[3] = vec2[](\n"
-		"  vec2(0.0, -0.5),\n"
-		"  vec2(0.5, 0.5),\n"
-		"  vec2(-0.5, 0.5)\n"
-		");\n"
-		"vec3 colors[3] = vec3[](\n"
-		"  vec3(1.0, 0.0, 0.0),\n"
-		"  vec3(0.0, 1.0, 0.0),\n"
-		"  vec3(0.0, 0.0, 1.0)\n"
-		");\n"
 		"void main() {\n"
-		"  gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);\n"
-		"  fragColor = colors[gl_VertexIndex];\n"
+		"  gl_Position = vec4(position, 1.0);\n"
+		"  fragColor = color;\n"
 		"}\n";
 
 	const char frag[] =
@@ -629,6 +671,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 		"  outColor = vec4(fragColor, 1.0);\n"
 		"}\n";
 
+	pass->build.mesh = NULL;
 	pass->build.vertex = gfx_create_shader(GFX_SHADER_VERTEX, NULL);
 	pass->build.fragment = gfx_create_shader(GFX_SHADER_FRAGMENT, NULL);
 
@@ -785,4 +828,13 @@ GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep)
 	assert(dep < pass->numDeps);
 
 	return pass->deps[dep];
+}
+
+/****************************/
+GFX_API void gfx_render_pass_use(GFXRenderPass* pass, GFXMesh* mesh)
+{
+	assert(pass != NULL);
+	assert(mesh != NULL);
+
+	pass->build.mesh = (_GFXMesh*)mesh;
 }

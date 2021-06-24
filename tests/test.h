@@ -55,6 +55,7 @@
 #include <groufix.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #if defined (TEST_ENABLE_THREADS)
 	#include <pthread.h>
@@ -121,6 +122,7 @@ typedef struct
 	GFXWindow*   window;
 	GFXHeap*     heap;
 	GFXRenderer* renderer; // Window is attached at index 0.
+	GFXMesh*     mesh;
 
 } TestBase;
 
@@ -149,7 +151,7 @@ typedef struct
 /**
  * Instance of the test base state.
  */
-static TestBase _test_base = { NULL, NULL };
+static TestBase _test_base = { NULL, NULL, NULL, NULL };
 
 
 /****************************
@@ -284,6 +286,41 @@ static void _test_init(void)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
+	// Allocate a triangle mesh.
+	uint16_t indexData[] = {
+		0, 1, 3, 2
+	};
+
+	float vertexData[] = {
+		-0.5f, -0.5f, 0.0f,   1.0f, 0.0f, 0.0f,
+		 0.5f, -0.5f, 0.0f,   1.0f, 1.0f, 0.0f,
+		 0.5f,  0.5f, 0.0f,   0.0f, 1.0f, 0.0f,
+		-0.5f,  0.5f, 0.0f,   0.0f, 0.0f, 1.0f
+	};
+
+	_test_base.mesh = gfx_alloc_mesh(_test_base.heap,
+		GFX_BUFFER_HOST_VISIBLE,
+		GFX_REF_NULL, GFX_REF_NULL,
+		4, sizeof(float) * 6,
+		4, sizeof(uint16_t),
+		2, (size_t[]){ 0, sizeof(float) * 3 },
+		GFX_TOPO_TRIANGLE_STRIP);
+
+	if (_test_base.mesh == NULL)
+		TEST_FAIL();
+
+	void* ptrVert = gfx_map(gfx_ref_mesh_vertices(_test_base.mesh, 0));
+	void* ptrInd = gfx_map(gfx_ref_mesh_indices(_test_base.mesh, 0));
+
+	if (ptrVert == NULL || ptrInd == NULL)
+		TEST_FAIL();
+
+	memcpy(ptrVert, vertexData, sizeof(vertexData));
+	memcpy(ptrInd, indexData, sizeof(indexData));
+
+	gfx_unmap(gfx_ref_mesh_vertices(_test_base.mesh, 0));
+	gfx_unmap(gfx_ref_mesh_indices(_test_base.mesh, 0));
+
 	// Add a single render pass that writes to the window.
 	GFXRenderPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);
 	if (pass == NULL)
@@ -291,6 +328,9 @@ static void _test_init(void)
 
 	if (!gfx_render_pass_write(pass, 0))
 		TEST_FAIL();
+
+	// Make it render the thing.
+	gfx_render_pass_use(pass, _test_base.mesh);
 #endif
 }
 

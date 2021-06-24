@@ -207,8 +207,11 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(BeginCommandBuffer);
 		_GFX_VK_PFN(BindBufferMemory);
 		_GFX_VK_PFN(CmdBeginRenderPass);
+		_GFX_VK_PFN(CmdBindIndexBuffer);
 		_GFX_VK_PFN(CmdBindPipeline);
+		_GFX_VK_PFN(CmdBindVertexBuffers);
 		_GFX_VK_PFN(CmdDraw);
+		_GFX_VK_PFN(CmdDrawIndexed);
 		_GFX_VK_PFN(CmdEndRenderPass);
 		_GFX_VK_PFN(CreateBuffer);
 		_GFX_VK_PFN(CreateCommandPool);

@@ -83,6 +83,8 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 		context->vk.device, buffer->vk.buffer, &reqs);
 
 	// Get appropriate memory flags & allocate.
+	// For now we always add coherency to host visible buffers, this way we do
+	// not need to account for `VkPhysicalDeviceLimits::nonCoherentAtomSize`.
 	// We always add device local to the optimal flags,
 	// wouldn't it be wonderful if everything was always device local :)
 	VkMemoryPropertyFlags flags =

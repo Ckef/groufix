@@ -34,6 +34,9 @@ TEST_DESCRIBE(windows, _t)
 	if (!gfx_render_pass_write(pass, 1))
 		TEST_FAIL();
 
+	// Make it render the thing.
+	gfx_render_pass_use(pass, _t->mesh);
+
 	// Setup an event loop.
 	// We wait instead of poll, only update when an event was detected.
 	while (
