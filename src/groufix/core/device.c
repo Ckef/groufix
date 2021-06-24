@@ -374,6 +374,7 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	// Allocate queue sets and count how many.
 	size_t sets = 0;
 
+	// TODO: Maybe more queues if the present/transfer queue are the same?
 	// Allocate main (graphics) queue.
 	int success = _gfx_alloc_queue_set(context,
 		graphics, present == graphics, 1, (*createInfos) + (sets++),

@@ -266,6 +266,51 @@ struct GFXRenderPass
 
 
 /****************************
+ * Resource reference operations.
+ ****************************/
+
+/**
+ * Unpacked memory resource reference.
+ */
+typedef struct _GFXUnpackRef
+{
+	// Referenced object.
+	struct
+	{
+		_GFXBuffer*   buffer;
+		_GFXMesh*     mesh; // If not NULL, buffer will not be NULL either!
+		_GFXImage*    image;
+		GFXRenderer*  renderer;
+
+	} obj;
+
+	// Reference value,
+	//  buffer offset | attachment index.
+	size_t value;
+
+} _GFXUnpackRef;
+
+
+/**
+ * Resolves a memory reference, meaning:
+ * if it references a reference, it will recursively return that reference.
+ * @return A reference to the user-visible object actually holding the memory.
+ *
+ * Assumes no self-references exist!
+ */
+GFXReference _gfx_ref_resolve(GFXReference ref);
+
+/**
+ * Resolves & unpacks a memory resource reference, meaning:
+ * the related referenced objects and values are retrieved, if an object is
+ * composed of other memory objects internally, those will be 'unpacked' as well.
+ *
+ * Comes with free reference validation when in debug mode!
+ */
+_GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
+
+
+/****************************
  * Render- frame and graph.
  ****************************/
 
