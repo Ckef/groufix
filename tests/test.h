@@ -286,7 +286,7 @@ static void _test_init(void)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
-	// Allocate a triangle mesh.
+	// Allocate a mesh.
 	uint16_t indexData[] = {
 		0, 1, 3, 2
 	};

@@ -31,7 +31,7 @@ typedef enum GFXTreeMatchType
 typedef struct GFXTree
 {
 	size_t keySize;
-	void*  root;
+	void*  root; // Can be read as a node returned by gfx_tree_insert.
 
 	// Key comparison function.
 	int (*cmp)(const void*, const void*);

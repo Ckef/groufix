@@ -181,6 +181,7 @@ typedef struct _GFXAttach
 
 	} type;
 
+
 	// Attachment data.
 	union
 	{
@@ -261,8 +262,9 @@ struct GFXRenderPass
 	} vk;
 
 
+	// Dependency passes.
 	size_t         numDeps;
-	GFXRenderPass* deps[]; // Dependency passes.
+	GFXRenderPass* deps[];
 };
 
 
@@ -284,6 +286,7 @@ typedef struct _GFXUnpackRef
 		GFXRenderer*  renderer;
 
 	} obj;
+
 
 	// Reference value,
 	//  buffer offset | attachment index.

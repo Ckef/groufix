@@ -22,7 +22,7 @@ typedef struct GFXVec
 	size_t capacity;
 	size_t elementSize;
 
-	void* data;
+	void* data; // Can be read as a temporary contiguous array of elements.
 
 } GFXVec;
 
