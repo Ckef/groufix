@@ -18,9 +18,11 @@
  */
 typedef struct GFXMap
 {
-	size_t capacity;
+	size_t size;     // Number of stored elements.
+	size_t capacity; // Number of buckets.
 	size_t elementSize;
-	void*  buckets;
+
+	void* buckets;
 
 	// Hash function.
 	uint64_t (*hash)(const void*);
@@ -63,6 +65,14 @@ GFX_API void gfx_map_init(GFXMap* map, size_t elemSize,
  * @param map Cannot be NULL.
  */
 GFX_API void gfx_map_clear(GFXMap* map);
+
+/**
+ * Reserves a minimum size, this 'capacity' holds until elements are erased.
+ * Load factor is accounted for to compute the actual capacity.
+ * @param map Cannot be NULL.
+ * @return Zero when out of memory.
+ */
+GFX_API int gfx_map_reserve(GFXMap* map, size_t numElems);
 
 /**
  * Inserts an element into the map.
