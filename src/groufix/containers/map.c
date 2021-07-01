@@ -9,30 +9,34 @@
 #include "groufix/containers/map.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 #define _GFX_MAP_LOAD_FACTOR 0.75 // Must be reasonably > 0.5 .. !
 
-// Retrieve the bucket node from a public element pointer.
-#define _GFX_GET_NODE(map, element) \
-	((void**)element - 1)
-
 // Get the next node in the bucket's chain.
 #define _GFX_GET_NEXT(map, node) \
-	((void**)(*(void**)node))
+	(_GFXMapNode)(*(void**)node)
 
 // Retrieve the element data from a bucket node.
 #define _GFX_GET_ELEMENT(map, node) \
-	((void*)((void**)node + 1))
+	(void*)((void**)node + 1)
 
 // Retrieve the key from a bucket node.
 #define _GFX_GET_KEY(map, node) \
-	((void*)((char*)((void**)node + 1) + map->elementSize))
+	(void*)((char*)((void**)node + 1) + map->elementSize)
 
 
 /****************************
- * Allocates a new block of memory with a given capacity and moves the content
- * of the entire map to this new block of memory.
+ * Bucket's node handle, points to { void*, element, key }.
+ * Dereferencing yields the pointer to the next node.
+ */
+typedef void** _GFXMapNode;
+
+
+/****************************
+ * Allocates a new block of memory with a given capacity and moves
+ * the content of the entire map to this new block of memory.
  */
 static int _gfx_map_move(GFXMap* map, size_t capacity)
 {
@@ -42,7 +46,19 @@ static int _gfx_map_move(GFXMap* map, size_t capacity)
 	// Firstly, set all buckets to NULL.
 	for (size_t i = 0; i < capacity; ++i) new[i] = NULL;
 
-	// TODO: Move all elements from map->buckets to new.
+	// Move (i.e. rehash) all elements to the new memory block.
+	for (size_t i = 0; i < map->capacity; ++i)
+		while (map->buckets[i] != NULL)
+		{
+			// Remove it from the map.
+			_GFXMapNode node = map->buckets[i];
+			map->buckets[i] = _GFX_GET_NEXT(map, node);
+
+			// Stick it in new.
+			uint64_t hash = map->hash(_GFX_GET_KEY(map, node)) % capacity;
+			*node = new[hash];
+			new[hash] = node;
+		}
 
 	free(map->buckets);
 	map->capacity = capacity;
@@ -117,8 +133,17 @@ GFX_API void gfx_map_clear(GFXMap* map)
 {
 	assert(map != NULL);
 
-	// TODO: Free all elements.
+	// Free all elements.
+	for (size_t i = 0; i < map->capacity; ++i)
+		while (map->buckets[i] != NULL)
+		{
+			_GFXMapNode node = map->buckets[i];
+			map->buckets[i] = _GFX_GET_NEXT(map, node);
 
+			free(node);
+		}
+
+	free(map->buckets);
 	map->size = 0;
 	map->capacity = 0;
 	map->buckets = NULL;
@@ -141,7 +166,57 @@ GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
 	assert(keySize > 0);
 	assert(key != NULL);
 
-	return NULL;
+	// Hash & search to overwrite.
+	uint64_t hash = map->hash(key) % map->capacity;
+	size_t cap = map->capacity;
+
+	for (
+		_GFXMapNode node = map->buckets[hash];
+		node != NULL;
+		node = _GFX_GET_NEXT(map, node))
+	{
+		// When found, overwrite & return.
+		if (map->cmp(key, _GFX_GET_KEY(map, node)) == 0)
+		{
+			if (elem != NULL)
+				memcpy(_GFX_GET_ELEMENT(map, node), elem, map->elementSize);
+
+			return _GFX_GET_ELEMENT(map, node);
+		}
+	}
+
+	// Allocate a new node.
+	// We allocate a next pointer appended with the element and key data.
+	_GFXMapNode node = malloc(
+		sizeof(void*) + map->elementSize + keySize);
+
+	if (node == NULL)
+		return NULL;
+
+	// To insert, we first check if the map could grow.
+	// We do this last of all to avoid unnecessary growth.
+	if (!_gfx_map_grow(map, map->size + 1))
+	{
+		free(node);
+		return NULL;
+	}
+
+	++map->size;
+
+	// Initialize element and key value.
+	if (elem != NULL)
+		memcpy(_GFX_GET_ELEMENT(map, node), elem, map->elementSize);
+
+	memcpy(_GFX_GET_KEY(map, node), key, keySize);
+
+	// Insert, rehash if we've grown.
+	if (cap != map->capacity)
+		hash = map->hash(key) % map->capacity;
+
+	*node = map->buckets[hash];
+	map->buckets[hash] = node;
+
+	return _GFX_GET_ELEMENT(map, node);
 }
 
 /****************************/
@@ -150,12 +225,59 @@ GFX_API void* gfx_map_search(GFXMap* map, const void* key)
 	assert(map != NULL);
 	assert(key != NULL);
 
+	// Hash & search :)
+	uint64_t hash = map->hash(key) % map->capacity;
+
+	for (
+		_GFXMapNode node = map->buckets[hash];
+		node != NULL;
+		node = _GFX_GET_NEXT(map, node))
+	{
+		if (map->cmp(key, _GFX_GET_KEY(map, node)) == 0)
+			return _GFX_GET_ELEMENT(map, node);
+	}
+
 	return NULL;
 }
 
 /****************************/
-GFX_API void gfx_map_erase(GFXMap* map, void* elem)
+GFX_API void gfx_map_erase(GFXMap* map, const void* key)
 {
 	assert(map != NULL);
-	assert(elem != NULL);
+	assert(key != NULL);
+
+	// Hash & search, but erase!
+	uint64_t hash = map->hash(key) & map->capacity;
+
+	// So this is a bit annoying,
+	// we need to find the element BEFORE the one with the key.
+	_GFXMapNode bNode = map->buckets[hash];
+	if (bNode == NULL) return;
+
+	// If it happens to be the first, just replace with the next.
+	if (map->cmp(key, _GFX_GET_KEY(map, bNode)) == 0)
+	{
+		map->buckets[hash] = _GFX_GET_NEXT(map, bNode);
+		free(bNode);
+
+		--map->size, _gfx_map_shrink(map);
+		return;
+	}
+
+	// Otherwise, keep walking the chain to find it.
+	for (
+		_GFXMapNode node = _GFX_GET_NEXT(map, bNode);
+		node != NULL;
+		bNode = node, node = _GFX_GET_NEXT(map, bNode))
+	{
+		// When found, make the node before it point to the next.
+		if (map->cmp(key, _GFX_GET_KEY(map, node)) == 0)
+		{
+			*bNode = _GFX_GET_NEXT(map, node);
+			free(node);
+
+			--map->size, _gfx_map_shrink(map);
+			return;
+		}
+	}
 }

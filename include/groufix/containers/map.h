@@ -22,7 +22,7 @@ typedef struct GFXMap
 	size_t capacity; // Number of buckets.
 	size_t elementSize;
 
-	void* buckets;
+	void** buckets;
 
 	// Hash function.
 	uint64_t (*hash)(const void*);
@@ -71,6 +71,9 @@ GFX_API void gfx_map_clear(GFXMap* map);
  * Load factor is accounted for to compute the actual capacity.
  * @param map Cannot be NULL.
  * @return Zero when out of memory.
+ *
+ * Only useful to avoid the map resizing itself a bunch of times during
+ * multiple insertions, does not guarantee any insertion won't fail!
  */
 GFX_API int gfx_map_reserve(GFXMap* map, size_t numElems);
 
@@ -81,6 +84,9 @@ GFX_API int gfx_map_reserve(GFXMap* map, size_t numElems);
  * @param keySize Must be > 0.
  * @param key     Cannot be NULL.
  * @return The inserted element (constant address), NULL when out of memory.
+ *
+ * When the key is already present in the map it is returned instead,
+ * and if elem != NULL, its element value is overwritten.
  */
 GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
                              size_t keySize, const void* key);
@@ -95,12 +101,12 @@ GFX_API void* gfx_map_search(GFXMap* map, const void* key);
 
 /**
  * Erases an element from the map.
- * @param map  Cannot be NULL.
- * @param elem Must be a value returned by gfx_map_insert.
+ * @param map Cannot be NULL.
+ * @param key Cannot be NULL.
  *
- * Note: elem is freed, cannot access its memory after this call!
+ * Note: the element is freed, cannot access its memory after this call!
  */
-GFX_API void gfx_map_erase(GFXMap* map, void* elem);
+GFX_API void gfx_map_erase(GFXMap* map, const void* key);
 
 
 #endif
