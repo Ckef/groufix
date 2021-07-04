@@ -67,7 +67,7 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	assert(buffer != NULL);
 
 	GFXHeap* heap = buffer->heap;
-	_GFXContext* context = heap->context;
+	_GFXContext* context = heap->allocator.context;
 
 	// Create a new Vulkan buffer.
 	VkBufferUsageFlags usage =
@@ -141,7 +141,7 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
 	assert(buffer->vk.buffer != VK_NULL_HANDLE);
 
 	GFXHeap* heap = buffer->heap;
-	_GFXContext* context = heap->context;
+	_GFXContext* context = heap->allocator.context;
 
 	// Destroy Vulkan buffer.
 	context->vk.DestroyBuffer(
@@ -163,9 +163,12 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 		goto clean;
 
 	// Get context associated with the device.
+	// Required by _gfx_allocator_init.
 	_GFXDevice* dev;
+	_GFXContext* context;
+
 	_GFX_GET_DEVICE(dev, device);
-	_GFX_GET_CONTEXT(heap->context, device, goto clean_lock);
+	_GFX_GET_CONTEXT(context, device, goto clean_lock);
 
 	// Initialize allocator things.
 	_gfx_allocator_init(&heap->allocator, dev);
