@@ -364,6 +364,14 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	if (graphics == UINT32_MAX || present == UINT32_MAX || transfer == UINT32_MAX)
 		return 0;
 
+	// If transfer queue is not a lone transfer queue, don't use it.
+	if (_GFX_QUEUE_FLAGS_COUNT(
+		_GFX_QUEUE_FLAGS_ALL(props[transfer].queueFlags)) > 1)
+	{
+		// Instead use the graphics queue like a pleb :(
+		transfer = graphics;
+	}
+
 	// Ok so we found all queues, we should now allocate the queue sets and
 	// info structures for Vulkan.
 	// Allocate the maximum number of infostructures.
