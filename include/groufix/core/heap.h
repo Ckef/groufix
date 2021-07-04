@@ -228,8 +228,7 @@ GFX_API void gfx_free_mesh(GFXMesh* mesh);
  *
  * This function is reentrant, meaning any resource can be mapped any number
  * of times, from any thread!
- * Will fail if the referenced resource was not created with either
- * GFX_BUFFER_HOST_VISIBLE or GFX_IMAGE_HOST_VISIBLE.
+ * Fails if the referenced resource was notcreated with GFX_MEMORY_HOST_VISIBLE.
  */
 GFX_API void* gfx_map(GFXReference ref);
 
