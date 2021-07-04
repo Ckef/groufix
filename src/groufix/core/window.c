@@ -539,8 +539,8 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, win->vk.surface, NULL);
 
-	gfx_vec_clear(&win->access);
 	gfx_vec_clear(&win->frame.images);
+	gfx_vec_clear(&win->access);
 	_gfx_mutex_clear(&win->frame.lock);
 #if defined (__STDC_NO_ATOMICS__)
 	_gfx_mutex_clear(&win->swapLock);

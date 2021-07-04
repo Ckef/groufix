@@ -15,31 +15,41 @@
 
 
 /**
- * Buffer 'usage' flags.
+ * Memory allocation flags.
  */
-typedef enum GFXBufferFlags
+typedef enum GFXMemoryFlags
 {
-	GFX_BUFFER_HOST_VISIBLE  = 0x0001,
-	GFX_BUFFER_VERTEX        = 0x0002,
-	GFX_BUFFER_INDEX         = 0x0004,
-	GFX_BUFFER_UNIFORM       = 0x0008,
-	GFX_BUFFER_STORAGE       = 0x0010,
-	GFX_BUFFER_UNIFORM_TEXEL = 0x0020,
-	GFX_BUFFER_STORAGE_TEXEL = 0x0040
+	GFX_MEMORY_HOST_VISIBLE = 0x0001, // i.e. mappable.
+	GFX_MEMORY_READ         = 0x0002,
+	GFX_MEMORY_WRITE        = 0x0004
 
-} GFXBufferFlags;
+} GFXMemoryFlags;
 
 
 /**
- * Image 'usage' flags.
+ * Buffer usage flags.
  */
-typedef enum GFXImageFlags
+typedef enum GFXBufferUsage
 {
-	GFX_IMAGE_HOST_VISIBLE = 0x0001,
-	GFX_IMAGE_SAMPLED      = 0x0002,
-	GFX_IMAGE_STORAGE      = 0x0004
+	GFX_BUFFER_VERTEX        = 0x0001,
+	GFX_BUFFER_INDEX         = 0x0002,
+	GFX_BUFFER_UNIFORM       = 0x0004,
+	GFX_BUFFER_STORAGE       = 0x0008,
+	GFX_BUFFER_UNIFORM_TEXEL = 0x0010,
+	GFX_BUFFER_STORAGE_TEXEL = 0x0020
 
-} GFXImageFlags;
+} GFXBufferUsage;
+
+
+/**
+ * Image usage flags.
+ */
+typedef enum GFXImageUsage
+{
+	GFX_IMAGE_SAMPLED = 0x0001,
+	GFX_IMAGE_STORAGE = 0x0002
+
+} GFXImageUsage;
 
 
 /**
@@ -74,7 +84,8 @@ typedef struct GFXHeap GFXHeap;
 typedef struct GFXBuffer
 {
 	// All read-only.
-	GFXBufferFlags flags;
+	GFXMemoryFlags flags;
+	GFXBufferUsage usage;
 
 	size_t size; // In bytes obviously.
 
@@ -87,7 +98,8 @@ typedef struct GFXBuffer
 typedef struct GFXImage
 {
 	// All read-only.
-	GFXImageFlags flags;
+	GFXMemoryFlags flags;
+	GFXImageUsage  usage;
 
 	size_t width;
 	size_t height;
@@ -102,8 +114,10 @@ typedef struct GFXImage
 typedef struct GFXMesh
 {
 	// All read-only.
-	GFXBufferFlags flagsVertex;
-	GFXBufferFlags flagsIndex;
+	GFXMemoryFlags flagsVertex;
+	GFXMemoryFlags flagsIndex;
+	GFXBufferUsage usageVertex;
+	GFXBufferUsage usageIndex;
 
 	GFXTopology topology;
 
@@ -132,13 +146,13 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap);
 /**
  * Allocates a buffer from a heap.
  * @param heap  Cannot be NULL.
- * @param flags Intended 'usage' for the buffer, cannot be only host-visible.
  * @param size  Size of the buffer in bytes, must be > 0.
  * @return NULL on failure.
  *
  * Thread-safe!
  */
-GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferFlags flags,
+GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
+                                    GFXMemoryFlags flags, GFXBufferUsage usage,
                                     size_t size);
 
 /**
@@ -150,7 +164,6 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
 /**
  * Allocates an image from a heap.
  * @param heap   Cannot be NULL.
- * @param flags  Intended 'usage' for the image, cannot be only host-visible.
  * @param width  Must be > 0.
  * @param height Must be > 0.
  * @param depth  Must be > 0.
@@ -158,7 +171,8 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
  *
  * Thread-safe!
  */
-GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap, GFXImageFlags flags,
+GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
+                                  GFXMemoryFlags flags, GFXImageUsage usage,
                                   size_t width, size_t height, size_t depth);
 
 /**
@@ -170,7 +184,8 @@ GFX_API void gfx_free_image(GFXImage* image);
 /**
  * Allocates a mesh (i.e. a geometry) from a heap.
  * @param heap        Cannot be NULL.
- * @param flags       Added intended 'usage' for any newly allocated buffer.
+ * @param flags       Flags for any newly allocated buffer.
+ * @param usage       Added usage for any newly allocated buffer.
  * @param vertex      Vertex buffer to use, GFX_REF_NULL to allocate a new one.
  * @param index       Index buffer to use, GFX_REF_NULL to allocate a new one.
  * @param numVertices Number of vertices to claim, must be > 0.
@@ -183,7 +198,8 @@ GFX_API void gfx_free_image(GFXImage* image);
  *
  * Thread-safe!
  */
-GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
+GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
+                                GFXMemoryFlags flags, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 size_t numVertices, size_t stride,
                                 size_t numIndices, size_t indexSize,

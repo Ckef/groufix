@@ -24,24 +24,32 @@
 #define _GFX_MESH_FROM_LIST(node) \
 	_GFX_MESH_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
 
-#define _GFX_GET_VK_BUFFER_USAGE(flags) \
-	((flags & GFX_BUFFER_VERTEX ? \
+#define _GFX_GET_VK_BUFFER_USAGE(flags, usage) \
+	((flags & GFX_MEMORY_READ ? \
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT : (VkBufferUsageFlags)0) | \
+	(flags & GFX_MEMORY_WRITE ? \
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT : (VkBufferUsageFlags)0) | \
+	(usage & GFX_BUFFER_VERTEX ? \
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(flags & GFX_BUFFER_INDEX ? \
+	(usage & GFX_BUFFER_INDEX ? \
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(flags & GFX_BUFFER_UNIFORM ? \
+	(usage & GFX_BUFFER_UNIFORM ? \
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(flags & GFX_BUFFER_STORAGE ? \
+	(usage & GFX_BUFFER_STORAGE ? \
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(flags & GFX_BUFFER_UNIFORM_TEXEL ? \
+	(usage & GFX_BUFFER_UNIFORM_TEXEL ? \
 		VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(flags & GFX_BUFFER_STORAGE_TEXEL ? \
+	(usage & GFX_BUFFER_STORAGE_TEXEL ? \
 		VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT : (VkBufferUsageFlags)0))
 
-#define _GFX_GET_VK_IMAGE_USAGE(flags) \
-	((flags & GFX_IMAGE_SAMPLED ? \
+#define _GFX_GET_VK_IMAGE_USAGE(flags, usage) \
+	((flags & GFX_MEMORY_READ ? \
+		VK_IMAGE_USAGE_TRANSFER_SRC_BIT : (VkImageUsageFlags)0) | \
+	(flags & GFX_MEMORY_WRITE ? \
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT : (VkImageUsageFlags)0) | \
+	(usage & GFX_IMAGE_SAMPLED ? \
 		VK_IMAGE_USAGE_SAMPLED_BIT : (VkImageUsageFlags)0) | \
-	(flags & GFX_IMAGE_STORAGE ? \
+	(usage & GFX_IMAGE_STORAGE ? \
 		VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlags)0))
 
 
@@ -62,13 +70,16 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	_GFXContext* context = heap->context;
 
 	// Create a new Vulkan buffer.
+	VkBufferUsageFlags usage =
+		_GFX_GET_VK_BUFFER_USAGE(buffer->base.flags, buffer->base.usage);
+
 	VkBufferCreateInfo bci = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 
 		.pNext                 = NULL,
 		.flags                 = 0,
 		.size                  = (VkDeviceSize)buffer->base.size,
-		.usage                 = _GFX_GET_VK_BUFFER_USAGE(buffer->base.flags),
+		.usage                 = usage,
 		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 0,
 		.pQueueFamilyIndices   = NULL
@@ -88,7 +99,7 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	// We always add device local to the optimal flags,
 	// wouldn't it be wonderful if everything was always device local :)
 	VkMemoryPropertyFlags flags =
-		(buffer->base.flags & GFX_BUFFER_HOST_VISIBLE) ?
+		(buffer->base.flags & GFX_MEMORY_HOST_VISIBLE) ?
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT :
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
@@ -202,11 +213,11 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 }
 
 /****************************/
-GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferFlags flags,
+GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
+                                    GFXMemoryFlags flags, GFXBufferUsage usage,
                                     size_t size)
 {
 	assert(heap != NULL);
-	assert((flags & ~(GFXBufferFlags)GFX_BUFFER_HOST_VISIBLE) != 0);
 	assert(size > 0);
 
 	// Allocate a new buffer & initialize.
@@ -216,6 +227,7 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap, GFXBufferFlags flags,
 
 	buffer->heap = heap;
 	buffer->base.flags = flags;
+	buffer->base.usage = usage;
 	buffer->base.size = size;
 
 	// Allocate the Vulkan buffer.
@@ -265,11 +277,11 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 }
 
 /****************************/
-GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap, GFXImageFlags flags,
+GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
+                                  GFXMemoryFlags flags, GFXImageUsage usage,
                                   size_t width, size_t height, size_t depth)
 {
 	assert(heap != NULL);
-	assert((flags & ~(GFXImageFlags)GFX_IMAGE_HOST_VISIBLE) != 0);
 	assert(width > 0);
 	assert(height > 0);
 	assert(depth > 0);
@@ -289,7 +301,8 @@ GFX_API void gfx_free_image(GFXImage* image)
 }
 
 /****************************/
-GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
+GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
+                                GFXMemoryFlags flags, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 size_t numVertices, size_t stride,
                                 size_t numIndices, size_t indexSize,
@@ -323,8 +336,9 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 	mesh->base.topology = topology;
 
 	mesh->buffer.heap = heap;
-	mesh->buffer.base.flags =
-		flags |
+	mesh->buffer.base.flags = flags;
+	mesh->buffer.base.usage =
+		usage |
 		(GFX_REF_IS_NULL(vertex) ? GFX_BUFFER_VERTEX : 0) |
 		(GFX_REF_IS_NULL(index) ? GFX_BUFFER_INDEX : 0);
 	mesh->buffer.base.size =
@@ -341,16 +355,19 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap, GFXBufferFlags flags,
 	if (numAttribs) memcpy(
 		mesh->offsets, offsets, sizeof(size_t) * numAttribs);
 
-	// Get appropriate public flags (also happens to unpack & validate).
+	// Get appropriate public flags & usage (also happens to unpack & validate).
 	_GFXBuffer* vertexBuff = _gfx_ref_unpack(mesh->refVertex).obj.buffer;
 	_GFXBuffer* indexBuff = _gfx_ref_unpack(mesh->refIndex).obj.buffer;
 
-	mesh->base.flagsVertex =
-		vertexBuff ? vertexBuff->base.flags :
-		mesh->buffer.base.flags;
-	mesh->base.flagsIndex =
-		indexBuff ? indexBuff->base.flags :
-		(numIndices > 0 ? mesh->buffer.base.flags : 0);
+	mesh->base.flagsVertex = vertexBuff ?
+		vertexBuff->base.flags : mesh->buffer.base.flags;
+	mesh->base.flagsIndex = indexBuff ?
+		indexBuff->base.flags : (numIndices > 0 ? mesh->buffer.base.flags : 0);
+
+	mesh->base.usageVertex = vertexBuff ?
+		vertexBuff->base.usage : mesh->buffer.base.usage;
+	mesh->base.usageIndex = indexBuff ?
+		indexBuff->base.flags : (numIndices > 0 ? mesh->buffer.base.usage : 0);
 
 	// Allocate a buffer if required.
 	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.
@@ -413,15 +430,11 @@ GFX_API void* gfx_map(GFXReference ref)
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
 	// Validate host visibility.
-	if (unp.obj.buffer && !(unp.obj.buffer->base.flags & GFX_BUFFER_HOST_VISIBLE))
+	if (
+		(unp.obj.buffer && !(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE)) ||
+		(unp.obj.image && !(unp.obj.image->base.flags & GFX_MEMORY_HOST_VISIBLE)))
 	{
-		gfx_log_error("Cannot map a buffer that was not created with GFX_BUFFER_HOST_VISIBLE.");
-		return NULL;
-	}
-
-	if (unp.obj.image && !(unp.obj.image->base.flags & GFX_IMAGE_HOST_VISIBLE))
-	{
-		gfx_log_error("Cannot map an image that was not created with GFX_IMAGE_HOST_VISIBLE.");
+		gfx_log_error("Cannot map a buffer or image that was not created with GFX_MEMORY_HOST_VISIBLE.");
 		return NULL;
 	}
 

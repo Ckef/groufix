@@ -299,7 +299,7 @@ static void _test_init(void)
 	};
 
 	_test_base.mesh = gfx_alloc_mesh(_test_base.heap,
-		GFX_BUFFER_HOST_VISIBLE,
+		GFX_MEMORY_HOST_VISIBLE, 0,
 		GFX_REF_NULL, GFX_REF_NULL,
 		4, sizeof(float) * 6,
 		4, sizeof(uint16_t),

@@ -178,10 +178,10 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 		// We want to rebuild because the swapchain is recreated..
 		// So destroy all the old image views.
 		for (size_t i = 0; i < at->window.vk.views.size; ++i)
-		{
-			VkImageView* view = gfx_vec_at(&at->window.vk.views, i);
-			context->vk.DestroyImageView(context->vk.device, *view, NULL);
-		}
+			context->vk.DestroyImageView(
+				context->vk.device,
+				*(VkImageView*)gfx_vec_at(&at->window.vk.views, i),
+				NULL);
 
 		gfx_vec_release(&at->window.vk.views);
 

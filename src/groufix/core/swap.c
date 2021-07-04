@@ -85,9 +85,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, window->vk.swapchain, NULL);
 
-		gfx_vec_clear(&window->frame.images);
 		window->vk.swapchain = VK_NULL_HANDLE;
-
 		window->frame.format = VK_FORMAT_UNDEFINED;
 		window->frame.width = 0;
 		window->frame.height = 0;
@@ -192,11 +190,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			window->frame.height = (size_t)extent.height;
 		}
 
-		// Finally create the actual swapchain.
-		// Remember the old swapchain so we can destroy its resources.
-		VkSwapchainKHR oldSwapchain = window->vk.swapchain;
-		window->vk.swapchain = VK_NULL_HANDLE;
-
+		// Finally create the actual new swapchain.
 		VkSwapchainCreateInfoKHR sci = {
 			.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 
@@ -213,7 +207,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 			.presentMode      = mode,
 			.clipped          = VK_TRUE,
-			.oldSwapchain     = oldSwapchain,
+			.oldSwapchain     = window->vk.swapchain,
 
 			.imageSharingMode = (window->access.size > 1) ?
 				VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
@@ -225,18 +219,18 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 				window->access.data : NULL
 		};
 
-		int res = 1;
+		VkSwapchainKHR newSwapchain;
 		_GFX_VK_CHECK(
 			context->vk.CreateSwapchainKHR(
-				context->vk.device, &sci, NULL, &window->vk.swapchain),
-			res = 0);
+				context->vk.device, &sci, NULL, &newSwapchain),
+			goto clean);
 
+		// Destroy the old swapchain and associate with the new one.
 		// TODO: Still need to maybe defer this to when the last present happened?
 		context->vk.DestroySwapchainKHR(
-			context->vk.device, oldSwapchain, NULL);
+			context->vk.device, window->vk.swapchain, NULL);
 
-		if (!res)
-			goto clean;
+		window->vk.swapchain = newSwapchain;
 
 		// Query all the images associated with the swapchain
 		// and remember them for later usage.
