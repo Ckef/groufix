@@ -218,6 +218,8 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
                                     size_t size)
 {
 	assert(heap != NULL);
+	assert(flags != 0);
+	assert(usage != 0);
 	assert(size > 0);
 
 	// Allocate a new buffer & initialize.
@@ -282,6 +284,8 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
                                   size_t width, size_t height, size_t depth)
 {
 	assert(heap != NULL);
+	assert(flags != 0);
+	assert(usage != 0);
 	assert(width > 0);
 	assert(height > 0);
 	assert(depth > 0);
@@ -310,6 +314,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXTopology topology)
 {
 	assert(heap != NULL);
+	assert((!GFX_REF_IS_NULL(vertex) && (!GFX_REF_IS_NULL(index) || numIndices == 0)) || flags != 0);
 	assert(GFX_REF_IS_NULL(vertex) || GFX_REF_IS_BUFFER(vertex));
 	assert(GFX_REF_IS_NULL(index) || GFX_REF_IS_BUFFER(index));
 	assert(numVertices > 0);

@@ -146,6 +146,8 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap);
 /**
  * Allocates a buffer from a heap.
  * @param heap  Cannot be NULL.
+ * @param flags At least one flag must be set.
+ * @param usage At least one usage must be set..
  * @param size  Size of the buffer in bytes, must be > 0.
  * @return NULL on failure.
  *
@@ -164,6 +166,8 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
 /**
  * Allocates an image from a heap.
  * @param heap   Cannot be NULL.
+ * @param flags  At least one flag must be set.
+ * @param usage  At least one usage must be set..
  * @param width  Must be > 0.
  * @param height Must be > 0.
  * @param depth  Must be > 0.
@@ -184,7 +188,7 @@ GFX_API void gfx_free_image(GFXImage* image);
 /**
  * Allocates a mesh (i.e. a geometry) from a heap.
  * @param heap        Cannot be NULL.
- * @param flags       Flags for any newly allocated buffer.
+ * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Added usage for any newly allocated buffer.
  * @param vertex      Vertex buffer to use, GFX_REF_NULL to allocate a new one.
  * @param index       Index buffer to use, GFX_REF_NULL to allocate a new one.
