@@ -44,12 +44,12 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
 
-	if (index >= renderer->frame.attachs.size)
+	if (index >= renderer->backing.attachs.size)
 	{
 		size_t elems =
-			index + 1 - renderer->frame.attachs.size;
+			index + 1 - renderer->backing.attachs.size;
 
-		if (!gfx_vec_push(&renderer->frame.attachs, elems, NULL))
+		if (!gfx_vec_push(&renderer->backing.attachs, elems, NULL))
 		{
 			gfx_log_error(
 				"Could not allocate attachment index %u at a renderer.",
@@ -60,7 +60,7 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 
 		// All empty.
 		for (size_t i = 0; i < elems; ++i) ((_GFXAttach*)gfx_vec_at(
-			&renderer->frame.attachs, index - i))->type = _GFX_ATTACH_EMPTY;
+			&renderer->backing.attachs, index - i))->type = _GFX_ATTACH_EMPTY;
 	}
 
 	return 1;
@@ -74,10 +74,10 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
-	assert(index < renderer->frame.attachs.size);
+	assert(index < renderer->backing.attachs.size);
 
 	_GFXContext* context = renderer->context;
-	_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, index);
+	_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Prepare for destruction.
 	if (at->type != _GFX_ATTACH_EMPTY)
@@ -131,10 +131,10 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
-	assert(index < renderer->frame.attachs.size);
+	assert(index < renderer->backing.attachs.size);
 
 	_GFXContext* context = renderer->context;
-	_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, index);
+	_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Build an image.
 	if (at->type == _GFX_ATTACH_IMAGE)
@@ -251,13 +251,13 @@ clean:
 static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
-	assert(index < renderer->frame.attachs.size);
+	assert(index < renderer->backing.attachs.size);
 
 	// Firstly destruct.
 	_gfx_destruct_attachment(renderer, index);
 
 	// Then if it is a window, unlock the window.
-	_GFXAttach* attach = gfx_vec_at(&renderer->frame.attachs, index);
+	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
 	if (attach->type == _GFX_ATTACH_WINDOW)
 	{
 		_gfx_swapchain_unlock(attach->window.window);
@@ -269,44 +269,44 @@ static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 }
 
 /****************************/
-void _gfx_render_frame_init(GFXRenderer* renderer)
+void _gfx_render_backing_init(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	gfx_vec_init(&renderer->frame.attachs, sizeof(_GFXAttach));
+	gfx_vec_init(&renderer->backing.attachs, sizeof(_GFXAttach));
 
-	renderer->frame.built = 0;
+	renderer->backing.built = 0;
 }
 
 /****************************/
-void _gfx_render_frame_clear(GFXRenderer* renderer)
+void _gfx_render_backing_clear(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
 	// Detach all attachments, this will make it both
 	// destroy all related resources AND unlock the windows.
-	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
+	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 		_gfx_detach_attachment(renderer, i);
 
-	gfx_vec_clear(&renderer->frame.attachs);
+	gfx_vec_clear(&renderer->backing.attachs);
 }
 
 /****************************/
-int _gfx_render_frame_build(GFXRenderer* renderer)
+int _gfx_render_backing_build(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
 	// Already done.
-	if (renderer->frame.built)
+	if (renderer->backing.built)
 		return 1;
 
 	// Build all attachments.
-	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
+	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 	{
 		// But first check if the attachment is already built.
 		// We skip this here, only doing it if explicitly asked
-		// with a call to _gfx_render_frame_rebuild.
-		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
+		// with a call to _gfx_render_backing_rebuild.
+		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, i);
 
 		if (
 			(at->type == _GFX_ATTACH_IMAGE &&
@@ -320,26 +320,26 @@ int _gfx_render_frame_build(GFXRenderer* renderer)
 
 		if (!_gfx_build_attachment(renderer, i))
 		{
-			gfx_log_error("Renderer's frame build incomplete.");
+			gfx_log_error("Renderer's backing build incomplete.");
 			return 0;
 		}
 	}
 
 	// Yey built.
-	renderer->frame.built = 1;
+	renderer->backing.built = 1;
 
 	return 1;
 }
 
 /****************************/
-void _gfx_render_frame_rebuild(GFXRenderer* renderer, size_t index,
+void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
                                _GFXRecreateFlags flags)
 {
 	assert(renderer != NULL);
 
-	// We only rebuild if the frame is already built, if not, we skip this
-	// and postpone it until _gfx_render_frame_build is called.
-	if (!(flags & _GFX_RECREATE) || !renderer->frame.built)
+	// We only rebuild if the backing is already built, if not, we skip this
+	// and postpone it until _gfx_render_backing_build is called.
+	if (!(flags & _GFX_RECREATE) || !renderer->backing.built)
 		return;
 
 	// TODO: Flags will be useful when implementing image attachments, as they
@@ -349,8 +349,8 @@ void _gfx_render_frame_rebuild(GFXRenderer* renderer, size_t index,
 	// Well, rebuild it.
 	if (!_gfx_build_attachment(renderer, index))
 	{
-		gfx_log_warn("Renderer's frame rebuild failed.");
-		renderer->frame.built = 0;
+		gfx_log_warn("Renderer's backing rebuild failed.");
+		renderer->backing.built = 0;
 	}
 }
 
@@ -364,7 +364,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	if (!_gfx_alloc_attachments(renderer, index))
 		return 0;
 
-	_GFXAttach* attach = gfx_vec_at(&renderer->frame.attachs, index);
+	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Check if the new attachment is equal to what is already stored.
 	// If so, nothing to do here.
@@ -391,7 +391,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	};
 
 	// New attachment is not yet built.
-	renderer->frame.built = 0;
+	renderer->backing.built = 0;
 
 	return 1;
 }
@@ -406,9 +406,9 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	if (window == NULL)
 	{
 		// If it exists at least...
-		if (index < renderer->frame.attachs.size)
+		if (index < renderer->backing.attachs.size)
 		{
-			_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, index);
+			_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
 			if (at->type == _GFX_ATTACH_WINDOW)
 				_gfx_detach_attachment(renderer, index);
 		}
@@ -418,9 +418,9 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 
 	// Ok we want to attach a window..
 	// Check if the window is already attached at this index.
-	if (index < renderer->frame.attachs.size)
+	if (index < renderer->backing.attachs.size)
 	{
-		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, index);
+		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
 		if (
 			at->type == _GFX_ATTACH_WINDOW &&
 			at->window.window == (_GFXWindow*)window)
@@ -464,7 +464,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 
 	// Initialize new window attachment.
 	_GFXAttach* attach =
-		gfx_vec_at(&renderer->frame.attachs, index);
+		gfx_vec_at(&renderer->backing.attachs, index);
 
 	*attach = (_GFXAttach){
 		.type = _GFX_ATTACH_WINDOW,
@@ -478,7 +478,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	gfx_vec_init(&attach->window.vk.views, sizeof(VkImageView));
 
 	// New attachment is not yet built.
-	renderer->frame.built = 0;
+	renderer->backing.built = 0;
 
 	return 1;
 }

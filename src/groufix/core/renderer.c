@@ -27,8 +27,8 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 
 	rend->graphics = _gfx_get_queue(rend->context, set, 0);
 
-	// Initialize the render frame & graph.
-	_gfx_render_frame_init(rend);
+	// Initialize the render backing & graph.
+	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
 
 	return rend;
@@ -48,10 +48,10 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	if (renderer == NULL)
 		return;
 
-	// Clear the frame and graph in the order that makes sense,
-	// considering the graph depends on the frame :)
+	// Clear the backing and graph in the order that makes sense,
+	// considering the graph depends on the backing :)
 	_gfx_render_graph_clear(renderer);
-	_gfx_render_frame_clear(renderer);
+	_gfx_render_backing_clear(renderer);
 
 	free(renderer);
 }
@@ -67,9 +67,9 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	// Acquire next image of all windows.
 	// We do this in a separate loop because otherwise we'd be synchronizing
 	// on _gfx_swapchain_acquire at the most random times.
-	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
+	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 	{
-		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
+		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, i);
 		if (at->type != _GFX_ATTACH_WINDOW)
 			continue;
 
@@ -78,7 +78,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		at->window.image = _gfx_swapchain_acquire(at->window.window, &flags);
 
 		// Recreate swapchain-dependent resources.
-		_gfx_render_frame_rebuild(renderer, i, flags);
+		_gfx_render_backing_rebuild(renderer, i, flags);
 		_gfx_render_graph_rebuild(renderer, i, flags);
 	}
 
@@ -91,10 +91,10 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	// If not blocking, we make present block until it started rendering,
 	// so we have 2 frames input delay.
 
-	// We build the frame and graph, which will not built if not necessary.
+	// We build the backing and graph, which will not built if not necessary.
 	// This is the only part that can return an error value.
 	if (
-		!_gfx_render_frame_build(renderer) ||
+		!_gfx_render_backing_build(renderer) ||
 		!_gfx_render_graph_build(renderer))
 	{
 		gfx_log_error("Could not submit renderer due to faulty build.");
@@ -113,7 +113,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 			continue;
 
 		_GFXAttach* at =
-			gfx_vec_at(&renderer->frame.attachs, pass->build.backing);
+			gfx_vec_at(&renderer->backing.attachs, pass->build.backing);
 
 		// No image (e.g. minimized).
 		if (at->window.image == UINT32_MAX)
@@ -153,9 +153,9 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	}
 
 	// Present image of all windows.
-	for (size_t i = 0; i < renderer->frame.attachs.size; ++i)
+	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 	{
-		_GFXAttach* at = gfx_vec_at(&renderer->frame.attachs, i);
+		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, i);
 		if (at->type != _GFX_ATTACH_WINDOW)
 			continue;
 
@@ -169,7 +169,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		at->window.image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.
-		_gfx_render_frame_rebuild(renderer, i, flags);
+		_gfx_render_backing_rebuild(renderer, i, flags);
 		_gfx_render_graph_rebuild(renderer, i, flags);
 	}
 

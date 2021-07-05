@@ -200,14 +200,14 @@ struct GFXRenderer
 	_GFXQueue    graphics; // Chosen graphics queue.
 
 
-	// Render frame (i.e. attachments).
+	// Render backing (i.e. attachments).
 	struct
 	{
 		GFXVec attachs; // Stores _GFXAttach.
 
 		int built;
 
-	} frame;
+	} backing;
 
 
 	// Render graph.
@@ -314,42 +314,42 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 
 
 /****************************
- * Render- frame and graph.
+ * Render- backing and graph.
  ****************************/
 
 /**
- * Initializes the render frame of a renderer.
+ * Initializes the render backing of a renderer.
  * @param renderer Cannot be NULL.
  */
-void _gfx_render_frame_init(GFXRenderer* renderer);
+void _gfx_render_backing_init(GFXRenderer* renderer);
 
 /**
- * Clears the render frame of a renderer, destroying all images.
+ * Clears the render backing of a renderer, destroying all images.
  * @param renderer Cannot be NULL.
  *
  * If attachments exist, will block until rendering is done!
  */
-void _gfx_render_frame_clear(GFXRenderer* renderer);
+void _gfx_render_backing_clear(GFXRenderer* renderer);
 
 /**
- * Builds not yet built resources of the render frame.
+ * Builds not yet built resources of the render backing.
  * Will resolve to a no-op if everything is already built.
  * @param renderer Cannot be NULL.
- * @return Non-zero if the entire frame is in a built state.
+ * @return Non-zero if the entire backing is in a built state.
  */
-int _gfx_render_frame_build(GFXRenderer* renderer);
+int _gfx_render_backing_build(GFXRenderer* renderer);
 
 /**
- * Signals the render frame to (re)build resources dependent on the given
- * attachment index, building may be postponed to _gfx_render_frame_build.
+ * Signals the render backing to (re)build resources dependent on the given
+ * attachment index, building may be postponed to _gfx_render_backing_build.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    What resources should be recreated (0 to do nothing).
  *
  * If rebuilding swapchain resources, this will block until rendering is done!
  */
-void _gfx_render_frame_rebuild(GFXRenderer* renderer, size_t index,
-                               _GFXRecreateFlags flags);
+void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
+                                 _GFXRecreateFlags flags);
 
 /**
  * Initializes the render graph of a renderer.

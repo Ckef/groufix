@@ -83,10 +83,10 @@ static void _gfx_render_pass_pick_backing(GFXRenderPass* pass)
 		size_t index = *(size_t*)gfx_vec_at(&pass->writes, w);
 
 		// Validate that the attachment exists and is a window.
-		if (index >= rend->frame.attachs.size)
+		if (index >= rend->backing.attachs.size)
 			continue;
 
-		_GFXAttach* at = gfx_vec_at(&rend->frame.attachs, index);
+		_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, index);
 		if (at->type != _GFX_ATTACH_WINDOW)
 			continue;
 
@@ -122,7 +122,7 @@ static int _gfx_render_pass_build_backing(GFXRenderPass* pass)
 		return 1;
 
 	// Now we allocate more command buffers or free some.
-	_GFXAttach* at = gfx_vec_at(&rend->frame.attachs, pass->build.backing);
+	_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 	size_t currCount = pass->vk.commands.size;
 	size_t count = at->window.vk.views.size;
 
@@ -207,7 +207,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 
 	// Get the back-buffer attachment.
 	if (pass->build.backing != SIZE_MAX)
-		at = gfx_vec_at(&rend->frame.attachs, pass->build.backing);
+		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
 	// TODO: Future: if no back-buffer, do smth else.
 	if (at == NULL) return 0;
@@ -757,7 +757,7 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 		// This will have been called before detaching any window attachments,
 		// by requirements, meaning pass->build.backing must still be valid.
 		_GFXAttach* at =
-			gfx_vec_at(&pass->renderer->frame.attachs, pass->build.backing);
+			gfx_vec_at(&pass->renderer->backing.attachs, pass->build.backing);
 
 		// Free all command buffers.
 		if (pass->vk.commands.size > 0)
