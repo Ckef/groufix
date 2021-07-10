@@ -457,9 +457,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		return 0;
 	}
 
-	// No need to check if it's the same window, the _gfx_swapchain_try_lock
-	// above would have failed if this were the case.
-	// So just detach the current attachment.
+	// Detach the current attachment.
 	_gfx_detach_attachment(renderer, index);
 
 	// Initialize new window attachment.

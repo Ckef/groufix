@@ -400,8 +400,8 @@ error:
 }
 
 /****************************/
-void _gfx_swapchain_present(_GFXWindow* window, uint32_t index,
-                            _GFXRecreateFlags* flags)
+void _gfx_swapchain_present(_GFXQueue present, _GFXWindow* window,
+                            uint32_t index, _GFXRecreateFlags* flags)
 {
 	assert(window != NULL);
 	assert(flags != NULL);
@@ -426,12 +426,9 @@ void _gfx_swapchain_present(_GFXWindow* window, uint32_t index,
 	};
 
 	// Lock queue and submit.
-	_gfx_mutex_lock(window->present.lock);
-
-	VkResult result = context->vk.QueuePresentKHR(
-		window->present.queue, &pi);
-
-	_gfx_mutex_unlock(window->present.lock);
+	_gfx_mutex_lock(present.lock);
+	VkResult result = context->vk.QueuePresentKHR(present.queue, &pi);
+	_gfx_mutex_unlock(present.lock);
 
 	// Check if the recreate signal was set, makes sure it's reset also.
 	int recreate = _gfx_swapchain_sig(window);

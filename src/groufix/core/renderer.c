@@ -21,11 +21,14 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 	// Get context associated with the device.
 	_GFX_GET_CONTEXT(rend->context, device, goto clean);
 
-	// Pick the first graphics queue we can find.
-	_GFXQueueSet* set =
+	// Pick the first graphics and presentation queues we can find.
+	_GFXQueueSet* graphics =
 		_gfx_pick_queue_set(rend->context, VK_QUEUE_GRAPHICS_BIT, 0);
+	_GFXQueueSet* present =
+		_gfx_pick_queue_set(rend->context, 0, 1);
 
-	rend->graphics = _gfx_get_queue(rend->context, set, 0);
+	rend->graphics = _gfx_get_queue(rend->context, graphics, 0);
+	rend->present = _gfx_get_queue(rend->context, present, 0);
 
 	// Initialize the render backing & graph.
 	_gfx_render_backing_init(rend);
@@ -48,10 +51,16 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	if (renderer == NULL)
 		return;
 
+	_GFXContext* context = renderer->context;
+
 	// Clear the backing and graph in the order that makes sense,
 	// considering the graph depends on the backing :)
+	// This will block for rendering to be done.
 	_gfx_render_graph_clear(renderer);
 	_gfx_render_backing_clear(renderer);
+
+	// Then wait for all pending presentation to be completely done.
+	context->vk.QueueWaitIdle(renderer->present.queue);
 
 	free(renderer);
 }
@@ -165,7 +174,9 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 
 		// Present the image.
 		_GFXRecreateFlags flags;
-		_gfx_swapchain_present(at->window.window, at->window.image, &flags);
+		_gfx_swapchain_present(
+			renderer->present, at->window.window, at->window.image, &flags);
+
 		at->window.image = UINT32_MAX;
 
 		// Recreate swapchain-dependent resources.

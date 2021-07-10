@@ -314,9 +314,7 @@ typedef struct _GFXWindow
 
 	_GFXDevice*  device; // Associated GPU to build a swapchain on.
 	_GFXContext* context;
-
-	_GFXQueue    present; // Chosen presentation queue.
-	GFXVec       access;  // Stores uint32_t, all Vulkan family indicies with image access.
+	GFXVec       access; // Stores uint32_t, all Vulkan family indicies with image access.
 
 	// Swapchain lock (window can only be used by one renderer).
 #if defined (__STDC_NO_ATOMICS__)
@@ -532,7 +530,6 @@ int _gfx_swapchain_try_lock(_GFXWindow* window);
 void _gfx_swapchain_unlock(_GFXWindow* window);
 
 /**
- * TODO: Wait until current vsync (instead of previous)?
  * Acquires the next available image from the swapchain of a window.
  * @param window Cannot be NULL.
  * @param flags  Cannot be NULL, encodes how the swapchain has been recreated.
@@ -546,19 +543,20 @@ uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
                                 _GFXRecreateFlags* flags);
 
 /**
- * TODO: Or wait for vsync here? This does actual submission after all.
- * Submits a present command for the swapchain of a window.
+ * TODO: Make it take multiple windows.
+ * Submits a present command to a given queue for the swapchain of a window.
  * _gfx_swapchain_acquire must have returned succesfully before this call.
- * @param window Cannot be NULL.
- * @param index  Must be an index retrieved by _gfx_swapchain_acquire.
- * @param flags  Cannot be NULL, encodes how the swapchain has been recreated.
+ * @param present Must be a queue from the same Vulkan context.
+ * @param window  Cannot be NULL.
+ * @param index   Must be an index retrieved by _gfx_swapchain_acquire.
+ * @param flags   Cannot be NULL, encodes how the swapchain has been recreated.
  *
  * Not thread-affine, but also not thread-safe.
  * Recreate flags are also set if resized to 0x0 and resources are destroyed.
  * window->vk.rendered must be signaled or pending.
  */
-void _gfx_swapchain_present(_GFXWindow* window, uint32_t index,
-                            _GFXRecreateFlags* flags);
+void _gfx_swapchain_present(_GFXQueue present, _GFXWindow* window,
+                            uint32_t index, _GFXRecreateFlags* flags);
 
 
 #endif

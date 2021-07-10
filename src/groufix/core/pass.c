@@ -836,5 +836,6 @@ GFX_API void gfx_render_pass_use(GFXRenderPass* pass, GFXMesh* mesh)
 	assert(pass != NULL);
 	assert(mesh != NULL);
 
+	// TODO: Should eventually check if they are using the same context.
 	pass->build.mesh = (_GFXMesh*)mesh;
 }

@@ -124,7 +124,7 @@ struct GFXShader
 
 
 /****************************
- * Render objects.
+ * Internal renderer objects.
  ****************************/
 
 /**
@@ -192,12 +192,27 @@ typedef struct _GFXAttach
 
 
 /**
+ * Internal virtual frame.
+ * TODO: Define.
+ */
+//typedef struct _GFXFrame
+//{
+//} _GFXFrame;
+
+
+/****************************
+ * User visible renderer objects.
+ ****************************/
+
+/**
  * Internal renderer.
  */
 struct GFXRenderer
 {
 	_GFXContext* context;
-	_GFXQueue    graphics; // Chosen graphics queue.
+
+	_GFXQueue graphics;
+	_GFXQueue present;
 
 
 	// Render backing (i.e. attachments).

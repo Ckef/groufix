@@ -233,14 +233,15 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 }
 
 /****************************
- * Picks a presentation queue & fills the image access vector of a window.
- * window->vk.surface must be initialized to a valid Vulkan surface.
+ * Picks and validates queue families with image access and subsequently inits
+ * and fills the window->access vector of a window with their family indices.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *
+ * window->vk.surface must be initialized to a valid Vulkan surface.
  * This can only be called once for each window!
  */
-static int _gfx_window_pick_present(_GFXWindow* window)
+static int _gfx_window_pick_access(_GFXWindow* window)
 {
 	assert(window != NULL);
 
@@ -255,6 +256,8 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 
 	// So we checked presentation support in a surface-agnostic manner during
 	// logical device creation, now go check for the given surface.
+	// I mean all things sharing this device will pick the same presentation
+	// queue, so we might as well preemptively check.
 	// What if a queue not chosen for presentation supports this surface
 	// I hear you asking.. well.. shutup >:(
 	VkBool32 support = VK_FALSE;
@@ -271,19 +274,19 @@ static int _gfx_window_pick_present(_GFXWindow* window)
 		return 0;
 	}
 
-	// Get the desired queue, we take the first.
-	window->present = _gfx_get_queue(context, present, 0);
-
-	// Now initialize & fill the access vector.
-	// Don't put in duplicate queue families!
+	// Initialize & fill the access vector.
+	// Make sure to not put in duplicate queue families!
+	size_t numFamilies = graphics == present ? 1 : 2;
 	gfx_vec_init(&window->access, sizeof(uint32_t));
 
-	if (!gfx_vec_push(&window->access, 1, &present->family))
+	if (!gfx_vec_push(
+		&window->access, numFamilies, (uint32_t[]){
+			graphics->family,
+			present->family
+		}))
+	{
 		return 0;
-
-	if (graphics != present)
-		if (!gfx_vec_push(&window->access, 1, &graphics->family))
-			return 0;
+	}
 
 	return 1;
 }
@@ -428,9 +431,9 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	// Typing window->context is obviously too long.
 	_GFXContext* context = window->context;
 
-	// Pick a presentation queue for the swapchain.
-	if (!_gfx_window_pick_present(window))
-		goto clean_present;
+	// Pick all the queue families that need image access.
+	if (!_gfx_window_pick_access(window))
+		goto clean_access;
 
 	// Make sure to set the swapchain to a NULL handle here so a new one will
 	// eventually get created when an image is acquired.
@@ -487,7 +490,7 @@ clean_sync:
 	context->vk.DestroySemaphore(
 		context->vk.device, window->vk.available, NULL);
 
-clean_present:
+clean_access:
 	gfx_vec_clear(&window->access);
 clean_surface:
 	_groufix.vk.DestroySurfaceKHR(
@@ -519,11 +522,9 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_GFXWindow* win = (_GFXWindow*)window;
 	_GFXContext* context = win->context;
 
-	// First wait for all pending presentation to be completely done.
+	// First wait for the fence to not be pending.
 	context->vk.WaitForFences(
 		context->vk.device, 1, &win->vk.fence, VK_TRUE, UINT64_MAX);
-	context->vk.QueueWaitIdle(
-		win->present.queue);
 
 	// Destroy the swapchain built on the logical Vulkan device.
 	context->vk.DestroyFence(
