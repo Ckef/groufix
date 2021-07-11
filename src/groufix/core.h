@@ -543,20 +543,21 @@ uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
                                 _GFXRecreateFlags* flags);
 
 /**
- * TODO: Make it take multiple windows.
- * Submits a present command to a given queue for the swapchain of a window.
+ * Submits presentation to a given queue for the swapchains of multiple windows.
  * _gfx_swapchain_acquire must have returned succesfully before this call.
- * @param present Must be a queue from the same Vulkan context.
- * @param window  Cannot be NULL.
- * @param index   Must be an index retrieved by _gfx_swapchain_acquire.
- * @param flags   Cannot be NULL, encodes how the swapchain has been recreated.
+ * @param present Must be a queue from the same Vulkan context as all windows.
+ * @param num     Number of input and output params, must be > 0.
+ * @param windows Cannot be NULL, must all share the same Vulkan context.
+ * @param indices Must be indices retrieved by _gfx_swapchain_acquire.
+ * @param flags   Cannot be NULL, outputs how the swapchains have been recreated.
  *
  * Not thread-affine, but also not thread-safe.
  * Recreate flags are also set if resized to 0x0 and resources are destroyed.
- * window->vk.rendered must be signaled or pending.
+ * window[*]->vk.rendered must be signaled or pending.
  */
-void _gfx_swapchain_present(_GFXQueue present, _GFXWindow* window,
-                            uint32_t index, _GFXRecreateFlags* flags);
+void _gfx_swapchains_present(_GFXQueue present, size_t num,
+                             _GFXWindow** windows, const uint32_t* indices,
+                             _GFXRecreateFlags* flags);
 
 
 #endif

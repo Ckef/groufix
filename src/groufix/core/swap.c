@@ -400,69 +400,87 @@ error:
 }
 
 /****************************/
-void _gfx_swapchain_present(_GFXQueue present, _GFXWindow* window,
-                            uint32_t index, _GFXRecreateFlags* flags)
+void _gfx_swapchains_present(_GFXQueue present, size_t num,
+                             _GFXWindow** windows, const uint32_t* indices,
+                             _GFXRecreateFlags* flags)
 {
-	assert(window != NULL);
+	assert(num > 0);
+	assert(windows != NULL);
+	assert(indices != NULL);
 	assert(flags != NULL);
-	assert(window->vk.swapchain != VK_NULL_HANDLE);
 
-	*flags = 0;
-	_GFXContext* context = window->context;
+	// Just take a random context lol (they're required to be same anyway).
+	_GFXContext* context = windows[0]->context;
 
 	// Now queue a presentation request.
-	// This would swap the acquired image to the screen :)
-	// We wait for all rendering to be done here.
+	// This would swap all the acquired images to the screen :)
+	// Of course it has to wait for all rendering to be done for.
+	VkSemaphore rendered[num];
+	VkSwapchainKHR swapchains[num];
+	VkResult results[num];
+
+	for (size_t i = 0; i < num; ++i)
+	{
+		rendered[i] = windows[i]->vk.rendered;
+		swapchains[i] = windows[i]->vk.swapchain;
+	}
+
 	VkPresentInfoKHR pi = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 
 		.pNext              = NULL,
-		.waitSemaphoreCount = 1,
-		.pWaitSemaphores    = &window->vk.rendered,
-		.swapchainCount     = 1,
-		.pSwapchains        = &window->vk.swapchain,
-		.pImageIndices      = &index,
-		.pResults           = NULL
+		.waitSemaphoreCount = (uint32_t)num,
+		.pWaitSemaphores    = rendered,
+		.swapchainCount     = (uint32_t)num,
+		.pSwapchains        = swapchains,
+		.pImageIndices      = indices,
+		.pResults           = results
 	};
 
 	// Lock queue and submit.
 	_gfx_mutex_lock(present.lock);
-	VkResult result = context->vk.QueuePresentKHR(present.queue, &pi);
+	context->vk.QueuePresentKHR(present.queue, &pi);
 	_gfx_mutex_unlock(present.lock);
 
-	// Check if the recreate signal was set, makes sure it's reset also.
-	int recreate = _gfx_swapchain_sig(window);
-
-	switch (result)
+	// Now go over each window and handle the results as appropriate.
+	for (size_t i = 0; i < num; ++i)
 	{
-	// If success, only try to recreate if necessary.
-	case VK_SUCCESS:
-		if (recreate) _gfx_swapchain_recreate(window, flags);
-		break;
+		flags[i] = 0; // Default flags to 0.
 
-	// If swapchain is suboptimal for some reason, recreate it.
-	// We did a lot of work and everything is submitted, so this is a good
-	// opportunity to recreate (as opposed to after image acquisition).
-	case VK_SUBOPTIMAL_KHR:
-		_gfx_swapchain_recreate(window, flags);
-		break;
+		// Check if the recreate signal was set, makes sure it's reset also.
+		int recreate = _gfx_swapchain_sig(windows[i]);
 
-	// If swapchain is out of date, recreate it and return.
-	// We warn here, cause not sure what should happen?
-	case VK_ERROR_OUT_OF_DATE_KHR:
-		gfx_log_warn(
-			"Could not present an image to a swapchain and will instead "
-			"try to recreate the swapchain on physical device: %s.",
-			window->device->name);
+		switch (results[i])
+		{
+		// If success, only try to recreate if necessary.
+		case VK_SUCCESS:
+			if (recreate) _gfx_swapchain_recreate(windows[i], flags + i);
+			break;
 
-		_gfx_swapchain_recreate(window, flags);
-		break;
+		// If swapchain is suboptimal for some reason, recreate it.
+		// We did a lot of work and everything is submitted, so this is a good
+		// opportunity to recreate (as opposed to after image acquisition).
+		case VK_SUBOPTIMAL_KHR:
+			_gfx_swapchain_recreate(windows[i], flags + i);
+			break;
 
-	// If something else happened, treat as fatal error.
-	default:
-		_GFX_VK_CHECK(result, {});
-		gfx_log_fatal(
-			"Could not present an image to a swapchain on physical device: %s.",
-			window->device->name);
+		// If swapchain is out of date, recreate it and return.
+		// We warn here, cause not sure what should happen?
+		case VK_ERROR_OUT_OF_DATE_KHR:
+			gfx_log_warn(
+				"Could not present an image to a swapchain and will instead "
+				"try to recreate the swapchain on physical device: %s.",
+				windows[i]->device->name);
+
+			_gfx_swapchain_recreate(windows[i], flags + i);
+			break;
+
+		// If something else happened, treat as fatal error.
+		default:
+			_GFX_VK_CHECK(results[i], {});
+			gfx_log_fatal(
+				"Could not present an image to a swapchain on physical device: %s.",
+				windows[i]->device->name);
+		}
 	}
 }

@@ -174,8 +174,8 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 
 		// Present the image.
 		_GFXRecreateFlags flags;
-		_gfx_swapchain_present(
-			renderer->present, at->window.window, at->window.image, &flags);
+		_gfx_swapchains_present(renderer->present, 1,
+			&at->window.window, &at->window.image, &flags);
 
 		at->window.image = UINT32_MAX;
 

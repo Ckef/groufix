@@ -207,7 +207,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 size_t numVertices, size_t stride,
                                 size_t numIndices, size_t indexSize,
-                                size_t numAttribs, size_t* offsets,
+                                size_t numAttribs, const size_t* offsets,
                                 GFXTopology topology);
 
 /**
