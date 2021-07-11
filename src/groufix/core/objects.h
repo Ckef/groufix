@@ -10,6 +10,7 @@
 #ifndef _GFX_CORE_OBJECTS_H
 #define _GFX_CORE_OBJECTS_H
 
+#include "groufix/containers/deque.h"
 #include "groufix/containers/list.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/mem.h"
@@ -243,6 +244,9 @@ struct GFXRenderer
 	_GFXQueue    graphics;
 	_GFXQueue    present;
 
+	// Render frame (i.e. collection of virtual frames).
+	GFXDeque     frames; // Stores _GFXFrame.
+
 
 	// Render backing (i.e. attachments).
 	struct
@@ -255,7 +259,7 @@ struct GFXRenderer
 	} backing;
 
 
-	// Render graph.
+	// Render graph (directed acyclic graph of passes).
 	struct
 	{
 		GFXVec targets; // Stores GFXRenderPass* (target passes, tree roots).
