@@ -262,6 +262,8 @@ static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 	{
 		_gfx_swapchain_unlock(attach->window.window);
 		attach->window.window = NULL;
+
+		--renderer->backing.numWindows;
 	}
 
 	// Describe attachment as empty.
@@ -275,6 +277,7 @@ void _gfx_render_backing_init(GFXRenderer* renderer)
 
 	gfx_vec_init(&renderer->backing.attachs, sizeof(_GFXAttach));
 
+	renderer->backing.numWindows = 0;
 	renderer->backing.built = 0;
 }
 
@@ -477,6 +480,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 
 	// New attachment is not yet built.
 	renderer->backing.built = 0;
+	++renderer->backing.numWindows; // For the virtual frames.
 
 	return 1;
 }

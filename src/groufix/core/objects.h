@@ -192,12 +192,42 @@ typedef struct _GFXAttach
 
 
 /**
- * Internal virtual frame.
- * TODO: Define.
+ * Internal virtual frame swapchain reference.
  */
-//typedef struct _GFXFrame
-//{
-//} _GFXFrame;
+typedef struct _GFXFrameSwap
+{
+	GFXWindow* window;
+	uint32_t   image; // Swapchain image index (or UINT32_MAX).
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkSemaphore available;
+
+	} vk;
+
+} _GFXFrameSwap;
+
+
+/**
+ * Internal virtual frame.
+ * TODO: Add command buffers.
+ */
+typedef struct _GFXFrame
+{
+	GFXVec swaps; // Stores _GFXFrameSwap.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkSemaphore rendered;
+		VkFence     done; // For resource access.
+
+	} vk;
+
+} _GFXFrame;
 
 
 /****************************
@@ -210,9 +240,8 @@ typedef struct _GFXAttach
 struct GFXRenderer
 {
 	_GFXContext* context;
-
-	_GFXQueue graphics;
-	_GFXQueue present;
+	_GFXQueue    graphics;
+	_GFXQueue    present;
 
 
 	// Render backing (i.e. attachments).
@@ -220,7 +249,8 @@ struct GFXRenderer
 	{
 		GFXVec attachs; // Stores _GFXAttach.
 
-		int built;
+		size_t numWindows; // For each frame's swapchain refs.
+		int    built;
 
 	} backing;
 
