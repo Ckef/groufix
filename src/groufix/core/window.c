@@ -276,7 +276,7 @@ static int _gfx_window_pick_access(_GFXWindow* window)
 
 	// Initialize & fill the access vector.
 	// Make sure to not put in duplicate queue families!
-	size_t numFamilies = graphics == present ? 1 : 2;
+	size_t numFamilies = (graphics == present) ? 1 : 2;
 	gfx_vec_init(&window->access, sizeof(uint32_t));
 
 	if (!gfx_vec_push(

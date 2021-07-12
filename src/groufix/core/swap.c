@@ -134,7 +134,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			wFlags & GFX_WINDOW_DOUBLE_BUFFER ? 2 : 1;
 
 		imageCount =
-			_GFX_CLAMP(imageCount, sc.minImageCount, sc.maxImageCount);
+			GFX_CLAMP(imageCount, sc.minImageCount, sc.maxImageCount);
 
 		// Decide on the presentation mode.
 		// - single buffered: Immediate.
@@ -174,10 +174,10 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		if (extent.width == 0xFFFFFFFF || extent.height == 0xFFFFFFFF)
 		{
 			// Clamp it between the supported extents.
-			extent.width = _GFX_CLAMP(width,
+			extent.width = GFX_CLAMP(width,
 				sc.minImageExtent.width, sc.maxImageExtent.width);
 
-			extent.height = _GFX_CLAMP(height,
+			extent.height = GFX_CLAMP(height,
 				sc.minImageExtent.height, sc.maxImageExtent.height);
 		}
 

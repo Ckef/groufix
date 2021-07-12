@@ -19,19 +19,18 @@
 static int _gfx_deque_realloc(GFXDeque* deque, size_t capacity)
 {
 	size_t front = deque->front;
-	size_t frontToEnd = deque->capacity - deque->front;
+	size_t move = GFX_MIN(deque->size, deque->capacity - front);
 
 	// We sandwich the reallocation inbetween two move calls, take note that
 	// both the if-statements for moving can never both be true!
-	// If shrinking and data loops around, move front forwards.
-	if (capacity < deque->capacity && frontToEnd < deque->size)
+	// If shrinking and data loops around the new capacity, move front backwards.
+	if (capacity < deque->capacity && (capacity - move) < front)
 	{
-		front -=
-			deque->capacity - capacity;
+		front = capacity - move;
 		memmove(
 			(char*)deque->data + deque->elementSize * front,
 			(char*)deque->data + deque->elementSize * deque->front,
-			frontToEnd * deque->elementSize);
+			move * deque->elementSize);
 	}
 
 	// Actual reallocation sandwiched between the moves.
@@ -42,20 +41,19 @@ static int _gfx_deque_realloc(GFXDeque* deque, size_t capacity)
 		if (front != deque->front) memmove(
 			(char*)deque->data + deque->elementSize * deque->front,
 			(char*)deque->data + deque->elementSize * front,
-			frontToEnd * deque->elementSize);
+			move * deque->elementSize);
 
 		return 0;
 	}
 
-	// If growing and data loops around, move front backwards.
-	if (capacity > deque->capacity && frontToEnd < deque->size)
+	// If growing and data loops around, move front forwards.
+	if (capacity > deque->capacity && move < deque->size)
 	{
-		front +=
-			capacity - deque->capacity;
+		front = capacity - move;
 		memmove(
 			(char*)deque->data + deque->elementSize * front,
 			(char*)deque->data + deque->elementSize * deque->front,
-			frontToEnd * deque->elementSize);
+			move * deque->elementSize);
 	}
 
 	deque->front = front;

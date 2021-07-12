@@ -162,7 +162,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		_GFX_DEF_LARGE_HEAP_BLOCK_SIZE;
 
 	VkDeviceSize blockSize =
-		_GFX_CLAMP(prefBlockSize, minSize, maxSize);
+		GFX_CLAMP(prefBlockSize, minSize, maxSize);
 
 	// Allocate block & init.
 	_GFXMemBlock* block = malloc(sizeof(_GFXMemBlock));
@@ -205,7 +205,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		}
 
 		blockSize /= 2;
-		blockSize = (blockSize < minSize) ? minSize : blockSize;
+		blockSize = GFX_MAX(minSize, blockSize);
 	}
 
 	// At this point we have memory!
@@ -413,10 +413,8 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 			// end of a claimed block, so we need to align up.
 			// Otherwise we still need to align up because we can encounter
 			// less strict alignments when the node's size is larger.
-			VkDeviceSize align = !lGran ?
-				reqs.alignment :
-				(alloc->granularity > reqs.alignment) ?
-				alloc->granularity : reqs.alignment;
+			VkDeviceSize align = lGran ?
+				GFX_MAX(alloc->granularity, reqs.alignment) : reqs.alignment;
 
 			VkDeviceSize offset =
 				_GFX_ALIGN_UP(_GFX_KEY_OFFSET(fKey), align);
@@ -447,9 +445,9 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 	// Allocate a new memory block.
 	if (block == NULL)
 	{
-		block = _gfx_alloc_mem_block(alloc, type, reqs.size,
-			reqs.size > _GFX_DEF_LARGE_HEAP_BLOCK_SIZE ?
-			reqs.size : _GFX_DEF_LARGE_HEAP_BLOCK_SIZE);
+		block = _gfx_alloc_mem_block(
+			alloc, type, reqs.size,
+			GFX_MAX(reqs.size, _GFX_DEF_LARGE_HEAP_BLOCK_SIZE));
 
 		if (block == NULL)
 			return 0;
