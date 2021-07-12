@@ -64,5 +64,20 @@ GFX_API void gfx_deque_init(GFXDeque* deque, size_t elemSize);
  */
 GFX_API void gfx_deque_clear(GFXDeque* deque);
 
+/**
+ * Reserves a minimum capacity, this capacity holds until elements are erased.
+ * Not rounded to a power of 2, exact size is reserved.
+ * @param deque Cannot be NULL.
+ * @return Zero when out of memory.
+ */
+GFX_API int gfx_deque_reserve(GFXDeque* deque, size_t numElems);
+
+/**
+ * Releases the data, but not freeing it.
+ * The deque will act as if it is empty again.
+ * @param deque Cannot be NULL.
+ */
+GFX_API void gfx_deque_release(GFXDeque* deque);
+
 
 #endif

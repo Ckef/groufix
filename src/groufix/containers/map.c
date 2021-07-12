@@ -38,7 +38,7 @@ typedef void** _GFXMapNode;
  * Allocates a new block of memory with a given capacity and moves
  * the content of the entire map to this new block of memory.
  */
-static int _gfx_map_move(GFXMap* map, size_t capacity)
+static int _gfx_map_realloc(GFXMap* map, size_t capacity)
 {
 	void** new = malloc(capacity * sizeof(void*));
 	if (new == NULL) return 0;
@@ -81,7 +81,7 @@ static int _gfx_map_grow(GFXMap* map, size_t minElems)
 	size_t cap = (map->capacity > 0) ? map->capacity << 1 : 4;
 	while (minElems > ((double)cap * _GFX_MAP_LOAD_FACTOR)) cap <<= 1;
 
-	return _gfx_map_move(map, cap);
+	return _gfx_map_realloc(map, cap);
 }
 
 /****************************
@@ -105,7 +105,7 @@ static void _gfx_map_shrink(GFXMap* map)
 		// Keep dividing by 2 if we can, much like a vector :)
 		while (map->size < (cap >> 2)) cap >>= 1;
 
-		_gfx_map_move(map, cap);
+		_gfx_map_realloc(map, cap);
 	}
 }
 
