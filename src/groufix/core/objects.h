@@ -363,6 +363,35 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 
 
 /****************************
+ * Virtual 'render' frame.
+ ****************************/
+
+/**
+ * Initializes a virtual frame.
+ * @param context Cannot be NULL.
+ * @param frame   Cannot be NULL.
+ * @return Zero on failure.
+ */
+int _gfx_frame_init(_GFXContext* context, _GFXFrame* frame);
+
+/**
+ * Clears a virtual frame for a renderer, will block until done.
+ * @param context Must be the same context given in _gfx_frame_init.
+ * @param frame   Cannot be NULL.
+ */
+void _gfx_frame_clear(_GFXContext* context, _GFXFrame* frame);
+
+/**
+ * Records & submits the frame, taking input from a renderer.
+ * This will block until frame is available, reusing previous resources.
+ * @param frame    Cannot be NULL.
+ * @param renderer Must use the same context given in _gfx_frame_init.
+ * @return Zero if the renderer could not be built.
+ */
+int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer);
+
+
+/****************************
  * Render- backing and graph.
  ****************************/
 

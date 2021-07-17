@@ -55,6 +55,9 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	_GFXContext* context = renderer->context;
 
 	// Clear all frames.
+	for (size_t f = 0; f < renderer->frames.size; ++f)
+		_gfx_frame_clear(context, gfx_deque_at(&renderer->frames, f));
+
 	gfx_deque_clear(&renderer->frames);
 
 	// Clear the backing and graph in the order that makes sense,
@@ -62,9 +65,6 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	// This will block for rendering to be done.
 	_gfx_render_graph_clear(renderer);
 	_gfx_render_backing_clear(renderer);
-
-	// Then wait for all pending presentation to be completely done.
-	context->vk.QueueWaitIdle(renderer->present.queue);
 
 	free(renderer);
 }
