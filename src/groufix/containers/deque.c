@@ -154,3 +154,95 @@ GFX_API void gfx_deque_release(GFXDeque* deque)
 	deque->front = 0;
 	deque->size = 0;
 }
+
+/****************************/
+GFX_API int gfx_deque_push(GFXDeque* deque, size_t numElems,
+                           const void* elems)
+{
+	assert(deque != NULL);
+	assert(numElems > 0);
+
+	if (!_gfx_deque_grow(deque, deque->size + numElems))
+		return 0;
+
+	if (elems != NULL)
+	{
+		size_t end = (deque->front + deque->size) % deque->capacity;
+		size_t toCap = GFX_MIN(numElems, deque->capacity - end);
+
+		memcpy(
+			(char*)deque->data + end * deque->elementSize,
+			elems,
+			toCap * deque->elementSize);
+
+		// If not enough space within the memory's capacity,
+		// insert the rest at the start of the memory.
+		if (toCap < numElems) memcpy(
+			deque->data,
+			(const char*)elems + toCap * deque->elementSize,
+			(numElems - toCap) * deque->elementSize);
+	}
+
+	deque->size += numElems;
+
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_deque_push_front(GFXDeque* deque, size_t numElems,
+                                 const void* elems)
+{
+	assert(deque != NULL);
+	assert(numElems > 0);
+
+	if (!_gfx_deque_grow(deque, deque->size + numElems))
+		return 0;
+
+	// Move front index backwards.
+	size_t front =
+		(deque->front + deque->capacity - numElems) % deque->capacity;
+
+	if (elems != NULL)
+	{
+		size_t toCap = GFX_MIN(numElems, deque->capacity - front);
+
+		memcpy(
+			(char*)deque->data + front * deque->elementSize,
+			elems,
+			toCap * deque->elementSize);
+
+		// If not enough space within the memory's capacity,
+		// insert the rest at the start of the memory (which, in this case,
+		// is just a bit before the original front index).
+		if (toCap < numElems) memcpy(
+			deque->data,
+			(const char*)elems + toCap * deque->elementSize,
+			(numElems - toCap) * deque->elementSize);
+	}
+
+	deque->front = front;
+	deque->size += numElems;
+
+	return 1;
+}
+
+/****************************/
+GFX_API void gfx_deque_pop(GFXDeque* deque, size_t numElems)
+{
+	assert(deque != NULL);
+	assert(numElems > 0);
+
+	deque->size = (deque->size <= numElems) ? 0 : deque->size - numElems;
+	_gfx_deque_shrink(deque);
+}
+
+/****************************/
+GFX_API void gfx_deque_pop_front(GFXDeque* deque, size_t numElems)
+{
+	assert(deque != NULL);
+	assert(numElems > 0);
+
+	deque->front = (deque->front + numElems) % deque->capacity;
+	deque->size = (deque->size <= numElems) ? 0 : deque->size - numElems;
+	_gfx_deque_shrink(deque);
+}
