@@ -168,15 +168,17 @@ GFX_API int gfx_deque_push(GFXDeque* deque, size_t numElems,
 	if (elems != NULL)
 	{
 		size_t end = (deque->front + deque->size) % deque->capacity;
+		end = (end == 0) ? deque->capacity : end; // Fix unwanted wrap.
+
 		size_t toCap = GFX_MIN(numElems, deque->capacity - end);
 
-		memcpy(
+		// If not enough space within the memory's capacity,
+		// insert the rest at the start of the memory.
+		if (toCap > 0) memcpy(
 			(char*)deque->data + end * deque->elementSize,
 			elems,
 			toCap * deque->elementSize);
 
-		// If not enough space within the memory's capacity,
-		// insert the rest at the start of the memory.
 		if (toCap < numElems) memcpy(
 			deque->data,
 			(const char*)elems + toCap * deque->elementSize,
@@ -200,20 +202,19 @@ GFX_API int gfx_deque_push_front(GFXDeque* deque, size_t numElems,
 
 	// Move front index backwards.
 	size_t front =
-		(deque->front + deque->capacity - numElems) % deque->capacity;
+		((deque->front + deque->capacity) - numElems) % deque->capacity;
 
 	if (elems != NULL)
 	{
 		size_t toCap = GFX_MIN(numElems, deque->capacity - front);
 
+		// Same as push, possibly insert a portion at the start of the memory.
+		// Although front must be < capacity, meaning toCap > 0 always holds.
 		memcpy(
 			(char*)deque->data + front * deque->elementSize,
 			elems,
 			toCap * deque->elementSize);
 
-		// If not enough space within the memory's capacity,
-		// insert the rest at the start of the memory (which, in this case,
-		// is just a bit before the original front index).
 		if (toCap < numElems) memcpy(
 			deque->data,
 			(const char*)elems + toCap * deque->elementSize,

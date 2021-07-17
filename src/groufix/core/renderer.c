@@ -30,9 +30,10 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 	rend->graphics = _gfx_get_queue(rend->context, graphics, 0);
 	rend->present = _gfx_get_queue(rend->context, present, 0);
 
-	// Initialize the render backing & graph.
+	// Initialize the render backing & graph & frames.
 	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
+	gfx_deque_init(&rend->frames, sizeof(_GFXFrame));
 
 	return rend;
 
@@ -52,6 +53,9 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 		return;
 
 	_GFXContext* context = renderer->context;
+
+	// Clear all frames.
+	gfx_deque_clear(&renderer->frames);
 
 	// Clear the backing and graph in the order that makes sense,
 	// considering the graph depends on the backing :)
