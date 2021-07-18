@@ -11,6 +11,32 @@
 
 
 /****************************
+ * Blocks until all virtual frames of a renderer are done.
+ * @param renderer Cannot be NULL.
+ * @return Non-zero if successfully synchronized.
+ */
+static int _gfx_sync_frames(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	_GFXContext* context = renderer->context;
+
+	// Get all the 'done rendering' fences of all virtual frames.
+	VkFence fences[renderer->frames.size];
+	for (size_t f = 0; f < renderer->frames.size; ++f)
+		fences[f] = ((_GFXFrame*)gfx_deque_at(&renderer->frames, f))->vk.done;
+
+	// Wait for all of them.
+	_GFX_VK_CHECK(
+		context->vk.WaitForFences(
+			context->vk.device, (uint32_t)renderer->frames.size, fences,
+			VK_TRUE, UINT64_MAX),
+		return 0);
+
+	return 1;
+}
+
+/****************************
  * Frees and removes the last num swapchain reference objects.
  * @param context Cannot be NULL.
  * @param frame   Cannot be NULL.
@@ -82,6 +108,9 @@ static int _gfx_alloc_swaps(_GFXContext* context, _GFXFrame* frame, size_t num)
 
 	// Clean on failure.
 clean:
+	gfx_log_error(
+		"Could not allocate swapchain references of a virtual render frame.");
+
 	_gfx_free_swaps(context, frame, frame->swaps.size - size);
 
 	return 0;
@@ -167,6 +196,7 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 
 	// First we wait for the frame to be done, so all its resource are
 	// available for use (including its synchronization objects).
+	// Do not reset yet as we could be syncing down below!
 	_GFX_VK_CHECK(
 		context->vk.WaitForFences(
 			context->vk.device, 1, &frame->vk.done, VK_TRUE, UINT64_MAX),
@@ -184,6 +214,7 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 	// Acquire next image of all windows.
 	// We do this in a separate loop because otherwise we'd be synchronizing
 	// on _gfx_swapchain_acquire at the most random times.
+	int synced = 0;
 	size_t presentable = 0; // Actually presented windows.
 
 	for (size_t i = 0, w = 0; i < renderer->backing.attachs.size; ++i)
@@ -201,23 +232,29 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 		if ((swap->image = _gfx_swapchain_acquire(swap->window, &flags)) != UINT32_MAX)
 			++presentable;
 
-		// TODO: Continue implementing...
+		// Recreate swapchain-dependent resources.
+		if (flags & _GFX_RECREATE)
+		{
+			// But first sync all frames, as all frames are using both
+			// the render- backing and graph.
+			if (!synced && !_gfx_sync_frames(renderer))
+				goto error;
+
+			synced = 1;
+			// TODO: Make this not block!
+			_gfx_render_backing_rebuild(renderer, i, flags);
+			_gfx_render_graph_rebuild(renderer, i, flags);
+		}
 	}
+
+	// TODO: Continue implementing...
 
 	return 1;
 
 
 	// Error on failure.
 error:
-	gfx_log_error("Could not submit virtual render frame.");
+	gfx_log_fatal("Submission of virtual render frame failed.");
 
 	return 0;
-}
-
-/****************************/
-void _gfx_frames_sync(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	// TODO: Implement.
 }

@@ -529,7 +529,7 @@ void _gfx_swapchain_unlock(_GFXWindow* window);
  * Acquires the next available image from the swapchain of a window.
  * @param window Cannot be NULL.
  * @param flags  Cannot be NULL, encodes how the swapchain has been recreated.
- * @return The index into window->frame.images, or UINT32_MAX on failure.
+ * @return The index into window->frame.images, or UINT32_MAX if none available.
  *
  * Not thread-affine, but also not thread-safe.
  * Recreate flags are also set if resized to 0x0 and resources are destroyed.

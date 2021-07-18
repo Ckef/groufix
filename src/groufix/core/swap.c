@@ -261,7 +261,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 
 	// Clean on failure.
 clean:
-	gfx_log_fatal(
+	gfx_log_error(
 		"Could not (re)create a swapchain on physical device: %s.",
 		device->name);
 

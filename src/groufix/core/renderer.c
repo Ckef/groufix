@@ -149,6 +149,9 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 		if (at->window.image == UINT32_MAX)
 			continue;
 
+		// TODO: Move to a singular submission of multiple command buffers,
+		// we can't reuse the semaphores like this.
+
 		// Submit the associated command buffer.
 		// Here we explicitly wait on the available semaphore of the window,
 		// this gets signaled when the acquired image is available.

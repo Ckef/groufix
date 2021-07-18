@@ -375,7 +375,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 int _gfx_frame_init(_GFXContext* context, _GFXFrame* frame);
 
 /**
- * Clears a virtual frame for a renderer.
+ * Clears a virtual frame.
  * @param context Must be the same context given in _gfx_frame_init.
  * @param frame   Cannot be NULL.
  *
@@ -391,14 +391,9 @@ void _gfx_frame_clear(_GFXContext* context, _GFXFrame* frame);
  * @return Zero if the frame (or renderer) could not be built.
  *
  * Not thread-safe with respect to either the frame or renderer!
+ * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
 int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer);
-
-/**
- * Blocks until all virtual frames of a renderer are done rendering.
- * @param renderer Cannot be NULL.
- */
-void _gfx_frames_sync(GFXRenderer* renderer);
 
 
 /****************************
