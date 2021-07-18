@@ -395,6 +395,13 @@ void _gfx_frame_clear(_GFXContext* context, _GFXFrame* frame);
  */
 int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer);
 
+/**
+ * Blocks until all virtual frames of a renderer are done.
+ * @param renderer Cannot be NULL.
+ * @return Non-zero if successfully synchronized.
+ */
+int _gfx_sync_frames(GFXRenderer* renderer);
+
 
 /****************************
  * Render- backing and graph.

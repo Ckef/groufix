@@ -68,7 +68,7 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 
 		// So we destruct all the things before building.
 		// But for that we need to wait until all pending rendering is done.
-		// TODO: Use a fence instead?
+		// TODO: Call _gfx_sync_frames instead.
 		_gfx_mutex_lock(renderer->graphics.lock);
 		context->vk.QueueWaitIdle(renderer->graphics.queue);
 		_gfx_mutex_unlock(renderer->graphics.lock);

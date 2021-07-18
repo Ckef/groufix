@@ -11,32 +11,6 @@
 
 
 /****************************
- * Blocks until all virtual frames of a renderer are done.
- * @param renderer Cannot be NULL.
- * @return Non-zero if successfully synchronized.
- */
-static int _gfx_sync_frames(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	_GFXContext* context = renderer->context;
-
-	// Get all the 'done rendering' fences of all virtual frames.
-	VkFence fences[renderer->frames.size];
-	for (size_t f = 0; f < renderer->frames.size; ++f)
-		fences[f] = ((_GFXFrame*)gfx_deque_at(&renderer->frames, f))->vk.done;
-
-	// Wait for all of them.
-	_GFX_VK_CHECK(
-		context->vk.WaitForFences(
-			context->vk.device, (uint32_t)renderer->frames.size, fences,
-			VK_TRUE, UINT64_MAX),
-		return 0);
-
-	return 1;
-}
-
-/****************************
  * Frees and removes the last num swapchain reference objects.
  * @param context Cannot be NULL.
  * @param frame   Cannot be NULL.
@@ -247,6 +221,23 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 		}
 	}
 
+	// Ok so before actually submitting stuff we need everything to be built.
+	// These functions will not do anything if not necessary.
+	// The render graph may be rebuilt entirely, in which case it will call
+	// _gfx_sync_frames for us :)
+	// TODO: Make _gfx_render_graph_build call _gfx_sync_frames!
+	if (
+		!_gfx_render_backing_build(renderer) ||
+		!_gfx_render_graph_build(renderer))
+	{
+		goto error;
+	}
+
+	// At this point we will never synchronize until after submission.
+	// So now is a good time to reset the frame's fence.
+	_GFX_VK_CHECK(context->vk.ResetFences(
+		context->vk.device, 1, &frame->vk.done), goto error);
+
 	// TODO: Continue implementing...
 
 	return 1;
@@ -257,4 +248,26 @@ error:
 	gfx_log_fatal("Submission of virtual render frame failed.");
 
 	return 0;
+}
+
+/****************************/
+int _gfx_sync_frames(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	_GFXContext* context = renderer->context;
+
+	// Get all the 'done rendering' fences of all virtual frames.
+	VkFence fences[renderer->frames.size];
+	for (size_t f = 0; f < renderer->frames.size; ++f)
+		fences[f] = ((_GFXFrame*)gfx_deque_at(&renderer->frames, f))->vk.done;
+
+	// Wait for all of them.
+	_GFX_VK_CHECK(
+		context->vk.WaitForFences(
+			context->vk.device, (uint32_t)renderer->frames.size, fences,
+			VK_TRUE, UINT64_MAX),
+		return 0);
+
+	return 1;
 }
