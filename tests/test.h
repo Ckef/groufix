@@ -278,7 +278,7 @@ static void _test_init(void)
 		TEST_FAIL();
 
 	// Create a renderer and attach the window at index 0.
-	_test_base.renderer = gfx_create_renderer(NULL);
+	_test_base.renderer = gfx_create_renderer(NULL, 2);
 	if (_test_base.renderer == NULL)
 		TEST_FAIL();
 

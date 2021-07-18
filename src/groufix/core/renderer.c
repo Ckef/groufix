@@ -12,8 +12,10 @@
 
 
 /****************************/
-GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
+GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 {
+	assert(frames > 0);
+
 	// Allocate a new renderer.
 	GFXRenderer* rend = malloc(sizeof(GFXRenderer));
 	if (rend == NULL) goto clean;
@@ -30,15 +32,31 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device)
 	rend->graphics = _gfx_get_queue(rend->context, graphics, 0);
 	rend->present = _gfx_get_queue(rend->context, present, 0);
 
-	// Initialize the render backing & graph & frames.
+	// Initialize the virtual frames.
+	// Reserve the exact amount as this will never change.
+	gfx_deque_init(&rend->frames, sizeof(_GFXFrame));
+	gfx_deque_reserve(&rend->frames, frames);
+	gfx_deque_push(&rend->frames, frames, NULL);
+
+	for (size_t f = 0; f < frames; ++f)
+		if (!_gfx_frame_init(rend->context, gfx_deque_at(&rend->frames, f)))
+		{
+			while (f > 0) _gfx_frame_clear(
+				rend->context, gfx_deque_at(&rend->frames, --f));
+
+			goto clean_frames;
+		}
+
+	// And lastly initialize the render backing & graph.
 	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
-	gfx_deque_init(&rend->frames, sizeof(_GFXFrame));
 
 	return rend;
 
 
 	// Clean on failure.
+clean_frames:
+	gfx_deque_clear(&rend->frames);
 clean:
 	gfx_log_error("Could not create a new renderer.");
 	free(rend);
@@ -54,7 +72,7 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	_GFXContext* context = renderer->context;
 
-	// Clear all frames.
+	// Clear all frames, will block until rendering is done.
 	for (size_t f = 0; f < renderer->frames.size; ++f)
 		_gfx_frame_clear(context, gfx_deque_at(&renderer->frames, f));
 
@@ -62,7 +80,6 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	// Clear the backing and graph in the order that makes sense,
 	// considering the graph depends on the backing :)
-	// This will block for rendering to be done.
 	_gfx_render_graph_clear(renderer);
 	_gfx_render_backing_clear(renderer);
 

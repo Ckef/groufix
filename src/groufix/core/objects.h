@@ -197,8 +197,8 @@ typedef struct _GFXAttach
  */
 typedef struct _GFXFrameSwap
 {
-	GFXWindow* window;
-	uint32_t   image; // Swapchain image index (or UINT32_MAX).
+	_GFXWindow* window;
+	uint32_t    image; // Swapchain image index (or UINT32_MAX).
 
 
 	// Vulkan fields.
@@ -375,20 +375,30 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 int _gfx_frame_init(_GFXContext* context, _GFXFrame* frame);
 
 /**
- * Clears a virtual frame for a renderer, will block until done.
+ * Clears a virtual frame for a renderer.
  * @param context Must be the same context given in _gfx_frame_init.
  * @param frame   Cannot be NULL.
+ *
+ * This will block until the frame is done rendering!
  */
 void _gfx_frame_clear(_GFXContext* context, _GFXFrame* frame);
 
 /**
  * Records & submits the frame, taking input from a renderer.
- * This will block until frame is available, reusing previous resources.
+ * This will block until frame is done, reusing resources where possible.
  * @param frame    Cannot be NULL.
  * @param renderer Must use the same context given in _gfx_frame_init.
- * @return Zero if the renderer could not be built.
+ * @return Zero if the frame (or renderer) could not be built.
+ *
+ * Not thread-safe with respect to either the frame or renderer!
  */
 int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer);
+
+/**
+ * Blocks until all virtual frames of a renderer are done rendering.
+ * @param renderer Cannot be NULL.
+ */
+void _gfx_frames_sync(GFXRenderer* renderer);
 
 
 /****************************

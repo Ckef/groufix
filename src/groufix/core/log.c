@@ -55,7 +55,7 @@ static void _gfx_log_out(unsigned int thread,
 		const char* C = _gfx_log_colors[level-1];
 
 		fprintf(stderr,
-			"%.2ems %s%-5s\x1b[0m \x1b[90mthread-%u: %s:%u:\x1b[0m ",
+			"%.2ems %s%-5s \x1b[90mthread-%u: %s:%u:\x1b[0m ",
 			timeMs, C, L, thread, file, line);
 	}
 	else

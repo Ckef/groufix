@@ -72,9 +72,10 @@ typedef struct GFXRenderPass GFXRenderPass;
 /**
  * Creates a renderer.
  * @param device NULL is equivalent to gfx_get_primary_device().
+ * @param frames Number of virtual frames, must be > 0 (preferably > 1).
  * @return NULL on failure.
  */
-GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device);
+GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames);
 
 /**
  * Destroys a renderer.
