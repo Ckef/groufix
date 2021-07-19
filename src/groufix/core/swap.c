@@ -82,6 +82,8 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		*flags = (window->vk.swapchain != VK_NULL_HANDLE) ?
 			_GFX_RECREATE_ALL : 0;
 
+		// TODO: Postpone this, call it oldSwapchain and use on next recreate,
+		// then it gets moved to the retired vector and call _gfx_swapchain_purge.
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, window->vk.swapchain, NULL);
 
@@ -226,7 +228,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			goto clean);
 
 		// Destroy the old swapchain and associate with the new one.
-		// TODO: Still need to maybe defer this to when the last present happened?
+		// TODO: Postpone this, stick it in a retired vector and call _gfx_swapchain_purge.
 		context->vk.DestroySwapchainKHR(
 			context->vk.device, window->vk.swapchain, NULL);
 
@@ -339,8 +341,8 @@ uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
 	// If we acquired without recreating, the new image would be useless.
 	// Also call it 'create' if there's no swapchain at all :)
 	int recreate =
-		window->vk.swapchain == VK_NULL_HANDLE ||
-		_gfx_swapchain_sig(window);
+		_gfx_swapchain_sig(window) ||
+		window->vk.swapchain == VK_NULL_HANDLE;
 
 recreate:
 	if (recreate && !_gfx_swapchain_recreate(window, flags))
