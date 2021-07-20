@@ -221,6 +221,7 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 			// TODO: Make this not block!
 			_gfx_render_backing_rebuild(renderer, i, flags);
 			_gfx_render_graph_rebuild(renderer, i, flags);
+			// TODO: Call _gfx_swapchain_purge.
 		}
 	}
 
