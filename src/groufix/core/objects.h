@@ -154,8 +154,6 @@ typedef struct _GFXWindowAttach
 {
 	_GFXWindow*       window;
 	_GFXRecreateFlags flags; // Used by virtual frames, from last submission.
-	// TODO: Remove:
-	uint32_t image; // Swapchain image index (or UINT32_MAX).
 
 
 	// Vulkan fields.
@@ -195,13 +193,14 @@ typedef struct _GFXAttach
 
 
 /**
- * Internal virtual frame swapchain reference.
+ * Internal virtual frame synchronization object.
+ * Shadows the renderer's attachments (to latch onto swapchains).
  */
-typedef struct _GFXFrameSwap
+typedef struct _GFXFrameSync
 {
-	_GFXWindow* window; // TODO: Remove.
-	size_t   backing; // Attachment index (or SIZE_MAX).
-	uint32_t image;   // Swapchain image index (or UINT32_MAX).
+	_GFXWindow* window;
+	size_t      backing; // Attachment index (or SIZE_MAX).
+	uint32_t    image;   // Swapchain image index (or UINT32_MAX).
 
 
 	// Vulkan fields.
@@ -211,7 +210,7 @@ typedef struct _GFXFrameSwap
 
 	} vk;
 
-} _GFXFrameSwap;
+} _GFXFrameSync;
 
 
 /**
@@ -220,7 +219,8 @@ typedef struct _GFXFrameSwap
  */
 typedef struct _GFXFrame
 {
-	GFXVec swaps; // Stores _GFXFrameSwap.
+	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
+	GFXVec syncs; // Stores _GFXFrameSync.
 
 
 	// Vulkan fields.
@@ -256,7 +256,6 @@ struct GFXRenderer
 	{
 		GFXVec attachs; // Stores _GFXAttach.
 
-		size_t numWindows; // For each frame's swapchain refs.
 		int    built;
 
 	} backing;
@@ -370,38 +369,40 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
  ****************************/
 
 /**
- * Initializes a virtual frame.
- * @param context Cannot be NULL.
- * @param frame   Cannot be NULL.
+ * Initializes a virtual frame of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param frame    Cannot be NULL.
  * @return Zero on failure.
  */
-int _gfx_frame_init(_GFXContext* context, _GFXFrame* frame);
+int _gfx_frame_init(GFXRenderer* renderer, _GFXFrame* frame);
 
 /**
- * Clears a virtual frame.
- * @param context Must be the same context given in _gfx_frame_init.
- * @param frame   Cannot be NULL.
+ * Clears a virtual frame of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param frame    Cannot be NULL.
  *
  * This will block until the frame is done rendering!
  */
-void _gfx_frame_clear(_GFXContext* context, _GFXFrame* frame);
+void _gfx_frame_clear(GFXRenderer* renderer, _GFXFrame* frame);
 
 /**
- * Records & submits the frame, taking input from a renderer.
- * This will block until frame is done, reusing resources where possible.
+ * Records & submits a virtual frame.
+ * This will block until all pending submissions are done rendering,
+ * where possible it will reuse its resources afterwards.
+ * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
- * @param renderer Must use the same context given in _gfx_frame_init.
  * @return Zero if the frame (or renderer) could not be built.
  *
- * Not thread-safe with respect to either the frame or renderer!
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
-int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer);
+int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame);
 
 /**
  * Blocks until all virtual frames of a renderer are done.
  * @param renderer Cannot be NULL.
  * @return Non-zero if successfully synchronized.
+ *
+ * If a frame is being processed with _gfx_frame_submit, it is excluded.
  */
 int _gfx_sync_frames(GFXRenderer* renderer);
 
@@ -420,7 +421,7 @@ void _gfx_render_backing_init(GFXRenderer* renderer);
  * Clears the render backing of a renderer, destroying all images.
  * @param renderer Cannot be NULL.
  *
- * If attachments exist, will block until rendering is done!
+ * If window attachments exist, will block until rendering is done!
  */
 void _gfx_render_backing_clear(GFXRenderer* renderer);
 
@@ -439,8 +440,6 @@ int _gfx_render_backing_build(GFXRenderer* renderer);
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    What resources should be recreated (0 to do nothing).
- *
- * If rebuilding swapchain resources, this will block until rendering is done!
  */
 void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
                                  _GFXRecreateFlags flags);
@@ -454,8 +453,6 @@ void _gfx_render_graph_init(GFXRenderer* renderer);
 /**
  * Clears the render graph of a renderer, destroying all passes.
  * @param renderer Cannot be NULL.
- *
- * If passes exist, will block until rendering is done!
  */
 void _gfx_render_graph_clear(GFXRenderer* renderer);
 
@@ -476,8 +473,6 @@ int _gfx_render_graph_build(GFXRenderer* renderer);
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    What resources should be recreated (0 to do nothing).
- *
- * Does not synchronize anything before potentially rebuilding!
  */
 void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
                                _GFXRecreateFlags flags);
@@ -489,7 +484,6 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
  *
  * Must be called before detaching the attachment at index!
  * It will in turn call the relevant _gfx_render_pass_destruct calls.
- * Also, does not synchronize anything before destructing!
  */
 void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index);
 

@@ -579,8 +579,10 @@ static void _gfx_create_context(_GFXDevice* device)
 #endif
 
 	// Now load all device level Vulkan functions.
-	// Load vkDestroyDevice first so we can clean properly.
+	// Load vkDestroyDevice and vkDeviceWaitIdle first so we can clean properly.
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
+	_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
+
 	_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
 	_GFX_GET_DEVICE_PROC_ADDR(AllocateCommandBuffers);
 	_GFX_GET_DEVICE_PROC_ADDR(AllocateMemory);
@@ -615,7 +617,6 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(DestroySemaphore);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyShaderModule);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);
-	_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
 	_GFX_GET_DEVICE_PROC_ADDR(EndCommandBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(FreeCommandBuffers);
 	_GFX_GET_DEVICE_PROC_ADDR(FreeMemory);
@@ -625,7 +626,6 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(MapMemory);
 	_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
 	_GFX_GET_DEVICE_PROC_ADDR(QueueSubmit);
-	_GFX_GET_DEVICE_PROC_ADDR(QueueWaitIdle);
 	_GFX_GET_DEVICE_PROC_ADDR(ResetCommandPool);
 	_GFX_GET_DEVICE_PROC_ADDR(ResetFences);
 	_GFX_GET_DEVICE_PROC_ADDR(UnmapMemory);

@@ -315,7 +315,7 @@ void _gfx_swapchain_unlock(_GFXWindow* window)
 }
 
 /****************************/
-uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
+uint32_t _gfx_swapchain_acquire(_GFXWindow* window, VkSemaphore available,
                                 _GFXRecreateFlags* flags)
 {
 	assert(window != NULL);
@@ -323,19 +323,6 @@ uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
 
 	*flags = 0;
 	_GFXContext* context = window->context;
-
-	// If swapchain present, wait for the fence so we know the
-	// available semaphore is unsignaled and has no pending signals.
-	// Essentially we wait until the previous image is available, this means:
-	// - Immediate: no waiting.
-	// -      FIFO: until the previous vsync.
-	// -   Mailbox: until the previous present or vsync.
-	// Or no waiting if an image was already available.
-	_GFX_VK_CHECK(context->vk.WaitForFences(
-		context->vk.device, 1, &window->vk.fence, VK_TRUE, UINT64_MAX), goto error);
-
-	_GFX_VK_CHECK(context->vk.ResetFences(
-		context->vk.device, 1, &window->vk.fence), goto error);
 
 	// We check the recreate signal, just before acquiring a new image.
 	// If we acquired without recreating, the new image would be useless.
@@ -363,8 +350,7 @@ recreate:
 		context->vk.device,
 		window->vk.swapchain,
 		UINT64_MAX,
-		window->vk.available,
-		window->vk.fence,
+		available, VK_NULL_HANDLE,
 		&index);
 
 	switch (result)
@@ -402,7 +388,8 @@ error:
 }
 
 /****************************/
-void _gfx_swapchains_present(_GFXQueue present, size_t num,
+void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
+                             size_t num,
                              _GFXWindow** windows, const uint32_t* indices,
                              _GFXRecreateFlags* flags)
 {
@@ -417,22 +404,18 @@ void _gfx_swapchains_present(_GFXQueue present, size_t num,
 	// Now queue a presentation request.
 	// This would swap all the acquired images to the screen :)
 	// Of course it has to wait for all rendering to be done for.
-	VkSemaphore rendered[num];
 	VkSwapchainKHR swapchains[num];
 	VkResult results[num];
 
 	for (size_t i = 0; i < num; ++i)
-	{
-		rendered[i] = windows[i]->vk.rendered;
 		swapchains[i] = windows[i]->vk.swapchain;
-	}
 
 	VkPresentInfoKHR pi = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 
 		.pNext              = NULL,
-		.waitSemaphoreCount = (uint32_t)num,
-		.pWaitSemaphores    = rendered,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores    = &rendered,
 		.swapchainCount     = (uint32_t)num,
 		.pSwapchains        = swapchains,
 		.pImageIndices      = indices,

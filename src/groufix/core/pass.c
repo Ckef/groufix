@@ -506,7 +506,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 
 			.pNext            = NULL,
-			.flags            = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+			.flags            = 0,
 			.pInheritanceInfo = NULL
 		};
 

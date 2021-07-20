@@ -242,7 +242,6 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(MapMemory);
 		_GFX_VK_PFN(QueuePresentKHR);
 		_GFX_VK_PFN(QueueSubmit);
-		_GFX_VK_PFN(QueueWaitIdle);
 		_GFX_VK_PFN(ResetCommandPool);
 		_GFX_VK_PFN(ResetFences);
 		_GFX_VK_PFN(UnmapMemory);
@@ -347,10 +346,6 @@ typedef struct _GFXWindow
 	{
 		VkSurfaceKHR   surface;
 		VkSwapchainKHR swapchain;
-
-		VkSemaphore    available; // Image available, to be waited for.
-		VkSemaphore    rendered;  // Presentation ready, to be signaled.
-		VkFence        fence;
 
 	} vk;
 
@@ -527,31 +522,32 @@ void _gfx_swapchain_unlock(_GFXWindow* window);
 
 /**
  * Acquires the next available image from the swapchain of a window.
- * @param window Cannot be NULL.
- * @param flags  Cannot be NULL, encodes how the swapchain has been recreated.
+ * @param window    Cannot be NULL.
+ * @param available Cannot be VK_NULL_HANDLE, semaphore to be signaled.
+ * @param flags     Cannot be NULL, encodes how the swapchain has been recreated.
  * @return The index into window->frame.images, or UINT32_MAX if none available.
  *
  * Not thread-affine, but also not thread-safe.
  * Recreate flags are also set if resized to 0x0 and resources are destroyed.
- * This will signal window->vk.available when the current image is acquired.
  */
-uint32_t _gfx_swapchain_acquire(_GFXWindow* window,
+uint32_t _gfx_swapchain_acquire(_GFXWindow* window, VkSemaphore available,
                                 _GFXRecreateFlags* flags);
 
 /**
  * Submits presentation to a given queue for the swapchains of multiple windows.
  * _gfx_swapchain_acquire must have returned succesfully before this call.
- * @param present Must be a queue from the same Vulkan context as all windows.
- * @param num     Number of input and output params, must be > 0.
- * @param windows Cannot be NULL, must all share the same Vulkan context.
- * @param indices Must be indices retrieved by _gfx_swapchain_acquire.
- * @param flags   Cannot be NULL, outputs how the swapchains have been recreated.
+ * @param present  Must be a queue from the same Vulkan context as all windows.
+ * @param rendered Cannot be VK_NULL_HANDLE, semaphore to wait on.
+ * @param num      Number of input and output params, must be > 0.
+ * @param windows  Cannot be NULL, must all share the same Vulkan context.
+ * @param indices  Must be indices retrieved by _gfx_swapchain_acquire.
+ * @param flags    Cannot be NULL, outputs how the swapchains have been recreated.
  *
  * Not thread-affine, but also not thread-safe.
  * Recreate flags are also set if resized to 0x0 and resources are destroyed.
- * window[*]->vk.rendered must be signaled or pending.
  */
-void _gfx_swapchains_present(_GFXQueue present, size_t num,
+void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
+                             size_t num,
                              _GFXWindow** windows, const uint32_t* indices,
                              _GFXRecreateFlags* flags);
 

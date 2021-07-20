@@ -428,9 +428,6 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	_GFX_GET_DEVICE(window->device, device);
 	_GFX_GET_CONTEXT(window->context, device, goto clean_surface);
 
-	// Typing window->context is obviously too long.
-	_GFXContext* context = window->context;
-
 	// Pick all the queue families that need image access.
 	if (!_gfx_window_pick_access(window))
 		goto clean_access;
@@ -439,57 +436,12 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	// eventually get created when an image is acquired.
 	window->vk.swapchain = VK_NULL_HANDLE;
 
-	// Don't forget the synchronization primitives.
-	// We use these to signal when a new swapchain image is available
-	// and wait for rendering to be done so we can present.
-	// These aren't initialized by the swapchain because they do not
-	// need to be recreated.
-	window->vk.available = VK_NULL_HANDLE;
-	window->vk.rendered = VK_NULL_HANDLE;
-	window->vk.fence = VK_NULL_HANDLE;
 
-	// Firstly, two semaphores for device synchronization.
-	VkSemaphoreCreateInfo sci = {
-		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-		.pNext = NULL,
-		.flags = 0
-	};
-
-	_GFX_VK_CHECK(
-		context->vk.CreateSemaphore(
-			context->vk.device, &sci, NULL, &window->vk.available),
-		goto clean_sync);
-
-	_GFX_VK_CHECK(
-		context->vk.CreateSemaphore(
-			context->vk.device, &sci, NULL, &window->vk.rendered),
-		goto clean_sync);
-
-	// Secondly, a fence for host synchronization.
-	 VkFenceCreateInfo fci = {
-		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-		.pNext = NULL,
-		.flags = VK_FENCE_CREATE_SIGNALED_BIT
-	};
-
-	_GFX_VK_CHECK(
-		context->vk.CreateFence(
-			context->vk.device, &fci, NULL, &window->vk.fence),
-		goto clean_sync);
-
-	// All successful!
+	// Holy moly :o
 	return &window->base;
 
 
 	// Cleanup on failure.
-clean_sync:
-	context->vk.DestroyFence(
-		context->vk.device, window->vk.fence, NULL);
-	context->vk.DestroySemaphore(
-		context->vk.device, window->vk.rendered, NULL);
-	context->vk.DestroySemaphore(
-		context->vk.device, window->vk.available, NULL);
-
 clean_access:
 	gfx_vec_clear(&window->access);
 clean_surface:
@@ -522,21 +474,9 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_GFXWindow* win = (_GFXWindow*)window;
 	_GFXContext* context = win->context;
 
-	// First wait for the fence to not be pending.
-	context->vk.WaitForFences(
-		context->vk.device, 1, &win->vk.fence, VK_TRUE, UINT64_MAX);
-
-	// Destroy the swapchain built on the logical Vulkan device.
-	context->vk.DestroyFence(
-		context->vk.device, win->vk.fence, NULL);
-	context->vk.DestroySemaphore(
-		context->vk.device, win->vk.rendered, NULL);
-	context->vk.DestroySemaphore(
-		context->vk.device, win->vk.available, NULL);
+	// Destroy the swapchain, surface and the window itself.
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, win->vk.swapchain, NULL);
-
-	// Destroy the surface and the window itself.
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, win->vk.surface, NULL);
 

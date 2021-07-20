@@ -79,7 +79,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 
 /**
  * Destroys a renderer.
- * This will block until rendering using its resources is done!
+ * This will block until rendering is done!
  */
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
@@ -146,10 +146,7 @@ GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
  * TODO: Totally under construction.
  * Submits all passes of the renderer to the GPU.
  * @param renderer Cannot be NULL.
- * @return Zero if the renderer could not build.
- *
- * Returns non-zero if build was successful. Most errors during submission are
- * considered pseudo-fatal and ignored, processing continues.
+ * @return Non-zero if the frame is submitted.
  */
 GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
 

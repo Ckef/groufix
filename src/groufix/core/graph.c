@@ -27,16 +27,6 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	// If there are passes we are going to destroy,
-	// we first have to wait until all pending rendering is done.
-	// TODO: Use a fence instead?
-	if (renderer->graph.passes.size > 0)
-	{
-		_gfx_mutex_lock(renderer->graphics.lock);
-		renderer->context->vk.QueueWaitIdle(renderer->graphics.queue);
-		_gfx_mutex_unlock(renderer->graphics.lock);
-	}
-
 	// Destroy all passes, we want to make sure we do not destroy any pass
 	// before all passes that reference it are destroyed.
 	// Luckily, all dependencies of a pass will be to its left due to
@@ -64,14 +54,9 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 	// merging passes may change, we want to capture these changes.
 	if (!renderer->graph.valid)
 	{
-		_GFXContext* context = renderer->context;
-
 		// So we destruct all the things before building.
 		// But for that we need to wait until all pending rendering is done.
-		// TODO: Call _gfx_sync_frames instead.
-		_gfx_mutex_lock(renderer->graphics.lock);
-		context->vk.QueueWaitIdle(renderer->graphics.queue);
-		_gfx_mutex_unlock(renderer->graphics.lock);
+		_gfx_sync_frames(renderer);
 
 		for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 			_gfx_render_pass_destruct(

@@ -52,7 +52,7 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 		if (!gfx_vec_push(&renderer->backing.attachs, elems, NULL))
 		{
 			gfx_log_error(
-				"Could not allocate attachment index %u at a renderer.",
+				"Could not allocate attachment index %u of a renderer.",
 				(unsigned int)index);
 
 			return 0;
@@ -79,19 +79,10 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 	_GFXContext* context = renderer->context;
 	_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
 
-	// Prepare for destruction.
+	// Destruct the parts of the graph dependent on the attachment.
+	// Very important indeed!
 	if (at->type != _GFX_ATTACH_EMPTY)
-	{
-		// We must wait until pending rendering is done before destroying.
-		// TODO: Use a fence instead?
-		_gfx_mutex_lock(renderer->graphics.lock);
-		context->vk.QueueWaitIdle(renderer->graphics.queue);
-		_gfx_mutex_unlock(renderer->graphics.lock);
-
-		// Also destruct the parts of the graph dependent on the attachment.
-		// Very important indeed!
 		_gfx_render_graph_destruct(renderer, index);
-	}
 
 	// Destruct an implicit image.
 	if (at->type == _GFX_ATTACH_IMAGE)
@@ -111,7 +102,6 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 				NULL);
 
 		gfx_vec_clear(&at->window.vk.views);
-		at->window.image = UINT32_MAX;
 
 		// Destroy command pool.
 		// Implicitly frees all command buffers.
@@ -148,18 +138,10 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 		_GFXWindow* window = at->window.window;
 
 		// First check the command pool.
+		// If it exists, reset it.
 		if (at->window.vk.pool != VK_NULL_HANDLE)
-		{
-			// If it exists, reset it.
-			// But first wait until all pending rendering is done.
-			// TODO: Use a fence instead?
-			_gfx_mutex_lock(renderer->graphics.lock);
-			context->vk.QueueWaitIdle(renderer->graphics.queue);
-			_gfx_mutex_unlock(renderer->graphics.lock);
-
 			context->vk.ResetCommandPool(
 				context->vk.device, at->window.vk.pool, 0);
-		}
 		else
 		{
 			// If it did not exist yet, just create it.
@@ -235,7 +217,7 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 clean:
 	gfx_log_error(
 		"Could not (re)create swapchain-dependent resources of "
-		"attachment index %u at a renderer.",
+		"attachment index %u of a renderer.",
 		(unsigned int)index);
 
 	_gfx_destruct_attachment(renderer, index);
@@ -253,17 +235,21 @@ static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 	assert(renderer != NULL);
 	assert(index < renderer->backing.attachs.size);
 
+	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
+
+	// Before detaching a window, we wait until all rendering is done.
+	// This so the window's resources are freed up to do smth else.
+	if (attach->type == _GFX_ATTACH_WINDOW)
+		_gfx_sync_frames(renderer);
+
 	// Firstly destruct.
 	_gfx_destruct_attachment(renderer, index);
 
 	// Then if it is a window, unlock the window.
-	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
 	if (attach->type == _GFX_ATTACH_WINDOW)
 	{
 		_gfx_swapchain_unlock(attach->window.window);
 		attach->window.window = NULL;
-
-		--renderer->backing.numWindows;
 	}
 
 	// Describe attachment as empty.
@@ -277,7 +263,6 @@ void _gfx_render_backing_init(GFXRenderer* renderer)
 
 	gfx_vec_init(&renderer->backing.attachs, sizeof(_GFXAttach));
 
-	renderer->backing.numWindows = 0;
 	renderer->backing.built = 0;
 }
 
@@ -472,7 +457,6 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		.window = {
 			.window = (_GFXWindow*)window,
 			.flags  = 0,
-			.image  = UINT32_MAX,
 			.vk     = { .pool = VK_NULL_HANDLE }
 		}
 	};
@@ -481,7 +465,6 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 
 	// New attachment is not yet built.
 	renderer->backing.built = 0;
-	++renderer->backing.numWindows; // For the virtual frames.
 
 	return 1;
 }

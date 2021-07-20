@@ -11,56 +11,59 @@
 
 
 /****************************
- * Frees and removes the last num swapchain reference objects.
- * @param context Cannot be NULL.
- * @param frame   Cannot be NULL.
+ * Frees and removes the last num sync objects.
+ * @param renderer Cannot be NULL.
+ * @param frame    Cannot be NULL.
  */
-static void _gfx_free_swaps(_GFXContext* context, _GFXFrame* frame, size_t num)
+static void _gfx_free_syncs(GFXRenderer* renderer, _GFXFrame* frame, size_t num)
 {
-	assert(context != NULL);
+	assert(renderer != NULL);
 	assert(frame != NULL);
 
+	_GFXContext* context = renderer->context;
+
 	// Well, destroy 'm.
-	if ((num = GFX_MIN(frame->swaps.size, num)) == 0)
+	if ((num = GFX_MIN(frame->syncs.size, num)) == 0)
 		return;
 
 	for (size_t i = 0; i < num; ++i)
 	{
-		_GFXFrameSwap* swap =
-			gfx_vec_at(&frame->swaps, frame->swaps.size - i - 1);
+		_GFXFrameSync* sync =
+			gfx_vec_at(&frame->syncs, frame->syncs.size - i - 1);
 		context->vk.DestroySemaphore(
-			context->vk.device, swap->vk.available, NULL);
+			context->vk.device, sync->vk.available, NULL);
 	}
 
-	gfx_vec_pop(&frame->swaps, num);
+	gfx_vec_pop(&frame->syncs, num);
 }
 
 /****************************
- * Makes sure num swapchain reference objects are allocated and initialized.
- * @param context Cannot be NULL.
- * @param frame   Cannot be NULL.
+ * Makes sure num sync objects are allocated and initialized.
+ * @param renderer Cannot be NULL.
+ * @param frame    Cannot be NULL.
  * @return Non-zero on success.
  */
-static int _gfx_alloc_swaps(_GFXContext* context, _GFXFrame* frame, size_t num)
+static int _gfx_alloc_syncs(GFXRenderer* renderer, _GFXFrame* frame, size_t num)
 {
-	assert(context != NULL);
+	assert(renderer != NULL);
 	assert(frame != NULL);
 
-	size_t size = frame->swaps.size;
+	_GFXContext* context = renderer->context;
+	size_t size = frame->syncs.size;
 
 	if (num <= size)
 		return 1;
 
-	if (!gfx_vec_push(&frame->swaps, num - size, NULL))
+	if (!gfx_vec_push(&frame->syncs, num - size, NULL))
 		return 0;
 
-	// Yeah just create a bunch of swap references..
+	// Yeah just create a bunch of syncs..
 	for (size_t i = size; i < num; ++i)
 	{
-		_GFXFrameSwap* swap = gfx_vec_at(&frame->swaps, i);
-		swap->window = NULL;
-		swap->backing = SIZE_MAX;
-		swap->image = UINT32_MAX;
+		_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, i);
+		sync->window = NULL;
+		sync->backing = SIZE_MAX;
+		sync->image = UINT32_MAX;
 
 		// Create a semaphore for image availability.
 		VkSemaphoreCreateInfo sci = {
@@ -71,9 +74,9 @@ static int _gfx_alloc_swaps(_GFXContext* context, _GFXFrame* frame, size_t num)
 
 		_GFX_VK_CHECK(
 			context->vk.CreateSemaphore(
-				context->vk.device, &sci, NULL, &swap->vk.available),
+				context->vk.device, &sci, NULL, &sync->vk.available),
 			{
-				gfx_vec_pop(&frame->swaps, num - i);
+				gfx_vec_pop(&frame->syncs, num - i);
 				goto clean;
 			});
 	}
@@ -84,21 +87,25 @@ static int _gfx_alloc_swaps(_GFXContext* context, _GFXFrame* frame, size_t num)
 	// Clean on failure.
 clean:
 	gfx_log_error(
-		"Could not allocate swapchain references of a virtual render frame.");
+		"Could not allocate synchronization objects of a virtual render frame.");
 
-	_gfx_free_swaps(context, frame, frame->swaps.size - size);
+	_gfx_free_syncs(renderer, frame, frame->syncs.size - size);
 
 	return 0;
 }
 
 /****************************/
-int _gfx_frame_init(_GFXContext* context, _GFXFrame* frame)
+int _gfx_frame_init(GFXRenderer* renderer, _GFXFrame* frame)
 {
-	assert(context != NULL);
+	assert(renderer != NULL);
 	assert(frame != NULL);
 
+	_GFXContext* context = renderer->context;
+
 	// Initialize things.
-	gfx_vec_init(&frame->swaps, sizeof(_GFXFrameSwap));
+	gfx_vec_init(&frame->refs, sizeof(size_t));
+	gfx_vec_init(&frame->syncs, sizeof(_GFXFrameSync));
+
 	frame->vk.rendered = VK_NULL_HANDLE;
 	frame->vk.done = VK_NULL_HANDLE;
 
@@ -138,14 +145,19 @@ clean:
 	context->vk.DestroySemaphore(
 		context->vk.device, frame->vk.rendered, NULL);
 
+	gfx_vec_clear(&frame->refs);
+	gfx_vec_clear(&frame->syncs);
+
 	return 0;
 }
 
 /****************************/
-void _gfx_frame_clear(_GFXContext* context, _GFXFrame* frame)
+void _gfx_frame_clear(GFXRenderer* renderer, _GFXFrame* frame)
 {
-	assert(context != NULL);
+	assert(renderer != NULL);
 	assert(frame != NULL);
+
+	_GFXContext* context = renderer->context;
 
 	// First wait for the frame to be done.
 	_GFX_VK_CHECK(context->vk.WaitForFences(
@@ -157,57 +169,81 @@ void _gfx_frame_clear(_GFXContext* context, _GFXFrame* frame)
 	context->vk.DestroySemaphore(
 		context->vk.device, frame->vk.rendered, NULL);
 
-	_gfx_free_swaps(context, frame, frame->swaps.size);
-	gfx_vec_clear(&frame->swaps);
+	_gfx_free_syncs(renderer, frame, frame->syncs.size);
+	gfx_vec_clear(&frame->refs);
+	gfx_vec_clear(&frame->syncs);
 }
 
 /****************************/
-int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
+int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 {
 	assert(frame != NULL);
 	assert(renderer != NULL);
 
 	_GFXContext* context = renderer->context;
+	GFXVec* attachs = &renderer->backing.attachs;
 
 	// First we wait for the frame to be done, so all its resource are
 	// available for use (including its synchronization objects).
-	// Do not reset yet as we could be syncing down below!
+	// Also immediately reset it, luckily the renderer does not sync this
+	// frame whenever we call _gfx_sync_frames so it's fine.
 	_GFX_VK_CHECK(
 		context->vk.WaitForFences(
 			context->vk.device, 1, &frame->vk.done, VK_TRUE, UINT64_MAX),
 		goto error);
 
-	// Make sure we have enough swapchain (window) references.
-	size_t numWindows = renderer->backing.numWindows;
+	_GFX_VK_CHECK(
+		context->vk.ResetFences(
+			context->vk.device, 1, &frame->vk.done),
+		goto error);
 
-	if (frame->swaps.size > numWindows)
-		_gfx_free_swaps(context, frame, frame->swaps.size - numWindows);
+	// Count the number of sync objects necessary (i.e. #windows).
+	size_t numSyncs = 0;
+	for (size_t i = 0; i < attachs->size; ++i)
+		if (((_GFXAttach*)gfx_vec_at(attachs, i))->type == _GFX_ATTACH_WINDOW)
+			++numSyncs;
 
-	else if (!_gfx_alloc_swaps(context, frame, numWindows))
+	// Make sure we have enough sync objects.
+	if (frame->syncs.size > numSyncs)
+		_gfx_free_syncs(renderer, frame, frame->syncs.size - numSyncs);
+
+	else if (!_gfx_alloc_syncs(renderer, frame, numSyncs))
 		goto error;
 
-	// Acquire next image of all swapchains.
-	// We do this in a separate loop because otherwise we'd be synchronizing
-	// on _gfx_swapchain_acquire at the most random times.
+	// Now set all references to sync objects & init the objects themselves.
+	// Meaning after this loop we never have to loop over the attachments again!
+	// In this very same loop we can acquire all swapchain images!
+	gfx_vec_release(&frame->refs);
+	gfx_vec_push(&frame->refs, attachs->size, NULL);
+
 	int synced = 0;
 
-	for (size_t i = 0, w = 0; i < renderer->backing.attachs.size; ++i)
+	for (size_t i = 0, s = 0; i < attachs->size; ++i)
 	{
-		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, i);
-		if (at->type != _GFX_ATTACH_WINDOW)
+		_GFXAttach* at = gfx_vec_at(attachs, i);
+
+		size_t sRef = (at->type == _GFX_ATTACH_WINDOW) ? s++ : SIZE_MAX;
+		*(size_t*)gfx_vec_at(&frame->refs, i) = sRef; // Set ref.
+
+		if (sRef == SIZE_MAX)
 			continue;
 
-		// TODO: Before acquiring a new one, we may need to rebuild from the
+		// TODO: Before acquiring a new image, we may need to rebuild from the
 		// previous submission, i.e. check at->flags.
 
-		// Acquire next image.
-		_GFXFrameSwap* swap = gfx_vec_at(&frame->swaps, w++);
-		swap->window = at->window.window;
-		swap->backing = i;
+		// Acquire the swapchain image for the sync object.
+		// We also do this in this loop, before touching the render graph,
+		// because otherwise we'd be synchronizing on _gfx_swapchain_acquire
+		// at the most random times.
+		_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, sRef);
+		sync->window = at->window.window;
+		sync->backing = i;
 
 		_GFXRecreateFlags flags;
-		// TODO: Should pass the available semaphore to this call.
-		swap->image = _gfx_swapchain_acquire(swap->window, &flags);
+		sync->image = _gfx_swapchain_acquire(
+			sync->window,
+			sync->vk.available,
+			&flags);
 
 		// Recreate swapchain-dependent resources.
 		if (flags & _GFX_RECREATE)
@@ -218,7 +254,6 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 				goto error;
 
 			synced = 1;
-			// TODO: Make this not block!
 			_gfx_render_backing_rebuild(renderer, i, flags);
 			_gfx_render_graph_rebuild(renderer, i, flags);
 			// TODO: Call _gfx_swapchain_purge.
@@ -229,7 +264,6 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 	// These functions will not do anything if not necessary.
 	// The render graph may be rebuilt entirely, in which case it will call
 	// _gfx_sync_frames for us :)
-	// TODO: Make _gfx_render_graph_build call _gfx_sync_frames!
 	if (
 		!_gfx_render_backing_build(renderer) ||
 		!_gfx_render_graph_build(renderer))
@@ -237,14 +271,81 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 		goto error;
 	}
 
-	// At this point we will never synchronize until after submission.
-	// So now is a good time to reset the frame's fence.
-	_GFX_VK_CHECK(context->vk.ResetFences(
-		context->vk.device, 1, &frame->vk.done), goto error);
+	// TODO: Kinda need a return here for processing input?
+	// At this point we synced until _this_ frame is done (and if we're
+	// unlucky until all frames are done when shit is rebuilt).
+	// That's probably a point in time where we want to take the input and
+	// move shit around in the world. Then immediately after we can record
+	// the command buffers and submit?
 
+	// Collect buffers to submit, so we can submit them in submission order
+	// of all the render passes.
+	// We use a scope here so the goto's above are allowed.
+	{
+		VkCommandBuffer buffers[renderer->graph.passes.size];
+		size_t numBuffers = 0;
 
-	// TODO: Submit command buffers.
+		for (size_t p = 0; p < renderer->graph.passes.size; ++p)
+		{
+			GFXRenderPass* pass =
+				*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, p);
 
+			// TODO: Future: if we don't have a swapchain as backing, do smth else.
+			if (pass->build.backing == SIZE_MAX)
+				continue;
+
+			// Query the synchronization object associated with this
+			// swapchain as backing. This should only be queried once!
+			_GFXFrameSync* sync = gfx_vec_at(
+				&frame->syncs,
+				*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
+
+			// No image (e.g. minimized).
+			if (sync->image == UINT32_MAX)
+				continue;
+
+			buffers[numBuffers++] =
+				*(VkCommandBuffer*)gfx_vec_at(&pass->vk.commands, sync->image);
+		}
+
+		// Oh also select all 'available' semaphores we need it to wait on.
+		// TODO: If not splitting up the submit function, we can do this a bit earlier.
+		VkSemaphore available[numSyncs];
+		size_t numAvailable = 0;
+
+		for (size_t s = 0; s < numSyncs; ++s)
+		{
+			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
+			if (sync->image != UINT32_MAX)
+				available[numAvailable++] = sync->vk.available;
+		}
+
+		// Submit all!
+		VkPipelineStageFlags waitStages[numAvailable];
+		for (size_t a = 0; a < numAvailable; ++a)
+			waitStages[a] = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+		VkSubmitInfo si = {
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+
+			.pNext                = NULL,
+			.waitSemaphoreCount   = (uint32_t)numAvailable,
+			.pWaitSemaphores      = available,
+			.pWaitDstStageMask    = waitStages,
+			.commandBufferCount   = (uint32_t)numBuffers,
+			.pCommandBuffers      = buffers,
+			.signalSemaphoreCount = 1,
+			.pSignalSemaphores    = &frame->vk.rendered
+		};
+
+		// Lock queue and submit.
+		_gfx_mutex_lock(renderer->graphics.lock);
+
+		_GFX_VK_CHECK(context->vk.QueueSubmit(
+			renderer->graphics.queue, 1, &si, frame->vk.done), goto error);
+
+		_gfx_mutex_unlock(renderer->graphics.lock);
+	}
 
 	// Present all images of all presentable swapchains.
 	// We do this in one call, making all windows attached to a renderer
@@ -252,49 +353,58 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 	// So first we get all the presentable windows.
 	// We use a scope here so the goto's above are allowed.
 	{
-		_GFXWindow* windows[numWindows];
-		uint32_t indices[numWindows];
+		_GFXWindow* windows[numSyncs];
+		uint32_t indices[numSyncs];
 		size_t presentable = 0;
 
-		for (size_t w = 0; w < numWindows; ++w)
+		for (size_t s = 0; s < numSyncs; ++s)
 		{
-			_GFXFrameSwap* swap = gfx_vec_at(&frame->swaps, w);
-			if (swap->image == UINT32_MAX)
+			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
+			if (sync->image == UINT32_MAX)
 				continue;
 
-			windows[presentable] = swap->window;
-			indices[presentable] = swap->image;
+			windows[presentable] = sync->window;
+			indices[presentable] = sync->image;
 			++presentable;
 		}
 
 		// And then we present them :)
 		_GFXRecreateFlags flags[presentable];
-		// TODO: Should pass the rendered semaphore to this call.
 		_gfx_swapchains_present(
-			renderer->present, presentable, windows, indices, flags);
+			renderer->present,
+			frame->vk.rendered,
+			presentable,
+			windows, indices, flags);
 
-		// Now reset all swapchain references.
-		synced = 0;
-
-		for (size_t w = 0; w < presentable; ++w)
+		// Now reset all sync objects.
+		for (size_t s = 0, p = 0; s < numSyncs; ++s)
 		{
-			_GFXFrameSwap* swap = gfx_vec_at(&frame->swaps, w);
-			swap->image = UINT32_MAX; // TODO: Is this even necessary?
+			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
+			if (sync->image == UINT32_MAX)
+				continue;
+
+			_GFXRecreateFlags fl = flags[p++];
+			sync->image = UINT32_MAX; // TODO: Is this even necessary?
 
 			// TODO: Remove this entirely, rebuilding after submission should be
-			// postponed to the next submit call, i.e. set attachs[swap->backing]->flags.
+			// postponed to the next submit call, i.e. set attachs[sync->backing]->flags.
 			// Recreate swapchain-dependent resources.
-			if (flags[w] & _GFX_RECREATE)
+			if (fl & _GFX_RECREATE)
 			{
 				// But first sync all frames, as all frames are using both
 				// the render- backing and graph.
 				if (!synced && !_gfx_sync_frames(renderer))
 					goto error;
 
+				// Also wait for _this_ frame.
+				_GFX_VK_CHECK(
+					context->vk.WaitForFences(
+						context->vk.device, 1, &frame->vk.done, VK_TRUE, UINT64_MAX),
+					goto error);
+
 				synced = 1;
-				// TODO: Make this not block!
-				_gfx_render_backing_rebuild(renderer, swap->backing, flags[w]);
-				_gfx_render_graph_rebuild(renderer, swap->backing, flags[w]);
+				_gfx_render_backing_rebuild(renderer, sync->backing, fl);
+				_gfx_render_graph_rebuild(renderer, sync->backing, fl);
 			}
 		}
 	}
@@ -315,6 +425,11 @@ int _gfx_sync_frames(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	_GFXContext* context = renderer->context;
+
+	// If no frames found, we're done.
+	// This is necessary because this can be called during _gfx_frame_submit.
+	if (renderer->frames.size == 0)
+		return 1;
 
 	// Get all the 'done rendering' fences of all virtual frames.
 	VkFence fences[renderer->frames.size];
