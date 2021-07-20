@@ -152,8 +152,10 @@ typedef struct _GFXImageAttach
  */
 typedef struct _GFXWindowAttach
 {
-	_GFXWindow* window;
-	uint32_t    image; // Swapchain image index (or UINT32_MAX).
+	_GFXWindow*       window;
+	_GFXRecreateFlags flags; // From after the last submission.
+	// TODO: Remove:
+	uint32_t image; // Swapchain image index (or UINT32_MAX).
 
 
 	// Vulkan fields.
@@ -197,8 +199,9 @@ typedef struct _GFXAttach
  */
 typedef struct _GFXFrameSwap
 {
-	_GFXWindow* window;
-	uint32_t    image; // Swapchain image index (or UINT32_MAX).
+	_GFXWindow* window; // TODO: Remove.
+	size_t   backing; // Attachment index (or SIZE_MAX).
+	uint32_t image;   // Swapchain image index (or UINT32_MAX).
 
 
 	// Vulkan fields.
@@ -430,6 +433,10 @@ void _gfx_render_backing_clear(GFXRenderer* renderer);
 int _gfx_render_backing_build(GFXRenderer* renderer);
 
 /**
+ * TODO: Make it not accept 0 as flags.
+ * TODO: Make it or flags into attachment->flags, so it will rebuild on build() too,
+ * AND we can set flags manually like we do on swapchain present.
+ * TODO: Or make it take a postpone boolean so we can just call this instead of setting that flag manually.
  * Signals the render backing to (re)build resources dependent on the given
  * attachment index, building may be postponed to _gfx_render_backing_build.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
@@ -466,6 +473,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
 int _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
+ * TODO: Make it not accept 0 as flags.
  * Signals the render graph to (re)build resources dependent on the given
  * attachment index, building may be postponed to _gfx_render_graph_build.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).

@@ -59,6 +59,7 @@ static int _gfx_alloc_swaps(_GFXContext* context, _GFXFrame* frame, size_t num)
 	{
 		_GFXFrameSwap* swap = gfx_vec_at(&frame->swaps, i);
 		swap->window = NULL;
+		swap->backing = SIZE_MAX;
 		swap->image = UINT32_MAX;
 
 		// Create a semaphore for image availability.
@@ -176,7 +177,7 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 			context->vk.device, 1, &frame->vk.done, VK_TRUE, UINT64_MAX),
 		goto error);
 
-	// Make sure we have enough swapchain references.
+	// Make sure we have enough swapchain (window) references.
 	size_t numWindows = renderer->backing.numWindows;
 
 	if (frame->swaps.size > numWindows)
@@ -185,11 +186,10 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 	else if (!_gfx_alloc_swaps(context, frame, numWindows))
 		goto error;
 
-	// Acquire next image of all windows.
+	// Acquire next image of all swapchains.
 	// We do this in a separate loop because otherwise we'd be synchronizing
 	// on _gfx_swapchain_acquire at the most random times.
 	int synced = 0;
-	size_t presentable = 0; // Actually presented windows.
 
 	for (size_t i = 0, w = 0; i < renderer->backing.attachs.size; ++i)
 	{
@@ -197,14 +197,17 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 		if (at->type != _GFX_ATTACH_WINDOW)
 			continue;
 
+		// TODO: Before acquiring a new one, we may need to rebuild from the
+		// previous submission, i.e. check at->flags.
+
 		// Acquire next image.
 		_GFXFrameSwap* swap = gfx_vec_at(&frame->swaps, w++);
 		swap->window = at->window.window;
+		swap->backing = i;
 
 		_GFXRecreateFlags flags;
 		// TODO: Should pass the available semaphore to this call.
-		if ((swap->image = _gfx_swapchain_acquire(swap->window, &flags)) != UINT32_MAX)
-			++presentable;
+		swap->image = _gfx_swapchain_acquire(swap->window, &flags);
 
 		// Recreate swapchain-dependent resources.
 		if (flags & _GFX_RECREATE)
@@ -238,7 +241,62 @@ int _gfx_frame_submit(_GFXFrame* frame, GFXRenderer* renderer)
 	_GFX_VK_CHECK(context->vk.ResetFences(
 		context->vk.device, 1, &frame->vk.done), goto error);
 
-	// TODO: Continue implementing...
+
+	// TODO: Submit command buffers.
+
+
+	// Present all images of all presentable swapchains.
+	// We do this in one call, making all windows attached to a renderer
+	// as synchronized as possible.
+	// So first we get all the presentable windows.
+	// We use a scope here so the goto's above are allowed.
+	{
+		_GFXWindow* windows[numWindows];
+		uint32_t indices[numWindows];
+		size_t presentable = 0;
+
+		for (size_t w = 0; w < numWindows; ++w)
+		{
+			_GFXFrameSwap* swap = gfx_vec_at(&frame->swaps, w);
+			if (swap->image == UINT32_MAX)
+				continue;
+
+			windows[presentable] = swap->window;
+			indices[presentable] = swap->image;
+			++presentable;
+		}
+
+		// And then we present them :)
+		_GFXRecreateFlags flags[presentable];
+		// TODO: Should pass the rendered semaphore to this call.
+		_gfx_swapchains_present(
+			renderer->present, presentable, windows, indices, flags);
+
+		// Now reset all swapchain references.
+		synced = 0;
+
+		for (size_t w = 0; w < presentable; ++w)
+		{
+			_GFXFrameSwap* swap = gfx_vec_at(&frame->swaps, w);
+			swap->image = UINT32_MAX; // TODO: Is this even necessary?
+
+			// TODO: Remove this entirely, rebuilding after submission should be
+			// postponed to the next submit call, i.e. set attachs[swap->backing]->flags.
+			// Recreate swapchain-dependent resources.
+			if (flags[w] & _GFX_RECREATE)
+			{
+				// But first sync all frames, as all frames are using both
+				// the render- backing and graph.
+				if (!synced && !_gfx_sync_frames(renderer))
+					goto error;
+
+				synced = 1;
+				// TODO: Make this not block!
+				_gfx_render_backing_rebuild(renderer, swap->backing, flags[w]);
+				_gfx_render_graph_rebuild(renderer, swap->backing, flags[w]);
+			}
+		}
+	}
 
 	return 1;
 

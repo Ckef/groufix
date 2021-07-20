@@ -471,6 +471,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		.type = _GFX_ATTACH_WINDOW,
 		.window = {
 			.window = (_GFXWindow*)window,
+			.flags  = 0,
 			.image  = UINT32_MAX,
 			.vk     = { .pool = VK_NULL_HANDLE }
 		}
