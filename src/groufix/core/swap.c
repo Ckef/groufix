@@ -76,18 +76,16 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 	_gfx_mutex_unlock(&window->frame.lock);
 
 	// If the size is 0x0, do not create anything.
-	// Actually destroy things.
 	if (width == 0 || height == 0)
 	{
-		*flags = (window->vk.swapchain != VK_NULL_HANDLE) ?
-			_GFX_RECREATE_ALL : 0;
+		// If something exists, mark it as old.
+		if (window->vk.swapchain != VK_NULL_HANDLE)
+		{
+			*flags |= _GFX_RECREATE_ALL;
+			window->vk.oldSwapchain = window->vk.swapchain;
+			window->vk.swapchain = VK_NULL_HANDLE;
+		}
 
-		// TODO: Postpone this, call it oldSwapchain and use on next recreate,
-		// then it gets moved to the retired vector and call _gfx_swapchain_purge.
-		context->vk.DestroySwapchainKHR(
-			context->vk.device, window->vk.swapchain, NULL);
-
-		window->vk.swapchain = VK_NULL_HANDLE;
 		window->frame.format = VK_FORMAT_UNDEFINED;
 		window->frame.width = 0;
 		window->frame.height = 0;
@@ -193,6 +191,13 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		}
 
 		// Finally create the actual new swapchain.
+		// We use an old swapchain so Vulkan can re-use data if it wants.
+		// If there still exists a fresh previous swapchain, there must not
+		// be a swapchain marked as old, so we pick in that order.
+		VkSwapchainKHR oldSwapchain =
+			(window->vk.swapchain != VK_NULL_HANDLE) ?
+			window->vk.swapchain : window->vk.oldSwapchain;
+
 		VkSwapchainCreateInfoKHR sci = {
 			.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 
@@ -209,7 +214,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 			.presentMode      = mode,
 			.clipped          = VK_TRUE,
-			.oldSwapchain     = window->vk.swapchain,
+			.oldSwapchain     = oldSwapchain,
 
 			.imageSharingMode = (window->access.size > 1) ?
 				VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
@@ -221,18 +226,20 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 				window->access.data : NULL
 		};
 
-		VkSwapchainKHR newSwapchain;
 		_GFX_VK_CHECK(
 			context->vk.CreateSwapchainKHR(
-				context->vk.device, &sci, NULL, &newSwapchain),
+				context->vk.device, &sci, NULL, &window->vk.swapchain),
 			goto clean);
 
-		// Destroy the old swapchain and associate with the new one.
-		// TODO: Postpone this, stick it in a retired vector and call _gfx_swapchain_purge.
-		context->vk.DestroySwapchainKHR(
-			context->vk.device, window->vk.swapchain, NULL);
+		// Must be VK_NULL_HANDLE if window->vk.swapchain is not.
+		window->vk.oldSwapchain = VK_NULL_HANDLE;
 
-		window->vk.swapchain = newSwapchain;
+		// If we have an old swapchain, retire it now.
+		// If we can't retire it, destroy it :/
+		if (oldSwapchain != VK_NULL_HANDLE)
+			if (!gfx_vec_push(&window->vk.retired, 1, &window->vk.oldSwapchain))
+				context->vk.DestroySwapchainKHR(
+					context->vk.device, window->vk.oldSwapchain, NULL);
 
 		// Query all the images associated with the swapchain
 		// and remember them for later usage.
@@ -267,13 +274,12 @@ clean:
 		"Could not (re)create a swapchain on physical device: %s.",
 		device->name);
 
-	// On failure, destroy everything, we obviously wanted a new swapchain
-	// and we can't get it, so reset to empty state.
-	context->vk.DestroySwapchainKHR(
-		context->vk.device, window->vk.swapchain, NULL);
-
-	gfx_vec_clear(&window->frame.images);
-	window->vk.swapchain = VK_NULL_HANDLE;
+	// On failure, treat the current swapchain as an old swapchain.
+	if (window->vk.swapchain != VK_NULL_HANDLE)
+	{
+		window->vk.oldSwapchain = window->vk.swapchain;
+		window->vk.swapchain = VK_NULL_HANDLE;
+	}
 
 	// We do not want to recreate anything because values are invalid...
 	*flags = 0;
@@ -468,4 +474,21 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 				windows[i]->device->name);
 		}
 	}
+}
+
+/****************************/
+void _gfx_swapchain_purge(_GFXWindow* window)
+{
+	assert(window != NULL);
+
+	_GFXContext* context = window->context;
+
+	// Destroy all retired swapchains!
+	for (size_t i = 0; i < window->vk.retired.size; ++i)
+		context->vk.DestroySwapchainKHR(
+			context->vk.device,
+			*(VkSwapchainKHR*)gfx_vec_at(&window->vk.retired, i),
+			NULL);
+
+	gfx_vec_clear(&window->vk.retired);
 }

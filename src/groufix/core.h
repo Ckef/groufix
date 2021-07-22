@@ -346,6 +346,8 @@ typedef struct _GFXWindow
 	{
 		VkSurfaceKHR   surface;
 		VkSwapchainKHR swapchain;
+		VkSwapchainKHR oldSwapchain; // Must be VK_NULL_HANDLE if swapchain is not.
+		GFXVec         retired;      // Stores VkSwapchainKHR.
 
 	} vk;
 
@@ -550,6 +552,15 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
                              size_t num,
                              _GFXWindow** windows, const uint32_t* indices,
                              _GFXRecreateFlags* flags);
+
+/**
+ * Destroys all retired swapchain images that are left behind when the
+ * swapchain gets recreated on either acquisition or presentation.
+ * @param window Cannot be NULL.
+ *
+ * Not thread-affine, but also not thread-safe.
+ */
+void _gfx_swapchain_purge(_GFXWindow* window);
 
 
 #endif

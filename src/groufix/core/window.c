@@ -435,6 +435,8 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	// Make sure to set the swapchain to a NULL handle here so a new one will
 	// eventually get created when an image is acquired.
 	window->vk.swapchain = VK_NULL_HANDLE;
+	window->vk.oldSwapchain = VK_NULL_HANDLE;
+	gfx_vec_init(&window->vk.retired, sizeof(VkSwapchainKHR));
 
 
 	// Holy moly :o
@@ -474,14 +476,21 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_GFXWindow* win = (_GFXWindow*)window;
 	_GFXContext* context = win->context;
 
+	// Purge retired swapchains.
+	_gfx_swapchain_purge(win);
+
 	// Destroy the swapchain, surface and the window itself.
+	context->vk.DestroySwapchainKHR(
+		context->vk.device, win->vk.oldSwapchain, NULL);
 	context->vk.DestroySwapchainKHR(
 		context->vk.device, win->vk.swapchain, NULL);
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, win->vk.surface, NULL);
 
-	gfx_vec_clear(&win->frame.images);
 	gfx_vec_clear(&win->access);
+	gfx_vec_clear(&win->frame.images);
+	gfx_vec_clear(&win->vk.retired);
+
 	_gfx_mutex_clear(&win->frame.lock);
 #if defined (__STDC_NO_ATOMICS__)
 	_gfx_mutex_clear(&win->swapLock);

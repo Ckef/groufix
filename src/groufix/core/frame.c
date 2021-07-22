@@ -212,7 +212,8 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 
 	// Now set all references to sync objects & init the objects themselves.
 	// Meaning after this loop we never have to loop over the attachments again!
-	// In this very same loop we can acquire all swapchain images!
+	// We _may_ however touch items of it on-swapchain recreate after present.
+	// But, in this upcoming loop we can acquire all swapchain images also!
 	gfx_vec_release(&frame->refs);
 	gfx_vec_push(&frame->refs, attachs->size, NULL);
 
@@ -256,7 +257,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 			synced = 1;
 			_gfx_render_backing_rebuild(renderer, i, flags);
 			_gfx_render_graph_rebuild(renderer, i, flags);
-			// TODO: Call _gfx_swapchain_purge.
+			_gfx_swapchain_purge(sync->window);
 		}
 	}
 
@@ -405,6 +406,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 				synced = 1;
 				_gfx_render_backing_rebuild(renderer, sync->backing, fl);
 				_gfx_render_graph_rebuild(renderer, sync->backing, fl);
+				_gfx_swapchain_purge(sync->window);
 			}
 		}
 	}
