@@ -60,7 +60,7 @@ static void _gfx_free_syncs(GFXRenderer* renderer, _GFXFrame* frame, size_t num)
 }
 
 /****************************
- * Makes sure num sync objects are allocated and initialized.
+ * Makes sure num sync objects are allocated and have an availability semaphore.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
  * @return Non-zero on success.
@@ -79,29 +79,21 @@ static int _gfx_alloc_syncs(GFXRenderer* renderer, _GFXFrame* frame, size_t num)
 	if (!gfx_vec_push(&frame->syncs, num - size, NULL))
 		return 0;
 
-	// Yeah just create a bunch of syncs..
-	for (size_t i = size; i < num; ++i)
-	{
-		_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, i);
-		sync->window = NULL;
-		sync->backing = SIZE_MAX;
-		sync->image = UINT32_MAX;
+	// Create a bunch of semaphores for image availability.
+	VkSemaphoreCreateInfo sci = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0
+	};
 
-		// Create a semaphore for image availability.
-		VkSemaphoreCreateInfo sci = {
-			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			.pNext = NULL,
-			.flags = 0
-		};
-
-		_GFX_VK_CHECK(
-			context->vk.CreateSemaphore(
-				context->vk.device, &sci, NULL, &sync->vk.available),
-			{
-				gfx_vec_pop(&frame->syncs, num - i);
-				goto clean;
-			});
-	}
+	for (size_t i = size; i < num; ++i) _GFX_VK_CHECK(
+		context->vk.CreateSemaphore(
+			context->vk.device, &sci, NULL,
+			&((_GFXFrameSync*)gfx_vec_at(&frame->syncs, i))->vk.available),
+		{
+			gfx_vec_pop(&frame->syncs, num - i);
+			goto clean;
+		});
 
 	return 1;
 
@@ -233,6 +225,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		goto error;
 
 	// Now set all references to sync objects & init the objects themselves.
+	// This will definitely come across all sync objects again!
 	// In this upcoming loop we can do all the rebuilding and acquire all
 	// the swapchain images too!
 	gfx_vec_release(&frame->refs);
@@ -402,14 +395,12 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		// it will rebuild them before acquisition.
 		for (size_t s = 0, p = 0; s < numSyncs; ++s)
 		{
-			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
-			if (sync->backing != SIZE_MAX)
-			{
-				_GFXRecreateFlags fl =
-					(sync->image == UINT32_MAX) ? 0 : flags[p++];
-				((_GFXAttach*)gfx_vec_at(
-					attachs, sync->backing))->window.flags = fl;
-			}
+			_GFXFrameSync* sync =
+				gfx_vec_at(&frame->syncs, s);
+			_GFXRecreateFlags fl =
+				(sync->image == UINT32_MAX) ? 0 : flags[p++];
+			((_GFXAttach*)gfx_vec_at(
+				attachs, sync->backing))->window.flags = fl;
 		}
 	}
 

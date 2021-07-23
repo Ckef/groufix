@@ -199,7 +199,7 @@ typedef struct _GFXAttach
 typedef struct _GFXFrameSync
 {
 	_GFXWindow* window;
-	size_t      backing; // Attachment index (or SIZE_MAX).
+	size_t      backing; // Attachment index.
 	uint32_t    image;   // Swapchain image index (or UINT32_MAX).
 
 
