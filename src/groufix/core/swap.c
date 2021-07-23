@@ -56,6 +56,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 	_GFXDevice* device = window->device;
 	_GFXContext* context = window->context;
 
+	// Preemptively release the images, as those will not be relevant anymore.
 	// We do not free the images as the count will likely never change.
 	gfx_vec_release(&window->frame.images);
 
@@ -249,11 +250,8 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 				context->vk.device, window->vk.swapchain, &count, NULL),
 			goto clean);
 
-		if (count == 0)
-			goto clean;
-
 		// Reserve the exact amount cause it's most likely not gonna change.
-		if (!gfx_vec_reserve(&window->frame.images, count))
+		if (count == 0 || !gfx_vec_reserve(&window->frame.images, count))
 			goto clean;
 
 		gfx_vec_push(&window->frame.images, count, NULL);
@@ -262,7 +260,10 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			context->vk.GetSwapchainImagesKHR(
 				context->vk.device, window->vk.swapchain, &count,
 				window->frame.images.data),
-			goto clean);
+			{
+				gfx_vec_release(&window->frame.images);
+				goto clean;
+			});
 
 		return 1;
 	}

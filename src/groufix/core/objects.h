@@ -390,9 +390,10 @@ void _gfx_frame_clear(GFXRenderer* renderer, _GFXFrame* frame);
  * This will block until all pending submissions are done rendering,
  * where possible it will reuse its resources afterwards.
  * @param renderer Cannot be NULL.
- * @param frame    Cannot be NULL.
+ * @param frame    Cannot be NULL, may not be in renderer->frames!.
  * @return Zero if the frame (or renderer) could not be built.
  *
+ * This may call _gfx_sync_frames internally on-swapchain recreate.
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
 int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame);
@@ -401,8 +402,6 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame);
  * Blocks until all virtual frames of a renderer are done.
  * @param renderer Cannot be NULL.
  * @return Non-zero if successfully synchronized.
- *
- * If a frame is being processed with _gfx_frame_submit, it is excluded.
  */
 int _gfx_sync_frames(GFXRenderer* renderer);
 
@@ -438,6 +437,7 @@ int _gfx_render_backing_build(GFXRenderer* renderer);
 
 /**
  * TODO: Make it not take flags but listen to attachment recreate flags?
+ * TODO: Or make it not postpone?
  * Signals the render backing to (re)build resources dependent on the given
  * attachment index, building may be postponed to _gfx_render_backing_build.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
@@ -475,6 +475,7 @@ int _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
  * TODO: Make it not take flags but listen to attachment recreate flags?
+ * TODO: Or make it not postpone?
  * Signals the render graph to (re)build resources dependent on the given
  * attachment index, building may be postponed to _gfx_render_graph_build.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).

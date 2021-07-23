@@ -286,7 +286,9 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 	// the command buffers and submit?
 
 	// Collect buffers to submit, so we can submit them in submission order
-	// of all the render passes.
+	// of all the render passes, then present to all swapchains.
+	// We do submission and presentation in one call, making all windows
+	// attached to a renderer as synchronized as possible.
 	// We use a scope here so the goto's above are allowed.
 	{
 		VkCommandBuffer buffers[renderer->graph.passes.size];
@@ -315,22 +317,30 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 				*(VkCommandBuffer*)gfx_vec_at(&pass->vk.commands, sync->image);
 		}
 
-		// Oh also select all 'available' semaphores we need it to wait on.
+		// Get other stuff to be able to submit & present.
 		// TODO: If not splitting up this function, this can be done earlier.
 		// TODO: What if no sync objects?
+		_GFXWindow* windows[numSyncs];
+		uint32_t indices[numSyncs];
 		VkSemaphore available[numSyncs];
+		VkPipelineStageFlags waitStages[numSyncs];
+		_GFXRecreateFlags flags[numSyncs];
+
 		size_t presentable = 0;
 
 		for (size_t s = 0; s < numSyncs; ++s)
 		{
 			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
-			if (sync->image != UINT32_MAX)
-				available[presentable++] = sync->vk.available;
+			if (sync->image == UINT32_MAX)
+				continue;
+
+			windows[presentable] = sync->window;
+			indices[presentable] = sync->image;
+			available[presentable] = sync->vk.available;
+			++presentable;
 		}
 
 		// Submit all!
-		// TODO: What if no presentables?
-		VkPipelineStageFlags waitStages[presentable];
 		for (size_t p = 0; p < presentable; ++p)
 			waitStages[p] = VK_PIPELINE_STAGE_TRANSFER_BIT;
 
@@ -357,32 +367,8 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 			renderer->graphics.queue, 1, &si, frame->vk.done), goto error);
 
 		_gfx_mutex_unlock(renderer->graphics.lock);
-	}
 
-	// Present all images of all presentable swapchains.
-	// We do this in one call, making all windows attached to a renderer
-	// as synchronized as possible.
-	// So first we get all the presentable windows.
-	if (numSyncs > 0)
-	{
-		_GFXWindow* windows[numSyncs];
-		uint32_t indices[numSyncs];
-		_GFXRecreateFlags flags[numSyncs];
-		size_t presentable = 0;
-
-		// TODO: If not splitting up this function, this can be done earlier.
-		for (size_t s = 0; s < numSyncs; ++s)
-		{
-			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
-			if (sync->image == UINT32_MAX)
-				continue;
-
-			windows[presentable] = sync->window;
-			indices[presentable] = sync->image;
-			++presentable;
-		}
-
-		// And then we present them :)
+		// And then we present all swapchains :)
 		if (presentable > 0) _gfx_swapchains_present(
 			renderer->present,
 			frame->vk.rendered,

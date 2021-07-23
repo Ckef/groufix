@@ -91,8 +91,8 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 
 	// Pop a frame from the frames deque, this is effectively the oldest frame,
 	// i.e. the one that was submitted the first of all existing frames.
-	// Note: we actually pop it, meaning it will not be synced on when we
-	// call _gfx_sync_frames. Which is super useful!
+	// Note: we actually pop it, so we are allowed to call _gfx_sync_frames,
+	// which is super necessary and useful!
 	_GFXFrame frame = *(_GFXFrame*)gfx_deque_at(&renderer->frames, 0);
 	gfx_deque_pop_front(&renderer->frames, 1);
 

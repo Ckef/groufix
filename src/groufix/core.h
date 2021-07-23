@@ -323,7 +323,7 @@ typedef struct _GFXWindow
 	// Frame (i.e Vulkan surface + swapchain) properties.
 	struct
 	{
-		GFXVec   images; // Stores VkImage.
+		GFXVec   images; // Stores VkImage, only those of vk.swapchain.
 		VkFormat format;
 		size_t   width;
 		size_t   height;

@@ -209,8 +209,9 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	if (pass->build.backing != SIZE_MAX)
 		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
-	// TODO: Future: if no back-buffer, do smth else.
-	if (at == NULL) return 0;
+	// TODO: Future: if no back-buffers, do smth else.
+	if (at == NULL || at->window.vk.views.size == 0)
+		return 0;
 
 	// Yeah so we need the scissor of that attachment.
 	VkRect2D scissor = {
