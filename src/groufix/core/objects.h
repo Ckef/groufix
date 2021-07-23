@@ -434,12 +434,11 @@ void _gfx_render_backing_clear(GFXRenderer* renderer);
 int _gfx_render_backing_build(GFXRenderer* renderer);
 
 /**
- * TODO: Make it not accept 0 as flags.
  * Signals the render backing to (re)build resources dependent on the given
  * attachment index, building may be postponed to _gfx_render_backing_build.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
- * @param flags    What resources should be recreated (0 to do nothing).
+ * @param flags    Must contain the _GFX_RECREATE bit.
  */
 void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
                                  _GFXRecreateFlags flags);
@@ -467,12 +466,11 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
 int _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
- * TODO: Make it not accept 0 as flags.
  * Signals the render graph to (re)build resources dependent on the given
  * attachment index, building may be postponed to _gfx_render_graph_build.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
- * @param flags    What resources should be recreated (0 to do nothing).
+ * @param flags    Must contain the _GFX_RECREATE bit.
  */
 void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
                                _GFXRecreateFlags flags);

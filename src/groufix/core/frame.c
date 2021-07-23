@@ -322,6 +322,9 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		}
 
 		// Submit all!
+		// TODO: What if no sync objects?
+		// TODO: What if no buffers?
+		// TODO: If no windows, do we still signal frame->vk.rendered?
 		VkPipelineStageFlags waitStages[numAvailable];
 		for (size_t a = 0; a < numAvailable; ++a)
 			waitStages[a] = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -370,6 +373,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		}
 
 		// And then we present them :)
+		// TODO: What if no presentable windows?
 		_GFXRecreateFlags flags[presentable];
 		_gfx_swapchains_present(
 			renderer->present,

@@ -94,10 +94,11 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
                                _GFXRecreateFlags flags)
 {
 	assert(renderer != NULL);
+	assert(flags & _GFX_RECREATE);
 
-	// We only rebuild if the graph is already built, if not, we skip this
-	// and postpone it until _gfx_render_graph_build is called.
-	if (!(flags & _GFX_RECREATE) || !renderer->graph.built || !renderer->graph.valid)
+	// We only rebuild if the graph is already built and valid, if not,
+	// we skip this and postpone it until _gfx_render_graph_build is called.
+	if (!renderer->graph.built || !renderer->graph.valid)
 		return;
 
 	// Loop over all passes and check if they read from or write to the

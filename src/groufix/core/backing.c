@@ -300,6 +300,7 @@ int _gfx_render_backing_build(GFXRenderer* renderer)
 			(at->type == _GFX_ATTACH_IMAGE &&
 			at->image.vk.image != VK_NULL_HANDLE) ||
 
+			// TODO: Should take at->window.flags into account too.
 			(at->type == _GFX_ATTACH_WINDOW &&
 			at->window.vk.pool != VK_NULL_HANDLE))
 		{
@@ -324,10 +325,11 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
                                _GFXRecreateFlags flags)
 {
 	assert(renderer != NULL);
+	assert(flags & _GFX_RECREATE);
 
 	// We only rebuild if the backing is already built, if not, we skip this
 	// and postpone it until _gfx_render_backing_build is called.
-	if (!(flags & _GFX_RECREATE) || !renderer->backing.built)
+	if (!renderer->backing.built)
 		return;
 
 	// TODO: Flags will be useful when implementing image attachments, as they
