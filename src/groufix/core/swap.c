@@ -194,7 +194,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		// We use an old swapchain so Vulkan can re-use data if it wants.
 		// If there still exists a fresh previous swapchain, there must not
 		// be a swapchain marked as old, so we pick in that order.
-		VkSwapchainKHR oldSwapchain =
+		VkSwapchainKHR oldSwap =
 			(window->vk.swapchain != VK_NULL_HANDLE) ?
 			window->vk.swapchain : window->vk.oldSwapchain;
 
@@ -214,7 +214,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 			.presentMode      = mode,
 			.clipped          = VK_TRUE,
-			.oldSwapchain     = oldSwapchain,
+			.oldSwapchain     = oldSwap,
 
 			.imageSharingMode = (window->access.size > 1) ?
 				VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
@@ -236,10 +236,10 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 
 		// If we have an old swapchain, retire it now.
 		// If we can't retire it, destroy it :/
-		if (oldSwapchain != VK_NULL_HANDLE)
-			if (!gfx_vec_push(&window->vk.retired, 1, &window->vk.oldSwapchain))
+		if (oldSwap != VK_NULL_HANDLE)
+			if (!gfx_vec_push(&window->vk.retired, 1, &oldSwap))
 				context->vk.DestroySwapchainKHR(
-					context->vk.device, window->vk.oldSwapchain, NULL);
+					context->vk.device, oldSwap, NULL);
 
 		// Query all the images associated with the swapchain
 		// and remember them for later usage.
@@ -332,10 +332,10 @@ uint32_t _gfx_swapchain_acquire(_GFXWindow* window, VkSemaphore available,
 
 	// We check the recreate signal, just before acquiring a new image.
 	// If we acquired without recreating, the new image would be useless.
-	// Also call it 'create' if there's no swapchain at all :)
+	// If there is no swapchain, _gfx_swapchain_recreate will reset the signal.
 	int recreate =
-		_gfx_swapchain_sig(window) ||
-		window->vk.swapchain == VK_NULL_HANDLE;
+		window->vk.swapchain == VK_NULL_HANDLE ||
+		_gfx_swapchain_sig(window);
 
 recreate:
 	if (recreate && !_gfx_swapchain_recreate(window, flags))

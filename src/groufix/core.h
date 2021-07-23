@@ -526,7 +526,7 @@ void _gfx_swapchain_unlock(_GFXWindow* window);
  * Acquires the next available image from the swapchain of a window.
  * @param window    Cannot be NULL.
  * @param available Cannot be VK_NULL_HANDLE, semaphore to be signaled.
- * @param flags     Cannot be NULL, encodes how the swapchain has been recreated.
+ * @param flags     Encodes how the swapchain has been recreated.
  * @return The index into window->frame.images, or UINT32_MAX if none available.
  *
  * Not thread-affine, but also not thread-safe.
@@ -541,9 +541,9 @@ uint32_t _gfx_swapchain_acquire(_GFXWindow* window, VkSemaphore available,
  * @param present  Must be a queue from the same Vulkan context as all windows.
  * @param rendered Cannot be VK_NULL_HANDLE, semaphore to wait on.
  * @param num      Number of input and output params, must be > 0.
- * @param windows  Cannot be NULL, must all share the same Vulkan context.
+ * @param windows  Must all share the same Vulkan context.
  * @param indices  Must be indices retrieved by _gfx_swapchain_acquire.
- * @param flags    Cannot be NULL, outputs how the swapchains have been recreated.
+ * @param flags    Outputs how the swapchains have been recreated.
  *
  * Not thread-affine, but also not thread-safe.
  * Recreate flags are also set if resized to 0x0 and resources are destroyed.
@@ -558,6 +558,7 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
  * swapchain gets recreated on either acquisition or presentation.
  * @param window Cannot be NULL.
  *
+ * Should be called after _gfx_swapchain_(acquire|present) to free resources.
  * Not thread-affine, but also not thread-safe.
  */
 void _gfx_swapchain_purge(_GFXWindow* window);
