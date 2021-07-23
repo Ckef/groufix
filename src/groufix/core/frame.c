@@ -11,6 +11,28 @@
 
 
 /****************************
+ * Recreates swapchain-dependent resources associated with a sync object.
+ * @param synced Input AND Output of whether we already synchronized all frames.
+ * @return Zero on failure.
+ */
+static int _gfx_frame_rebuild(GFXRenderer* renderer, _GFXFrameSync* sync,
+                              _GFXRecreateFlags flags, int* synced)
+{
+	if (flags & _GFX_RECREATE)
+	{
+		if (!*synced && !_gfx_sync_frames(renderer))
+			return 0;
+
+		*synced = 1;
+		_gfx_render_backing_rebuild(renderer, sync->backing, flags);
+		_gfx_render_graph_rebuild(renderer, sync->backing, flags);
+		_gfx_swapchain_purge(sync->window);
+	}
+
+	return 1;
+}
+
+/****************************
  * Frees and removes the last num sync objects.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
@@ -211,13 +233,12 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		goto error;
 
 	// Now set all references to sync objects & init the objects themselves.
-	// Meaning after this loop we never have to loop over the attachments again!
-	// We _may_ however touch items of it on-swapchain recreate after present.
-	// But, in this upcoming loop we can acquire all swapchain images also!
+	// In this upcoming loop we can do all the rebuilding and acquire all
+	// the swapchain images too!
 	gfx_vec_release(&frame->refs);
 	gfx_vec_push(&frame->refs, attachs->size, NULL);
 
-	int synced = 0;
+	int synced = 0; // Sadly we may have to sync all on rebuild.
 
 	for (size_t i = 0, s = 0; i < attachs->size; ++i)
 	{
@@ -229,36 +250,28 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		if (sRef == SIZE_MAX)
 			continue;
 
-		// TODO: Before acquiring a new image, we may need to rebuild from the
-		// previous submission, i.e. check at->flags.
+		// Just before acquiring images, we may need to rebuild
+		// swapchain-dependent resources because the previous submission
+		// postponed this to now.
+		_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, sRef);
+		sync->window = at->window.window;
+		sync->backing = i;
+
+		if (!_gfx_frame_rebuild(renderer, sync, at->window.flags, &synced))
+			goto error;
 
 		// Acquire the swapchain image for the sync object.
 		// We also do this in this loop, before touching the render graph,
 		// because otherwise we'd be synchronizing on _gfx_swapchain_acquire
 		// at the most random times.
-		_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, sRef);
-		sync->window = at->window.window;
-		sync->backing = i;
-
 		_GFXRecreateFlags flags;
 		sync->image = _gfx_swapchain_acquire(
 			sync->window,
 			sync->vk.available,
 			&flags);
 
-		// Recreate swapchain-dependent resources.
-		if (flags & _GFX_RECREATE)
-		{
-			// But first sync all frames, as all frames are using both
-			// the render- backing and graph.
-			if (!synced && !_gfx_sync_frames(renderer))
-				goto error;
-
-			synced = 1;
-			_gfx_render_backing_rebuild(renderer, i, flags);
-			_gfx_render_graph_rebuild(renderer, i, flags);
-			_gfx_swapchain_purge(sync->window);
-		}
+		if (!_gfx_frame_rebuild(renderer, sync, flags, &synced))
+			goto error;
 	}
 
 	// Ok so before actually submitting stuff we need everything to be built.
@@ -310,36 +323,38 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		}
 
 		// Oh also select all 'available' semaphores we need it to wait on.
-		// TODO: If not splitting up the submit function, we can do this a bit earlier.
+		// TODO: If not splitting up this function, this can be done earlier.
+		// TODO: What if no sync objects?
 		VkSemaphore available[numSyncs];
-		size_t numAvailable = 0;
+		size_t presentable = 0;
 
 		for (size_t s = 0; s < numSyncs; ++s)
 		{
 			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
 			if (sync->image != UINT32_MAX)
-				available[numAvailable++] = sync->vk.available;
+				available[presentable++] = sync->vk.available;
 		}
 
 		// Submit all!
-		// TODO: What if no sync objects?
-		// TODO: What if no buffers?
-		// TODO: If no windows, do we still signal frame->vk.rendered?
-		VkPipelineStageFlags waitStages[numAvailable];
-		for (size_t a = 0; a < numAvailable; ++a)
-			waitStages[a] = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		// TODO: What if no presentables?
+		VkPipelineStageFlags waitStages[presentable];
+		for (size_t p = 0; p < presentable; ++p)
+			waitStages[p] = VK_PIPELINE_STAGE_TRANSFER_BIT;
 
 		VkSubmitInfo si = {
 			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
 			.pNext                = NULL,
-			.waitSemaphoreCount   = (uint32_t)numAvailable,
+			.waitSemaphoreCount   = (uint32_t)presentable,
 			.pWaitSemaphores      = available,
 			.pWaitDstStageMask    = waitStages,
 			.commandBufferCount   = (uint32_t)numBuffers,
 			.pCommandBuffers      = buffers,
-			.signalSemaphoreCount = 1,
-			.pSignalSemaphores    = &frame->vk.rendered
+
+			.signalSemaphoreCount =
+				(presentable > 0) ? 1 : 0,
+			.pSignalSemaphores =
+				(presentable > 0) ? &frame->vk.rendered : VK_NULL_HANDLE
 		};
 
 		// Lock queue and submit.
@@ -355,12 +370,14 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 	// We do this in one call, making all windows attached to a renderer
 	// as synchronized as possible.
 	// So first we get all the presentable windows.
-	// We use a scope here so the goto's above are allowed.
+	if (numSyncs > 0)
 	{
 		_GFXWindow* windows[numSyncs];
 		uint32_t indices[numSyncs];
+		_GFXRecreateFlags flags[numSyncs];
 		size_t presentable = 0;
 
+		// TODO: If not splitting up this function, this can be done earlier.
 		for (size_t s = 0; s < numSyncs; ++s)
 		{
 			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
@@ -373,44 +390,25 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		}
 
 		// And then we present them :)
-		// TODO: What if no presentable windows?
-		_GFXRecreateFlags flags[presentable];
-		_gfx_swapchains_present(
+		if (presentable > 0) _gfx_swapchains_present(
 			renderer->present,
 			frame->vk.rendered,
 			presentable,
 			windows, indices, flags);
 
-		// Now reset all sync objects.
+		// Loop over all sync objects to set the recreate flags of all
+		// associated window attachments. We add the results of all
+		// presentation operations to them so the next frame that submits
+		// it will rebuild them before acquisition.
 		for (size_t s = 0, p = 0; s < numSyncs; ++s)
 		{
 			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
-			if (sync->image == UINT32_MAX)
-				continue;
-
-			_GFXRecreateFlags fl = flags[p++];
-			sync->image = UINT32_MAX; // TODO: Is this even necessary?
-
-			// TODO: Remove this entirely, rebuilding after submission should be
-			// postponed to the next submit call, i.e. set attachs[sync->backing]->flags.
-			// Recreate swapchain-dependent resources.
-			if (fl & _GFX_RECREATE)
+			if (sync->backing != SIZE_MAX)
 			{
-				// But first sync all frames, as all frames are using both
-				// the render- backing and graph.
-				if (!synced && !_gfx_sync_frames(renderer))
-					goto error;
-
-				// Also wait for _this_ frame.
-				_GFX_VK_CHECK(
-					context->vk.WaitForFences(
-						context->vk.device, 1, &frame->vk.done, VK_TRUE, UINT64_MAX),
-					goto error);
-
-				synced = 1;
-				_gfx_render_backing_rebuild(renderer, sync->backing, fl);
-				_gfx_render_graph_rebuild(renderer, sync->backing, fl);
-				_gfx_swapchain_purge(sync->window);
+				_GFXRecreateFlags fl =
+					(sync->image == UINT32_MAX) ? 0 : flags[p++];
+				((_GFXAttach*)gfx_vec_at(
+					attachs, sync->backing))->window.flags = fl;
 			}
 		}
 	}

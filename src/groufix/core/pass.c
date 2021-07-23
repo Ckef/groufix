@@ -709,6 +709,15 @@ int _gfx_render_pass_build(GFXRenderPass* pass,
 {
 	assert(pass != NULL);
 
+	// Augment flags with the 'window.flags' member of the associated backing.
+	// Because calls to _gfx_render_graph_rebuild may be postponed to another
+	// submission through 'window.flags', we use them in case built was set to
+	// 0 or the graph got invalidated and the rebuild call didn't do anything.
+	if (pass->build.backing != SIZE_MAX) flags |=
+		((_GFXAttach*)gfx_vec_at(
+			&pass->renderer->backing.attachs,
+			pass->build.backing))->window.flags;
+
 	// First we destroy the things we want to recreate.
 	_gfx_render_pass_destruct_partial(pass, flags);
 

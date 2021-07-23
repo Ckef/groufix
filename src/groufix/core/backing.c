@@ -300,8 +300,12 @@ int _gfx_render_backing_build(GFXRenderer* renderer)
 			(at->type == _GFX_ATTACH_IMAGE &&
 			at->image.vk.image != VK_NULL_HANDLE) ||
 
-			// TODO: Should take at->window.flags into account too.
+			// However because calls to _gfx_render_backing_rebuild may be
+			// postponed to another submission through at->window.flags,
+			// we check that flag in case built was set to 0 and the
+			// rebuild call didn't do anything.
 			(at->type == _GFX_ATTACH_WINDOW &&
+			!(at->window.flags & _GFX_RECREATE) &&
 			at->window.vk.pool != VK_NULL_HANDLE))
 		{
 			continue;
