@@ -211,7 +211,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 
 	// TODO: Future: if no back-buffers, do smth else.
 	if (at == NULL || at->window.vk.views.size == 0)
-		return 0;
+		return 1;
 
 	// Yeah so we need the scissor of that attachment.
 	VkRect2D scissor = {

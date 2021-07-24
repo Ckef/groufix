@@ -320,10 +320,10 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		// Get other stuff to be able to submit & present.
 		// TODO: If not splitting up this function, this can be done earlier.
 		// TODO: What if no sync objects?
-		_GFXWindow* windows[numSyncs];
-		uint32_t indices[numSyncs];
 		VkSemaphore available[numSyncs];
 		VkPipelineStageFlags waitStages[numSyncs];
+		_GFXWindow* windows[numSyncs];
+		uint32_t indices[numSyncs];
 		_GFXRecreateFlags flags[numSyncs];
 
 		size_t presentable = 0;
@@ -334,16 +334,14 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 			if (sync->image == UINT32_MAX)
 				continue;
 
+			available[presentable] = sync->vk.available;
+			waitStages[presentable] = VK_PIPELINE_STAGE_TRANSFER_BIT;
 			windows[presentable] = sync->window;
 			indices[presentable] = sync->image;
-			available[presentable] = sync->vk.available;
 			++presentable;
 		}
 
-		// Submit all!
-		for (size_t p = 0; p < presentable; ++p)
-			waitStages[p] = VK_PIPELINE_STAGE_TRANSFER_BIT;
-
+		// Lock queue and submit.
 		VkSubmitInfo si = {
 			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
@@ -360,11 +358,15 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 				(presentable > 0) ? &frame->vk.rendered : VK_NULL_HANDLE
 		};
 
-		// Lock queue and submit.
 		_gfx_mutex_lock(renderer->graphics.lock);
 
-		_GFX_VK_CHECK(context->vk.QueueSubmit(
-			renderer->graphics.queue, 1, &si, frame->vk.done), goto error);
+		_GFX_VK_CHECK(
+			context->vk.QueueSubmit(
+				renderer->graphics.queue, 1, &si, frame->vk.done),
+			{
+				_gfx_mutex_unlock(renderer->graphics.lock);
+				goto error;
+			});
 
 		_gfx_mutex_unlock(renderer->graphics.lock);
 
