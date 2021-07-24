@@ -68,8 +68,8 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 
 /****************************
  * Destructs the attachment at index, does nothing if nothing is attached.
- * If actually destructing something, this will block until rendering is done.
- * @see _gfx_build_attachment.
+ * @param renderer Cannot be NULL.
+ * @param index    Must be < number of attachments.
  */
 static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 {
@@ -90,10 +90,9 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 		// TODO: Destroy image or smth.
 	}
 
-	// Destruct a window.
+	// Destruct a window (i.e. swapchain-dependent resources).
 	if (at->type == _GFX_ATTACH_WINDOW)
 	{
-		// Destroy all swapchain-dependent resources.
 		// Destroy all image views.
 		for (size_t i = 0; i < at->window.vk.views.size; ++i)
 			context->vk.DestroyImageView(
@@ -115,7 +114,7 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 /****************************
  * (Re)builds the attachment if it was not built yet (and not empty).
  * @param renderer Cannot be NULL.
- * @param index    Must be < number of attachment.
+ * @param index    Must be < number of attachments.
  * @return Non-zero on success.
  */
 static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
@@ -157,8 +156,8 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 				context->vk.device, &cpci, NULL, &at->window.vk.pool), goto clean);
 		}
 
-		// We want to rebuild because the swapchain is recreated..
-		// So destroy all the old image views.
+		// Destroy all the old image views, these are of the old swapchain
+		// and no longer relevant.
 		for (size_t i = 0; i < at->window.vk.views.size; ++i)
 			context->vk.DestroyImageView(
 				context->vk.device,
@@ -228,7 +227,10 @@ clean:
 /****************************
  * Detaches (and implicitly destructs) the attachment at index, if it is a
  * window attachment it will be unlocked for use at another attachment.
- * @see _gfx_destruct_attachment.
+ * @param renderer Cannot be NULL.
+ * @param index    Must be < number of attachments.
+ *
+ * Will block until rendering is done if necessary!
  */
 static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 {
@@ -263,7 +265,8 @@ void _gfx_render_backing_init(GFXRenderer* renderer)
 
 	gfx_vec_init(&renderer->backing.attachs, sizeof(_GFXAttach));
 
-	renderer->backing.built = 0;
+	// No backing is a valid backing.
+	renderer->backing.built = 1;
 }
 
 /****************************/
@@ -292,7 +295,7 @@ int _gfx_render_backing_build(GFXRenderer* renderer)
 	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 	{
 		// But first check if the attachment is already built.
-		// We skip this here, only doing it if explicitly asked
+		// We skip rebuilding here, only doing it if explicitly asked
 		// with a call to _gfx_render_backing_rebuild.
 		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, i);
 
@@ -300,12 +303,7 @@ int _gfx_render_backing_build(GFXRenderer* renderer)
 			(at->type == _GFX_ATTACH_IMAGE &&
 			at->image.vk.image != VK_NULL_HANDLE) ||
 
-			// However because calls to _gfx_render_backing_rebuild may be
-			// postponed to another submission through at->window.flags,
-			// we check that flag in case built was set to 0 and the
-			// rebuild call didn't do anything.
 			(at->type == _GFX_ATTACH_WINDOW &&
-			!(at->window.flags & _GFX_RECREATE) &&
 			at->window.vk.pool != VK_NULL_HANDLE))
 		{
 			continue;
@@ -330,11 +328,6 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
 {
 	assert(renderer != NULL);
 	assert(flags & _GFX_RECREATE);
-
-	// We only rebuild if the backing is already built, if not, we skip this
-	// and postpone it until _gfx_render_backing_build is called.
-	if (!renderer->backing.built)
-		return;
 
 	// TODO: Flags will be useful when implementing image attachments, as they
 	// need to be resized/reformated as well when their size is relative to

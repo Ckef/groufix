@@ -18,8 +18,9 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 	gfx_vec_init(&renderer->graph.targets, sizeof(GFXRenderPass*));
 	gfx_vec_init(&renderer->graph.passes, sizeof(GFXRenderPass*));
 
-	renderer->graph.built = 0;
-	renderer->graph.valid = 0;
+	// No graph is a valid graph.
+	renderer->graph.built = 1;
+	renderer->graph.valid = 1;
 }
 
 /****************************/
@@ -95,11 +96,6 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 {
 	assert(renderer != NULL);
 	assert(flags & _GFX_RECREATE);
-
-	// We only rebuild if the graph is already built and valid, if not,
-	// we skip this and postpone it until _gfx_render_graph_build is called.
-	if (!renderer->graph.built || !renderer->graph.valid)
-		return;
 
 	// Loop over all passes and check if they read from or write to the
 	// attachment index, if so, rebuild those passes.

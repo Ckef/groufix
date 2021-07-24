@@ -249,6 +249,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, sRef);
 		sync->window = at->window.window;
 		sync->backing = i;
+		sync->image = UINT32_MAX;
 
 		if (!_gfx_frame_rebuild(renderer, sync, at->window.flags, &synced))
 			goto error;

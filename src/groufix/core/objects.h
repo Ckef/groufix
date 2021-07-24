@@ -153,7 +153,7 @@ typedef struct _GFXImageAttach
 typedef struct _GFXWindowAttach
 {
 	_GFXWindow*       window;
-	_GFXRecreateFlags flags; // May be set to force a rebuild (never reset!).
+	_GFXRecreateFlags flags; // Used by virtual frames, from last submission.
 
 
 	// Vulkan fields.
@@ -193,8 +193,7 @@ typedef struct _GFXAttach
 
 
 /**
- * Internal virtual frame synchronization object.
- * Shadows the renderer's attachments (to latch onto swapchains).
+ * Virtual frame synchronization object.
  */
 typedef struct _GFXFrameSync
 {
@@ -214,8 +213,8 @@ typedef struct _GFXFrameSync
 
 
 /**
+ * TODO: Add command buffers somehow.
  * Internal virtual frame.
- * TODO: Add command buffers.
  */
 typedef struct _GFXFrame
 {
@@ -387,7 +386,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, _GFXFrame* frame);
 
 /**
  * Records & submits a virtual frame.
- * This will block until all pending submissions are done rendering,
+ * This will block until pending submissions of the frame are done rendering,
  * where possible it will reuse its resources afterwards.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL, may not be in renderer->frames!.
@@ -429,22 +428,14 @@ void _gfx_render_backing_clear(GFXRenderer* renderer);
  * Will resolve to a no-op if everything is already built.
  * @param renderer Cannot be NULL.
  * @return Non-zero if the entire backing is in a built state.
- *
- * If not built yet, a window attachment rebuild can be forced
- * by setting its 'window.flags' member.
  */
 int _gfx_render_backing_build(GFXRenderer* renderer);
 
 /**
- * TODO: Make it not take flags but listen to attachment recreate flags?
- * TODO: Or make it not postpone?
- * Signals the render backing to (re)build resources dependent on the given
- * attachment index, building may be postponed to _gfx_render_backing_build.
+ * (Re)builds render backing resources dependent on the given attachment index.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    Must contain the _GFX_RECREATE bit.
- *
- * Will not rebuild if not yet built.
  */
 void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
                                  _GFXRecreateFlags flags);
@@ -467,29 +458,21 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @param Non-zero if the entire graph is in a built state.
  *
- * If not built yet, or invalidated, any pass writing to a window attachment
- * can be forced to rebuild when the attachment's 'window.flags' member is set.
  * If the graph got invalidated, this will block until rendering is done!
  */
 int _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
- * TODO: Make it not take flags but listen to attachment recreate flags?
- * TODO: Or make it not postpone?
- * Signals the render graph to (re)build resources dependent on the given
- * attachment index, building may be postponed to _gfx_render_graph_build.
+ * (Re)builds render pass resources dependent on the given attachment index.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    Must contain the _GFX_RECREATE bit.
- *
- * Will not rebuild if not yet built or invalidated.
  */
 void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
                                _GFXRecreateFlags flags);
 
 /**
  * Immediately destruct everything that depends on the attachment at index.
- * This will implicitly trigger a rebuild for obvious reasons.
  * @param renderer Cannot be NULL.
  *
  * Must be called before detaching the attachment at index!
@@ -534,11 +517,6 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass);
  * @param pass  Cannot be NULL.
  * @param flags What resources should be recreated (0 to recreate nothing).
  * @return Non-zero if valid and built.
- *
- * If it writes to a window attachment, flags can be augmented by setting
- * the attachment's 'window.flags' member.
- * If a resource does not exist yet, it will be built no matter what flags is.
- * Does not synchronize anything before rebuilding!
  */
 int _gfx_render_pass_build(GFXRenderPass* pass,
                            _GFXRecreateFlags flags);
@@ -548,7 +526,6 @@ int _gfx_render_pass_build(GFXRenderPass* pass,
  * @param pass Cannot be NULL.
  *
  * Must be called before detaching any attachment it uses!
- * Also, does not synchronize anything before destructing!
  */
 void _gfx_render_pass_destruct(GFXRenderPass* pass);
 
