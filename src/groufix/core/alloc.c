@@ -136,13 +136,15 @@ search:
  * @param maxSize Use to force a maximum allocation.
  * @return NULL on failure.
  *
- * For a dedicated allocation of an exact size, set minSize == maxSize.
- * If minSize == maxSize, the free root node _WILL NOT_ be inserted.
+ * A dedicated block is allocated if the resulting size of the block is equal
+ * to minSize, the free root node _WILL NOT_ be inserted in that case.
+ * To force a dedicated allocation of an exact size, set minSize == maxSize.
  */
 static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
                                           VkDeviceSize minSize, VkDeviceSize maxSize)
 {
 	assert(alloc != NULL);
+	assert(minSize <= maxSize);
 
 	_GFXContext* context = alloc->context;
 
@@ -222,7 +224,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 
 	// If dedicated, link the block into the allocd list.
 	// As there is no free root node, it will be regarded as full.
-	if (minSize == maxSize)
+	if (blockSize == minSize)
 		gfx_list_insert_after(&alloc->allocd, &block->list, NULL);
 	else
 	{
@@ -248,7 +250,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		"    Preferred block size: %llu bytes.\n"
 		"    Memory heap size: %llu bytes.\n",
 		(unsigned long long)blockSize,
-		(minSize == maxSize) ? " (dedicated)" : "",
+		(blockSize == minSize) ? " (dedicated)" : "",
 		(unsigned long long)prefBlockSize,
 		(unsigned long long)heapSize);
 

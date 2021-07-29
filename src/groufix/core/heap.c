@@ -98,6 +98,9 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	// not need to account for `VkPhysicalDeviceLimits::nonCoherentAtomSize`.
 	// We always add device local to the optimal flags,
 	// wouldn't it be wonderful if everything was always device local :)
+	// TODO: Making it device local should be a user-visible options somehow.
+	// TODO: Or we may want to use the non-device local one as fallback.
+	// TODO: Staging buffers should _NOT_ go to device local.
 	VkMemoryPropertyFlags flags =
 		(buffer->base.flags & GFX_MEMORY_HOST_VISIBLE) ?
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -377,6 +380,25 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 	mesh->base.usageIndex = indexBuff ?
 		indexBuff->base.flags : (numIndices > 0 ? mesh->buffer.base.usage : 0);
 
+	// Validate usage flags.
+	if (!(mesh->base.usageVertex & GFX_BUFFER_VERTEX))
+	{
+		gfx_log_error(
+			"A buffer referenced by a mesh as vertex buffer "
+			"must be created with GFX_BUFFER_VERTEX.");
+
+		goto clean;
+	}
+
+	if (numIndices > 0 && !(mesh->base.usageIndex & GFX_BUFFER_INDEX))
+	{
+		gfx_log_error(
+			"A buffer referenced by a mesh as index buffer "
+			"must be created with GFX_BUFFER_INDEX.");
+
+		goto clean;
+	}
+
 	// Allocate a buffer if required.
 	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.
 	mesh->buffer.vk.buffer = VK_NULL_HANDLE;
@@ -442,7 +464,10 @@ GFX_API void* gfx_map(GFXReference ref)
 		(unp.obj.buffer && !(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE)) ||
 		(unp.obj.image && !(unp.obj.image->base.flags & GFX_MEMORY_HOST_VISIBLE)))
 	{
-		gfx_log_error("Cannot map a buffer or image that was not created with GFX_MEMORY_HOST_VISIBLE.");
+		gfx_log_error(
+			"Cannot map a buffer or image that was not "
+			"created with GFX_MEMORY_HOST_VISIBLE.");
+
 		return NULL;
 	}
 
@@ -455,7 +480,7 @@ GFX_API void* gfx_map(GFXReference ref)
 	case GFX_REF_MESH_VERTICES:
 	case GFX_REF_MESH_INDICES:
 		ptr = _gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
-		ptr = (void*)((char*)ptr + unp.value);
+		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp.value);
 		break;
 
 	case GFX_REF_IMAGE:

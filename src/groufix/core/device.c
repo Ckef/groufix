@@ -33,7 +33,7 @@
 
 // Gets the complete set of queue flags (adding optional left out bits).
 #define _GFX_QUEUE_FLAGS_ALL(vFlags) \
-	((vFlags & VK_QUEUE_GRAPHICS_BIT || vFlags & VK_QUEUE_COMPUTE_BIT) ? \
+	(vFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT) ? \
 		vFlags | VK_QUEUE_TRANSFER_BIT : vFlags)
 
 // Counts the number of (relevant) set bits in a set of queue flags.

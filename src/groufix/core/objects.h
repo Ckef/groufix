@@ -255,7 +255,7 @@ struct GFXRenderer
 	{
 		GFXVec attachs; // Stores _GFXAttach.
 
-		int    built;
+		int built;
 
 	} backing;
 

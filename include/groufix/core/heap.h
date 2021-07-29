@@ -201,6 +201,8 @@ GFX_API void gfx_free_image(GFXImage* image);
  * @return NULL on failure.
  *
  * Thread-safe!
+ * Fails if the referenced vertex buffer was not created with GFX_BUFFER_VERTEX
+ * or the index buffer was not created with GFX_BUFFER_INDEX.
  */
 GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXMemoryFlags flags, GFXBufferUsage usage,

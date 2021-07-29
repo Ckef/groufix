@@ -35,7 +35,10 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	// Initialize the virtual frames.
 	// Reserve the exact amount as this will never change.
 	gfx_deque_init(&rend->frames, sizeof(_GFXFrame));
-	gfx_deque_reserve(&rend->frames, frames);
+
+	if (!gfx_deque_reserve(&rend->frames, frames))
+		goto clean_frames;
+
 	gfx_deque_push(&rend->frames, frames, NULL);
 
 	for (size_t f = 0; f < frames; ++f)

@@ -346,12 +346,12 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		VkSubmitInfo si = {
 			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
-			.pNext                = NULL,
-			.waitSemaphoreCount   = (uint32_t)presentable,
-			.pWaitSemaphores      = available,
-			.pWaitDstStageMask    = waitStages,
-			.commandBufferCount   = (uint32_t)numBuffers,
-			.pCommandBuffers      = buffers,
+			.pNext              = NULL,
+			.waitSemaphoreCount = (uint32_t)presentable,
+			.pWaitSemaphores    = available,
+			.pWaitDstStageMask  = waitStages,
+			.commandBufferCount = (uint32_t)numBuffers,
+			.pCommandBuffers    = buffers,
 
 			.signalSemaphoreCount =
 				(presentable > 0) ? 1 : 0,

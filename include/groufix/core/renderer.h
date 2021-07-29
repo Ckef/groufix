@@ -99,6 +99,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
  * @param window   NULL to detach the current window, if any.
  * @return Zero on failure.
  *
+ * Thread-safe with respect to window.
  * If a window needs to be detached, this will block until rendering is done!
  * Fails if the window was already attached to a renderer or the window and
  * renderer do not share a compatible device.
