@@ -279,16 +279,8 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		warnings > 0 ? shaderc_result_get_error_message(result) : "");
 #endif
 
-	// Attempt to build the shader module.
-	// Round the size to a multiple of 4 just in case it isn't.
-	size_t wordSize =
-		(size / sizeof(uint32_t)) * sizeof(uint32_t);
-
-	if (!_gfx_shader_build(shader, wordSize, (const uint32_t*)bytes))
-		goto clean_result;
-
-	// At this point we succeeded,
-	// but try to write to file if asked.
+	// Just before building the actual shader,
+	// write the resulting SPIR-V to file if asked.
 	if (file != NULL)
 	{
 		// Open file (in binary mode!) and immediately write.
@@ -296,11 +288,27 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		FILE* f = fopen(file, "wb");
 
 		if (f == NULL)
-			gfx_log_warn("Could not open SPIR-V file: %s", file);
+			gfx_log_warn("Could not open SPIR-V file: %s.", file);
+		else
+		{
+			if (fwrite(bytes, 1, size, f) < size)
+				gfx_log_warn("Could not write to SPIR-V file: %s.", file);
+			else
+				gfx_log_info(
+					"Written SPIR-V to file: %s (%u bytes).",
+					file, (unsigned int)size);
 
-		else if (fwrite(bytes, 1, size, f) < size)
-			gfx_log_warn("Could not write to SPIR-V file: %s", file);
+			fclose(f);
+		}
 	}
+
+	// Attempt to build the shader module.
+	// Round the size to a multiple of 4 just in case it isn't.
+	size_t wordSize =
+		(size / sizeof(uint32_t)) * sizeof(uint32_t);
+
+	if (!_gfx_shader_build(shader, wordSize, (const uint32_t*)bytes))
+		goto clean_result;
 
 	// Get rid of the resources and return.
 	shaderc_result_release(result);
@@ -375,7 +383,7 @@ GFX_API int gfx_shader_load(GFXShader* shader, const char* file)
 clean_close:
 	fclose(f);
 clean:
-	gfx_log_error("Could not open SPIR-V file: %s", file);
+	gfx_log_error("Could not open SPIR-V file: %s.", file);
 	shader->vk.module = VK_NULL_HANDLE;
 
 	return 0;
