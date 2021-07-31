@@ -65,34 +65,33 @@ static void _gfx_render_pass_destruct_partial(GFXRenderPass* pass,
 /****************************
  * Picks a window to use as back-buffer, silently logging issues.
  * @param pass Cannot be NULL.
+ * @return The picked backing, SIZE_MAX if none found.
  */
-static void _gfx_render_pass_pick_backing(GFXRenderPass* pass)
+static size_t _gfx_render_pass_pick_backing(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 
 	GFXRenderer* rend = pass->renderer;
 
-	// We already have a back-buffer.
-	if (pass->build.backing != SIZE_MAX)
-		return;
+	size_t backing = SIZE_MAX;
 
 	// Validate that there is exactly 1 window we write to.
 	// We don't really have to but we're nice, in case of Vulkan spam...
 	for (size_t w = 0; w < pass->writes.size; ++w)
 	{
-		size_t index = *(size_t*)gfx_vec_at(&pass->writes, w);
+		size_t b = *(size_t*)gfx_vec_at(&pass->writes, w);
 
 		// Validate that the attachment exists and is a window.
-		if (index >= rend->backing.attachs.size)
+		if (b >= rend->backing.attachs.size)
 			continue;
 
-		_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, index);
+		_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, b);
 		if (at->type != _GFX_ATTACH_WINDOW)
 			continue;
 
 		// If it is, check if we already had a backing window.
-		if (pass->build.backing == SIZE_MAX)
-			pass->build.backing = index;
+		if (backing == SIZE_MAX)
+			backing = b;
 		else
 		{
 			// If so, well we cannot, throw a warning.
@@ -103,6 +102,8 @@ static void _gfx_render_pass_pick_backing(GFXRenderPass* pass)
 			break;
 		}
 	}
+
+	return backing;
 }
 
 /****************************
@@ -119,11 +120,12 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	_GFXAttach* at = NULL;
 	_GFXMesh* mesh = pass->build.mesh;
 
-	// Get the back-buffer attachment.
+	// Get the backing window attachment.
 	if (pass->build.backing != SIZE_MAX)
 		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
-	// TODO: Future: if no back-buffers, do smth else.
+	// Skip if there's no render target (e.g. minimized window).
+	// TODO: Future: if no backing window, do smth else.
 	if (at == NULL || at->window.vk.views.size == 0)
 		return 1;
 
@@ -537,7 +539,8 @@ int _gfx_render_pass_build(GFXRenderPass* pass,
 	_gfx_render_pass_destruct_partial(pass, flags);
 
 	// Pick a backing window if we did not yet.
-	_gfx_render_pass_pick_backing(pass);
+	if (pass->build.backing == SIZE_MAX)
+		pass->build.backing = _gfx_render_pass_pick_backing(pass);
 
 	// Aaaand then build the entire Vulkan object structure.
 	if (!_gfx_render_pass_build_objects(pass))

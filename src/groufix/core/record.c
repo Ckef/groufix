@@ -20,7 +20,8 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 	_GFXContext* context = rend->context;
 	_GFXMesh* mesh = pass->build.mesh;
 
-	// Can't be recording resources are missing.
+	// Can't be recording if resources are missing.
+	// Window could be minimized or smth.
 	if (
 		pass->vk.pass == VK_NULL_HANDLE ||
 		pass->vk.framebuffers.size == 0 ||
@@ -29,8 +30,8 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		return;
 	}
 
-	// Get the back-buffer attachment.
-	// TODO: Future: if no back-buffers, do smth else.
+	// Get the backing window attachment.
+	// TODO: Future: if no backing window, do smth else.
 	// TODO: Store render area in pass, so we don't have to access the attachment?
 	if (pass->build.backing == SIZE_MAX)
 		return;

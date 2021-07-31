@@ -295,7 +295,7 @@ struct GFXRenderPass
 	// Building output (can be invalidated).
 	struct
 	{
-		size_t backing; // Attachment index (or SIZE_MAX).
+		size_t backing; // Window attachment index (or SIZE_MAX).
 
 		// TODO: Super temporary!!
 		_GFXMesh*  mesh;
@@ -532,6 +532,8 @@ int _gfx_render_pass_build(GFXRenderPass* pass,
  * The frame's command buffers must be in the recording state (!).
  * @param pass  Cannot be NULL.
  * @param frame Cannot be NULL, must be of the same renderer as pass.
+ *
+ * No-op if the pass is not built.
  */
 void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame);
 
