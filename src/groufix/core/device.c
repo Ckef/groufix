@@ -626,7 +626,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(MapMemory);
 	_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
 	_GFX_GET_DEVICE_PROC_ADDR(QueueSubmit);
-	_GFX_GET_DEVICE_PROC_ADDR(ResetCommandPool);
+	_GFX_GET_DEVICE_PROC_ADDR(ResetCommandBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(ResetFences);
 	_GFX_GET_DEVICE_PROC_ADDR(UnmapMemory);
 	_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);

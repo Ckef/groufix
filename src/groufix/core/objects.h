@@ -159,8 +159,7 @@ typedef struct _GFXWindowAttach
 	// Vulkan fields.
 	struct
 	{
-		GFXVec        views; // Stores VkImageView, on-swapchain recreate.
-		VkCommandPool pool;  // TODO: Temporary?
+		GFXVec views; // Stores VkImageView, on-swapchain recreate.
 
 	} vk;
 
@@ -213,7 +212,6 @@ typedef struct _GFXFrameSync
 
 
 /**
- * TODO: Add command buffers somehow.
  * Internal virtual frame.
  */
 typedef struct _GFXFrame
@@ -225,8 +223,9 @@ typedef struct _GFXFrame
 	// Vulkan fields.
 	struct
 	{
-		VkSemaphore rendered;
-		VkFence     done; // For resource access.
+		VkCommandBuffer cmd; // TODO: Multiple for threaded recording?
+		VkSemaphore     rendered;
+		VkFence         done; // For resource access.
 
 	} vk;
 
@@ -270,6 +269,14 @@ struct GFXRenderer
 		int valid;
 
 	} graph;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkCommandPool pool; // TODO: Multiple for threaded recording?
+
+	} vk;
 };
 
 
@@ -306,7 +313,6 @@ struct GFXRenderPass
 		VkPipelineLayout layout;
 		VkPipeline       pipeline;
 		GFXVec           framebuffers; // Stores VkFramebuffer.
-		GFXVec           commands;     // Stores VkCommandBuffer.
 
 	} vk;
 
@@ -520,6 +526,14 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass);
  */
 int _gfx_render_pass_build(GFXRenderPass* pass,
                            _GFXRecreateFlags flags);
+
+/**
+ * Records the pass into the command buffers of a frame.
+ * The frame's command buffers must be in the recording state (!).
+ * @param pass  Cannot be NULL.
+ * @param frame Cannot be NULL, must be of the same renderer as pass.
+ */
+void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame);
 
 /**
  * Destructs the Vulkan object structure, non-recursively.

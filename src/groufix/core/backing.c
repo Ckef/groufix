@@ -44,24 +44,25 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
 
-	if (index >= renderer->backing.attachs.size)
+	GFXVec* attachs = &renderer->backing.attachs;
+
+	if (index < attachs->size)
+		return 1;
+
+	size_t elems = index + 1 - attachs->size;
+
+	if (!gfx_vec_push(attachs, elems, NULL))
 	{
-		size_t elems =
-			index + 1 - renderer->backing.attachs.size;
+		gfx_log_error(
+			"Could not allocate attachment index %u of a renderer.",
+			(unsigned int)index);
 
-		if (!gfx_vec_push(&renderer->backing.attachs, elems, NULL))
-		{
-			gfx_log_error(
-				"Could not allocate attachment index %u of a renderer.",
-				(unsigned int)index);
-
-			return 0;
-		}
-
-		// All empty.
-		for (size_t i = 0; i < elems; ++i) ((_GFXAttach*)gfx_vec_at(
-			&renderer->backing.attachs, index - i))->type = _GFX_ATTACH_EMPTY;
+		return 0;
 	}
+
+	// All empty.
+	for (size_t i = 0; i < elems; ++i)
+		((_GFXAttach*)gfx_vec_at(attachs, index - i))->type = _GFX_ATTACH_EMPTY;
 
 	return 1;
 }
@@ -101,13 +102,6 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 				NULL);
 
 		gfx_vec_clear(&at->window.vk.views);
-
-		// Destroy command pool.
-		// Implicitly frees all command buffers.
-		context->vk.DestroyCommandPool(
-			context->vk.device, at->window.vk.pool, NULL);
-
-		at->window.vk.pool = VK_NULL_HANDLE;
 	}
 }
 
@@ -135,26 +129,6 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 	if (at->type == _GFX_ATTACH_WINDOW)
 	{
 		_GFXWindow* window = at->window.window;
-
-		// First check the command pool.
-		// If it exists, reset it.
-		if (at->window.vk.pool != VK_NULL_HANDLE)
-			context->vk.ResetCommandPool(
-				context->vk.device, at->window.vk.pool, 0);
-		else
-		{
-			// If it did not exist yet, just create it.
-			VkCommandPoolCreateInfo cpci = {
-				.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-
-				.pNext            = NULL,
-				.flags            = 0,
-				.queueFamilyIndex = renderer->graphics.family
-			};
-
-			_GFX_VK_CHECK(context->vk.CreateCommandPool(
-				context->vk.device, &cpci, NULL, &at->window.vk.pool), goto clean);
-		}
 
 		// Destroy all the old image views, these are of the old swapchain
 		// and no longer relevant.
@@ -304,7 +278,7 @@ int _gfx_render_backing_build(GFXRenderer* renderer)
 			at->image.vk.image != VK_NULL_HANDLE) ||
 
 			(at->type == _GFX_ATTACH_WINDOW &&
-			at->window.vk.pool != VK_NULL_HANDLE))
+			at->window.vk.views.size > 0))
 		{
 			continue;
 		}
@@ -455,8 +429,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 		.type = _GFX_ATTACH_WINDOW,
 		.window = {
 			.window = (_GFXWindow*)window,
-			.flags  = 0,
-			.vk     = { .pool = VK_NULL_HANDLE }
+			.flags  = 0
 		}
 	};
 

@@ -214,6 +214,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/log.o \
  $(OUT)$(SUB)/groufix/core/monitor.o \
  $(OUT)$(SUB)/groufix/core/pass.o \
+ $(OUT)$(SUB)/groufix/core/record.o \
  $(OUT)$(SUB)/groufix/core/ref.o \
  $(OUT)$(SUB)/groufix/core/renderer.o \
  $(OUT)$(SUB)/groufix/core/shader.o \

@@ -106,85 +106,6 @@ static void _gfx_render_pass_pick_backing(GFXRenderPass* pass)
 }
 
 /****************************
- * Builds all missing resources of the back-buffer.
- * @param pass Cannot be NULL.
- * @return Non-zero on success.
- */
-static int _gfx_render_pass_build_backing(GFXRenderPass* pass)
-{
-	assert(pass != NULL);
-
-	GFXRenderer* rend = pass->renderer;
-	_GFXContext* context = rend->context;
-
-	// Nothing to do.
-	if (pass->build.backing == SIZE_MAX)
-		return 1;
-
-	// Now we allocate more command buffers or free some.
-	_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
-	size_t currCount = pass->vk.commands.size;
-	size_t count = at->window.vk.views.size;
-
-	if (currCount < count)
-	{
-		// If we have too few, allocate some more.
-		// Reserve the exact amount cause it's most likely not gonna change.
-		if (!gfx_vec_reserve(&pass->vk.commands, count))
-			goto error;
-
-		size_t newCount = count - currCount;
-		gfx_vec_push(&pass->vk.commands, newCount, NULL);
-
-		VkCommandBufferAllocateInfo cbai = {
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-
-			.pNext              = NULL,
-			.commandPool        = at->window.vk.pool,
-			.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = (uint32_t)newCount
-		};
-
-		int res = 1;
-		_GFX_VK_CHECK(
-			context->vk.AllocateCommandBuffers(
-				context->vk.device, &cbai,
-				gfx_vec_at(&pass->vk.commands, currCount)),
-			res = 0);
-
-		// Throw away the items we just tried to insert.
-		if (!res)
-		{
-			gfx_vec_pop(&pass->vk.commands, newCount);
-			goto error;
-		}
-	}
-
-	else if (currCount > count)
-	{
-		// If we have too many, free some.
-		context->vk.FreeCommandBuffers(
-			context->vk.device,
-			at->window.vk.pool,
-			(uint32_t)(currCount - count),
-			gfx_vec_at(&pass->vk.commands, count));
-
-		gfx_vec_pop(&pass->vk.commands, currCount - count);
-	}
-
-	return 1;
-
-
-	// Error on failure.
-error:
-	gfx_log_error(
-		"Could not allocate resources for a window attachment "
-		"written to by a render pass.");
-
-	return 0;
-}
-
-/****************************
  * Builds all missing resources of the Vulkan object structure.
  * @return Non-zero on success.
  */
@@ -198,13 +119,6 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	_GFXAttach* at = NULL;
 	_GFXMesh* mesh = pass->build.mesh;
 
-	// At this point, we should check if we should re-record,
-	// as now we know if we're missing resources from a previous record.
-	int record =
-		(pass->vk.pass == VK_NULL_HANDLE) ||
-		(pass->vk.framebuffers.size == 0) ||
-		(pass->vk.pipeline == VK_NULL_HANDLE);
-
 	// Get the back-buffer attachment.
 	if (pass->build.backing != SIZE_MAX)
 		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
@@ -212,15 +126,6 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	// TODO: Future: if no back-buffers, do smth else.
 	if (at == NULL || at->window.vk.views.size == 0)
 		return 1;
-
-	// Yeah so we need the scissor of that attachment.
-	VkRect2D scissor = {
-		.offset = { 0, 0 },
-		.extent = {
-			(uint32_t)at->window.window->frame.width,
-			(uint32_t)at->window.window->frame.height
-		}
-	};
 
 	// Create render pass.
 	if (pass->vk.pass == VK_NULL_HANDLE)
@@ -393,6 +298,14 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 			.maxDepth = 1.0f
 		};
 
+		VkRect2D scissor = {
+			.offset = { 0, 0 },
+			.extent = {
+				(uint32_t)at->window.window->frame.width,
+				(uint32_t)at->window.window->frame.height
+			}
+		};
+
 		VkPipelineViewportStateCreateInfo pvsci = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
 
@@ -496,94 +409,6 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 			goto error);
 	}
 
-	// Now go record all of the command buffers.
-	if (record)
-	{
-		VkClearValue clear = {
-			.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
-		};
-
-		VkCommandBufferBeginInfo cbbi = {
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-
-			.pNext            = NULL,
-			.flags            = 0,
-			.pInheritanceInfo = NULL
-		};
-
-		for (size_t i = 0; i < pass->vk.commands.size; ++i)
-		{
-			VkFramebuffer frame =
-				*(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, i);
-			VkCommandBuffer buffer =
-				*(VkCommandBuffer*)gfx_vec_at(&pass->vk.commands, i);
-
-			// Start of all commands.
-			_GFX_VK_CHECK(context->vk.BeginCommandBuffer(buffer, &cbbi),
-				goto error);
-
-			// Begin render pass, bind pipeline.
-			VkRenderPassBeginInfo rpbi = {
-				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-
-				.pNext           = NULL,
-				.renderPass      = pass->vk.pass,
-				.framebuffer     = frame,
-				.renderArea      = scissor,
-				.clearValueCount = 1,
-				.pClearValues    = &clear
-			};
-
-			context->vk.CmdBeginRenderPass(
-				buffer, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
-
-			context->vk.CmdBindPipeline(
-				buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->vk.pipeline);
-
-			// Bind index buffer.
-			if (mesh->base.sizeIndices > 0)
-			{
-				_GFXUnpackRef index = _gfx_ref_unpack(
-					gfx_ref_mesh_indices((GFXMesh*)mesh, 0));
-
-				context->vk.CmdBindIndexBuffer(
-					buffer,
-					index.obj.buffer->vk.buffer,
-					index.value,
-					mesh->indexSize == sizeof(uint16_t) ?
-						VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
-			}
-
-			// Bind vertex buffer.
-			_GFXUnpackRef vertex = _gfx_ref_unpack(
-				gfx_ref_mesh_vertices((GFXMesh*)mesh, 0));
-
-			context->vk.CmdBindVertexBuffers(
-				buffer, 0, 1,
-				(VkBuffer[]){ vertex.obj.buffer->vk.buffer },
-				(VkDeviceSize[]){ vertex.value });
-
-			// Draw.
-			if (mesh->base.sizeIndices > 0)
-				context->vk.CmdDrawIndexed(
-					buffer,
-					(uint32_t)(mesh->base.sizeIndices / mesh->indexSize),
-					1, 0, 0, 0);
-			else
-				context->vk.CmdDraw(
-					buffer,
-					(uint32_t)(mesh->base.sizeVertices / mesh->stride),
-					1, 0, 0);
-
-			context->vk.CmdEndRenderPass(
-				buffer);
-
-			// End of all commands.
-			_GFX_VK_CHECK(context->vk.EndCommandBuffer(buffer),
-				goto error);
-		}
-	}
-
 	return 1;
 
 
@@ -642,8 +467,6 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	pass->vk.pipeline = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
-	gfx_vec_init(&pass->vk.commands, sizeof(VkCommandBuffer));
-
 	gfx_vec_init(&pass->reads, sizeof(size_t));
 	gfx_vec_init(&pass->writes, sizeof(size_t));
 
@@ -716,12 +539,7 @@ int _gfx_render_pass_build(GFXRenderPass* pass,
 	// Pick a backing window if we did not yet.
 	_gfx_render_pass_pick_backing(pass);
 
-	// And then build all back-buffer related resources.
-	if (!_gfx_render_pass_build_backing(pass))
-		goto clean;
-
 	// Aaaand then build the entire Vulkan object structure.
-	// TODO: This also records, prolly want to split it up somehow.
 	if (!_gfx_render_pass_build_objects(pass))
 		goto clean;
 
@@ -743,36 +561,18 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 
 	_GFXContext* context = pass->renderer->context;
 
+	// Remove reference to backing window.
+	pass->build.backing = SIZE_MAX;
+
 	// Destruct all partial things first.
 	_gfx_render_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
+	gfx_vec_clear(&pass->vk.framebuffers);
 
 	// Destroy all non-partial things too.
 	context->vk.DestroyPipelineLayout(
 		context->vk.device, pass->vk.layout, NULL);
 
 	pass->vk.layout = VK_NULL_HANDLE;
-
-	// If we use a window as back-buffer, destroy those resources.
-	if (pass->build.backing != SIZE_MAX)
-	{
-		// This will have been called before detaching any window attachments,
-		// by requirements, meaning pass->build.backing must still be valid.
-		_GFXAttach* at =
-			gfx_vec_at(&pass->renderer->backing.attachs, pass->build.backing);
-
-		// Free all command buffers.
-		if (pass->vk.commands.size > 0)
-			context->vk.FreeCommandBuffers(
-				context->vk.device,
-				at->window.vk.pool,
-				(uint32_t)pass->vk.commands.size,
-				pass->vk.commands.data);
-
-		pass->build.backing = SIZE_MAX;
-	}
-
-	gfx_vec_clear(&pass->vk.framebuffers);
-	gfx_vec_clear(&pass->vk.commands);
 }
 
 /****************************/

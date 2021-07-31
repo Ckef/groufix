@@ -147,6 +147,21 @@ int _gfx_frame_init(GFXRenderer* renderer, _GFXFrame* frame)
 			context->vk.device, &fci, NULL, &frame->vk.done),
 		goto clean);
 
+	// Lastly, allocate the command buffer for this frame.
+	VkCommandBufferAllocateInfo cbai = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+
+		.pNext              = NULL,
+		.commandPool        = renderer->vk.pool,
+		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.AllocateCommandBuffers(
+			context->vk.device, &cbai, &frame->vk.cmd),
+		goto clean);
+
 	return 1;
 
 
@@ -182,6 +197,8 @@ void _gfx_frame_clear(GFXRenderer* renderer, _GFXFrame* frame)
 		context->vk.device, frame->vk.done, NULL);
 	context->vk.DestroySemaphore(
 		context->vk.device, frame->vk.rendered, NULL);
+	context->vk.FreeCommandBuffers(
+		context->vk.device, renderer->vk.pool, 1, &frame->vk.cmd);
 
 	_gfx_free_syncs(renderer, frame, frame->syncs.size);
 	gfx_vec_clear(&frame->refs);
@@ -286,39 +303,39 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 	// move shit around in the world. Then immediately after we can record
 	// the command buffers and submit?
 
-	// Collect buffers to submit, so we can submit them in submission order
-	// of all the render passes, then present to all swapchains.
+	// Ok now go and record all render passes in submission order.
+	// We first reset the frame's command buffer and wrap a begin/end command
+	// around a loop over all passes.
+	VkCommandBufferBeginInfo cbbi = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+
+		.pNext            = NULL,
+		.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+		.pInheritanceInfo = NULL
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.ResetCommandBuffer(frame->vk.cmd, 0),
+		goto error);
+
+	_GFX_VK_CHECK(
+		context->vk.BeginCommandBuffer(frame->vk.cmd, &cbbi),
+		goto error);
+
+	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
+		_gfx_render_pass_record(
+			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, p),
+			frame);
+
+	_GFX_VK_CHECK(
+		context->vk.EndCommandBuffer(frame->vk.cmd),
+		goto error);
+
+	// Get other stuff to be able to submit & present.
 	// We do submission and presentation in one call, making all windows
 	// attached to a renderer as synchronized as possible.
 	// We use a scope here so the goto's above are allowed.
 	{
-		VkCommandBuffer buffers[renderer->graph.passes.size];
-		size_t numBuffers = 0;
-
-		for (size_t p = 0; p < renderer->graph.passes.size; ++p)
-		{
-			GFXRenderPass* pass =
-				*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, p);
-
-			// TODO: Future: if we don't have a swapchain as backing, do smth else.
-			if (pass->build.backing == SIZE_MAX)
-				continue;
-
-			// Query the synchronization object associated with this
-			// swapchain as backing. This should only be queried once!
-			_GFXFrameSync* sync = gfx_vec_at(
-				&frame->syncs,
-				*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
-
-			// No image (e.g. minimized).
-			if (sync->image == UINT32_MAX)
-				continue;
-
-			buffers[numBuffers++] =
-				*(VkCommandBuffer*)gfx_vec_at(&pass->vk.commands, sync->image);
-		}
-
-		// Get other stuff to be able to submit & present.
 		// TODO: If not splitting up this function, this can be done earlier.
 		// TODO: What if no sync objects?
 		VkSemaphore available[numSyncs];
@@ -350,8 +367,8 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 			.waitSemaphoreCount = (uint32_t)presentable,
 			.pWaitSemaphores    = available,
 			.pWaitDstStageMask  = waitStages,
-			.commandBufferCount = (uint32_t)numBuffers,
-			.pCommandBuffers    = buffers,
+			.commandBufferCount = 1,
+			.pCommandBuffers    = &frame->vk.cmd,
 
 			.signalSemaphoreCount =
 				(presentable > 0) ? 1 : 0,
