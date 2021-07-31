@@ -304,8 +304,8 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 	// the command buffers and submit?
 
 	// Ok now go and record all render passes in submission order.
-	// We first reset the frame's command buffer and wrap a begin/end command
-	// around a loop over all passes.
+	// We wrap a loop over all passes inbetween a begin and end command.
+	// The begin command will reset the command buffer as well :)
 	VkCommandBufferBeginInfo cbbi = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 
@@ -313,10 +313,6 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 		.pInheritanceInfo = NULL
 	};
-
-	_GFX_VK_CHECK(
-		context->vk.ResetCommandBuffer(frame->vk.cmd, 0),
-		goto error);
 
 	_GFX_VK_CHECK(
 		context->vk.BeginCommandBuffer(frame->vk.cmd, &cbbi),

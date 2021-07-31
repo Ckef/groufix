@@ -242,7 +242,6 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(MapMemory);
 		_GFX_VK_PFN(QueuePresentKHR);
 		_GFX_VK_PFN(QueueSubmit);
-		_GFX_VK_PFN(ResetCommandBuffer);
 		_GFX_VK_PFN(ResetFences);
 		_GFX_VK_PFN(UnmapMemory);
 		_GFX_VK_PFN(WaitForFences);

@@ -223,7 +223,7 @@ typedef struct _GFXFrame
 	// Vulkan fields.
 	struct
 	{
-		VkCommandBuffer cmd; // TODO: Multiple for threaded recording?
+		VkCommandBuffer cmd;
 		VkSemaphore     rendered;
 		VkFence         done; // For resource access.
 

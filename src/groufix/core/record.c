@@ -50,6 +50,7 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 
 	// Gather all necessary render pass info to record.
 	// This assumes the buffer is already in the recording state!
+	// TODO: Define public GFXRenderArea with a GFXSizeClass.
 	VkClearValue clear = {
 		.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
 	};

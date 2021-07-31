@@ -34,6 +34,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	rend->present = _gfx_get_queue(context, present, 0);
 
 	// Initialize the render backing & graph.
+	// Technically it doesn't matter, but let's do it in dependency order.
 	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
 
@@ -50,8 +51,10 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 			VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
 	};
 
-	_GFX_VK_CHECK(context->vk.CreateCommandPool(
-		context->vk.device, &cpci, NULL, &rend->vk.pool), goto clean_render);
+	_GFX_VK_CHECK(
+		context->vk.CreateCommandPool(
+			context->vk.device, &cpci, NULL, &rend->vk.pool),
+		goto clean_render);
 
 	// And lastly initialize the virtual frames.
 	// We really do this last so the frames have access to all other things.
@@ -78,7 +81,8 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	// Clean on failure.
 clean_frames:
 	gfx_deque_clear(&rend->frames);
-	context->vk.DestroyCommandPool(context->vk.device, rend->vk.pool, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, rend->vk.pool, NULL);
 clean_render:
 	_gfx_render_graph_clear(rend);
 	_gfx_render_backing_clear(rend);

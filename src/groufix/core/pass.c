@@ -566,13 +566,15 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 
 	// Destruct all partial things first.
 	_gfx_render_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
-	gfx_vec_clear(&pass->vk.framebuffers);
 
 	// Destroy all non-partial things too.
 	context->vk.DestroyPipelineLayout(
 		context->vk.device, pass->vk.layout, NULL);
 
 	pass->vk.layout = VK_NULL_HANDLE;
+
+	// Clear memory.
+	gfx_vec_clear(&pass->vk.framebuffers);
 }
 
 /****************************/
