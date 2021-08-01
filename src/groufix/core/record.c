@@ -30,13 +30,9 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		return;
 	}
 
-	// Get the backing window attachment.
 	// TODO: Future: if no backing window, do smth else.
-	// TODO: Store render area in pass, so we don't have to access the attachment?
 	if (pass->build.backing == SIZE_MAX)
 		return;
-
-	_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
 	// Query the synchronization object associated with this
 	// swapchain as backing. This should only be queried once!
@@ -51,7 +47,7 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 
 	// Gather all necessary render pass info to record.
 	// This assumes the buffer is already in the recording state!
-	// TODO: Define public GFXRenderArea with a GFXSizeClass.
+	// TODO: Define public GFXRenderArea with a GFXSizeClass?
 	VkClearValue clear = {
 		.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
 	};
@@ -67,8 +63,8 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		.renderArea      = {
 			.offset = { 0, 0 },
 			.extent = {
-				(uint32_t)at->window.window->frame.width,
-				(uint32_t)at->window.window->frame.height
+				(uint32_t)sync->window->frame.width,
+				(uint32_t)sync->window->frame.height
 			}
 		}
 	};
