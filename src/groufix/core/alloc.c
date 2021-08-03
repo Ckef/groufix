@@ -45,17 +45,6 @@
 	((offset) & ~(align - 1))
 
 
-// Auto log when a memory heap does not have enough space.
-#define _GFX_VK_HEAP_CHECK(hSize, size, action) \
-	do { \
-		if (size > hSize) { \
-			gfx_log_error( \
-				"Memory heap of %llu bytes is too small to allocate %llu bytes from.", \
-				(unsigned long long)hSize, (unsigned long long)size); \
-			action; \
-		} \
-	} while (0)
-
 // Gets suitable memory type (auto log when none found), assigned to an lvalue.
 #define _GFX_GET_MEM_TYPE(lvalue, alloc, required, optimal, types, action) \
 	do { \
@@ -154,7 +143,14 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	VkDeviceSize heapSize =
 		pdmp->memoryHeaps[pdmp->memoryTypes[type].heapIndex].size;
 
-	_GFX_VK_HEAP_CHECK(heapSize, minSize, return NULL);
+	if (minSize > heapSize)
+	{
+		gfx_log_error(
+			"Memory heap of %llu bytes is too small to allocate %llu bytes from.",
+			(unsigned long long)heapSize, (unsigned long long)minSize);
+
+		return NULL;
+	}
 
 	// Calculate block size in Vulkan units.
 	// If it is a 'small' heap, we allocate the heap's size divided by 8.
@@ -267,7 +263,7 @@ clean_lock:
 clean:
 	gfx_log_error(
 		"Could not allocate a new %sVulkan memory object of %llu bytes.",
-		(minSize == maxSize) ? "(dedicated) " : "",
+		(blockSize == minSize) ? "(dedicated) " : "",
 		(unsigned long long)blockSize);
 
 	free(block);

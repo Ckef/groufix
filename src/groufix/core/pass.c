@@ -183,7 +183,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	if (pass->vk.framebuffers.size == 0)
 	{
 		// Reserve the exact amount, it's probably not gonna change.
-		// TODO: Do we really need multiple framebuffers? Maybe just blit into image?
+		// TODO: Instead of building all framebuffers, just cache the ones we need?
 		if (!gfx_vec_reserve(&pass->vk.framebuffers, at->window.vk.views.size))
 			goto error;
 
@@ -416,8 +416,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 
 	// Error on failure.
 error:
-	gfx_log_error(
-		"Could not allocate or record all resources of a render pass.");
+	gfx_log_error("Could not allocate all resources of a render pass.");
 
 	return 0;
 }
