@@ -73,6 +73,26 @@ typedef enum GFXTopology
 
 
 /**
+ * Vertex attribute description.
+ */
+typedef struct GFXAttribute
+{
+	// TODO: Add format.
+	size_t offset; // In bytes.
+
+} GFXAttribute;
+
+
+/**
+ * Resource group binding description.
+ * TODO: Define.
+ */
+//typedef struct GFXBinding
+//{
+//} GFXBinding;
+
+
+/**
  * Memory heap definition.
  */
 typedef struct GFXHeap GFXHeap;
@@ -87,7 +107,7 @@ typedef struct GFXBuffer
 	GFXMemoryFlags flags;
 	GFXBufferUsage usage;
 
-	size_t size; // In bytes obviously.
+	size_t size; // In bytes.
 
 } GFXBuffer;
 
@@ -197,7 +217,7 @@ GFX_API void gfx_free_image(GFXImage* image);
  * @param numIndices  Number of indices to claim.
  * @param indexSize   Index size, must be 0 or sizeof(uint16_t | uint32_t).
  * @param numAttribs  Number of vertex attributes, must be > 0.
- * @param offsets     Array of numAttribs offsets, in bytes, cannot be NULL.
+ * @param attribs     Array of numAttribs GFXAttribute structs, cannot be NULL.
  * @return NULL on failure.
  *
  * Thread-safe!
@@ -209,7 +229,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 size_t numVertices, size_t stride,
                                 size_t numIndices, size_t indexSize,
-                                size_t numAttribs, const size_t* offsets,
+                                size_t numAttribs, const GFXAttribute* attribs,
                                 GFXTopology topology);
 
 /**
@@ -217,6 +237,19 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
  * Thread-safe!
  */
 GFX_API void gfx_free_mesh(GFXMesh* mesh);
+
+/**
+ * Retrieves the number of attributes of a mesh.
+ * @param mesh Cannot be NULL.
+ */
+GFX_API size_t gfx_mesh_get_num_attribs(GFXMesh* mesh);
+
+/**
+ * Retrieves a vertex attribute description from a mesh.
+ * @param mesh   Cannot be NULL.
+ * @param attrib Attribute index, must be < gfx_mesh_get_num_attribs(mesh).
+ */
+GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib);
 
 
 /****************************

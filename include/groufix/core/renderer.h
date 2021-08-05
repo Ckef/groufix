@@ -85,27 +85,39 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
  * Describes the properties of an attachment index of the renderer.
+ * If the attachment already exists, it will be overwritten.
  * @param renderer Cannot be NULL.
  * @return Zero on failure.
  *
- * If a window needs to be detached, this will block until rendering is done!
+ * If anything needs to be detached, this will block until rendering is done!
  */
 GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
                                 size_t index, GFXAttachment attachment);
 
 /**
  * Attaches a window to an attachment index of a renderer.
+ * If the attachment already exists, it will be overwritten.
  * @param renderer Cannot be NULL.
- * @param window   NULL to detach the current window, if any.
+ * @param window   Cannot be NULL.
  * @return Zero on failure.
  *
  * Thread-safe with respect to window.
- * If a window needs to be detached, this will block until rendering is done!
+ * If anything needs to be detached, this will block until rendering is done!
  * Fails if the window was already attached to a renderer or the window and
  * renderer do not share a compatible device.
  */
 GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
                                        size_t index, GFXWindow* window);
+
+/**
+ * Detaches an attachment index of a renderer.
+ * Undescribed if not a window, detached if a window.
+ * @param renderer Cannot be NULL.
+ * @param index    Must be < number of attachments of renderer.
+ *
+ * If anything is detached, this will block until rendering is done!
+ */
+GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
 
 /**
  * Adds a new (target) render pass to the renderer given a set of dependencies.
@@ -157,18 +169,24 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
  ****************************/
 
 /**
+ * TODO: shader location == in add-order?
  * Set render pass to read from an attachpent index of the renderer.
- * @param pass  Cannot be NULL.
+ * @param pass Cannot be NULL.
  * @return Zero on failure.
  */
 GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index);
 
 /**
- * TODO: shader location == in add-order?
  * Set render pass to write to an attachment index of the renderer.
  * @see gfx_render_pass_read.
  */
 GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index);
+
+/**
+ * Release any set reference to an attachment index of the renderer.
+ * @see gfx_render_pass_read.
+ */
+GFX_API void gfx_render_pass_release(GFXRenderPass* pass, size_t index);
 
 /**
  * Retrieves the number of passes a single render pass depends on.

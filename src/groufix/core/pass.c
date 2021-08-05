@@ -262,7 +262,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 				.location = (uint32_t)i,
 				.binding  = 0,
 				.format   = VK_FORMAT_R32G32B32_SFLOAT,
-				.offset   = (uint32_t)mesh->offsets[i]
+				.offset   = (uint32_t)mesh->attribs[i].offset
 			};
 
 		VkPipelineVertexInputStateCreateInfo pvisci = {
@@ -616,6 +616,24 @@ GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index)
 	_gfx_render_graph_invalidate(pass->renderer);
 
 	return 1;
+}
+
+/****************************/
+GFX_API void gfx_render_pass_release(GFXRenderPass* pass, size_t index)
+{
+	assert(pass != NULL);
+
+	// Find and erase.
+	for (size_t i = pass->reads.size; i > 0; --i)
+		if (*(size_t*)gfx_vec_at(&pass->reads, i-1) == index)
+			gfx_vec_erase(&pass->reads, 1, i-1);
+
+	for (size_t i = pass->writes.size; i > 0; --i)
+		if (*(size_t*)gfx_vec_at(&pass->writes, i-1) == index)
+			gfx_vec_erase(&pass->writes, 1, i-1);
+
+	// Changed a pass, the graph is invalidated.
+	_gfx_render_graph_invalidate(pass->renderer);
 }
 
 /****************************/

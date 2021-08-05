@@ -316,7 +316,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 size_t numVertices, size_t stride,
                                 size_t numIndices, size_t indexSize,
-                                size_t numAttribs, const size_t* offsets,
+                                size_t numAttribs, const GFXAttribute* attribs,
                                 GFXTopology topology)
 {
 	assert(heap != NULL);
@@ -327,7 +327,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 	assert(stride > 0);
 	assert(numIndices == 0 || indexSize == sizeof(uint16_t) || indexSize == sizeof(uint32_t));
 	assert(numAttribs > 0);
-	assert(offsets != NULL);
+	assert(attribs != NULL);
 
 	// Not using an index buffer...
 	if (numIndices == 0) index = GFX_REF_NULL;
@@ -364,7 +364,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 	mesh->numAttribs = numAttribs;
 
 	if (numAttribs) memcpy(
-		mesh->offsets, offsets, sizeof(size_t) * numAttribs);
+		mesh->attribs, attribs, sizeof(GFXAttribute) * numAttribs);
 
 	// Get appropriate public flags & usage (also happens to unpack & validate).
 	_GFXBuffer* vertexBuff = _gfx_ref_unpack(mesh->refVertex).obj.buffer;
@@ -449,6 +449,23 @@ GFX_API void gfx_free_mesh(GFXMesh* mesh)
 	_gfx_mutex_unlock(&heap->lock);
 
 	free(msh);
+}
+
+/****************************/
+GFX_API size_t gfx_mesh_get_num_attribs(GFXMesh* mesh)
+{
+	assert(mesh != NULL);
+
+	return ((_GFXMesh*)mesh)->numAttribs;
+}
+
+/****************************/
+GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib)
+{
+	assert(mesh != NULL);
+	assert(attrib < ((_GFXMesh*)mesh)->numAttribs);
+
+	return ((_GFXMesh*)mesh)->attribs[attrib];
 }
 
 /****************************/

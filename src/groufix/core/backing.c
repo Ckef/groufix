@@ -62,7 +62,8 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 
 	// All empty.
 	for (size_t i = 0; i < elems; ++i)
-		((_GFXAttach*)gfx_vec_at(attachs, index - i))->type = _GFX_ATTACH_EMPTY;
+		((_GFXAttach*)gfx_vec_at(attachs, index - i))->type =
+			_GFX_ATTACH_EMPTY;
 
 	return 1;
 }
@@ -213,13 +214,13 @@ static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 
 	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
 
-	// Before detaching a window, we wait until all rendering is done.
-	// This so the window's resources are freed up to do smth else.
-	if (attach->type == _GFX_ATTACH_WINDOW)
+	// Before detaching, we wait until all rendering is done.
+	// This so we can 'detach' (i.e. destruct) the associated resources.
+	if (attach->type != _GFX_ATTACH_EMPTY)
+	{
 		_gfx_sync_frames(renderer);
-
-	// Firstly destruct.
-	_gfx_destruct_attachment(renderer, index);
+		_gfx_destruct_attachment(renderer, index);
+	}
 
 	// Then if it is a window, unlock the window.
 	if (attach->type == _GFX_ATTACH_WINDOW)
@@ -362,23 +363,10 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
                                        size_t index, GFXWindow* window)
 {
 	assert(renderer != NULL);
+	assert(window != NULL);
 
-	// We want to detach a window?
-	if (window == NULL)
-	{
-		// If it exists at least...
-		if (index < renderer->backing.attachs.size)
-		{
-			_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
-			if (at->type == _GFX_ATTACH_WINDOW)
-				_gfx_detach_attachment(renderer, index);
-		}
-
-		return 1;
-	}
-
-	// Ok we want to attach a window..
 	// Check if the window is already attached at this index.
+	// If so, nothing to do.
 	if (index < renderer->backing.attachs.size)
 	{
 		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
@@ -439,4 +427,14 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	renderer->backing.built = 0;
 
 	return 1;
+}
+
+/****************************/
+GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index)
+{
+	assert(renderer != NULL);
+	assert(index < renderer->backing.attachs.size);
+
+	// Yeah well, detach :)
+	_gfx_detach_attachment(renderer, index);
 }

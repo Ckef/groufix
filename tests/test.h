@@ -298,12 +298,17 @@ static void _test_init(void)
 		-0.5f,  0.5f, 0.0f,   0.0f, 0.0f, 1.0f
 	};
 
+	GFXAttribute attributes[] = {
+		{ .offset = 0 },
+		{ .offset = sizeof(float) * 3 }
+	};
+
 	_test_base.mesh = gfx_alloc_mesh(_test_base.heap,
 		GFX_MEMORY_HOST_VISIBLE, 0,
 		GFX_REF_NULL, GFX_REF_NULL,
 		4, sizeof(float) * 6,
 		4, sizeof(uint16_t),
-		2, (size_t[]){ 0, sizeof(float) * 3 },
+		2, attributes,
 		GFX_TOPO_TRIANGLE_STRIP);
 
 	if (_test_base.mesh == NULL)

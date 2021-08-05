@@ -48,7 +48,7 @@ TEST_DESCRIBE(windows, _t)
 	}
 
 	// Detach window & destroy.
-	gfx_renderer_attach_window(_t->renderer, 1, NULL);
+	gfx_renderer_detach(_t->renderer, 1);
 	gfx_destroy_window(window2);
 }
 
