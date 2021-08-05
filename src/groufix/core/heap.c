@@ -479,7 +479,8 @@ GFX_API void* gfx_map(GFXReference ref)
 	// Validate host visibility.
 	if (
 		(unp.obj.buffer && !(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE)) ||
-		(unp.obj.image && !(unp.obj.image->base.flags & GFX_MEMORY_HOST_VISIBLE)))
+		(unp.obj.image && !(unp.obj.image->base.flags & GFX_MEMORY_HOST_VISIBLE)) ||
+		(unp.obj.buffer == NULL && unp.obj.image == NULL))
 	{
 		gfx_log_error(
 			"Cannot map a buffer or image that was not "
@@ -491,26 +492,14 @@ GFX_API void* gfx_map(GFXReference ref)
 	// Map the memory bits.
 	void* ptr = NULL;
 
-	switch (ref.type)
-	{
-	case GFX_REF_BUFFER:
-	case GFX_REF_MESH_VERTICES:
-	case GFX_REF_MESH_INDICES:
-		ptr = _gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+	// Map buffer.
+	if (unp.obj.buffer != NULL)
+		ptr = _gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc),
 		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp.value);
-		break;
 
-	case GFX_REF_IMAGE:
+	// Map image.
+	else if (unp.obj.image != NULL)
 		ptr = _gfx_map(&unp.obj.image->heap->allocator, &unp.obj.image->alloc);
-		break;
-
-	case GFX_REF_ATTACHMENT:
-		gfx_log_error("Cannot map an attachment index of a renderer.");
-		break;
-
-	default:
-		break;
-	}
 
 	return ptr;
 }
@@ -527,19 +516,12 @@ GFX_API void gfx_unmap(GFXReference ref)
 	// This function is required to be called _exactly_ once (and no more)
 	// for every gfx_map, given this is the exact same assumption as
 	// _gfx_unmap makes, this should all work out...
-	switch (ref.type)
-	{
-	case GFX_REF_BUFFER:
-	case GFX_REF_MESH_VERTICES:
-	case GFX_REF_MESH_INDICES:
+
+	// Unmap buffer.
+	if (unp.obj.buffer != NULL)
 		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
-		break;
 
-	case GFX_REF_IMAGE:
+	// Unmap image.
+	else if(unp.obj.image != NULL)
 		_gfx_unmap(&unp.obj.image->heap->allocator, &unp.obj.image->alloc);
-		break;
-
-	default:
-		break;
-	}
 }

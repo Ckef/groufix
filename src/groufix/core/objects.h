@@ -336,7 +336,6 @@ typedef struct _GFXUnpackRef
 	struct
 	{
 		_GFXBuffer*   buffer;
-		_GFXMesh*     mesh; // If not NULL, buffer will not be NULL either!
 		_GFXImage*    image;
 		GFXRenderer*  renderer;
 
@@ -361,8 +360,8 @@ GFXReference _gfx_ref_resolve(GFXReference ref);
 
 /**
  * Resolves & unpacks a memory resource reference, meaning:
- * the related referenced objects and values are retrieved, if an object is
- * composed of other memory objects internally, those will be 'unpacked' as well.
+ * if an object is composed of other memory objects internally, it will be
+ * 'unpacked' into its elementary non-composed memory objects.
  *
  * Comes with free reference validation when in debug mode!
  */

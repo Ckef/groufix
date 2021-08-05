@@ -49,7 +49,6 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	_GFXUnpackRef unpack = {
 		.obj = {
 			.buffer = NULL,
-			.mesh = NULL,
 			.image = NULL,
 			.renderer = NULL
 		},
@@ -65,19 +64,16 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		break;
 
 	case GFX_REF_MESH_VERTICES:
-		unpack.obj.mesh = (_GFXMesh*)ref.obj;
-		unpack.obj.buffer = &unpack.obj.mesh->buffer;
+		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
 		unpack.value = ref.value;
 		break;
 
 	case GFX_REF_MESH_INDICES:
-		unpack.obj.mesh = (_GFXMesh*)ref.obj;
-		unpack.obj.buffer = &unpack.obj.mesh->buffer;
-
-		// Augment offset into the vertex/index buffer.
+		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
 		unpack.value = ref.value +
-			GFX_REF_IS_NULL(unpack.obj.mesh->refVertex) ?
-				unpack.obj.mesh->base.sizeVertices : 0;
+			// Augment offset into the vertex/index buffer.
+			GFX_REF_IS_NULL(((_GFXMesh*)ref.obj)->refVertex) ?
+				((_GFXMesh*)ref.obj)->base.sizeVertices : 0;
 		break;
 
 	case GFX_REF_IMAGE:
@@ -104,7 +100,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		break;
 
 	case GFX_REF_MESH_VERTICES:
-		if (unpack.obj.mesh->base.sizeVertices == 0)
+		if (((_GFXMesh*)ref.obj)->base.sizeVertices == 0)
 			gfx_log_warn("Referencing a non-existent vertex buffer!");
 
 		if (unpack.value >= unpack.obj.buffer->base.size)
@@ -113,7 +109,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		break;
 
 	case GFX_REF_MESH_INDICES:
-		if (unpack.obj.mesh->base.sizeIndices == 0)
+		if (((_GFXMesh*)ref.obj)->base.sizeIndices == 0)
 			gfx_log_warn("Referencing a non-existent index buffer!");
 
 		if (unpack.value >= unpack.obj.buffer->base.size)
