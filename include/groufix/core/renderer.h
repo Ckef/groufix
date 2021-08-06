@@ -169,7 +169,6 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
  ****************************/
 
 /**
- * TODO: shader location == in add-order?
  * Set render pass to read from an attachpent index of the renderer.
  * @param pass Cannot be NULL.
  * @return Zero on failure.
@@ -177,6 +176,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
 GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index);
 
 /**
+ * TODO: shader location == in add-order?
  * Set render pass to write to an attachment index of the renderer.
  * @see gfx_render_pass_read.
  */

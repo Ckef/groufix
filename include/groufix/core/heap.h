@@ -141,8 +141,10 @@ typedef struct GFXMesh
 
 	GFXTopology topology;
 
-	size_t sizeVertices; // Vertex buffer size (in bytes).
-	size_t sizeIndices;  // Index buffer size (in bytes).
+	size_t stride;    // i.e. vertex size in bytes.
+	size_t indexSize; // Index size in bytes.
+	size_t numVertices;
+	size_t numIndices;
 
 } GFXMesh;
 

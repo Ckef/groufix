@@ -341,10 +341,12 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 		goto clean;
 
 	// First get size of buffers to allocate then init the rest.
-	mesh->base.sizeVertices = numVertices * stride;
-	mesh->base.sizeIndices = numIndices * indexSize;
-
 	mesh->base.topology = topology;
+
+	mesh->base.stride = stride;
+	mesh->base.indexSize = numIndices > 0 ? indexSize : 0;
+	mesh->base.numVertices = numVertices;
+	mesh->base.numIndices = numIndices;
 
 	mesh->buffer.heap = heap;
 	mesh->buffer.base.flags = flags;
@@ -353,16 +355,13 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 		(GFX_REF_IS_NULL(vertex) ? GFX_BUFFER_VERTEX : 0) |
 		(GFX_REF_IS_NULL(index) ? GFX_BUFFER_INDEX : 0);
 	mesh->buffer.base.size =
-		(GFX_REF_IS_NULL(vertex) ? mesh->base.sizeVertices : 0) +
-		(GFX_REF_IS_NULL(index) ? mesh->base.sizeIndices : 0);
+		(GFX_REF_IS_NULL(vertex) ? (numVertices * stride) : 0) +
+		(GFX_REF_IS_NULL(index) ? (numIndices * indexSize) : 0);
 
 	mesh->refVertex = _gfx_ref_resolve(vertex);
 	mesh->refIndex = _gfx_ref_resolve(index);
 
-	mesh->stride = stride;
-	mesh->indexSize = indexSize;
 	mesh->numAttribs = numAttribs;
-
 	if (numAttribs) memcpy(
 		mesh->attribs, attribs, sizeof(GFXAttribute) * numAttribs);
 

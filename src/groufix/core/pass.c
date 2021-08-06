@@ -275,7 +275,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 			.vertexBindingDescriptionCount   = 1,
 			.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]){{
 				.binding   = 0,
-				.stride    = (uint32_t)mesh->stride,
+				.stride    = (uint32_t)mesh->base.stride,
 				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 			}}
 		};

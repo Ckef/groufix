@@ -77,7 +77,7 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->vk.pipeline);
 
 	// Bind index buffer.
-	if (mesh->base.sizeIndices > 0)
+	if (mesh->base.numIndices > 0)
 	{
 		_GFXUnpackRef index = _gfx_ref_unpack(
 			gfx_ref_mesh_indices((GFXMesh*)mesh, 0));
@@ -86,7 +86,7 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 			frame->vk.cmd,
 			index.obj.buffer->vk.buffer,
 			index.value,
-			mesh->indexSize == sizeof(uint16_t) ?
+			mesh->base.indexSize == sizeof(uint16_t) ?
 				VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
 	}
 
@@ -100,15 +100,15 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		(VkDeviceSize[]){ vertex.value });
 
 	// Draw.
-	if (mesh->base.sizeIndices > 0)
+	if (mesh->base.numIndices > 0)
 		context->vk.CmdDrawIndexed(
 			frame->vk.cmd,
-			(uint32_t)(mesh->base.sizeIndices / mesh->indexSize),
+			(uint32_t)mesh->base.numIndices,
 			1, 0, 0, 0);
 	else
 		context->vk.CmdDraw(
 			frame->vk.cmd,
-			(uint32_t)(mesh->base.sizeVertices / mesh->stride),
+			(uint32_t)mesh->base.numVertices,
 			1, 0, 0);
 
 	// End render pass.

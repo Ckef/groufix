@@ -91,9 +91,6 @@ typedef struct _GFXMesh
 	GFXBufferRef refVertex; // Can be GFX_REF_NULL.
 	GFXBufferRef refIndex;  // Can be GFX_REF_NULL.
 
-	size_t       stride; // i.e. vertex size in bytes.
-	size_t       indexSize;
-
 	size_t       numAttribs;
 	GFXAttribute attribs[];
 
