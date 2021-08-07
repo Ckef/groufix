@@ -528,7 +528,19 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 	assert(group != NULL);
 	assert(binding < ((_GFXGroup*)group)->numBindings);
 
-	return ((_GFXGroup*)group)->bindings[binding];
+	// Don't return the actually stored binding.
+	// NULL-ify the buffers or images field, don't expose it.
+	GFXBinding bind = ((_GFXGroup*)group)->bindings[binding];
+
+	switch (bind.type)
+	{
+	case GFX_BINDING_BUFFER:
+		bind.buffers = NULL; break;
+	case GFX_BINDING_IMAGE:
+		bind.images = NULL; break;
+	}
+
+	return bind;
 }
 
 /****************************/

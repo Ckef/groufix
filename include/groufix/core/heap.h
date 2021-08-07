@@ -53,17 +53,6 @@ typedef enum GFXImageUsage
 
 
 /**
- * Resource group's binding type.
- */
-typedef enum GFXBindingType
-{
-	GFX_BINDING_BUFFER,
-	GFX_BINDING_IMAGE
-
-} GFXBindingType;
-
-
-/**
  * Primitive topology.
  */
 typedef enum GFXTopology
@@ -84,6 +73,17 @@ typedef enum GFXTopology
 
 
 /**
+ * Resource group binding type.
+ */
+typedef enum GFXBindingType
+{
+	GFX_BINDING_BUFFER,
+	GFX_BINDING_IMAGE
+
+} GFXBindingType;
+
+
+/**
  * Vertex attribute description.
  */
 typedef struct GFXAttribute
@@ -99,9 +99,18 @@ typedef struct GFXAttribute
  */
 typedef struct GFXBinding
 {
-	// TODO: Add stuff.
 	GFXBindingType type;
-	size_t         count; // Number of bound buffers/images.
+
+	size_t count; // Number of bound buffers/images.
+	size_t size;  // Bytes to claim for/from each buffer (ignored for images).
+
+
+	// Bound data (input only).
+	union
+	{
+		const GFXBufferRef* buffers; // May be NULL or contain GFX_REF_NULL to allocate new.
+		const GFXImageRef* images;   // May _NOT_ be NULL or contain GFX_REF_NULL!
+	};
 
 } GFXBinding;
 
@@ -169,8 +178,8 @@ typedef struct GFXMesh
 typedef struct GFXGroup
 {
 	// All read-only.
-	// TODO: Add stuff.
-	GFXMemoryFlags flags;
+	GFXMemoryFlags flags; // Flags of any newly allocated buffer.
+	GFXBufferUsage usage; // Usage of any newly allocated buffer.
 
 } GFXGroup;
 
@@ -195,7 +204,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap);
  * Allocates a buffer from a heap.
  * @param heap  Cannot be NULL.
  * @param flags At least one flag must be set.
- * @param usage At least one usage must be set..
+ * @param usage At least one usage must be set.
  * @param size  Size of the buffer in bytes, must be > 0.
  * @return NULL on failure.
  *
@@ -238,8 +247,8 @@ GFX_API void gfx_free_image(GFXImage* image);
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Added usage for any newly allocated buffer.
- * @param vertex      Vertex buffer to use, GFX_REF_NULL to allocate a new one.
- * @param index       Index buffer to use, GFX_REF_NULL to allocate a new one.
+ * @param vertex      Vertex buffer to use, GFX_REF_NULL to allocate new.
+ * @param index       Index buffer to use, GFX_REF_NULL to allocate new.
  * @param numVertices Number of vertices to claim, must be > 0.
  * @param stride      Vertex size in bytes, must be > 0.
  * @param numIndices  Number of indices to claim.
@@ -281,6 +290,8 @@ GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib);
 
 /**
  * Allocates a resource group from a heap.
+ * All newly allocated buffers within the same binding are contiguously
+ * allocated and in the same order (and can be read/write like that).
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Added usage for any newly allocated buffer.
@@ -289,6 +300,8 @@ GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib);
  * @return NULL on failure.
  *
  * Thread-safe!
+ * The contents of the `buffers` or `images` field of each binding are copied
+ * during allocation and will not be read from anymore after this call.
  */
 GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
                                   GFXMemoryFlags flags, GFXBufferUsage usage,
@@ -310,6 +323,8 @@ GFX_API size_t gfx_group_get_num_bindings(GFXGroup* group);
  * Retrieves a binding description from a resource group.
  * @param group   Cannot be NULL.
  * @param binding Binding index, must be < gfx_group_get_num_bindings(group);
+ *
+ * The `buffers` or `images` field of the returned binding will be NULL.
  */
 GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
 

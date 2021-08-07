@@ -23,10 +23,7 @@
 	do { \
 		if (!(eval)) { \
 			gfx_log_warn(warning); \
-			return (_GFXUnpackRef){ \
-				.obj = { .buffer = NULL, .image = NULL, .renderer = NULL }, \
-				.value = 0 \
-			} \
+			return _GFX_UNPACK_REF_NULL; \
 		} \
 	} while (0)
 
@@ -75,17 +72,9 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 {
 	ref = _gfx_ref_resolve(ref);
 
-	// Init an empty unpacked reference.
-	_GFXUnpackRef unpack = {
-		.obj = {
-			.buffer = NULL,
-			.image = NULL,
-			.renderer = NULL
-		},
-		.value = 0
-	};
+	_GFXUnpackRef unpack = _GFX_UNPACK_REF_EMPTY;
 
-	// Fill it.
+	// Fill the unpacked ref.
 	switch (ref.type)
 	{
 	case GFX_REF_BUFFER:

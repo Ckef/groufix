@@ -99,7 +99,6 @@ typedef struct _GFXMesh
 
 
 /**
- * TODO: Incomplete definition.
  * Internal resource group (superset of buffer).
  */
 typedef struct _GFXGroup
@@ -108,7 +107,7 @@ typedef struct _GFXGroup
 	_GFXBuffer buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
 
 	size_t     numBindings;
-	GFXBinding bindings[];
+	GFXBinding bindings[]; // No reference is GFX_REF_NULL!
 
 } _GFXGroup;
 
@@ -361,6 +360,15 @@ typedef struct _GFXUnpackRef
 
 } _GFXUnpackRef;
 
+
+/**
+ * Empty unpacked reference macro (i.e. 0'd out).
+ */
+#define _GFX_UNPACK_REF_EMPTY \
+	(_GFXUnpackRef){ \
+		.obj = { .buffer = NULL, .image = NULL, .renderer = NULL }, \
+		.value = 0 \
+	}
 
 /**
  * Resolves a memory reference, meaning:
