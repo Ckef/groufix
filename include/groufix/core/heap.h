@@ -279,8 +279,26 @@ GFX_API size_t gfx_mesh_get_num_attribs(GFXMesh* mesh);
  */
 GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib);
 
-// TODO: Define gfx_alloc_group and gfx_free_group.
-// TODO: Implement all the group functions.
+/**
+ * Allocates a resource group from a heap.
+ * @param heap        Cannot be NULL.
+ * @param flags       At least one flag must be set if allocating new buffers.
+ * @param usage       Added usage for any newly allocated buffer.
+ * @param numBindings Number of resource bindings, must be > 0.
+ * @param bindings    Array of numBindings GFXBinding structs, cannot be NULL.
+ * @return NULL on failure.
+ *
+ * Thread-safe!
+ */
+GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
+                                  GFXMemoryFlags flags, GFXBufferUsage usage,
+                                  size_t numBindings, const GFXBinding* bindings);
+
+/**
+ * Frees a group, excluding any buffers or images it references.
+ * Thread-safe!
+ */
+GFX_API void gfx_free_group(GFXGroup* group);
 
 /**
  * Retrieves the number of bindings of a resource group.

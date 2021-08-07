@@ -9,6 +9,28 @@
 #include "groufix/core/objects.h"
 
 
+// Auto log when a resolve-validation statement is untrue.
+#define _GFX_CHECK_RESOLVE(eval, warning) \
+	do { \
+		if (!(eval)) { \
+			gfx_log_warn(warning); \
+			return GFX_REF_NULL; \
+		} \
+	} while (0)
+
+// Auto log when an unpack-validation statement is untrue.
+#define _GFX_CHECK_UNPACK(eval, warning) \
+	do { \
+		if (!(eval)) { \
+			gfx_log_warn(warning); \
+			return (_GFXUnpackRef){ \
+				.obj = { .buffer = NULL, .image = NULL, .renderer = NULL }, \
+				.value = 0 \
+			} \
+		} \
+	} while (0)
+
+
 /****************************/
 GFXReference _gfx_ref_resolve(GFXReference ref)
 {

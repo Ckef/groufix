@@ -24,6 +24,12 @@
 #define _GFX_MESH_FROM_LIST(node) \
 	_GFX_MESH_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
 
+#define _GFX_GROUP_FROM_BUFFER(buff) \
+	((_GFXGroup*)((char*)(buff) - offsetof(_GFXGroup, buffer)))
+
+#define _GFX_GROUP_FROM_LIST(node) \
+	_GFX_GROUP_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
+
 #define _GFX_GET_VK_BUFFER_USAGE(flags, usage) \
 	((flags & GFX_MEMORY_READ ? \
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT : (VkBufferUsageFlags)0) | \
@@ -178,6 +184,7 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	gfx_list_init(&heap->buffers);
 	gfx_list_init(&heap->images);
 	gfx_list_init(&heap->meshes);
+	gfx_list_init(&heap->groups);
 
 	return heap;
 
@@ -208,11 +215,15 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	while (heap->meshes.head != NULL) gfx_free_mesh(
 		(GFXMesh*)_GFX_MESH_FROM_LIST(heap->meshes.head));
 
+	while (heap->groups.head != NULL) gfx_free_group(
+		(GFXGroup*)_GFX_GROUP_FROM_LIST(heap->groups.head));
+
 	// Clear allocator.
 	_gfx_allocator_clear(&heap->allocator);
 	gfx_list_clear(&heap->buffers);
 	gfx_list_clear(&heap->images);
 	gfx_list_clear(&heap->meshes);
+	gfx_list_clear(&heap->groups);
 
 	_gfx_mutex_clear(&heap->lock);
 	free(heap);
@@ -465,6 +476,42 @@ GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib)
 	assert(attrib < ((_GFXMesh*)mesh)->numAttribs);
 
 	return ((_GFXMesh*)mesh)->attribs[attrib];
+}
+
+/****************************/
+GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
+                                  GFXMemoryFlags flags, GFXBufferUsage usage,
+                                  size_t numBindings, const GFXBinding* bindings)
+{
+	assert(heap != NULL);
+	assert(numBindings > 0);
+	assert(bindings != NULL);
+
+	// TODO: Implement.
+
+	return NULL;
+}
+
+/****************************/
+GFX_API void gfx_free_group(GFXGroup* group)
+{
+	if (group == NULL)
+		return;
+
+	_GFXGroup* grp = (_GFXGroup*)group;
+	GFXHeap* heap = grp->buffer.heap;
+
+	// Unlink from heap & free.
+	_gfx_mutex_lock(&heap->lock);
+
+	gfx_list_erase(&heap->groups, &grp->buffer.list);
+
+	if (grp->buffer.vk.buffer != VK_NULL_HANDLE)
+		_gfx_buffer_free(&grp->buffer);
+
+	_gfx_mutex_unlock(&heap->lock);
+
+	free(group);
 }
 
 /****************************/

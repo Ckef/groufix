@@ -32,6 +32,7 @@ struct GFXHeap
 	GFXList buffers; // References _GFXBuffer.
 	GFXList images;  // References _GFXImage.
 	GFXList meshes;  // References _GFXMesh.
+	GFXList groups;  // References _GFXGroup.
 };
 
 
@@ -98,6 +99,7 @@ typedef struct _GFXMesh
 
 
 /**
+ * TODO: Incomplete definition.
  * Internal resource group (superset of buffer).
  */
 typedef struct _GFXGroup
