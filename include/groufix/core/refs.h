@@ -86,8 +86,7 @@ typedef GFXReference GFXImageRef;
  *  GFXGroup    (one of its buffers or images)
  *  GFXRenderer (its image attachments)
  *
- * No argument can be NULL, any referenced memory resource must exist and
- * be of the correct type (buffer or image).
+ * No argument can be NULL, any referenced memory resource must exist.
  * If any of these constraints are not met, behaviour is undefined.
  */
 #define gfx_ref_buffer(buffer, offset) \

@@ -376,6 +376,7 @@ typedef struct _GFXUnpackRef
  * @return A reference to the user-visible object actually holding the memory.
  *
  * Assumes no self-references exist!
+ * Returns GFX_REF_NULL and warns on an invalid reference.
  */
 GFXReference _gfx_ref_resolve(GFXReference ref);
 
@@ -384,7 +385,7 @@ GFXReference _gfx_ref_resolve(GFXReference ref);
  * if an object is composed of other memory objects internally, it will be
  * 'unpacked' into its elementary non-composed memory objects.
  *
- * Comes with free reference validation when in debug mode!
+ * Returns _GFX_UNPACK_REF_EMPTY and warns on an invalid reference.
  */
 _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 
