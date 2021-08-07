@@ -21,12 +21,20 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 	{
 	case GFX_REF_MESH_VERTICES:
 		rec = ((_GFXMesh*)ref.obj)->refVertex;
-		rec.value += ref.value;
+		rec.values[0] += ref.values[0];
 		break;
 
 	case GFX_REF_MESH_INDICES:
 		rec = ((_GFXMesh*)ref.obj)->refIndex;
-		rec.value += ref.value;
+		rec.values[0] += ref.values[0];
+		break;
+
+	case GFX_REF_GROUP_BUFFER:
+		// TODO: Implement, do some validation here too (check if buffer)?
+		break;
+
+	case GFX_REF_GROUP_IMAGE:
+		// TODO: Implement, do some validation here too (check if image)?
 		break;
 
 	default:
@@ -60,29 +68,33 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	{
 	case GFX_REF_BUFFER:
 		unpack.obj.buffer = (_GFXBuffer*)ref.obj;
-		unpack.value = ref.value;
-		break;
-
-	case GFX_REF_MESH_VERTICES:
-		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
-		unpack.value = ref.value;
-		break;
-
-	case GFX_REF_MESH_INDICES:
-		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
-		unpack.value = ref.value +
-			// Augment offset into the vertex/index buffer.
-			GFX_REF_IS_NULL(((_GFXMesh*)ref.obj)->refVertex) ?
-				((GFXMesh*)ref.obj)->numVertices * ((GFXMesh*)ref.obj)->stride : 0;
+		unpack.value = ref.values[0];
 		break;
 
 	case GFX_REF_IMAGE:
 		unpack.obj.image = (_GFXImage*)ref.obj;
 		break;
 
+	case GFX_REF_MESH_VERTICES:
+		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
+		unpack.value = ref.values[0];
+		break;
+
+	case GFX_REF_MESH_INDICES:
+		unpack.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
+		unpack.value = ref.values[0] +
+			// Augment offset into the vertex/index buffer.
+			GFX_REF_IS_NULL(((_GFXMesh*)ref.obj)->refVertex) ?
+				((GFXMesh*)ref.obj)->numVertices * ((GFXMesh*)ref.obj)->stride : 0;
+		break;
+
+	case GFX_REF_GROUP_BUFFER:
+		// TODO: Implement (group image is not necessary as it alwasy resolves to an image).
+		break;
+
 	case GFX_REF_ATTACHMENT:
 		unpack.obj.renderer = (GFXRenderer*)ref.obj;
-		unpack.value = ref.value;
+		unpack.value = ref.values[0];
 		break;
 
 	default:
@@ -90,6 +102,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	}
 
 	// And finally some more debug validation.
+	// TODO: Make it validate in non-debug too??
 #if !defined (NDEBUG)
 	switch (ref.type)
 	{
@@ -115,6 +128,10 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		if (unpack.value >= unpack.obj.buffer->base.size)
 			gfx_log_warn("Index buffer reference out of bounds!");
 
+		break;
+
+	case GFX_REF_GROUP_BUFFER:
+		// TODO: Validate that the buffers exists & its bounds.
 		break;
 
 	case GFX_REF_ATTACHMENT:

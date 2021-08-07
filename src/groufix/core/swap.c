@@ -239,8 +239,15 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		// If we can't retire it, destroy it :/
 		if (oldSwap != VK_NULL_HANDLE)
 			if (!gfx_vec_push(&window->vk.retired, 1, &oldSwap))
+			{
+				gfx_log_warn(
+					"Could not retire an old swapchain and will instead "
+					"destroy it on physical device: %s.",
+					device->name);
+
 				context->vk.DestroySwapchainKHR(
 					context->vk.device, oldSwap, NULL);
+			}
 
 		// Query all the images associated with the swapchain
 		// and remember them for later usage.

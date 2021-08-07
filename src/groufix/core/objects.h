@@ -97,6 +97,20 @@ typedef struct _GFXMesh
 } _GFXMesh;
 
 
+/**
+ * Internal resource group (superset of buffer).
+ */
+typedef struct _GFXGroup
+{
+	GFXGroup   base;
+	_GFXBuffer buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
+
+	size_t     numBindings;
+	GFXBinding bindings[];
+
+} _GFXGroup;
+
+
 /****************************
  * Shading objects.
  ****************************/
@@ -339,7 +353,7 @@ typedef struct _GFXUnpackRef
 	} obj;
 
 
-	// Reference value,
+	// Unpacked reference value,
 	//  buffer offset | attachment index.
 	size_t value;
 

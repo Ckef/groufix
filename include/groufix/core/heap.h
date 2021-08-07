@@ -53,6 +53,17 @@ typedef enum GFXImageUsage
 
 
 /**
+ * Resource group's binding type.
+ */
+typedef enum GFXBindingType
+{
+	GFX_BINDING_BUFFER,
+	GFX_BINDING_IMAGE
+
+} GFXBindingType;
+
+
+/**
  * Primitive topology.
  */
 typedef enum GFXTopology
@@ -85,11 +96,14 @@ typedef struct GFXAttribute
 
 /**
  * Resource group binding description.
- * TODO: Define.
  */
-//typedef struct GFXBinding
-//{
-//} GFXBinding;
+typedef struct GFXBinding
+{
+	// TODO: Add stuff.
+	GFXBindingType type;
+	size_t         count; // Number of bound buffers/images.
+
+} GFXBinding;
 
 
 /**
@@ -147,6 +161,18 @@ typedef struct GFXMesh
 	size_t numIndices;
 
 } GFXMesh;
+
+
+/**
+ * Resource group definition.
+ */
+typedef struct GFXGroup
+{
+	// All read-only.
+	// TODO: Add stuff.
+	GFXMemoryFlags flags;
+
+} GFXGroup;
 
 
 /****************************
@@ -241,7 +267,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 GFX_API void gfx_free_mesh(GFXMesh* mesh);
 
 /**
- * Retrieves the number of attributes of a mesh.
+ * Retrieves the number of vertex attributes of a mesh.
  * @param mesh Cannot be NULL.
  */
 GFX_API size_t gfx_mesh_get_num_attribs(GFXMesh* mesh);
@@ -252,6 +278,22 @@ GFX_API size_t gfx_mesh_get_num_attribs(GFXMesh* mesh);
  * @param attrib Attribute index, must be < gfx_mesh_get_num_attribs(mesh).
  */
 GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib);
+
+// TODO: Define gfx_alloc_group and gfx_free_group.
+// TODO: Implement all the group functions.
+
+/**
+ * Retrieves the number of bindings of a resource group.
+ * @param group Cannot be NULL.
+ */
+GFX_API size_t gfx_group_get_num_bindings(GFXGroup* group);
+
+/**
+ * Retrieves a binding description from a resource group.
+ * @param group   Cannot be NULL.
+ * @param binding Binding index, must be < gfx_group_get_num_bindings(group);
+ */
+GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
 
 
 /****************************

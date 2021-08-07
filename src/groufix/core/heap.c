@@ -468,6 +468,23 @@ GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib)
 }
 
 /****************************/
+GFX_API size_t gfx_group_get_num_bindings(GFXGroup* group)
+{
+	assert(group != NULL);
+
+	return ((_GFXGroup*)group)->numBindings;
+}
+
+/****************************/
+GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
+{
+	assert(group != NULL);
+	assert(binding < ((_GFXGroup*)group)->numBindings);
+
+	return ((_GFXGroup*)group)->bindings[binding];
+}
+
+/****************************/
 GFX_API void* gfx_map(GFXReference ref)
 {
 	assert(!GFX_REF_IS_NULL(ref));
