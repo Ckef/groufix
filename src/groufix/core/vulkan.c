@@ -12,12 +12,14 @@
 
 
 #define _GFX_GET_INSTANCE_PROC_ADDR(pName) \
-	_groufix.vk.pName = (PFN_vk##pName)glfwGetInstanceProcAddress( \
-		_groufix.vk.instance, "vk"#pName); \
-	if (_groufix.vk.pName == NULL) { \
-		gfx_log_error("Could not load vk"#pName"."); \
-		goto clean; \
-	}
+	do { \
+		_groufix.vk.pName = (PFN_vk##pName)glfwGetInstanceProcAddress( \
+			_groufix.vk.instance, "vk"#pName); \
+		if (_groufix.vk.pName == NULL) { \
+			gfx_log_error("Could not load vk"#pName"."); \
+			goto clean; \
+		} \
+	} while (0)
 
 
 #if !defined (NDEBUG)

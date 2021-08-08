@@ -346,7 +346,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 	// Allocate a new mesh.
 	_GFXMesh* mesh = malloc(
 		sizeof(_GFXMesh) +
-		sizeof(size_t) * numAttribs);
+		sizeof(GFXAttribute) * numAttribs);
 
 	if (mesh == NULL)
 		goto clean;

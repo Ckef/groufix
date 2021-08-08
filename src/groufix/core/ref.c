@@ -134,6 +134,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		unp.obj.renderer = (GFXRenderer*)ref.obj;
 		unp.value = ref.values[0];
 
+		// TODO: Not thread safe with respect to renderer, what do?
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.renderer->backing.attachs.size,
 			"Referencing a non-existent renderer attachment!");

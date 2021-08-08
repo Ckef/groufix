@@ -13,12 +13,14 @@
 
 
 #define _GFX_GET_DEVICE_PROC_ADDR(pName) \
-	context->vk.pName = (PFN_vk##pName)_groufix.vk.GetDeviceProcAddr( \
-		context->vk.device, "vk"#pName); \
-	if (context->vk.pName == NULL) { \
-		gfx_log_error("Could not load vk"#pName"."); \
-		goto clean; \
-	}
+	do { \
+		context->vk.pName = (PFN_vk##pName)_groufix.vk.GetDeviceProcAddr( \
+			context->vk.device, "vk"#pName); \
+		if (context->vk.pName == NULL) { \
+			gfx_log_error("Could not load vk"#pName"."); \
+			goto clean; \
+		} \
+	} while (0)
 
 #define _GFX_GET_DEVICE_TYPE(vType) \
 	((vType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) ? \
