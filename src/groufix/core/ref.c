@@ -90,7 +90,7 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 			_GFX_BINDING->type == GFX_BINDING_IMAGE,
 			"Group image reference not an image!");
 
-		rec = _GFX_BINDING->images[ref.values[2]];
+		rec = _GFX_BINDING->images[ref.values[2]]; // Must be an image.
 		break;
 
 	default:
@@ -169,7 +169,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_ATTACHMENT:
 		unp.obj.renderer = _GFX_RENDERER;
-		unp.value = ref.values[0];
+		unp.value = ref.values[1];
 
 		// TODO: Not thread safe with respect to renderer, what do?
 		_GFX_CHECK_UNPACK(

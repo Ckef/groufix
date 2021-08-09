@@ -325,7 +325,7 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	// Preferably the graphics queue, otherwise another one.
 	// 3) A transfer family:
 	// We use the most optimal family with VK_QUEUE_TRANSFER_BIT set.
-	// TODO: 3) A compute-only family for use when others are stalling.
+	// TODO: 4) A compute-only family for use when others are stalling.
 
 	// UINT32_MAX means no such queue is found.
 	uint32_t graphics = UINT32_MAX;

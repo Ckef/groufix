@@ -39,7 +39,7 @@ typedef struct GFXReference
 	void* obj;
 
 	// Reference values,
-	//  { buffer offset | attachment | 0, binding | 0, index | 0 }.
+	//  { buffer offset | 0, binding | attachment | 0, index | 0 }.
 	size_t values[3];
 
 } GFXReference;
@@ -135,7 +135,7 @@ typedef GFXReference GFXImageRef;
 	(GFXImageRef){ \
 		.type = GFX_REF_ATTACHMENT, \
 		.obj = renderer, \
-		.values = { index, 0, 0 } \
+		.values = { 0, index, 0 } \
 	}
 
 
