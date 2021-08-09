@@ -376,7 +376,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 	if (numAttribs) memcpy(
 		mesh->attribs, attribs, sizeof(GFXAttribute) * numAttribs);
 
-	// Get appropriate public flags & usage (also happens to unpack & validate).
+	// Get appropriate public flags & usage.
 	_GFXBuffer* vertexBuff = _gfx_ref_unpack(mesh->refVertex).obj.buffer;
 	_GFXBuffer* indexBuff = _gfx_ref_unpack(mesh->refIndex).obj.buffer;
 
@@ -487,7 +487,112 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	assert(numBindings > 0);
 	assert(bindings != NULL);
 
-	// TODO: Implement.
+	// Count the number of references to allocate.
+	size_t numRefs = 0;
+	for (size_t b = 0; b < numBindings; ++b)
+		numRefs += bindings[b].count;
+
+	// Allocate a new group.
+	_GFXGroup* group = malloc(
+		sizeof(_GFXGroup) +
+		sizeof(GFXBinding) * numBindings +
+		sizeof(GFXReference) * numRefs);
+
+	if (group == NULL)
+		goto clean;
+
+	// Initialize bindings & copy references.
+	group->numBindings = numBindings;
+
+	GFXReference* refPtr =
+		(GFXReference*)((GFXBinding*)(group + 1) + numBindings);
+
+	// While we're at it, compute the size of the buffers to allocate.
+	size_t size = 0;
+
+	for (size_t b = 0; b < numBindings; ++b)
+	{
+		// Set values for each binding.
+		// We actually copy all the references to the end of the group struct,
+		// in the same order we found them (!).
+		GFXBinding* bind = group->bindings + b;
+		const GFXReference* srcPtr = NULL;
+
+		*bind = bindings[b];
+
+		switch (bind->type)
+		{
+		case GFX_BINDING_BUFFER:
+			srcPtr = bind->buffers, bind->buffers = refPtr; break;
+		case GFX_BINDING_IMAGE:
+			srcPtr = bind->images, bind->images = refPtr; break;
+		}
+
+		// Take source references, resolve them.
+		// If no reference, insert a reference to the group's buffer.
+		// Also, count the size of that buffer so we can allocate it.
+		size_t nulled = 0;
+		for (size_t r = 0; r < bind->count; ++r)
+		{
+			if (srcPtr && !GFX_REF_IS_NULL(srcPtr[r]))
+				refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
+			else
+			{
+				refPtr[r] = gfx_ref_buffer(&group->buffer, size);
+				size += bind->size;
+				++nulled;
+			}
+		}
+
+		// Validate bound images.
+		if (nulled > 0 && bind->type == GFX_BINDING_IMAGE)
+		{
+			gfx_log_error(
+				"A resource group binding description of type "
+				"GFX_BINDING_IMAGE cannot contain any empty resource "
+				"references.");
+
+			goto clean;
+		}
+
+		refPtr += bind->count;
+	}
+
+	// Ok now that we now what to allocate, init the rest.
+	group->buffer.heap = heap;
+	group->buffer.base.flags = flags;
+	group->buffer.base.usage = usage;
+	group->buffer.base.size = size;
+
+	group->base.flags = size > 0 ? flags : 0;
+	group->base.usage = size > 0 ? usage : 0;
+
+	// Allocate a buffer if required.
+	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.
+	group->buffer.vk.buffer = VK_NULL_HANDLE;
+
+	// Now we will actually modify the heap, so we lock!
+	_gfx_mutex_lock(&heap->lock);
+
+	if (group->buffer.base.size > 0)
+		if (!_gfx_buffer_alloc(&group->buffer))
+		{
+			_gfx_mutex_unlock(&heap->lock);
+			goto clean;
+		}
+
+	// Link into the heap & unlock.
+	gfx_list_insert_after(&heap->groups, &group->buffer.list, NULL);
+
+	_gfx_mutex_unlock(&heap->lock);
+
+	return &group->base;
+
+
+	// Clean on failure.
+clean:
+	gfx_log_error("Could not allocate a new resource group.");
+	free(group);
 
 	return NULL;
 }

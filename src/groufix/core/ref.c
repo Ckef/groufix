@@ -9,6 +9,13 @@
 #include "groufix/core/objects.h"
 
 
+#define _GFX_BUFFER ((_GFXBuffer*)ref.obj)
+#define _GFX_IMAGE ((_GFXImage*)ref.obj)
+#define _GFX_MESH ((_GFXMesh*)ref.obj)
+#define _GFX_GROUP ((_GFXGroup*)ref.obj)
+#define _GFX_BINDING (((_GFXGroup*)ref.obj)->bindings + ref.values[1])
+#define _GFX_RENDERER ((GFXRenderer*)ref.obj)
+
 // Auto log when a resolve-validation statement is untrue.
 #define _GFX_CHECK_RESOLVE(eval, warning) \
 	do { \
@@ -39,21 +46,51 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 	switch (ref.type)
 	{
 	case GFX_REF_MESH_VERTICES:
-		rec = ((_GFXMesh*)ref.obj)->refVertex;
+		_GFX_CHECK_RESOLVE(
+			_GFX_MESH->base.numVertices > 0,
+			"Referencing a non-existent vertex buffer!");
+
+		rec = _GFX_MESH->refVertex; // Must be a buffer.
 		rec.values[0] += ref.values[0];
 		break;
 
 	case GFX_REF_MESH_INDICES:
-		rec = ((_GFXMesh*)ref.obj)->refIndex;
+		_GFX_CHECK_RESOLVE(
+			_GFX_MESH->base.numIndices > 0,
+			"Referencing a non-existent index buffer!");
+
+		rec = _GFX_MESH->refIndex; // Must be a buffer.
 		rec.values[0] += ref.values[0];
 		break;
 
 	case GFX_REF_GROUP_BUFFER:
-		// TODO: Implement, do some validation here too (check if buffer).
+		_GFX_CHECK_RESOLVE(
+			ref.values[1] < _GFX_GROUP->numBindings &&
+			ref.values[2] < _GFX_BINDING->count,
+			"Referencing a non-existent group buffer!");
+
+		_GFX_CHECK_RESOLVE(
+			_GFX_BINDING->type == GFX_BINDING_BUFFER,
+			"Group buffer reference not a buffer!");
+
+		rec = _GFX_BINDING->buffers[ref.values[2]]; // Must be a buffer.
+		rec.values[0] += ref.values[0];
+
+		// If referencing the group's buffer, just return the group ref.
+		if (rec.obj == &_GFX_GROUP->buffer) rec = GFX_REF_NULL;
 		break;
 
 	case GFX_REF_GROUP_IMAGE:
-		// TODO: Implement, do some validation here too (check if image).
+		_GFX_CHECK_RESOLVE(
+			ref.values[1] < _GFX_GROUP->numBindings &&
+			ref.values[2] < _GFX_BINDING->count,
+			"Referencing a non-existent group image!");
+
+		_GFX_CHECK_RESOLVE(
+			_GFX_BINDING->type == GFX_BINDING_IMAGE,
+			"Group image reference not an image!");
+
+		rec = _GFX_BINDING->images[ref.values[2]];
 		break;
 
 	default:
@@ -78,7 +115,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	switch (ref.type)
 	{
 	case GFX_REF_BUFFER:
-		unp.obj.buffer = (_GFXBuffer*)ref.obj;
+		unp.obj.buffer = _GFX_BUFFER;
 		unp.value = ref.values[0];
 
 		_GFX_CHECK_UNPACK(
@@ -88,16 +125,12 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		break;
 
 	case GFX_REF_IMAGE:
-		unp.obj.image = (_GFXImage*)ref.obj;
+		unp.obj.image = _GFX_IMAGE;
 		break;
 
 	case GFX_REF_MESH_VERTICES:
-		unp.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
+		unp.obj.buffer = &_GFX_MESH->buffer;
 		unp.value = ref.values[0];
-
-		_GFX_CHECK_UNPACK(
-			((GFXMesh*)ref.obj)->numVertices > 0,
-			"Referencing a non-existent vertex buffer!");
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
@@ -106,15 +139,11 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		break;
 
 	case GFX_REF_MESH_INDICES:
-		unp.obj.buffer = &((_GFXMesh*)ref.obj)->buffer;
+		unp.obj.buffer = &_GFX_MESH->buffer;
 		unp.value = ref.values[0] +
 			// Augment offset into the vertex/index buffer.
-			GFX_REF_IS_NULL(((_GFXMesh*)ref.obj)->refVertex) ?
-				((GFXMesh*)ref.obj)->numVertices * ((GFXMesh*)ref.obj)->stride : 0;
-
-		_GFX_CHECK_UNPACK(
-			((GFXMesh*)ref.obj)->numIndices > 0,
-			"Referencing a non-existent index buffer!");
+			GFX_REF_IS_NULL(_GFX_MESH->refVertex) ?
+				_GFX_MESH->base.numVertices * _GFX_MESH->base.stride : 0;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
@@ -123,15 +152,23 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		break;
 
 	case GFX_REF_GROUP_BUFFER:
-		// TODO: Implement, validate buffer existence & its bounds.
+		unp.obj.buffer = &_GFX_GROUP->buffer;
+		unp.value = ref.values[0] +
+			// Augment offset into the group's buffer.
+			_GFX_BINDING->buffers[ref.values[2]].values[0];
+
+		_GFX_CHECK_UNPACK(
+			unp.value < unp.obj.buffer->base.size,
+			"Group buffer reference out of bounds!");
+
 		break;
 
 	case GFX_REF_GROUP_IMAGE:
-		// No-op. Won't happen, it always resolves to a GFX_REF_IMAGE.
+		// No-op. Won't happen, it always resolves to a non-group ref.
 		break;
 
 	case GFX_REF_ATTACHMENT:
-		unp.obj.renderer = (GFXRenderer*)ref.obj;
+		unp.obj.renderer = _GFX_RENDERER;
 		unp.value = ref.values[0];
 
 		// TODO: Not thread safe with respect to renderer, what do?

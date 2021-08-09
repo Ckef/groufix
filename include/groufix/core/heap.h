@@ -294,7 +294,7 @@ GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib);
  * allocated and in the same order (and can be read/write like that).
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
- * @param usage       Added usage for any newly allocated buffer.
+ * @param usage       Usage for any newly allocated buffer.
  * @param numBindings Number of resource bindings, must be > 0.
  * @param bindings    Array of numBindings GFXBinding structs, cannot be NULL.
  * @return NULL on failure.

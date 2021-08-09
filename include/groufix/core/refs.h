@@ -39,8 +39,8 @@ typedef struct GFXReference
 	void* obj;
 
 	// Reference values,
-	//  buffer offset | { binding, index } | attachment index.
-	size_t values[2];
+	//  { buffer offset | attachment | 0, binding | 0, index | 0 }.
+	size_t values[3];
 
 } GFXReference;
 
@@ -93,49 +93,49 @@ typedef GFXReference GFXImageRef;
 	(GFXBufferRef){ \
 		.type = GFX_REF_BUFFER, \
 		.obj = buffer, \
-		.values = { offset, 0 } \
+		.values = { offset, 0, 0 } \
 	}
 
 #define gfx_ref_image(image) \
 	(GFXImageRef){ \
 		.type = GFX_REF_IMAGE, \
 		.obj = image \
-		.values = { 0, 0 } \
+		.values = { 0, 0, 0 } \
 	}
 
 #define gfx_ref_mesh_vertices(mesh, offset) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_MESH_VERTICES, \
 		.obj = mesh, \
-		.values = { offset, 0 } \
+		.values = { offset, 0, 0 } \
 	}
 
 #define gfx_ref_mesh_indices(mesh, offset) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_MESH_INDICES, \
 		.obj = mesh, \
-		.values = { offset, 0 } \
+		.values = { offset, 0, 0 } \
 	}
 
-#define gfx_ref_group_buffer(group, binding, index) \
+#define gfx_ref_group_buffer(group, binding, index, offset) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_GROUP_BUFFER, \
 		.obj = group, \
-		.values = { binding, index } \
+		.values = { offset, binding, index } \
 	}
 
 #define gfx_ref_group_image(group, binding, index) \
 	(GFXImageRef){ \
 		.type = GFX_REF_GROUP_IMAGE, \
 		.obj = group, \
-		.values = { binding, index } \
+		.values = { 0, binding, index } \
 	}
 
 #define gfx_ref_attachment(renderer, index) \
 	(GFXImageRef){ \
 		.type = GFX_REF_ATTACHMENT, \
 		.obj = renderer, \
-		.values = { index, 0 } \
+		.values = { index, 0, 0 } \
 	}
 
 
