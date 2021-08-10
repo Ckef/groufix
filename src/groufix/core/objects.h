@@ -371,21 +371,21 @@ typedef struct _GFXUnpackRef
 	}
 
 /**
- * Resolves a memory reference, meaning:
+ * Resolves & validates a memory reference, meaning:
  * if it references a reference, it will recursively return that reference.
- * @return A reference to the user-visible object actually holding the memory.
+ * @return A user-land reference to the object actually holding the memory.
  *
  * Assumes no self-references exist!
- * Returns GFX_REF_NULL and warns on an invalid reference.
+ * Returns GFX_REF_NULL and warns when the reference is invalid.
  */
 GFXReference _gfx_ref_resolve(GFXReference ref);
 
 /**
- * Resolves & unpacks a memory resource reference, meaning:
+ * Resolves, unpacks & validates a memory resource reference, meaning:
  * if an object is composed of other memory objects internally, it will be
  * 'unpacked' into its elementary non-composed memory objects.
  *
- * Returns _GFX_UNPACK_REF_EMPTY and warns on an invalid reference.
+ * Returns _GFX_UNPACK_REF_EMPTY and warns when out of bounds.
  */
 _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 
