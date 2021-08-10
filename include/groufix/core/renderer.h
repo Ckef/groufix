@@ -205,7 +205,9 @@ GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep);
  * TODO: Totally temporary!
  * Makes the render pass render the given things.
  */
-GFX_API void gfx_render_pass_use(GFXRenderPass* pass, GFXMesh* mesh);
+GFX_API void gfx_render_pass_use(GFXRenderPass* pass,
+                                 GFXMesh* mesh,
+                                 GFXGroup* group);
 
 
 #endif

@@ -311,6 +311,7 @@ struct GFXRenderPass
 
 		// TODO: Super temporary!!
 		_GFXMesh*  mesh;
+		_GFXGroup* group;
 		GFXShader* vertex;
 		GFXShader* fragment;
 
@@ -321,10 +322,13 @@ struct GFXRenderPass
 	struct
 	{
 		// TODO: Most of these are temporary..
-		VkRenderPass     pass;
-		VkPipelineLayout layout;
-		VkPipeline       pipeline;
-		GFXVec           framebuffers; // Stores VkFramebuffer.
+		VkRenderPass          pass;
+		GFXVec                framebuffers; // Stores VkFramebuffer.
+		VkDescriptorSetLayout setLayout;
+		VkDescriptorPool      pool;
+		VkDescriptorSet       set;
+		VkPipelineLayout      pipeLayout;
+		VkPipeline            pipeline;
 
 	} vk;
 

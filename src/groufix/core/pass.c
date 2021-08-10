@@ -114,11 +114,13 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
 	assert(pass->build.mesh != NULL); // TODO: Obviously temporary.
+	assert(pass->build.group != NULL); // TODO: Uh oh, temporary.
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->context;
 	_GFXAttach* at = NULL;
 	_GFXMesh* mesh = pass->build.mesh;
+	_GFXGroup* group = pass->build.group;
 
 	// Get the backing window attachment.
 	if (pass->build.backing != SIZE_MAX)
@@ -210,22 +212,110 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		}
 	}
 
+	// Create descriptor set layout.
+	if (pass->vk.setLayout == VK_NULL_HANDLE)
+	{
+		VkDescriptorSetLayoutCreateInfo dslci = {
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+
+			.pNext        = NULL,
+			.flags        = 0,
+			.bindingCount = 1,
+			.pBindings = (VkDescriptorSetLayoutBinding[]){{
+				.binding            = 0,
+				.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				.descriptorCount    = 1,
+				.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
+				.pImmutableSamplers = NULL
+			}}
+		};
+
+		_GFX_VK_CHECK(context->vk.CreateDescriptorSetLayout(
+			context->vk.device, &dslci, NULL, &pass->vk.setLayout), goto error);
+	}
+
+	// Create descriptor pool.
+	if (pass->vk.pool == VK_NULL_HANDLE)
+	{
+		VkDescriptorPoolCreateInfo dpci = {
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+
+			.pNext         = NULL,
+			.flags         = 0,
+			.maxSets       = 1,
+			.poolSizeCount = 1,
+			.pPoolSizes = (VkDescriptorPoolSize[]){{
+				.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				.descriptorCount = 1
+			}}
+		};
+
+		_GFX_VK_CHECK(context->vk.CreateDescriptorPool(
+			context->vk.device, &dpci, NULL, &pass->vk.pool), goto error);
+	}
+
+	// Allocate descriptor set.
+	if (pass->vk.set == VK_NULL_HANDLE)
+	{
+		VkDescriptorSetAllocateInfo dsai = {
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+
+			.pNext              = NULL,
+			.descriptorPool     = pass->vk.pool,
+			.descriptorSetCount = 1,
+			.pSetLayouts        = &pass->vk.setLayout
+		};
+
+		_GFX_VK_CHECK(context->vk.AllocateDescriptorSets(
+			context->vk.device, &dsai, &pass->vk.set), goto error);
+
+		// Write the first binding of the group to it lol.
+		// TODO: Renderable objects should define what parts of a group to
+		// take as their data, from which descriptor set shite can be derived.
+		_GFXUnpackRef ubo = _gfx_ref_unpack(
+			gfx_ref_group_buffer((GFXGroup*)group, 0, 0, 0));
+
+		if (ubo.obj.buffer == NULL)
+			goto error;
+
+		VkDescriptorBufferInfo dbi = {
+			.buffer = ubo.obj.buffer->vk.buffer,
+			.offset = ubo.value,
+			.range  = group->bindings[0].size
+		};
+
+		VkWriteDescriptorSet wds = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+
+			.pNext            = NULL,
+			.dstSet           = pass->vk.set,
+			.dstBinding       = 0,
+			.dstArrayElement  = 0,
+			.descriptorCount  = 1,
+			.descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.pBufferInfo      = &dbi,
+		};
+
+		context->vk.UpdateDescriptorSets(
+			context->vk.device, 1, &wds, 0, NULL);
+	}
+
 	// Create pipeline layout.
-	if (pass->vk.layout == VK_NULL_HANDLE)
+	if (pass->vk.pipeLayout == VK_NULL_HANDLE)
 	{
 		VkPipelineLayoutCreateInfo plci = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 
 			.pNext                  = NULL,
 			.flags                  = 0,
-			.setLayoutCount         = 0,
-			.pSetLayouts            = NULL,
+			.setLayoutCount         = 1,
+			.pSetLayouts            = &pass->vk.setLayout,
 			.pushConstantRangeCount = 0,
 			.pPushConstantRanges    = NULL
 		};
 
 		_GFX_VK_CHECK(context->vk.CreatePipelineLayout(
-			context->vk.device, &plci, NULL, &pass->vk.layout), goto error);
+			context->vk.device, &plci, NULL, &pass->vk.pipeLayout), goto error);
 	}
 
 	// Create pipeline.
@@ -396,7 +486,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 			.pDepthStencilState  = NULL,
 			.pColorBlendState    = &pcbsci,
 			.pDynamicState       = NULL,
-			.layout              = pass->vk.layout,
+			.layout              = pass->vk.pipeLayout,
 			.renderPass          = pass->vk.pass,
 			.subpass             = 0,
 			.basePipelineHandle  = VK_NULL_HANDLE,
@@ -464,7 +554,10 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	pass->build.backing = SIZE_MAX;
 
 	pass->vk.pass = VK_NULL_HANDLE;
-	pass->vk.layout = VK_NULL_HANDLE;
+	pass->vk.setLayout = VK_NULL_HANDLE;
+	pass->vk.pool = VK_NULL_HANDLE;
+	pass->vk.set = VK_NULL_HANDLE;
+	pass->vk.pipeLayout = VK_NULL_HANDLE;
 	pass->vk.pipeline = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
@@ -476,6 +569,9 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	const char vert[] =
 		"#version 450\n"
 		"#extension GL_ARB_separate_shader_objects : enable\n"
+		"layout(set = 0, binding = 0) uniform UBO {\n"
+		"  mat4 mvp;\n"
+		"};\n"
 		"layout(location = 0) in vec3 position;\n"
 		"layout(location = 1) in vec3 color;\n"
 		"layout(location = 0) out vec3 fragColor;\n"
@@ -483,7 +579,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 		"  vec4 gl_Position;\n"
 		"};\n"
 		"void main() {\n"
-		"  gl_Position = vec4(position, 1.0);\n"
+		"  gl_Position = mvp * vec4(position, 1.0);\n"
 		"  fragColor = color;\n"
 		"}\n";
 
@@ -497,6 +593,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 		"}\n";
 
 	pass->build.mesh = NULL;
+	pass->build.group = NULL;
 	pass->build.vertex = gfx_create_shader(GFX_SHADER_VERTEX, NULL);
 	pass->build.fragment = gfx_create_shader(GFX_SHADER_FRAGMENT, NULL);
 
@@ -570,10 +667,19 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 	_gfx_render_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
 
 	// Destroy all non-partial things too.
-	context->vk.DestroyPipelineLayout(
-		context->vk.device, pass->vk.layout, NULL);
+	context->vk.DestroyDescriptorSetLayout(
+		context->vk.device, pass->vk.setLayout, NULL);
 
-	pass->vk.layout = VK_NULL_HANDLE;
+	context->vk.DestroyDescriptorPool(
+		context->vk.device, pass->vk.pool, NULL);
+
+	context->vk.DestroyPipelineLayout(
+		context->vk.device, pass->vk.pipeLayout, NULL);
+
+	pass->vk.setLayout = VK_NULL_HANDLE;
+	pass->vk.pool = VK_NULL_HANDLE;
+	pass->vk.set = VK_NULL_HANDLE;
+	pass->vk.pipeLayout = VK_NULL_HANDLE;
 
 	// Clear memory.
 	gfx_vec_clear(&pass->vk.framebuffers);
@@ -654,11 +760,14 @@ GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep)
 }
 
 /****************************/
-GFX_API void gfx_render_pass_use(GFXRenderPass* pass, GFXMesh* mesh)
+GFX_API void gfx_render_pass_use(GFXRenderPass* pass,
+                                 GFXMesh* mesh,
+                                 GFXGroup* group)
 {
 	assert(pass != NULL);
 	assert(mesh != NULL);
 
 	// TODO: Should eventually check if they are using the same context.
 	pass->build.mesh = (_GFXMesh*)mesh;
+	pass->build.group = (_GFXGroup*)group;
 }

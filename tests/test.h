@@ -123,6 +123,7 @@ typedef struct
 	GFXHeap*     heap;
 	GFXRenderer* renderer; // Window is attached at index 0.
 	GFXMesh*     mesh;
+	GFXGroup*    group;
 
 } TestBase;
 
@@ -151,7 +152,7 @@ typedef struct
 /**
  * Instance of the test base state.
  */
-static TestBase _test_base = { NULL, NULL, NULL, NULL };
+static TestBase _test_base = { NULL, NULL, NULL, NULL, NULL };
 
 
 /****************************
@@ -326,6 +327,35 @@ static void _test_init(void)
 	gfx_unmap(gfx_ref_mesh_vertices(_test_base.mesh, 0));
 	gfx_unmap(gfx_ref_mesh_indices(_test_base.mesh, 0));
 
+	// Allocate a group with an mvp matrix.
+	float uboData[] = {
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.2f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+
+	_test_base.group = gfx_alloc_group(_test_base.heap,
+		GFX_MEMORY_HOST_VISIBLE, GFX_BUFFER_UNIFORM,
+		1, (GFXBinding[]){
+			{
+				.type = GFX_BINDING_BUFFER,
+				.count = 1,
+				.size = sizeof(float) * 16,
+				.buffers = NULL
+			}
+		});
+
+	if (_test_base.group == NULL)
+		TEST_FAIL();
+
+	void* ptrUbo = gfx_map(gfx_ref_group_buffer(_test_base.group, 0, 0, 0));
+	if (ptrUbo == NULL)
+		TEST_FAIL();
+
+	memcpy(ptrUbo, uboData, sizeof(uboData));
+	gfx_unmap(gfx_ref_group_buffer(_test_base.group, 0, 0, 0));
+
 	// Add a single render pass that writes to the window.
 	GFXRenderPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);
 	if (pass == NULL)
@@ -335,7 +365,7 @@ static void _test_init(void)
 		TEST_FAIL();
 
 	// Make it render the thing.
-	gfx_render_pass_use(pass, _test_base.mesh);
+	gfx_render_pass_use(pass, _test_base.mesh, _test_base.group);
 #endif
 }
 

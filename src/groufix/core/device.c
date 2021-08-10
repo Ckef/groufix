@@ -587,10 +587,12 @@ static void _gfx_create_context(_GFXDevice* device)
 
 	_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
 	_GFX_GET_DEVICE_PROC_ADDR(AllocateCommandBuffers);
+	_GFX_GET_DEVICE_PROC_ADDR(AllocateDescriptorSets);
 	_GFX_GET_DEVICE_PROC_ADDR(AllocateMemory);
 	_GFX_GET_DEVICE_PROC_ADDR(BindBufferMemory);
 	_GFX_GET_DEVICE_PROC_ADDR(BeginCommandBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdBeginRenderPass);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdBindDescriptorSets);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdBindIndexBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdBindPipeline);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdBindVertexBuffers);
@@ -599,6 +601,8 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CmdEndRenderPass);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateDescriptorPool);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateDescriptorSetLayout);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateFence);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateFramebuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateGraphicsPipelines);
@@ -610,6 +614,8 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyCommandPool);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyDescriptorPool);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyDescriptorSetLayout);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyFence);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyFramebuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyImageView);
@@ -630,6 +636,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(QueueSubmit);
 	_GFX_GET_DEVICE_PROC_ADDR(ResetFences);
 	_GFX_GET_DEVICE_PROC_ADDR(UnmapMemory);
+	_GFX_GET_DEVICE_PROC_ADDR(UpdateDescriptorSets);
 	_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);
 
 	// Set device's reference to this context.

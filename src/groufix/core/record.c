@@ -76,6 +76,10 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 	context->vk.CmdBindPipeline(
 		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->vk.pipeline);
 
+	context->vk.CmdBindDescriptorSets(
+		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+		pass->vk.pipeLayout, 0, 1, &pass->vk.set, 0, NULL);
+
 	// Bind index buffer.
 	if (mesh->base.numIndices > 0)
 	{
@@ -100,6 +104,7 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		(VkDeviceSize[]){ vertex.value });
 
 	// Draw.
+	// TODO: Renderable objects should define what parts of the mesh to draw.
 	if (mesh->base.numIndices > 0)
 		context->vk.CmdDrawIndexed(
 			frame->vk.cmd,
