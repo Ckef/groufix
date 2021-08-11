@@ -385,11 +385,11 @@ typedef struct _GFXUnpackRef
 GFXReference _gfx_ref_resolve(GFXReference ref);
 
 /**
- * Resolves, unpacks & validates a memory resource reference, meaning:
+ * Resolves & unpacks a memory resource reference, meaning:
  * if an object is composed of other memory objects internally, it will be
  * 'unpacked' into its elementary non-composed memory objects.
  *
- * Returns _GFX_UNPACK_REF_EMPTY and warns when out of bounds.
+ * If in debug mode & out of bounds, it silently warns.
  */
 _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 

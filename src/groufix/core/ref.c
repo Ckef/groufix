@@ -31,13 +31,15 @@
 	} while (0)
 
 // Auto log when an unpack-validation statement is untrue.
-#define _GFX_CHECK_UNPACK(eval, warning) \
-	do { \
-		if (!(eval)) { \
-			gfx_log_warn(warning); \
-			return _GFX_UNPACK_REF_EMPTY; \
-		} \
-	} while (0)
+#if defined (NDEBUG)
+	#define _GFX_CHECK_UNPACK(...)
+#else
+	#define _GFX_CHECK_UNPACK(eval, warning) \
+		do { \
+			if (!(eval)) /* No return, behaves as if ndebug. */ \
+				gfx_log_warn(warning); \
+		} while (0)
+#endif
 
 
 /****************************/
