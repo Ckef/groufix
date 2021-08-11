@@ -322,7 +322,8 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	if (pass->vk.pipeline == VK_NULL_HANDLE)
 	{
 		// Pipeline shader stages.
-		VkPipelineShaderStageCreateInfo pstci[] = { {
+		VkPipelineShaderStageCreateInfo pstci[] = {
+			{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 
 				.pNext               = NULL,
@@ -331,7 +332,6 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 				.module              = pass->build.vertex->vk.module,
 				.pName               = "main",
 				.pSpecializationInfo = NULL
-
 			}, {
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 
@@ -569,7 +569,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	const char vert[] =
 		"#version 450\n"
 		"#extension GL_ARB_separate_shader_objects : enable\n"
-		"layout(set = 0, binding = 0) uniform UBO {\n"
+		"layout(row_major, set = 0, binding = 0) uniform UBO {\n"
 		"  mat4 mvp;\n"
 		"};\n"
 		"layout(location = 0) in vec3 position;\n"

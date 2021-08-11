@@ -110,6 +110,7 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 		break;
 
 	default:
+		// GFX_REF_BUFFER and GFX_REF_IMAGE cannot further resolve.
 		break;
 	}
 
@@ -181,16 +182,13 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 		break;
 
-	case GFX_REF_GROUP_IMAGE:
-		// No-op. Won't happen, it always resolves to a non-group ref.
-		break;
-
 	case GFX_REF_ATTACHMENT:
 		unp.obj.renderer = _GFX_RENDERER;
 		unp.value = _GFX_VATTACHMENT(ref);
 		break;
 
 	default:
+		// GFX_REF_GROUP_IMAGE always resolves to a non-group ref.
 		break;
 	}
 

@@ -25,6 +25,8 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 	if (
 		pass->vk.pass == VK_NULL_HANDLE ||
 		pass->vk.framebuffers.size == 0 ||
+		pass->vk.set == VK_NULL_HANDLE ||
+		pass->vk.pipeLayout == VK_NULL_HANDLE ||
 		pass->vk.pipeline == VK_NULL_HANDLE)
 	{
 		return;
@@ -69,7 +71,7 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		}
 	};
 
-	// Begin render pass, bind pipeline.
+	// Begin render pass, bind pipeline & descriptor sets.
 	context->vk.CmdBeginRenderPass(
 		frame->vk.cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
 

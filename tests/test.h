@@ -299,44 +299,44 @@ static void _test_init(void)
 		-0.5f,  0.5f, 0.0f,   0.0f, 0.0f, 1.0f
 	};
 
-	GFXAttribute attributes[] = {
-		{ .offset = 0 },
-		{ .offset = sizeof(float) * 3 }
-	};
-
 	_test_base.mesh = gfx_alloc_mesh(_test_base.heap,
 		GFX_MEMORY_HOST_VISIBLE, 0,
 		GFX_REF_NULL, GFX_REF_NULL,
 		4, sizeof(float) * 6,
 		4, sizeof(uint16_t),
-		2, attributes,
+		2, (GFXAttribute[]){
+			{ .offset = 0 },
+			{ .offset = sizeof(float) * 3 }
+		},
 		GFX_TOPO_TRIANGLE_STRIP);
 
 	if (_test_base.mesh == NULL)
 		TEST_FAIL();
 
-	void* ptrVert = gfx_map(gfx_ref_mesh_vertices(_test_base.mesh, 0));
-	void* ptrInd = gfx_map(gfx_ref_mesh_indices(_test_base.mesh, 0));
+	GFXBufferRef vert = gfx_ref_mesh_vertices(_test_base.mesh, 0);
+	GFXBufferRef ind = gfx_ref_mesh_indices(_test_base.mesh, 0);
+	void* ptrVert = gfx_map(vert);
+	void* ptrInd = gfx_map(ind);
 
 	if (ptrVert == NULL || ptrInd == NULL)
 		TEST_FAIL();
 
 	memcpy(ptrVert, vertexData, sizeof(vertexData));
 	memcpy(ptrInd, indexData, sizeof(indexData));
-
-	gfx_unmap(gfx_ref_mesh_vertices(_test_base.mesh, 0));
-	gfx_unmap(gfx_ref_mesh_indices(_test_base.mesh, 0));
+	gfx_unmap(vert);
+	gfx_unmap(ind);
 
 	// Allocate a group with an mvp matrix.
 	float uboData[] = {
-		1.0f, 0.0f, 0.0f, 0.0f,
-		0.2f, 1.0f, 0.0f, 0.0f,
+		1.0f, 0.2f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f,
 		0.0f, 0.0f, 0.0f, 1.0f
 	};
 
 	_test_base.group = gfx_alloc_group(_test_base.heap,
-		GFX_MEMORY_HOST_VISIBLE, GFX_BUFFER_UNIFORM,
+		GFX_MEMORY_HOST_VISIBLE,
+		GFX_BUFFER_UNIFORM,
 		1, (GFXBinding[]){
 			{
 				.type = GFX_BINDING_BUFFER,
@@ -349,12 +349,14 @@ static void _test_init(void)
 	if (_test_base.group == NULL)
 		TEST_FAIL();
 
-	void* ptrUbo = gfx_map(gfx_ref_group_buffer(_test_base.group, 0, 0, 0));
+	GFXBufferRef ubo = gfx_ref_group_buffer(_test_base.group, 0, 0, 0);
+	void* ptrUbo = gfx_map(ubo);
+
 	if (ptrUbo == NULL)
 		TEST_FAIL();
 
 	memcpy(ptrUbo, uboData, sizeof(uboData));
-	gfx_unmap(gfx_ref_group_buffer(_test_base.group, 0, 0, 0));
+	gfx_unmap(ubo);
 
 	// Add a single render pass that writes to the window.
 	GFXRenderPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);
