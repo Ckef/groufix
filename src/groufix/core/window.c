@@ -99,7 +99,7 @@ static void _gfx_glfw_window_pos(GLFWwindow* handle, int x, int y)
 	GFXWindow* window = glfwGetWindowUserPointer(handle);
 
 	if (window->events.move != NULL)
-		window->events.move(window, x, y);
+		window->events.move(window, (int32_t)x, (int32_t)y);
 }
 
 /****************************
@@ -110,7 +110,7 @@ static void _gfx_glfw_window_size(GLFWwindow* handle, int width, int height)
 	GFXWindow* window = glfwGetWindowUserPointer(handle);
 
 	if (window->events.resize != NULL)
-		window->events.resize(window, (size_t)width, (size_t)height);
+		window->events.resize(window, (uint32_t)width, (uint32_t)height);
 }
 
 /****************************
@@ -146,7 +146,7 @@ static void _gfx_glfw_char(GLFWwindow* handle, unsigned int codepoint)
 	GFXWindow* window = glfwGetWindowUserPointer(handle);
 
 	if (window->events.key.text != NULL)
-		window->events.key.text(window, codepoint);
+		window->events.key.text(window, (char32_t)codepoint);
 }
 
 /****************************
@@ -226,8 +226,8 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 	_gfx_mutex_lock(&window->frame.lock);
 
 	window->frame.recreate = 1;
-	window->frame.rWidth = (size_t)width;
-	window->frame.rHeight = (size_t)height;
+	window->frame.rWidth = (uint32_t)width;
+	window->frame.rHeight = (uint32_t)height;
 
 	_gfx_mutex_unlock(&window->frame.lock);
 }
@@ -276,11 +276,12 @@ static int _gfx_window_pick_access(_GFXWindow* window)
 
 	// Initialize & fill the access vector.
 	// Make sure to not put in duplicate queue families!
-	size_t numFamilies = (graphics == present) ? 1 : 2;
 	gfx_vec_init(&window->access, sizeof(uint32_t));
 
 	if (!gfx_vec_push(
-		&window->access, numFamilies, (uint32_t[]){
+		&window->access,
+		graphics == present ? 1 : 2,
+		(uint32_t[]){
 			graphics->family,
 			present->family
 		}))
@@ -407,12 +408,12 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 
 	gfx_vec_init(&window->frame.images, sizeof(VkImage));
 	window->frame.format = VK_FORMAT_UNDEFINED;
-	window->frame.width = (size_t)width;
-	window->frame.height = (size_t)height;
+	window->frame.width = (uint32_t)width;
+	window->frame.height = (uint32_t)height;
 
 	window->frame.recreate = 0;
-	window->frame.rWidth = (size_t)width;
-	window->frame.rHeight = (size_t)height;
+	window->frame.rWidth = (uint32_t)width;
+	window->frame.rHeight = (uint32_t)height;
 	window->frame.flags = flags;
 
 	// Now we need to somehow connect it to a GPU.
@@ -530,8 +531,7 @@ GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags)
 		GLFWmonitor* monitor = glfwGetWindowMonitor(win->handle);
 		if (monitor != NULL)
 		{
-			int width;
-			int height;
+			int width, height;
 			glfwGetWindowSize(win->handle, &width, &height);
 			glfwSetWindowMonitor(win->handle, NULL, 0, 0, width, height, 0);
 		}
@@ -631,14 +631,14 @@ GFX_API GFXVideoMode gfx_window_get_video(GFXWindow* window)
 		int height;
 
 		glfwGetWindowSize(win->handle, &width, &height);
-		mode.width = (size_t)width;
-		mode.height = (size_t)height;
+		mode.width = (uint32_t)width;
+		mode.height = (uint32_t)height;
 	}
 	else
 	{
 		const GLFWvidmode* vid = glfwGetVideoMode(monitor);
-		mode.width = (size_t)vid->width;
-		mode.height = (size_t)vid->height;
+		mode.width = (uint32_t)vid->width;
+		mode.height = (uint32_t)vid->height;
 		mode.refresh = (unsigned int)vid->refreshRate;
 	}
 

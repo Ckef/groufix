@@ -36,17 +36,17 @@ typedef struct GFXAttachment
 	size_t       ref; // Index of the attachment the size is relative to.
 
 	union {
-		size_t width;
+		uint32_t width;
 		float xScale;
 	};
 
 	union {
-		size_t height;
+		uint32_t height;
 		float yScale;
 	};
 
 	union {
-		size_t depth;
+		uint32_t depth;
 		float zScale;
 	};
 

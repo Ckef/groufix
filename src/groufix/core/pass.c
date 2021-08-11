@@ -199,8 +199,8 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 				.renderPass      = pass->vk.pass,
 				.attachmentCount = 1,
 				.pAttachments    = gfx_vec_at(&at->window.vk.views, i),
-				.width           = (uint32_t)at->window.window->frame.width,
-				.height          = (uint32_t)at->window.window->frame.height,
+				.width           = at->window.window->frame.width,
+				.height          = at->window.window->frame.height,
 				.layers          = 1
 			};
 
@@ -352,7 +352,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 				.location = (uint32_t)i,
 				.binding  = 0,
 				.format   = VK_FORMAT_R32G32B32_SFLOAT,
-				.offset   = (uint32_t)mesh->attribs[i].offset
+				.offset   = mesh->attribs[i].offset
 			};
 
 		VkPipelineVertexInputStateCreateInfo pvisci = {
@@ -365,7 +365,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 			.vertexBindingDescriptionCount   = 1,
 			.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]){{
 				.binding   = 0,
-				.stride    = (uint32_t)mesh->base.stride,
+				.stride    = mesh->base.stride,
 				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 			}}
 		};
@@ -393,8 +393,8 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		VkRect2D scissor = {
 			.offset = { 0, 0 },
 			.extent = {
-				(uint32_t)at->window.window->frame.width,
-				(uint32_t)at->window.window->frame.height
+				at->window.window->frame.width,
+				at->window.window->frame.height
 			}
 		};
 

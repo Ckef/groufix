@@ -65,8 +65,8 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		.renderArea      = {
 			.offset = { 0, 0 },
 			.extent = {
-				(uint32_t)sync->window->frame.width,
-				(uint32_t)sync->window->frame.height
+				sync->window->frame.width,
+				sync->window->frame.height
 			}
 		}
 	};
@@ -110,12 +110,12 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 	if (mesh->base.numIndices > 0)
 		context->vk.CmdDrawIndexed(
 			frame->vk.cmd,
-			(uint32_t)mesh->base.numIndices,
+			mesh->base.numIndices,
 			1, 0, 0, 0);
 	else
 		context->vk.CmdDraw(
 			frame->vk.cmd,
-			(uint32_t)mesh->base.numVertices,
+			mesh->base.numVertices,
 			1, 0, 0);
 
 	// End render pass.

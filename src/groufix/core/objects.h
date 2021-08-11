@@ -360,7 +360,7 @@ typedef struct _GFXUnpackRef
 
 	// Unpacked reference value,
 	//  buffer offset | attachment index.
-	size_t value;
+	uint64_t value;
 
 } _GFXUnpackRef;
 

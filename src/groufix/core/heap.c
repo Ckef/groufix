@@ -84,7 +84,7 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 
 		.pNext                 = NULL,
 		.flags                 = 0,
-		.size                  = (VkDeviceSize)buffer->base.size,
+		.size                  = buffer->base.size,
 		.usage                 = usage,
 		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 0,
@@ -232,7 +232,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 /****************************/
 GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
                                     GFXMemoryFlags flags, GFXBufferUsage usage,
-                                    size_t size)
+                                    uint64_t size)
 {
 	assert(heap != NULL);
 	assert(flags != 0);
@@ -298,7 +298,7 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 /****************************/
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
                                   GFXMemoryFlags flags, GFXImageUsage usage,
-                                  size_t width, size_t height, size_t depth)
+                                  uint32_t width, uint32_t height, uint32_t depth)
 {
 	assert(heap != NULL);
 	assert(flags != 0);
@@ -325,8 +325,8 @@ GFX_API void gfx_free_image(GFXImage* image)
 GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXMemoryFlags flags, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
-                                size_t numVertices, size_t stride,
-                                size_t numIndices, size_t indexSize,
+                                uint32_t numVertices, uint32_t stride,
+                                uint32_t numIndices, size_t indexSize,
                                 size_t numAttribs, const GFXAttribute* attribs,
                                 GFXTopology topology)
 {
@@ -486,6 +486,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	assert(heap != NULL);
 	assert(numBindings > 0);
 	assert(bindings != NULL);
+	// Sadly we can't assert as nicely like gfx_alloc_mesh :(
 
 	// Count the number of references to allocate.
 	size_t numRefs = 0;
@@ -508,7 +509,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 		(GFXReference*)((GFXBinding*)(group + 1) + numBindings);
 
 	// While we're at it, compute the size of the buffers to allocate.
-	size_t size = 0;
+	uint64_t size = 0;
 
 	for (size_t b = 0; b < numBindings; ++b)
 	{

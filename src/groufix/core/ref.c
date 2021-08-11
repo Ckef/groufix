@@ -13,13 +13,12 @@
 #define _GFX_IMAGE ((_GFXImage*)ref.obj)
 #define _GFX_MESH ((_GFXMesh*)ref.obj)
 #define _GFX_GROUP ((_GFXGroup*)ref.obj)
-#define _GFX_BINDING (((_GFXGroup*)ref.obj)->bindings + ref.values[1])
+#define _GFX_BINDING (((_GFXGroup*)ref.obj)->bindings + ref.values[0])
 #define _GFX_RENDERER ((GFXRenderer*)ref.obj)
 
-#define _GFX_VOFFSET(ref) ref.values[0]
-#define _GFX_VBINDING(ref) ref.values[1]
-#define _GFX_VATTACHMENT(ref) ref.values[1]
-#define _GFX_VINDEX(ref) ref.values[2]
+#define _GFX_VBINDING(ref) ref.values[0]
+#define _GFX_VATTACHMENT(ref) ref.values[0]
+#define _GFX_VINDEX(ref) ref.values[1]
 
 
 // Auto log when a resolve-validation statement is untrue.
@@ -59,7 +58,7 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 			"Referencing a non-existent vertex buffer!");
 
 		rec = _GFX_MESH->refVertex; // Must be a buffer.
-		_GFX_VOFFSET(rec) += _GFX_VOFFSET(ref);
+		rec.offset += ref.offset;
 		break;
 
 	case GFX_REF_MESH_INDICES:
@@ -68,7 +67,7 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 			"Referencing a non-existent index buffer!");
 
 		rec = _GFX_MESH->refIndex; // Must be a buffer.
-		_GFX_VOFFSET(rec) += _GFX_VOFFSET(ref);
+		rec.offset += ref.offset;
 		break;
 
 	case GFX_REF_GROUP_BUFFER:
@@ -85,7 +84,7 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 
 		// If referencing the group's buffer, just return the group ref.
 		if (rec.obj == &_GFX_GROUP->buffer) rec = GFX_REF_NULL;
-		else _GFX_VOFFSET(rec) += _GFX_VOFFSET(ref);
+		else rec.offset += ref.offset;
 		break;
 
 	case GFX_REF_GROUP_IMAGE:
@@ -135,7 +134,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	{
 	case GFX_REF_BUFFER:
 		unp.obj.buffer = _GFX_BUFFER;
-		unp.value = _GFX_VOFFSET(ref);
+		unp.value = ref.offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
@@ -149,7 +148,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_MESH_VERTICES:
 		unp.obj.buffer = &_GFX_MESH->buffer;
-		unp.value = _GFX_VOFFSET(ref);
+		unp.value = ref.offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
@@ -159,7 +158,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_MESH_INDICES:
 		unp.obj.buffer = &_GFX_MESH->buffer;
-		unp.value = _GFX_VOFFSET(ref) +
+		unp.value = ref.offset +
 			// Augment offset into the vertex/index buffer.
 			GFX_REF_IS_NULL(_GFX_MESH->refVertex) ?
 				_GFX_MESH->base.numVertices * _GFX_MESH->base.stride : 0;
@@ -172,9 +171,9 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_GROUP_BUFFER:
 		unp.obj.buffer = &_GFX_GROUP->buffer;
-		unp.value = _GFX_VOFFSET(ref) +
+		unp.value = ref.offset +
 			// Augment offset into the group's buffer.
-			_GFX_VOFFSET(_GFX_BINDING->buffers[_GFX_VINDEX(ref)]);
+			_GFX_BINDING->buffers[_GFX_VINDEX(ref)].offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,

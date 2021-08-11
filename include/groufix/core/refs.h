@@ -38,9 +38,12 @@ typedef struct GFXReference
 	//  GFXBuffer* | GFXImage* | GFXMesh* | GFXGroup* | GFXRenderer*.
 	void* obj;
 
+	// Reference buffer offset (0 for images).
+	uint64_t offset;
+
 	// Reference values,
-	//  { buffer offset | 0, binding | attachment | 0, index | 0 }.
-	size_t values[3];
+	//  { binding | attachment | 0, index | 0 }.
+	size_t values[2];
 
 } GFXReference;
 
@@ -89,53 +92,60 @@ typedef GFXReference GFXImageRef;
  * No argument can be NULL, any referenced memory resource must exist.
  * If any of these constraints are not met, behaviour is undefined.
  */
-#define gfx_ref_buffer(buffer, offset) \
+#define gfx_ref_buffer(buffer, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_BUFFER, \
 		.obj = buffer, \
-		.values = { offset, 0, 0 } \
+		.offset = offset_, \
+		.values = { 0, 0 } \
 	}
 
 #define gfx_ref_image(image) \
 	(GFXImageRef){ \
 		.type = GFX_REF_IMAGE, \
 		.obj = image \
-		.values = { 0, 0, 0 } \
+		.offset = 0, \
+		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_mesh_vertices(mesh, offset) \
+#define gfx_ref_mesh_vertices(mesh, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_MESH_VERTICES, \
 		.obj = mesh, \
-		.values = { offset, 0, 0 } \
+		.offset = offset_, \
+		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_mesh_indices(mesh, offset) \
+#define gfx_ref_mesh_indices(mesh, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_MESH_INDICES, \
 		.obj = mesh, \
-		.values = { offset, 0, 0 } \
+		.offset = offset_, \
+		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_group_buffer(group, binding, index, offset) \
+#define gfx_ref_group_buffer(group, binding_, index_, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_GROUP_BUFFER, \
 		.obj = group, \
-		.values = { offset, binding, index } \
+		.offset = offset_, \
+		.values = { binding_, index_ } \
 	}
 
-#define gfx_ref_group_image(group, binding, index) \
+#define gfx_ref_group_image(group, binding_, index_) \
 	(GFXImageRef){ \
 		.type = GFX_REF_GROUP_IMAGE, \
 		.obj = group, \
-		.values = { 0, binding, index } \
+		.offset = 0, \
+		.values = { binding_, index_ } \
 	}
 
-#define gfx_ref_attachment(renderer, index) \
+#define gfx_ref_attachment(renderer, index_) \
 	(GFXImageRef){ \
 		.type = GFX_REF_ATTACHMENT, \
 		.obj = renderer, \
-		.values = { 0, index, 0 } \
+		.offset = 0, \
+		.values = { index_, 0 } \
 	}
 
 

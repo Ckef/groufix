@@ -331,8 +331,8 @@ typedef struct _GFXWindow
 	{
 		GFXVec   images; // Stores VkImage, only those of vk.swapchain.
 		VkFormat format;
-		size_t   width;
-		size_t   height;
+		uint32_t width;
+		uint32_t height;
 
 		// All new 'recreate' values are protected by a mutex.
 #if defined (__STDC_NO_ATOMICS__)
@@ -340,8 +340,8 @@ typedef struct _GFXWindow
 #else
 		atomic_int     recreate;
 #endif
-		size_t         rWidth;  // Future width.
-		size_t         rHeight; // Future height.
+		uint32_t       rWidth;  // Future width.
+		uint32_t       rHeight; // Future height.
 		GFXWindowFlags flags;   // Determines number of images.
 		_GFXMutex      lock;
 

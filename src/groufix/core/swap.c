@@ -70,8 +70,8 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 
 	window->frame.recreate = 0;
 
-	uint32_t width = (uint32_t)window->frame.rWidth;
-	uint32_t height = (uint32_t)window->frame.rHeight;
+	uint32_t width = window->frame.rWidth;
+	uint32_t height = window->frame.rHeight;
 	GFXWindowFlags wFlags = window->frame.flags;
 
 	_gfx_mutex_unlock(&window->frame.lock);
@@ -148,7 +148,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			(wFlags & GFX_WINDOW_DOUBLE_BUFFER) ? VK_PRESENT_MODE_FIFO_KHR :
 			VK_PRESENT_MODE_IMMEDIATE_KHR;
 
-		size_t m;
+		uint32_t m;
 		for (m = 0; m < mCount; ++m)
 			if (modes[m] == mode) break;
 
@@ -183,12 +183,12 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 		}
 
 		if (
-			window->frame.width != (size_t)extent.width ||
-			window->frame.height != (size_t)extent.height)
+			window->frame.width != extent.width ||
+			window->frame.height != extent.height)
 		{
 			*flags |= _GFX_RESIZE;
-			window->frame.width = (size_t)extent.width;
-			window->frame.height = (size_t)extent.height;
+			window->frame.width = extent.width;
+			window->frame.height = extent.height;
 		}
 
 		// Finally create the actual new swapchain.

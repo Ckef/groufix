@@ -89,7 +89,7 @@ typedef enum GFXBindingType
 typedef struct GFXAttribute
 {
 	// TODO: Add format.
-	size_t offset; // In bytes.
+	uint32_t offset; // In bytes.
 
 } GFXAttribute;
 
@@ -101,8 +101,8 @@ typedef struct GFXBinding
 {
 	GFXBindingType type;
 
-	size_t count; // Number of bound buffers/images.
-	size_t size;  // Bytes to claim for/from each buffer (ignored for images).
+	size_t   count; // Number of bound buffers/images.
+	uint64_t size;  // Bytes to claim for/from each buffer (ignored for images).
 
 
 	// Bound data (input only).
@@ -130,7 +130,7 @@ typedef struct GFXBuffer
 	GFXMemoryFlags flags;
 	GFXBufferUsage usage;
 
-	size_t size; // In bytes.
+	uint64_t size; // In bytes.
 
 } GFXBuffer;
 
@@ -144,9 +144,9 @@ typedef struct GFXImage
 	GFXMemoryFlags flags;
 	GFXImageUsage  usage;
 
-	size_t width;
-	size_t height;
-	size_t depth;
+	uint32_t width;
+	uint32_t height;
+	uint32_t depth;
 
 } GFXImage;
 
@@ -164,10 +164,10 @@ typedef struct GFXMesh
 
 	GFXTopology topology;
 
-	size_t stride;    // i.e. vertex size in bytes.
-	size_t indexSize; // Index size in bytes.
-	size_t numVertices;
-	size_t numIndices;
+	uint32_t stride;    // i.e. vertex size in bytes.
+	size_t   indexSize; // Index size in bytes.
+	uint32_t numVertices;
+	uint32_t numIndices;
 
 } GFXMesh;
 
@@ -212,7 +212,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap);
  */
 GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
                                     GFXMemoryFlags flags, GFXBufferUsage usage,
-                                    size_t size);
+                                    uint64_t size);
 
 /**
  * Frees a buffer.
@@ -234,7 +234,7 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
  */
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
                                   GFXMemoryFlags flags, GFXImageUsage usage,
-                                  size_t width, size_t height, size_t depth);
+                                  uint32_t width, uint32_t height, uint32_t depth);
 
 /**
  * Frees an image.
@@ -264,8 +264,8 @@ GFX_API void gfx_free_image(GFXImage* image);
 GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXMemoryFlags flags, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
-                                size_t numVertices, size_t stride,
-                                size_t numIndices, size_t indexSize,
+                                uint32_t numVertices, uint32_t stride,
+                                uint32_t numIndices, size_t indexSize,
                                 size_t numAttribs, const GFXAttribute* attribs,
                                 GFXTopology topology);
 

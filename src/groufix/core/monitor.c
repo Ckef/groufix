@@ -29,7 +29,7 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
 	// a bit extra, but who cares.
 	_GFXMonitor* monitor = malloc(
 		sizeof(_GFXMonitor) +
-		sizeof(GFXVideoMode) * (unsigned int)vidCount);
+		sizeof(GFXVideoMode) * (size_t)vidCount);
 
 	if (monitor == NULL)
 		return NULL;
@@ -50,7 +50,7 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
 
 	monitor->numModes = 0;
 
-	for (size_t m = 0; (int)m < vidCount; ++m)
+	for (size_t m = 0; m < (size_t)vidCount; ++m)
 	{
 		// Try to find the video mode in the modes we are exposing.
 		// We can have duplicates when the same resolution and refresh
@@ -71,8 +71,8 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
 		if (f >= monitor->numModes)
 		{
 			monitor->modes[f] = (GFXVideoMode){
-				.width = (size_t)modes[m].width,
-				.height = (size_t)modes[m].height,
+				.width = (uint32_t)modes[m].width,
+				.height = (uint32_t)modes[m].height,
 				.refresh = (unsigned int)modes[m].refreshRate
 			};
 
@@ -118,7 +118,7 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 	int count;
 	GLFWmonitor** handles = glfwGetMonitors(&count);
 
-	for (size_t i = 0; (int)i < count; ++i)
+	for (size_t i = 0; i < (size_t)count; ++i)
 	{
 		_GFXMonitor* h = glfwGetMonitorUserPointer(handles[i]);
 		*(_GFXMonitor**)gfx_vec_at(&_groufix.monitors, i) = h;
@@ -145,7 +145,7 @@ int _gfx_monitors_init(void)
 	if (!gfx_vec_reserve(&_groufix.monitors, (size_t)count))
 		goto terminate;
 
-	for (size_t i = 0; (int)i < count; ++i)
+	for (size_t i = 0; i < (size_t)count; ++i)
 		if (_gfx_alloc_monitor(handles[i]) == NULL)
 			goto terminate;
 
@@ -250,8 +250,8 @@ GFX_API GFXVideoMode gfx_monitor_get_current_mode(GFXMonitor* monitor)
 		glfwGetVideoMode(((_GFXMonitor*)monitor)->handle);
 
 	return (GFXVideoMode){
-		.width = (size_t)vid->width,
-		.height = (size_t)vid->height,
+		.width = (uint32_t)vid->width,
+		.height = (uint32_t)vid->height,
 		.refresh = (unsigned int)vid->refreshRate
 	};
 }

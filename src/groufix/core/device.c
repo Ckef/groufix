@@ -301,8 +301,8 @@ static int _gfx_alloc_queue_set(_GFXContext* context,
  *
  * Output describe the queue families desired by the groufix implementation.
  */
-static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
-                                     VkDeviceQueueCreateInfo** createInfos)
+static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
+                                       VkDeviceQueueCreateInfo** createInfos)
 {
 	assert(context != NULL);
 	assert(device != NULL);
@@ -382,7 +382,7 @@ static size_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 		return 0;
 
 	// Allocate queue sets and count how many.
-	size_t sets = 0;
+	uint32_t sets = 0;
 
 	// TODO: Maybe more queues if the present/transfer queue are the same?
 	// Allocate main (graphics) queue.
@@ -508,7 +508,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	// equivalent queue family properties.
 	// If there are any device groups such that this is the case, you
 	// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
-	size_t sets;
+	uint32_t sets;
 	if (!(sets = _gfx_create_queue_sets(context, device, &createInfos)))
 		goto clean;
 
@@ -541,7 +541,7 @@ static void _gfx_create_context(_GFXDevice* device)
 
 		.pNext                   = &dgdci,
 		.flags                   = 0,
-		.queueCreateInfoCount    = (uint32_t)sets,
+		.queueCreateInfoCount    = sets,
 		.pQueueCreateInfos       = createInfos,
 #if defined (NDEBUG)
 		.enabledLayerCount       = 0,

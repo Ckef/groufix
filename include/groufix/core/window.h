@@ -39,8 +39,8 @@ typedef enum GFXWindowFlags
  */
 typedef struct GFXVideoMode
 {
-	size_t       width;
-	size_t       height;
+	uint32_t     width;
+	uint32_t     height;
 	unsigned int refresh;
 
 } GFXVideoMode;
@@ -78,8 +78,8 @@ typedef struct GFXWindow
 		void (*maximize)(struct GFXWindow*);
 		void (*minimize)(struct GFXWindow*);
 		void (*restore )(struct GFXWindow*);
-		void (*move    )(struct GFXWindow*, int x, int y);
-		void (*resize  )(struct GFXWindow*, size_t width, size_t height);
+		void (*move    )(struct GFXWindow*, int32_t x, int32_t y);
+		void (*resize  )(struct GFXWindow*, uint32_t width, uint32_t height);
 
 		// Keyboard events.
 		struct
