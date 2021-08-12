@@ -165,7 +165,7 @@ typedef struct GFXMesh
 	GFXTopology topology;
 
 	uint32_t stride;    // i.e. vertex size in bytes.
-	size_t   indexSize; // Index size in bytes.
+	uint8_t  indexSize; // Index size in bytes.
 	uint32_t numVertices;
 	uint32_t numIndices;
 
@@ -265,7 +265,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXMemoryFlags flags, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 uint32_t numVertices, uint32_t stride,
-                                uint32_t numIndices, size_t indexSize,
+                                uint32_t numIndices, uint8_t indexSize,
                                 size_t numAttribs, const GFXAttribute* attribs,
                                 GFXTopology topology);
 

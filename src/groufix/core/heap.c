@@ -326,7 +326,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXMemoryFlags flags, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 uint32_t numVertices, uint32_t stride,
-                                uint32_t numIndices, size_t indexSize,
+                                uint32_t numIndices, uint8_t indexSize,
                                 size_t numAttribs, const GFXAttribute* attribs,
                                 GFXTopology topology)
 {
@@ -531,29 +531,28 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 
 		// Take source references, resolve them.
 		// If no reference, insert a reference to the group's buffer.
-		// Also, count the size of that buffer so we can allocate it.
-		size_t nulled = 0;
+		// Also, add to the size of that buffer so we can allocate it.
 		for (size_t r = 0; r < bind->count; ++r)
 		{
 			if (srcPtr && !GFX_REF_IS_NULL(srcPtr[r]))
-				refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
-			else
 			{
-				refPtr[r] = gfx_ref_buffer(&group->buffer, size);
-				size += bind->size;
-				++nulled;
+				refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
+				continue;
 			}
-		}
 
-		// Validate bound images.
-		if (nulled > 0 && bind->type == GFX_BINDING_IMAGE)
-		{
-			gfx_log_error(
-				"A resource group binding description of type "
-				"GFX_BINDING_IMAGE cannot contain any empty resource "
-				"references.");
+			refPtr[r] = gfx_ref_buffer(&group->buffer, size);
+			size += bind->size;
 
-			goto clean;
+			// Validate bound images.
+			if (bind->type == GFX_BINDING_IMAGE)
+			{
+				gfx_log_error(
+					"A resource group binding description of type "
+					"GFX_BINDING_IMAGE cannot contain any empty resource "
+					"references.");
+
+				goto clean;
+			}
 		}
 
 		refPtr += bind->count;

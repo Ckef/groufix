@@ -67,6 +67,10 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	_groufix.vk.GetPhysicalDeviceFeatures(device->vk.device, pdf);
 
 	// For features we do want, warn if not present.
+	if (pdf->fullDrawIndexUint32 == VK_FALSE) gfx_log_warn(
+		"Physical device does not support vertex indices of size uint32_t: %s.",
+		device->name);
+
 	if (pdf->geometryShader == VK_FALSE) gfx_log_warn(
 		"Physical device does not support geometry shaders: %s.",
 		device->name);
@@ -76,7 +80,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 		device->name);
 
 	pdf->robustBufferAccess                      = VK_FALSE;
-	pdf->fullDrawIndexUint32                     = VK_FALSE;
 	pdf->imageCubeArray                          = VK_FALSE;
 	pdf->independentBlend                        = VK_FALSE;
 	pdf->sampleRateShading                       = VK_FALSE;

@@ -66,7 +66,7 @@
  */
 typedef struct _GFXThreadState
 {
-	unsigned int id;
+	unsigned long id;
 
 
 	// Logging data.
@@ -104,10 +104,10 @@ typedef struct _GFXState
 	struct
 	{
 #if defined (__STDC_NO_ATOMICS__)
-		unsigned int  id;
+		unsigned long id;
 		_GFXMutex     idLock;
 #else
-		atomic_uint   id;
+		atomic_ulong  id;
 #endif
 		_GFXThreadKey key; // Stores _GFXThreadState*.
 		_GFXMutex     ioLock;

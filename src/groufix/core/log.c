@@ -41,7 +41,7 @@ static const char* _gfx_log_colors[] = {
 /****************************
  * Logs a new line to stderr.
  */
-static void _gfx_log_out(unsigned int thread,
+static void _gfx_log_out(unsigned long thread,
                          GFXLogLevel level, double timeMs,
                          const char* file, unsigned int line,
                          const char* fmt, va_list args)
@@ -55,7 +55,7 @@ static void _gfx_log_out(unsigned int thread,
 		const char* C = _gfx_log_colors[level-1];
 
 		fprintf(stderr,
-			"%.2ems %s%-5s \x1b[90mthread-%u: %s:%u:\x1b[0m ",
+			"%.2ems %s%-5s \x1b[90mthread-%lu: %s:%u:\x1b[0m ",
 			timeMs, C, L, thread, file, line);
 	}
 	else
@@ -63,7 +63,7 @@ static void _gfx_log_out(unsigned int thread,
 #endif
 		// If not, or not on unix at all, output regularly.
 		fprintf(stderr,
-			"%.2ems %-5s thread-%u: %s:%u: ",
+			"%.2ems %-5s thread-%lu: %s:%u: ",
 			timeMs, L, thread, file, line);
 
 #if defined (GFX_UNIX)
@@ -109,7 +109,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	// So we get seconds that the CPU has spent on this program...
 	// We calculate it here so stderr and the file record the same time.
 	double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
-	unsigned int thread = 0;
+	unsigned long thread = 0;
 
 	// Logging is special, when groufix is not initialized,
 	// we still output to stderr.
@@ -228,7 +228,7 @@ GFX_API int gfx_log_set_file(const char* file)
 		// Now open the appropriate logging file, if any.
 		// We are going to append the thread id to the filename...
 		// First find the length of the thread id.
-		size_t idLen = (size_t)snprintf(NULL, 0, "%.4u", state->id);
+		size_t idLen = (size_t)snprintf(NULL, 0, "%.4lu", state->id);
 
 		// Now find the point at which to insert the thread id.
 		// This is before the first '.' character.
@@ -241,7 +241,7 @@ GFX_API int gfx_log_set_file(const char* file)
 
 		// Create a string for the file name.
 		char f[s + idLen + 1];
-		sprintf(f, "%.*s%.4u%s", (int)i, file, state->id, file + i);
+		sprintf(f, "%.*s%.4lu%s", (int)i, file, state->id, file + i);
 
 		// Now finally attempt to open the file.
 		state->log.file = fopen(f, "w");

@@ -37,9 +37,9 @@ typedef struct _GFXMemBlock
 	// Mapped memory pointer.
 	struct
 	{
-		unsigned int refs;
-		void*        ptr; // NULL if not mapped.
-		_GFXMutex    lock;
+		unsigned long refs;
+		void*         ptr; // NULL if not mapped.
+		_GFXMutex     lock;
 
 	} map;
 
