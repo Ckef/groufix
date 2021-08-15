@@ -11,6 +11,7 @@
 #define GFX_CORE_REFS_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 
 /**

@@ -12,6 +12,7 @@
 
 #include "groufix/core/device.h"
 #include "groufix/core/refs.h"
+#include "groufix/def.h"
 
 
 /**

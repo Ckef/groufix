@@ -11,6 +11,7 @@
 #define GFX_CORE_SHADER_H
 
 #include "groufix/core/device.h"
+#include "groufix/def.h"
 
 
 /**
