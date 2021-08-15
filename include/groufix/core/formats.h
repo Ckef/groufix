@@ -47,12 +47,12 @@ typedef enum GFXOrder
 	GFX_ORDER_STENCIL,
 
 	// Compression 'orders'.
-	GFX_ORDER_BCn,    // comps = [n (1|2|3|4|5|6|7), -]
+	GFX_ORDER_BCn,  // comps = [n (1|2|3|4|5|6|7), -]
 	GFX_ORDER_ETC2_RGB,
 	GFX_ORDER_ETC2_RGBA,
 	GFX_ORDER_EAC_R,
 	GFX_ORDER_EAC_RG,
-	GFX_ORDER_ASTC    // comps = [block-size-x, block-size-y, -]
+	GFX_ORDER_ASTC  // comps = [block-width, block-height, -]
 
 } GFXOrder;
 
