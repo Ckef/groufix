@@ -326,7 +326,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXMemoryFlags flags, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 uint32_t numVertices, uint32_t stride,
-                                uint32_t numIndices, uint8_t indexSize,
+                                uint32_t numIndices, char indexSize,
                                 size_t numAttribs, const GFXAttribute* attribs,
                                 GFXTopology topology)
 {
@@ -367,7 +367,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 		(GFX_REF_IS_NULL(index) ? GFX_BUFFER_INDEX : 0);
 	mesh->buffer.base.size =
 		(GFX_REF_IS_NULL(vertex) ? (numVertices * stride) : 0) +
-		(GFX_REF_IS_NULL(index) ? (numIndices * indexSize) : 0);
+		(GFX_REF_IS_NULL(index) ? (numIndices * (unsigned char)indexSize) : 0);
 
 	mesh->refVertex = _gfx_ref_resolve(vertex);
 	mesh->refIndex = _gfx_ref_resolve(index);
@@ -514,12 +514,21 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	for (size_t b = 0; b < numBindings; ++b)
 	{
 		// Set values for each binding.
-		// We actually copy all the references to the end of the group struct,
-		// in the same order we found them (!).
 		GFXBinding* bind = group->bindings + b;
 		const GFXReference* srcPtr = NULL;
 
 		*bind = bindings[b];
+
+		// If no buffers/images or buffers of no size, just no.
+		if (
+			bind->count == 0 || (bind->type == GFX_BINDING_BUFFER &&
+			(bind->elementSize == 0 || bind->numElements == 0)))
+		{
+			gfx_log_error(
+				"A resource group binding description cannot be empty.");
+
+			goto clean;
+		}
 
 		switch (bind->type)
 		{
@@ -529,7 +538,8 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			srcPtr = bind->images, bind->images = refPtr; break;
 		}
 
-		// Take source references, resolve them.
+		// We actually copy all the resolved (!) references to the end
+		// of the group struct, in the same order we found them.
 		// If no reference, insert a reference to the group's buffer.
 		// Also, add to the size of that buffer so we can allocate it.
 		for (size_t r = 0; r < bind->count; ++r)
@@ -541,7 +551,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			}
 
 			refPtr[r] = gfx_ref_buffer(&group->buffer, size);
-			size += bind->size;
+			size += bind->elementSize * bind->numElements;
 
 			// Validate bound images.
 			if (bind->type == GFX_BINDING_IMAGE)

@@ -341,7 +341,8 @@ static void _test_init(void)
 			{
 				.type = GFX_BINDING_BUFFER,
 				.count = 1,
-				.size = sizeof(float) * 16,
+				.elementSize = sizeof(float) * 16,
+				.numElements = 1,
 				.buffers = NULL
 			}
 		});

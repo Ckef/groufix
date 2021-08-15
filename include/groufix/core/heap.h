@@ -100,9 +100,11 @@ typedef struct GFXAttribute
 typedef struct GFXBinding
 {
 	GFXBindingType type;
+	size_t         count; // Number of bound buffers/images.
 
-	size_t   count; // Number of bound buffers/images.
-	uint64_t size;  // Bytes to claim for/from each buffer (ignored for images).
+	// Buffer format (ignored for images)
+	uint64_t elementSize; // In bytes.
+	uint32_t numElements; // Elements to claim from each buffer.
 
 
 	// Bound data (input only).
@@ -165,7 +167,7 @@ typedef struct GFXMesh
 	GFXTopology topology;
 
 	uint32_t stride;    // i.e. vertex size in bytes.
-	uint8_t  indexSize; // Index size in bytes.
+	char     indexSize; // Index size in bytes.
 	uint32_t numVertices;
 	uint32_t numIndices;
 
@@ -265,7 +267,7 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
                                 GFXMemoryFlags flags, GFXBufferUsage usage,
                                 GFXBufferRef vertex, GFXBufferRef index,
                                 uint32_t numVertices, uint32_t stride,
-                                uint32_t numIndices, uint8_t indexSize,
+                                uint32_t numIndices, char indexSize,
                                 size_t numAttribs, const GFXAttribute* attribs,
                                 GFXTopology topology);
 

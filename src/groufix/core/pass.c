@@ -213,6 +213,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	}
 
 	// Create descriptor set layout.
+	// TODO: Will be cached.
 	if (pass->vk.setLayout == VK_NULL_HANDLE)
 	{
 		VkDescriptorSetLayoutCreateInfo dslci = {
@@ -255,6 +256,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	}
 
 	// Allocate descriptor set.
+	// TODO: Will be cached.
 	if (pass->vk.set == VK_NULL_HANDLE)
 	{
 		VkDescriptorSetAllocateInfo dsai = {
@@ -269,8 +271,9 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		_GFX_VK_CHECK(context->vk.AllocateDescriptorSets(
 			context->vk.device, &dsai, &pass->vk.set), goto error);
 
-		// Write the first binding of the group to it lol.
-		// TODO: Renderable objects should define what parts of a group to
+		// Write the entire first binding of the group to it lol.
+		// TODO: binding.numElements > 0 means dynamic.
+		// TODO: Renderable objects should define what range of a group to
 		// take as their data, from which descriptor set shite can be derived.
 		_GFXUnpackRef ubo = _gfx_ref_unpack(
 			gfx_ref_group_buffer((GFXGroup*)group, 0, 0, 0));
@@ -281,7 +284,9 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		VkDescriptorBufferInfo dbi = {
 			.buffer = ubo.obj.buffer->vk.buffer,
 			.offset = ubo.value,
-			.range  = group->bindings[0].size
+			.range =
+				group->bindings[0].elementSize *
+				group->bindings[0].numElements
 		};
 
 		VkWriteDescriptorSet wds = {
@@ -301,6 +306,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	}
 
 	// Create pipeline layout.
+	// TODO: Will be cached.
 	if (pass->vk.pipeLayout == VK_NULL_HANDLE)
 	{
 		VkPipelineLayoutCreateInfo plci = {
@@ -319,6 +325,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	}
 
 	// Create pipeline.
+	// TODO: Will be cached.
 	if (pass->vk.pipeline == VK_NULL_HANDLE)
 	{
 		// Pipeline shader stages.

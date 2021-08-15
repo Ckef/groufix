@@ -102,11 +102,11 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 
 	context->vk.CmdBindVertexBuffers(
 		frame->vk.cmd, 0, 1,
-		(VkBuffer[]){ vertex.obj.buffer->vk.buffer },
+		&vertex.obj.buffer->vk.buffer,
 		(VkDeviceSize[]){ vertex.value });
 
 	// Draw.
-	// TODO: Renderable objects should define what parts of the mesh to draw.
+	// TODO: Renderable objects should define what range of the mesh to draw.
 	if (mesh->base.numIndices > 0)
 		context->vk.CmdDrawIndexed(
 			frame->vk.cmd,
