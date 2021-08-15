@@ -19,7 +19,7 @@ typedef enum GFXFormatType
 	GFX_UNORM,   // uint -> float [0,1]
 	GFX_SNORM,   // int -> float  [-1,1]
 	GFX_USCALED, // uint -> float [0,2^n-1]
-	GFX_SSCALED, // int -> float  [0,2^n-1]
+	GFX_SSCALED, // int -> float  [-2^(n-1),2^(n-1)-1]
 	GFX_UINT,    // uint -> uint
 	GFX_SINT,    // int -> int
 	GFX_UFLOAT,  // ufloat -> float
