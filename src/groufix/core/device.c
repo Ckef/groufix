@@ -68,27 +68,27 @@ static void _gfx_get_device_features(_GFXDevice* device,
 
 	// For features we do want, warn if not present.
 	if (pdf->fullDrawIndexUint32 == VK_FALSE) gfx_log_warn(
-		"Physical device does not support vertex indices of size uint32_t: %s.",
+		"[ %s ] does not support vertex indices of size uint32_t.",
 		device->name);
 
 	if (pdf->geometryShader == VK_FALSE) gfx_log_warn(
-		"Physical device does not support geometry shaders: %s.",
+		"[ %s ] does not support geometry shaders.",
 		device->name);
 
 	if (pdf->tessellationShader == VK_FALSE) gfx_log_warn(
-		"Physical device does not support tessellation shaders: %s.",
+		"[ %s ] does not support tessellation shaders.",
 		device->name);
 
 	if (pdf->textureCompressionBC == VK_FALSE) gfx_log_warn(
-		"Physical device does not support BCn compression: %s.",
+		"[ %s ] does not support BCn compression.",
 		device->name);
 
 	if (pdf->textureCompressionETC2 == VK_FALSE) gfx_log_warn(
-		"Physical device does not support ETC2 or EAC compression: %s.",
+		"[ %s ] does not support ETC2 or EAC compression.",
 		device->name);
 
 	if (pdf->textureCompressionASTC_LDR == VK_FALSE) gfx_log_warn(
-		"Physical device does not support ASTC compression: %s.",
+		"[ %s ] does not support ASTC compression.",
 		device->name);
 
 	pdf->robustBufferAccess                      = VK_FALSE;
@@ -187,7 +187,7 @@ static int _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
 	{
 		// Probably want to know when a device is somehow invalid..
 		gfx_log_error(
-			"Physical device could not be found in any device group: %s.",
+			"[ %s ] could not be found in any device group.",
 			device->name);
 
 		return 0;
@@ -364,15 +364,15 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 
 	// Now check if we found all queues (and log for all).
 	if (graphics == UINT32_MAX) gfx_log_error(
-		"Physical device lacks a queue family with VK_QUEUE_GRAPHICS_BIT set: %s.",
+		"[ %s ] lacks a queue family with VK_QUEUE_GRAPHICS_BIT set.",
 		device->name);
 
 	if (present == UINT32_MAX) gfx_log_error(
-		"Physical device lacks a queue family with presentation support: %s.",
+		"[ %s ] lacks a queue family with presentation support.",
 		device->name);
 
 	if (transfer == UINT32_MAX) gfx_log_error(
-		"Physical device lacks a queue family with VK_QUEUE_TRANSFER_BIT set: %s.",
+		"[ %s ] lacks a queue family with VK_QUEUE_TRANSFER_BIT set.",
 		device->name);
 
 	if (graphics == UINT32_MAX || present == UINT32_MAX || transfer == UINT32_MAX)
@@ -479,7 +479,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	// First of all, check Vulkan version.
 	if (device->api < _GFX_VK_VERSION)
 	{
-		gfx_log_error("Physical device does not support Vulkan version %u.%u.%u: %s.",
+		gfx_log_error("[ %s ] does not support Vulkan version %u.%u.%u.",
 			(unsigned int)VK_VERSION_MAJOR(_GFX_VK_VERSION),
 			(unsigned int)VK_VERSION_MINOR(_GFX_VK_VERSION),
 			(unsigned int)VK_VERSION_PATCH(_GFX_VK_VERSION),

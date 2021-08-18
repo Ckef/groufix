@@ -241,8 +241,8 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			if (!gfx_vec_push(&window->vk.retired, 1, &oldSwap))
 			{
 				gfx_log_warn(
-					"Could not retire an old swapchain and will instead "
-					"destroy it on physical device: %s.",
+					"[ %s ] could not retire an old swapchain and will "
+					"instead destroy it.",
 					device->name);
 
 				context->vk.DestroySwapchainKHR(
@@ -279,7 +279,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 	// Clean on failure.
 clean:
 	gfx_log_error(
-		"Could not (re)create a swapchain on physical device: %s.",
+		"[ %s ] could not (re)create a swapchain.",
 		device->name);
 
 	// On failure, treat the current swapchain as an old swapchain.
@@ -379,8 +379,8 @@ recreate:
 	// We warn here, cause not sure what should happen?
 	case VK_ERROR_OUT_OF_DATE_KHR:
 		gfx_log_warn(
-			"Could not acquire an image from a swapchain and will instead "
-			"recreate the swapchain and try again on physical device: %s.",
+			"[ %s ] could not acquire an image from a swapchain and will "
+			"instead recreate the swapchain and try again.",
 			window->device->name);
 
 		recreate = 1;
@@ -395,7 +395,7 @@ recreate:
 	// Fatal error on failure.
 error:
 	gfx_log_fatal(
-		"Could not acquire an image from a swapchain on physical device: %s.",
+		"[ %s ] could not acquire an image from a swapchain.",
 		window->device->name);
 
 	return UINT32_MAX;
@@ -467,8 +467,8 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 		// We warn here, cause not sure what should happen?
 		case VK_ERROR_OUT_OF_DATE_KHR:
 			gfx_log_warn(
-				"Could not present an image to a swapchain and will instead "
-				"try to recreate the swapchain on physical device: %s.",
+				"[ %s ] could not present an image to a swapchain and will "
+				"instead try to recreate the swapchain.",
 				windows[i]->device->name);
 
 			_gfx_swapchain_recreate(windows[i], flags + i);
@@ -478,7 +478,7 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 		default:
 			_GFX_VK_CHECK(results[i], {});
 			gfx_log_fatal(
-				"Could not present an image to a swapchain on physical device: %s.",
+				"[ %s ] could not present an image to a swapchain.",
 				windows[i]->device->name);
 		}
 	}

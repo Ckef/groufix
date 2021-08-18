@@ -267,8 +267,8 @@ static int _gfx_window_pick_access(_GFXWindow* window)
 	if (support == VK_FALSE)
 	{
 		gfx_log_error(
-			"The queue set (family) picked for presentation does not "
-			"support presentation to a surface on physical device: %s.",
+			"[ %s ] picked queue set (family) for presentation that does "
+			"not support presentation to a surface.",
 			window->device->name);
 
 		return 0;
