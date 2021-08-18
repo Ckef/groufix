@@ -179,6 +179,7 @@ int _gfx_vulkan_init(void)
 
 	// We use a scope here so the goto above is allowed.
 	{
+		// TODO: Enable VK_EXT_swapchain_colorspace?
 		// Add our own extensions and layers if in debug mode.
 #if !defined (NDEBUG)
 		uint32_t count = glfwCount + 1;

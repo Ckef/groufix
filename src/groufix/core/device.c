@@ -79,6 +79,18 @@ static void _gfx_get_device_features(_GFXDevice* device,
 		"Physical device does not support tessellation shaders: %s.",
 		device->name);
 
+	if (pdf->textureCompressionBC == VK_FALSE) gfx_log_warn(
+		"Physical device does not support BCn compression: %s.",
+		device->name);
+
+	if (pdf->textureCompressionETC2 == VK_FALSE) gfx_log_warn(
+		"Physical device does not support ETC2 or EAC compression: %s.",
+		device->name);
+
+	if (pdf->textureCompressionASTC_LDR == VK_FALSE) gfx_log_warn(
+		"Physical device does not support ASTC compression: %s.",
+		device->name);
+
 	pdf->robustBufferAccess                      = VK_FALSE;
 	pdf->imageCubeArray                          = VK_FALSE;
 	pdf->independentBlend                        = VK_FALSE;
@@ -96,9 +108,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	pdf->alphaToOne                              = VK_FALSE;
 	pdf->multiViewport                           = VK_FALSE;
 	pdf->samplerAnisotropy                       = VK_FALSE;
-	pdf->textureCompressionETC2                  = VK_FALSE;
-	pdf->textureCompressionASTC_LDR              = VK_FALSE;
-	pdf->textureCompressionBC                    = VK_FALSE;
 	pdf->occlusionQueryPrecise                   = VK_FALSE;
 	pdf->pipelineStatisticsQuery                 = VK_FALSE;
 	pdf->vertexPipelineStoresAndAtomics          = VK_FALSE;

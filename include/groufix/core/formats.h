@@ -13,24 +13,26 @@
 
 /**
  * Numeric format interpretation.
+ * Use as flags for combined formats & fuzzy types.
  */
 typedef enum GFXFormatType
 {
-	GFX_UNORM,   // uint -> float [0,1]
-	GFX_SNORM,   // int -> float  [-1,1]
-	GFX_USCALED, // uint -> float [0,2^n-1]
-	GFX_SSCALED, // int -> float  [-2^(n-1),2^(n-1)-1]
-	GFX_UINT,    // uint -> uint
-	GFX_SINT,    // int -> int
-	GFX_UFLOAT,  // ufloat -> float
-	GFX_SFLOAT,  // float -> float
-	GFX_SRGB     // sRGB-uint, Alpha-uint -> float [0,1]
+	GFX_UNORM   = 0x0001, // uint -> float [0,1]
+	GFX_SNORM   = 0x0002, // int -> float  [-1,1]
+	GFX_USCALED = 0x0004, // uint -> float [0,2^n-1]
+	GFX_SSCALED = 0x0008, // int -> float  [-2^(n-1),2^(n-1)-1]
+	GFX_UINT    = 0x0010, // uint -> uint
+	GFX_SINT    = 0x0020, // int -> int
+	GFX_UFLOAT  = 0x0040, // ufloat -> float
+	GFX_SFLOAT  = 0x0080, // float -> float
+	GFX_SRGB    = 0x0100  // sRGB-uint, Alpha-uint -> float [0,1]
 
 } GFXFormatType;
 
 
 /**
  * Format component order (defines `comps` in GFXFormat).
+ * TODO: Make flags for fuzzy orders?
  */
 typedef enum GFXOrder
 {
@@ -43,16 +45,20 @@ typedef enum GFXOrder
 	GFX_ORDER_ARGB,
 	GFX_ORDER_ABGR,
 	GFX_ORDER_EBGR, // comps = [shared exponent, bgr]
+
 	GFX_ORDER_DEPTH,
 	GFX_ORDER_STENCIL,
+	GFX_ORDER_DEPTH_STENCIL,
 
 	// Compression 'orders'.
-	GFX_ORDER_BCn,  // comps = [n (1|2|3|4|5|6|7), -]
+	GFX_ORDER_BCn,  // comps = [n (1|2|3|4|5|6|7), alpha (0|1), -]
 	GFX_ORDER_ETC2_RGB,
 	GFX_ORDER_ETC2_RGBA,
 	GFX_ORDER_EAC_R,
 	GFX_ORDER_EAC_RG,
-	GFX_ORDER_ASTC  // comps = [block-width, block-height, -]
+	GFX_ORDER_ASTC  // comps = [block width, block height, -]
+
+	// TODO: Add YUV/YCbCr support?
 
 } GFXOrder;
 
@@ -68,6 +74,357 @@ typedef struct GFXFormat
 	GFXOrder      order;
 
 } GFXFormat;
+
+
+/****************************
+ * Format constants & macros
+ ****************************/
+
+/**
+ * Empty format macro (i.e. undefined) & checkers.
+ * GFX_FORMAT_EMPTY cannot be an argument to GFX_FORMAT_IS_EQUAL!
+ */
+#define GFX_FORMAT_EMPTY \
+	(GFXFormat){ .comps = {0,0,0,0} }
+
+#define GFX_FORMAT_IS_EMPTY(fmt) \
+	(fmt.comps[0] == 0 && \
+	fmt.comps[1] == 0 && \
+	fmt.comps[2] == 0 && \
+	fmt.comps[3] == 0)
+
+#define GFX_FORMAT_IS_EQUAL(fmta, fmtb) \
+	(fmta.comps[0] == fmtb.comps[0] && \
+	fmta.comps[1] == fmtb.comps[1] && \
+	fmta.comps[2] == fmtb.comps[2] && \
+	fmta.comps[3] == fmtb.comps[3] && \
+	fmta.type == fmtb.type && \
+	fmta.order == fmtb.order)
+
+
+/**
+ * Format macros, i.e. constant GFXFormat definitions.
+ * Mirrors all Vulkan formats (the subset that groufix supports).
+ * Note: some parts of the Vulkan identifiers are omitted.
+ */
+#define GFX_FORMAT_R4G4_UNORM \
+	(GFXFormat){ {4,4,0,0}, GFX_UNORM, GFX_ORDER_RG }
+#define GFX_FORMAT_R4G4B4A4_UNORM \
+	(GFXFormat){ {4,4,4,4}, GFX_UNORM, GFX_ORDER_RGBA }
+#define GFX_FORMAT_B4G4R4A4_UNORM \
+	(GFXFormat){ {4,4,4,4}, GFX_UNORM, GFX_ORDER_BGRA }
+#define GFX_FORMAT_R5G6B5_UNORM \
+	(GFXFormat){ {5,6,5,0}, GFX_UNORM, GFX_ORDER_RGB }
+#define GFX_FORMAT_B5G6R5_UNORM \
+	(GFXFormat){ {5,6,5,0}, GFX_UNORM, GFX_ORDER_BGR }
+#define GFX_FORMAT_R5G5B5A1_UNORM \
+	(GFXFormat){ {5,5,5,1}, GFX_UNORM, GFX_ORDER_RGBA }
+#define GFX_FORMAT_B5G5R5A1_UNORM \
+	(GFXFormat){ {5,5,5,1}, GFX_UNORM, GFX_ORDER_BGRA }
+#define GFX_FORMAT_A1R5G5B5_UNORM \
+	(GFXFormat){ {1,5,5,5}, GFX_UNORM, GFX_ORDER_ARGB }
+
+#define GFX_FORMAT_R8_UNORM \
+	(GFXFormat){ {8,0,0,0}, GFX_UNORM, GFX_ORDER_R }
+#define GFX_FORMAT_R8_SNORM \
+	(GFXFormat){ {8,0,0,0}, GFX_SNORM, GFX_ORDER_R }
+#define GFX_FORMAT_R8_USCALED \
+	(GFXFormat){ {8,0,0,0}, GFX_USCALED, GFX_ORDER_R }
+#define GFX_FORMAT_R8_SSCALED \
+	(GFXFormat){ {8,0,0,0}, GFX_SSCALED, GFX_ORDER_R }
+#define GFX_FORMAT_R8_UINT \
+	(GFXFormat){ {8,0,0,0}, GFX_UINT, GFX_ORDER_R }
+#define GFX_FORMAT_R8_SINT \
+	(GFXFormat){ {8,0,0,0}, GFX_SINT, GFX_ORDER_R }
+#define GFX_FORMAT_R8_SRGB \
+	(GFXFormat){ {8,0,0,0}, GFX_SRGB, GFX_ORDER_R }
+
+#define GFX_FORMAT_R8G8_UNORM \
+	(GFXFormat){ {8,8,0,0}, GFX_UNORM, GFX_ORDER_RG }
+#define GFX_FORMAT_R8G8_SNORM \
+	(GFXFormat){ {8,8,0,0}, GFX_SNORM, GFX_ORDER_RG }
+#define GFX_FORMAT_R8G8_USCALED \
+	(GFXFormat){ {8,8,0,0}, GFX_USCALED, GFX_ORDER_RG }
+#define GFX_FORMAT_R8G8_SSCALED \
+	(GFXFormat){ {8,8,0,0}, GFX_SSCALED, GFX_ORDER_RG }
+#define GFX_FORMAT_R8G8_UINT \
+	(GFXFormat){ {8,8,0,0}, GFX_UINT, GFX_ORDER_RG }
+#define GFX_FORMAT_R8G8_SINT \
+	(GFXFormat){ {8,8,0,0}, GFX_SINT, GFX_ORDER_RG }
+#define GFX_FORMAT_R8G8_SRGB \
+	(GFXFormat){ {8,8,0,0}, GFX_SRGB, GFX_ORDER_RG }
+
+#define GFX_FORMAT_R8G8B8_UNORM \
+	(GFXFormat){ {8,8,8,0}, GFX_UNORM, GFX_ORDER_RGB }
+#define GFX_FORMAT_R8G8B8_SNORM \
+	(GFXFormat){ {8,8,8,0}, GFX_SNORM, GFX_ORDER_RGB }
+#define GFX_FORMAT_R8G8B8_USCALED \
+	(GFXFormat){ {8,8,8,0}, GFX_USCALED, GFX_ORDER_RGB }
+#define GFX_FORMAT_R8G8B8_SSCALED \
+	(GFXFormat){ {8,8,8,0}, GFX_SSCALED, GFX_ORDER_RGB }
+#define GFX_FORMAT_R8G8B8_UINT \
+	(GFXFormat){ {8,8,8,0}, GFX_UINT, GFX_ORDER_RGB }
+#define GFX_FORMAT_R8G8B8_SINT \
+	(GFXFormat){ {8,8,8,0}, GFX_SINT, GFX_ORDER_RGB }
+#define GFX_FORMAT_R8G8B8_SRGB \
+	(GFXFormat){ {8,8,8,0}, GFX_SRGB, GFX_ORDER_RGB }
+
+#define GFX_FORMAT_B8G8R8_UNORM \
+	(GFXFormat){ {8,8,8,0}, GFX_UNORM, GFX_ORDER_BGR }
+#define GFX_FORMAT_B8G8R8_SNORM \
+	(GFXFormat){ {8,8,8,0}, GFX_SNORM, GFX_ORDER_BGR }
+#define GFX_FORMAT_B8G8R8_USCALED \
+	(GFXFormat){ {8,8,8,0}, GFX_USCALED, GFX_ORDER_BGR }
+#define GFX_FORMAT_B8G8R8_SSCALED \
+	(GFXFormat){ {8,8,8,0}, GFX_SSCALED, GFX_ORDER_BGR }
+#define GFX_FORMAT_B8G8R8_UINT \
+	(GFXFormat){ {8,8,8,0}, GFX_UINT, GFX_ORDER_BGR }
+#define GFX_FORMAT_B8G8R8_SINT \
+	(GFXFormat){ {8,8,8,0}, GFX_SINT, GFX_ORDER_BGR }
+#define GFX_FORMAT_B8G8R8_SRGB \
+	(GFXFormat){ {8,8,8,0}, GFX_SRGB, GFX_ORDER_BGR }
+
+#define GFX_FORMAT_R8G8B8A8_UNORM \
+	(GFXFormat){ {8,8,8,8}, GFX_UNORM, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R8G8B8A8_SNORM \
+	(GFXFormat){ {8,8,8,8}, GFX_SNORM, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R8G8B8A8_USCALED \
+	(GFXFormat){ {8,8,8,8}, GFX_USCALED, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R8G8B8A8_SSCALED \
+	(GFXFormat){ {8,8,8,8}, GFX_SSCALED, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R8G8B8A8_UINT \
+	(GFXFormat){ {8,8,8,8}, GFX_UINT, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R8G8B8A8_SINT \
+	(GFXFormat){ {8,8,8,8}, GFX_SINT, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R8G8B8A8_SRGB \
+	(GFXFormat){ {8,8,8,8}, GFX_SRGB, GFX_ORDER_RGBA }
+
+#define GFX_FORMAT_B8G8R8A8_UNORM \
+	(GFXFormat){ {8,8,8,8}, GFX_UNORM, GFX_ORDER_BGRA }
+#define GFX_FORMAT_B8G8R8A8_SNORM \
+	(GFXFormat){ {8,8,8,8}, GFX_SNORM, GFX_ORDER_BGRA }
+#define GFX_FORMAT_B8G8R8A8_USCALED \
+	(GFXFormat){ {8,8,8,8}, GFX_USCALED, GFX_ORDER_BGRA }
+#define GFX_FORMAT_B8G8R8A8_SSCALED \
+	(GFXFormat){ {8,8,8,8}, GFX_SSCALED, GFX_ORDER_BGRA }
+#define GFX_FORMAT_B8G8R8A8_UINT \
+	(GFXFormat){ {8,8,8,8}, GFX_UINT, GFX_ORDER_BGRA }
+#define GFX_FORMAT_B8G8R8A8_SINT \
+	(GFXFormat){ {8,8,8,8}, GFX_SINT, GFX_ORDER_BGRA }
+#define GFX_FORMAT_B8G8R8A8_SRGB \
+	(GFXFormat){ {8,8,8,8}, GFX_SRGB, GFX_ORDER_BGRA }
+
+#define GFX_FORMAT_A8B8G8R_UNORM \
+	(GFXFormat){ {8,8,8,8}, GFX_UNORM, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A8B8G8R_SNORM \
+	(GFXFormat){ {8,8,8,8}, GFX_SNORM, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A8B8G8R_USCALED \
+	(GFXFormat){ {8,8,8,8}, GFX_USCALED, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A8B8G8R_SSCALED \
+	(GFXFormat){ {8,8,8,8}, GFX_SSCALED, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A8B8G8R_UINT \
+	(GFXFormat){ {8,8,8,8}, GFX_UINT, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A8B8G8R_SINT \
+	(GFXFormat){ {8,8,8,8}, GFX_SINT, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A8B8G8R_SRGB \
+	(GFXFormat){ {8,8,8,8}, GFX_SRGB, GFX_ORDER_ABGR }
+
+#define GFX_FORMAT_A2R10G10B10_UNORM \
+	(GFXFormat){ {2,10,10,10}, GFX_UNORM, GFX_ORDER_ARGB }
+#define GFX_FORMAT_A2R10G10B10_SNORM \
+	(GFXFormat){ {2,10,10,10}, GFX_SNORM, GFX_ORDER_ARGB }
+#define GFX_FORMAT_A2R10G10B10_USCALED \
+	(GFXFormat){ {2,10,10,10}, GFX_USCALED, GFX_ORDER_ARGB }
+#define GFX_FORMAT_A2R10G10B10_SSCALED \
+	(GFXFormat){ {2,10,10,10}, GFX_SSCALED, GFX_ORDER_ARGB }
+#define GFX_FORMAT_A2R10G10B10_UINT \
+	(GFXFormat){ {2,10,10,10}, GFX_UINT, GFX_ORDER_ARGB }
+#define GFX_FORMAT_A2R10G10B10_SINT \
+	(GFXFormat){ {2,10,10,10}, GFX_SINT, GFX_ORDER_ARGB }
+
+#define GFX_FORMAT_A2B10G10R10_UNORM \
+	(GFXFormat){ {2,10,10,10}, GFX_UNORM, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A2B10G10R10_SNORM \
+	(GFXFormat){ {2,10,10,10}, GFX_SNORM, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A2B10G10R10_USCALED \
+	(GFXFormat){ {2,10,10,10}, GFX_USCALED, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A2B10G10R10_SSCALED \
+	(GFXFormat){ {2,10,10,10}, GFX_SSCALED, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A2B10G10R10_UINT \
+	(GFXFormat){ {2,10,10,10}, GFX_UINT, GFX_ORDER_ABGR }
+#define GFX_FORMAT_A2B10G10R10_SINT \
+	(GFXFormat){ {2,10,10,10}, GFX_SINT, GFX_ORDER_ABGR }
+
+#define GFX_FORMAT_R16_UNORM \
+	(GFXFormat){ {16,0,0,0}, GFX_UNORM, GFX_ORDER_R }
+#define GFX_FORMAT_R16_SNORM \
+	(GFXFormat){ {16,0,0,0}, GFX_SNORM, GFX_ORDER_R }
+#define GFX_FORMAT_R16_USCALED \
+	(GFXFormat){ {16,0,0,0}, GFX_USCALED, GFX_ORDER_R }
+#define GFX_FORMAT_R16_SSCALED \
+	(GFXFormat){ {16,0,0,0}, GFX_SSCALED, GFX_ORDER_R }
+#define GFX_FORMAT_R16_UINT \
+	(GFXFormat){ {16,0,0,0}, GFX_UINT, GFX_ORDER_R }
+#define GFX_FORMAT_R16_SINT \
+	(GFXFormat){ {16,0,0,0}, GFX_SINT, GFX_ORDER_R }
+#define GFX_FORMAT_R16_SFLOAT \
+	(GFXFormat){ {16,0,0,0}, GFX_SFLOAT, GFX_ORDER_R }
+
+#define GFX_FORMAT_R16G16_UNORM \
+	(GFXFormat){ {16,16,0,0}, GFX_UNORM, GFX_ORDER_RG }
+#define GFX_FORMAT_R16G16_SNORM \
+	(GFXFormat){ {16,16,0,0}, GFX_SNORM, GFX_ORDER_RG }
+#define GFX_FORMAT_R16G16_USCALED \
+	(GFXFormat){ {16,16,0,0}, GFX_USCALED, GFX_ORDER_RG }
+#define GFX_FORMAT_R16G16_SSCALED \
+	(GFXFormat){ {16,16,0,0}, GFX_SSCALED, GFX_ORDER_RG }
+#define GFX_FORMAT_R16G16_UINT \
+	(GFXFormat){ {16,16,0,0}, GFX_UINT, GFX_ORDER_RG }
+#define GFX_FORMAT_R16G16_SINT \
+	(GFXFormat){ {16,16,0,0}, GFX_SINT, GFX_ORDER_RG }
+#define GFX_FORMAT_R16G16_SFLOAT \
+	(GFXFormat){ {16,16,0,0}, GFX_SFLOAT, GFX_ORDER_RG }
+
+#define GFX_FORMAT_R16G16B16_UNORM \
+	(GFXFormat){ {16,16,16,0}, GFX_UNORM, GFX_ORDER_RGB }
+#define GFX_FORMAT_R16G16B16_SNORM \
+	(GFXFormat){ {16,16,16,0}, GFX_SNORM, GFX_ORDER_RGB }
+#define GFX_FORMAT_R16G16B16_USCALED \
+	(GFXFormat){ {16,16,16,0}, GFX_USCALED, GFX_ORDER_RGB }
+#define GFX_FORMAT_R16G16B16_SSCALED \
+	(GFXFormat){ {16,16,16,0}, GFX_SSCALED, GFX_ORDER_RGB }
+#define GFX_FORMAT_R16G16B16_UINT \
+	(GFXFormat){ {16,16,16,0}, GFX_UINT, GFX_ORDER_RGB }
+#define GFX_FORMAT_R16G16B16_SINT \
+	(GFXFormat){ {16,16,16,0}, GFX_SINT, GFX_ORDER_RGB }
+#define GFX_FORMAT_R16G16B16_SFLOAT \
+	(GFXFormat){ {16,16,16,0}, GFX_SFLOAT, GFX_ORDER_RGB }
+
+#define GFX_FORMAT_R16G16B16A16_UNORM \
+	(GFXFormat){ {16,16,16,16}, GFX_UNORM, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R16G16B16A16_SNORM \
+	(GFXFormat){ {16,16,16,16}, GFX_SNORM, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R16G16B16A16_USCALED \
+	(GFXFormat){ {16,16,16,16}, GFX_USCALED, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R16G16B16A16_SSCALED \
+	(GFXFormat){ {16,16,16,16}, GFX_SSCALED, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R16G16B16A16_UINT \
+	(GFXFormat){ {16,16,16,16}, GFX_UINT, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R16G16B16A16_SINT \
+	(GFXFormat){ {16,16,16,16}, GFX_SINT, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R16G16B16A16_SFLOAT \
+	(GFXFormat){ {16,16,16,16}, GFX_SFLOAT, GFX_ORDER_RGBA }
+
+#define GFX_FORMAT_R32_UINT \
+	(GFXFormat){ {32,0,0,0}, GFX_UINT, GFX_ORDER_R }
+#define GFX_FORMAT_R32_SINT \
+	(GFXFormat){ {32,0,0,0}, GFX_SINT, GFX_ORDER_R }
+#define GFX_FORMAT_R32_SFLOAT \
+	(GFXFormat){ {32,0,0,0}, GFX_SFLOAT, GFX_ORDER_R }
+
+#define GFX_FORMAT_R32G32_UINT \
+	(GFXFormat){ {32,32,0,0}, GFX_UINT, GFX_ORDER_RG }
+#define GFX_FORMAT_R32G32_SINT \
+	(GFXFormat){ {32,32,0,0}, GFX_SINT, GFX_ORDER_RG }
+#define GFX_FORMAT_R32G32_SFLOAT \
+	(GFXFormat){ {32,32,0,0}, GFX_SFLOAT, GFX_ORDER_RG }
+
+#define GFX_FORMAT_R32G32B32_UINT \
+	(GFXFormat){ {32,32,32,0}, GFX_UINT, GFX_ORDER_RGB }
+#define GFX_FORMAT_R32G32B32_SINT \
+	(GFXFormat){ {32,32,32,0}, GFX_SINT, GFX_ORDER_RGB }
+#define GFX_FORMAT_R32G32B32_SFLOAT \
+	(GFXFormat){ {32,32,32,0}, GFX_SFLOAT, GFX_ORDER_RGB }
+
+#define GFX_FORMAT_R32G32B32A32_UINT \
+	(GFXFormat){ {32,32,32,32}, GFX_UINT, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R32G32B32A32_SINT \
+	(GFXFormat){ {32,32,32,32}, GFX_SINT, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R32G32B32A32_SFLOAT \
+	(GFXFormat){ {32,32,32,32}, GFX_SFLOAT, GFX_ORDER_RGBA }
+
+#define GFX_FORMAT_R64_UINT \
+	(GFXFormat){ {64,0,0,0}, GFX_UINT, GFX_ORDER_R }
+#define GFX_FORMAT_R64_SINT \
+	(GFXFormat){ {64,0,0,0}, GFX_SINT, GFX_ORDER_R }
+#define GFX_FORMAT_R64_SFLOAT \
+	(GFXFormat){ {64,0,0,0}, GFX_SFLOAT, GFX_ORDER_R }
+
+#define GFX_FORMAT_R64G64_UINT \
+	(GFXFormat){ {64,64,0,0}, GFX_UINT, GFX_ORDER_RG }
+#define GFX_FORMAT_R64G64_SINT \
+	(GFXFormat){ {64,64,0,0}, GFX_SINT, GFX_ORDER_RG }
+#define GFX_FORMAT_R64G64_SFLOAT \
+	(GFXFormat){ {64,64,0,0}, GFX_SFLOAT, GFX_ORDER_RG }
+
+#define GFX_FORMAT_R64G64B64_UINT \
+	(GFXFormat){ {64,64,64,0}, GFX_UINT, GFX_ORDER_RGB }
+#define GFX_FORMAT_R64G64B64_SINT \
+	(GFXFormat){ {64,64,64,0}, GFX_SINT, GFX_ORDER_RGB }
+#define GFX_FORMAT_R64G64B64_SFLOAT \
+	(GFXFormat){ {64,64,64,0}, GFX_SFLOAT, GFX_ORDER_RGB }
+
+#define GFX_FORMAT_R64G64B64A64_UINT \
+	(GFXFormat){ {64,64,64,64}, GFX_UINT, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R64G64B64A64_SINT \
+	(GFXFormat){ {64,64,64,64}, GFX_SINT, GFX_ORDER_RGBA }
+#define GFX_FORMAT_R64G64B64A64_SFLOAT \
+	(GFXFormat){ {64,64,64,64}, GFX_SFLOAT, GFX_ORDER_RGBA }
+
+#define GFX_FORMAT_B10G11R11_UFLOAT \
+	(GFXFormat){ {10,11,11,0}, GFX_UFLOAT, GFX_ORDER_BGR }
+#define GFX_FORMAT_E5B9G9R9_UFLOAT \
+	(GFXFormat){ {5,9,9,9}, GFX_UFLOAT, GFX_ORDER_EBGR }
+
+#define GFX_FORMAT_D16_UNORM \
+	(GFXFormat){ {16,0,0,0}, GFX_UNORM, GFX_ORDER_DEPTH }
+#define GFX_FORMAT_X8_D24_UNORM \
+	(GFXFormat){ {8,24,0,0}, GFX_UNORM, GFX_ORDER_DEPTH }
+#define GFX_FORMAT_D32_SFLOAT \
+	(GFXFormat){ {32,0,0,0}, GFX_SFLOAT, GFX_ORDER_DEPTH }
+#define GFX_FORMAT_S8_UINT \
+	(GFXFormat){ {8,0,0,0}, GFX_UINT, GFX_ORDER_STENCIL }
+#define GFX_FORMAT_D16_UNORM_S8_UINT \
+	(GFXFormat){ {16,8,0,0}, GFX_UNORM | GFX_UINT, GFX_ORDER_DEPTH_STENCIL }
+#define GFX_FORMAT_D24_UNORM_S8_UINT \
+	(GFXFormat){ {24,8,0,0}, GFX_UNORM | GFX_UINT, GFX_ORDER_DEPTH_STENCIL }
+#define GFX_FORMAT_D32_SFLOAT_S8_UINT \
+	(GFXFormat){ {32,8,0,0}, GFX_SFLOAT | GFX_UINT, GFX_ORDER_DEPTH_STENCIL }
+
+#define GFX_FORMAT_BC1_RGB_UNORM \
+	(GFXFormat){ {1,0,0,0}, GFX_UNORM, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC1_RGB_SRGB \
+	(GFXFormat){ {1,0,0,0}, GFX_SRGB, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC1_RGBA_UNORM \
+	(GFXFormat){ {1,1,0,0}, GFX_UNORM, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC1_RGBA_SRGB \
+	(GFXFormat){ {1,1,0,0}, GFX_SRGB, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC2_UNORM \
+	(GFXFormat){ {2,1,0,0}, GFX_UNORM, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC2_SRGB \
+	(GFXFormat){ {2,1,0,0}, GFX_SRGB, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC3_UNORM \
+	(GFXFormat){ {3,1,0,0}, GFX_UNORM, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC3_SRGB \
+	(GFXFormat){ {3,1,0,0}, GFX_SRGB, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC4_UNORM \
+	(GFXFormat){ {4,0,0,0}, GFX_UNORM, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC4_SNORM \
+	(GFXFormat){ {4,0,0,0}, GFX_SNORM, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC5_UNORM \
+	(GFXFormat){ {5,0,0,0}, GFX_UNORM, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC5_SNORM \
+	(GFXFormat){ {5,0,0,0}, GFX_SNORM, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC6_UFLOAT \
+	(GFXFormat){ {6,0,0,0}, GFX_UFLOAT, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC6_SFLOAT \
+	(GFXFormat){ {6,0,0,0}, GFX_SFLOAT, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC7_UNORM \
+	(GFXFormat){ {7,1,0,0}, GFX_UNORM, GFX_ORDER_BCn }
+#define GFX_FORMAT_BC7_SRGB \
+	(GFXFormat){ {7,1,0,0}, GFX_SRGB, GFX_ORDER_BCn }
+
+// TODO: Define ETC2, EAC and ASTC
 
 
 #endif

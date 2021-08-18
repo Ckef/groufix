@@ -59,7 +59,6 @@ typedef struct _GFXBuffer
 
 
 /**
- * TODO: Incomplete definition.
  * Internal image.
  */
 typedef struct _GFXImage

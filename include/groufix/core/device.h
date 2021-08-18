@@ -36,6 +36,8 @@ typedef struct GFXDevice
 	GFXDeviceType type; // Read-only.
 	const char*   name; // Read-only.
 
+	// TODO: Add read-only features & limits.
+
 } GFXDevice;
 
 
