@@ -32,31 +32,31 @@ typedef enum GFXFormatType
 
 /**
  * Format component order (defines `comps` in GFXFormat).
- * TODO: Make flags for fuzzy orders?
+ * Use as flags for fuzzy orders.
  */
 typedef enum GFXOrder
 {
-	GFX_ORDER_R,
-	GFX_ORDER_RG,
-	GFX_ORDER_RGB,
-	GFX_ORDER_BGR,
-	GFX_ORDER_RGBA,
-	GFX_ORDER_BGRA,
-	GFX_ORDER_ARGB,
-	GFX_ORDER_ABGR,
-	GFX_ORDER_EBGR, // comps = [shared exponent, bgr]
+	GFX_ORDER_R    = 0x00000001,
+	GFX_ORDER_RG   = 0x00000002,
+	GFX_ORDER_RGB  = 0x00000004,
+	GFX_ORDER_BGR  = 0x00000008,
+	GFX_ORDER_RGBA = 0x00000010,
+	GFX_ORDER_BGRA = 0x00000020,
+	GFX_ORDER_ARGB = 0x00000040,
+	GFX_ORDER_ABGR = 0x00000080,
+	GFX_ORDER_EBGR = 0x00000100, // comps = [shared exponent, bgr]
 
-	GFX_ORDER_DEPTH,
-	GFX_ORDER_STENCIL,
-	GFX_ORDER_DEPTH_STENCIL,
+	GFX_ORDER_DEPTH         = 0x00000200,
+	GFX_ORDER_STENCIL       = 0x00000400,
+	GFX_ORDER_DEPTH_STENCIL = 0x00000800,
 
 	// Compression 'orders'.
-	GFX_ORDER_BCn,  // comps = [n (1|2|3|4|5|6|7), alpha (0|1), -]
-	GFX_ORDER_ETC2_RGB,
-	GFX_ORDER_ETC2_RGBA,
-	GFX_ORDER_EAC_R,
-	GFX_ORDER_EAC_RG,
-	GFX_ORDER_ASTC  // comps = [block width, block height, -]
+	GFX_ORDER_BCn       = 0x00001000, // comps = [n (1|2|3|4|5|6|7), alpha (0|1), -]
+	GFX_ORDER_ETC2_RGB  = 0x00002000,
+	GFX_ORDER_ETC2_RGBA = 0x00004000,
+	GFX_ORDER_EAC_R     = 0x00008000,
+	GFX_ORDER_EAC_RG    = 0x00010000,
+	GFX_ORDER_ASTC      = 0x00020000  // comps = [block width, block height, -]
 
 	// TODO: Add YUV/YCbCr support?
 
@@ -82,7 +82,7 @@ typedef struct GFXFormat
 
 /**
  * Empty format macro (i.e. undefined) & checkers.
- * GFX_FORMAT_EMPTY cannot be an argument to GFX_FORMAT_IS_EQUAL!
+ * GFX_FORMAT_EMPTY cannot be compared to itself using GFX_FORMAT_IS_EQUAL!
  */
 #define GFX_FORMAT_EMPTY \
 	(GFXFormat){ .comps = {0,0,0,0} }
@@ -424,7 +424,84 @@ typedef struct GFXFormat
 #define GFX_FORMAT_BC7_SRGB \
 	(GFXFormat){ {7,1,0,0}, GFX_SRGB, GFX_ORDER_BCn }
 
-// TODO: Define ETC2, EAC and ASTC
+#define GFX_FORMAT_ETC2_R8G8B8_UNORM \
+	(GFXFormat){ {8,8,8,0}, GFX_UNORM, GFX_ORDER_ETC2_RGB }
+#define GFX_FORMAT_ETC2_R8G8B8_SRGB \
+	(GFXFormat){ {8,8,8,0}, GFX_SRGB, GFX_ORDER_ETC2_RGB }
+#define GFX_FORMAT_ETC2_R8G8B8A1_UNORM \
+	(GFXFormat){ {8,8,8,1}, GFX_UNORM, GFX_ORDER_ETC2_RGBA }
+#define GFX_FORMAT_ETC2_R8G8B8A1_SRGB \
+	(GFXFormat){ {8,8,8,1}, GFX_SRGB, GFX_ORDER_ETC2_RGBA }
+#define GFX_FORMAT_ETC2_R8G8B8A8_UNORM \
+	(GFXFormat){ {8,8,8,8}, GFX_UNORM, GFX_ORDER_ETC2_RGBA }
+#define GFX_FORMAT_ETC2_R8G8B8A8_SRGB \
+	(GFXFormat){ {8,8,8,8}, GFX_SRGB, GFX_ORDER_ETC2_RGBA }
+
+#define GFX_FORMAT_EAC_R11_UNORM \
+	(GFXFormat){ {11,0,0,0}, GFX_UNORM, GFX_ORDER_EAC_R }
+#define GFX_FORMAT_EAC_R11_SNORM \
+	(GFXFormat){ {11,0,0,0}, GFX_SNORM, GFX_ORDER_EAC_R }
+#define GFX_FORMAT_EAC_R11G11_UNORM \
+	(GFXFormat){ {11,11,0,0}, GFX_UNORM, GFX_ORDER_EAC_RG }
+#define GFX_FORMAT_EAC_R11G11_SNORM \
+	(GFXFormat){ {11,11,0,0}, GFX_SNORM, GFX_ORDER_EAC_RG }
+
+#define GFX_FORMAT_ASTC_4x4_UNORM \
+	(GFXFormat){ {4,4,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_4x4_SRGB \
+	(GFXFormat){ {4,4,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_5x4_UNORM \
+	(GFXFormat){ {5,4,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_5x4_SRGB \
+	(GFXFormat){ {5,4,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_5x5_UNORM \
+	(GFXFormat){ {5,5,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_5x5_SRGB \
+	(GFXFormat){ {5,5,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_6x5_UNORM \
+	(GFXFormat){ {6,5,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_6x5_SRGB \
+	(GFXFormat){ {6,5,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_6x6_UNORM \
+	(GFXFormat){ {6,6,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_6x6_SRGB \
+	(GFXFormat){ {6,6,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_8x5_UNORM \
+	(GFXFormat){ {8,5,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_8x5_SRGB \
+	(GFXFormat){ {8,5,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_8x6_UNORM \
+	(GFXFormat){ {8,6,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_8x6_SRGB \
+	(GFXFormat){ {8,6,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_8x8_UNORM \
+	(GFXFormat){ {8,8,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_8x8_SRGB \
+	(GFXFormat){ {8,8,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_10x5_UNORM \
+	(GFXFormat){ {10,5,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_10x5_SRGB \
+	(GFXFormat){ {10,5,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_10x6_UNORM \
+	(GFXFormat){ {10,6,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_10x6_SRGB \
+	(GFXFormat){ {10,6,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_10x8_UNORM \
+	(GFXFormat){ {10,8,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_10x8_SRGB \
+	(GFXFormat){ {10,8,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_10x10_UNORM \
+	(GFXFormat){ {10,10,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_10x10_SRGB \
+	(GFXFormat){ {10,10,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_12x10_UNORM \
+	(GFXFormat){ {12,10,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_12x10_SRGB \
+	(GFXFormat){ {12,10,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_12x12_UNORM \
+	(GFXFormat){ {12,12,0,0}, GFX_UNORM, GFX_ORDER_ASTC }
+#define GFX_FORMAT_ASTC_12x12_SRGB \
+	(GFXFormat){ {12,12,0,0}, GFX_SRGB, GFX_ORDER_ASTC }
 
 
 #endif
