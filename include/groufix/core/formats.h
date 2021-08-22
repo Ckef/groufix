@@ -80,24 +80,24 @@ typedef struct GFXFormat
 
 /**
  * Empty format macro (i.e. undefined) & checkers.
- * GFX_FORMAT_EMPTY cannot be compared to itself using GFX_FORMAT_IS_EQUAL!
+ * Checkers cannot take constants (including GFX_FORMAT_EMPTY) as argument!
  */
 #define GFX_FORMAT_EMPTY \
-	(GFXFormat){ .comps = {0,0,0,0} }
+	(GFXFormat){ .comps = {0,0,0,0}, .type = 0, .order = 0 }
 
 #define GFX_FORMAT_IS_EMPTY(fmt) \
 	(fmt.comps[0] == 0 && \
 	fmt.comps[1] == 0 && \
 	fmt.comps[2] == 0 && \
-	fmt.comps[3] == 0)
+	fmt.comps[3] == 0 && \
+	fmt.type == 0 && fmt.order == 0)
 
 #define GFX_FORMAT_IS_EQUAL(fmta, fmtb) \
 	(fmta.comps[0] == fmtb.comps[0] && \
 	fmta.comps[1] == fmtb.comps[1] && \
 	fmta.comps[2] == fmtb.comps[2] && \
 	fmta.comps[3] == fmtb.comps[3] && \
-	fmta.type == fmtb.type && \
-	fmta.order == fmtb.order)
+	fmta.type == fmtb.type && fmta.order == fmtb.order)
 
 
 /**

@@ -63,6 +63,7 @@ typedef GFXReference GFXImageRef;
 
 /**
  * Empty reference macro (i.e. null reference) & type checkers.
+ * Type checkers cannot take constants (including GFX_REF_NULL) as argument!
  */
 #define GFX_REF_NULL \
 	(GFXReference){ .type = GFX_REF_EMPTY }
