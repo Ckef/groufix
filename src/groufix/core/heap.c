@@ -18,11 +18,11 @@
 #define _GFX_IMAGE_FROM_LIST(node) \
 	GFX_LIST_ELEM(node, _GFXImage, list)
 
-#define _GFX_MESH_FROM_BUFFER(buff) \
-	((_GFXMesh*)((char*)(buff) - offsetof(_GFXMesh, buffer)))
+#define _GFX_PRIMITIVE_FROM_BUFFER(buff) \
+	((_GFXPrimitive*)((char*)(buff) - offsetof(_GFXPrimitive, buffer)))
 
-#define _GFX_MESH_FROM_LIST(node) \
-	_GFX_MESH_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
+#define _GFX_PRIMITIVE_FROM_LIST(node) \
+	_GFX_PRIMITIVE_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
 
 #define _GFX_GROUP_FROM_BUFFER(buff) \
 	((_GFXGroup*)((char*)(buff) - offsetof(_GFXGroup, buffer)))
@@ -183,7 +183,7 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	_gfx_allocator_init(&heap->allocator, dev);
 	gfx_list_init(&heap->buffers);
 	gfx_list_init(&heap->images);
-	gfx_list_init(&heap->meshes);
+	gfx_list_init(&heap->primitives);
 	gfx_list_init(&heap->groups);
 
 	return heap;
@@ -212,8 +212,8 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	while (heap->images.head != NULL) gfx_free_image(
 		(GFXImage*)_GFX_IMAGE_FROM_LIST(heap->images.head));
 
-	while (heap->meshes.head != NULL) gfx_free_mesh(
-		(GFXMesh*)_GFX_MESH_FROM_LIST(heap->meshes.head));
+	while (heap->primitives.head != NULL) gfx_free_primitive(
+		(GFXPrimitive*)_GFX_PRIMITIVE_FROM_LIST(heap->primitives.head));
 
 	while (heap->groups.head != NULL) gfx_free_group(
 		(GFXGroup*)_GFX_GROUP_FROM_LIST(heap->groups.head));
@@ -222,7 +222,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	_gfx_allocator_clear(&heap->allocator);
 	gfx_list_clear(&heap->buffers);
 	gfx_list_clear(&heap->images);
-	gfx_list_clear(&heap->meshes);
+	gfx_list_clear(&heap->primitives);
 	gfx_list_clear(&heap->groups);
 
 	_gfx_mutex_clear(&heap->lock);
@@ -322,13 +322,13 @@ GFX_API void gfx_free_image(GFXImage* image)
 }
 
 /****************************/
-GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
-                                GFXMemoryFlags flags, GFXBufferUsage usage,
-                                GFXBufferRef vertex, GFXBufferRef index,
-                                uint32_t numVertices, uint32_t stride,
-                                uint32_t numIndices, char indexSize,
-                                size_t numAttribs, const GFXAttribute* attribs,
-                                GFXTopology topology)
+GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
+                                          GFXMemoryFlags flags, GFXBufferUsage usage,
+                                          GFXBufferRef vertex, GFXBufferRef index,
+                                          uint32_t numVertices, uint32_t stride,
+                                          uint32_t numIndices, char indexSize,
+                                          size_t numAttribs, const GFXAttribute* attribs,
+                                          GFXTopology topology)
 {
 	assert(heap != NULL);
 	assert((!GFX_REF_IS_NULL(vertex) && (!GFX_REF_IS_NULL(index) || numIndices == 0)) || flags != 0);
@@ -343,67 +343,67 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 	// Not using an index buffer...
 	if (numIndices == 0) index = GFX_REF_NULL;
 
-	// Allocate a new mesh.
-	_GFXMesh* mesh = malloc(
-		sizeof(_GFXMesh) +
+	// Allocate a new primitive.
+	_GFXPrimitive* prim = malloc(
+		sizeof(_GFXPrimitive) +
 		sizeof(GFXAttribute) * numAttribs);
 
-	if (mesh == NULL)
+	if (prim == NULL)
 		goto clean;
 
 	// First get size of buffers to allocate then init the rest.
-	mesh->base.topology = topology;
+	prim->base.topology = topology;
 
-	mesh->base.stride = stride;
-	mesh->base.indexSize = numIndices > 0 ? indexSize : 0;
-	mesh->base.numVertices = numVertices;
-	mesh->base.numIndices = numIndices;
+	prim->base.stride = stride;
+	prim->base.indexSize = numIndices > 0 ? indexSize : 0;
+	prim->base.numVertices = numVertices;
+	prim->base.numIndices = numIndices;
 
-	mesh->buffer.heap = heap;
-	mesh->buffer.base.flags = flags;
-	mesh->buffer.base.usage =
+	prim->buffer.heap = heap;
+	prim->buffer.base.flags = flags;
+	prim->buffer.base.usage =
 		usage |
 		(GFX_REF_IS_NULL(vertex) ? GFX_BUFFER_VERTEX : 0) |
 		(GFX_REF_IS_NULL(index) ? GFX_BUFFER_INDEX : 0);
-	mesh->buffer.base.size =
+	prim->buffer.base.size =
 		(GFX_REF_IS_NULL(vertex) ? (numVertices * stride) : 0) +
 		(GFX_REF_IS_NULL(index) ? (numIndices * (unsigned char)indexSize) : 0);
 
-	mesh->refVertex = _gfx_ref_resolve(vertex);
-	mesh->refIndex = _gfx_ref_resolve(index);
+	prim->refVertex = _gfx_ref_resolve(vertex);
+	prim->refIndex = _gfx_ref_resolve(index);
 
-	mesh->numAttribs = numAttribs;
+	prim->numAttribs = numAttribs;
 	if (numAttribs) memcpy(
-		mesh->attribs, attribs, sizeof(GFXAttribute) * numAttribs);
+		prim->attribs, attribs, sizeof(GFXAttribute) * numAttribs);
 
 	// Get appropriate public flags & usage.
-	_GFXBuffer* vertexBuff = _gfx_ref_unpack(mesh->refVertex).obj.buffer;
-	_GFXBuffer* indexBuff = _gfx_ref_unpack(mesh->refIndex).obj.buffer;
+	_GFXBuffer* vertexBuff = _gfx_ref_unpack(prim->refVertex).obj.buffer;
+	_GFXBuffer* indexBuff = _gfx_ref_unpack(prim->refIndex).obj.buffer;
 
-	mesh->base.flagsVertex = vertexBuff ?
-		vertexBuff->base.flags : mesh->buffer.base.flags;
-	mesh->base.flagsIndex = indexBuff ?
-		indexBuff->base.flags : (numIndices > 0 ? mesh->buffer.base.flags : 0);
+	prim->base.flagsVertex = vertexBuff ?
+		vertexBuff->base.flags : prim->buffer.base.flags;
+	prim->base.flagsIndex = indexBuff ?
+		indexBuff->base.flags : (numIndices > 0 ? prim->buffer.base.flags : 0);
 
-	mesh->base.usageVertex = vertexBuff ?
-		vertexBuff->base.usage : mesh->buffer.base.usage;
-	mesh->base.usageIndex = indexBuff ?
-		indexBuff->base.flags : (numIndices > 0 ? mesh->buffer.base.usage : 0);
+	prim->base.usageVertex = vertexBuff ?
+		vertexBuff->base.usage : prim->buffer.base.usage;
+	prim->base.usageIndex = indexBuff ?
+		indexBuff->base.flags : (numIndices > 0 ? prim->buffer.base.usage : 0);
 
 	// Validate usage flags.
-	if (!(mesh->base.usageVertex & GFX_BUFFER_VERTEX))
+	if (!(prim->base.usageVertex & GFX_BUFFER_VERTEX))
 	{
 		gfx_log_error(
-			"A buffer referenced by a mesh as vertex buffer "
+			"A buffer referenced by a primitive geometry as vertex buffer "
 			"must be created with GFX_BUFFER_VERTEX.");
 
 		goto clean;
 	}
 
-	if (numIndices > 0 && !(mesh->base.usageIndex & GFX_BUFFER_INDEX))
+	if (numIndices > 0 && !(prim->base.usageIndex & GFX_BUFFER_INDEX))
 	{
 		gfx_log_error(
-			"A buffer referenced by a mesh as index buffer "
+			"A buffer referenced by a primitive geometry as index buffer "
 			"must be created with GFX_BUFFER_INDEX.");
 
 		goto clean;
@@ -411,71 +411,71 @@ GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
 
 	// Allocate a buffer if required.
 	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.
-	mesh->buffer.vk.buffer = VK_NULL_HANDLE;
+	prim->buffer.vk.buffer = VK_NULL_HANDLE;
 
 	// Now we will actually modify the heap, so we lock!
 	_gfx_mutex_lock(&heap->lock);
 
-	if (mesh->buffer.base.size > 0)
-		if (!_gfx_buffer_alloc(&mesh->buffer))
+	if (prim->buffer.base.size > 0)
+		if (!_gfx_buffer_alloc(&prim->buffer))
 		{
 			_gfx_mutex_unlock(&heap->lock);
 			goto clean;
 		}
 
 	// Link into the heap & unlock.
-	gfx_list_insert_after(&heap->meshes, &mesh->buffer.list, NULL);
+	gfx_list_insert_after(&heap->primitives, &prim->buffer.list, NULL);
 
 	_gfx_mutex_unlock(&heap->lock);
 
-	return &mesh->base;
+	return &prim->base;
 
 
 	// Clean on failure.
 clean:
-	gfx_log_error("Could not allocate a new mesh.");
-	free(mesh);
+	gfx_log_error("Could not allocate a new primitive geometry.");
+	free(prim);
 
 	return NULL;
 }
 
 /****************************/
-GFX_API void gfx_free_mesh(GFXMesh* mesh)
+GFX_API void gfx_free_primitive(GFXPrimitive* primitive)
 {
-	if (mesh == NULL)
+	if (primitive == NULL)
 		return;
 
-	_GFXMesh* msh = (_GFXMesh*)mesh;
-	GFXHeap* heap = msh->buffer.heap;
+	_GFXPrimitive* prim = (_GFXPrimitive*)primitive;
+	GFXHeap* heap = prim->buffer.heap;
 
 	// Unlink from heap & free.
 	_gfx_mutex_lock(&heap->lock);
 
-	gfx_list_erase(&heap->meshes, &msh->buffer.list);
+	gfx_list_erase(&heap->primitives, &prim->buffer.list);
 
-	if (msh->buffer.vk.buffer != VK_NULL_HANDLE)
-		_gfx_buffer_free(&msh->buffer);
+	if (prim->buffer.vk.buffer != VK_NULL_HANDLE)
+		_gfx_buffer_free(&prim->buffer);
 
 	_gfx_mutex_unlock(&heap->lock);
 
-	free(msh);
+	free(prim);
 }
 
 /****************************/
-GFX_API size_t gfx_mesh_get_num_attribs(GFXMesh* mesh)
+GFX_API size_t gfx_primitive_get_num_attribs(GFXPrimitive* primitive)
 {
-	assert(mesh != NULL);
+	assert(primitive != NULL);
 
-	return ((_GFXMesh*)mesh)->numAttribs;
+	return ((_GFXPrimitive*)primitive)->numAttribs;
 }
 
 /****************************/
-GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib)
+GFX_API GFXAttribute gfx_primitive_get_attrib(GFXPrimitive* primitive, size_t attrib)
 {
-	assert(mesh != NULL);
-	assert(attrib < ((_GFXMesh*)mesh)->numAttribs);
+	assert(primitive != NULL);
+	assert(attrib < ((_GFXPrimitive*)primitive)->numAttribs);
 
-	return ((_GFXMesh*)mesh)->attribs[attrib];
+	return ((_GFXPrimitive*)primitive)->attribs[attrib];
 }
 
 /****************************/
@@ -486,7 +486,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	assert(heap != NULL);
 	assert(numBindings > 0);
 	assert(bindings != NULL);
-	// Sadly we can't assert as nicely like gfx_alloc_mesh :(
+	// Sadly we can't assert as nicely like gfx_alloc_primitive :(
 
 	// Count the number of references to allocate.
 	size_t numRefs = 0;

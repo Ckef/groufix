@@ -207,7 +207,7 @@ GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep);
  * Makes the render pass render the given things.
  */
 GFX_API void gfx_render_pass_use(GFXRenderPass* pass,
-                                 GFXMesh* mesh,
+                                 GFXPrimitive* primitive,
                                  GFXGroup* group);
 
 

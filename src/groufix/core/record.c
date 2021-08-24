@@ -18,7 +18,7 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->context;
-	_GFXMesh* mesh = pass->build.mesh;
+	_GFXPrimitive* prim = pass->build.primitive;
 
 	// Can't be recording if resources are missing.
 	// Window could be minimized or smth.
@@ -83,22 +83,22 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		pass->vk.pipeLayout, 0, 1, &pass->vk.set, 0, NULL);
 
 	// Bind index buffer.
-	if (mesh->base.numIndices > 0)
+	if (prim->base.numIndices > 0)
 	{
 		_GFXUnpackRef index = _gfx_ref_unpack(
-			gfx_ref_mesh_indices((GFXMesh*)mesh, 0));
+			gfx_ref_primitive_indices(&prim->base, 0));
 
 		context->vk.CmdBindIndexBuffer(
 			frame->vk.cmd,
 			index.obj.buffer->vk.buffer,
 			index.value,
-			mesh->base.indexSize == sizeof(uint16_t) ?
+			prim->base.indexSize == sizeof(uint16_t) ?
 				VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
 	}
 
 	// Bind vertex buffer.
 	_GFXUnpackRef vertex = _gfx_ref_unpack(
-		gfx_ref_mesh_vertices((GFXMesh*)mesh, 0));
+		gfx_ref_primitive_vertices(&prim->base, 0));
 
 	context->vk.CmdBindVertexBuffers(
 		frame->vk.cmd, 0, 1,
@@ -106,16 +106,15 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		(VkDeviceSize[]){ vertex.value });
 
 	// Draw.
-	// TODO: Renderable objects should define what range of the mesh to draw.
-	if (mesh->base.numIndices > 0)
+	if (prim->base.numIndices > 0)
 		context->vk.CmdDrawIndexed(
 			frame->vk.cmd,
-			mesh->base.numIndices,
+			prim->base.numIndices,
 			1, 0, 0, 0);
 	else
 		context->vk.CmdDraw(
 			frame->vk.cmd,
-			mesh->base.numVertices,
+			prim->base.numVertices,
 			1, 0, 0);
 
 	// End render pass.

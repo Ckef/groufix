@@ -11,7 +11,7 @@
 
 #define _GFX_BUFFER ((_GFXBuffer*)ref.obj)
 #define _GFX_IMAGE ((_GFXImage*)ref.obj)
-#define _GFX_MESH ((_GFXMesh*)ref.obj)
+#define _GFX_PRIMITIVE ((_GFXPrimitive*)ref.obj)
 #define _GFX_GROUP ((_GFXGroup*)ref.obj)
 #define _GFX_BINDING (((_GFXGroup*)ref.obj)->bindings + ref.values[0])
 #define _GFX_RENDERER ((GFXRenderer*)ref.obj)
@@ -54,21 +54,21 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 	// This so we may return this reference to the user.
 	switch (ref.type)
 	{
-	case GFX_REF_MESH_VERTICES:
+	case GFX_REF_PRIMITIVE_VERTICES:
 		_GFX_CHECK_RESOLVE(
-			_GFX_MESH->base.numVertices > 0,
+			_GFX_PRIMITIVE->base.numVertices > 0,
 			"Referencing a non-existent vertex buffer!");
 
-		rec = _GFX_MESH->refVertex; // Must be a buffer.
+		rec = _GFX_PRIMITIVE->refVertex; // Must be a buffer.
 		rec.offset += ref.offset;
 		break;
 
-	case GFX_REF_MESH_INDICES:
+	case GFX_REF_PRIMITIVE_INDICES:
 		_GFX_CHECK_RESOLVE(
-			_GFX_MESH->base.numIndices > 0,
+			_GFX_PRIMITIVE->base.numIndices > 0,
 			"Referencing a non-existent index buffer!");
 
-		rec = _GFX_MESH->refIndex; // Must be a buffer.
+		rec = _GFX_PRIMITIVE->refIndex; // Must be a buffer.
 		rec.offset += ref.offset;
 		break;
 
@@ -148,8 +148,8 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		unp.obj.image = _GFX_IMAGE;
 		break;
 
-	case GFX_REF_MESH_VERTICES:
-		unp.obj.buffer = &_GFX_MESH->buffer;
+	case GFX_REF_PRIMITIVE_VERTICES:
+		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
 		unp.value = ref.offset;
 
 		_GFX_CHECK_UNPACK(
@@ -158,12 +158,12 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 		break;
 
-	case GFX_REF_MESH_INDICES:
-		unp.obj.buffer = &_GFX_MESH->buffer;
+	case GFX_REF_PRIMITIVE_INDICES:
+		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
 		unp.value = ref.offset +
 			// Augment offset into the vertex/index buffer.
-			GFX_REF_IS_NULL(_GFX_MESH->refVertex) ?
-				_GFX_MESH->base.numVertices * _GFX_MESH->base.stride : 0;
+			GFX_REF_IS_NULL(_GFX_PRIMITIVE->refVertex) ?
+				_GFX_PRIMITIVE->base.numVertices * _GFX_PRIMITIVE->base.stride : 0;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,

@@ -157,9 +157,9 @@ typedef struct GFXImage
 
 
 /**
- * Mesh (geometry) definition.
+ * Primitive geometry definition.
  */
-typedef struct GFXMesh
+typedef struct GFXPrimitive
 {
 	// All read-only.
 	GFXMemoryFlags flagsVertex;
@@ -174,7 +174,7 @@ typedef struct GFXMesh
 	uint32_t numVertices;
 	uint32_t numIndices;
 
-} GFXMesh;
+} GFXPrimitive;
 
 
 /**
@@ -248,7 +248,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 GFX_API void gfx_free_image(GFXImage* image);
 
 /**
- * Allocates a mesh (i.e. a geometry) from a heap.
+ * Allocates a primitive geometry from a heap.
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Added usage for any newly allocated buffer.
@@ -266,32 +266,32 @@ GFX_API void gfx_free_image(GFXImage* image);
  * Fails if the referenced vertex buffer was not created with GFX_BUFFER_VERTEX
  * or the index buffer was not created with GFX_BUFFER_INDEX.
  */
-GFX_API GFXMesh* gfx_alloc_mesh(GFXHeap* heap,
-                                GFXMemoryFlags flags, GFXBufferUsage usage,
-                                GFXBufferRef vertex, GFXBufferRef index,
-                                uint32_t numVertices, uint32_t stride,
-                                uint32_t numIndices, char indexSize,
-                                size_t numAttribs, const GFXAttribute* attribs,
-                                GFXTopology topology);
+GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
+                                          GFXMemoryFlags flags, GFXBufferUsage usage,
+                                          GFXBufferRef vertex, GFXBufferRef index,
+                                          uint32_t numVertices, uint32_t stride,
+                                          uint32_t numIndices, char indexSize,
+                                          size_t numAttribs, const GFXAttribute* attribs,
+                                          GFXTopology topology);
 
 /**
- * Frees a mesh, excluding any buffers it references.
+ * Frees a primitive, excluding any buffers it references.
  * Thread-safe!
  */
-GFX_API void gfx_free_mesh(GFXMesh* mesh);
+GFX_API void gfx_free_primitive(GFXPrimitive* primitive);
 
 /**
- * Retrieves the number of vertex attributes of a mesh.
- * @param mesh Cannot be NULL.
+ * Retrieves the number of vertex attributes of a primitive geometry.
+ * @param primitive Cannot be NULL.
  */
-GFX_API size_t gfx_mesh_get_num_attribs(GFXMesh* mesh);
+GFX_API size_t gfx_primitive_get_num_attribs(GFXPrimitive* primitive);
 
 /**
- * Retrieves a vertex attribute description from a mesh.
- * @param mesh   Cannot be NULL.
- * @param attrib Attribute index, must be < gfx_mesh_get_num_attribs(mesh).
+ * Retrieves a vertex attribute description from a primitive geometry.
+ * @param primitive Cannot be NULL.
+ * @param attrib    Attribute index, must be < gfx_primitive_get_num_attribs(primitive).
  */
-GFX_API GFXAttribute gfx_mesh_get_attrib(GFXMesh* mesh, size_t attrib);
+GFX_API GFXAttribute gfx_primitive_get_attrib(GFXPrimitive* primitive, size_t attrib);
 
 /**
  * Allocates a resource group from a heap.

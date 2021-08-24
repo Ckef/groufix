@@ -24,8 +24,8 @@ typedef struct GFXReference
 	{
 		GFX_REF_BUFFER,
 		GFX_REF_IMAGE,
-		GFX_REF_MESH_VERTICES,
-		GFX_REF_MESH_INDICES,
+		GFX_REF_PRIMITIVE_VERTICES,
+		GFX_REF_PRIMITIVE_INDICES,
 		GFX_REF_GROUP_BUFFER,
 		GFX_REF_GROUP_IMAGE,
 		GFX_REF_ATTACHMENT,
@@ -36,7 +36,7 @@ typedef struct GFXReference
 
 
 	// Referenced object, isa
-	//  GFXBuffer* | GFXImage* | GFXMesh* | GFXGroup* | GFXRenderer*.
+	//  GFXBuffer* | GFXImage* | GFXPrimitive* | GFXGroup* | GFXRenderer*.
 	void* obj;
 
 	// Reference buffer offset (0 for images).
@@ -73,8 +73,8 @@ typedef GFXReference GFXImageRef;
 
 #define GFX_REF_IS_BUFFER(ref) \
 	(ref.type == GFX_REF_BUFFER || \
-	ref.type == GFX_REF_MESH_VERTICES || \
-	ref.type == GFX_REF_MESH_INDICES || \
+	ref.type == GFX_REF_PRIMITIVE_VERTICES || \
+	ref.type == GFX_REF_PRIMITIVE_INDICES || \
 	ref.type == GFX_REF_GROUP_BUFFER)
 
 #define GFX_REF_IS_IMAGE(ref) \
@@ -87,9 +87,9 @@ typedef GFXReference GFXImageRef;
  * Resource referencing macros, objects that can be referenced:
  *  GFXBuffer
  *  GFXImage
- *  GFXMesh     (its vertex or index buffer)
- *  GFXGroup    (one of its buffers or images)
- *  GFXRenderer (its image attachments)
+ *  GFXPrimitive (its vertex or index buffer)
+ *  GFXGroup     (one of its buffers or images)
+ *  GFXRenderer  (its image attachments)
  *
  * No argument can be NULL, any referenced memory resource must exist.
  * If any of these constraints are not met, behaviour is undefined.
@@ -110,18 +110,18 @@ typedef GFXReference GFXImageRef;
 		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_mesh_vertices(mesh, offset_) \
+#define gfx_ref_primitive_vertices(primitive, offset_) \
 	(GFXBufferRef){ \
-		.type = GFX_REF_MESH_VERTICES, \
-		.obj = mesh, \
+		.type = GFX_REF_PRIMITIVE_VERTICES, \
+		.obj = primitive, \
 		.offset = offset_, \
 		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_mesh_indices(mesh, offset_) \
+#define gfx_ref_primitive_indices(primitive, offset_) \
 	(GFXBufferRef){ \
-		.type = GFX_REF_MESH_INDICES, \
-		.obj = mesh, \
+		.type = GFX_REF_PRIMITIVE_INDICES, \
+		.obj = primitive, \
 		.offset = offset_, \
 		.values = { 0, 0 } \
 	}

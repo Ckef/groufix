@@ -119,11 +119,11 @@
  */
 typedef struct
 {
-	GFXWindow*   window;
-	GFXHeap*     heap;
-	GFXRenderer* renderer; // Window is attached at index 0.
-	GFXMesh*     mesh;
-	GFXGroup*    group;
+	GFXWindow*    window;
+	GFXHeap*      heap;
+	GFXRenderer*  renderer; // Window is attached at index 0.
+	GFXPrimitive* primitive;
+	GFXGroup*     group;
 
 } TestBase;
 
@@ -287,7 +287,7 @@ static void _test_init(void)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
-	// Allocate a mesh.
+	// Allocate a primitive.
 	uint16_t indexData[] = {
 		0, 1, 3, 2
 	};
@@ -299,7 +299,7 @@ static void _test_init(void)
 		-0.5f,  0.5f, 0.0f,   0.0f, 0.0f, 1.0f
 	};
 
-	_test_base.mesh = gfx_alloc_mesh(_test_base.heap,
+	_test_base.primitive = gfx_alloc_primitive(_test_base.heap,
 		GFX_MEMORY_HOST_VISIBLE, 0,
 		GFX_REF_NULL, GFX_REF_NULL,
 		4, sizeof(float) * 6,
@@ -310,11 +310,11 @@ static void _test_init(void)
 		},
 		GFX_TOPO_TRIANGLE_STRIP);
 
-	if (_test_base.mesh == NULL)
+	if (_test_base.primitive == NULL)
 		TEST_FAIL();
 
-	GFXBufferRef vert = gfx_ref_mesh_vertices(_test_base.mesh, 0);
-	GFXBufferRef ind = gfx_ref_mesh_indices(_test_base.mesh, 0);
+	GFXBufferRef vert = gfx_ref_primitive_vertices(_test_base.primitive, 0);
+	GFXBufferRef ind = gfx_ref_primitive_indices(_test_base.primitive, 0);
 	void* ptrVert = gfx_map(vert);
 	void* ptrInd = gfx_map(ind);
 
@@ -368,7 +368,7 @@ static void _test_init(void)
 		TEST_FAIL();
 
 	// Make it render the thing.
-	gfx_render_pass_use(pass, _test_base.mesh, _test_base.group);
+	gfx_render_pass_use(pass, _test_base.primitive, _test_base.group);
 #endif
 }
 

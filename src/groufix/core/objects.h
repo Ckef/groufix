@@ -29,10 +29,10 @@ struct GFXHeap
 	_GFXAllocator allocator; // its context member is the used _GFXContext*.
 	_GFXMutex     lock;
 
-	GFXList buffers; // References _GFXBuffer.
-	GFXList images;  // References _GFXImage.
-	GFXList meshes;  // References _GFXMesh.
-	GFXList groups;  // References _GFXGroup.
+	GFXList buffers;    // References _GFXBuffer.
+	GFXList images;     // References _GFXImage.
+	GFXList primitives; // References _GFXPrimitive.
+	GFXList groups;     // References _GFXGroup.
 };
 
 
@@ -81,11 +81,11 @@ typedef struct _GFXImage
 
 
 /**
- * Internal mesh (superset of buffer).
+ * Internal primitive geometry (superset of buffer).
  */
-typedef struct _GFXMesh
+typedef struct _GFXPrimitive
 {
-	GFXMesh      base;
+	GFXPrimitive base;
 	_GFXBuffer   buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
 
 	GFXBufferRef refVertex; // Can be GFX_REF_NULL.
@@ -94,7 +94,7 @@ typedef struct _GFXMesh
 	size_t       numAttribs;
 	GFXAttribute attribs[];
 
-} _GFXMesh;
+} _GFXPrimitive;
 
 
 /**
@@ -309,7 +309,7 @@ struct GFXRenderPass
 		size_t backing; // Window attachment index (or SIZE_MAX).
 
 		// TODO: Super temporary!!
-		_GFXMesh*  mesh;
+		_GFXPrimitive* primitive;
 		_GFXGroup* group;
 		GFXShader* vertex;
 		GFXShader* fragment;

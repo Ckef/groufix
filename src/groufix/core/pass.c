@@ -113,13 +113,13 @@ static size_t _gfx_render_pass_pick_backing(GFXRenderPass* pass)
 static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 {
 	assert(pass != NULL);
-	assert(pass->build.mesh != NULL); // TODO: Obviously temporary.
+	assert(pass->build.primitive != NULL); // TODO: Obviously temporary.
 	assert(pass->build.group != NULL); // TODO: Uh oh, temporary.
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->context;
 	_GFXAttach* at = NULL;
-	_GFXMesh* mesh = pass->build.mesh;
+	_GFXPrimitive* prim = pass->build.primitive;
 	_GFXGroup* group = pass->build.group;
 
 	// Get the backing window attachment.
@@ -276,7 +276,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		// TODO: Renderable objects should define what range of a group to
 		// take as their data, from which descriptor set shite can be derived.
 		_GFXUnpackRef ubo = _gfx_ref_unpack(
-			gfx_ref_group_buffer((GFXGroup*)group, 0, 0, 0));
+			gfx_ref_group_buffer(&group->base, 0, 0, 0));
 
 		if (ubo.obj.buffer == NULL)
 			goto error;
@@ -352,14 +352,14 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		};
 
 		// Pipeline vertex input state.
-		VkVertexInputAttributeDescription viad[mesh->numAttribs];
+		VkVertexInputAttributeDescription viad[prim->numAttribs];
 
-		for (size_t i = 0; i < mesh->numAttribs; ++i)
+		for (size_t i = 0; i < prim->numAttribs; ++i)
 			viad[i] = (VkVertexInputAttributeDescription){
 				.location = (uint32_t)i,
 				.binding  = 0,
 				.format   = VK_FORMAT_R32G32B32_SFLOAT,
-				.offset   = mesh->attribs[i].offset
+				.offset   = prim->attribs[i].offset
 			};
 
 		VkPipelineVertexInputStateCreateInfo pvisci = {
@@ -367,12 +367,12 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 
 			.pNext                           = NULL,
 			.flags                           = 0,
-			.vertexAttributeDescriptionCount = (uint32_t)mesh->numAttribs,
+			.vertexAttributeDescriptionCount = (uint32_t)prim->numAttribs,
 			.pVertexAttributeDescriptions    = viad,
 			.vertexBindingDescriptionCount   = 1,
 			.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]){{
 				.binding   = 0,
-				.stride    = mesh->base.stride,
+				.stride    = prim->base.stride,
 				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 			}}
 		};
@@ -383,7 +383,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 
 			.pNext                  = NULL,
 			.flags                  = 0,
-			.topology               = mesh->base.topology,
+			.topology               = prim->base.topology,
 			.primitiveRestartEnable = VK_FALSE
 		};
 
@@ -599,7 +599,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 		"  outColor = vec4(fragColor, 1.0);\n"
 		"}\n";
 
-	pass->build.mesh = NULL;
+	pass->build.primitive = NULL;
 	pass->build.group = NULL;
 	pass->build.vertex = gfx_create_shader(GFX_SHADER_VERTEX, NULL);
 	pass->build.fragment = gfx_create_shader(GFX_SHADER_FRAGMENT, NULL);
@@ -768,13 +768,13 @@ GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep)
 
 /****************************/
 GFX_API void gfx_render_pass_use(GFXRenderPass* pass,
-                                 GFXMesh* mesh,
+                                 GFXPrimitive* primitive,
                                  GFXGroup* group)
 {
 	assert(pass != NULL);
-	assert(mesh != NULL);
+	assert(primitive != NULL);
 
 	// TODO: Should eventually check if they are using the same context.
-	pass->build.mesh = (_GFXMesh*)mesh;
+	pass->build.primitive = (_GFXPrimitive*)primitive;
 	pass->build.group = (_GFXGroup*)group;
 }
