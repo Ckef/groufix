@@ -106,6 +106,8 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		(VkDeviceSize[]){ vertex.value });
 
 	// Draw.
+	// TODO: Renderable objects should define what range of the primitive to draw.
+	// Relevant when some simple primitives share a simple attribute layout.
 	if (prim->base.numIndices > 0)
 		context->vk.CmdDrawIndexed(
 			frame->vk.cmd,
