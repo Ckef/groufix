@@ -75,6 +75,13 @@ typedef struct GFXFormat
 } GFXFormat;
 
 
+// TODO: Define gfx_format_fuzzy(fmt):fmt and gfx_format_supported(fmt):bool.
+// gfx_format_supported: checks if the 'fuzzy' set contains supported formats,
+//   or if it is a direct format, check if it itself is supported ofc (!)
+// gfx_format_fuzzy: finds a closest supported match,
+//   also outside the 'fuzzy' set with an actual (!) fuzzy search.
+
+
 /****************************
  * Format constants & macros
  ****************************/
@@ -115,6 +122,7 @@ typedef struct GFXFormat
 	(GFX_FORMAT_IS_COMPRESSED(fmta) ? \
 		fmta.order == fmtb.order : \
 		(fmta.order & fmtb.order) == fmta.order))
+
 
 /**
  * Format macros, i.e. constant GFXFormat definitions.
