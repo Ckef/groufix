@@ -50,11 +50,11 @@ typedef enum GFXOrder
 	GFX_ORDER_STENCIL       = 0x000400,
 	GFX_ORDER_DEPTH_STENCIL = 0x000800,
 
-	// Compression 'orders'.
+	// Compression 'orders' (3 disjoint non-flag bits).
 	GFX_ORDER_BCn  = 0x001000, // comps = [n (1|2|3|4|5|6|7), alpha (0|1), -]
 	GFX_ORDER_ETC2 = 0x002000, // comps = [rgba]
-	GFX_ORDER_EAC  = 0x004000, // comps = [rg]
-	GFX_ORDER_ASTC = 0x008000  // comps = [block width, block height, -]
+	GFX_ORDER_EAC  = 0x003000, // comps = [rg]
+	GFX_ORDER_ASTC = 0x004000  // comps = [block width, block height, -]
 
 	// TODO: Add YUV/YCbCr support?
 
@@ -62,7 +62,8 @@ typedef enum GFXOrder
 
 
 /**
- * Memory (buffer or image) format.
+ * Memory (buffer or image) format(s).
+ * Uses flags to represent 'fuzzy' set of related formats.
  */
 typedef struct GFXFormat
 {
@@ -92,6 +93,12 @@ typedef struct GFXFormat
 	fmt.comps[3] == 0 && \
 	fmt.type == 0 && fmt.order == 0)
 
+#define GFX_FORMAT_IS_COMPRESSED(fmt) \
+	(fmt.order == GFX_ORDER_BCn || \
+	fmt.order == GFX_ORDER_ETC2 || \
+	fmt.order == GFX_ORDER_EAC || \
+	fmt.order == GFX_ORDER_ASTC)
+
 #define GFX_FORMAT_IS_EQUAL(fmta, fmtb) \
 	(fmta.comps[0] == fmtb.comps[0] && \
 	fmta.comps[1] == fmtb.comps[1] && \
@@ -99,6 +106,15 @@ typedef struct GFXFormat
 	fmta.comps[3] == fmtb.comps[3] && \
 	fmta.type == fmtb.type && fmta.order == fmtb.order)
 
+#define GFX_FORMAT_IS_CONTAINED(fmta, fmtb) \
+	((fmta.comps[0] == 0 || fmta.comps[0] == fmtb.comps[0]) && \
+	(fmta.comps[1] == 0 || fmta.comps[1] == fmtb.comps[1]) && \
+	(fmta.comps[2] == 0 || fmta.comps[2] == fmtb.comps[2]) && \
+	(fmta.comps[3] == 0 || fmta.comps[3] == fmtb.comps[3]) && \
+	(fmta.type & fmtb.type) == fmta.type && \
+	(GFX_FORMAT_IS_COMPRESSED(fmta) ? \
+		fmta.order == fmtb.order : \
+		(fmta.order & fmtb.order) == fmta.order))
 
 /**
  * Format macros, i.e. constant GFXFormat definitions.
