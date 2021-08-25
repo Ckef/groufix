@@ -94,34 +94,34 @@ typedef struct GFXFormat
 	(GFXFormat){ .comps = {0,0,0,0}, .type = 0, .order = 0 }
 
 #define GFX_FORMAT_IS_EMPTY(fmt) \
-	(fmt.comps[0] == 0 && \
-	fmt.comps[1] == 0 && \
-	fmt.comps[2] == 0 && \
-	fmt.comps[3] == 0 && \
-	fmt.type == 0 && fmt.order == 0)
+	((fmt).comps[0] == 0 && \
+	(fmt).comps[1] == 0 && \
+	(fmt).comps[2] == 0 && \
+	(fmt).comps[3] == 0 && \
+	(fmt).type == 0 && (fmt).order == 0)
 
 #define GFX_FORMAT_IS_COMPRESSED(fmt) \
-	(fmt.order == GFX_ORDER_BCn || \
-	fmt.order == GFX_ORDER_ETC2 || \
-	fmt.order == GFX_ORDER_EAC || \
-	fmt.order == GFX_ORDER_ASTC)
+	((fmt).order == GFX_ORDER_BCn || \
+	(fmt).order == GFX_ORDER_ETC2 || \
+	(fmt).order == GFX_ORDER_EAC || \
+	(fmt).order == GFX_ORDER_ASTC)
 
 #define GFX_FORMAT_IS_EQUAL(fmta, fmtb) \
-	(fmta.comps[0] == fmtb.comps[0] && \
-	fmta.comps[1] == fmtb.comps[1] && \
-	fmta.comps[2] == fmtb.comps[2] && \
-	fmta.comps[3] == fmtb.comps[3] && \
-	fmta.type == fmtb.type && fmta.order == fmtb.order)
+	((fmta).comps[0] == (fmtb).comps[0] && \
+	(fmta).comps[1] == (fmtb).comps[1] && \
+	(fmta).comps[2] == (fmtb).comps[2] && \
+	(fmta).comps[3] == (fmtb).comps[3] && \
+	(fmta).type == (fmtb).type && (fmta).order == (fmtb).order)
 
 #define GFX_FORMAT_IS_CONTAINED(fmta, fmtb) \
-	((fmta.comps[0] == 0 || fmta.comps[0] == fmtb.comps[0]) && \
-	(fmta.comps[1] == 0 || fmta.comps[1] == fmtb.comps[1]) && \
-	(fmta.comps[2] == 0 || fmta.comps[2] == fmtb.comps[2]) && \
-	(fmta.comps[3] == 0 || fmta.comps[3] == fmtb.comps[3]) && \
-	(fmta.type & fmtb.type) == fmta.type && \
+	(((fmta).comps[0] == 0 || (fmta).comps[0] == (fmtb).comps[0]) && \
+	((fmta).comps[1] == 0 || (fmta).comps[1] == (fmtb).comps[1]) && \
+	((fmta).comps[2] == 0 || (fmta).comps[2] == (fmtb).comps[2]) && \
+	((fmta).comps[3] == 0 || (fmta).comps[3] == (fmtb).comps[3]) && \
+	((fmta).type & (fmtb).type) == (fmta).type && \
 	(GFX_FORMAT_IS_COMPRESSED(fmta) ? \
-		fmta.order == fmtb.order : \
-		(fmta.order & fmtb.order) == fmta.order))
+		(fmta).order == (fmtb).order : \
+		((fmta).order & (fmtb).order) == (fmta).order))
 
 
 /**

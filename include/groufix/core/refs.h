@@ -69,18 +69,18 @@ typedef GFXReference GFXImageRef;
 	(GFXReference){ .type = GFX_REF_EMPTY }
 
 #define GFX_REF_IS_NULL(ref) \
-	(ref.type == GFX_REF_EMPTY)
+	((ref).type == GFX_REF_EMPTY)
 
 #define GFX_REF_IS_BUFFER(ref) \
-	(ref.type == GFX_REF_BUFFER || \
-	ref.type == GFX_REF_PRIMITIVE_VERTICES || \
-	ref.type == GFX_REF_PRIMITIVE_INDICES || \
-	ref.type == GFX_REF_GROUP_BUFFER)
+	((ref).type == GFX_REF_BUFFER || \
+	(ref).type == GFX_REF_PRIMITIVE_VERTICES || \
+	(ref).type == GFX_REF_PRIMITIVE_INDICES || \
+	(ref).type == GFX_REF_GROUP_BUFFER)
 
 #define GFX_REF_IS_IMAGE(ref) \
-	(ref.type == GFX_REF_IMAGE || \
-	ref.type == GFX_REF_GROUP_IMAGE || \
-	ref.type == GFX_REF_ATTACHMENT)
+	((ref).type == GFX_REF_IMAGE || \
+	(ref).type == GFX_REF_GROUP_IMAGE || \
+	(ref).type == GFX_REF_ATTACHMENT)
 
 
 /**
