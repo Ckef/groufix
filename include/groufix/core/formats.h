@@ -50,7 +50,7 @@ typedef enum GFXOrder
 	GFX_ORDER_STENCIL       = 0x000400,
 	GFX_ORDER_DEPTH_STENCIL = 0x000800,
 
-	// Compression 'orders' (3 disjoint non-flag bits).
+	// Compression 'orders' (disjoint, 3 non-flag bits).
 	GFX_ORDER_BCn  = 0x001000, // comps = [n (1|2|3|4|5|6|7), alpha (0|1), -]
 	GFX_ORDER_ETC2 = 0x002000, // comps = [rgba]
 	GFX_ORDER_EAC  = 0x003000, // comps = [rg]
@@ -114,13 +114,17 @@ typedef struct GFXFormat
 	(fmta).type == (fmtb).type && (fmta).order == (fmtb).order)
 
 #define GFX_FORMAT_IS_CONTAINED(fmta, fmtb) \
-	(((fmta).comps[0] == 0 || (fmta).comps[0] == (fmtb).comps[0]) && \
-	((fmta).comps[1] == 0 || (fmta).comps[1] == (fmtb).comps[1]) && \
-	((fmta).comps[2] == 0 || (fmta).comps[2] == (fmtb).comps[2]) && \
-	((fmta).comps[3] == 0 || (fmta).comps[3] == (fmtb).comps[3]) && \
-	((fmta).type & (fmtb).type) == (fmta).type && \
+	(((fmta).type & (fmtb).type) == (fmta).type && \
 	(GFX_FORMAT_IS_COMPRESSED(fmta) ? \
+		(fmta).comps[0] == (fmtb).comps[0] && \
+		(fmta).comps[1] == (fmtb).comps[1] && \
+		(fmta).comps[2] == (fmtb).comps[2] && \
+		(fmta).comps[3] == (fmtb).comps[3] && \
 		(fmta).order == (fmtb).order : \
+		((fmta).comps[0] == 0 || (fmta).comps[0] == (fmtb).comps[0]) && \
+		((fmta).comps[1] == 0 || (fmta).comps[1] == (fmtb).comps[1]) && \
+		((fmta).comps[2] == 0 || (fmta).comps[2] == (fmtb).comps[2]) && \
+		((fmta).comps[3] == 0 || (fmta).comps[3] == (fmtb).comps[3]) && \
 		((fmta).order & (fmtb).order) == (fmta).order))
 
 
