@@ -75,15 +75,59 @@ typedef struct GFXFormat
 } GFXFormat;
 
 
-// TODO: Define gfx_format_fuzzy(fmt):fmt and gfx_format_supported(fmt):bool.
-// gfx_format_supported: checks if the 'fuzzy' set contains supported formats,
-//   or if it is a direct format, check if it itself is supported ofc (!)
-// gfx_format_fuzzy: finds a closest supported match,
-//   also outside the 'fuzzy' set with an actual (!) fuzzy search.
+/****************************
+ * Format operations & search.
+ ****************************/
+
+/**
+ * Format feature support flags.
+ */
+typedef enum GFXFormatFeatures
+{
+	GFX_FORMAT_VERTEX_BUFFER        = 0x0001,
+	GFX_FORMAT_UNIFORM_TEXEL_BUFFER = 0x0002,
+	GFX_FORMAT_STORAGE_TEXEL_BUFFER = 0x0004,
+	GFX_FORMAT_SAMPLED_IMAGE        = 0x0008,
+	GFX_FORMAT_STORAGE_IMAGE        = 0x0010,
+	GFX_FORMAT_ATTACHMENT           = 0x0020
+
+} GFXFormatFeatures;
+
+
+/**
+ * Fuzzy search flags.
+ */
+typedef enum GFXFuzzyFlags
+{
+	GFX_FUZZY_MIN_DEPTH = 0x0001,
+	GFX_FUZZY_MAX_DEPTH = 0x0002
+
+} GFXFuzzyFlags;
+
+
+/**
+ * Checks what features support a given format.
+ * If a format represents a 'fuzzy' set, for each feature it checks whether
+ * there is at least one format in this set that is supported.
+ * @return Zero if fmt is not supported.
+ */
+GFXFormatFeatures gfx_format_support(GFXFormat fmt);
+
+/**
+ * Performs a fuzzy search over all supported formats, i.e. it will return
+ * the closest matching (component wise) & supported format.
+ * @param fmt Format to match, type and order must strictly match.
+ * @return GFX_FORMAT_EMPTY if no match found.
+ *
+ * Note: If fmt is a 'fuzzy' set, it will prefer returning formats that are
+ * contained within this set. However this fuzzy search will search outside
+ * the defined set as well.
+ */
+GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags);
 
 
 /****************************
- * Format constants & macros
+ * Format constants & macros.
  ****************************/
 
 /**
