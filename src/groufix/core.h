@@ -280,6 +280,8 @@ typedef struct _GFXDevice
 	_GFXContext* context;
 	_GFXMutex    lock;
 
+	GFXVec formats; // Stores { GFXFormat, VkFormat, VkFormatProperties }
+
 
 	// Vulkan fields.
 	struct
@@ -465,6 +467,13 @@ int _gfx_monitors_init(void);
  * Must be called before _gfx_state_terminate, on the same thread.
  */
 void _gfx_monitors_terminate(void);
+
+/**
+ * Initializes the groufix/Vulkan format 'dictionary'.
+ * @param device Cannot be NULL.
+ * @return Non-zero on success.
+ */
+int _gfx_device_init_formats(_GFXDevice* device);
 
 /**
  * Initializes the Vulkan context, no-op if it already exists
