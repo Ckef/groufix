@@ -299,19 +299,37 @@ clean:
 }
 
 /****************************/
-GFXFormatFeatures gfx_format_support(GFXFormat fmt, GFXDevice* device)
+VkFormat _gfx_resolve_format(_GFXDevice* device,
+                             GFXFormat* fmt, VkFormatProperties props)
+{
+	assert(device != NULL);
+
+	// TODO: Implement.
+
+	return VK_FORMAT_UNDEFINED;
+}
+
+/****************************/
+GFXFormatFeatures gfx_format_support(GFXFormat fmt,
+                                     GFXDevice* device)
 {
 	//_GFXDevice* dev;
 	//_GFX_GET_DEVICE(dev, device);
+
+	// TODO: Implement.
 
 	return 0;
 }
 
 /****************************/
-GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags, GFXDevice* device)
+GFXFormat gfx_format_fuzzy(GFXFormat fmt,
+                           GFXFuzzyFlags flags, GFXFormatFeatures features,
+                           GFXDevice* device)
 {
 	//_GFXDevice* dev;
 	//_GFX_GET_DEVICE(dev, device);
+
+	// TODO: Implement.
 
 	return GFX_FORMAT_EMPTY;
 }

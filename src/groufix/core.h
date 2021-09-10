@@ -477,6 +477,16 @@ void _gfx_monitors_terminate(void);
 int _gfx_device_init_formats(_GFXDevice* device);
 
 /**
+ * Resolves a (potentially 'fuzzy') format to a supported Vulkan format.
+ * The returned format will at least support all given format properties.
+ * @param device Cannot be NULL.
+ * @param format Input/output format, outputs the groufix equivalent to Vulkan.
+ * @return VK_FORMAT_UNDEFINED if not supported.
+ */
+VkFormat _gfx_resolve_format(_GFXDevice* device,
+                             GFXFormat* fmt, VkFormatProperties props);
+
+/**
  * Initializes the Vulkan context, no-op if it already exists
  * The device will share its context with all devices in its device group.
  * @param device Cannot be NULL.

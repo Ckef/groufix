@@ -108,26 +108,31 @@ typedef enum GFXFuzzyFlags
 
 
 /**
- * Checks what features support a given format.
+ * Retrieves the features supported by a given format.
  * If a format represents a 'fuzzy' set, for each feature it checks whether
  * there is at least one format in this set that is supported.
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @return Zero if fmt is not supported.
  */
-GFXFormatFeatures gfx_format_support(GFXFormat fmt, GFXDevice* device);
+GFXFormatFeatures gfx_format_support(GFXFormat fmt,
+                                     GFXDevice* device);
 
 /**
  * Performs a fuzzy search over all supported formats, i.e. it will return
  * the closest matching (component wise, ignoring empty components) format.
- * @param fmt Format to match, type and order must strictly match.
- * @param device NULL is equivalent to gfx_get_primary_device().
+ * @param fmt      Format to match, type and order must strictly match.
+ * @param flags    Flags to influence the fuzzy search.
+ * @param features The minimal supported feature set of the returned format.
+ * @param device   NULL is equivalent to gfx_get_primary_device().
  * @return GFX_FORMAT_EMPTY if no match found.
  *
  * Note: If fmt is a 'fuzzy' set, it will prefer returning formats that are
  * contained within this set. However this fuzzy search will search outside
  * the defined set as well.
  */
-GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags, GFXDevice* device);
+GFXFormat gfx_format_fuzzy(GFXFormat fmt,
+                           GFXFuzzyFlags flags, GFXFormatFeatures features,
+                           GFXDevice* device);
 
 
 /****************************
