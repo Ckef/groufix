@@ -295,6 +295,7 @@ int _gfx_vulkan_init(void)
 		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDevices);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceFeatures);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceFormatProperties);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceMemoryProperties);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceQueueFamilyProperties);
