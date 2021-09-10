@@ -14,7 +14,7 @@
 	do { \
 		if (!_gfx_device_map_format(device, gfxName, vkName)) { \
 			gfx_log_error("Could not map "#gfxName" to "#vkName"."); \
-			goto error; \
+			goto clean; \
 		} \
 	} while(0)
 
@@ -287,11 +287,13 @@ int _gfx_device_init_formats(_GFXDevice* device)
 	return 1;
 
 
-	// Error on failure.
-error:
+	// Clean on failure.
+clean:
 	gfx_log_error(
 		"[ %s ] could not initialize format dictionary.",
 		device->name);
+
+	gfx_vec_clear(&device->formats);
 
 	return 0;
 }
