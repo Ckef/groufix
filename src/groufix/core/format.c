@@ -27,6 +27,20 @@
 #define _GFX_GET_VK_FORMAT_PROPERTIES(elem) \
 	(*(VkFormatProperties*)((char*)(elem) + sizeof(GFXFormat) + sizeof(VkFormat)))
 
+#define _GFX_GET_FEATURES(vkProps) \
+	(((vkProps).bufferFeatures & VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT ? \
+		GFX_FORMAT_VERTEX_BUFFER : (GFXFormatFeatures)0) | \
+	((vkProps).bufferFeatures & VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT ? \
+		GFX_FORMAT_UNIFORM_TEXEL_BUFFER : (GFXFormatFeatures)0) | \
+	((vkProps).bufferFeatures & VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT ? \
+		GFX_FORMAT_STORAGE_TEXEL_BUFFER : (GFXFormatFeatures)0) | \
+	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT ? \
+		GFX_FORMAT_SAMPLED_IMAGE : (GFXFormatFeatures)0) | \
+	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT ? \
+		GFX_FORMAT_STORAGE_IMAGE : (GFXFormatFeatures)0) | \
+	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT ? \
+		GFX_FORMAT_ATTACHMENT : (GFXFormatFeatures)0))
+
 
 /****************************
  * Pushes an element to the format dictionary, mapping a groufix format
@@ -303,6 +317,7 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
                              GFXFormat* fmt, VkFormatProperties props)
 {
 	assert(device != NULL);
+	assert(fmt != NULL);
 
 	// TODO: Implement.
 
@@ -313,12 +328,25 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
 GFXFormatFeatures gfx_format_support(GFXFormat fmt,
                                      GFXDevice* device)
 {
-	//_GFXDevice* dev;
-	//_GFX_GET_DEVICE(dev, device);
+	_GFXDevice* dev;
+	_GFX_GET_DEVICE(dev, device);
 
-	// TODO: Implement.
+	GFXFormatFeatures features = 0;
 
-	return 0;
+	// Loop over all known formats of the device.
+	for (size_t f = 0; f < dev->formats.size; ++f)
+	{
+		void* elem = gfx_vec_at(&dev->formats, f);
+
+		// Match against the given format.
+		if (!GFX_FORMAT_IS_CONTAINED(_GFX_GET_FORMAT(elem), fmt))
+			continue;
+
+		// If a match, add supported features.
+		features |= _GFX_GET_FEATURES(_GFX_GET_VK_FORMAT_PROPERTIES(elem));
+	}
+
+	return features;
 }
 
 /****************************/
