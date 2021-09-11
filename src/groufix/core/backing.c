@@ -321,6 +321,22 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
                                 size_t index, GFXAttachment attachment)
 {
 	assert(renderer != NULL);
+	assert(!GFX_FORMAT_IS_EMPTY(attachment.format));
+
+	// Firstly, resolve attachment's format.
+	// TODO: Add VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT ?
+	VkFormatProperties props = {
+		.linearTilingFeatures = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT,
+		.optimalTilingFeatures = 0,
+		.bufferFeatures = 0
+	};
+
+	if (_gfx_resolve_format(renderer->device,
+		&attachment.format, &props) == VK_FORMAT_UNDEFINED)
+	{
+		gfx_log_error("An attachment format of a renderer is not supported.");
+		return 0;
+	}
 
 	// Make sure the attachment exists.
 	if (!_gfx_alloc_attachments(renderer, index))

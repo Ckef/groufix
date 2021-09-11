@@ -34,7 +34,7 @@ typedef struct GFXAttachment
 {
 	GFXSizeClass size;
 	size_t       ref; // Index of the attachment the size is relative to.
-	// TODO: Add format.
+	GFXFormat    format;
 
 	union {
 		uint32_t width;

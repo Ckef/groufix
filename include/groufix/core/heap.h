@@ -148,7 +148,7 @@ typedef struct GFXImage
 	GFXMemoryFlags flags;
 	GFXImageUsage  usage;
 
-	// TODO: Add format.
+	GFXFormat format;
 
 	uint32_t width;
 	uint32_t height;
@@ -230,7 +230,8 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
  * Allocates an image from a heap.
  * @param heap   Cannot be NULL.
  * @param flags  At least one flag must be set.
- * @param usage  At least one usage must be set..
+ * @param usage  At least one usage must be set.
+ * @param format Cannot be GFX_FORMAT_EMPTY.
  * @param width  Must be > 0.
  * @param height Must be > 0.
  * @param depth  Must be > 0.
@@ -240,6 +241,7 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
  */
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
                                   GFXMemoryFlags flags, GFXImageUsage usage,
+                                  GFXFormat format,
                                   uint32_t width, uint32_t height, uint32_t depth);
 
 /**

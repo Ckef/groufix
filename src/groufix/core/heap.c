@@ -297,11 +297,13 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 /****************************/
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
                                   GFXMemoryFlags flags, GFXImageUsage usage,
+                                  GFXFormat format,
                                   uint32_t width, uint32_t height, uint32_t depth)
 {
 	assert(heap != NULL);
 	assert(flags != 0);
 	assert(usage != 0);
+	assert(!GFX_FORMAT_IS_EMPTY(format));
 	assert(width > 0);
 	assert(height > 0);
 	assert(depth > 0);
