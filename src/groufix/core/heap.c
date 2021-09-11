@@ -173,14 +173,13 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 
 	// Get context associated with the device.
 	// Required by _gfx_allocator_init.
-	_GFXDevice* dev;
 	_GFXContext* context;
 
-	_GFX_GET_DEVICE(dev, device);
+	_GFX_GET_DEVICE(heap->device, device);
 	_GFX_GET_CONTEXT(context, device, goto clean_lock);
 
 	// Initialize allocator things.
-	_gfx_allocator_init(&heap->allocator, dev);
+	_gfx_allocator_init(&heap->allocator, heap->device);
 	gfx_list_init(&heap->buffers);
 	gfx_list_init(&heap->images);
 	gfx_list_init(&heap->primitives);
@@ -372,9 +371,28 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	prim->refVertex = _gfx_ref_resolve(vertex);
 	prim->refIndex = _gfx_ref_resolve(index);
 
+	// Copy attributes & resolve formats.
 	prim->numAttribs = numAttribs;
-	if (numAttribs) memcpy(
-		prim->attribs, attribs, sizeof(GFXAttribute) * numAttribs);
+
+	for (size_t a = 0; a < numAttribs; ++a)
+	{
+		prim->attribs[a] = attribs[a];
+		VkFormatProperties props = {
+			.linearTilingFeatures = 0,
+			.optimalTilingFeatures = 0,
+			.bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+		};
+
+		if (_gfx_resolve_format(heap->device,
+			&prim->attribs[a].format, &props) == VK_FORMAT_UNDEFINED)
+		{
+			gfx_log_error(
+				"A vertex attribute format of a primitive geometry "
+				"is not supported.");
+
+			goto clean;
+		}
+	}
 
 	// Get appropriate public flags & usage.
 	_GFXBuffer* vertexBuff = _gfx_ref_unpack(prim->refVertex).obj.buffer;

@@ -11,6 +11,7 @@
 #define GFX_CORE_HEAP_H
 
 #include "groufix/core/device.h"
+#include "groufix/core/formats.h"
 #include "groufix/core/refs.h"
 #include "groufix/def.h"
 
@@ -89,8 +90,8 @@ typedef enum GFXBindingType
  */
 typedef struct GFXAttribute
 {
-	// TODO: Add format.
-	uint32_t offset; // In bytes.
+	GFXFormat format;
+	uint32_t  offset; // In bytes.
 
 } GFXAttribute;
 

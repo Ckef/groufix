@@ -8,6 +8,7 @@
 
 #include "groufix/core.h"
 #include <assert.h>
+#include <limits.h>
 
 
 #define _GFX_MAP_FMT(gfxName, vkName) \
@@ -26,6 +27,12 @@
 
 #define _GFX_GET_VK_FORMAT_PROPERTIES(elem) \
 	(*(VkFormatProperties*)((char*)(elem) + sizeof(GFXFormat) + sizeof(VkFormat)))
+
+#define _GFX_GET_DISTANCE(fmta, fmtb) \
+	((unsigned int)GFX_DIFF((fmta).comps[0], (fmtb).comps[0]) + \
+	(unsigned int)GFX_DIFF((fmta).comps[1], (fmtb).comps[1]) + \
+	(unsigned int)GFX_DIFF((fmta).comps[2], (fmtb).comps[2]) + \
+	(unsigned int)GFX_DIFF((fmta).comps[3], (fmtb).comps[3]))
 
 #define _GFX_GET_FEATURES(vkProps) \
 	(((vkProps).bufferFeatures & VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT ? \
@@ -314,14 +321,48 @@ clean:
 
 /****************************/
 VkFormat _gfx_resolve_format(_GFXDevice* device,
-                             GFXFormat* fmt, VkFormatProperties props)
+                             GFXFormat* fmt, const VkFormatProperties* props)
 {
 	assert(device != NULL);
 	assert(fmt != NULL);
 
-	// TODO: Implement.
+	VkFormat vkFmt = VK_FORMAT_UNDEFINED;
+	GFXFormat gfxFmt = GFX_FORMAT_EMPTY;
+	unsigned int dist = UINT_MAX;
 
-	return VK_FORMAT_UNDEFINED;
+	// Loop over all known formats of the device.
+	for (size_t f = 0; f < device->formats.size; ++f)
+	{
+		void* elem = gfx_vec_at(&device->formats, f);
+		VkFormatProperties* eProps = &_GFX_GET_VK_FORMAT_PROPERTIES(elem);
+
+		// Match against the given format & minimal properties.
+		if (
+			!GFX_FORMAT_IS_CONTAINED(_GFX_GET_FORMAT(elem), *fmt) ||
+			(props &&
+				((props->linearTilingFeatures & eProps->linearTilingFeatures)
+					!= props->linearTilingFeatures ||
+				(props->optimalTilingFeatures & eProps->optimalTilingFeatures)
+					!= props->optimalTilingFeatures ||
+				(props->bufferFeatures & eProps->bufferFeatures)
+					!= props->bufferFeatures)))
+		{
+			continue;
+		}
+
+		// Get 'closest' match.
+		unsigned int d = _GFX_GET_DISTANCE(_GFX_GET_FORMAT(elem), *fmt);
+		if (d < dist)
+		{
+			vkFmt = _GFX_GET_VK_FORMAT(elem);
+			gfxFmt = _GFX_GET_FORMAT(elem);
+			dist = d;
+		}
+	}
+
+	// Return found data.
+	*fmt = gfxFmt;
+	return vkFmt;
 }
 
 /****************************/

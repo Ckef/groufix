@@ -305,8 +305,13 @@ static void _test_init(void)
 		4, sizeof(float) * 6,
 		4, sizeof(uint16_t),
 		2, (GFXAttribute[]){
-			{ .offset = 0 },
-			{ .offset = sizeof(float) * 3 }
+			{
+				.format = GFX_FORMAT_R32G32B32_SFLOAT,
+				.offset = 0
+			}, {
+				.format = GFX_FORMAT_R32G32B32_SFLOAT,
+				.offset = sizeof(float) * 3
+			}
 		},
 		GFX_TOPO_TRIANGLE_STRIP);
 

@@ -481,10 +481,11 @@ int _gfx_device_init_formats(_GFXDevice* device);
  * The returned format will at least support all given format properties.
  * @param device Cannot be NULL.
  * @param format Input/output format, outputs the groufix equivalent to Vulkan.
+ * @param props  Must-have format properties, may be NULL.
  * @return VK_FORMAT_UNDEFINED if not supported.
  */
 VkFormat _gfx_resolve_format(_GFXDevice* device,
-                             GFXFormat* fmt, VkFormatProperties props);
+                             GFXFormat* fmt, const VkFormatProperties* props);
 
 /**
  * Initializes the Vulkan context, no-op if it already exists

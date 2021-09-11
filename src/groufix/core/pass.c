@@ -117,6 +117,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 	assert(pass->build.group != NULL); // TODO: Uh oh, temporary.
 
 	GFXRenderer* rend = pass->renderer;
+	_GFXDevice* device = rend->device;
 	_GFXContext* context = rend->context;
 	_GFXAttach* at = NULL;
 	_GFXPrimitive* prim = pass->build.primitive;
@@ -355,12 +356,15 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		VkVertexInputAttributeDescription viad[prim->numAttribs];
 
 		for (size_t i = 0; i < prim->numAttribs; ++i)
+		{
+			GFXFormat fmt = prim->attribs[i].format;
 			viad[i] = (VkVertexInputAttributeDescription){
 				.location = (uint32_t)i,
 				.binding  = 0,
-				.format   = VK_FORMAT_R32G32B32_SFLOAT,
+				.format   = _gfx_resolve_format(device, &fmt, NULL),
 				.offset   = prim->attribs[i].offset
 			};
+		}
 
 		VkPipelineVertexInputStateCreateInfo pvisci = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,

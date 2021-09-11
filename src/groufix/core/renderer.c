@@ -21,6 +21,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	if (rend == NULL) goto clean;
 
 	// Get context associated with the device.
+	_GFX_GET_DEVICE(rend->device, device);
 	_GFX_GET_CONTEXT(rend->context, device, goto clean);
 	_GFXContext* context = rend->context;
 

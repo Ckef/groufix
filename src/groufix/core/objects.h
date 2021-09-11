@@ -26,6 +26,7 @@
  */
 struct GFXHeap
 {
+	_GFXDevice*   device;    // For format operations.
 	_GFXAllocator allocator; // its context member is the used _GFXContext*.
 	_GFXMutex     lock;
 
@@ -252,6 +253,7 @@ typedef struct _GFXFrame
  */
 struct GFXRenderer
 {
+	_GFXDevice*  device; // For format operations.
 	_GFXContext* context;
 	_GFXQueue    graphics;
 	_GFXQueue    present;
