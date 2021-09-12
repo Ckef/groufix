@@ -32,7 +32,7 @@ static inline int _gfx_cmp_attachments(GFXAttachment* l, GFXAttachment* r)
 		(l->yScale == r->yScale) &&
 		(l->zScale == r->zScale);
 
-	return abs || rel;
+	return (abs || rel) && GFX_FORMAT_IS_EQUAL(l->format, r->format);
 }
 
 /****************************
@@ -446,11 +446,50 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 }
 
 /****************************/
-GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index)
+GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
+                                 size_t index)
 {
 	assert(renderer != NULL);
 	assert(index < renderer->backing.attachs.size);
 
 	// Yeah well, detach :)
 	_gfx_detach_attachment(renderer, index);
+}
+
+/****************************/
+GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer,
+                                              size_t index)
+{
+	assert(renderer != NULL);
+	assert(index < renderer->backing.attachs.size);
+
+	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
+
+	// Return attachment if it's there.
+	if (attach->type == _GFX_ATTACH_IMAGE)
+		return attach->image.base;
+
+	return (GFXAttachment){
+		.size   = GFX_SIZE_ABSOLUTE,
+		.format = GFX_FORMAT_EMPTY,
+		.width  = 0,
+		.height = 0,
+		.depth  = 0
+	};
+}
+
+/****************************/
+GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
+                                           size_t index)
+{
+	assert(renderer != NULL);
+	assert(index < renderer->backing.attachs.size);
+
+	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
+
+	// Return window if it's there.
+	if (attach->type == _GFX_ATTACH_WINDOW)
+		return (GFXWindow*)attach->window.window;
+
+	return NULL;
 }

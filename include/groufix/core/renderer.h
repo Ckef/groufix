@@ -11,6 +11,7 @@
 #define GFX_CORE_RENDERER_H
 
 #include "groufix/core/device.h"
+#include "groufix/core/formats.h"
 #include "groufix/core/heap.h" // TODO: Totally temporary!
 #include "groufix/core/window.h"
 #include "groufix/def.h"
@@ -85,7 +86,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
- * Describes the properties of an image attachment of the renderer.
+ * Describes the properties of an image attachment of a renderer.
  * If the attachment already exists, it will be overwritten.
  * @param renderer Cannot be NULL.
  * @return Zero on failure.
@@ -114,11 +115,30 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
  * Detaches an attachment at a given index of a renderer.
  * Undescribed if not a window, detached if a window.
  * @param renderer Cannot be NULL.
- * @param index    Must be < number of attachments of renderer.
+ * @param index    Must be < largest attachment index of renderer.
  *
  * If anything is detached, this will block until rendering is done!
  */
-GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
+GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
+                                 size_t index);
+
+/**
+ * Retrieves the properties of an image attachment of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param index    Must be < largest attachment index of renderer.
+ * @return Empty attachment of size 0x0x0 if no attachment.
+ */
+GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer,
+                                              size_t index);
+
+/**
+ * Retrieves a window at an attachment index of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param index    Must be < largest attachment index of renderer.
+ * @return NULL if no window is attached.
+ */
+GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
+                                           size_t index);
 
 /**
  * Adds a new (target) render pass to the renderer given a set of dependencies.
