@@ -395,10 +395,64 @@ GFXFormat gfx_format_fuzzy(GFXFormat fmt,
                            GFXFuzzyFlags flags, GFXFormatFeatures features,
                            GFXDevice* device)
 {
-	//_GFXDevice* dev;
-	//_GFX_GET_DEVICE(dev, device);
+	_GFXDevice* dev;
+	_GFX_GET_DEVICE(dev, device);
 
-	// TODO: Implement.
+	GFXFormat retFmt = GFX_FORMAT_EMPTY;
+	int contained = 0;
+	unsigned int dist = UINT_MAX;
 
-	return GFX_FORMAT_EMPTY;
+	// Loop over all known formats of the device.
+	for (size_t f = 0; f < dev->formats.size; ++f)
+	{
+		void* elem = gfx_vec_at(&dev->formats, f);
+		GFXFormat* eFmt = &_GFX_GET_FORMAT(elem);
+
+		// Match against the given format type/order and minimal features.
+		// Note this is not the same as GFX_FORMAT_IS_CONTAINED(*eFmt, fmt)!
+		// Containment checks for bit depth as well, we do not care about
+		// the depth here, we fuzzy search over _ALL_ depths!
+		GFXFormatFeatures eFeatures =
+			_GFX_GET_FEATURES(_GFX_GET_VK_FORMAT_PROPERTIES(elem));
+
+		if (
+			(features & eFeatures) != features ||
+			(eFmt->type & fmt.type) != eFmt->type ||
+			(GFX_FORMAT_IS_COMPRESSED(*eFmt) ?
+				eFmt->order != fmt.order :
+				(eFmt->order & fmt.order) != eFmt->order))
+		{
+			continue;
+		}
+
+		// We do however match against given bit depth requirements.
+		if (
+			((flags & GFX_FUZZY_MIN_DEPTH) &&
+				(eFmt->comps[0] < fmt.comps[0] ||
+				eFmt->comps[1] < fmt.comps[1] ||
+				eFmt->comps[2] < fmt.comps[2] ||
+				eFmt->comps[3] < fmt.comps[3])) ||
+			((flags & GFX_FUZZY_MAX_DEPTH) &&
+				(eFmt->comps[0] > fmt.comps[0] ||
+				eFmt->comps[1] > fmt.comps[1] ||
+				eFmt->comps[2] > fmt.comps[2] ||
+				eFmt->comps[3] > fmt.comps[3])))
+		{
+			continue;
+		}
+
+		// Get 'closest' match.
+		// We always prefer contained formats.
+		int cont = GFX_FORMAT_IS_CONTAINED(*eFmt, fmt);
+		unsigned int d = _GFX_GET_DISTANCE(*eFmt, fmt);
+
+		if (contained ? (cont && d < dist) : (cont || d < dist))
+		{
+			retFmt = *eFmt;
+			contained = cont;
+			dist = d;
+		}
+	}
+
+	return retFmt;
 }

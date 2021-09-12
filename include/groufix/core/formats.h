@@ -101,8 +101,9 @@ typedef enum GFXFormatFeatures
  */
 typedef enum GFXFuzzyFlags
 {
-	GFX_FUZZY_MIN_DEPTH = 0x0001,
-	GFX_FUZZY_MAX_DEPTH = 0x0002
+	GFX_FUZZY_MIN_DEPTH    = 0x0001,
+	GFX_FUZZY_MAX_DEPTH    = 0x0002,
+	GFX_FUZZY_STRICT_DEPTH = 0x0003 // Both MIN_DEPTH and MAX_DEPTH.
 
 } GFXFuzzyFlags;
 
