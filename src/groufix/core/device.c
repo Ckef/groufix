@@ -346,6 +346,7 @@ static int _gfx_alloc_queue_set(_GFXContext* context,
 {
 	assert(context != NULL);
 	assert(count > 0);
+	assert(count == 1); // TODO: There is only 1 value for priorities for now.
 	assert(createInfo != NULL);
 
 	// Allocate a new queue set.
@@ -370,7 +371,6 @@ static int _gfx_alloc_queue_set(_GFXContext* context,
 	gfx_list_insert_after(&context->sets, &set->list, NULL);
 
 	// Fill create info.
-	// TODO: There is only 1 value for priorities for now.
 	*createInfo = (VkDeviceQueueCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
 
@@ -475,7 +475,6 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	// Allocate queue sets and count how many.
 	uint32_t sets = 0;
 
-	// TODO: Maybe more queues if the present/transfer queue are the same?
 	// Allocate main (graphics) queue.
 	int success = _gfx_alloc_queue_set(context,
 		graphics, present == graphics, 1, (*createInfos) + (sets++),
@@ -846,7 +845,6 @@ int _gfx_devices_init(void)
 			// Check if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.
 			// If the type is equal, pick the greater Vulkan version.
-			// TODO: Select primary based on physical device features.
 			int isPrim = (i == 0) ||
 				dev.base.type < type ||
 				(dev.base.type == type && pdp.apiVersion > ver);
