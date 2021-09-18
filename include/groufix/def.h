@@ -10,6 +10,7 @@
 #ifndef GFX_DEF_H
 #define GFX_DEF_H
 
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 

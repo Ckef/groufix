@@ -277,11 +277,16 @@ typedef struct _GFXDevice
 	uint32_t     api; // Vulkan API version.
 	char         name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
 
-	size_t       index; // Index into the device group.
 	_GFXContext* context;
-	_GFXMutex    lock;
+	size_t       index; // Index into the device group.
+	_GFXMutex    lock;  // For initial context access.
 
-	GFXVec formats; // Stores { GFXFormat, VkFormat, VkFormatProperties }
+	GFXVec formats; // Stores { GFXFormat, VkFormat, VkFormatProperties }.
+
+	// Allocation limit (# of device-level allocations), queried once.
+	uint32_t  maxAllocs;
+	uint32_t  allocs;
+	_GFXMutex allocLock;
 
 
 	// Vulkan fields.
@@ -470,7 +475,8 @@ int _gfx_monitors_init(void);
 void _gfx_monitors_terminate(void);
 
 /**
- * Initializes the groufix/Vulkan format 'dictionary'.
+ * Initializes the groufix/Vulkan format 'dictionary',
+ * i.e. initializes and fills the `formats` member of the device.
  * @param device Cannot be NULL.
  * @return Non-zero on success.
  */

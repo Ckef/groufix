@@ -54,8 +54,8 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 	if (!gfx_vec_push(attachs, elems, NULL))
 	{
 		gfx_log_error(
-			"Could not allocate attachment %u of a renderer.",
-			(unsigned int)index);
+			"Could not allocate attachment %zu of a renderer.",
+			index);
 
 		return 0;
 	}
@@ -191,8 +191,8 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 clean:
 	gfx_log_error(
 		"Could not (re)create swapchain-dependent resources "
-		"of attachment %u of a renderer.",
-		(unsigned int)index);
+		"of attachment %zu of a renderer.",
+		index);
 
 	_gfx_destruct_attachment(renderer, index);
 

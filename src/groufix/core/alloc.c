@@ -119,7 +119,6 @@ search:
 }
 
 /****************************
- * TODO: Check against Vulkan's allocation limit?
  * Allocates and initializes a new Vulkan memory 'block' to be subdivided.
  * @param minSize Use to force a minimum allocation (beyond default block sizes).
  * @param maxSize Use to force a maximum allocation.
@@ -135,7 +134,23 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	assert(alloc != NULL);
 	assert(minSize <= maxSize);
 
+	_GFXDevice* device = alloc->device;
 	_GFXContext* context = alloc->context;
+
+	// Firstly, check against Vulkan's allocation limit & take the lock.
+	// This function might fail, so we need to lock until the allocation is
+	// entirely done and only _THEN_ can we increase the allocation counter.
+	_gfx_mutex_lock(&device->allocLock);
+
+	if (device->allocs >= device->maxAllocs)
+	{
+		gfx_log_error(
+			"[ %s ] cannot allocate %"PRIu64" bytes because device limit of "
+			"%"PRIu32" allocations has been reached.",
+			device->name, minSize, device->maxAllocs);
+
+		goto unlock;
+	}
 
 	// Validate that we have enough memory.
 	VkPhysicalDeviceMemoryProperties* pdmp =
@@ -146,10 +161,11 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	if (minSize > heapSize)
 	{
 		gfx_log_error(
-			"Memory heap of %llu bytes is too small to allocate %llu bytes from.",
-			(unsigned long long)heapSize, (unsigned long long)minSize);
+			"[ %s ] cannot allocate %"PRIu64" bytes from a memory heap of "
+			"%"PRIu64"bytes, it is short %"PRIu64" bytes.",
+			device->name, minSize, heapSize, (minSize - heapSize));
 
-		return NULL;
+		goto unlock;
 	}
 
 	// Calculate block size in Vulkan units.
@@ -239,16 +255,18 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		gfx_list_insert_after(&alloc->free, &block->list, NULL);
 	}
 
-	// Woop woop.
+	// Woop woop, increase device's allocation count & unlock.
+	++device->allocs;
+	_gfx_mutex_unlock(&device->allocLock);
+
 	gfx_log_debug(
-		"New Vulkan memory object allocated:\n"
-		"    Memory block size: %llu bytes%s.\n"
-		"    Preferred block size: %llu bytes.\n"
-		"    Memory heap size: %llu bytes.\n",
-		(unsigned long long)blockSize,
+		"[ %s ] allocated new Vulkan memory object:\n"
+		"    Memory block size: %"PRIu64" bytes%s.\n"
+		"    Preferred block size: %"PRIu64" bytes.\n"
+		"    Memory heap size: %"PRIu64" bytes.\n",
+		device->name, blockSize,
 		(blockSize == minSize) ? " (dedicated)" : "",
-		(unsigned long long)prefBlockSize,
-		(unsigned long long)heapSize);
+		prefBlockSize, heapSize);
 
 	return block;
 
@@ -262,11 +280,17 @@ clean_lock:
 	_gfx_mutex_clear(&block->map.lock);
 clean:
 	gfx_log_error(
-		"Could not allocate a new %sVulkan memory object of %llu bytes.",
+		"[ %s ] could not allocate a new %sVulkan memory object of "
+		"%"PRIu64" bytes.",
+		device->name,
 		(blockSize == minSize) ? "(dedicated) " : "",
-		(unsigned long long)blockSize);
+		blockSize);
 
 	free(block);
+
+	// Unlock on failure.
+unlock:
+	_gfx_mutex_unlock(&device->allocLock);
 
 	return NULL;
 }
@@ -279,6 +303,7 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 	assert(alloc != NULL);
 	assert(block != NULL);
 
+	_GFXDevice* device = alloc->device;
 	_GFXContext* context = alloc->context;
 
 	// Unlink from the allocator.
@@ -291,9 +316,15 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 	gfx_tree_clear(&block->nodes.free);
 	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
 
+	// Decrease device's allocation count.
+	// Could've been an atomic type but only here so whatever.
+	_gfx_mutex_lock(&device->allocLock);
+	--device->allocs;
+	_gfx_mutex_unlock(&device->allocLock);
+
 	gfx_log_debug(
-		"Freed Vulkan memory object of %llu bytes.",
-		(unsigned long long)block->size);
+		"[ %s ] freed Vulkan memory object of %"PRIu64" bytes.",
+		device->name, block->size);
 
 	_gfx_mutex_clear(&block->map.lock);
 	free(block);
@@ -306,7 +337,9 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 	assert(device != NULL);
 	assert(device->context != NULL);
 
+	alloc->device = device;
 	alloc->context = device->context;
+
 	gfx_list_init(&alloc->free);
 	gfx_list_init(&alloc->allocd);
 
@@ -635,8 +668,8 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 			// Ah well crud..
 			gfx_log_warn(
 				"Could not insert a new free node whilst freeing an allocation "
-				"from a Vulkan memory object, potentially lost %llu bytes.",
-				(unsigned long long)_GFX_KEY_SIZE(key));
+				"from a Vulkan memory object, potentially lost %"PRIu64" bytes.",
+				_GFX_KEY_SIZE(key));
 		}
 		else
 		{

@@ -98,6 +98,7 @@ typedef struct _GFXMemAlloc
  */
 typedef struct _GFXAllocator
 {
+	_GFXDevice*  device; // For the allocation limit.
 	_GFXContext* context;
 
 	GFXList free;   // References _GFXMemBlock.

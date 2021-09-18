@@ -579,17 +579,14 @@ static void _gfx_create_context(_GFXDevice* device)
 
 	gfx_log_debug(
 		"Logical Vulkan device of version %u.%u.%u created:\n"
-		"    Contains at least: %s.\n"
-		"    #physical devices: %u.\n"
-		"    #queue sets: %u.\n"
-		"    #queues (total): %u.\n",
+		"    Contains at least: [ %s ].\n"
+		"    #physical devices: %zu.\n"
+		"    #queue sets: %"PRIu32".\n"
+		"    #queues (total): %zu.\n",
 		(unsigned int)VK_VERSION_MAJOR(device->api),
 		(unsigned int)VK_VERSION_MINOR(device->api),
 		(unsigned int)VK_VERSION_PATCH(device->api),
-		device->name,
-		(unsigned int)context->numDevices,
-		(unsigned int)sets,
-		(unsigned int)queueCount);
+		device->name, context->numDevices, sets, queueCount);
 #endif
 
 	// Now load all device level Vulkan functions.
@@ -652,8 +649,8 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);
 
 	// Set device's reference to this context.
-	device->index = index;
 	device->context = context;
+	device->index = index;
 
 	free(createInfos);
 
@@ -718,10 +715,12 @@ int _gfx_devices_init(void)
 					.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
 					.name = NULL
 				},
-				.api     = pdp.apiVersion,
-				.index   = 0,
-				.context = NULL,
-				.vk      = { .device = devices[i] }
+				.api       = pdp.apiVersion,
+				.context   = NULL,
+				.index     = 0,
+				.maxAllocs = pdp.limits.maxMemoryAllocationCount,
+				.allocs    = 0,
+				.vk        = { .device = devices[i] }
 			};
 
 			memcpy(
@@ -747,7 +746,7 @@ int _gfx_devices_init(void)
 			}
 		}
 
-		// Now loop over 'm again to init its mutex/formats and
+		// Now loop over 'm again to init its mutexes/formats and
 		// point the public name pointer to the right smth.
 		// Because the number of devices never changes, the vector never
 		// gets reallocated, thus we store & init these mutexes here.
@@ -756,21 +755,30 @@ int _gfx_devices_init(void)
 			_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
 			dev->base.name = dev->name;
 
-			if (
-				!_gfx_mutex_init(&dev->lock) ||
-				!_gfx_device_init_formats(dev))
-			{
-				// If it could not init, clear all previous devices.
-				while (i > 0)
-				{
-					dev = gfx_vec_at(&_groufix.devices, --i);
-					_gfx_mutex_clear(&dev->lock);
-					gfx_vec_clear(&dev->formats);
-				}
+			// Some goto-based init/clear structure :)
+			if (!_gfx_mutex_init(&dev->lock))
+				goto clear_devices;
+			if (!_gfx_mutex_init(&dev->allocLock))
+				goto clear_devices_lock;
+			if (_gfx_device_init_formats(dev))
+				continue; // Success!
 
-				gfx_vec_clear(&_groufix.devices);
-				goto terminate;
+			_gfx_mutex_clear(&dev->allocLock);
+		clear_devices_lock:
+			_gfx_mutex_clear(&dev->lock);
+		clear_devices:
+
+			// If it could not init, clear all previous devices.
+			while (i > 0)
+			{
+				dev = gfx_vec_at(&_groufix.devices, --i);
+				_gfx_mutex_clear(&dev->lock);
+				_gfx_mutex_clear(&dev->allocLock);
+				gfx_vec_clear(&dev->formats);
 			}
+
+			gfx_vec_clear(&_groufix.devices);
+			goto terminate;
 		}
 
 		return 1;
@@ -798,6 +806,7 @@ void _gfx_devices_terminate(void)
 	{
 		_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
 		_gfx_mutex_clear(&dev->lock);
+		_gfx_mutex_clear(&dev->allocLock);
 		gfx_vec_clear(&dev->formats);
 	}
 
