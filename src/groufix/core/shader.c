@@ -187,9 +187,10 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 			options, shaderc_optimization_level_performance);
 
 		shaderc_compile_options_set_target_env(
-			options, shaderc_target_env_vulkan, VK_MAKE_VERSION(
-				VK_VERSION_MAJOR(device->api),
-				VK_VERSION_MINOR(device->api), 0));
+			options, shaderc_target_env_vulkan,
+			VK_MAKE_API_VERSION(0,
+				VK_API_VERSION_MINOR(device->api),
+				VK_API_VERSION_MINOR(device->api), 0));
 
 		// GPU limits.
 		VkPhysicalDeviceProperties pdp;

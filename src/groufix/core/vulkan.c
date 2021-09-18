@@ -198,12 +198,12 @@ int _gfx_vulkan_init(void)
 		uint32_t version;
 		_groufix.vk.EnumerateInstanceVersion(&version);
 
-		if (version < _GFX_VK_VERSION)
+		if (version < _GFX_VK_API_VERSION)
 		{
 			gfx_log_error("Vulkan instance does not support version %u.%u.%u.",
-				(unsigned int)VK_VERSION_MAJOR(_GFX_VK_VERSION),
-				(unsigned int)VK_VERSION_MINOR(_GFX_VK_VERSION),
-				(unsigned int)VK_VERSION_PATCH(_GFX_VK_VERSION));
+				(unsigned int)VK_API_VERSION_MAJOR(_GFX_VK_API_VERSION),
+				(unsigned int)VK_API_VERSION_MINOR(_GFX_VK_API_VERSION),
+				(unsigned int)VK_API_VERSION_PATCH(_GFX_VK_API_VERSION));
 
 			goto clean;
 		}
@@ -277,9 +277,9 @@ int _gfx_vulkan_init(void)
 
 		// Knowing the Vulkan version is always useful.
 		gfx_log_debug("Vulkan instance of version %u.%u.%u created.",
-			(unsigned int)VK_VERSION_MAJOR(version),
-			(unsigned int)VK_VERSION_MINOR(version),
-			(unsigned int)VK_VERSION_PATCH(version));
+			(unsigned int)VK_API_VERSION_MAJOR(version),
+			(unsigned int)VK_API_VERSION_MINOR(version),
+			(unsigned int)VK_API_VERSION_PATCH(version));
 
 
 		// Now load all instance level Vulkan functions.
@@ -295,6 +295,7 @@ int _gfx_vulkan_init(void)
 		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDevices);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceFeatures);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceFeatures2);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceFormatProperties);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceMemoryProperties);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties);

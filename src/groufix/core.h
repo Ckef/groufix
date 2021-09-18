@@ -28,7 +28,7 @@
 
 
 // Least Vulkan version that must be supported.
-#define _GFX_VK_VERSION VK_MAKE_VERSION(1,1,0)
+#define _GFX_VK_API_VERSION VK_MAKE_API_VERSION(0,1,1,0)
 
 // Vulkan function pointer.
 #define _GFX_VK_PFN(pName) PFN_vk##pName pName
@@ -137,6 +137,7 @@ typedef struct _GFXState
 		_GFX_VK_PFN(EnumeratePhysicalDevices);
 		_GFX_VK_PFN(GetDeviceProcAddr);
 		_GFX_VK_PFN(GetPhysicalDeviceFeatures);
+		_GFX_VK_PFN(GetPhysicalDeviceFeatures2);
 		_GFX_VK_PFN(GetPhysicalDeviceFormatProperties);
 		_GFX_VK_PFN(GetPhysicalDeviceMemoryProperties);
 		_GFX_VK_PFN(GetPhysicalDeviceProperties);

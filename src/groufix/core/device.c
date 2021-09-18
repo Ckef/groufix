@@ -33,6 +33,7 @@
 		GFX_DEVICE_CPU : \
 		GFX_DEVICE_UNKNOWN)
 
+
 // Gets the complete set of queue flags (adding optional left out bits).
 #define _GFX_QUEUE_FLAGS_ALL(vFlags) \
 	(vFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT) ? \
@@ -45,6 +46,16 @@
 	(vFlags & VK_QUEUE_TRANSFER_BIT ? 1 : 0))
 
 
+// Gets device version support & features support per version (all lvalues).
+#define _GFX_GET_DEVICE_FEATURES(device, vk11, vk12, pdf, pdv11f, pdv12f) \
+	do { \
+		vk11 = (device)->api >= VK_MAKE_API_VERSION(0,1,1,0); \
+		vk12 = (device)->api >= VK_MAKE_API_VERSION(0,1,2,0); \
+		_gfx_get_device_features(device, \
+			&pdf, (vk11 ? &pdv11f : NULL), (vk12 ? &pdv12f : NULL)); \
+	} while (0)
+
+
 /****************************
  * Array of Vulkan queue priority values in [0,1].
  * TODO: For now just a single queue, maybe we want more with varying values?
@@ -55,43 +66,51 @@ static const float _gfx_vk_queue_priorities[] = { 1.0f };
 /****************************
  * Fills a VkPhysicalDeviceFeatures struct with features to enable,
  * in other words; it disables feature we don't want.
- * @param device Cannot be NULL.
- * @param pdf    Output data, cannot be NULL.
+ * @param device Cannot be NULL, only vk.{ api, device } needs to be set.
+ * @param pdf    Output Vulkan 1.0 data, cannot be NULL.
+ * @param pdv11f Output Vulkan 1.1 data, may be NULL.
+ * @param pdv12f Output Vulkan 1.2 data, may be NULL.
+ *
+ * Undefined behaviour if one of the output structures' version is not actually
+ * supported by the device.
+ * All output structure for Vulkan >= 1.1 will link to one another in order
+ * of increasing Vulkan version.
  */
 static void _gfx_get_device_features(_GFXDevice* device,
-                                     VkPhysicalDeviceFeatures* pdf)
+                                     VkPhysicalDeviceFeatures* pdf,
+                                     VkPhysicalDeviceVulkan11Features* pdv11f,
+                                     VkPhysicalDeviceVulkan12Features* pdv12f)
 {
 	assert(device != NULL);
+	assert(device->vk.device != NULL);
 	assert(pdf != NULL);
 
-	_groufix.vk.GetPhysicalDeviceFeatures(device->vk.device, pdf);
+	VkPhysicalDeviceFeatures2 pdf2 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+		.pNext = pdv11f ? (void*)pdv11f : (void*)pdv12f
+	};
 
-	// For features we do want, warn if not present.
-	if (pdf->fullDrawIndexUint32 == VK_FALSE) gfx_log_warn(
-		"[ %s ] does not support vertex indices of size uint32_t.",
-		device->name);
+	if (pdv11f) *pdv11f = (VkPhysicalDeviceVulkan11Features){
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+		.pNext = pdv12f
+	};
 
-	if (pdf->geometryShader == VK_FALSE) gfx_log_warn(
-		"[ %s ] does not support geometry shaders.",
-		device->name);
+	if (pdv12f) *pdv12f = (VkPhysicalDeviceVulkan12Features){
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+		.pNext = NULL
+	};
 
-	if (pdf->tessellationShader == VK_FALSE) gfx_log_warn(
-		"[ %s ] does not support tessellation shaders.",
-		device->name);
+	if (!pdv11f && !pdv12f)
+		_groufix.vk.GetPhysicalDeviceFeatures(device->vk.device, pdf);
+	else
+	{
+		_groufix.vk.GetPhysicalDeviceFeatures2(device->vk.device, &pdf2);
+		*pdf = pdf2.features;
+	}
 
-	if (pdf->textureCompressionBC == VK_FALSE) gfx_log_warn(
-		"[ %s ] does not support BCn compression.",
-		device->name);
-
-	if (pdf->textureCompressionETC2 == VK_FALSE) gfx_log_warn(
-		"[ %s ] does not support ETC2 or EAC compression.",
-		device->name);
-
-	if (pdf->textureCompressionASTC_LDR == VK_FALSE) gfx_log_warn(
-		"[ %s ] does not support ASTC compression.",
-		device->name);
-
+#if defined (NDEBUG)
 	pdf->robustBufferAccess                      = VK_FALSE;
+#endif
 	pdf->imageCubeArray                          = VK_FALSE;
 	pdf->independentBlend                        = VK_FALSE;
 	pdf->sampleRateShading                       = VK_FALSE;
@@ -122,11 +141,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	pdf->shaderSampledImageArrayDynamicIndexing  = VK_FALSE;
 	pdf->shaderStorageBufferArrayDynamicIndexing = VK_FALSE;
 	pdf->shaderStorageImageArrayDynamicIndexing  = VK_FALSE;
-	pdf->shaderClipDistance                      = VK_FALSE;
-	pdf->shaderCullDistance                      = VK_FALSE;
-	pdf->shaderFloat64                           = VK_FALSE;
-	pdf->shaderInt64                             = VK_FALSE;
-	pdf->shaderInt16                             = VK_FALSE;
 	pdf->shaderResourceResidency                 = VK_FALSE;
 	pdf->shaderResourceMinLod                    = VK_FALSE;
 	pdf->sparseBinding                           = VK_FALSE;
@@ -140,6 +154,71 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	pdf->sparseResidencyAliased                  = VK_FALSE;
 	pdf->variableMultisampleRate                 = VK_FALSE;
 	pdf->inheritedQueries                        = VK_FALSE;
+
+	if (pdv11f)
+	{
+		pdv11f->storageBuffer16BitAccess           = VK_FALSE;
+		pdv11f->uniformAndStorageBuffer16BitAccess = VK_FALSE;
+		pdv11f->storagePushConstant16              = VK_FALSE;
+		pdv11f->storageInputOutput16               = VK_FALSE;
+		pdv11f->multiview                          = VK_FALSE;
+		pdv11f->multiviewGeometryShader            = VK_FALSE;
+		pdv11f->multiviewTessellationShader        = VK_FALSE;
+		pdv11f->variablePointersStorageBuffer      = VK_FALSE;
+		pdv11f->variablePointers                   = VK_FALSE;
+		pdv11f->protectedMemory                    = VK_FALSE;
+		pdv11f->samplerYcbcrConversion             = VK_FALSE;
+		pdv11f->shaderDrawParameters               = VK_FALSE;
+	}
+
+	if (pdv12f)
+	{
+		pdv12f->samplerMirrorClampToEdge                           = VK_FALSE;
+		pdv12f->drawIndirectCount                                  = VK_FALSE;
+		pdv12f->storageBuffer8BitAccess                            = VK_FALSE;
+		pdv12f->uniformAndStorageBuffer8BitAccess                  = VK_FALSE;
+		pdv12f->storagePushConstant8                               = VK_FALSE;
+		pdv12f->shaderBufferInt64Atomics                           = VK_FALSE;
+		pdv12f->shaderSharedInt64Atomics                           = VK_FALSE;
+		pdv12f->descriptorIndexing                                 = VK_FALSE;
+		pdv12f->shaderInputAttachmentArrayDynamicIndexing          = VK_FALSE;
+		pdv12f->shaderUniformTexelBufferArrayDynamicIndexing       = VK_FALSE;
+		pdv12f->shaderStorageTexelBufferArrayDynamicIndexing       = VK_FALSE;
+		pdv12f->shaderUniformBufferArrayNonUniformIndexing         = VK_FALSE;
+		pdv12f->shaderSampledImageArrayNonUniformIndexing          = VK_FALSE;
+		pdv12f->shaderStorageBufferArrayNonUniformIndexing         = VK_FALSE;
+		pdv12f->shaderStorageImageArrayNonUniformIndexing          = VK_FALSE;
+		pdv12f->shaderInputAttachmentArrayNonUniformIndexing       = VK_FALSE;
+		pdv12f->shaderUniformTexelBufferArrayNonUniformIndexing    = VK_FALSE;
+		pdv12f->shaderStorageTexelBufferArrayNonUniformIndexing    = VK_FALSE;
+		pdv12f->descriptorBindingUniformBufferUpdateAfterBind      = VK_FALSE;
+		pdv12f->descriptorBindingSampledImageUpdateAfterBind       = VK_FALSE;
+		pdv12f->descriptorBindingStorageImageUpdateAfterBind       = VK_FALSE;
+		pdv12f->descriptorBindingStorageBufferUpdateAfterBind      = VK_FALSE;
+		pdv12f->descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
+		pdv12f->descriptorBindingStorageTexelBufferUpdateAfterBind = VK_FALSE;
+		pdv12f->descriptorBindingUpdateUnusedWhilePending          = VK_FALSE;
+		pdv12f->descriptorBindingPartiallyBound                    = VK_FALSE;
+		pdv12f->descriptorBindingVariableDescriptorCount           = VK_FALSE;
+		pdv12f->runtimeDescriptorArray                             = VK_FALSE;
+		pdv12f->samplerFilterMinmax                                = VK_FALSE;
+		pdv12f->scalarBlockLayout                                  = VK_FALSE;
+		pdv12f->imagelessFramebuffer                               = VK_FALSE;
+		pdv12f->uniformBufferStandardLayout                        = VK_FALSE;
+		pdv12f->shaderSubgroupExtendedTypes                        = VK_FALSE;
+		pdv12f->separateDepthStencilLayouts                        = VK_FALSE;
+		pdv12f->hostQueryReset                                     = VK_FALSE;
+		pdv12f->timelineSemaphore                                  = VK_FALSE;
+		pdv12f->bufferDeviceAddress                                = VK_FALSE;
+		pdv12f->bufferDeviceAddressCaptureReplay                   = VK_FALSE;
+		pdv12f->bufferDeviceAddressMultiDevice                     = VK_FALSE;
+		pdv12f->vulkanMemoryModel                                  = VK_FALSE;
+		pdv12f->vulkanMemoryModelDeviceScope                       = VK_FALSE;
+		pdv12f->vulkanMemoryModelAvailabilityVisibilityChains      = VK_FALSE;
+		pdv12f->shaderOutputViewportIndex                          = VK_FALSE;
+		pdv12f->shaderOutputLayer                                  = VK_FALSE;
+		pdv12f->subgroupBroadcastDynamicId                         = VK_FALSE;
+	}
 }
 
 /****************************
@@ -477,12 +556,12 @@ static void _gfx_create_context(_GFXDevice* device)
 	assert(device->context == NULL);
 
 	// First of all, check Vulkan version.
-	if (device->api < _GFX_VK_VERSION)
+	if (device->api < _GFX_VK_API_VERSION)
 	{
 		gfx_log_error("[ %s ] does not support Vulkan version %u.%u.%u.",
-			(unsigned int)VK_VERSION_MAJOR(_GFX_VK_VERSION),
-			(unsigned int)VK_VERSION_MINOR(_GFX_VK_VERSION),
-			(unsigned int)VK_VERSION_PATCH(_GFX_VK_VERSION),
+			(unsigned int)VK_API_VERSION_MAJOR(_GFX_VK_API_VERSION),
+			(unsigned int)VK_API_VERSION_MINOR(_GFX_VK_API_VERSION),
+			(unsigned int)VK_API_VERSION_PATCH(_GFX_VK_API_VERSION),
 			device->name);
 
 		goto error;
@@ -524,11 +603,14 @@ static void _gfx_create_context(_GFXDevice* device)
 	if (!(sets = _gfx_create_queue_sets(context, device, &createInfos)))
 		goto clean;
 
-	// Get desired device features.
+	// Get desired device feature structs for the next chain.
 	// Similarly to the families, we assume that any device that uses the same
 	// context has equivalent features.
+	int vk11, vk12;
 	VkPhysicalDeviceFeatures pdf;
-	_gfx_get_device_features(device, &pdf);
+	VkPhysicalDeviceVulkan11Features pdv11f;
+	VkPhysicalDeviceVulkan12Features pdv12f;
+	_GFX_GET_DEVICE_FEATURES(device, vk11, vk12, pdf, pdv11f, pdv12f);
 
 	// Finally go create the logical Vulkan device.
 	// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
@@ -543,7 +625,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	VkDeviceGroupDeviceCreateInfo dgdci = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO,
 
-		.pNext               = NULL,
+		.pNext               = (vk11 ? &pdv11f : NULL),
 		.physicalDeviceCount = (uint32_t)context->numDevices,
 		.pPhysicalDevices    = context->devices
 	};
@@ -583,9 +665,9 @@ static void _gfx_create_context(_GFXDevice* device)
 		"    #physical devices: %zu.\n"
 		"    #queue sets: %"PRIu32".\n"
 		"    #queues (total): %zu.\n",
-		(unsigned int)VK_VERSION_MAJOR(device->api),
-		(unsigned int)VK_VERSION_MINOR(device->api),
-		(unsigned int)VK_VERSION_PATCH(device->api),
+		(unsigned int)VK_API_VERSION_MAJOR(device->api),
+		(unsigned int)VK_API_VERSION_MINOR(device->api),
+		(unsigned int)VK_API_VERSION_PATCH(device->api),
 		device->name, context->numDevices, sets, queueCount);
 #endif
 
@@ -711,10 +793,6 @@ int _gfx_devices_init(void)
 			_groufix.vk.GetPhysicalDeviceProperties(devices[i], &pdp);
 
 			_GFXDevice dev = {
-				.base = {
-					.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
-					.name = NULL
-				},
 				.api       = pdp.apiVersion,
 				.context   = NULL,
 				.index     = 0,
@@ -726,6 +804,44 @@ int _gfx_devices_init(void)
 			memcpy(
 				dev.name, pdp.deviceName,
 				VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
+
+			// Get all Vulkan device features as well.
+			// Then define the features and limits part of the new device :)
+			int vk11, vk12;
+			VkPhysicalDeviceFeatures pdf;
+			VkPhysicalDeviceVulkan11Features pdv11f;
+			VkPhysicalDeviceVulkan12Features pdv12f;
+			_GFX_GET_DEVICE_FEATURES(&dev, vk11, vk12, pdf, pdv11f, pdv12f);
+
+			dev.base = (GFXDevice){
+				.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
+				.name = NULL,
+				.features = {
+					.indexUint32        = (char)pdf.fullDrawIndexUint32,
+					.geometryShader     = (char)pdf.geometryShader,
+					.tessellationShader = (char)pdf.tessellationShader,
+					.compressionBC      = (char)pdf.textureCompressionBC,
+					.compressionETC2    = (char)pdf.textureCompressionETC2,
+					.compressionASTC    = (char)pdf.textureCompressionASTC_LDR,
+					.shaderClipDistance = (char)pdf.shaderClipDistance,
+					.shaderCullDistance = (char)pdf.shaderCullDistance,
+					.shaderInt8         = (char)(vk12 ? pdv12f.shaderInt8 : 0),
+					.shaderInt16        = (char)pdf.shaderInt16,
+					.shaderInt64        = (char)pdf.shaderInt64,
+					.shaderFloat16      = (char)(vk12 ? pdv12f.shaderFloat16 : 0),
+					.shaderFloat64      = (char)pdf.shaderFloat64
+				},
+				.limits = {
+					.maxIndexUint32       = pdp.limits.maxDrawIndexedIndexValue,
+					.maxImageSize1D       = pdp.limits.maxImageDimension1D,
+					.maxImageSize2D       = pdp.limits.maxImageDimension2D,
+					.maxImageSize3D       = pdp.limits.maxImageDimension3D,
+					.maxAttributes        = pdp.limits.maxVertexInputAttributes,
+					.maxAttributeOffset   = pdp.limits.maxVertexInputAttributeOffset,
+					.maxPrimitiveStride   = pdp.limits.maxVertexInputBindingStride,
+					.maxBindingBufferSize = pdp.limits.maxUniformBufferRange
+				}
+			};
 
 			// Check if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.

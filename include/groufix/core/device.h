@@ -33,10 +33,42 @@ typedef enum GFXDeviceType
  */
 typedef struct GFXDevice
 {
-	GFXDeviceType type; // Read-only.
-	const char*   name; // Read-only.
+	// All read-only.
+	GFXDeviceType type;
+	const char*   name;
 
-	// TODO: Add read-only features & limits.
+	// Device features.
+	struct
+	{
+		char indexUint32;
+		char geometryShader;
+		char tessellationShader;
+		char compressionBC;
+		char compressionETC2; // Includes EAC compression.
+		char compressionASTC;
+		char shaderClipDistance;
+		char shaderCullDistance;
+		char shaderInt8;
+		char shaderInt16;
+		char shaderInt64;
+		char shaderFloat16;
+		char shaderFloat64;
+
+	} features;
+
+	// Device limits.
+	struct
+	{
+		uint32_t maxIndexUint32;
+		uint32_t maxImageSize1D; // For { width }.
+		uint32_t maxImageSize2D; // For { width, height }.
+		uint32_t maxImageSize3D; // For { width, height, depth }.
+		uint32_t maxAttributes;
+		uint32_t maxAttributeOffset;
+		uint32_t maxPrimitiveStride;
+		uint32_t maxBindingBufferSize; // In total bytes (size * num).
+
+	} limits;
 
 } GFXDevice;
 
