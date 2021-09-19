@@ -134,20 +134,19 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	assert(alloc != NULL);
 	assert(minSize <= maxSize);
 
-	_GFXDevice* device = alloc->device;
 	_GFXContext* context = alloc->context;
 
 	// Firstly, check against Vulkan's allocation limit & take the lock.
 	// This function might fail, so we need to lock until the allocation is
 	// entirely done and only _THEN_ can we increase the allocation counter.
-	_gfx_mutex_lock(&device->allocLock);
+	_gfx_mutex_lock(&context->allocLock);
 
-	if (device->allocs >= device->maxAllocs)
+	if (context->allocs >= context->maxAllocs)
 	{
 		gfx_log_error(
-			"[ %s ] cannot allocate %"PRIu64" bytes because device limit of "
-			"%"PRIu32" allocations has been reached.",
-			device->name, minSize, device->maxAllocs);
+			"Cannot allocate %"PRIu64" bytes because physical device limit "
+			"of %"PRIu32" memory allocations has been reached.",
+			minSize, context->maxAllocs);
 
 		goto unlock;
 	}
@@ -161,9 +160,9 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	if (minSize > heapSize)
 	{
 		gfx_log_error(
-			"[ %s ] cannot allocate %"PRIu64" bytes from a memory heap of "
-			"%"PRIu64"bytes, it is short %"PRIu64" bytes.",
-			device->name, minSize, heapSize, (minSize - heapSize));
+			"Memory heap of %"PRIu64" bytes is too small to allocate "
+			"%"PRIu64" bytes from.",
+			minSize, heapSize);
 
 		goto unlock;
 	}
@@ -255,16 +254,16 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		gfx_list_insert_after(&alloc->free, &block->list, NULL);
 	}
 
-	// Woop woop, increase device's allocation count & unlock.
-	++device->allocs;
-	_gfx_mutex_unlock(&device->allocLock);
+	// Woop woop, increase allocation count & unlock.
+	++context->allocs;
+	_gfx_mutex_unlock(&context->allocLock);
 
 	gfx_log_debug(
-		"[ %s ] allocated new Vulkan memory object:\n"
+		"New Vulkan memory object allocated:\n"
 		"    Memory block size: %"PRIu64" bytes%s.\n"
 		"    Preferred block size: %"PRIu64" bytes.\n"
 		"    Memory heap size: %"PRIu64" bytes.\n",
-		device->name, blockSize,
+		blockSize,
 		(blockSize == minSize) ? " (dedicated)" : "",
 		prefBlockSize, heapSize);
 
@@ -280,9 +279,7 @@ clean_lock:
 	_gfx_mutex_clear(&block->map.lock);
 clean:
 	gfx_log_error(
-		"[ %s ] could not allocate a new %sVulkan memory object of "
-		"%"PRIu64" bytes.",
-		device->name,
+		"Could not allocate a new %sVulkan memory object of %"PRIu64" bytes.",
 		(blockSize == minSize) ? "(dedicated) " : "",
 		blockSize);
 
@@ -290,7 +287,7 @@ clean:
 
 	// Unlock on failure.
 unlock:
-	_gfx_mutex_unlock(&device->allocLock);
+	_gfx_mutex_unlock(&context->allocLock);
 
 	return NULL;
 }
@@ -303,7 +300,6 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 	assert(alloc != NULL);
 	assert(block != NULL);
 
-	_GFXDevice* device = alloc->device;
 	_GFXContext* context = alloc->context;
 
 	// Unlink from the allocator.
@@ -316,15 +312,15 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 	gfx_tree_clear(&block->nodes.free);
 	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
 
-	// Decrease device's allocation count.
+	// Decrease allocation count.
 	// Could've been an atomic type but only here so whatever.
-	_gfx_mutex_lock(&device->allocLock);
-	--device->allocs;
-	_gfx_mutex_unlock(&device->allocLock);
+	_gfx_mutex_lock(&context->allocLock);
+	--context->allocs;
+	_gfx_mutex_unlock(&context->allocLock);
 
 	gfx_log_debug(
-		"[ %s ] freed Vulkan memory object of %"PRIu64" bytes.",
-		device->name, block->size);
+		"Freed Vulkan memory object of %"PRIu64" bytes.",
+		block->size);
 
 	_gfx_mutex_clear(&block->map.lock);
 	free(block);
@@ -337,9 +333,7 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 	assert(device != NULL);
 	assert(device->context != NULL);
 
-	alloc->device = device;
 	alloc->context = device->context;
-
 	gfx_list_init(&alloc->free);
 	gfx_list_init(&alloc->allocd);
 

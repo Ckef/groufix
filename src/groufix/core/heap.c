@@ -173,14 +173,13 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 
 	// Get context associated with the device.
 	// Required by _gfx_allocator_init.
-	_GFXDevice* dev;
 	_GFXContext* context;
 
-	_GFX_GET_DEVICE(dev, device);
+	_GFX_GET_DEVICE(heap->device, device);
 	_GFX_GET_CONTEXT(context, device, goto clean_lock);
 
 	// Initialize allocator things.
-	_gfx_allocator_init(&heap->allocator, dev);
+	_gfx_allocator_init(&heap->allocator, heap->device);
 	gfx_list_init(&heap->buffers);
 	gfx_list_init(&heap->images);
 	gfx_list_init(&heap->primitives);
@@ -386,7 +385,7 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 			.bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
 		};
 
-		if (_gfx_resolve_format(heap->allocator.device,
+		if (_gfx_resolve_format(heap->device,
 			&prim->attribs[a].format, &props) == VK_FORMAT_UNDEFINED)
 		{
 			gfx_log_error(

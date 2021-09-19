@@ -193,6 +193,11 @@ typedef struct _GFXContext
 	GFXListNode list; // Base-type.
 	GFXList     sets; // References _GFXQueueSet.
 
+	// Memory allocation limit, queried once.
+	uint32_t  maxAllocs;
+	uint32_t  allocs;
+	_GFXMutex allocLock;
+
 
 	// Vulkan fields.
 	struct
@@ -283,11 +288,6 @@ typedef struct _GFXDevice
 	_GFXMutex    lock;  // For initial context access.
 
 	GFXVec formats; // Stores { GFXFormat, VkFormat, VkFormatProperties }.
-
-	// Allocation limit (# of device-level allocations), queried once.
-	uint32_t  maxAllocs;
-	uint32_t  allocs;
-	_GFXMutex allocLock;
 
 
 	// Vulkan fields.

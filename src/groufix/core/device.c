@@ -83,6 +83,8 @@ static void _gfx_get_device_features(_GFXDevice* device,
 {
 	assert(device != NULL);
 	assert(device->vk.device != NULL);
+	assert(!pdv11f || device->api >= VK_MAKE_API_VERSION(0,1,1,0));
+	assert(!pdv12f || device->api >= VK_MAKE_API_VERSION(0,1,2,0));
 	assert(pdf != NULL);
 
 	VkPhysicalDeviceFeatures2 pdf2 = {
@@ -535,7 +537,9 @@ static void _gfx_destroy_context(_GFXContext* context)
 	if (context->vk.DestroyDevice != NULL)
 		context->vk.DestroyDevice(context->vk.device, NULL);
 
+	_gfx_mutex_clear(&context->allocLock);
 	gfx_list_clear(&context->sets);
+
 	free(context);
 }
 
@@ -554,6 +558,8 @@ static void _gfx_create_context(_GFXDevice* device)
 	assert(device != NULL);
 	assert(device->context == NULL);
 
+	VkDeviceQueueCreateInfo* createInfos = NULL; // Will be explicitly freed.
+
 	// First of all, check Vulkan version.
 	if (device->api < _GFX_VK_API_VERSION)
 	{
@@ -566,9 +572,6 @@ static void _gfx_create_context(_GFXDevice* device)
 		goto error;
 	}
 
-	// Define this preemptively, this will be explicitly freed.
-	VkDeviceQueueCreateInfo* createInfos = NULL;
-
 	// Allocate a new context, we are allocating an array of physical devices
 	// at the end, just allocate the maximum number, who cares..
 	// These are used to check if a future device can use this context.
@@ -579,12 +582,28 @@ static void _gfx_create_context(_GFXDevice* device)
 	if (context == NULL)
 		goto error;
 
-	// Set these to NULL so we don't accidentally call garbage on cleanup.
-	context->vk.DestroyDevice = NULL;
-	context->vk.DeviceWaitIdle = NULL;
+	{
+		// Get allocation limit in a scope so pdp gets freed :)
+		VkPhysicalDeviceProperties pdp;
+		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
-	gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
-	gfx_list_init(&context->sets);
+		context->maxAllocs = pdp.limits.maxMemoryAllocationCount;
+		context->allocs = 0;
+		if (!_gfx_mutex_init(&context->allocLock))
+		{
+			free(context);
+			goto error;
+		}
+
+		// Insert itself in the context list.
+		gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
+		gfx_list_init(&context->sets);
+
+		// From this point on we call _gfx_destroy_context on cleanup.
+		// Set these to NULL so we don't accidentally call garbage on cleanup.
+		context->vk.DestroyDevice = NULL;
+		context->vk.DeviceWaitIdle = NULL;
+	}
 
 	// Now find the device group which this device is part of.
 	// This fills numDevices and devices of context!
@@ -792,12 +811,10 @@ int _gfx_devices_init(void)
 			_groufix.vk.GetPhysicalDeviceProperties(devices[i], &pdp);
 
 			_GFXDevice dev = {
-				.api       = pdp.apiVersion,
-				.context   = NULL,
-				.index     = 0,
-				.maxAllocs = pdp.limits.maxMemoryAllocationCount,
-				.allocs    = 0,
-				.vk        = { .device = devices[i] }
+				.api     = pdp.apiVersion,
+				.context = NULL,
+				.index   = 0,
+				.vk      = { .device = devices[i] }
 			};
 
 			memcpy(
@@ -860,7 +877,7 @@ int _gfx_devices_init(void)
 			}
 		}
 
-		// Now loop over 'm again to init its mutexes/formats and
+		// Now loop over 'm again to init its mutex/formats and
 		// point the public name pointer to the right smth.
 		// Because the number of devices never changes, the vector never
 		// gets reallocated, thus we store & init these mutexes here.
@@ -869,29 +886,18 @@ int _gfx_devices_init(void)
 			_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
 			dev->base.name = dev->name;
 
-			// Some goto-based init/clear structure :)
+			// Sneaky goto-based init/clear structure :o
 			if (!_gfx_mutex_init(&dev->lock))
-				goto clear_devices;
-			if (!_gfx_mutex_init(&dev->allocLock))
-				goto clear_devices_lock;
+				goto clear_prev_devices;
 			if (_gfx_device_init_formats(dev))
 				continue; // Success!
 
-			_gfx_mutex_clear(&dev->allocLock);
-		clear_devices_lock:
 			_gfx_mutex_clear(&dev->lock);
-		clear_devices:
 
-			// If it could not init, clear all previous devices.
-			while (i > 0)
-			{
-				dev = gfx_vec_at(&_groufix.devices, --i);
-				_gfx_mutex_clear(&dev->lock);
-				_gfx_mutex_clear(&dev->allocLock);
-				gfx_vec_clear(&dev->formats);
-			}
-
-			gfx_vec_clear(&_groufix.devices);
+		clear_prev_devices:
+			// If it could not init, remove remaining devices and let
+			// _gfx_devices_terminate handle the rest.
+			gfx_vec_pop(&_groufix.devices, count - i);
 			goto terminate;
 		}
 
@@ -920,7 +926,6 @@ void _gfx_devices_terminate(void)
 	{
 		_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
 		_gfx_mutex_clear(&dev->lock);
-		_gfx_mutex_clear(&dev->allocLock);
 		gfx_vec_clear(&dev->formats);
 	}
 

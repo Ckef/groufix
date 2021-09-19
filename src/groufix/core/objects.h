@@ -26,7 +26,8 @@
  */
 struct GFXHeap
 {
-	_GFXAllocator allocator; // Its context and device members are used.
+	_GFXDevice*   device;    // For format operations.
+	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
 	_GFXMutex     lock;
 
 	GFXList buffers;    // References _GFXBuffer.
