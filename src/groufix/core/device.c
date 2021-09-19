@@ -66,13 +66,11 @@ static const float _gfx_vk_queue_priorities[] = { 1.0f };
 /****************************
  * Fills a VkPhysicalDeviceFeatures struct with features to enable,
  * in other words; it disables feature we don't want.
- * @param device Cannot be NULL, only vk.{ api, device } needs to be set.
+ * @param device Cannot be NULL, only device->{ api, vk.device } need to be set.
  * @param pdf    Output Vulkan 1.0 data, cannot be NULL.
  * @param pdv11f Output Vulkan 1.1 data, may be NULL.
  * @param pdv12f Output Vulkan 1.2 data, may be NULL.
  *
- * Undefined behaviour if one of the output structures' version is not actually
- * supported by the device.
  * All output structure for Vulkan >= 1.1 will link to one another in order
  * of increasing Vulkan version.
  */
