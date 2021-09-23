@@ -492,15 +492,13 @@ GFX_API void* gfx_tree_pred(GFXTree* tree, const void* node)
 	}
 
 	// Get first ancestor right of its parent, this parent is the predecessor.
-	pred = tNode->parent;
-
-	while (pred != NULL)
+	for(
+		pred = tNode->parent;
+		pred != NULL;
+		tNode = pred, pred = tNode->parent)
 	{
 		if (tNode == pred->right)
 			return _GFX_GET_ELEMENT(tree, pred);
-
-		tNode = pred;
-		pred = tNode->parent;
 	}
 
 	return NULL;
@@ -523,15 +521,13 @@ GFX_API void* gfx_tree_succ(GFXTree* tree, const void* node)
 	}
 
 	// Get first ancestor left of its parent, this parent is the successor.
-	succ = tNode->parent;
-
-	while (succ != NULL)
+	for (
+		succ = tNode->parent;
+		succ != NULL;
+		tNode = succ, succ = tNode->parent)
 	{
 		if (tNode == succ->left)
 			return _GFX_GET_ELEMENT(tree, succ);
-
-		tNode = succ;
-		succ = tNode->parent;
 	}
 
 	return NULL;

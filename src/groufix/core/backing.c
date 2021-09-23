@@ -326,8 +326,8 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	// Firstly, resolve attachment's format.
 	// TODO: Add VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT ?
 	VkFormatProperties props = {
-		.linearTilingFeatures = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT,
-		.optimalTilingFeatures = 0,
+		.linearTilingFeatures = 0,
+		.optimalTilingFeatures = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT,
 		.bufferFeatures = 0
 	};
 
