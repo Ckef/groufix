@@ -74,7 +74,8 @@ typedef struct _GFXImage
 	// Vulkan fields.
 	struct
 	{
-		VkImage image;
+		VkFormat format;
+		VkImage  image;
 
 	} vk;
 
@@ -151,6 +152,7 @@ typedef struct _GFXImageAttach
 	// Vulkan fields.
 	struct
 	{
+		VkFormat    format;
 		VkImage     image;
 		VkImageView view;
 

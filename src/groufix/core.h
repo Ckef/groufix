@@ -210,6 +210,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(AllocateMemory);
 		_GFX_VK_PFN(BeginCommandBuffer);
 		_GFX_VK_PFN(BindBufferMemory);
+		_GFX_VK_PFN(BindImageMemory);
 		_GFX_VK_PFN(CmdBeginRenderPass);
 		_GFX_VK_PFN(CmdBindDescriptorSets);
 		_GFX_VK_PFN(CmdBindIndexBuffer);
@@ -225,6 +226,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CreateFence);
 		_GFX_VK_PFN(CreateFramebuffer);
 		_GFX_VK_PFN(CreateGraphicsPipelines);
+		_GFX_VK_PFN(CreateImage);
 		_GFX_VK_PFN(CreateImageView);
 		_GFX_VK_PFN(CreatePipelineLayout);
 		_GFX_VK_PFN(CreateRenderPass);
@@ -238,6 +240,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(DestroyDevice);
 		_GFX_VK_PFN(DestroyFence);
 		_GFX_VK_PFN(DestroyFramebuffer);
+		_GFX_VK_PFN(DestroyImage);
 		_GFX_VK_PFN(DestroyImageView);
 		_GFX_VK_PFN(DestroyPipeline);
 		_GFX_VK_PFN(DestroyPipelineLayout);
@@ -251,6 +254,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(FreeMemory);
 		_GFX_VK_PFN(GetBufferMemoryRequirements);
 		_GFX_VK_PFN(GetDeviceQueue);
+		_GFX_VK_PFN(GetImageMemoryRequirements);
 		_GFX_VK_PFN(GetSwapchainImagesKHR);
 		_GFX_VK_PFN(MapMemory);
 		_GFX_VK_PFN(QueuePresentKHR);

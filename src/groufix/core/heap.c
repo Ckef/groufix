@@ -48,6 +48,23 @@
 	(usage & GFX_BUFFER_STORAGE_TEXEL ? \
 		VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT : (VkBufferUsageFlags)0))
 
+#define _GFX_GET_VK_IMAGE_TYPE(type) \
+	((type == GFX_IMAGE_1D) ? VK_IMAGE_TYPE_1D : \
+	(type == GFX_IMAGE_2D) ? VK_IMAGE_TYPE_2D : \
+	(type == GFX_IMAGE_3D) ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D)
+
+#define _GFX_GET_VK_IMAGE_FEATURES(flags, usage) \
+	((flags & GFX_MEMORY_READ ? \
+		VK_FORMAT_FEATURE_TRANSFER_SRC_BIT : (VkFormatFeatureFlags)0) | \
+	(flags & GFX_MEMORY_WRITE ? \
+		VK_FORMAT_FEATURE_TRANSFER_DST_BIT : (VkFormatFeatureFlags)0) | \
+	(usage & GFX_IMAGE_SAMPLED ? \
+		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT : (VkFormatFeatureFlags)0) | \
+	(usage & GFX_IMAGE_SAMPLED_LINEAR ? \
+		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT : (VkFormatFeatureFlags)0) | \
+	(usage & GFX_IMAGE_STORAGE ? \
+		VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT : (VkFormatFeatureFlags)0))
+
 #define _GFX_GET_VK_IMAGE_USAGE(flags, usage) \
 	((flags & GFX_MEMORY_READ ? \
 		VK_IMAGE_USAGE_TRANSFER_SRC_BIT : (VkImageUsageFlags)0) | \
@@ -158,6 +175,113 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
 
 	// Free the memory.
 	_gfx_free(&heap->allocator, &buffer->alloc);
+}
+
+/****************************
+ * Populates the `vk.image` and `alloc` fields of a _GFXImage object,
+ * allocating a new Vulkan image in the process.
+ * @param image Cannot be NULL, vk.image will be overwritten.
+ * @return Zero on failure.
+ *
+ * The `base`, `heap` and `vk.format` fields of image must be properly
+ * initialized, these values are read for the allocation!
+ */
+static int _gfx_image_alloc(_GFXImage* image)
+{
+	assert(image != NULL);
+
+	GFXHeap* heap = image->heap;
+	_GFXContext* context = heap->allocator.context;
+
+	// Create a new Vulkan image.
+	VkImageUsageFlags usage =
+		_GFX_GET_VK_IMAGE_USAGE(image->base.flags, image->base.usage);
+
+	VkImageCreateInfo ici = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+
+		.pNext                 = NULL,
+		.flags                 = 0,
+		.imageType             = _GFX_GET_VK_IMAGE_TYPE(image->base.type),
+		.format                = image->vk.format,
+		.extent                = {
+			.width  = image->base.width,
+			.height = image->base.height,
+			.depth  = image->base.depth
+		},
+		.mipLevels             = image->base.mipmaps,
+		.arrayLayers           = image->base.layers,
+		.samples               = VK_SAMPLE_COUNT_1_BIT,
+		.tiling                = VK_IMAGE_TILING_OPTIMAL,
+		.usage                 = usage,
+		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices   = NULL,
+		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED
+	};
+
+	_GFX_VK_CHECK(context->vk.CreateImage(
+		context->vk.device, &ici, NULL, &image->vk.image), return 0);
+
+	// TODO: Query whether the image prefers a dedicated allocation?
+	VkMemoryRequirements reqs;
+	context->vk.GetImageMemoryRequirements(
+		context->vk.device, image->vk.image, &reqs);
+
+	// Get appropriate memory flags & allocate.
+	// See _gfx_buffer_alloc for more details.
+	// TODO: Same things to do as @_gfx_buffer_alloc.
+	VkMemoryPropertyFlags flags =
+		(image->base.flags & GFX_MEMORY_HOST_VISIBLE) ?
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT :
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+	if (!_gfx_alloc(&heap->allocator, &image->alloc, 0,
+		flags, flags | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, reqs))
+	{
+		goto clean;
+	}
+
+	// Bind the image to the memory.
+	_GFX_VK_CHECK(
+		context->vk.BindImageMemory(
+			context->vk.device,
+			image->vk.image,
+			image->alloc.vk.memory, image->alloc.offset),
+		goto clean_alloc);
+
+	return 1;
+
+
+	// Clean on failure.
+clean_alloc:
+	_gfx_free(&heap->allocator, &image->alloc);
+clean:
+	context->vk.DestroyImage(
+		context->vk.device, image->vk.image, NULL);
+
+	return 0;
+}
+
+/****************************
+ * Frees all resources created by _gfx_image_alloc.
+ * @param image Cannot be NULL and vk.image cannot be VK_NULL_HANDLE.
+ */
+static void _gfx_image_free(_GFXImage* image)
+{
+	assert(image != NULL);
+	assert(image->vk.image != VK_NULL_HANDLE);
+
+	GFXHeap* heap = image->heap;
+	_GFXContext* context = heap->allocator.context;
+
+	// Destroy Vulkan image.
+	context->vk.DestroyImage(
+		context->vk.device, image->vk.image, NULL);
+
+	// Free the memory.
+	_gfx_free(&heap->allocator, &image->alloc);
 }
 
 /****************************/
@@ -296,19 +420,78 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 
 /****************************/
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
-                                  GFXMemoryFlags flags, GFXImageUsage usage,
-                                  GFXFormat format,
+                                  GFXImageType type, GFXMemoryFlags flags,
+                                  GFXImageUsage usage, GFXFormat format,
+                                  uint32_t mipmaps, uint32_t layers,
                                   uint32_t width, uint32_t height, uint32_t depth)
 {
 	assert(heap != NULL);
 	assert(flags != 0);
 	assert(usage != 0);
 	assert(!GFX_FORMAT_IS_EMPTY(format));
+	assert(mipmaps > 0);
+	assert(layers > 0);
 	assert(width > 0);
 	assert(height > 0);
 	assert(depth > 0);
 
-	// TODO: Implement.
+	// Firstly, resolve the given format.
+	VkFormatProperties props = {
+		.linearTilingFeatures = 0,
+		.optimalTilingFeatures = _GFX_GET_VK_IMAGE_FEATURES(flags, usage),
+		.bufferFeatures = 0
+	};
+
+	VkFormat fmt = _gfx_resolve_format(
+		heap->device, &format, &props);
+
+	if (fmt == VK_FORMAT_UNDEFINED)
+	{
+		gfx_log_error("An image format is not supported.");
+		goto error;
+	}
+
+	// Allocate a new image & initialize.
+	_GFXImage* image = malloc(sizeof(_GFXImage));
+	if (image == NULL)
+		goto clean;
+
+	image->heap = heap;
+	image->vk.format = fmt;
+
+	image->base.type = type;
+	image->base.flags = flags;
+	image->base.usage = usage;
+	image->base.format = format;
+	image->base.mipmaps = mipmaps;
+	image->base.layers = layers;
+	image->base.width = width;
+	image->base.height = height;
+	image->base.depth = depth;
+
+	// Allocate the Vulkan image.
+	// Now we will actually modify the heap, so we lock!
+	_gfx_mutex_lock(&heap->lock);
+
+	if (!_gfx_image_alloc(image))
+	{
+		_gfx_mutex_unlock(&heap->lock);
+		goto clean;
+	}
+
+	// Link into the heap & unlock.
+	gfx_list_insert_after(&heap->images, &image->list, NULL);
+
+	_gfx_mutex_unlock(&heap->lock);
+
+	return &image->base;
+
+
+	// Clean on failure.
+clean:
+	free(image);
+error:
+	gfx_log_error("Could not allocate a new image.");
 
 	return NULL;
 }
@@ -319,7 +502,18 @@ GFX_API void gfx_free_image(GFXImage* image)
 	if (image == NULL)
 		return;
 
-	// TODO: Implement.
+	_GFXImage* img = (_GFXImage*)img;
+	GFXHeap* heap = img->heap;
+
+	// Unlink from heap & free.
+	_gfx_mutex_lock(&heap->lock);
+
+	gfx_list_erase(&heap->images, &img->list);
+	_gfx_image_free(img);
+
+	_gfx_mutex_unlock(&heap->lock);
+
+	free(img);
 }
 
 /****************************/
@@ -566,12 +760,23 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 		{
 			if (srcPtr && !GFX_REF_IS_NULL(srcPtr[r]))
 			{
+				// Quickly validate reference types.
+				if (
+					(bind->type == GFX_BINDING_BUFFER &&
+					!GFX_REF_IS_BUFFER(srcPtr[r])) ||
+					(bind->type == GFX_BINDING_IMAGE &&
+					!GFX_REF_IS_IMAGE(srcPtr[r])))
+				{
+					gfx_log_error(
+						"A resource group binding description must only "
+						"contain references of its type.");
+
+					goto clean;
+				}
+
 				refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
 				continue;
 			}
-
-			refPtr[r] = gfx_ref_buffer(&group->buffer, size);
-			size += bind->elementSize * bind->numElements;
 
 			// Validate bound images.
 			if (bind->type == GFX_BINDING_IMAGE)
@@ -583,12 +788,15 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 
 				goto clean;
 			}
+
+			refPtr[r] = gfx_ref_buffer(&group->buffer, size);
+			size += bind->elementSize * bind->numElements;
 		}
 
 		refPtr += bind->count;
 	}
 
-	// Ok now that we now what to allocate, init the rest.
+	// Ok now that we know what to allocate, init the rest.
 	group->buffer.heap = heap;
 	group->buffer.base.flags = flags;
 	group->buffer.base.usage = usage;

@@ -17,6 +17,18 @@
 
 
 /**
+ * Image type (i.e. its dimensionality).
+ */
+typedef enum GFXImageType
+{
+	GFX_IMAGE_1D,
+	GFX_IMAGE_2D,
+	GFX_IMAGE_3D
+
+} GFXImageType;
+
+
+/**
  * Memory allocation flags.
  */
 typedef enum GFXMemoryFlags
@@ -48,8 +60,9 @@ typedef enum GFXBufferUsage
  */
 typedef enum GFXImageUsage
 {
-	GFX_IMAGE_SAMPLED = 0x0001,
-	GFX_IMAGE_STORAGE = 0x0002
+	GFX_IMAGE_SAMPLED        = 0x0001,
+	GFX_IMAGE_SAMPLED_LINEAR = 0x0002,
+	GFX_IMAGE_STORAGE        = 0x0004
 
 } GFXImageUsage;
 
@@ -145,10 +158,13 @@ typedef struct GFXBuffer
 typedef struct GFXImage
 {
 	// All read-only.
+	GFXImageType   type;
 	GFXMemoryFlags flags;
 	GFXImageUsage  usage;
 
 	GFXFormat format;
+	uint32_t  mipmaps;
+	uint32_t  layers;
 
 	uint32_t width;
 	uint32_t height;
@@ -228,20 +244,24 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
 
 /**
  * Allocates an image from a heap.
- * @param heap   Cannot be NULL.
- * @param flags  At least one flag must be set.
- * @param usage  At least one usage must be set.
- * @param format Cannot be GFX_FORMAT_EMPTY.
- * @param width  Must be > 0.
- * @param height Must be > 0.
- * @param depth  Must be > 0.
+ * @param heap    Cannot be NULL.
+ * @param type    Must be a valid image type.
+ * @param flags   At least one flag must be set.
+ * @param usage   At least one usage must be set.
+ * @param format  Cannot be GFX_FORMAT_EMPTY.
+ * @param mipmaps Must be > 0.
+ * @param layers  Must be > 0.
+ * @param width   Must be > 0.
+ * @param height  Must be > 0.
+ * @param depth   Must be > 0.
  * @return NULL on failure.
  *
  * Thread-safe!
  */
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
-                                  GFXMemoryFlags flags, GFXImageUsage usage,
-                                  GFXFormat format,
+                                  GFXImageType type, GFXMemoryFlags flags,
+                                  GFXImageUsage usage, GFXFormat format,
+                                  uint32_t mipmaps, uint32_t layers,
                                   uint32_t width, uint32_t height, uint32_t depth);
 
 /**

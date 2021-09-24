@@ -43,12 +43,18 @@
 		GFX_FORMAT_STORAGE_TEXEL_BUFFER : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT ? \
 		GFX_FORMAT_SAMPLED_IMAGE : (GFXFormatFeatures)0) | \
+	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT ? \
+		GFX_FORMAT_SAMPLED_IMAGE_LINEAR : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT ? \
 		GFX_FORMAT_STORAGE_IMAGE : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT ? \
 		GFX_FORMAT_ATTACHMENT : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT ? \
-		GFX_FORMAT_ATTACHMENT_BLEND : (GFXFormatFeatures)0))
+		GFX_FORMAT_ATTACHMENT_BLEND : (GFXFormatFeatures)0) | \
+	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_TRANSFER_SRC_BIT ? \
+		GFX_FORMAT_IMAGE_READ : (GFXFormatFeatures)0) | \
+	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_TRANSFER_DST_BIT ? \
+		GFX_FORMAT_IMAGE_WRITE : (GFXFormatFeatures)0))
 
 
 /****************************
