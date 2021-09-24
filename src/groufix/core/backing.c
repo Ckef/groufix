@@ -331,10 +331,10 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 		.bufferFeatures = 0
 	};
 
-	VkFormat fmt = _gfx_resolve_format(
-		renderer->device, &attachment.format, &props);
+	VkFormat vkFmt =
+		_gfx_resolve_format(renderer->device, &attachment.format, &props);
 
-	if (fmt == VK_FORMAT_UNDEFINED)
+	if (vkFmt == VK_FORMAT_UNDEFINED)
 	{
 		gfx_log_error("An attachment format of a renderer is not supported.");
 		return 0;
@@ -364,7 +364,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 		.image = {
 			.base = attachment,
 			.vk = {
-				.format = fmt,
+				.format = vkFmt,
 				.image  = VK_NULL_HANDLE,
 				.view   = VK_NULL_HANDLE
 			}

@@ -442,10 +442,10 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 		.bufferFeatures = 0
 	};
 
-	VkFormat fmt = _gfx_resolve_format(
-		heap->device, &format, &props);
+	VkFormat vkFmt =
+		_gfx_resolve_format(heap->device, &format, &props);
 
-	if (fmt == VK_FORMAT_UNDEFINED)
+	if (vkFmt == VK_FORMAT_UNDEFINED)
 	{
 		gfx_log_error("An image format is not supported.");
 		goto error;
@@ -457,7 +457,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 		goto clean;
 
 	image->heap = heap;
-	image->vk.format = fmt;
+	image->vk.format = vkFmt;
 
 	image->base.type = type;
 	image->base.flags = flags;
