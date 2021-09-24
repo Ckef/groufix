@@ -302,27 +302,30 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 
 	_GFXContext* context = alloc->context;
 
-	// Unlink from the allocator.
+	// Immediately lock for the allocation count and free the Vulkan memory.
+	// This so we block any attempt at an allocation that might fail due to
+	// exceeding the maximum, but would've succeeded if this call locked first.
+	// Then we obviously decrease the allocation count and immediately unlock.
+	_gfx_mutex_lock(&context->allocLock);
+
+	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+	--context->allocs;
+
+	_gfx_mutex_unlock(&context->allocLock);
+
+	// Unlink from the allocator and free all remaining block things.
 	gfx_list_erase(
 		(block->nodes.free.root == NULL) ? &alloc->allocd : &alloc->free,
 		&block->list);
 
-	// Free all the things.
 	gfx_list_clear(&block->nodes.list);
 	gfx_tree_clear(&block->nodes.free);
-	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
-
-	// Decrease allocation count.
-	// Could've been an atomic type but only here so whatever.
-	_gfx_mutex_lock(&context->allocLock);
-	--context->allocs;
-	_gfx_mutex_unlock(&context->allocLock);
+	_gfx_mutex_clear(&block->map.lock);
 
 	gfx_log_debug(
 		"Freed Vulkan memory object of %"PRIu64" bytes.",
 		block->size);
 
-	_gfx_mutex_clear(&block->map.lock);
 	free(block);
 }
 
