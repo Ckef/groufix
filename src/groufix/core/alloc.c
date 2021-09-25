@@ -19,11 +19,12 @@
 #define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 1024)
 
 
-// Get the size of a key (is an lvalue).
-#define _GFX_KEY_SIZE(key) ((VkDeviceSize*)(key))[0]
+// Get the size and offset of a key (as an lvalue).
+#define _GFX_KEY_SIZE(key) \
+	((VkDeviceSize*)(key))[0]
 
-// Get the offset of a key (is an lvalue).
-#define _GFX_KEY_OFFSET(key) ((VkDeviceSize*)(key))[1]
+#define _GFX_KEY_OFFSET(key) \
+	((VkDeviceSize*)(key))[1]
 
 // Get the strictest alignment (i.e. the least significant bit) of a key.
 // Returns all 1's on no alignment, this so it always compares as stricter.
@@ -32,10 +33,6 @@
 	_GFX_KEY_OFFSET(key) & (~_GFX_KEY_OFFSET(key) + 1))
 
 
-// Check whether a value is a power of two (0 counts).
-#define _GFX_IS_POWER_OF_TWO(x) \
-	(((x) & (x - 1)) == 0)
-
 // Aligns offset up/down to the nearest multiple of align,
 // which is assumed to be a power of two.
 #define _GFX_ALIGN_UP(offset, align) \
@@ -43,6 +40,10 @@
 
 #define _GFX_ALIGN_DOWN(offset, align) \
 	((offset) & ~(align - 1))
+
+// Check whether a value is a power of two (0 counts).
+#define _GFX_IS_POWER_OF_TWO(x) \
+	(((x) & (x - 1)) == 0)
 
 
 // Gets suitable memory type (auto log when none found), assigned to an lvalue.

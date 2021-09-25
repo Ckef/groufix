@@ -16,7 +16,7 @@
 
 #define _GFX_SET_SHADERC_LIMIT(shc, vk) \
 	shaderc_compile_options_set_limit(options, \
-		shaderc_limit_##shc, (int)pdp.limits.vk);
+		shaderc_limit_##shc, (int)pdp.limits.vk)
 
 #define _GFX_GET_LANGUAGE_STRING(language) \
 	((language == GFX_GLSL) ? "glsl" : \
