@@ -587,6 +587,7 @@ static void _gfx_create_context(_GFXDevice* device)
 
 		context->maxAllocs = pdp.limits.maxMemoryAllocationCount;
 		context->allocs = 0;
+
 		if (!_gfx_mutex_init(&context->allocLock))
 		{
 			free(context);

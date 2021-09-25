@@ -436,20 +436,16 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 	assert(depth > 0);
 
 	// Firstly, resolve the given format.
-	VkFormatProperties props = {
-		.linearTilingFeatures = 0,
-		.optimalTilingFeatures = _GFX_GET_VK_IMAGE_FEATURES(flags, usage),
-		.bufferFeatures = 0
-	};
-
-	VkFormat vkFmt =
-		_gfx_resolve_format(heap->device, &format, &props);
-
-	if (vkFmt == VK_FORMAT_UNDEFINED)
-	{
-		gfx_log_error("An image format is not supported.");
-		goto error;
-	}
+	VkFormat vkFmt;
+	_GFX_RESOLVE_FORMAT(format, vkFmt, heap->device,
+		((VkFormatProperties){
+			.linearTilingFeatures = 0,
+			.optimalTilingFeatures = _GFX_GET_VK_IMAGE_FEATURES(flags, usage),
+			.bufferFeatures = 0
+		}), {
+			gfx_log_error("Image format does not support memory flags or image usage.");
+			goto error;
+		});
 
 	// Allocate a new image & initialize.
 	_GFXImage* image = malloc(sizeof(_GFXImage));
@@ -573,21 +569,16 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	for (size_t a = 0; a < numAttribs; ++a)
 	{
 		prim->attribs[a] = attribs[a];
-		VkFormatProperties props = {
-			.linearTilingFeatures = 0,
-			.optimalTilingFeatures = 0,
-			.bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
-		};
-
-		if (_gfx_resolve_format(heap->device,
-			&prim->attribs[a].format, &props) == VK_FORMAT_UNDEFINED)
-		{
-			gfx_log_error(
-				"A vertex attribute format of a primitive geometry "
-				"is not supported.");
-
-			goto clean;
-		}
+		VkFormat vkFmt;
+		_GFX_RESOLVE_FORMAT(prim->attribs[a].format, vkFmt, heap->device,
+			((VkFormatProperties){
+				.linearTilingFeatures = 0,
+				.optimalTilingFeatures = 0,
+				.bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+			}), {
+				gfx_log_error("Vertex attribute format is not supported.");
+				goto clean;
+			});
 	}
 
 	// Get appropriate public flags & usage.

@@ -60,6 +60,15 @@
 			action; \
 	} while (0)
 
+// Resolves a constrained input/output format and assigns it to another lvalue.
+#define _GFX_RESOLVE_FORMAT(ioFmt, vkFmt, device, props, action) \
+	do { \
+		VkFormatProperties _gfx_vk_props = props; \
+		vkFmt = _gfx_resolve_format(device, &(ioFmt), &_gfx_vk_props); \
+		if (vkFmt == VK_FORMAT_UNDEFINED) \
+			action; \
+	} while (0)
+
 
 /**
  * Thread local data.
