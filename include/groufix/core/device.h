@@ -41,6 +41,7 @@ typedef struct GFXDevice
 	struct
 	{
 		char indexUint32;
+		char cubemapArray;
 		char geometryShader;
 		char tessellationShader;
 		char compressionBC;
@@ -53,6 +54,7 @@ typedef struct GFXDevice
 		char shaderInt64;
 		char shaderFloat16;
 		char shaderFloat64;
+		char samplerMinmax;
 
 	} features;
 
@@ -60,9 +62,12 @@ typedef struct GFXDevice
 	struct
 	{
 		uint32_t maxIndexUint32;
-		uint32_t maxImageSize1D; // For { width }.
-		uint32_t maxImageSize2D; // For { width, height }.
-		uint32_t maxImageSize3D; // For { width, height, depth }.
+		uint32_t maxBufferTexels;
+		uint32_t maxImageSize1D;      // For { width }.
+		uint32_t maxImageSize2D;      // For { width, height }.
+		uint32_t maxImageSize3D;      // For { width, height, depth }.
+		uint32_t maxImageSizeCubemap; // For { width, height }.
+		uint32_t maxImageLayers;
 		uint32_t maxAttributes;
 		uint32_t maxAttributeOffset;
 		uint32_t maxPrimitiveStride;

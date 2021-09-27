@@ -23,7 +23,9 @@ typedef enum GFXImageType
 {
 	GFX_IMAGE_1D,
 	GFX_IMAGE_2D,
-	GFX_IMAGE_3D
+	GFX_IMAGE_3D,
+	GFX_IMAGE_3D_ARRAY, // Can be sampled as 2D slices.
+	GFX_IMAGE_CUBEMAP
 
 } GFXImageType;
 
@@ -34,8 +36,9 @@ typedef enum GFXImageType
 typedef enum GFXMemoryFlags
 {
 	GFX_MEMORY_HOST_VISIBLE = 0x0001, // i.e. mappable.
-	GFX_MEMORY_READ         = 0x0002,
-	GFX_MEMORY_WRITE        = 0x0004
+	GFX_MEMORY_DEVICE_LOCAL = 0x0002, // Implied if GFX_MEMORY_HOST_VISIBLE is _not_ set.
+	GFX_MEMORY_READ         = 0x0004,
+	GFX_MEMORY_WRITE        = 0x0008
 
 } GFXMemoryFlags;
 
@@ -62,7 +65,8 @@ typedef enum GFXImageUsage
 {
 	GFX_IMAGE_SAMPLED        = 0x0001,
 	GFX_IMAGE_SAMPLED_LINEAR = 0x0002,
-	GFX_IMAGE_STORAGE        = 0x0004
+	GFX_IMAGE_SAMPLED_MINMAX = 0x0004,
+	GFX_IMAGE_STORAGE        = 0x0008
 
 } GFXImageUsage;
 

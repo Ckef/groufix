@@ -51,7 +51,10 @@
 #define _GFX_GET_VK_IMAGE_TYPE(type) \
 	((type == GFX_IMAGE_1D) ? VK_IMAGE_TYPE_1D : \
 	(type == GFX_IMAGE_2D) ? VK_IMAGE_TYPE_2D : \
-	(type == GFX_IMAGE_3D) ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D)
+	(type == GFX_IMAGE_3D) ? VK_IMAGE_TYPE_3D : \
+	(type == GFX_IMAGE_3D_ARRAY) ? VK_IMAGE_TYPE_3D : \
+	(type == GFX_IMAGE_CUBEMAP) ? VK_IMAGE_TYPE_2D : \
+	VK_IMAGE_TYPE_2D)
 
 #define _GFX_GET_VK_IMAGE_FEATURES(flags, usage) \
 	((flags & GFX_MEMORY_READ ? \
@@ -62,6 +65,8 @@
 		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT : (VkFormatFeatureFlags)0) | \
 	(usage & GFX_IMAGE_SAMPLED_LINEAR ? \
 		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT : (VkFormatFeatureFlags)0) | \
+	(usage & GFX_IMAGE_SAMPLED_MINMAX ? \
+		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT : (VkFormatFeatureFlags)0) | \
 	(usage & GFX_IMAGE_STORAGE ? \
 		VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT : (VkFormatFeatureFlags)0))
 
@@ -194,6 +199,12 @@ static int _gfx_image_alloc(_GFXImage* image)
 	_GFXContext* context = heap->allocator.context;
 
 	// Create a new Vulkan image.
+	VkImageCreateFlags createFlags =
+		(image->base.type == GFX_IMAGE_3D_ARRAY) ?
+			VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT :
+		(image->base.type == GFX_IMAGE_CUBEMAP) ?
+			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
+
 	VkImageUsageFlags usage =
 		_GFX_GET_VK_IMAGE_USAGE(image->base.flags, image->base.usage);
 
@@ -201,7 +212,7 @@ static int _gfx_image_alloc(_GFXImage* image)
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 
 		.pNext                 = NULL,
-		.flags                 = 0,
+		.flags                 = createFlags,
 		.imageType             = _GFX_GET_VK_IMAGE_TYPE(image->base.type),
 		.format                = image->vk.format,
 		.extent                = {
@@ -212,13 +223,13 @@ static int _gfx_image_alloc(_GFXImage* image)
 		.mipLevels             = image->base.mipmaps,
 		.arrayLayers           = image->base.layers,
 		.samples               = VK_SAMPLE_COUNT_1_BIT,
-		// TODO: Must use VK_IMAGE_TILING_LINEAR for staging image.
+		// TODO: Must use VK_IMAGE_TILING_LINEAR for staging images.
 		.tiling                = VK_IMAGE_TILING_OPTIMAL,
 		.usage                 = usage,
 		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 0,
 		.pQueueFamilyIndices   = NULL,
-		// TODO: Must use VK_IMAGE_LAYOUT_PREINITIALIZED for staging image.
+		// TODO: Must use VK_IMAGE_LAYOUT_PREINITIALIZED for staging images.
 		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED
 	};
 

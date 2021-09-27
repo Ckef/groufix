@@ -837,6 +837,7 @@ int _gfx_devices_init(void)
 				.name = NULL,
 				.features = {
 					.indexUint32        = (char)pdf.fullDrawIndexUint32,
+					.cubemapArray       = (char)pdf.imageCubeArray,
 					.geometryShader     = (char)pdf.geometryShader,
 					.tessellationShader = (char)pdf.tessellationShader,
 					.compressionBC      = (char)pdf.textureCompressionBC,
@@ -848,13 +849,17 @@ int _gfx_devices_init(void)
 					.shaderInt16        = (char)pdf.shaderInt16,
 					.shaderInt64        = (char)pdf.shaderInt64,
 					.shaderFloat16      = (char)(vk12 ? pdv12f.shaderFloat16 : 0),
-					.shaderFloat64      = (char)pdf.shaderFloat64
+					.shaderFloat64      = (char)pdf.shaderFloat64,
+					.samplerMinmax      = (char)(vk12 ? pdv12f.samplerFilterMinmax : 0)
 				},
 				.limits = {
 					.maxIndexUint32       = pdp.limits.maxDrawIndexedIndexValue,
+					.maxBufferTexels      = pdp.limits.maxTexelBufferElements,
 					.maxImageSize1D       = pdp.limits.maxImageDimension1D,
 					.maxImageSize2D       = pdp.limits.maxImageDimension2D,
 					.maxImageSize3D       = pdp.limits.maxImageDimension3D,
+					.maxImageSizeCubemap  = pdp.limits.maxImageDimensionCube,
+					.maxImageLayers       = pdp.limits.maxImageArrayLayers,
 					.maxAttributes        = pdp.limits.maxVertexInputAttributes,
 					.maxAttributeOffset   = pdp.limits.maxVertexInputAttributeOffset,
 					.maxPrimitiveStride   = pdp.limits.maxVertexInputBindingStride,

@@ -45,6 +45,8 @@
 		GFX_FORMAT_SAMPLED_IMAGE : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT ? \
 		GFX_FORMAT_SAMPLED_IMAGE_LINEAR : (GFXFormatFeatures)0) | \
+	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT ? \
+		GFX_FORMAT_SAMPLED_IMAGE_MINMAX : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT ? \
 		GFX_FORMAT_STORAGE_IMAGE : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT ? \
