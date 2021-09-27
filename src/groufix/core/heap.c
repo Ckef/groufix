@@ -212,11 +212,13 @@ static int _gfx_image_alloc(_GFXImage* image)
 		.mipLevels             = image->base.mipmaps,
 		.arrayLayers           = image->base.layers,
 		.samples               = VK_SAMPLE_COUNT_1_BIT,
+		// TODO: Must use VK_IMAGE_TILING_LINEAR for staging image.
 		.tiling                = VK_IMAGE_TILING_OPTIMAL,
 		.usage                 = usage,
 		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 0,
 		.pQueueFamilyIndices   = NULL,
+		// TODO: Must use VK_IMAGE_LAYOUT_PREINITIALIZED for staging image.
 		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED
 	};
 
@@ -231,6 +233,7 @@ static int _gfx_image_alloc(_GFXImage* image)
 	// Get appropriate memory flags & allocate.
 	// See _gfx_buffer_alloc for more details.
 	// TODO: Same things to do as @_gfx_buffer_alloc.
+	// TODO: Can non-staging images even be host visible?
 	VkMemoryPropertyFlags flags =
 		(image->base.flags & GFX_MEMORY_HOST_VISIBLE) ?
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -886,6 +889,7 @@ GFX_API void* gfx_map(GFXReference ref)
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
 	// Validate host visibility.
+	// TODO: Can images even be host-visible, change func argument to GFXBufferRef?
 	if (
 		(unp.obj.buffer && !(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE)) ||
 		(unp.obj.image && !(unp.obj.image->base.flags & GFX_MEMORY_HOST_VISIBLE)) ||
