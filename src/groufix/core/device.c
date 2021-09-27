@@ -111,7 +111,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 #if defined (NDEBUG)
 	pdf->robustBufferAccess                      = VK_FALSE;
 #endif
-	pdf->imageCubeArray                          = VK_FALSE;
 	pdf->independentBlend                        = VK_FALSE;
 	pdf->sampleRateShading                       = VK_FALSE;
 	pdf->dualSrcBlend                            = VK_FALSE;
@@ -201,7 +200,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 		pdv12f->descriptorBindingPartiallyBound                    = VK_FALSE;
 		pdv12f->descriptorBindingVariableDescriptorCount           = VK_FALSE;
 		pdv12f->runtimeDescriptorArray                             = VK_FALSE;
-		pdv12f->samplerFilterMinmax                                = VK_FALSE;
 		pdv12f->scalarBlockLayout                                  = VK_FALSE;
 		pdv12f->imagelessFramebuffer                               = VK_FALSE;
 		pdv12f->uniformBufferStandardLayout                        = VK_FALSE;

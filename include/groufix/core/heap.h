@@ -24,7 +24,7 @@ typedef enum GFXImageType
 	GFX_IMAGE_1D,
 	GFX_IMAGE_2D,
 	GFX_IMAGE_3D,
-	GFX_IMAGE_3D_ARRAY, // Can be sampled as 2D slices.
+	GFX_IMAGE_3D_SLICED, // Can be sampled as 2D slices.
 	GFX_IMAGE_CUBEMAP
 
 } GFXImageType;

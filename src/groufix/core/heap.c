@@ -52,7 +52,7 @@
 	((type == GFX_IMAGE_1D) ? VK_IMAGE_TYPE_1D : \
 	(type == GFX_IMAGE_2D) ? VK_IMAGE_TYPE_2D : \
 	(type == GFX_IMAGE_3D) ? VK_IMAGE_TYPE_3D : \
-	(type == GFX_IMAGE_3D_ARRAY) ? VK_IMAGE_TYPE_3D : \
+	(type == GFX_IMAGE_3D_SLICED) ? VK_IMAGE_TYPE_3D : \
 	(type == GFX_IMAGE_CUBEMAP) ? VK_IMAGE_TYPE_2D : \
 	VK_IMAGE_TYPE_2D)
 
@@ -200,7 +200,7 @@ static int _gfx_image_alloc(_GFXImage* image)
 
 	// Create a new Vulkan image.
 	VkImageCreateFlags createFlags =
-		(image->base.type == GFX_IMAGE_3D_ARRAY) ?
+		(image->base.type == GFX_IMAGE_3D_SLICED) ?
 			VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT :
 		(image->base.type == GFX_IMAGE_CUBEMAP) ?
 			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
