@@ -82,6 +82,41 @@
 
 
 /****************************
+ * Performs the actual internal memory allocation.
+ * Extracts Vulkan memory flags (and implicitly memory type) from public flags.
+ */
+static inline int _gfx_mem_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+                                 int linear, GFXMemoryFlags flags,
+                                 const VkMemoryRequirements* reqs)
+{
+	// Get appropriate memory flags & allocate.
+	// For now we always add coherency to host visible memory, this way we do
+	// not need to account for `VkPhysicalDeviceLimits::nonCoherentAtomSize`.
+	// There are a bunch of memory types we are interested in:
+	//  DEVICE_LOCAL
+	//   Large heap, for any and all GPU-only resources.
+	//  DEVICE_LOCAL | HOST_VISIBLE | HOST_COHERENT
+	//   Probably a smaller heap, for dynamic/streamed resources.
+	//  HOST_VISIBLE | HOST_COHERENT
+	//   Large heap, for any and all staging resources,
+	//   and also a fallback for dynamic/streamed things.
+	// TODO: What about HOST_CACHED, for faster reads?
+	VkMemoryPropertyFlags required =
+		(flags & GFX_MEMORY_HOST_VISIBLE) ?
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT :
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+	// Add the device local flag to optimal flags, this way we fallback to
+	// non device-local memory in case it must be host visible memory too :)
+	VkMemoryPropertyFlags optimal = required |
+		((flags & GFX_MEMORY_DEVICE_LOCAL) ?
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : 0);
+
+	return _gfx_alloc(alloc, mem, linear, required, optimal, *reqs);
+}
+
+/****************************
  * Populates the `vk.buffer` and `alloc` fields of a _GFXBuffer object,
  * allocating a new Vulkan buffer in the process.
  * @param buffer Cannot be NULL, vk.buffer will be overwritten.
@@ -117,26 +152,13 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 		context->vk.device, &bci, NULL, &buffer->vk.buffer), return 0);
 
 	// TODO: Query whether the buffer prefers a dedicated allocation?
+	// Get memory requirements & do actual allocation.
 	VkMemoryRequirements reqs;
 	context->vk.GetBufferMemoryRequirements(
 		context->vk.device, buffer->vk.buffer, &reqs);
 
-	// Get appropriate memory flags & allocate.
-	// For now we always add coherency to host visible buffers, this way we do
-	// not need to account for `VkPhysicalDeviceLimits::nonCoherentAtomSize`.
-	// We always add device local to the optimal flags,
-	// wouldn't it be wonderful if everything was always device local :)
-	// TODO: Making it device local should be a user-visible options somehow.
-	// TODO: Or we may want to use the non-device local one as fallback.
-	// TODO: Staging buffers should _NOT_ go to device local.
-	VkMemoryPropertyFlags flags =
-		(buffer->base.flags & GFX_MEMORY_HOST_VISIBLE) ?
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT :
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
-	if (!_gfx_alloc(&heap->allocator, &buffer->alloc, 1,
-		flags, flags | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, reqs))
+	if (!_gfx_mem_alloc(
+		&heap->allocator, &buffer->alloc, 1, buffer->base.flags, &reqs))
 	{
 		goto clean;
 	}
@@ -238,22 +260,13 @@ static int _gfx_image_alloc(_GFXImage* image)
 		context->vk.device, &ici, NULL, &image->vk.image), return 0);
 
 	// TODO: Query whether the image prefers a dedicated allocation?
+	// Get memory requirements & do actual allocation.
 	VkMemoryRequirements reqs;
 	context->vk.GetImageMemoryRequirements(
 		context->vk.device, image->vk.image, &reqs);
 
-	// Get appropriate memory flags & allocate.
-	// See _gfx_buffer_alloc for more details.
-	// TODO: Same things to do as @_gfx_buffer_alloc.
-	// TODO: Can non-staging images even be host visible?
-	VkMemoryPropertyFlags flags =
-		(image->base.flags & GFX_MEMORY_HOST_VISIBLE) ?
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT :
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
-	if (!_gfx_alloc(&heap->allocator, &image->alloc, 0,
-		flags, flags | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, reqs))
+	if (!_gfx_mem_alloc(
+		&heap->allocator, &image->alloc, 0, image->base.flags, &reqs))
 	{
 		goto clean;
 	}
