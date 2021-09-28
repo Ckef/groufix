@@ -10,8 +10,7 @@
 #ifndef GFX_CORE_REFS_H
 #define GFX_CORE_REFS_H
 
-#include <stddef.h>
-#include <stdint.h>
+#include "groufix/def.h"
 
 
 /**

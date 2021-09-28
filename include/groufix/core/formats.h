@@ -11,6 +11,7 @@
 #define GFX_CORE_FORMATS_H
 
 #include "groufix/core/device.h"
+#include "groufix/def.h"
 
 
 /**
@@ -120,8 +121,8 @@ typedef enum GFXFuzzyFlags
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @return Zero if fmt is not supported.
  */
-GFXFormatFeatures gfx_format_support(GFXFormat fmt,
-                                     GFXDevice* device);
+GFX_API GFXFormatFeatures gfx_format_support(GFXFormat fmt,
+                                             GFXDevice* device);
 
 /**
  * Performs a fuzzy search over all supported formats, i.e. it will return
@@ -136,9 +137,9 @@ GFXFormatFeatures gfx_format_support(GFXFormat fmt,
  * contained within this set. However this fuzzy search will search outside
  * the defined set as well.
  */
-GFXFormat gfx_format_fuzzy(GFXFormat fmt,
-                           GFXFuzzyFlags flags, GFXFormatFeatures features,
-                           GFXDevice* device);
+GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
+                                   GFXFormatFeatures features,
+                                   GFXDevice* device);
 
 
 /****************************

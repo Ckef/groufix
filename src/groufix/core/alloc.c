@@ -163,7 +163,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		gfx_log_error(
 			"Memory heap of %"PRIu64" bytes is too small to allocate "
 			"%"PRIu64" bytes from.",
-			minSize, heapSize);
+			heapSize, minSize);
 
 		goto unlock;
 	}

@@ -376,8 +376,8 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
 }
 
 /****************************/
-GFXFormatFeatures gfx_format_support(GFXFormat fmt,
-                                     GFXDevice* device)
+GFX_API GFXFormatFeatures gfx_format_support(GFXFormat fmt,
+                                             GFXDevice* device)
 {
 	_GFXDevice* dev;
 	_GFX_GET_DEVICE(dev, device);
@@ -401,9 +401,9 @@ GFXFormatFeatures gfx_format_support(GFXFormat fmt,
 }
 
 /****************************/
-GFXFormat gfx_format_fuzzy(GFXFormat fmt,
-                           GFXFuzzyFlags flags, GFXFormatFeatures features,
-                           GFXDevice* device)
+GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
+                                   GFXFormatFeatures features,
+                                   GFXDevice* device)
 {
 	_GFXDevice* dev;
 	_GFX_GET_DEVICE(dev, device);
