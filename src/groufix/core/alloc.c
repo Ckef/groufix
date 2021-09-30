@@ -125,15 +125,20 @@ search:
  * @param maxSize Use to force a maximum allocation.
  * @return NULL on failure.
  *
- * A dedicated block is allocated if the resulting size of the block is equal
- * to minSize, the free root node _WILL NOT_ be inserted in that case.
- * To force a dedicated allocation of an exact size, set minSize == maxSize.
+ * If the resulting size of the allocated block is equal to minSize,
+ * the free root node _WILL NOT_ be inserted. To force this behaviour, i.e.
+ * allocate a block of an exact size, set minSize == maxSize.
+ *
+ * To allocate Vulkan 'dedicated' memory, a buffer _OR_ image can be passed,
+ * these will be passed to Vulkan if and only if minSize == maxSIze.
  */
 static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
-                                          VkDeviceSize minSize, VkDeviceSize maxSize)
+                                          VkDeviceSize minSize, VkDeviceSize maxSize,
+                                          VkBuffer buffer, VkImage image)
 {
 	assert(alloc != NULL);
 	assert(minSize <= maxSize);
+	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
 
 	_GFXContext* context = alloc->context;
 
@@ -178,6 +183,18 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	VkDeviceSize blockSize =
 		GFX_CLAMP(prefBlockSize, minSize, maxSize);
 
+	// Check whether we want to allocate Vulkan dedicated memory.
+	int dedicated =
+		(minSize == maxSize) &&
+		(buffer != VK_NULL_HANDLE || image != VK_NULL_HANDLE);
+
+	VkMemoryDedicatedAllocateInfo mdai = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+		.pNext = NULL,
+		.image = image,
+		.buffer = buffer
+	};
+
 	// Allocate block & init.
 	_GFXMemBlock* block = malloc(sizeof(_GFXMemBlock));
 	if (block == NULL)
@@ -194,7 +211,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		VkMemoryAllocateInfo mai = {
 			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 
-			.pNext           = NULL,
+			.pNext           = dedicated ? &mdai : NULL,
 			.allocationSize  = blockSize,
 			.memoryTypeIndex = type
 		};
@@ -234,13 +251,13 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	gfx_tree_init(&block->nodes.free, sizeof(key), _gfx_allocator_cmp);
 	gfx_list_init(&block->nodes.list);
 
-	// If dedicated, link the block into the allocd list.
+	// If an exact size, link the block into the allocd list.
 	// As there is no free root node, it will be regarded as full.
 	if (blockSize == minSize)
 		gfx_list_insert_after(&alloc->allocd, &block->list, NULL);
 	else
 	{
-		// If not dedicated however (!), insert a free root node.
+		// If not an exact size however (!), insert a free root node.
 		_GFXMemNode* node = gfx_tree_insert(
 			&block->nodes.free, sizeof(_GFXMemNode), NULL, key);
 
@@ -265,7 +282,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		"    Preferred block size: %"PRIu64" bytes.\n"
 		"    Memory heap size: %"PRIu64" bytes.\n",
 		blockSize,
-		(blockSize == minSize) ? " (dedicated)" : "",
+		dedicated ? " (dedicated)" : "",
 		prefBlockSize, heapSize);
 
 	return block;
@@ -281,7 +298,7 @@ clean_lock:
 clean:
 	gfx_log_error(
 		"Could not allocate a new %sVulkan memory object of %"PRIu64" bytes.",
-		(blockSize == minSize) ? "(dedicated) " : "",
+		dedicated ? "(dedicated) " : "",
 		blockSize);
 
 	free(block);
@@ -476,7 +493,8 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 	{
 		block = _gfx_alloc_mem_block(
 			alloc, type, reqs.size,
-			GFX_MAX(reqs.size, _GFX_DEF_LARGE_HEAP_BLOCK_SIZE));
+			GFX_MAX(reqs.size, _GFX_DEF_LARGE_HEAP_BLOCK_SIZE),
+			VK_NULL_HANDLE, VK_NULL_HANDLE);
 
 		if (block == NULL)
 			return 0;
@@ -549,12 +567,14 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 /****************************/
 int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
                 VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
-                VkMemoryRequirements reqs)
+                VkMemoryRequirements reqs,
+                VkBuffer buffer, VkImage image)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
 	assert(reqs.size > 0);
 	assert(reqs.memoryTypeBits != 0);
+	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
 
 	// Get memory type index.
 	uint32_t type;
@@ -564,8 +584,8 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 
 	// Allocate a memory block.
 	// No free root node is inserted by setting minSize == maxSize.
-	_GFXMemBlock* block =
-		_gfx_alloc_mem_block(alloc, type, reqs.size, reqs.size);
+	_GFXMemBlock* block = _gfx_alloc_mem_block(
+		alloc, type, reqs.size, reqs.size, buffer, image);
 
 	if (block == NULL)
 		return 0;

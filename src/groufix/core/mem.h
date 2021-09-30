@@ -155,14 +155,17 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
                VkMemoryRequirements reqs);
 
 /**
- * TODO: Add image and buffer arguments so we can do true 'Vulkan'-dedication?
- * Allocate some dedicated Vulkan memory,
+ * Allocate some 'dedicated' Vulkan memory,
  * meaning it will not be sub-allocated from a larger memory block.
  * @see _gfx_alloc.
+ *
+ * To allocate Vulkan dedicated (for a Vulkan buffer or image) memory,
+ * either a buffer _OR_ image can be passed.
  */
 int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
                 VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
-                VkMemoryRequirements reqs);
+                VkMemoryRequirements reqs,
+                VkBuffer buffer, VkImage image);
 
 /**
  * Free some Vulkan memory.

@@ -87,7 +87,9 @@
  */
 static inline int _gfx_mem_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
                                  int linear, GFXMemoryFlags flags,
-                                 const VkMemoryRequirements* reqs)
+                                 const VkMemoryRequirements* reqs,
+                                 const VkMemoryDedicatedRequirements* dreqs,
+                                 VkBuffer buffer, VkImage image)
 {
 	// Get appropriate memory flags & allocate.
 	// For now we always add coherency to host visible memory, this way we do
@@ -113,7 +115,12 @@ static inline int _gfx_mem_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		((flags & GFX_MEMORY_DEVICE_LOCAL) ?
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : 0);
 
-	return _gfx_alloc(alloc, mem, linear, required, optimal, *reqs);
+	// TODO: Fallback to non device-local memory if it is full?
+	// Check if the Vulkan implementation wants a dedicated allocation.
+	if (dreqs->prefersDedicatedAllocation)
+		return _gfx_allocd(alloc, mem, required, optimal, *reqs, buffer, image);
+	else
+		return _gfx_alloc(alloc, mem, linear, required, optimal, *reqs);
 }
 
 /****************************
@@ -151,14 +158,30 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	_GFX_VK_CHECK(context->vk.CreateBuffer(
 		context->vk.device, &bci, NULL, &buffer->vk.buffer), return 0);
 
-	// TODO: Query whether the buffer prefers a dedicated allocation?
 	// Get memory requirements & do actual allocation.
-	VkMemoryRequirements reqs;
-	context->vk.GetBufferMemoryRequirements(
-		context->vk.device, buffer->vk.buffer, &reqs);
+	VkBufferMemoryRequirementsInfo2 bmri2 = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+		.pNext = NULL,
+		.buffer = buffer->vk.buffer
+	};
+
+	VkMemoryDedicatedRequirements mdr = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
+		.pNext = NULL,
+	};
+
+	VkMemoryRequirements2 mr2 = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+		.pNext = &mdr
+	};
+
+	context->vk.GetBufferMemoryRequirements2(
+		context->vk.device, &bmri2, &mr2);
 
 	if (!_gfx_mem_alloc(
-		&heap->allocator, &buffer->alloc, 1, buffer->base.flags, &reqs))
+		&heap->allocator, &buffer->alloc, 1, buffer->base.flags,
+		&mr2.memoryRequirements, &mdr,
+		buffer->vk.buffer, VK_NULL_HANDLE))
 	{
 		goto clean;
 	}
@@ -259,14 +282,30 @@ static int _gfx_image_alloc(_GFXImage* image)
 	_GFX_VK_CHECK(context->vk.CreateImage(
 		context->vk.device, &ici, NULL, &image->vk.image), return 0);
 
-	// TODO: Query whether the image prefers a dedicated allocation?
 	// Get memory requirements & do actual allocation.
-	VkMemoryRequirements reqs;
-	context->vk.GetImageMemoryRequirements(
-		context->vk.device, image->vk.image, &reqs);
+	VkImageMemoryRequirementsInfo2 imri2 = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+		.pNext = NULL,
+		.image = image->vk.image
+	};
+
+	VkMemoryDedicatedRequirements mdr = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
+		.pNext = NULL,
+	};
+
+	VkMemoryRequirements2 mr2 = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+		.pNext = &mdr
+	};
+
+	context->vk.GetImageMemoryRequirements2(
+		context->vk.device, &imri2, &mr2);
 
 	if (!_gfx_mem_alloc(
-		&heap->allocator, &image->alloc, 0, image->base.flags, &reqs))
+		&heap->allocator, &image->alloc, 0, image->base.flags,
+		&mr2.memoryRequirements, &mdr,
+		VK_NULL_HANDLE, image->vk.image))
 	{
 		goto clean;
 	}
