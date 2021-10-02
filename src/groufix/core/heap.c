@@ -116,7 +116,10 @@ static inline int _gfx_mem_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : 0);
 
 	// TODO: Fallback to non device-local memory if it is full?
+	// TODO: Warn if a fallback heap is used (after the allocation error).
 	// Check if the Vulkan implementation wants a dedicated allocation.
+	// Note that we do not check `dreqs->requiresDedicatedAllocation`, this
+	// is only relevant for external memory, which we do not use.
 	if (dreqs->prefersDedicatedAllocation)
 		return _gfx_allocd(alloc, mem, required, optimal, *reqs, buffer, image);
 	else

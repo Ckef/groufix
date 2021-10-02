@@ -217,14 +217,18 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			.clipped          = VK_TRUE,
 			.oldSwapchain     = oldSwap,
 
-			.imageSharingMode = (window->access.size > 1) ?
+			// For now we set sharing mode to concurrent if there are two
+			// families that need access.
+			// Note it's never more than two families (graphics + present)!
+			.imageSharingMode =
+				(window->access[1] != UINT32_MAX) ?
 				VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
 
-			.queueFamilyIndexCount = (window->access.size > 1) ?
-				(uint32_t)window->access.size : 0,
+			.queueFamilyIndexCount =
+				(window->access[1] != UINT32_MAX) ? 2 : 0,
 
-			.pQueueFamilyIndices = (window->access.size > 1) ?
-				window->access.data : NULL
+			.pQueueFamilyIndices =
+				(window->access[1] != UINT32_MAX) ? window->access : NULL
 		};
 
 		_GFX_VK_CHECK(

@@ -337,7 +337,7 @@ typedef struct _GFXWindow
 
 	_GFXDevice*  device; // Associated GPU to build a swapchain on.
 	_GFXContext* context;
-	GFXVec       access; // Stores uint32_t, all Vulkan family indicies with image access.
+	uint32_t     access[2]; // All Vulkan families with image access (UINT32_MAX for empty).
 
 	// Swapchain lock (window can only be used by one renderer).
 #if defined (__STDC_NO_ATOMICS__)

@@ -233,8 +233,8 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 }
 
 /****************************
- * Picks and validates queue families with image access and subsequently inits
- * and fills the window->access vector of a window with their family indices.
+ * Picks and validates queue families with image access and
+ * subsequently fills the window->access array.
  * @param window Cannot be NULL.
  * @return Non-zero on success.
  *
@@ -274,20 +274,10 @@ static int _gfx_window_pick_access(_GFXWindow* window)
 		return 0;
 	}
 
-	// Initialize & fill the access vector.
-	// Make sure to not put in duplicate queue families!
-	gfx_vec_init(&window->access, sizeof(uint32_t));
-
-	if (!gfx_vec_push(
-		&window->access,
-		graphics == present ? 1 : 2,
-		(uint32_t[]){
-			graphics->family,
-			present->family
-		}))
-	{
-		return 0;
-	}
+	// Store the chosen families.
+	// Make sure to not put in duplicate indices!
+	window->access[0] = graphics->family;
+	window->access[1] = (present != graphics) ? present->family : UINT32_MAX;
 
 	return 1;
 }
@@ -431,7 +421,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 
 	// Pick all the queue families that need image access.
 	if (!_gfx_window_pick_access(window))
-		goto clean_access;
+		goto clean_surface;
 
 	// Make sure to set the swapchain to a NULL handle here so a new one will
 	// eventually get created when an image is acquired.
@@ -445,8 +435,6 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 
 
 	// Cleanup on failure.
-clean_access:
-	gfx_vec_clear(&window->access);
 clean_surface:
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, window->vk.surface, NULL);
@@ -488,7 +476,6 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_groufix.vk.DestroySurfaceKHR(
 		_groufix.vk.instance, win->vk.surface, NULL);
 
-	gfx_vec_clear(&win->access);
 	gfx_vec_clear(&win->frame.images);
 	gfx_vec_clear(&win->vk.retired);
 
