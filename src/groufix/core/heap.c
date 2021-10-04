@@ -505,8 +505,8 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 {
 	assert(heap != NULL);
 	assert(flags != 0);
+	assert(!(flags & GFX_MEMORY_HOST_VISIBLE));
 	assert(usage != 0);
-	assert(!(usage & GFX_MEMORY_HOST_VISIBLE));
 	assert(!GFX_FORMAT_IS_EMPTY(format));
 	assert(mipmaps > 0);
 	assert(layers > 0);
