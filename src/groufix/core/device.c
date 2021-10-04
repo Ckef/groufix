@@ -473,6 +473,7 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	// Allocate queue sets and count how many.
 	uint32_t sets = 0;
 
+	// TODO: Make 2 queues in 1 set if no separate transfer queue?
 	// Allocate main (graphics) queue.
 	int success = _gfx_alloc_queue_set(context,
 		graphics, present == graphics, 1, (*createInfos) + (sets++),

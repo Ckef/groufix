@@ -189,6 +189,10 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 		goto clean;
 	}
 
+	// Set public device-local flag.
+	if (!(buffer->alloc.flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+		buffer->base.flags &= ~(GFXMemoryFlags)GFX_MEMORY_DEVICE_LOCAL;
+
 	// Bind the buffer to the memory.
 	_GFX_VK_CHECK(
 		context->vk.BindBufferMemory(
@@ -312,6 +316,10 @@ static int _gfx_image_alloc(_GFXImage* image)
 	{
 		goto clean;
 	}
+
+	// Set public device-local flag.
+	if (!(image->alloc.flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+		image->base.flags &= ~(GFXMemoryFlags)GFX_MEMORY_DEVICE_LOCAL;
 
 	// Bind the image to the memory.
 	_GFX_VK_CHECK(
@@ -498,6 +506,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 	assert(heap != NULL);
 	assert(flags != 0);
 	assert(usage != 0);
+	assert(!(usage & GFX_MEMORY_HOST_VISIBLE));
 	assert(!GFX_FORMAT_IS_EMPTY(format));
 	assert(mipmaps > 0);
 	assert(layers > 0);
@@ -948,60 +957,46 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 }
 
 /****************************/
-GFX_API void* gfx_map(GFXReference ref)
+GFX_API void* gfx_map(GFXBufferRef ref)
 {
-	assert(!GFX_REF_IS_NULL(ref));
+	assert(GFX_REF_IS_BUFFER(ref));
 
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
 	// Validate host visibility.
-	// TODO: Can images even be host-visible, change func argument to GFXBufferRef?
 	if (
-		(unp.obj.buffer && !(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE)) ||
-		(unp.obj.image && !(unp.obj.image->base.flags & GFX_MEMORY_HOST_VISIBLE)) ||
-		(unp.obj.buffer == NULL && unp.obj.image == NULL))
+		unp.obj.buffer == NULL ||
+		!(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
 	{
 		gfx_log_error(
-			"Cannot map a buffer or image that was not "
+			"Cannot map a buffer that was not "
 			"created with GFX_MEMORY_HOST_VISIBLE.");
 
 		return NULL;
 	}
 
-	// Map the memory bits.
-	void* ptr = NULL;
-
-	// Map buffer.
-	if (unp.obj.buffer != NULL)
-		ptr = _gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc),
-		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp.value);
-
-	// Map image.
-	else if (unp.obj.image != NULL)
-		ptr = _gfx_map(&unp.obj.image->heap->allocator, &unp.obj.image->alloc);
+	// Map the buffer.
+	void* ptr =
+		_gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+	ptr = (ptr == NULL) ?
+		NULL : (void*)((char*)ptr + unp.value);
 
 	return ptr;
 }
 
 /****************************/
-GFX_API void gfx_unmap(GFXReference ref)
+GFX_API void gfx_unmap(GFXBufferRef ref)
 {
-	assert(!GFX_REF_IS_NULL(ref));
+	assert(GFX_REF_IS_BUFFER(ref));
 
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
-	// Unmap the memory bits.
+	// Unmap the buffer.
 	// This function is required to be called _exactly_ once (and no more)
 	// for every gfx_map, given this is the exact same assumption as
 	// _gfx_unmap makes, this should all work out...
-
-	// Unmap buffer.
 	if (unp.obj.buffer != NULL)
 		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
-
-	// Unmap image.
-	else if(unp.obj.image != NULL)
-		_gfx_unmap(&unp.obj.image->heap->allocator, &unp.obj.image->alloc);
 }

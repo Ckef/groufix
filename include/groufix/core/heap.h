@@ -119,10 +119,10 @@ typedef struct GFXAttribute
 typedef struct GFXBinding
 {
 	GFXBindingType type;
-	size_t         count; // Number of bound buffers/images.
+	size_t         count; // Number of bound buffers/images (i.e. shader array size).
 
 	// Buffer format (ignored for images)
-	uint64_t elementSize; // In bytes.
+	uint64_t elementSize; // In bytes (i.e. shader buffer size).
 	uint32_t numElements; // Elements to claim from each buffer.
 
 
@@ -260,6 +260,7 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
  * @param depth   Must be > 0.
  * @return NULL on failure.
  *
+ * Images cannot be mapped, flags cannot contain GFX_MEMORY_HOST_VISIBLE!
  * Thread-safe!
  */
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
@@ -366,24 +367,57 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
  ****************************/
 
 /**
- * Maps a memory resource reference to a host virtual address pointer.
+ * Unified memory sub-resource (i.e. region of a resource).
+ * Meaningless without an accompanied memory resource reference.
+ */
+typedef struct GFXRegion
+{
+	union {
+		// Buffer offset/size.
+		struct
+		{
+			uint64_t offset;
+			uint64_t size;
+		};
+
+		// Image layers/offset/extent.
+		struct
+		{
+			uint32_t mipmap;
+			uint32_t layer;
+			uint32_t numLayers;
+
+			uint32_t x;
+			uint32_t y;
+			uint32_t z;
+			uint32_t width;
+			uint32_t height;
+			uint32_t depth;
+		};
+	};
+
+} GFXRegion;
+
+
+/**
+ * Maps a buffer reference to a host virtual address pointer.
  * @param ref Cannot be GFX_REF_NULL.
  * @return NULL on failure.
  *
- * This function is reentrant, meaning any resource can be mapped any number
+ * This function is reentrant, meaning any buffer can be mapped any number
  * of times, from any thread!
  * Fails if the referenced resource was not created with GFX_MEMORY_HOST_VISIBLE.
  */
-GFX_API void* gfx_map(GFXReference ref);
+GFX_API void* gfx_map(GFXBufferRef ref);
 
 /**
- * Unmaps a memory resource reference, invalidating a mapped pointer.
+ * Unmaps a buffer reference, invalidating a mapped pointer.
  * Must be called exactly once for every successful call to gfx_map.
  * @param ref Cannot be GFX_REF_NULL.
  *
  * Any offset value is ignored, only the correct object should be referenced.
  */
-GFX_API void gfx_unmap(GFXReference ref);
+GFX_API void gfx_unmap(GFXBufferRef ref);
 
 
 #endif

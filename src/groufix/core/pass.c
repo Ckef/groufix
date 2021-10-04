@@ -272,7 +272,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		_GFX_VK_CHECK(context->vk.AllocateDescriptorSets(
 			context->vk.device, &dsai, &pass->vk.set), goto error);
 
-		// Write the entire first binding of the group to it lol.
+		// Write the first array element of the first binding of the group lol.
 		// TODO: binding.numElements > 0 means dynamic.
 		// TODO: Renderable objects should define what range of a group to
 		// take as their data, from which descriptor set shite can be derived.
@@ -285,9 +285,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 		VkDescriptorBufferInfo dbi = {
 			.buffer = ubo.obj.buffer->vk.buffer,
 			.offset = ubo.value,
-			.range =
-				group->bindings[0].elementSize *
-				group->bindings[0].numElements
+			.range  = group->bindings[0].elementSize
 		};
 
 		VkWriteDescriptorSet wds = {
