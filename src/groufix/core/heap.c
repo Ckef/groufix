@@ -957,6 +957,111 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 }
 
 /****************************/
+GFX_API int gfx_write(GFXReference ref, GFXRegion region, const void* ptr)
+{
+	assert(!GFX_REF_IS_NULL(ref));
+	assert(!GFX_REF_IS_BUFFER(ref) || region.size > 0);
+	assert(!GFX_REF_IS_IMAGE(ref) || region.numLayers > 0);
+	assert(!GFX_REF_IS_IMAGE(ref) || region.width > 0);
+	assert(!GFX_REF_IS_IMAGE(ref) || region.height > 0);
+	assert(!GFX_REF_IS_IMAGE(ref) || region.depth > 0);
+	assert(ptr != NULL);
+
+	// Unpack reference.
+	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+
+	// TODO: Deal with a renderer attachment?
+	// Validate memory flags.
+	if (
+		(unp.obj.buffer == NULL && unp.obj.image == NULL) ||
+		!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
+	{
+		gfx_log_error(
+			"Cannot write to a memory resource that was not"
+			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_WRITE.");
+
+		return 0;
+	}
+
+	// TODO: Continue implementing...
+
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_read(GFXReference ref, GFXRegion region, void* ptr)
+{
+	assert(!GFX_REF_IS_NULL(ref));
+	assert(!GFX_REF_IS_BUFFER(ref) || region.size > 0);
+	assert(!GFX_REF_IS_IMAGE(ref) || region.numLayers > 0);
+	assert(!GFX_REF_IS_IMAGE(ref) || region.width > 0);
+	assert(!GFX_REF_IS_IMAGE(ref) || region.height > 0);
+	assert(!GFX_REF_IS_IMAGE(ref) || region.depth > 0);
+	assert(ptr != NULL);
+
+	// Unpack reference.
+	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+
+	// TODO: Deal with a renderer attachment?
+	// Validate memory flags.
+	if (
+		(unp.obj.buffer == NULL && unp.obj.image == NULL) ||
+		!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) & unp.flags))
+	{
+		gfx_log_error(
+			"Cannot read from a memory resource that was not"
+			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_READ.");
+
+		return 0;
+	}
+
+	// TODO: Continue implementing...
+
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_copy(GFXReference srcRef, GFXReference dstRef,
+                     GFXRegion srcRegion, GFXRegion dstRegion)
+{
+	assert(!GFX_REF_IS_NULL(srcRef));
+	assert(!GFX_REF_IS_NULL(dstRef));
+	assert(!GFX_REF_IS_BUFFER(srcRef) || srcRegion.size > 0);
+	assert(!GFX_REF_IS_IMAGE(srcRef) || srcRegion.numLayers > 0);
+	assert(!GFX_REF_IS_IMAGE(srcRef) || srcRegion.width > 0);
+	assert(!GFX_REF_IS_IMAGE(srcRef) || srcRegion.height > 0);
+	assert(!GFX_REF_IS_IMAGE(srcRef) || srcRegion.depth > 0);
+	assert(!GFX_REF_IS_BUFFER(dstRef) || dstRegion.size > 0);
+	assert(!GFX_REF_IS_IMAGE(dstRef) || dstRegion.numLayers > 0);
+	assert(!GFX_REF_IS_IMAGE(dstRef) || dstRegion.width > 0);
+	assert(!GFX_REF_IS_IMAGE(dstRef) || dstRegion.height > 0);
+	assert(!GFX_REF_IS_IMAGE(dstRef) || dstRegion.depth > 0);
+
+	// Unpack references.
+	_GFXUnpackRef srcUnp = _gfx_ref_unpack(srcRef);
+	_GFXUnpackRef dstUnp = _gfx_ref_unpack(dstRef);
+
+	// TODO: Deal with a renderer attachment?
+	// Validate memory flags.
+	if (
+		(srcUnp.obj.buffer == NULL && srcUnp.obj.image == NULL) ||
+		(dstUnp.obj.buffer == NULL && dstUnp.obj.image == NULL) ||
+		!(GFX_MEMORY_READ & srcUnp.flags) ||
+		!(GFX_MEMORY_WRITE & dstUnp.flags))
+	{
+		gfx_log_error(
+			"Cannot copy from one memory resource to another if they were "
+			"not created with GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
+
+		return 0;
+	}
+
+	// TODO: Continue implementing...
+
+	return 1;
+}
+
+/****************************/
 GFX_API void* gfx_map(GFXBufferRef ref)
 {
 	assert(GFX_REF_IS_BUFFER(ref));
@@ -965,12 +1070,10 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
 	// Validate host visibility.
-	if (
-		unp.obj.buffer == NULL ||
-		!(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
+	if (unp.obj.buffer == NULL || !(GFX_MEMORY_HOST_VISIBLE & unp.flags))
 	{
 		gfx_log_error(
-			"Cannot map a buffer that was not "
+			"Cannot map a memory resource that was not "
 			"created with GFX_MEMORY_HOST_VISIBLE.");
 
 		return NULL;

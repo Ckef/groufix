@@ -92,6 +92,9 @@ typedef GFXReference GFXImageRef;
  *
  * No argument can be NULL, any referenced memory resource must exist.
  * If any of these constraints are not met, behaviour is undefined.
+ *
+ * Taking references or operations done on references are _NOT_ thread-safe
+ * with respect to the object they reference!
  */
 #define gfx_ref_buffer(buffer, offset_) \
 	(GFXBufferRef){ \

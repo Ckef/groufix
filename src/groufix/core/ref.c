@@ -103,7 +103,8 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 		break;
 
 	case GFX_REF_ATTACHMENT:
-		// TODO: Not thread safe with respect to renderer, what do?
+		// Note that this is not thread-safe with respect to the attachment
+		// vector, luckily references don't have to be thread-safe (!).
 		_GFX_CHECK_RESOLVE(
 			_GFX_VATTACHMENT(ref) < _GFX_RENDERER->backing.attachs.size,
 			"Referencing a non-existent renderer attachment!");
@@ -136,6 +137,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	{
 	case GFX_REF_BUFFER:
 		unp.obj.buffer = _GFX_BUFFER;
+		unp.flags = _GFX_BUFFER->base.flags;
 		unp.value = ref.offset;
 
 		_GFX_CHECK_UNPACK(
@@ -146,10 +148,12 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_IMAGE:
 		unp.obj.image = _GFX_IMAGE;
+		unp.flags = _GFX_IMAGE->base.flags;
 		break;
 
 	case GFX_REF_PRIMITIVE_VERTICES:
 		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
+		unp.flags = _GFX_PRIMITIVE->base.flagsVertex;
 		unp.value = ref.offset;
 
 		_GFX_CHECK_UNPACK(
@@ -160,6 +164,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_PRIMITIVE_INDICES:
 		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
+		unp.flags = _GFX_PRIMITIVE->base.flagsIndex;
 		unp.value = ref.offset +
 			// Augment offset into the vertex/index buffer.
 			GFX_REF_IS_NULL(_GFX_PRIMITIVE->refVertex) ?
@@ -173,6 +178,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_GROUP_BUFFER:
 		unp.obj.buffer = &_GFX_GROUP->buffer;
+		unp.flags = _GFX_GROUP->base.flags;
 		unp.value = ref.offset +
 			// Augment offset into the group's buffer.
 			_GFX_BINDING->buffers[_GFX_VINDEX(ref)].offset;
@@ -186,6 +192,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	case GFX_REF_ATTACHMENT:
 		unp.obj.renderer = _GFX_RENDERER;
 		unp.value = _GFX_VATTACHMENT(ref);
+		// We set no flags, no access granted as of yet.
 		break;
 
 	default:

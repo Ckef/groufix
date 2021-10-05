@@ -234,7 +234,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap);
  * @param size  Size of the buffer in bytes, must be > 0.
  * @return NULL on failure.
  *
- * Thread-safe!
+ * Thread-safe with respect to heap!
  */
 GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
                                     GFXMemoryFlags flags, GFXBufferUsage usage,
@@ -242,7 +242,7 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
 
 /**
  * Frees a buffer.
- * Thread-safe!
+ * Thread-safe with respect to heap!
  */
 GFX_API void gfx_free_buffer(GFXBuffer* buffer);
 
@@ -261,7 +261,7 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
  * @return NULL on failure.
  *
  * Images cannot be mapped, flags cannot contain GFX_MEMORY_HOST_VISIBLE!
- * Thread-safe!
+ * Thread-safe with respect to heap!
  */
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
                                   GFXImageType type, GFXMemoryFlags flags,
@@ -271,7 +271,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 
 /**
  * Frees an image.
- * Thread-safe!
+ * Thread-safe with respect to heap!
  */
 GFX_API void gfx_free_image(GFXImage* image);
 
@@ -290,7 +290,7 @@ GFX_API void gfx_free_image(GFXImage* image);
  * @param attribs     Array of numAttribs GFXAttribute structs, cannot be NULL.
  * @return NULL on failure.
  *
- * Thread-safe!
+ * Thread-safe with respect to heap!
  * Fails if the referenced vertex buffer was not created with GFX_BUFFER_VERTEX
  * or the index buffer was not created with GFX_BUFFER_INDEX.
  */
@@ -304,7 +304,7 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 
 /**
  * Frees a primitive, excluding any buffers it references.
- * Thread-safe!
+ * Thread-safe with respect to heap!
  */
 GFX_API void gfx_free_primitive(GFXPrimitive* primitive);
 
@@ -332,7 +332,7 @@ GFX_API GFXAttribute gfx_primitive_get_attrib(GFXPrimitive* primitive, size_t at
  * @param bindings    Array of numBindings GFXBinding structs, cannot be NULL.
  * @return NULL on failure.
  *
- * Thread-safe!
+ * Thread-safe with respect to heap!
  * The contents of the `buffers` or `images` field of each binding are copied
  * during allocation and will not be read from anymore after this call.
  */
@@ -342,7 +342,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 
 /**
  * Frees a group, excluding any buffers or images it references.
- * Thread-safe!
+ * Thread-safe with respect to heap!
  */
 GFX_API void gfx_free_group(GFXGroup* group);
 
@@ -398,6 +398,48 @@ typedef struct GFXRegion
 
 } GFXRegion;
 
+
+/**
+ * Writes data to a memory resource reference.
+ * @param ref    Cannot be GFX_REF_NULL.
+ * @param region Region of ref to write to.
+ * @param ptr    Pointer to the data that will be written, cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * Fails of the referenced resource was not created with
+ *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE.
+ */
+GFX_API int gfx_write(GFXReference ref, GFXRegion region, const void* ptr);
+
+/**
+ * Reads data from a memory resource reference.
+ * @param ref    Cannot be GFX_REF_NULL.
+ * @param region Region of ref to read.
+ * @param ptr    Pointer the data will be written to, cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * Fails of the referenced resource was not created with
+ *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
+ */
+GFX_API int gfx_read(GFXReference ref, GFXRegion region, void* ptr);
+
+/**
+ * Copies data from one memory resource reference to another.
+ * @param srcRef    Cannot be GFX_REF_NULL.
+ * @param dstRef    Cannot be GFX_REF_NULL.
+ * @param srcRegion Region of source ref to read from.
+ * @param dstRegion Region of destination ref to write to.
+ * @return Non-zero on success.
+ *
+ * Undefined behaviour if size/width/height/depth of (src|dst)Region do not match.
+ *  One of them can have a size of zero and it will be ignored.
+ *  Likewise, if there are two images, one can have a width/height/depth of zero.
+ *
+ * Fails of the srcRef was not created with GFX_MEMORY_READ.
+ * Fails of the dstRef was not created with GFX_MEMORY_WRITE.
+ */
+GFX_API int gfx_copy(GFXReference srcRef, GFXReference dstRef,
+                     GFXRegion srcRegion, GFXRegion dstRegion);
 
 /**
  * Maps a buffer reference to a host virtual address pointer.

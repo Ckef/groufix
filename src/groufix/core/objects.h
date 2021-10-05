@@ -365,6 +365,9 @@ typedef struct _GFXUnpackRef
 	//  buffer offset | attachment index.
 	uint64_t value;
 
+	// Associated memory flags (to determine use).
+	GFXMemoryFlags flags;
+
 } _GFXUnpackRef;
 
 
@@ -374,7 +377,8 @@ typedef struct _GFXUnpackRef
 #define _GFX_UNPACK_REF_EMPTY \
 	(_GFXUnpackRef){ \
 		.obj = { .buffer = NULL, .image = NULL, .renderer = NULL }, \
-		.value = 0 \
+		.value = 0, \
+		.flags = 0 \
 	}
 
 /**
