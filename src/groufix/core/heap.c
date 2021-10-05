@@ -660,21 +660,15 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 			});
 	}
 
-	// Get appropriate public flags & usage.
+	// Get appropriate public usage & validate.
 	_GFXBuffer* vertexBuff = _gfx_ref_unpack(prim->refVertex).obj.buffer;
 	_GFXBuffer* indexBuff = _gfx_ref_unpack(prim->refIndex).obj.buffer;
-
-	prim->base.flagsVertex = vertexBuff ?
-		vertexBuff->base.flags : prim->buffer.base.flags;
-	prim->base.flagsIndex = indexBuff ?
-		indexBuff->base.flags : (numIndices > 0 ? prim->buffer.base.flags : 0);
 
 	prim->base.usageVertex = vertexBuff ?
 		vertexBuff->base.usage : prim->buffer.base.usage;
 	prim->base.usageIndex = indexBuff ?
 		indexBuff->base.flags : (numIndices > 0 ? prim->buffer.base.usage : 0);
 
-	// Validate usage flags.
 	if (!(prim->base.usageVertex & GFX_BUFFER_VERTEX))
 	{
 		gfx_log_error(
@@ -711,6 +705,12 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	gfx_list_insert_after(&heap->primitives, &prim->buffer.list, NULL);
 
 	_gfx_mutex_unlock(&heap->lock);
+
+	// Trickle down memory flags to user-land.
+	prim->base.flagsVertex = vertexBuff ?
+		vertexBuff->base.flags : prim->buffer.base.flags;
+	prim->base.flagsIndex = indexBuff ?
+		indexBuff->base.flags : (numIndices > 0 ? prim->buffer.base.flags : 0);
 
 	return &prim->base;
 
@@ -883,11 +883,16 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	_gfx_mutex_lock(&heap->lock);
 
 	if (group->buffer.base.size > 0)
+	{
 		if (!_gfx_buffer_alloc(&group->buffer))
 		{
 			_gfx_mutex_unlock(&heap->lock);
 			goto clean;
 		}
+
+		// Trickle down memory flags to user-land.
+		group->base.flags = group->buffer.base.flags;
+	}
 
 	// Link into the heap & unlock.
 	gfx_list_insert_after(&heap->groups, &group->buffer.list, NULL);
