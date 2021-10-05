@@ -109,6 +109,13 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 			_GFX_VATTACHMENT(ref) < _GFX_RENDERER->backing.attachs.size,
 			"Referencing a non-existent renderer attachment!");
 
+		// Actually dig into the attachment to check its type...
+		_GFX_CHECK_RESOLVE(
+			((_GFXAttach*)gfx_vec_at(
+				&_GFX_RENDERER->backing.attachs,
+				_GFX_VATTACHMENT(ref)))->type == _GFX_ATTACH_IMAGE,
+			"Renderer attachment reference not an image attachment!");
+
 		break;
 
 	default:
@@ -192,7 +199,11 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	case GFX_REF_ATTACHMENT:
 		unp.obj.renderer = _GFX_RENDERER;
 		unp.value = _GFX_VATTACHMENT(ref);
-		// We set no flags, no access granted as of yet.
+
+		// Get flags from the attachment.
+		unp.flags = ((_GFXAttach*)gfx_vec_at(
+			&_GFX_RENDERER->backing.attachs, unp.value))->image.base.flags;
+
 		break;
 
 	default:

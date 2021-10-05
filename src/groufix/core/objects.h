@@ -396,6 +396,7 @@ GFXReference _gfx_ref_resolve(GFXReference ref);
  * if an object is composed of other memory objects internally, it will be
  * 'unpacked' into its elementary non-composed memory objects.
  *
+ * Returns _GFX_UNPACK_REF_EMPTY and warns when the reference is invalid.
  * If in debug mode & out of bounds, it silently warns.
  */
 _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);

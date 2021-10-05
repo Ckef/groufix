@@ -35,7 +35,9 @@ typedef struct GFXAttachment
 {
 	GFXSizeClass size;
 	size_t       ref; // Index of the attachment the size is relative to.
-	GFXFormat    format;
+
+	GFXMemoryFlags flags;
+	GFXFormat      format;
 
 	union {
 		uint32_t width;
@@ -91,6 +93,7 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Zero on failure.
  *
+ * Images cannot be mapped, attachment.flags cannot contain GFX_MEMORY_HOST_VISIBLE!
  * If anything needs to be detached, this will block until rendering is done!
  */
 GFX_API int gfx_renderer_attach(GFXRenderer* renderer,

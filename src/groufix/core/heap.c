@@ -970,11 +970,8 @@ GFX_API int gfx_write(GFXReference ref, GFXRegion region, const void* ptr)
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
-	// TODO: Deal with a renderer attachment?
 	// Validate memory flags.
-	if (
-		(unp.obj.buffer == NULL && unp.obj.image == NULL) ||
-		!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
+	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
 	{
 		gfx_log_error(
 			"Cannot write to a memory resource that was not"
@@ -1002,11 +999,8 @@ GFX_API int gfx_read(GFXReference ref, GFXRegion region, void* ptr)
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
-	// TODO: Deal with a renderer attachment?
 	// Validate memory flags.
-	if (
-		(unp.obj.buffer == NULL && unp.obj.image == NULL) ||
-		!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) & unp.flags))
+	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) & unp.flags))
 	{
 		gfx_log_error(
 			"Cannot read from a memory resource that was not"
@@ -1041,13 +1035,8 @@ GFX_API int gfx_copy(GFXReference srcRef, GFXReference dstRef,
 	_GFXUnpackRef srcUnp = _gfx_ref_unpack(srcRef);
 	_GFXUnpackRef dstUnp = _gfx_ref_unpack(dstRef);
 
-	// TODO: Deal with a renderer attachment?
 	// Validate memory flags.
-	if (
-		(srcUnp.obj.buffer == NULL && srcUnp.obj.image == NULL) ||
-		(dstUnp.obj.buffer == NULL && dstUnp.obj.image == NULL) ||
-		!(GFX_MEMORY_READ & srcUnp.flags) ||
-		!(GFX_MEMORY_WRITE & dstUnp.flags))
+	if (!(GFX_MEMORY_READ & srcUnp.flags) || !(GFX_MEMORY_WRITE & dstUnp.flags))
 	{
 		gfx_log_error(
 			"Cannot copy from one memory resource to another if they were "
@@ -1070,7 +1059,7 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
 	// Validate host visibility.
-	if (unp.obj.buffer == NULL || !(GFX_MEMORY_HOST_VISIBLE & unp.flags))
+	if (!(GFX_MEMORY_HOST_VISIBLE & unp.flags))
 	{
 		gfx_log_error(
 			"Cannot map a memory resource that was not "
@@ -1080,10 +1069,11 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	}
 
 	// Map the buffer.
-	void* ptr =
-		_gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
-	ptr = (ptr == NULL) ?
-		NULL : (void*)((char*)ptr + unp.value);
+	void* ptr = NULL;
+
+	if (unp.obj.buffer != NULL)
+		ptr = _gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc),
+		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp.value);
 
 	return ptr;
 }

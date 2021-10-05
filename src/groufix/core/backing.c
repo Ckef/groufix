@@ -18,21 +18,22 @@ static inline int _gfx_cmp_attachments(GFXAttachment* l, GFXAttachment* r)
 {
 	// Cannot use memcmp because of padding.
 	int abs =
-		(l->size == GFX_SIZE_ABSOLUTE) &&
-		(r->size == GFX_SIZE_ABSOLUTE) &&
+		(l->size == GFX_SIZE_ABSOLUTE) && (r->size == GFX_SIZE_ABSOLUTE) &&
 		(l->width == r->width) &&
 		(l->height == r->height) &&
 		(l->depth == r->depth);
 
 	int rel =
-		(l->size == GFX_SIZE_RELATIVE) &&
-		(r->size == GFX_SIZE_RELATIVE) &&
+		(l->size == GFX_SIZE_RELATIVE) && (r->size == GFX_SIZE_RELATIVE) &&
 		(l->ref == r->ref) &&
 		(l->xScale == r->xScale) &&
 		(l->yScale == r->yScale) &&
 		(l->zScale == r->zScale);
 
-	return (abs || rel) && GFX_FORMAT_IS_EQUAL(l->format, r->format);
+	return
+		(abs || rel) &&
+		(l->flags == r->flags) &&
+		GFX_FORMAT_IS_EQUAL(l->format, r->format);
 }
 
 /****************************
@@ -321,6 +322,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
                                 size_t index, GFXAttachment attachment)
 {
 	assert(renderer != NULL);
+	assert(!(attachment.flags & GFX_MEMORY_HOST_VISIBLE));
 	assert(!GFX_FORMAT_IS_EMPTY(attachment.format));
 
 	// Firstly, resolve attachment's format.
