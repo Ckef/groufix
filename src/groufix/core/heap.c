@@ -604,8 +604,6 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 {
 	assert(heap != NULL);
 	assert((!GFX_REF_IS_NULL(vertex) && (!GFX_REF_IS_NULL(index) || numIndices == 0)) || flags != 0);
-	assert(GFX_REF_IS_NULL(vertex) || GFX_REF_IS_BUFFER(vertex));
-	assert(GFX_REF_IS_NULL(index) || GFX_REF_IS_BUFFER(index));
 	assert(numVertices > 0);
 	assert(stride > 0);
 	assert(numIndices == 0 || indexSize == sizeof(uint16_t) || indexSize == sizeof(uint32_t));
@@ -665,6 +663,16 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	prim->refIndex = _gfx_ref_resolve(index);
 	_GFXUnpackRef unpVertex = _gfx_ref_unpack(prim->refVertex);
 	_GFXUnpackRef unpIndex = _gfx_ref_unpack(prim->refIndex);
+
+	if (
+		!(GFX_REF_IS_NULL(prim->refVertex) || GFX_REF_IS_BUFFER(prim->refVertex)) ||
+		!(GFX_REF_IS_NULL(prim->refIndex) || GFX_REF_IS_BUFFER(prim->refIndex)))
+	{
+		gfx_log_error(
+			"A resource referenced by a primitive geometry must be a buffer.");
+
+		goto clean;
+	}
 
 	if (
 		(unpVertex.context && unpVertex.context != heap->allocator.context) ||
@@ -785,7 +793,6 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	assert(heap != NULL);
 	assert(numBindings > 0);
 	assert(bindings != NULL);
-	// Sadly we can't assert as nicely like gfx_alloc_primitive :(
 
 	// Count the number of references to allocate.
 	size_t numRefs = 0;
@@ -1059,7 +1066,7 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 	if (srcUnp.context != dstUnp.context)
 	{
 		gfx_log_error(
-			"When copying data between to memory resources they must be "
+			"When copying from one memory resource to another they must be "
 			"built on the same logical Vulkan device.");
 
 		return 0;
