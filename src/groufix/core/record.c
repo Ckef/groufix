@@ -82,6 +82,7 @@ void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
 		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
 		pass->vk.pipeLayout, 0, 1, &pass->vk.set, 0, NULL);
 
+	// TODO: Unpacking is not thread-safe, renderables should be careful!
 	// Bind index buffer.
 	if (prim->base.numIndices > 0)
 	{

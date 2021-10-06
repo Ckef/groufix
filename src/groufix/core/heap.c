@@ -621,27 +621,6 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	if (prim == NULL)
 		goto clean;
 
-	// First get size of buffers to allocate then init the rest.
-	prim->base.topology = topology;
-
-	prim->base.stride = stride;
-	prim->base.indexSize = numIndices > 0 ? indexSize : 0;
-	prim->base.numVertices = numVertices;
-	prim->base.numIndices = numIndices;
-
-	prim->buffer.heap = heap;
-	prim->buffer.base.flags = flags;
-	prim->buffer.base.usage =
-		usage |
-		(GFX_REF_IS_NULL(vertex) ? GFX_BUFFER_VERTEX : 0) |
-		(GFX_REF_IS_NULL(index) ? GFX_BUFFER_INDEX : 0);
-	prim->buffer.base.size =
-		(GFX_REF_IS_NULL(vertex) ? (numVertices * stride) : 0) +
-		(GFX_REF_IS_NULL(index) ? (numIndices * (unsigned char)indexSize) : 0);
-
-	prim->refVertex = _gfx_ref_resolve(vertex);
-	prim->refIndex = _gfx_ref_resolve(index);
-
 	// Copy attributes & resolve formats.
 	prim->numAttribs = numAttribs;
 
@@ -660,14 +639,47 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 			});
 	}
 
-	// Get appropriate public usage & validate.
-	_GFXBuffer* vertexBuff = _gfx_ref_unpack(prim->refVertex).obj.buffer;
-	_GFXBuffer* indexBuff = _gfx_ref_unpack(prim->refIndex).obj.buffer;
+	// Init all meta fields & get size of buffers to allocate.
+	prim->base.topology = topology;
 
-	prim->base.usageVertex = vertexBuff ?
-		vertexBuff->base.usage : prim->buffer.base.usage;
-	prim->base.usageIndex = indexBuff ?
-		indexBuff->base.flags : (numIndices > 0 ? prim->buffer.base.usage : 0);
+	prim->base.stride = stride;
+	prim->base.indexSize = numIndices > 0 ? indexSize : 0;
+	prim->base.numVertices = numVertices;
+	prim->base.numIndices = numIndices;
+
+	prim->buffer.heap = heap;
+	prim->buffer.base.flags = flags;
+	prim->buffer.base.usage =
+		usage |
+		(GFX_REF_IS_NULL(vertex) ? GFX_BUFFER_VERTEX : 0) |
+		(GFX_REF_IS_NULL(index) ? GFX_BUFFER_INDEX : 0);
+	prim->buffer.base.size =
+		(GFX_REF_IS_NULL(vertex) ? (numVertices * stride) : 0) +
+		(GFX_REF_IS_NULL(index) ? (numIndices * (unsigned char)indexSize) : 0);
+
+	// We actually resolve the references (!) to get
+	// appropriate public usage & validate context and usage.
+	prim->refVertex = _gfx_ref_resolve(vertex);
+	prim->refIndex = _gfx_ref_resolve(index);
+	_GFXUnpackRef unpVertex = _gfx_ref_unpack(prim->refVertex);
+	_GFXUnpackRef unpIndex = _gfx_ref_unpack(prim->refIndex);
+
+	if (
+		(unpVertex.context && unpVertex.context != heap->allocator.context) ||
+		(unpIndex.context && unpIndex.context != heap->allocator.context))
+	{
+		gfx_log_error(
+			"A buffer referenced by a primitive geometry must be built on "
+			"the same logical Vulkan device.");
+
+		goto clean;
+	}
+
+	prim->base.usageVertex = unpVertex.obj.buffer ?
+		unpVertex.obj.buffer->base.usage : prim->buffer.base.usage;
+	prim->base.usageIndex = unpIndex.obj.buffer ?
+		unpIndex.obj.buffer->base.usage :
+		(numIndices > 0 ? prim->buffer.base.usage : 0);
 
 	if (!(prim->base.usageVertex & GFX_BUFFER_VERTEX))
 	{
@@ -707,10 +719,11 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	_gfx_mutex_unlock(&heap->lock);
 
 	// Trickle down memory flags to user-land.
-	prim->base.flagsVertex = vertexBuff ?
-		vertexBuff->base.flags : prim->buffer.base.flags;
-	prim->base.flagsIndex = indexBuff ?
-		indexBuff->base.flags : (numIndices > 0 ? prim->buffer.base.flags : 0);
+	prim->base.flagsVertex = unpVertex.obj.buffer ?
+		unpVertex.obj.buffer->base.flags : prim->buffer.base.flags;
+	prim->base.flagsIndex = unpIndex.obj.buffer ?
+		unpIndex.obj.buffer->base.flags :
+		(numIndices > 0 ? prim->buffer.base.flags : 0);
 
 	return &prim->base;
 
@@ -787,12 +800,11 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 		goto clean;
 
 	// Initialize bindings & copy references.
-	group->numBindings = numBindings;
-
+	// While we're at it, compute the size of the buffers to allocate.
 	GFXReference* refPtr =
 		(GFXReference*)((GFXBinding*)(group + 1) + numBindings);
 
-	// While we're at it, compute the size of the buffers to allocate.
+	group->numBindings = numBindings;
 	uint64_t size = 0;
 
 	for (size_t b = 0; b < numBindings; ++b)
@@ -828,45 +840,56 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 		// Also, add to the size of that buffer so we can allocate it.
 		for (size_t r = 0; r < bind->count; ++r)
 		{
-			if (srcPtr && !GFX_REF_IS_NULL(srcPtr[r]))
+			// No reference found.
+			if (!srcPtr || GFX_REF_IS_NULL(srcPtr[r]))
 			{
-				// Quickly validate reference types.
-				if (
-					(bind->type == GFX_BINDING_BUFFER &&
-					!GFX_REF_IS_BUFFER(srcPtr[r])) ||
-					(bind->type == GFX_BINDING_IMAGE &&
-					!GFX_REF_IS_IMAGE(srcPtr[r])))
+				// Validate bound images.
+				if (bind->type == GFX_BINDING_IMAGE)
 				{
 					gfx_log_error(
-						"A resource group binding description must only "
-						"contain references of its type.");
+						"A resource group binding description of type "
+						"GFX_BINDING_IMAGE cannot contain any empty "
+						"resource references.");
 
 					goto clean;
 				}
 
-				refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
+				refPtr[r] = gfx_ref_buffer(&group->buffer, size);
+				size += bind->elementSize * bind->numElements;
 				continue;
 			}
 
-			// Validate bound images.
-			if (bind->type == GFX_BINDING_IMAGE)
+			// Resolve & validate its context.
+			refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
+			_GFXUnpackRef unp = _gfx_ref_unpack(refPtr[r]);
+
+			if (unp.context != heap->allocator.context)
 			{
 				gfx_log_error(
-					"A resource group binding description of type "
-					"GFX_BINDING_IMAGE cannot contain any empty resource "
-					"references.");
+					"A resource group binding description's resource "
+					"references must all be built on the same "
+					"logical Vulkan device.");
 
 				goto clean;
 			}
 
-			refPtr[r] = gfx_ref_buffer(&group->buffer, size);
-			size += bind->elementSize * bind->numElements;
+			// & quickly validate reference types.
+			if (
+				(bind->type == GFX_BINDING_BUFFER && !GFX_REF_IS_BUFFER(srcPtr[r])) ||
+				(bind->type == GFX_BINDING_IMAGE && !GFX_REF_IS_IMAGE(srcPtr[r])))
+			{
+				gfx_log_error(
+					"A resource group binding description must only "
+					"contain resource references of its own type.");
+
+				goto clean;
+			}
 		}
 
 		refPtr += bind->count;
 	}
 
-	// Ok now that we know what to allocate, init the rest.
+	// Init all meta fields now that we know what to allocate.
 	group->buffer.heap = heap;
 	group->buffer.base.flags = flags;
 	group->buffer.base.usage = usage;
@@ -1040,6 +1063,16 @@ GFX_API int gfx_copy(GFXReference srcRef, GFXReference dstRef,
 	_GFXUnpackRef srcUnp = _gfx_ref_unpack(srcRef);
 	_GFXUnpackRef dstUnp = _gfx_ref_unpack(dstRef);
 
+	// Check that the resources share the same context.
+	if (srcUnp.context != dstUnp.context)
+	{
+		gfx_log_error(
+			"When copying data between to memory resources they must be "
+			"built on the same logical Vulkan device.");
+
+		return 0;
+	}
+
 	// Validate memory flags.
 	if (!(GFX_MEMORY_READ & srcUnp.flags) || !(GFX_MEMORY_WRITE & dstUnp.flags))
 	{
@@ -1050,6 +1083,7 @@ GFX_API int gfx_copy(GFXReference srcRef, GFXReference dstRef,
 		return 0;
 	}
 
+	// TODO: Somehow check that both resources share the same context??
 	// TODO: Continue implementing...
 
 	return 1;

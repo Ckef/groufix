@@ -144,8 +144,9 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	{
 	case GFX_REF_BUFFER:
 		unp.obj.buffer = _GFX_BUFFER;
-		unp.flags = _GFX_BUFFER->base.flags;
-		unp.value = ref.offset;
+		unp.flags   = _GFX_BUFFER->base.flags;
+		unp.context = _GFX_BUFFER->heap->allocator.context;
+		unp.value   = ref.offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
@@ -155,13 +156,15 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_IMAGE:
 		unp.obj.image = _GFX_IMAGE;
-		unp.flags = _GFX_IMAGE->base.flags;
+		unp.flags   = _GFX_IMAGE->base.flags;
+		unp.context = _GFX_IMAGE->heap->allocator.context;
 		break;
 
 	case GFX_REF_PRIMITIVE_VERTICES:
 		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
-		unp.flags = _GFX_PRIMITIVE->base.flagsVertex;
-		unp.value = ref.offset;
+		unp.flags   = _GFX_PRIMITIVE->base.flagsVertex;
+		unp.context = _GFX_PRIMITIVE->buffer.heap->allocator.context;
+		unp.value   = ref.offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
@@ -171,8 +174,9 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_PRIMITIVE_INDICES:
 		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
-		unp.flags = _GFX_PRIMITIVE->base.flagsIndex;
-		unp.value = ref.offset +
+		unp.flags   = _GFX_PRIMITIVE->base.flagsIndex;
+		unp.context = _GFX_PRIMITIVE->buffer.heap->allocator.context;
+		unp.value   = ref.offset +
 			// Augment offset into the vertex/index buffer.
 			GFX_REF_IS_NULL(_GFX_PRIMITIVE->refVertex) ?
 				_GFX_PRIMITIVE->base.numVertices * _GFX_PRIMITIVE->base.stride : 0;
@@ -185,8 +189,9 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_GROUP_BUFFER:
 		unp.obj.buffer = &_GFX_GROUP->buffer;
-		unp.flags = _GFX_GROUP->base.flags;
-		unp.value = ref.offset +
+		unp.flags   = _GFX_GROUP->base.flags;
+		unp.context = _GFX_GROUP->buffer.heap->allocator.context;
+		unp.value   = ref.offset +
 			// Augment offset into the group's buffer.
 			_GFX_BINDING->buffers[_GFX_VINDEX(ref)].offset;
 
@@ -198,7 +203,8 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_ATTACHMENT:
 		unp.obj.renderer = _GFX_RENDERER;
-		unp.value = _GFX_VATTACHMENT(ref);
+		unp.context = _GFX_RENDERER->context;
+		unp.value   = _GFX_VATTACHMENT(ref);
 
 		// Get flags from the attachment.
 		unp.flags = ((_GFXAttach*)gfx_vec_at(

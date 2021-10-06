@@ -12,7 +12,7 @@
 
 #include "groufix/core/device.h"
 #include "groufix/core/formats.h"
-#include "groufix/core/heap.h" // TODO: Totally temporary!
+#include "groufix/core/heap.h"
 #include "groufix/core/window.h"
 #include "groufix/def.h"
 

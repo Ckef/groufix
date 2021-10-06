@@ -368,6 +368,9 @@ typedef struct _GFXUnpackRef
 	// Associated memory flags (to determine use).
 	GFXMemoryFlags flags;
 
+	// Associated context (for context matching).
+	_GFXContext* context;
+
 } _GFXUnpackRef;
 
 
@@ -378,7 +381,8 @@ typedef struct _GFXUnpackRef
 	(_GFXUnpackRef){ \
 		.obj = { .buffer = NULL, .image = NULL, .renderer = NULL }, \
 		.value = 0, \
-		.flags = 0 \
+		.flags = 0, \
+		.context = NULL \
 	}
 
 /**
