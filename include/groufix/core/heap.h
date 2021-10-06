@@ -260,7 +260,7 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
  * @param depth   Must be > 0.
  * @return NULL on failure.
  *
- * Images cannot be mapped, flags cannot contain GFX_MEMORY_HOST_VISIBLE!
+ * The GFX_MEMORY_HOST_VISIBLE flag is ignored, images cannot be mapped!
  * Thread-safe with respect to heap!
  */
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,

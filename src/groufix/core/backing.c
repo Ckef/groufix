@@ -322,8 +322,10 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
                                 size_t index, GFXAttachment attachment)
 {
 	assert(renderer != NULL);
-	assert(!(attachment.flags & GFX_MEMORY_HOST_VISIBLE));
 	assert(!GFX_FORMAT_IS_EMPTY(attachment.format));
+
+	// Ignore the host-visibility flag.
+	attachment.flags &= ~(GFXMemoryFlags)GFX_MEMORY_HOST_VISIBLE;
 
 	// Firstly, resolve attachment's format.
 	// TODO: Add VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT ?
