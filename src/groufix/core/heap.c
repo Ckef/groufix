@@ -859,6 +859,18 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 				continue;
 			}
 
+			// Quickly validate reference types.
+			if (
+				(bind->type == GFX_BINDING_BUFFER && !GFX_REF_IS_BUFFER(srcPtr[r])) ||
+				(bind->type == GFX_BINDING_IMAGE && !GFX_REF_IS_IMAGE(srcPtr[r])))
+			{
+				gfx_log_error(
+					"A resource group binding description must only "
+					"contain resource references of its own type.");
+
+				goto clean;
+			}
+
 			// Resolve & validate its context.
 			refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
 			_GFXUnpackRef unp = _gfx_ref_unpack(refPtr[r]);
@@ -869,18 +881,6 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 					"A resource group binding description's resource "
 					"references must all be built on the same "
 					"logical Vulkan device.");
-
-				goto clean;
-			}
-
-			// & quickly validate reference types.
-			if (
-				(bind->type == GFX_BINDING_BUFFER && !GFX_REF_IS_BUFFER(srcPtr[r])) ||
-				(bind->type == GFX_BINDING_IMAGE && !GFX_REF_IS_IMAGE(srcPtr[r])))
-			{
-				gfx_log_error(
-					"A resource group binding description must only "
-					"contain resource references of its own type.");
 
 				goto clean;
 			}
@@ -1083,7 +1083,6 @@ GFX_API int gfx_copy(GFXReference srcRef, GFXReference dstRef,
 		return 0;
 	}
 
-	// TODO: Somehow check that both resources share the same context??
 	// TODO: Continue implementing...
 
 	return 1;
