@@ -368,16 +368,20 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
 
 /**
  * Unified memory sub-resource (i.e. region of a resource).
- * Meaningless without an accompanied memory resource reference.
+ * Meaningless without an accompanied memory resource.
  */
 typedef struct GFXRegion
 {
 	union {
-		// Buffer offset/size.
+		// Buffer (or host pointer) offset/size.
 		struct
 		{
 			uint64_t offset;
 			uint64_t size;
+
+			// Buffer packing for image operations (0 = tightly packed).
+			uint32_t rowSize; // In texels.
+			uint32_t numRows;
 		};
 
 		// Image layers/offset/extent.
@@ -400,46 +404,43 @@ typedef struct GFXRegion
 
 
 /**
- * Writes data to a memory resource reference.
- * @param ref    Cannot be GFX_REF_NULL.
- * @param region Region of ref to write to.
- * @param ptr    Pointer to the data that will be written, cannot be NULL.
+ * Reads data from a memory resource reference.
+ * @param src        Cannot be NULL/GFX_REF_NULL.
+ * @param dst        Cannot be NULL/GFX_REF_NULL.
+ * @param numRegions Must be > 0.
+ * @param srcRegions Cannot be NULL.
+ * @param dstRegions Cannot be NULL.
  * @return Non-zero on success.
  *
- * Fails of the referenced resource was not created with
- *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE.
- */
-GFX_API int gfx_write(GFXReference ref, GFXRegion region, const void* ptr);
-
-/**
- * Reads data from a memory resource reference.
- * @param ref    Cannot be GFX_REF_NULL.
- * @param region Region of ref to read.
- * @param ptr    Pointer the data will be written to, cannot be NULL.
- * @return Non-zero on success.
+ * Undefined behaviour if size/width/height/depth of (src|dst)Regions do not match.
+ *  One of a pair can have a size of zero and it will be ignored.
+ *  Likewise, with two images, one can have a width/height/depth of zero.
  *
  * Fails of the referenced resource was not created with
  *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
  */
-GFX_API int gfx_read(GFXReference ref, GFXRegion region, void* ptr);
+GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
+                     const GFXRegion* srcRegions, const GFXRegion* dstRegions);
+
+/**
+ * Writes data to a memory resource reference.
+ * @see gfx_read.
+ *
+ * Fails of the referenced resource was not created with
+ *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE.
+ */
+GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions);
 
 /**
  * Copies data from one memory resource reference to another.
- * @param srcRef    Cannot be GFX_REF_NULL.
- * @param dstRef    Cannot be GFX_REF_NULL.
- * @param srcRegion Region of source ref to read from.
- * @param dstRegion Region of destination ref to write to.
- * @return Non-zero on success.
- *
- * Undefined behaviour if size/width/height/depth of (src|dst)Region do not match.
- *  One of them can have a size of zero and it will be ignored.
- *  Likewise, if there are two images, one can have a width/height/depth of zero.
+ * @see gfx_read.
  *
  * Fails of the srcRef was not created with GFX_MEMORY_READ.
  * Fails of the dstRef was not created with GFX_MEMORY_WRITE.
  */
-GFX_API int gfx_copy(GFXReference srcRef, GFXReference dstRef,
-                     GFXRegion srcRegion, GFXRegion dstRegion);
+GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
+                     const GFXRegion* srcRegions, const GFXRegion* dstRegions);
 
 /**
  * Maps a buffer reference to a host virtual address pointer.

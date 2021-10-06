@@ -861,7 +861,10 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 				continue;
 			}
 
-			// Quickly validate reference types.
+			// Resolve & validate reference types and its context.
+			refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
+			_GFXUnpackRef unp = _gfx_ref_unpack(refPtr[r]);
+
 			if (
 				(bind->type == GFX_BINDING_BUFFER && !GFX_REF_IS_BUFFER(srcPtr[r])) ||
 				(bind->type == GFX_BINDING_IMAGE && !GFX_REF_IS_IMAGE(srcPtr[r])))
@@ -872,10 +875,6 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 
 				goto clean;
 			}
-
-			// Resolve & validate its context.
-			refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
-			_GFXUnpackRef unp = _gfx_ref_unpack(refPtr[r]);
 
 			if (unp.context != heap->allocator.context)
 			{
@@ -987,47 +986,17 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 }
 
 /****************************/
-GFX_API int gfx_write(GFXReference ref, GFXRegion region, const void* ptr)
+GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
+                     const GFXRegion* srcRegions, const GFXRegion* dstRegions)
 {
-	assert(!GFX_REF_IS_NULL(ref));
-	assert(!GFX_REF_IS_BUFFER(ref) || region.size > 0);
-	assert(!GFX_REF_IS_IMAGE(ref) || region.numLayers > 0);
-	assert(!GFX_REF_IS_IMAGE(ref) || region.width > 0);
-	assert(!GFX_REF_IS_IMAGE(ref) || region.height > 0);
-	assert(!GFX_REF_IS_IMAGE(ref) || region.depth > 0);
-	assert(ptr != NULL);
+	assert(!GFX_REF_IS_NULL(src));
+	assert(dst != NULL);
+	assert(numRegions > 0);
+	assert(srcRegions != NULL);
+	assert(dstRegions != NULL);
 
 	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
-
-	// Validate memory flags.
-	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
-	{
-		gfx_log_error(
-			"Cannot write to a memory resource that was not"
-			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_WRITE.");
-
-		return 0;
-	}
-
-	// TODO: Continue implementing...
-
-	return 1;
-}
-
-/****************************/
-GFX_API int gfx_read(GFXReference ref, GFXRegion region, void* ptr)
-{
-	assert(!GFX_REF_IS_NULL(ref));
-	assert(!GFX_REF_IS_BUFFER(ref) || region.size > 0);
-	assert(!GFX_REF_IS_IMAGE(ref) || region.numLayers > 0);
-	assert(!GFX_REF_IS_IMAGE(ref) || region.width > 0);
-	assert(!GFX_REF_IS_IMAGE(ref) || region.height > 0);
-	assert(!GFX_REF_IS_IMAGE(ref) || region.depth > 0);
-	assert(ptr != NULL);
-
-	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+	_GFXUnpackRef unp = _gfx_ref_unpack(src);
 
 	// Validate memory flags.
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) & unp.flags))
@@ -1045,25 +1014,46 @@ GFX_API int gfx_read(GFXReference ref, GFXRegion region, void* ptr)
 }
 
 /****************************/
-GFX_API int gfx_copy(GFXReference srcRef, GFXReference dstRef,
-                     GFXRegion srcRegion, GFXRegion dstRegion)
+GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions)
 {
-	assert(!GFX_REF_IS_NULL(srcRef));
-	assert(!GFX_REF_IS_NULL(dstRef));
-	assert(!GFX_REF_IS_BUFFER(srcRef) || srcRegion.size > 0);
-	assert(!GFX_REF_IS_IMAGE(srcRef) || srcRegion.numLayers > 0);
-	assert(!GFX_REF_IS_IMAGE(srcRef) || srcRegion.width > 0);
-	assert(!GFX_REF_IS_IMAGE(srcRef) || srcRegion.height > 0);
-	assert(!GFX_REF_IS_IMAGE(srcRef) || srcRegion.depth > 0);
-	assert(!GFX_REF_IS_BUFFER(dstRef) || dstRegion.size > 0);
-	assert(!GFX_REF_IS_IMAGE(dstRef) || dstRegion.numLayers > 0);
-	assert(!GFX_REF_IS_IMAGE(dstRef) || dstRegion.width > 0);
-	assert(!GFX_REF_IS_IMAGE(dstRef) || dstRegion.height > 0);
-	assert(!GFX_REF_IS_IMAGE(dstRef) || dstRegion.depth > 0);
+	assert(src != NULL);
+	assert(!GFX_REF_IS_NULL(dst));
+	assert(numRegions > 0);
+	assert(srcRegions != NULL);
+	assert(dstRegions != NULL);
+
+	// Unpack reference.
+	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
+
+	// Validate memory flags.
+	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
+	{
+		gfx_log_error(
+			"Cannot write to a memory resource that was not"
+			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_WRITE.");
+
+		return 0;
+	}
+
+	// TODO: Continue implementing...
+
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
+                     const GFXRegion* srcRegions, const GFXRegion* dstRegions)
+{
+	assert(!GFX_REF_IS_NULL(src));
+	assert(!GFX_REF_IS_NULL(dst));
+	assert(numRegions > 0);
+	assert(srcRegions != NULL);
+	assert(dstRegions != NULL);
 
 	// Unpack references.
-	_GFXUnpackRef srcUnp = _gfx_ref_unpack(srcRef);
-	_GFXUnpackRef dstUnp = _gfx_ref_unpack(dstRef);
+	_GFXUnpackRef srcUnp = _gfx_ref_unpack(src);
+	_GFXUnpackRef dstUnp = _gfx_ref_unpack(dst);
 
 	// Check that the resources share the same context.
 	if (srcUnp.context != dstUnp.context)
