@@ -51,6 +51,8 @@
 		GFX_FORMAT_STORAGE_IMAGE : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT ? \
 		GFX_FORMAT_ATTACHMENT : (GFXFormatFeatures)0) | \
+	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT ? \
+		GFX_FORMAT_ATTACHMENT : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT ? \
 		GFX_FORMAT_ATTACHMENT_BLEND : (GFXFormatFeatures)0) | \
 	((vkProps).optimalTilingFeatures & VK_FORMAT_FEATURE_TRANSFER_SRC_BIT ? \

@@ -333,7 +333,11 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	_GFX_RESOLVE_FORMAT(attachment.format, vkFmt, renderer->device,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
-			.optimalTilingFeatures = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT,
+			.optimalTilingFeatures =
+				GFX_FORMAT_HAS_DEPTH(attachment.format) |
+				GFX_FORMAT_HAS_STENCIL(attachment.format) ?
+					VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT :
+					VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT,
 			.bufferFeatures = 0
 		}), {
 			gfx_log_error("Renderer attachment format is not supported.");

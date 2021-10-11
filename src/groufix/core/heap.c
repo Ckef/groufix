@@ -276,13 +276,11 @@ static int _gfx_image_alloc(_GFXImage* image)
 		.arrayLayers           = image->base.layers,
 		// TODO: Make samples user input.
 		.samples               = VK_SAMPLE_COUNT_1_BIT,
-		// TODO: Must use VK_IMAGE_TILING_LINEAR for staging images.
 		.tiling                = VK_IMAGE_TILING_OPTIMAL,
 		.usage                 = usage,
 		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 0,
 		.pQueueFamilyIndices   = NULL,
-		// TODO: Must use VK_IMAGE_LAYOUT_PREINITIALIZED for staging images.
 		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED
 	};
 

@@ -94,7 +94,7 @@ typedef enum GFXFormatFeatures
 	GFX_FORMAT_SAMPLED_IMAGE_LINEAR = 0x0010,
 	GFX_FORMAT_SAMPLED_IMAGE_MINMAX = 0x0020,
 	GFX_FORMAT_STORAGE_IMAGE        = 0x0040,
-	GFX_FORMAT_ATTACHMENT           = 0x0080,
+	GFX_FORMAT_ATTACHMENT           = 0x0080, // Includes depth/stencil attachments.
 	GFX_FORMAT_ATTACHMENT_BLEND     = 0x0100,
 	GFX_FORMAT_IMAGE_READ           = 0x0200,
 	GFX_FORMAT_IMAGE_WRITE          = 0x0400,
@@ -165,6 +165,12 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 	(fmt).order == GFX_ORDER_ETC2 || \
 	(fmt).order == GFX_ORDER_EAC || \
 	(fmt).order == GFX_ORDER_ASTC)
+
+#define GFX_FORMAT_HAS_DEPTH(fmt) \
+	((fmt).order & (GFX_ORDER_DEPTH | GFX_ORDER_DEPTH_STENCIL))
+
+#define GFX_FORMAT_HAS_STENCIL(fmt) \
+	((fmt).order & (GFX_ORDER_STENCIL | GFX_ORDER_DEPTH_STENCIL))
 
 #define GFX_FORMAT_IS_EQUAL(fmta, fmtb) \
 	((fmta).comps[0] == (fmtb).comps[0] && \
