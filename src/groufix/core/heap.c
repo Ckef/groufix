@@ -372,11 +372,16 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 		goto clean;
 
 	// Get context associated with the device.
-	// Required by _gfx_allocator_init.
 	_GFXContext* context;
-
 	_GFX_GET_DEVICE(heap->device, device);
 	_GFX_GET_CONTEXT(context, device, goto clean_lock);
+
+	// Pick the first transfer queue we can find.
+	// TODO: Check if equal to graphics queue, if so, pick second queue?
+	_GFXQueueSet* transfer =
+		_gfx_pick_queue_set(context, VK_QUEUE_TRANSFER_BIT, 0);
+	heap->transfer =
+		_gfx_get_queue(context, transfer, 0);
 
 	// Initialize allocator things.
 	_gfx_allocator_init(&heap->allocator, heap->device);
