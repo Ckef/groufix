@@ -166,8 +166,10 @@ GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
 	assert(keySize > 0);
 	assert(key != NULL);
 
+	uint64_t rawHash = map->hash(key);
+
 	// Hash & search to overwrite.
-	uint64_t hash = map->hash(key) % map->capacity;
+	uint64_t hash = rawHash % map->capacity;
 	size_t cap = map->capacity;
 
 	for (
@@ -211,7 +213,7 @@ GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
 
 	// Insert, rehash if we've grown.
 	if (cap != map->capacity)
-		hash = map->hash(key) % map->capacity;
+		hash = rawHash % map->capacity;
 
 	*node = map->buckets[hash];
 	map->buckets[hash] = node;
