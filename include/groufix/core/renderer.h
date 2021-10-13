@@ -33,11 +33,15 @@ typedef enum GFXSizeClass
  */
 typedef struct GFXAttachment
 {
+	GFXImageType   type;
+	GFXMemoryFlags flags;
+	GFXImageUsage  usage;
+
+	GFXFormat format;
+	uint32_t  layers;
+
 	GFXSizeClass size;
 	size_t       ref; // Index of the attachment the size is relative to.
-
-	GFXMemoryFlags flags;
-	GFXFormat      format;
 
 	union {
 		uint32_t width;

@@ -30,56 +30,6 @@
 #define _GFX_GROUP_FROM_LIST(node) \
 	_GFX_GROUP_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
 
-#define _GFX_GET_VK_BUFFER_USAGE(flags, usage) \
-	((flags & GFX_MEMORY_READ ? \
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT : (VkBufferUsageFlags)0) | \
-	(flags & GFX_MEMORY_WRITE ? \
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_BUFFER_VERTEX ? \
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_BUFFER_INDEX ? \
-		VK_BUFFER_USAGE_INDEX_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_BUFFER_UNIFORM ? \
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_BUFFER_STORAGE ? \
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_BUFFER_UNIFORM_TEXEL ? \
-		VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	(usage & GFX_BUFFER_STORAGE_TEXEL ? \
-		VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT : (VkBufferUsageFlags)0))
-
-#define _GFX_GET_VK_IMAGE_TYPE(type) \
-	((type == GFX_IMAGE_1D) ? VK_IMAGE_TYPE_1D : \
-	(type == GFX_IMAGE_2D) ? VK_IMAGE_TYPE_2D : \
-	(type == GFX_IMAGE_3D) ? VK_IMAGE_TYPE_3D : \
-	(type == GFX_IMAGE_3D_SLICED) ? VK_IMAGE_TYPE_3D : \
-	(type == GFX_IMAGE_CUBEMAP) ? VK_IMAGE_TYPE_2D : \
-	VK_IMAGE_TYPE_2D)
-
-#define _GFX_GET_VK_IMAGE_FEATURES(flags, usage) \
-	((flags & GFX_MEMORY_READ ? \
-		VK_FORMAT_FEATURE_TRANSFER_SRC_BIT : (VkFormatFeatureFlags)0) | \
-	(flags & GFX_MEMORY_WRITE ? \
-		VK_FORMAT_FEATURE_TRANSFER_DST_BIT : (VkFormatFeatureFlags)0) | \
-	(usage & GFX_IMAGE_SAMPLED ? \
-		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT : (VkFormatFeatureFlags)0) | \
-	(usage & GFX_IMAGE_SAMPLED_LINEAR ? \
-		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT : (VkFormatFeatureFlags)0) | \
-	(usage & GFX_IMAGE_SAMPLED_MINMAX ? \
-		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT : (VkFormatFeatureFlags)0) | \
-	(usage & GFX_IMAGE_STORAGE ? \
-		VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT : (VkFormatFeatureFlags)0))
-
-#define _GFX_GET_VK_IMAGE_USAGE(flags, usage) \
-	((flags & GFX_MEMORY_READ ? \
-		VK_IMAGE_USAGE_TRANSFER_SRC_BIT : (VkImageUsageFlags)0) | \
-	(flags & GFX_MEMORY_WRITE ? \
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT : (VkImageUsageFlags)0) | \
-	(usage & GFX_IMAGE_SAMPLED ? \
-		VK_IMAGE_USAGE_SAMPLED_BIT : (VkImageUsageFlags)0) | \
-	(usage & GFX_IMAGE_STORAGE ? \
-		VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlags)0))
-
 
 /****************************
  * Performs the actual internal memory allocation.
@@ -524,7 +474,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 	_GFX_RESOLVE_FORMAT(format, vkFmt, heap->device,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
-			.optimalTilingFeatures = _GFX_GET_VK_IMAGE_FEATURES(flags, usage),
+			.optimalTilingFeatures = _GFX_GET_VK_FORMAT_FEATURES(flags, usage),
 			.bufferFeatures = 0
 		}), {
 			gfx_log_error("Image format does not support memory flags or image usage.");
@@ -906,7 +856,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	group->buffer.base.usage = usage;
 	group->buffer.base.size = size;
 
-	group->base.flags = size > 0 ? flags : 0;
+	group->base.flags = 0; // Set down below.
 	group->base.usage = size > 0 ? usage : 0;
 
 	// Allocate a buffer if required.
@@ -1047,6 +997,28 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	}
 
 	// TODO: Continue implementing...
+	// TODO: For now, just do concurrent sharing and do transfers on the
+	// dedicated transfer queue.
+	// TODO: In the future we use the graphics queue by default and introduce
+	// GFXTransferFlags with GFX_TRANSFER_FAST to use the transfer queue,
+	// plus a sync target GFX_SYNC_TARGET_FAST_TRANFER or some such so the
+	// blocking queue can release ownership and the fast transfer can
+	// acquire onwership.
+	// A fast transfer can wait so the blocking queue can release, or the
+	// previous operation was also a fast transfer (or nothing) so we don't
+	// need to do the ownership dance.
+	// A fast transfer must block, so we can deduce if we need to release
+	// ownership, so the sync target can acquire it again. This means a fast
+	// transfer can't do only host-blocking...
+	//
+	// Then the staging buffer is either purged later on or it is kept
+	// dangling for the next frame. This is the case for all staging buffers,
+	// except when GFX_TRANSFER_BLOCK is given, in which case the host blocks
+	// and we can cleanup. GFX_TRANSFER_KEEP can be given in combination with
+	// GFX_TRANSFER_BLOCK to keep it dangling anyway.
+	//
+	// TODO: Need to figure out the heap-purging mechanism,
+	// do we purge everything at once? Nah, partial purges?
 
 	return 1;
 }

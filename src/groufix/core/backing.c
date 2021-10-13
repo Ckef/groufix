@@ -32,8 +32,11 @@ static inline int _gfx_cmp_attachments(GFXAttachment* l, GFXAttachment* r)
 
 	return
 		(abs || rel) &&
+		(l->type == r->type) &&
 		(l->flags == r->flags) &&
-		GFX_FORMAT_IS_EQUAL(l->format, r->format);
+		(l->usage == r->usage) &&
+		GFX_FORMAT_IS_EQUAL(l->format, r->format) &&
+		(l->layers == r->layers);
 }
 
 /****************************
@@ -323,6 +326,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 {
 	assert(renderer != NULL);
 	assert(!GFX_FORMAT_IS_EMPTY(attachment.format));
+	assert(attachment.layers > 0);
 
 	// Ignore the host-visibility flag.
 	attachment.flags &= ~(GFXMemoryFlags)GFX_MEMORY_HOST_VISIBLE;
@@ -334,6 +338,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
 			.optimalTilingFeatures =
+				_GFX_GET_VK_FORMAT_FEATURES(attachment.flags, attachment.usage) |
 				GFX_FORMAT_HAS_DEPTH(attachment.format) |
 				GFX_FORMAT_HAS_STENCIL(attachment.format) ?
 					VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT :

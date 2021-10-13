@@ -385,7 +385,7 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 
 			.pNext                  = NULL,
 			.flags                  = 0,
-			.topology               = prim->base.topology,
+			.topology               = _GFX_GET_VK_PRIMITIVE_TOPOLOGY(prim->base.topology),
 			.primitiveRestartEnable = VK_FALSE
 		};
 
