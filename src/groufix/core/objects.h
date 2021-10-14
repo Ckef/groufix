@@ -112,6 +112,7 @@ typedef struct _GFXStaging
 	struct
 	{
 		VkBuffer buffer;
+		void*    ptr;
 
 	} vk;
 
@@ -447,20 +448,21 @@ struct GFXRenderPass
 
 /**
  * Unpacked memory resource reference.
+ * Access is not thread-safe with respect to the referenced object (!).
  */
 typedef struct _GFXUnpackRef
 {
 	// Referenced object.
 	struct
 	{
-		_GFXBuffer*   buffer;
-		_GFXImage*    image;
-		GFXRenderer*  renderer;
+		_GFXBuffer*  buffer;
+		_GFXImage*   image;
+		GFXRenderer* renderer;
 
 	} obj;
 
 
-	// Unpacked reference value,
+	// Unpacked reference value(s),
 	//  buffer offset | attachment index.
 	uint64_t value;
 

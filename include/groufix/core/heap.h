@@ -436,8 +436,8 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
  * Copies data from one memory resource reference to another.
  * @see gfx_read.
  *
- * Fails of the srcRef was not created with GFX_MEMORY_READ.
- * Fails of the dstRef was not created with GFX_MEMORY_WRITE.
+ * Fails of the src was not created with GFX_MEMORY_READ.
+ * Fails of the dst was not created with GFX_MEMORY_WRITE.
  */
 GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
                      const GFXRegion* srcRegions, const GFXRegion* dstRegions);

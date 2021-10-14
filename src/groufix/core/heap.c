@@ -78,7 +78,7 @@ static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 /****************************
  * Populates the `vk.buffer` and `alloc` fields of a _GFXBuffer object,
  * allocating a new Vulkan buffer in the process.
- * @param buffer Cannot be NULL, vk.buffer will be overwritten.
+ * @param buffer Cannot be NULL, base.flags is appropriately modified.
  * @return Zero on failure.
  *
  * The `base` and `heap` fields of buffer must be properly initialized,
@@ -186,7 +186,7 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
 /****************************
  * Populates the `vk.image` and `alloc` fields of a _GFXImage object,
  * allocating a new Vulkan image in the process.
- * @param image Cannot be NULL, vk.image will be overwritten.
+ * @param image Cannot be NULL, base.flags is appropriately modified.
  * @return Zero on failure.
  *
  * The `base`, `heap` and `vk.format` fields of image must be properly
