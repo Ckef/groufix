@@ -416,7 +416,7 @@ typedef struct GFXRegion
  *  One of a pair can have a size of zero and it will be ignored.
  *  Likewise, with two images, one can have a width/height/depth of zero.
  *
- * Fails of the referenced resource was not created with
+ * Fails of the resource is a renderer's attachment or was not created with
  *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
  */
 GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
@@ -426,7 +426,7 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
  * Writes data to a memory resource reference.
  * @see gfx_read.
  *
- * Fails of the referenced resource was not created with
+ * Fails of the resource is a renderer's attachment or was not created with
  *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE.
  */
 GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,

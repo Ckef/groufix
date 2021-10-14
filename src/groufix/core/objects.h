@@ -98,28 +98,6 @@
  ****************************/
 
 /**
- * Staging buffer, not restricted to a heap.
- */
-typedef struct _GFXStaging
-{
-	GFXListNode list; // Base-type, linked into the parent object.
-
-	_GFXAllocator* allocator;
-	_GFXMemAlloc   alloc; // Stores the size.
-
-
-	// Vulkan fields.
-	struct
-	{
-		VkBuffer buffer;
-		void*    ptr;
-
-	} vk;
-
-} _GFXStaging;
-
-
-/**
  * Internal heap.
  */
 struct GFXHeap
@@ -137,6 +115,26 @@ struct GFXHeap
 
 
 /**
+ * Staging buffer.
+ */
+typedef struct _GFXStaging
+{
+	GFXListNode  list;  // Base-type, linked into the parent object.
+	_GFXMemAlloc alloc; // Stores the size.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkBuffer buffer;
+		void*    ptr;
+
+	} vk;
+
+} _GFXStaging;
+
+
+/**
  * Internal buffer.
  */
 typedef struct _GFXBuffer
@@ -146,6 +144,7 @@ typedef struct _GFXBuffer
 	GFXListNode list;
 
 	_GFXMemAlloc alloc;
+	GFXList      staging; // References _GFXStaging.
 
 
 	// Vulkan fields.
@@ -168,6 +167,7 @@ typedef struct _GFXImage
 	GFXListNode list;
 
 	_GFXMemAlloc alloc;
+	GFXList      staging; // References _GFXStaging.
 
 
 	// Vulkan fields.

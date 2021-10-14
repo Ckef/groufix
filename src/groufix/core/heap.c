@@ -76,8 +76,8 @@ static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 }
 
 /****************************
- * Populates the `vk.buffer` and `alloc` fields of a _GFXBuffer object,
- * allocating a new Vulkan buffer in the process.
+ * Populates the `vk.buffer`, `alloc` and `staging` fields
+ * of a _GFXBuffer object, allocating a new Vulkan buffer in the process.
  * @param buffer Cannot be NULL, base.flags is appropriately modified.
  * @return Zero on failure.
  *
@@ -138,7 +138,9 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 		goto clean;
 	}
 
-	// Set public device-local flag.
+	// Init other buffer fields.
+	gfx_list_init(&buffer->staging);
+
 	if (!(buffer->alloc.flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 		buffer->base.flags &= ~(GFXMemoryFlags)GFX_MEMORY_DEVICE_LOCAL;
 
@@ -175,6 +177,9 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
 	GFXHeap* heap = buffer->heap;
 	_GFXContext* context = heap->allocator.context;
 
+	// TODO: Free all staging buffers.
+	gfx_list_clear(&buffer->staging);
+
 	// Destroy Vulkan buffer.
 	context->vk.DestroyBuffer(
 		context->vk.device, buffer->vk.buffer, NULL);
@@ -184,8 +189,8 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
 }
 
 /****************************
- * Populates the `vk.image` and `alloc` fields of a _GFXImage object,
- * allocating a new Vulkan image in the process.
+ * Populates the `vk.image`, `alloc` and `staging` fields
+ * of a _GFXImage object, allocating a new Vulkan image in the process.
  * @param image Cannot be NULL, base.flags is appropriately modified.
  * @return Zero on failure.
  *
@@ -264,7 +269,9 @@ static int _gfx_image_alloc(_GFXImage* image)
 		goto clean;
 	}
 
-	// Set public device-local flag.
+	// Init other image fields.
+	gfx_list_init(&image->staging);
+
 	if (!(image->alloc.flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 		image->base.flags &= ~(GFXMemoryFlags)GFX_MEMORY_DEVICE_LOCAL;
 
@@ -300,6 +307,9 @@ static void _gfx_image_free(_GFXImage* image)
 
 	GFXHeap* heap = image->heap;
 	_GFXContext* context = heap->allocator.context;
+
+	// TODO: Free all staging buffers.
+	gfx_list_clear(&image->staging);
 
 	// Destroy Vulkan image.
 	context->vk.DestroyImage(
@@ -959,6 +969,13 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(src);
 
+	// Validate reference type.
+	if (src.type == GFX_REF_ATTACHMENT)
+	{
+		gfx_log_error("An attachment reference cannot be read from.");
+		return 0;
+	}
+
 	// Validate memory flags.
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) & unp.flags))
 	{
@@ -987,6 +1004,13 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
 
+	// Validate reference type.
+	if (dst.type == GFX_REF_ATTACHMENT)
+	{
+		gfx_log_error("An attachment reference cannot be written to.");
+		return 0;
+	}
+
 	// Validate memory flags.
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
 	{
@@ -1008,7 +1032,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	// A fast transfer can wait so the blocking queue can release, or the
 	// previous operation was also a fast transfer (or nothing) so we don't
 	// need to do the ownership dance.
-	// A fast transfer must block, so we can deduce if we need to release
+	// A fast transfer must signal, so we can deduce if we need to release
 	// ownership, so the sync target can acquire it again. This means a fast
 	// transfer can't do only host-blocking...
 	//
