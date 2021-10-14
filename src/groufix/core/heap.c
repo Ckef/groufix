@@ -35,7 +35,7 @@
  * Performs the actual internal memory allocation.
  * Extracts Vulkan memory flags (and implicitly memory type) from public flags.
  */
-static inline int _gfx_mem_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
                                  int linear, GFXMemoryFlags flags,
                                  const VkMemoryRequirements* reqs,
                                  const VkMemoryDedicatedRequirements* dreqs,
@@ -65,8 +65,7 @@ static inline int _gfx_mem_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		((flags & GFX_MEMORY_DEVICE_LOCAL) ?
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : 0);
 
-	// TODO: Fallback to non device-local memory if it is full?
-	// TODO: Warn if a fallback heap is used (after the allocation error).
+	// TODO: Make _gfx_alloc* fallback to required if the optimal heap is full.
 	// Check if the Vulkan implementation wants a dedicated allocation.
 	// Note that we do not check `dreqs->requiresDedicatedAllocation`, this
 	// is only relevant for external memory, which we do not use.
@@ -131,7 +130,7 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	context->vk.GetBufferMemoryRequirements2(
 		context->vk.device, &bmri2, &mr2);
 
-	if (!_gfx_mem_alloc(
+	if (!_gfx_alloc_mem(
 		&heap->allocator, &buffer->alloc, 1, buffer->base.flags,
 		&mr2.memoryRequirements, &mdr,
 		buffer->vk.buffer, VK_NULL_HANDLE))
@@ -257,7 +256,7 @@ static int _gfx_image_alloc(_GFXImage* image)
 	context->vk.GetImageMemoryRequirements2(
 		context->vk.device, &imri2, &mr2);
 
-	if (!_gfx_mem_alloc(
+	if (!_gfx_alloc_mem(
 		&heap->allocator, &image->alloc, 0, image->base.flags,
 		&mr2.memoryRequirements, &mdr,
 		VK_NULL_HANDLE, image->vk.image))
@@ -614,8 +613,8 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	// appropriate public usage & validate context and usage.
 	prim->refVertex = _gfx_ref_resolve(vertex);
 	prim->refIndex = _gfx_ref_resolve(index);
-	_GFXUnpackRef unpVertex = _gfx_ref_unpack(prim->refVertex);
-	_GFXUnpackRef unpIndex = _gfx_ref_unpack(prim->refIndex);
+	_GFXUnpackRef unpVer = _gfx_ref_unpack(prim->refVertex);
+	_GFXUnpackRef unpInd = _gfx_ref_unpack(prim->refIndex);
 
 	if (
 		!(GFX_REF_IS_NULL(prim->refVertex) || GFX_REF_IS_BUFFER(prim->refVertex)) ||
@@ -628,8 +627,8 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	}
 
 	if (
-		(unpVertex.context && unpVertex.context != heap->allocator.context) ||
-		(unpIndex.context && unpIndex.context != heap->allocator.context))
+		(unpVer.allocator && unpVer.allocator->context != heap->allocator.context) ||
+		(unpInd.allocator && unpInd.allocator->context != heap->allocator.context))
 	{
 		gfx_log_error(
 			"A buffer referenced by a primitive geometry must be built on "
@@ -638,10 +637,10 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 		goto clean;
 	}
 
-	prim->base.usageVertex = unpVertex.obj.buffer ?
-		unpVertex.obj.buffer->base.usage : prim->buffer.base.usage;
-	prim->base.usageIndex = unpIndex.obj.buffer ?
-		unpIndex.obj.buffer->base.usage :
+	prim->base.usageVertex = unpVer.obj.buffer ?
+		unpVer.obj.buffer->base.usage : prim->buffer.base.usage;
+	prim->base.usageIndex = unpInd.obj.buffer ?
+		unpInd.obj.buffer->base.usage :
 		(numIndices > 0 ? prim->buffer.base.usage : 0);
 
 	if (!(prim->base.usageVertex & GFX_BUFFER_VERTEX))
@@ -682,10 +681,10 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	_gfx_mutex_unlock(&heap->lock);
 
 	// Trickle down memory flags to user-land.
-	prim->base.flagsVertex = unpVertex.obj.buffer ?
-		unpVertex.obj.buffer->base.flags : prim->buffer.base.flags;
-	prim->base.flagsIndex = unpIndex.obj.buffer ?
-		unpIndex.obj.buffer->base.flags :
+	prim->base.flagsVertex = unpVer.obj.buffer ?
+		unpVer.obj.buffer->base.flags : prim->buffer.base.flags;
+	prim->base.flagsIndex = unpInd.obj.buffer ?
+		unpInd.obj.buffer->base.flags :
 		(numIndices > 0 ? prim->buffer.base.flags : 0);
 
 	return &prim->base;
@@ -836,7 +835,9 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 				goto clean;
 			}
 
-			if (unp.context != heap->allocator.context)
+			if (
+				!unp.allocator ||
+				unp.allocator->context != heap->allocator.context)
 			{
 				gfx_log_error(
 					"A resource group binding description's resource "
@@ -1038,7 +1039,9 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 	_GFXUnpackRef dstUnp = _gfx_ref_unpack(dst);
 
 	// Check that the resources share the same context.
-	if (srcUnp.context != dstUnp.context)
+	if (
+		!srcUnp.allocator || !dstUnp.allocator ||
+		srcUnp.allocator->context != dstUnp.allocator->context)
 	{
 		gfx_log_error(
 			"When copying from one memory resource to another they must be "
@@ -1084,7 +1087,7 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	void* ptr = NULL;
 
 	if (unp.obj.buffer != NULL)
-		ptr = _gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc),
+		ptr = _gfx_map(unp.allocator, &unp.obj.buffer->alloc),
 		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp.value);
 
 	return ptr;
@@ -1103,5 +1106,5 @@ GFX_API void gfx_unmap(GFXBufferRef ref)
 	// for every gfx_map, given this is the exact same assumption as
 	// _gfx_unmap makes, this should all work out...
 	if (unp.obj.buffer != NULL)
-		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+		_gfx_unmap(unp.allocator, &unp.obj.buffer->alloc);
 }

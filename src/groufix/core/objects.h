@@ -98,6 +98,27 @@
  ****************************/
 
 /**
+ * Staging buffer, not restricted to a heap.
+ */
+typedef struct _GFXStaging
+{
+	GFXListNode list; // Base-type, linked into the parent object.
+
+	_GFXAllocator* allocator;
+	_GFXMemAlloc   alloc; // Stores the size.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkBuffer buffer;
+
+	} vk;
+
+} _GFXStaging;
+
+
+/**
  * Internal heap.
  */
 struct GFXHeap
@@ -344,7 +365,8 @@ struct GFXRenderer
 	// Render backing (i.e. attachments).
 	struct
 	{
-		GFXVec attachs; // Stores _GFXAttach.
+		_GFXAllocator allocator;
+		GFXVec        attachs; // Stores _GFXAttach.
 
 		int built;
 
@@ -445,8 +467,8 @@ typedef struct _GFXUnpackRef
 	// Associated memory flags (to determine use).
 	GFXMemoryFlags flags;
 
-	// Associated context (for context matching).
-	_GFXContext* context;
+	// Associated allocator (for context matching and such).
+	_GFXAllocator* allocator;
 
 } _GFXUnpackRef;
 
@@ -459,7 +481,7 @@ typedef struct _GFXUnpackRef
 		.obj = { .buffer = NULL, .image = NULL, .renderer = NULL }, \
 		.value = 0, \
 		.flags = 0, \
-		.context = NULL \
+		.allocator = NULL \
 	}
 
 /**

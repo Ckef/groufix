@@ -40,6 +40,7 @@ typedef struct GFXAttachment
 	GFXFormat format;
 	uint32_t  layers;
 
+	// Optionally dynamic size.
 	GFXSizeClass size;
 	size_t       ref; // Index of the attachment the size is relative to.
 

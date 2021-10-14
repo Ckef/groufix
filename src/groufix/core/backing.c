@@ -242,6 +242,7 @@ void _gfx_render_backing_init(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
+	_gfx_allocator_init(&renderer->backing.allocator, renderer->device);
 	gfx_vec_init(&renderer->backing.attachs, sizeof(_GFXAttach));
 
 	// No backing is a valid backing.
@@ -259,6 +260,7 @@ void _gfx_render_backing_clear(GFXRenderer* renderer)
 		_gfx_detach_attachment(renderer, i);
 
 	gfx_vec_clear(&renderer->backing.attachs);
+	_gfx_allocator_clear(&renderer->backing.allocator);
 }
 
 /****************************/
