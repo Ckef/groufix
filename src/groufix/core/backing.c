@@ -330,8 +330,9 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	assert(!GFX_FORMAT_IS_EMPTY(attachment.format));
 	assert(attachment.layers > 0);
 
-	// Ignore the host-visibility flag.
+	// Ignore the host-visibility flag and enforce device-locality.
 	attachment.flags &= ~(GFXMemoryFlags)GFX_MEMORY_HOST_VISIBLE;
+	attachment.flags |= GFX_MEMORY_DEVICE_LOCAL;
 
 	// Firstly, resolve attachment's format.
 	// TODO: Add VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT ?

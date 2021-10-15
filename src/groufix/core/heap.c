@@ -31,6 +31,17 @@
 	_GFX_GROUP_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
 
 
+// Modifies flags (lvalue) according to resulting Vulkan memory flags.
+#define _GFX_MOD_MEMORY_FLAGS(flags, vFlags) \
+	flags = \
+		(flags & \
+			(GFX_MEMORY_READ | GFX_MEMORY_WRITE)) | \
+		(vFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ? \
+			GFX_MEMORY_HOST_VISIBLE : (GFXMemoryFlags)0) | \
+		(vFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT ? \
+			GFX_MEMORY_DEVICE_LOCAL : (GFXMemoryFlags)0)
+
+
 /****************************
  * Performs the actual internal memory allocation.
  * Extracts Vulkan memory flags (and implicitly memory type) from public flags.
@@ -140,9 +151,7 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 
 	// Init other buffer fields.
 	gfx_list_init(&buffer->staging);
-
-	if (!(buffer->alloc.flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-		buffer->base.flags &= ~(GFXMemoryFlags)GFX_MEMORY_DEVICE_LOCAL;
+	_GFX_MOD_MEMORY_FLAGS(buffer->base.flags, buffer->alloc.flags);
 
 	// Bind the buffer to the memory.
 	_GFX_VK_CHECK(
@@ -271,9 +280,7 @@ static int _gfx_image_alloc(_GFXImage* image)
 
 	// Init other image fields.
 	gfx_list_init(&image->staging);
-
-	if (!(image->alloc.flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-		image->base.flags &= ~(GFXMemoryFlags)GFX_MEMORY_DEVICE_LOCAL;
+	_GFX_MOD_MEMORY_FLAGS(image->base.flags, image->alloc.flags);
 
 	// Bind the image to the memory.
 	_GFX_VK_CHECK(
