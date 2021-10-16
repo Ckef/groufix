@@ -697,6 +697,7 @@ void _gfx_pass_destruct(GFXPass* pass)
 GFX_API int gfx_pass_read(GFXPass* pass, size_t index)
 {
 	assert(pass != NULL);
+	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
 	// Try to find it first.
 	// Just a linear search, nothing is sorted, whatever.
@@ -717,6 +718,7 @@ GFX_API int gfx_pass_read(GFXPass* pass, size_t index)
 GFX_API int gfx_pass_write(GFXPass* pass, size_t index)
 {
 	assert(pass != NULL);
+	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
 	// Try to find it first.
 	for (size_t i = 0; i < pass->writes.size; ++i)
@@ -736,6 +738,7 @@ GFX_API int gfx_pass_write(GFXPass* pass, size_t index)
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 {
 	assert(pass != NULL);
+	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
 	// Find and erase.
 	for (size_t i = pass->reads.size; i > 0; --i)
@@ -772,7 +775,9 @@ GFX_API void gfx_pass_use(GFXPass* pass,
                           GFXPrimitive* primitive, GFXGroup* group)
 {
 	assert(pass != NULL);
+	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
 	assert(primitive != NULL);
+	assert(group != NULL);
 
 	// TODO: Should eventually check if they are using the same context.
 	pass->build.primitive = (_GFXPrimitive*)primitive;

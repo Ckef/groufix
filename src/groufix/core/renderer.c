@@ -135,6 +135,8 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	assert(renderer != NULL);
 	assert(renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
+	// TODO: Make this force-submit if not done yet instead?
+
 	// Pop a frame from the frames deque, this is effectively the oldest frame,
 	// i.e. the one that was submitted the first of all existing frames.
 	// Note: we actually pop it, so we are allowed to call _gfx_sync_frames,

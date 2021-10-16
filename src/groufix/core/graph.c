@@ -156,6 +156,7 @@ GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
                                   size_t numDeps, GFXPass** deps)
 {
 	assert(renderer != NULL);
+	assert(renderer->pFrame.vk.done == VK_NULL_HANDLE);
 	assert(numDeps == 0 || deps != NULL);
 
 	// Create a new pass.

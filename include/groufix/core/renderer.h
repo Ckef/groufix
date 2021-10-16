@@ -195,6 +195,9 @@ GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
  * Cannot be called again until a call to gfx_frame_submit has been made.
  * @param renderer Cannot be NULL.
  * @return Always returns a valid frame.
+ *
+ * The renderer (or any of its passes) cannot be modified during or after
+ * this call until gfx_frame_submit has returned.
  */
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 

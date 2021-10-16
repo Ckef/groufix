@@ -101,7 +101,7 @@ static int _gfx_alloc_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
 	// Clean on failure.
 clean:
 	gfx_log_error(
-		"Could not allocate synchronization objects of a virtual render frame.");
+		"Could not allocate synchronization objects of a virtual frame.");
 
 	_gfx_free_syncs(renderer, frame, frame->syncs.size - size);
 
@@ -167,7 +167,7 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Clean on failure.
 clean:
-	gfx_log_error("Could not create virtual render frame.");
+	gfx_log_error("Could not create virtual frame.");
 
 	context->vk.DestroyFence(
 		context->vk.device, frame->vk.done, NULL);
@@ -301,7 +301,7 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Error on failure.
 error:
-	gfx_log_fatal("Acquisition of virtual render frame failed.");
+	gfx_log_fatal("Acquisition of virtual frame failed.");
 
 	return 0;
 }
@@ -424,7 +424,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Error on failure.
 error:
-	gfx_log_fatal("Submission of virtual render frame failed.");
+	gfx_log_fatal("Submission of virtual frame failed.");
 
 	return 0;
 }
