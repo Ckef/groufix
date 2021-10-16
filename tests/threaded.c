@@ -31,7 +31,7 @@ TEST_DESCRIBE(render_loop, _t)
 {
 	// Like the other loop, but submit the renderer :)
 	while (!termSig)
-		gfx_renderer_submit(_t->renderer);
+		gfx_frame_submit(gfx_renderer_acquire(_t->renderer));
 }
 
 

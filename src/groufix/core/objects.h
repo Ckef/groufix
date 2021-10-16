@@ -329,6 +329,26 @@ typedef struct _GFXFrameSync
  ****************************/
 
 /**
+ * Internal virtual frame.
+ */
+struct GFXFrame
+{
+	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
+	GFXVec syncs; // Stores _GFXFrameSync.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkCommandBuffer cmd;
+		VkSemaphore     rendered;
+		VkFence         done; // For resource access.
+
+	} vk;
+};
+
+
+/**
  * Internal renderer.
  */
 struct GFXRenderer
@@ -339,7 +359,8 @@ struct GFXRenderer
 	_GFXQueue    present;
 
 	// Render frame (i.e. collection of virtual frames).
-	GFXDeque     frames; // Stores GFXFrame.
+	GFXDeque frames; // Stores GFXFrame.
+	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
 
 
 	// Render backing (i.e. attachments).
@@ -418,27 +439,6 @@ struct GFXPass
 	// Dependency passes.
 	size_t   numDeps;
 	GFXPass* deps[];
-};
-
-
-/**
- * Internal virtual frame.
- */
-struct GFXFrame
-{
-	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
-	GFXVec syncs; // Stores _GFXFrameSync.
-
-
-	// Vulkan fields.
-	struct
-	{
-		VkCommandBuffer cmd;
-		VkSemaphore     rendered;
-		VkFence         done; // For resource access.
-
-	} vk;
-
 };
 
 

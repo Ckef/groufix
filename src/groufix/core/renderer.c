@@ -11,6 +11,10 @@
 #include <stdlib.h>
 
 
+#define _GFX_RENDERER_FROM_PUBLIC_FRAME(frame) \
+	((GFXRenderer*)((char*)(frame) - offsetof(GFXRenderer, pFrame)))
+
+
 /****************************/
 GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 {
@@ -61,6 +65,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	// We really do this last so the frames have access to all other things.
 	// Reserve the exact amount as this will never change.
 	gfx_deque_init(&rend->frames, sizeof(GFXFrame));
+	rend->pFrame.vk.done = VK_NULL_HANDLE; // To indicate it is absent.
 
 	if (!gfx_deque_reserve(&rend->frames, frames))
 		goto clean_frames;
@@ -102,6 +107,10 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	_GFXContext* context = renderer->context;
 
+	// Force submission if public frame is dangling.
+	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
+		gfx_frame_submit(&renderer->pFrame);
+
 	// Clear all frames, will block until rendering is done.
 	for (size_t f = 0; f < renderer->frames.size; ++f)
 		_gfx_frame_clear(renderer, gfx_deque_at(&renderer->frames, f));
@@ -121,27 +130,42 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
+GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
+	assert(renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
 	// Pop a frame from the frames deque, this is effectively the oldest frame,
 	// i.e. the one that was submitted the first of all existing frames.
 	// Note: we actually pop it, so we are allowed to call _gfx_sync_frames,
 	// which is super necessary and useful!
-	GFXFrame frame = *(GFXFrame*)gfx_deque_at(&renderer->frames, 0);
+	renderer->pFrame = *(GFXFrame*)gfx_deque_at(&renderer->frames, 0);
 	gfx_deque_pop_front(&renderer->frames, 1);
 
-	// Use it to submit :)
-	int success = _gfx_frame_submit(renderer, &frame);
+	// TODO: Do acquisition of the frame here, i.e. introduce _gfx_frame_acquire.
+
+	return &renderer->pFrame;
+}
+
+/****************************/
+GFX_API void gfx_frame_submit(GFXFrame* frame)
+{
+	assert(frame != NULL);
+
+	// *frame must be rend->pFrame!
+	GFXRenderer* renderer = _GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
+
+	// Submit the frame :)
+	_gfx_frame_submit(renderer, frame);
 
 	// And then stick it in the deque at the other end.
-	if (!gfx_deque_push(&renderer->frames, 1, &frame))
+	if (!gfx_deque_push(&renderer->frames, 1, frame))
 	{
 		// Uuuuuh...
-		gfx_log_fatal("Virtual render frame lost during submission...");
-		_gfx_frame_clear(renderer, &frame);
+		gfx_log_fatal("Virtual frame lost during submission...");
+		_gfx_frame_clear(renderer, frame);
 	}
 
-	return success;
+	// Make public frame absent again.
+	renderer->pFrame.vk.done = VK_NULL_HANDLE;
 }

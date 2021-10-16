@@ -23,7 +23,7 @@ TEST_DESCRIBE(fps, _t)
 	// Setup an event loop.
 	while (!gfx_window_should_close(_t->window))
 	{
-		gfx_renderer_submit(_t->renderer);
+		gfx_frame_submit(gfx_renderer_acquire(_t->renderer));
 		gfx_poll_events();
 	}
 }

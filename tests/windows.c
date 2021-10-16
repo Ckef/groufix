@@ -43,7 +43,7 @@ TEST_DESCRIBE(windows, _t)
 		!gfx_window_should_close(_t->window) &&
 		!gfx_window_should_close(window2))
 	{
-		gfx_renderer_submit(_t->renderer);
+		gfx_frame_submit(gfx_renderer_acquire(_t->renderer));
 		gfx_wait_events();
 	}
 

@@ -18,7 +18,7 @@ TEST_DESCRIBE(minimal, _t)
 	// We wait instead of poll, only update when an event was detected.
 	while (!gfx_window_should_close(_t->window))
 	{
-		gfx_renderer_submit(_t->renderer);
+		gfx_frame_submit(gfx_renderer_acquire(_t->renderer));
 		gfx_wait_events();
 	}
 }

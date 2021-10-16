@@ -94,7 +94,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 
 /**
  * Destroys a renderer.
- * This will block until rendering is done!
+ * This will forcefully submit and block until rendering is done!
  */
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
@@ -191,12 +191,21 @@ GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
                                          size_t target);
 
 /**
- * TODO: Totally under construction.
- * Submits all passes of the renderer to the GPU.
+ * Acquires the next virtual frame of a renderer.
+ * Cannot be called again until a call to gfx_frame_submit has been made.
  * @param renderer Cannot be NULL.
- * @return Non-zero if the frame is submitted.
  */
-GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
+GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
+
+/**
+ * Submits the acquired virtual frame of a renderer.
+ * Must be called exactly once for each call to gfx_renderer_acquire.
+ * @param frame Cannot be NULL.
+ *
+ * Failure during submission cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 
 /****************************
