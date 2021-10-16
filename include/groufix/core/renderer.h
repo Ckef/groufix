@@ -191,9 +191,10 @@ GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
                                          size_t target);
 
 /**
- * Acquires the next virtual frame of a renderer.
+ * Acquires the next virtual frame of a renderer, blocks until available!
  * Cannot be called again until a call to gfx_frame_submit has been made.
  * @param renderer Cannot be NULL.
+ * @return Always returns a valid frame.
  */
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 

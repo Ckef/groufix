@@ -142,7 +142,8 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	renderer->pFrame = *(GFXFrame*)gfx_deque_at(&renderer->frames, 0);
 	gfx_deque_pop_front(&renderer->frames, 1);
 
-	// TODO: Do acquisition of the frame here, i.e. introduce _gfx_frame_acquire.
+	// Acquire the frame :)
+	_gfx_frame_acquire(renderer, &renderer->pFrame);
 
 	return &renderer->pFrame;
 }
@@ -152,7 +153,7 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 {
 	assert(frame != NULL);
 
-	// *frame must be rend->pFrame!
+	// frame == &renderer->pFrame.
 	GFXRenderer* renderer = _GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
 
 	// Submit the frame :)

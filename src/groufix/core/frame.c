@@ -206,7 +206,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 }
 
 /****************************/
-int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
+int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 {
 	assert(frame != NULL);
 	assert(renderer != NULL);
@@ -285,7 +285,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 			goto error;
 	}
 
-	// Ok so before actually submitting stuff we need everything to be built.
+	// Ok so before actually recording stuff we need everything to be built.
 	// These functions will not do anything if not necessary.
 	// The render graph may be rebuilt entirely, in which case it will call
 	// _gfx_sync_frames for us :)
@@ -296,14 +296,26 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		goto error;
 	}
 
-	// TODO: Kinda need a return here for processing input?
-	// At this point we synced until _this_ frame is done (and if we're
-	// unlucky until all frames are done when shit is rebuilt).
-	// That's probably a point in time where we want to take the input and
-	// move shit around in the world. Then immediately after we can record
-	// the command buffers and submit?
+	return 1;
 
-	// Ok now go and record all passes in submission order.
+
+	// Error on failure.
+error:
+	gfx_log_fatal("Acquisition of virtual render frame failed.");
+
+	return 0;
+}
+
+/****************************/
+int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
+{
+	assert(frame != NULL);
+	assert(renderer != NULL);
+
+	_GFXContext* context = renderer->context;
+	GFXVec* attachs = &renderer->backing.attachs;
+
+	// Go and record all passes in submission order.
 	// We wrap a loop over all passes inbetween a begin and end command.
 	// The begin command will reset the command buffer as well :)
 	VkCommandBufferBeginInfo cbbi = {
@@ -332,17 +344,18 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// attached to a renderer as synchronized as possible.
 	// We use a scope here so the goto's above are allowed.
 	{
-		// TODO: If not splitting up this function, this can be done earlier.
-		// TODO: What if no sync objects?
-		VkSemaphore available[numSyncs];
-		VkPipelineStageFlags waitStages[numSyncs];
-		_GFXWindow* windows[numSyncs];
-		uint32_t indices[numSyncs];
-		_GFXRecreateFlags flags[numSyncs];
-
+		// If there are no sync objects, make VLAs of size 1 for legality.
+		// Then we count the presentable swapchains and go off of that.
+		size_t vlaSyncs = frame->syncs.size > 0 ? frame->syncs.size : 1;
 		size_t presentable = 0;
 
-		for (size_t s = 0; s < numSyncs; ++s)
+		VkSemaphore available[vlaSyncs];
+		VkPipelineStageFlags waitStages[vlaSyncs];
+		_GFXWindow* windows[vlaSyncs];
+		uint32_t indices[vlaSyncs];
+		_GFXRecreateFlags flags[vlaSyncs];
+
+		for (size_t s = 0; s < frame->syncs.size; ++s)
 		{
 			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
 			if (sync->image == UINT32_MAX)
@@ -395,7 +408,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		// associated window attachments. We add the results of all
 		// presentation operations to them so the next frame that submits
 		// it will rebuild them before acquisition.
-		for (size_t s = 0, p = 0; s < numSyncs; ++s)
+		for (size_t s = 0, p = 0; s < frame->syncs.size; ++s)
 		{
 			_GFXFrameSync* sync =
 				gfx_vec_at(&frame->syncs, s);

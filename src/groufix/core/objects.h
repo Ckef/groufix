@@ -529,14 +529,26 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame);
 void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
- * Records & submits a virtual frame.
+ * Acquires all relevant resources for a virtual frame to be recorded.
+ * Cannot be called again until a call to _gfx_frame_submit has been made.
  * This will block until pending submissions of the frame are done rendering,
  * where possible it will reuse its resources afterwards.
  * @param renderer Cannot be NULL.
- * @param frame    Cannot be NULL, may not be in renderer->frames!.
+ * @param frame    Cannot be NULL, may not be in renderer->frames!
  * @return Zero if the frame (or renderer) could not be built.
  *
  * This may call _gfx_sync_frames internally on-swapchain recreate.
+ * Failure is considered fatal, swapchains could be left in an incomplete state.
+ */
+int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
+
+/**
+ * Records & submits a virtual frame.
+ * Must be called exactly once for each call to _gfx_frame_acquire.
+ * @param renderer Cannot be NULL.
+ * @param frame    Cannot be NULL.
+ * @return Zero if the frame could not be submitted.
+ *
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
 int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);
@@ -563,7 +575,7 @@ void _gfx_render_backing_init(GFXRenderer* renderer);
  * Clears the render backing of a renderer, destroying all images.
  * @param renderer Cannot be NULL.
  *
- * If window attachments exist, will block until rendering is done!
+ * This will call _gfx_sync_frames internally when window attachments exist!
  */
 void _gfx_render_backing_clear(GFXRenderer* renderer);
 
@@ -602,7 +614,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @param Non-zero if the entire graph is in a built state.
  *
- * If the graph got invalidated, this will block until rendering is done!
+ * This will call _gfx_sync_frames internally when the graph got invalidated!
  */
 int _gfx_render_graph_build(GFXRenderer* renderer);
 
