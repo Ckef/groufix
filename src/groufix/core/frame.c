@@ -37,7 +37,7 @@ static int _gfx_frame_rebuild(GFXRenderer* renderer, _GFXFrameSync* sync,
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
  */
-static void _gfx_free_syncs(GFXRenderer* renderer, _GFXFrame* frame, size_t num)
+static void _gfx_free_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
 {
 	assert(renderer != NULL);
 	assert(frame != NULL);
@@ -65,7 +65,7 @@ static void _gfx_free_syncs(GFXRenderer* renderer, _GFXFrame* frame, size_t num)
  * @param frame    Cannot be NULL.
  * @return Non-zero on success.
  */
-static int _gfx_alloc_syncs(GFXRenderer* renderer, _GFXFrame* frame, size_t num)
+static int _gfx_alloc_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
 {
 	assert(renderer != NULL);
 	assert(frame != NULL);
@@ -109,7 +109,7 @@ clean:
 }
 
 /****************************/
-int _gfx_frame_init(GFXRenderer* renderer, _GFXFrame* frame)
+int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
 {
 	assert(renderer != NULL);
 	assert(frame != NULL);
@@ -181,7 +181,7 @@ clean:
 }
 
 /****************************/
-void _gfx_frame_clear(GFXRenderer* renderer, _GFXFrame* frame)
+void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 {
 	assert(renderer != NULL);
 	assert(frame != NULL);
@@ -206,7 +206,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, _GFXFrame* frame)
 }
 
 /****************************/
-int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
+int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 {
 	assert(frame != NULL);
 	assert(renderer != NULL);
@@ -303,7 +303,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 	// move shit around in the world. Then immediately after we can record
 	// the command buffers and submit?
 
-	// Ok now go and record all render passes in submission order.
+	// Ok now go and record all passes in submission order.
 	// We wrap a loop over all passes inbetween a begin and end command.
 	// The begin command will reset the command buffer as well :)
 	VkCommandBufferBeginInfo cbbi = {
@@ -319,8 +319,8 @@ int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame)
 		goto error);
 
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
-		_gfx_render_pass_record(
-			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, p),
+		_gfx_pass_record(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p),
 			frame);
 
 	_GFX_VK_CHECK(
@@ -431,7 +431,7 @@ int _gfx_sync_frames(GFXRenderer* renderer)
 	// Get all the 'done rendering' fences of all virtual frames.
 	VkFence fences[renderer->frames.size];
 	for (size_t f = 0; f < renderer->frames.size; ++f)
-		fences[f] = ((_GFXFrame*)gfx_deque_at(&renderer->frames, f))->vk.done;
+		fences[f] = ((GFXFrame*)gfx_deque_at(&renderer->frames, f))->vk.done;
 
 	// Wait for all of them.
 	_GFX_VK_CHECK(

@@ -26,16 +26,16 @@ TEST_DESCRIBE(windows, _t)
 	if (!gfx_renderer_attach_window(_t->renderer, 1, window2))
 		TEST_FAIL();
 
-	// And create a render pass writing to it.
-	GFXRenderPass* pass = gfx_renderer_add(_t->renderer, 0, NULL);
+	// And create a pass writing to it.
+	GFXPass* pass = gfx_renderer_add(_t->renderer, 0, NULL);
 	if (pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_render_pass_write(pass, 1))
+	if (!gfx_pass_write(pass, 1))
 		TEST_FAIL();
 
 	// Make it render the thing.
-	gfx_render_pass_use(pass, _t->primitive, _t->group);
+	gfx_pass_use(pass, _t->primitive, _t->group);
 
 	// Setup an event loop.
 	// We wait instead of poll, only update when an event was detected.

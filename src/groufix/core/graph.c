@@ -15,8 +15,8 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	gfx_vec_init(&renderer->graph.targets, sizeof(GFXRenderPass*));
-	gfx_vec_init(&renderer->graph.passes, sizeof(GFXRenderPass*));
+	gfx_vec_init(&renderer->graph.targets, sizeof(GFXPass*));
+	gfx_vec_init(&renderer->graph.passes, sizeof(GFXPass*));
 
 	// No graph is a valid graph.
 	renderer->graph.built = 1;
@@ -34,8 +34,8 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 	// submission order, which is always honored.
 	// So we manually destroy 'em all in reverse order :)
 	for (size_t i = renderer->graph.passes.size; i > 0; --i)
-		_gfx_destroy_render_pass(
-			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i-1));
+		_gfx_destroy_pass(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i-1));
 
 	gfx_vec_clear(&renderer->graph.passes);
 	gfx_vec_clear(&renderer->graph.targets);
@@ -60,23 +60,23 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 		_gfx_sync_frames(renderer);
 
 		for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-			_gfx_render_pass_destruct(
-				*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i));
+			_gfx_pass_destruct(
+				*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
 	}
 
 	// TODO: Here we analyze the graph for e.g. pass merging.
-	// That or do it within _gfx_render_pass_build?
+	// That or do it within _gfx_pass_build?
 
 	// Ok so we either need to finish the build or the entire thing got
 	// invalidated and we destructed all the things.
 	// So now make sure all the passes in the graph are built.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
-		GFXRenderPass* pass =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i);
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 
 		// We cannot continue, the pass itself should log errors.
-		if (!_gfx_render_pass_build(pass, 0))
+		if (!_gfx_pass_build(pass, 0))
 		{
 			gfx_log_error("Renderer's graph build incomplete.");
 			return 0;
@@ -101,8 +101,8 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 	// attachment index, if so, rebuild those passes.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
-		GFXRenderPass* pass =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i);
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 
 		// TODO: Also check if it's using it as an image attachment.
 		// Check if it's writing to it as a window back-buffer.
@@ -110,7 +110,7 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 		{
 			// If we fail, just ignore and signal we're not built.
 			// Will be tried again in _gfx_render_graph_build.
-			if (!_gfx_render_pass_build(pass, flags))
+			if (!_gfx_pass_build(pass, flags))
 			{
 				gfx_log_warn("Renderer's graph rebuild failed.");
 				renderer->graph.built = 0;
@@ -128,14 +128,14 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index)
 	// attachment index, if so, destruct the pass.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
-		GFXRenderPass* pass =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, i);
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 
 		// TODO: Also check if it's using it as an image attachment.
 		// Check if it's writing to it as a window back-buffer.
 		if (pass->build.backing == index)
 		{
-			_gfx_render_pass_destruct(pass);
+			_gfx_pass_destruct(pass);
 			renderer->graph.built = 0;
 		}
 	}
@@ -152,15 +152,15 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
-                                        size_t numDeps, GFXRenderPass** deps)
+GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
+                                  size_t numDeps, GFXPass** deps)
 {
 	assert(renderer != NULL);
 	assert(numDeps == 0 || deps != NULL);
 
 	// Create a new pass.
-	GFXRenderPass* pass =
-		_gfx_create_render_pass(renderer, numDeps, deps);
+	GFXPass* pass =
+		_gfx_create_pass(renderer, numDeps, deps);
 
 	if (pass == NULL)
 		goto error;
@@ -169,7 +169,7 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 	if (!gfx_vec_push(&renderer->graph.targets, 1, &pass))
 		goto clean;
 
-	// Find the right place to insert the new render pass at,
+	// Find the right place to insert the new pass at,
 	// we pre-sort on level, this essentially makes it such that
 	// every pass is submitted as early as possible.
 	// Note that within a level, the adding order is preserved.
@@ -178,7 +178,7 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 	for (loc = renderer->graph.passes.size; loc > 0; --loc)
 	{
 		unsigned int level =
-			(*(GFXRenderPass**)gfx_vec_at(&renderer->graph.passes, loc-1))->level;
+			(*(GFXPass**)gfx_vec_at(&renderer->graph.passes, loc-1))->level;
 
 		if (level <= pass->level)
 			break;
@@ -195,8 +195,8 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 	// Skip the last element, as we just added that.
 	for (size_t t = renderer->graph.targets.size-1; t > 0; --t)
 	{
-		GFXRenderPass* target =
-			*(GFXRenderPass**)gfx_vec_at(&renderer->graph.targets, t-1);
+		GFXPass* target =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.targets, t-1);
 
 		size_t d;
 		for (d = 0; d < numDeps; ++d)
@@ -206,7 +206,7 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 			gfx_vec_erase(&renderer->graph.targets, 1, t-1);
 	}
 
-	// We added a render pass, clearly we need to rebuild.
+	// We added a pass, clearly we need to rebuild.
 	// Plus we need to re-analyze because we may have new dependencies.
 	renderer->graph.built = 0;
 	renderer->graph.valid = 0;
@@ -216,9 +216,9 @@ GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
 
 	// Clean on failure.
 clean:
-	_gfx_destroy_render_pass(pass);
+	_gfx_destroy_pass(pass);
 error:
-	gfx_log_error("Could not add a new render pass to a renderer's graph.");
+	gfx_log_error("Could not add a new pass to a renderer's graph.");
 
 	return NULL;
 }
@@ -232,11 +232,11 @@ GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
-                                               size_t target)
+GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
+                                         size_t target)
 {
 	assert(renderer != NULL);
 	assert(target < renderer->graph.targets.size);
 
-	return *(GFXRenderPass**)gfx_vec_at(&renderer->graph.targets, target);
+	return *(GFXPass**)gfx_vec_at(&renderer->graph.targets, target);
 }

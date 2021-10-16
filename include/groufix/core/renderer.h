@@ -69,9 +69,15 @@ typedef struct GFXRenderer GFXRenderer;
 
 
 /**
- * Render pass definition.
+ * Pass (i.e. render/compute pass) definition.
  */
-typedef struct GFXRenderPass GFXRenderPass;
+typedef struct GFXPass GFXPass;
+
+
+/**
+ * Virtual frame definition.
+ */
+typedef struct GFXFrame GFXFrame;
 
 
 /****************************
@@ -149,7 +155,7 @@ GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
                                            size_t index);
 
 /**
- * Adds a new (target) render pass to the renderer given a set of dependencies.
+ * Adds a new (target) pass to the renderer given a set of dependencies.
  * Each element in deps must be associated with the same renderer.
  * @param renderer Cannot be NULL.
  * @param numDeps  Number of dependencies, 0 for none.
@@ -158,31 +164,31 @@ GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
  *
  * The renderer shares resources with all passes, it cannot concurrently
  * operate with any pass and passes cannot concurrently operate among themselves.
- * A render pass cannot be removed, nor can its dependencies be changed
- * once it has been added to a renderer.
+ * A pass cannot be removed, nor can its dependencies be changed once it has
+ * been added to a renderer.
  */
-GFX_API GFXRenderPass* gfx_renderer_add(GFXRenderer* renderer,
-                                        size_t numDeps, GFXRenderPass** deps);
+GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
+                                  size_t numDeps, GFXPass** deps);
 
 /**
- * Retrieves the number of target render passes of a renderer.
+ * Retrieves the number of target passes of a renderer.
  * A target pass is one that no other pass depends on (last in the path).
  * @param renderer Cannot be NULL.
  *
- * This number may change when a new render pass is added.
+ * This number may change when a new pass is added.
  */
 GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer);
 
 /**
- * Retrieves a target render pass of a renderer.
- * @param renderer Cannot be NULL.
+ * Retrieves a target pass of a renderer.
+ * @param renderer Can not be NULL.
  * @param target   Target index, must be < gfx_renderer_get_num(renderer).
  *
- * The index of each target may change when a new render pass is added,
+ * The index of each target may change when a new pass is added,
  * however their order remains fixed during the lifetime of the renderer.
  */
-GFX_API GFXRenderPass* gfx_renderer_get_target(GFXRenderer* renderer,
-                                               size_t target);
+GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
+                                         size_t target);
 
 /**
  * TODO: Totally under construction.
@@ -194,49 +200,48 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer);
 
 
 /****************************
- * Render pass handling.
+ * Pass handling.
  ****************************/
 
 /**
- * Set render pass to read from an attachment of the renderer.
+ * Set pass to read from an attachment of the renderer.
  * @param pass Cannot be NULL.
  * @return Zero on failure.
  */
-GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index);
+GFX_API int gfx_pass_read(GFXPass* pass, size_t index);
 
 /**
  * TODO: shader location == in add-order?
- * Set render pass to write to an attachment of the renderer.
- * @see gfx_render_pass_read.
+ * Set pass to write to an attachment of the renderer.
+ * @see gfx_pass_read.
  */
-GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index);
+GFX_API int gfx_pass_write(GFXPass* pass, size_t index);
 
 /**
  * Release any set reference to an attachment of the renderer.
- * @see gfx_render_pass_read.
+ * @see gfx_pass_read.
  */
-GFX_API void gfx_render_pass_release(GFXRenderPass* pass, size_t index);
+GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
 
 /**
- * Retrieves the number of passes a single render pass depends on.
+ * Retrieves the number of passes a single pass depends on.
  * @param pass Cannot be NULL.
  */
-GFX_API size_t gfx_render_pass_get_num_deps(GFXRenderPass* pass);
+GFX_API size_t gfx_pass_get_num_deps(GFXPass* pass);
 
 /**
- * Retrieves a dependency of a render pass.
+ * Retrieves a dependency of a pass.
  * @param pass Cannot be NULL.
- * @param dep  Dependency index, must be < gfx_render_pass_get_num(pass).
+ * @param dep  Dependency index, must be < gfx_pass_get_num(pass).
  */
-GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep);
+GFX_API GFXPass* gfx_pass_get_dep(GFXPass* pass, size_t dep);
 
 /**
  * TODO: Totally temporary!
- * Makes the render pass render the given things.
+ * Makes the pass render the given things.
  */
-GFX_API void gfx_render_pass_use(GFXRenderPass* pass,
-                                 GFXPrimitive* primitive,
-                                 GFXGroup* group);
+GFX_API void gfx_pass_use(GFXPass* pass,
+                          GFXPrimitive* primitive, GFXGroup* group);
 
 
 #endif

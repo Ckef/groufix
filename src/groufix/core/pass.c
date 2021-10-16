@@ -17,8 +17,8 @@
  * @param pass  Cannot be NULL.
  * @param flags What resources should be destroyed (0 to do nothing).
  */
-static void _gfx_render_pass_destruct_partial(GFXRenderPass* pass,
-                                              _GFXRecreateFlags flags)
+static void _gfx_pass_destruct_partial(GFXPass* pass,
+                                       _GFXRecreateFlags flags)
 {
 	assert(pass != NULL);
 
@@ -67,7 +67,7 @@ static void _gfx_render_pass_destruct_partial(GFXRenderPass* pass,
  * @param pass Cannot be NULL.
  * @return The picked backing, SIZE_MAX if none found.
  */
-static size_t _gfx_render_pass_pick_backing(GFXRenderPass* pass)
+static size_t _gfx_pass_pick_backing(GFXPass* pass)
 {
 	assert(pass != NULL);
 
@@ -96,7 +96,7 @@ static size_t _gfx_render_pass_pick_backing(GFXRenderPass* pass)
 		{
 			// If so, well we cannot, throw a warning.
 			gfx_log_warn(
-				"A single render pass can only write to a single "
+				"A single pass can only write to a single "
 				"window attachment at a time.");
 
 			break;
@@ -110,7 +110,7 @@ static size_t _gfx_render_pass_pick_backing(GFXRenderPass* pass)
  * Builds all missing resources of the Vulkan object structure.
  * @return Non-zero on success.
  */
-static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
+static int _gfx_pass_build_objects(GFXPass* pass)
 {
 	assert(pass != NULL);
 	assert(pass->build.primitive != NULL); // TODO: Obviously temporary.
@@ -515,14 +515,14 @@ static int _gfx_render_pass_build_objects(GFXRenderPass* pass)
 
 	// Error on failure.
 error:
-	gfx_log_error("Could not allocate all resources of a render pass.");
+	gfx_log_error("Could not allocate all resources of a pass.");
 
 	return 0;
 }
 
 /****************************/
-GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
-                                       size_t numDeps, GFXRenderPass** deps)
+GFXPass* _gfx_create_pass(GFXRenderer* renderer,
+                          size_t numDeps, GFXPass** deps)
 {
 	assert(renderer != NULL);
 	assert(numDeps == 0 || deps != NULL);
@@ -532,16 +532,16 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 		if (deps[d]->renderer != renderer)
 		{
 			gfx_log_warn(
-				"Render pass cannot depend on a pass associated "
+				"Pass cannot depend on a pass associated "
 				"with a different renderer.");
 
 			return NULL;
 		}
 
-	// Allocate a new render pass.
-	GFXRenderPass* pass = malloc(
-		sizeof(GFXRenderPass) +
-		sizeof(GFXRenderPass*) * numDeps);
+	// Allocate a new pass.
+	GFXPass* pass = malloc(
+		sizeof(GFXPass) +
+		sizeof(GFXPass*) * numDeps);
 
 	if (pass == NULL)
 		return NULL;
@@ -552,7 +552,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 	pass->numDeps = numDeps;
 
 	if (numDeps) memcpy(
-		pass->deps, deps, sizeof(GFXRenderPass*) * numDeps);
+		pass->deps, deps, sizeof(GFXPass*) * numDeps);
 
 	// The level is the highest level of all dependencies + 1.
 	for (size_t d = 0; d < numDeps; ++d)
@@ -614,7 +614,7 @@ GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
 }
 
 /****************************/
-void _gfx_destroy_render_pass(GFXRenderPass* pass)
+void _gfx_destroy_pass(GFXPass* pass)
 {
 	assert(pass != NULL);
 
@@ -625,7 +625,7 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 
 
 	// Destroy Vulkan object structure.
-	_gfx_render_pass_destruct(pass);
+	_gfx_pass_destruct(pass);
 
 	// Clear all pre-building information.
 	gfx_vec_clear(&pass->reads);
@@ -635,20 +635,19 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass)
 }
 
 /****************************/
-int _gfx_render_pass_build(GFXRenderPass* pass,
-                           _GFXRecreateFlags flags)
+int _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 {
 	assert(pass != NULL);
 
 	// First we destroy the things we want to recreate.
-	_gfx_render_pass_destruct_partial(pass, flags);
+	_gfx_pass_destruct_partial(pass, flags);
 
 	// Pick a backing window if we did not yet.
 	if (pass->build.backing == SIZE_MAX)
-		pass->build.backing = _gfx_render_pass_pick_backing(pass);
+		pass->build.backing = _gfx_pass_pick_backing(pass);
 
 	// Aaaand then build the entire Vulkan object structure.
-	if (!_gfx_render_pass_build_objects(pass))
+	if (!_gfx_pass_build_objects(pass))
 		goto clean;
 
 	return 1;
@@ -656,14 +655,14 @@ int _gfx_render_pass_build(GFXRenderPass* pass,
 
 	// Clean on failure.
 clean:
-	gfx_log_error("Could not (re)build a render pass.");
-	_gfx_render_pass_destruct(pass);
+	gfx_log_error("Could not (re)build a pass.");
+	_gfx_pass_destruct(pass);
 
 	return 0;
 }
 
 /****************************/
-void _gfx_render_pass_destruct(GFXRenderPass* pass)
+void _gfx_pass_destruct(GFXPass* pass)
 {
 	assert(pass != NULL);
 
@@ -673,7 +672,7 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 	pass->build.backing = SIZE_MAX;
 
 	// Destruct all partial things first.
-	_gfx_render_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
+	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
 
 	// Destroy all non-partial things too.
 	context->vk.DestroyDescriptorSetLayout(
@@ -695,7 +694,7 @@ void _gfx_render_pass_destruct(GFXRenderPass* pass)
 }
 
 /****************************/
-GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index)
+GFX_API int gfx_pass_read(GFXPass* pass, size_t index)
 {
 	assert(pass != NULL);
 
@@ -715,7 +714,7 @@ GFX_API int gfx_render_pass_read(GFXRenderPass* pass, size_t index)
 }
 
 /****************************/
-GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index)
+GFX_API int gfx_pass_write(GFXPass* pass, size_t index)
 {
 	assert(pass != NULL);
 
@@ -734,7 +733,7 @@ GFX_API int gfx_render_pass_write(GFXRenderPass* pass, size_t index)
 }
 
 /****************************/
-GFX_API void gfx_render_pass_release(GFXRenderPass* pass, size_t index)
+GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 {
 	assert(pass != NULL);
 
@@ -752,7 +751,7 @@ GFX_API void gfx_render_pass_release(GFXRenderPass* pass, size_t index)
 }
 
 /****************************/
-GFX_API size_t gfx_render_pass_get_num_deps(GFXRenderPass* pass)
+GFX_API size_t gfx_pass_get_num_deps(GFXPass* pass)
 {
 	assert(pass != NULL);
 
@@ -760,7 +759,7 @@ GFX_API size_t gfx_render_pass_get_num_deps(GFXRenderPass* pass)
 }
 
 /****************************/
-GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep)
+GFX_API GFXPass* gfx_pass_get_dep(GFXPass* pass, size_t dep)
 {
 	assert(pass != NULL);
 	assert(dep < pass->numDeps);
@@ -769,9 +768,8 @@ GFX_API GFXRenderPass* gfx_render_pass_get_dep(GFXRenderPass* pass, size_t dep)
 }
 
 /****************************/
-GFX_API void gfx_render_pass_use(GFXRenderPass* pass,
-                                 GFXPrimitive* primitive,
-                                 GFXGroup* group)
+GFX_API void gfx_pass_use(GFXPass* pass,
+                          GFXPrimitive* primitive, GFXGroup* group)
 {
 	assert(pass != NULL);
 	assert(primitive != NULL);

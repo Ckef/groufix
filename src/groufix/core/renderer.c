@@ -60,7 +60,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	// And lastly initialize the virtual frames.
 	// We really do this last so the frames have access to all other things.
 	// Reserve the exact amount as this will never change.
-	gfx_deque_init(&rend->frames, sizeof(_GFXFrame));
+	gfx_deque_init(&rend->frames, sizeof(GFXFrame));
 
 	if (!gfx_deque_reserve(&rend->frames, frames))
 		goto clean_frames;
@@ -129,7 +129,7 @@ GFX_API int gfx_renderer_submit(GFXRenderer* renderer)
 	// i.e. the one that was submitted the first of all existing frames.
 	// Note: we actually pop it, so we are allowed to call _gfx_sync_frames,
 	// which is super necessary and useful!
-	_GFXFrame frame = *(_GFXFrame*)gfx_deque_at(&renderer->frames, 0);
+	GFXFrame frame = *(GFXFrame*)gfx_deque_at(&renderer->frames, 0);
 	gfx_deque_pop_front(&renderer->frames, 1);
 
 	// Use it to submit :)

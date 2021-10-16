@@ -11,7 +11,7 @@
 
 
 /****************************/
-void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame)
+void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 {
 	assert(pass != NULL);
 	assert(frame != NULL);

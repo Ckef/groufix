@@ -364,16 +364,16 @@ static void _test_init(void)
 	memcpy(ptrUbo, uboData, sizeof(uboData));
 	gfx_unmap(ubo);
 
-	// Add a single render pass that writes to the window.
-	GFXRenderPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);
+	// Add a single pass that writes to the window.
+	GFXPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);
 	if (pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_render_pass_write(pass, 0))
+	if (!gfx_pass_write(pass, 0))
 		TEST_FAIL();
 
 	// Make it render the thing.
-	gfx_render_pass_use(pass, _test_base.primitive, _test_base.group);
+	gfx_pass_use(pass, _test_base.primitive, _test_base.group);
 #endif
 }
 

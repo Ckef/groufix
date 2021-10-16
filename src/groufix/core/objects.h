@@ -305,7 +305,7 @@ typedef struct _GFXAttach
 
 
 /**
- * Virtual frame synchronization object.
+ * Frame synchronization (swapchain acquisition) object.
  */
 typedef struct _GFXFrameSync
 {
@@ -324,27 +324,6 @@ typedef struct _GFXFrameSync
 } _GFXFrameSync;
 
 
-/**
- * Internal virtual frame.
- */
-typedef struct _GFXFrame
-{
-	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
-	GFXVec syncs; // Stores _GFXFrameSync.
-
-
-	// Vulkan fields.
-	struct
-	{
-		VkCommandBuffer cmd;
-		VkSemaphore     rendered;
-		VkFence         done; // For resource access.
-
-	} vk;
-
-} _GFXFrame;
-
-
 /****************************
  * User visible renderer objects.
  ****************************/
@@ -360,7 +339,7 @@ struct GFXRenderer
 	_GFXQueue    present;
 
 	// Render frame (i.e. collection of virtual frames).
-	GFXDeque     frames; // Stores _GFXFrame.
+	GFXDeque     frames; // Stores GFXFrame.
 
 
 	// Render backing (i.e. attachments).
@@ -377,8 +356,8 @@ struct GFXRenderer
 	// Render graph (directed acyclic graph of passes).
 	struct
 	{
-		GFXVec targets; // Stores GFXRenderPass* (target passes, tree roots).
-		GFXVec passes;  // Stores GFXRenderPass* (in submission order).
+		GFXVec targets; // Stores GFXPass* (target passes, tree roots).
+		GFXVec passes;  // Stores GFXPass* (in submission order).
 
 		int built;
 		int valid;
@@ -396,9 +375,9 @@ struct GFXRenderer
 
 
 /**
- * Internal render pass.
+ * Internal pass (i.e. render/compute pass).
  */
-struct GFXRenderPass
+struct GFXPass
 {
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
@@ -437,8 +416,29 @@ struct GFXRenderPass
 
 
 	// Dependency passes.
-	size_t         numDeps;
-	GFXRenderPass* deps[];
+	size_t   numDeps;
+	GFXPass* deps[];
+};
+
+
+/**
+ * Internal virtual frame.
+ */
+struct GFXFrame
+{
+	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
+	GFXVec syncs; // Stores _GFXFrameSync.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkCommandBuffer cmd;
+		VkSemaphore     rendered;
+		VkFence         done; // For resource access.
+
+	} vk;
+
 };
 
 
@@ -517,7 +517,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
  * @param frame    Cannot be NULL.
  * @return Zero on failure.
  */
-int _gfx_frame_init(GFXRenderer* renderer, _GFXFrame* frame);
+int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Clears a virtual frame of a renderer.
@@ -526,7 +526,7 @@ int _gfx_frame_init(GFXRenderer* renderer, _GFXFrame* frame);
  *
  * This will block until the frame is done rendering!
  */
-void _gfx_frame_clear(GFXRenderer* renderer, _GFXFrame* frame);
+void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Records & submits a virtual frame.
@@ -539,7 +539,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, _GFXFrame* frame);
  * This may call _gfx_sync_frames internally on-swapchain recreate.
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
-int _gfx_frame_submit(GFXRenderer* renderer, _GFXFrame* frame);
+int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Blocks until all virtual frames of a renderer are done.
@@ -607,7 +607,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
 int _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
- * (Re)builds render pass resources dependent on the given attachment index.
+ * (Re)builds render graph resources dependent on the given attachment index.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    Must contain the _GFX_RECREATE bit.
@@ -620,7 +620,7 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
  * @param renderer Cannot be NULL.
  *
  * Must be called before detaching the attachment at index!
- * It will in turn call the relevant _gfx_render_pass_destruct calls.
+ * It will in turn call the relevant _gfx_pass_destruct calls.
  */
 void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index);
 
@@ -633,26 +633,26 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
 
 
 /****************************
- * Render pass (nodes in the render graph).
+ * Pass (nodes in the render graph).
  ****************************/
 
 /**
- * Creates a render pass, referencing all dependencies.
+ * Creates a pass, referencing all dependencies.
  * Each element in deps must be associated with the same renderer.
  * @param renderer Cannot be NULL.
  * @param numDeps  Number of dependencies, 0 for none.
  * @param deps     Passes it depends on, cannot be NULL if numDeps > 0.
  * @return NULL on failure.
  */
-GFXRenderPass* _gfx_create_render_pass(GFXRenderer* renderer,
-                                       size_t numDeps, GFXRenderPass** deps);
+GFXPass* _gfx_create_pass(GFXRenderer* renderer,
+                          size_t numDeps, GFXPass** deps);
 
 /**
- * Destroys a render pass, unreferencing all dependencies.
+ * Destroys a pass, unreferencing all dependencies.
  * Undefined behaviour if destroying a pass that is referenced by another.
  * @param pass Cannot be NULL.
  */
-void _gfx_destroy_render_pass(GFXRenderPass* pass);
+void _gfx_destroy_pass(GFXPass* pass);
 
 /**
  * TODO: Currently it builds a lot, this will be offloaded to different objects.
@@ -662,8 +662,15 @@ void _gfx_destroy_render_pass(GFXRenderPass* pass);
  * @param flags What resources should be recreated (0 to recreate nothing).
  * @return Non-zero if valid and built.
  */
-int _gfx_render_pass_build(GFXRenderPass* pass,
-                           _GFXRecreateFlags flags);
+int _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
+
+/**
+ * Destructs the Vulkan object structure, non-recursively.
+ * @param pass Cannot be NULL.
+ *
+ * Must be called before detaching any attachment it uses!
+ */
+void _gfx_pass_destruct(GFXPass* pass);
 
 /**
  * Records the pass into the command buffers of a frame.
@@ -673,15 +680,7 @@ int _gfx_render_pass_build(GFXRenderPass* pass,
  *
  * No-op if the pass is not built.
  */
-void _gfx_render_pass_record(GFXRenderPass* pass, _GFXFrame* frame);
-
-/**
- * Destructs the Vulkan object structure, non-recursively.
- * @param pass Cannot be NULL.
- *
- * Must be called before detaching any attachment it uses!
- */
-void _gfx_render_pass_destruct(GFXRenderPass* pass);
+void _gfx_pass_record(GFXPass* pass, GFXFrame* frame);
 
 
 #endif
