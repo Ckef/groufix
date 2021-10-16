@@ -53,7 +53,7 @@ Usage
 
 Once _groufix_ is built, it can be used in your code with `#include <groufix.h>`. All core functionality will be available through this file. The engine must be initialized with a call to `gfx_init`. The thread that initializes the engine is considered the _main thread_. Any other function of _groufix_ cannot be called before `gfx_init` has returned succesfully, the only exceptions being `gfx_terminate`, `gfx_attach`, `gfx_detach` and the `gfx_log_*` function family. When the engine will not be used anymore, it must be terminated by the main thread with a call to `gfx_terminate`. Once the engine is terminated, it behaves exactly the same as before initialization.
 
-* _groufix will not implicitly free resources_. This means that any object you create or initialize should be destroyed or cleared by you as well. In practice this means any call to a `gfx_create_*` function should be followed up by a call to the associated `gfx_destroy_*` function and every call to a `gfx_*_init` function should be followed up by a call to the associated `gfx_*_clear` function. Any `gfx_destroy_*` function can take `NULL` as argument and the call becomes a no-op.
+* _groufix will not implicitly free resources_. This means that any object you create or initialize should be destroyed or cleared by you as well. In practice this means any call to a `gfx_create_*` or `gfx_*_init` function should be followed up by a call to the associated `gfx_destroy_*` and `gfx_*_clear` functions. Any `gfx_destroy_*` or `gfx_free_*` function can take `NULL` as argument and the call becomes a no-op.
 
 All names starting with `gfx` or `GFX` are reserved by _groufix_, using any such name in conjunction with the engine might result in redefinitions.
 
