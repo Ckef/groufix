@@ -45,6 +45,7 @@
 /****************************
  * Performs the actual internal memory allocation.
  * Extracts Vulkan memory flags (and implicitly memory type) from public flags.
+ * @param dreqs Can be NULL to disallow a dedicated allocation.
  */
 static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
                                  int linear, GFXMemoryFlags flags,
@@ -80,7 +81,7 @@ static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// Check if the Vulkan implementation wants a dedicated allocation.
 	// Note that we do not check `dreqs->requiresDedicatedAllocation`, this
 	// is only relevant for external memory, which we do not use.
-	if (dreqs->prefersDedicatedAllocation)
+	if (dreqs != NULL && dreqs->prefersDedicatedAllocation)
 		return _gfx_allocd(alloc, mem, required, optimal, *reqs, buffer, image);
 	else
 		return _gfx_alloc(alloc, mem, linear, required, optimal, *reqs);
@@ -324,6 +325,126 @@ static void _gfx_image_free(_GFXImage* image)
 
 	// Free the memory.
 	_gfx_free(&heap->allocator, &image->alloc);
+}
+
+/****************************
+ * TODO: Make it malloc a new _GFXStaging object so we can link it in?
+ * Populates the `vk.buffer`, `vk.ptr` and `alloc` fields of a _GFXStaging
+ * object, potentially allocating a new Vulkan buffer in the process.
+ * @param staging Cannot be NULL.
+ * @param regions The buffer part of the regions are read.
+ * @return Zero on failure.
+ */
+static int _gfx_staging_alloc(_GFXStaging* staging, const _GFXUnpackRef* unp,
+                              VkBufferUsageFlags usage,
+                              size_t numRegions, const GFXRegion* regions)
+{
+	assert(staging != NULL);
+	assert(unp != NULL);
+	assert(numRegions > 0);
+	assert(regions != NULL);
+
+	_GFXContext* context = unp->allocator->context;
+	staging->vk.buffer = VK_NULL_HANDLE; // Init to none.
+
+	// If it is a host visible buffer, map it.
+	// Otherwise, create a staging buffer that fits all regions.
+	void* ptr = NULL;
+
+	if ((unp->flags & GFX_MEMORY_HOST_VISIBLE) && unp->obj.buffer != NULL)
+		ptr = _gfx_map(unp->allocator, &unp->obj.buffer->alloc),
+		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp->value);
+	else
+	{
+		// TODO: Compute size from regions.
+
+		// Create a new Vulkan buffer.
+		VkBufferCreateInfo bci = {
+			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+
+			.pNext                 = NULL,
+			.flags                 = 0,
+			.size                  = 0, // TODO: To fill.
+			.usage                 = usage,
+			.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+			.queueFamilyIndexCount = 0,
+			.pQueueFamilyIndices   = NULL
+		};
+
+		_GFX_VK_CHECK(context->vk.CreateBuffer(
+			context->vk.device, &bci, NULL, &staging->vk.buffer), return 0);
+
+		// Get memory requirements & do actual allocation.
+		// We only set GFX_MEMORY_HOST_VISIBLE, we never want device locality.
+		// Nor do we allow dedicated allocations to optimize memory use.
+		VkMemoryRequirements mr;
+		context->vk.GetBufferMemoryRequirements(
+			context->vk.device, staging->vk.buffer, &mr);
+
+		if (!_gfx_alloc_mem(
+			unp->allocator, &staging->alloc, 1, GFX_MEMORY_HOST_VISIBLE,
+			&mr, NULL, VK_NULL_HANDLE, VK_NULL_HANDLE))
+		{
+			goto clean;
+		}
+
+		// Bind the buffer to the memory.
+		_GFX_VK_CHECK(
+			context->vk.BindBufferMemory(
+				context->vk.device,
+				staging->vk.buffer,
+				staging->alloc.vk.memory, staging->alloc.offset),
+			goto clean_alloc);
+
+		// Map the buffer.
+		if ((ptr = _gfx_map(unp->allocator, &staging->alloc)) == NULL)
+			goto clean_alloc;
+	}
+
+	// Set resulting mapped pointer.
+	staging->vk.ptr = ptr;
+
+	return (ptr != NULL);
+
+
+	// Clean on failure.
+clean_alloc:
+	_gfx_free(unp->allocator, &staging->alloc);
+clean:
+	context->vk.DestroyBuffer(
+		context->vk.device, staging->vk.buffer, NULL);
+
+	return 0;
+}
+
+/****************************
+ * Frees all resources created by _gfx_staging_alloc.
+ * @param staging Cannot be NULL.
+ * @param unp     Must be the reference staging was created with.
+ */
+static void _gfx_staging_free(_GFXStaging* staging, const _GFXUnpackRef* unp)
+{
+	assert(staging != NULL);
+	assert(unp != NULL);
+
+	_GFXContext* context = unp->allocator->context;
+
+	// Firstly unmap, if no new buffer was allocated we assume unp->obj.buffer
+	// to exist, which is true by definition as only buffers get mapped (!).
+	_gfx_unmap(unp->allocator,
+		(staging->vk.buffer == VK_NULL_HANDLE) ?
+		&unp->obj.buffer->alloc : &staging->alloc);
+
+	// Now, if something was allocated, destroy it.
+	if (staging->vk.buffer != VK_NULL_HANDLE)
+	{
+		// Destroy Vulkan buffer.
+		context->vk.DestroyBuffer(
+			context->vk.device, staging->vk.buffer, NULL);
+
+		// Free the memory.
+		_gfx_free(unp->allocator, &staging->alloc);
+	}
 }
 
 /****************************/

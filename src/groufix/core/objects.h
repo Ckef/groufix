@@ -126,7 +126,7 @@ typedef struct _GFXStaging
 	// Vulkan fields.
 	struct
 	{
-		VkBuffer buffer;
+		VkBuffer buffer; // VK_NULL_HANDLE if an existing buffer is mapped.
 		void*    ptr;
 
 	} vk;
@@ -477,6 +477,7 @@ typedef struct _GFXUnpackRef
 
 /**
  * Empty unpacked reference macro (i.e. 0'd out).
+ * If any field of an unpacked ref is set, all others must be valid.
  */
 #define _GFX_UNPACK_REF_EMPTY \
 	(_GFXUnpackRef){ \
