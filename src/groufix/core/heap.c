@@ -327,44 +327,34 @@ static void _gfx_image_free(_GFXImage* image)
 	_gfx_free(&heap->allocator, &image->alloc);
 }
 
-/****************************
- * TODO: Make it malloc a new _GFXStaging object so we can link it in?
- * Populates the `vk.buffer`, `vk.ptr` and `alloc` fields of a _GFXStaging
- * object, potentially allocating a new Vulkan buffer in the process.
- * @param staging Cannot be NULL.
- * @param regions The buffer part of the regions are read.
- * @return Zero on failure.
- */
-static int _gfx_staging_alloc(_GFXStaging* staging, const _GFXUnpackRef* unp,
-                              VkBufferUsageFlags usage,
-                              size_t numRegions, const GFXRegion* regions)
+/****************************/
+int _gfx_staging_alloc(const _GFXUnpackRef* ref, _GFXStaging* staging,
+                       VkBufferUsageFlags usage, uint64_t size)
 {
+	assert(ref != NULL);
 	assert(staging != NULL);
-	assert(unp != NULL);
-	assert(numRegions > 0);
-	assert(regions != NULL);
+	assert(size > 0);
 
-	_GFXContext* context = unp->allocator->context;
+	_GFXContext* context = ref->allocator->context;
 	staging->vk.buffer = VK_NULL_HANDLE; // Init to none.
 
 	// If it is a host visible buffer, map it.
-	// Otherwise, create a staging buffer that fits all regions.
+	// We cannot map images because we do not allocate linear images (!)
+	// Otherwise, create a staging buffer of the given size.
 	void* ptr = NULL;
 
-	if ((unp->flags & GFX_MEMORY_HOST_VISIBLE) && unp->obj.buffer != NULL)
-		ptr = _gfx_map(unp->allocator, &unp->obj.buffer->alloc),
-		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp->value);
+	if ((ref->flags & GFX_MEMORY_HOST_VISIBLE) && ref->obj.buffer != NULL)
+		ptr = _gfx_map(ref->allocator, &ref->obj.buffer->alloc),
+		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + ref->value);
 	else
 	{
-		// TODO: Compute size from regions.
-
 		// Create a new Vulkan buffer.
 		VkBufferCreateInfo bci = {
 			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 
 			.pNext                 = NULL,
 			.flags                 = 0,
-			.size                  = 0, // TODO: To fill.
+			.size                  = size,
 			.usage                 = usage,
 			.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
 			.queueFamilyIndexCount = 0,
@@ -382,7 +372,7 @@ static int _gfx_staging_alloc(_GFXStaging* staging, const _GFXUnpackRef* unp,
 			context->vk.device, staging->vk.buffer, &mr);
 
 		if (!_gfx_alloc_mem(
-			unp->allocator, &staging->alloc, 1, GFX_MEMORY_HOST_VISIBLE,
+			ref->allocator, &staging->alloc, 1, GFX_MEMORY_HOST_VISIBLE,
 			&mr, NULL, VK_NULL_HANDLE, VK_NULL_HANDLE))
 		{
 			goto clean;
@@ -397,7 +387,7 @@ static int _gfx_staging_alloc(_GFXStaging* staging, const _GFXUnpackRef* unp,
 			goto clean_alloc);
 
 		// Map the buffer.
-		if ((ptr = _gfx_map(unp->allocator, &staging->alloc)) == NULL)
+		if ((ptr = _gfx_map(ref->allocator, &staging->alloc)) == NULL)
 			goto clean_alloc;
 	}
 
@@ -409,7 +399,7 @@ static int _gfx_staging_alloc(_GFXStaging* staging, const _GFXUnpackRef* unp,
 
 	// Clean on failure.
 clean_alloc:
-	_gfx_free(unp->allocator, &staging->alloc);
+	_gfx_free(ref->allocator, &staging->alloc);
 clean:
 	context->vk.DestroyBuffer(
 		context->vk.device, staging->vk.buffer, NULL);
@@ -417,23 +407,19 @@ clean:
 	return 0;
 }
 
-/****************************
- * Frees all resources created by _gfx_staging_alloc.
- * @param staging Cannot be NULL.
- * @param unp     Must be the reference staging was created with.
- */
-static void _gfx_staging_free(_GFXStaging* staging, const _GFXUnpackRef* unp)
+/****************************/
+void _gfx_staging_free(const _GFXUnpackRef* ref, _GFXStaging* staging)
 {
+	assert(ref != NULL);
 	assert(staging != NULL);
-	assert(unp != NULL);
 
-	_GFXContext* context = unp->allocator->context;
+	_GFXContext* context = ref->allocator->context;
 
-	// Firstly unmap, if no new buffer was allocated we assume unp->obj.buffer
+	// Firstly unmap, if no new buffer was allocated we assume ref->obj.buffer
 	// to exist, which is true by definition as only buffers get mapped (!).
-	_gfx_unmap(unp->allocator,
+	_gfx_unmap(ref->allocator,
 		(staging->vk.buffer == VK_NULL_HANDLE) ?
-		&unp->obj.buffer->alloc : &staging->alloc);
+		&ref->obj.buffer->alloc : &staging->alloc);
 
 	// Now, if something was allocated, destroy it.
 	if (staging->vk.buffer != VK_NULL_HANDLE)
@@ -443,7 +429,7 @@ static void _gfx_staging_free(_GFXStaging* staging, const _GFXUnpackRef* unp)
 			context->vk.device, staging->vk.buffer, NULL);
 
 		// Free the memory.
-		_gfx_free(unp->allocator, &staging->alloc);
+		_gfx_free(ref->allocator, &staging->alloc);
 	}
 }
 
@@ -1082,181 +1068,4 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 	}
 
 	return bind;
-}
-
-/****************************/
-GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions)
-{
-	assert(!GFX_REF_IS_NULL(src));
-	assert(dst != NULL);
-	assert(numRegions > 0);
-	assert(srcRegions != NULL);
-	assert(dstRegions != NULL);
-
-	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(src);
-
-	// Validate reference type.
-	if (src.type == GFX_REF_ATTACHMENT)
-	{
-		gfx_log_error("An attachment reference cannot be read from.");
-		return 0;
-	}
-
-	// Validate memory flags.
-	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) & unp.flags))
-	{
-		gfx_log_error(
-			"Cannot read from a memory resource that was not"
-			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_READ.");
-
-		return 0;
-	}
-
-	// TODO: Continue implementing...
-
-	return 1;
-}
-
-/****************************/
-GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
-                      const GFXRegion* srcRegions, const GFXRegion* dstRegions)
-{
-	assert(src != NULL);
-	assert(!GFX_REF_IS_NULL(dst));
-	assert(numRegions > 0);
-	assert(srcRegions != NULL);
-	assert(dstRegions != NULL);
-
-	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
-
-	// Validate reference type.
-	if (dst.type == GFX_REF_ATTACHMENT)
-	{
-		gfx_log_error("An attachment reference cannot be written to.");
-		return 0;
-	}
-
-	// Validate memory flags.
-	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
-	{
-		gfx_log_error(
-			"Cannot write to a memory resource that was not"
-			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_WRITE.");
-
-		return 0;
-	}
-
-	// TODO: Continue implementing...
-	// TODO: For now, just do concurrent sharing and do transfers on the
-	// dedicated transfer queue.
-	// TODO: In the future we use the graphics queue by default and introduce
-	// GFXTransferFlags with GFX_TRANSFER_FAST to use the transfer queue,
-	// plus a sync target GFX_SYNC_TARGET_FAST_TRANFER or some such so the
-	// blocking queue can release ownership and the fast transfer can
-	// acquire onwership.
-	// A fast transfer can wait so the blocking queue can release, or the
-	// previous operation was also a fast transfer (or nothing) so we don't
-	// need to do the ownership dance.
-	// A fast transfer must signal, so we can deduce if we need to release
-	// ownership, so the sync target can acquire it again. This means a fast
-	// transfer can't do only host-blocking...
-	//
-	// Then the staging buffer is either purged later on or it is kept
-	// dangling for the next frame. This is the case for all staging buffers,
-	// except when GFX_TRANSFER_BLOCK is given, in which case the host blocks
-	// and we can cleanup. GFX_TRANSFER_KEEP can be given in combination with
-	// GFX_TRANSFER_BLOCK to keep it dangling anyway.
-	//
-	// TODO: Need to figure out the heap-purging mechanism,
-	// do we purge everything at once? Nah, partial purges?
-
-	return 1;
-}
-
-/****************************/
-GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions)
-{
-	assert(!GFX_REF_IS_NULL(src));
-	assert(!GFX_REF_IS_NULL(dst));
-	assert(numRegions > 0);
-	assert(srcRegions != NULL);
-	assert(dstRegions != NULL);
-
-	// Unpack references.
-	_GFXUnpackRef srcUnp = _gfx_ref_unpack(src);
-	_GFXUnpackRef dstUnp = _gfx_ref_unpack(dst);
-
-	// Check that the resources share the same context.
-	if (
-		!srcUnp.allocator || !dstUnp.allocator ||
-		srcUnp.allocator->context != dstUnp.allocator->context)
-	{
-		gfx_log_error(
-			"When copying from one memory resource to another they must be "
-			"built on the same logical Vulkan device.");
-
-		return 0;
-	}
-
-	// Validate memory flags.
-	if (!(GFX_MEMORY_READ & srcUnp.flags) || !(GFX_MEMORY_WRITE & dstUnp.flags))
-	{
-		gfx_log_error(
-			"Cannot copy from one memory resource to another if they were "
-			"not created with GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
-
-		return 0;
-	}
-
-	// TODO: Continue implementing...
-
-	return 1;
-}
-
-/****************************/
-GFX_API void* gfx_map(GFXBufferRef ref)
-{
-	assert(GFX_REF_IS_BUFFER(ref));
-
-	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
-
-	// Validate host visibility.
-	if (!(GFX_MEMORY_HOST_VISIBLE & unp.flags))
-	{
-		gfx_log_error(
-			"Cannot map a memory resource that was not "
-			"created with GFX_MEMORY_HOST_VISIBLE.");
-
-		return NULL;
-	}
-
-	// Map the buffer.
-	void* ptr = NULL;
-
-	if (unp.obj.buffer != NULL)
-		ptr = _gfx_map(unp.allocator, &unp.obj.buffer->alloc),
-		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp.value);
-
-	return ptr;
-}
-
-/****************************/
-GFX_API void gfx_unmap(GFXBufferRef ref)
-{
-	assert(GFX_REF_IS_BUFFER(ref));
-
-	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
-
-	// Unmap the buffer.
-	// This function is required to be called _exactly_ once (and no more)
-	// for every gfx_map, given this is the exact same assumption as
-	// _gfx_unmap makes, this should all work out...
-	if (unp.obj.buffer != NULL)
-		_gfx_unmap(unp.allocator, &unp.obj.buffer->alloc);
 }

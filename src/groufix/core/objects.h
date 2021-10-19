@@ -104,8 +104,8 @@ struct GFXHeap
 {
 	_GFXDevice*   device;    // For format operations.
 	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
-	_GFXQueue     transfer;
 	_GFXMutex     lock;
+	_GFXQueue     transfer;
 
 	GFXList buffers;    // References _GFXBuffer.
 	GFXList images;     // References _GFXImage.
@@ -506,6 +506,27 @@ GFXReference _gfx_ref_resolve(GFXReference ref);
  * If in debug mode & out of bounds, it silently warns.
  */
 _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
+
+/**
+ * Stages a memory resource reference, i.e. populates the
+ * `vk.buffer`, `vk.ptr` and `alloc` fields of a _GFXStaging object.
+ * @param ref     Unpacked reference to stage, MUST be valid non-empty!.
+ * @param staging Cannot be NULL.
+ * @param size    Must be > 0.
+ * @return Zero on failure.
+ *
+ * It may only map the reference and not allocate a new Vulkan buffer,
+ * in this case, `vk.buffer` is assigned VK_NULL_HANDLE.
+ */
+int _gfx_staging_alloc(const _GFXUnpackRef* ref, _GFXStaging* staging,
+                       VkBufferUsageFlags usage, uint64_t size);
+
+/**
+ * Frees all resources created by _gfx_staging_alloc.
+ * @param ref     Must reference the same resource staging was created for.
+ * @param staging Cannot be NULL.
+ */
+void _gfx_staging_free(const _GFXUnpackRef* ref, _GFXStaging* staging);
 
 
 /****************************
