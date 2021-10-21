@@ -23,13 +23,6 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(src);
 
-	// Validate reference type.
-	if (src.type == GFX_REF_ATTACHMENT)
-	{
-		gfx_log_error("An attachment reference cannot be read from.");
-		return 0;
-	}
-
 	// Validate memory flags.
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) & unp.flags))
 	{
@@ -58,13 +51,6 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
 
-	// Validate reference type.
-	if (dst.type == GFX_REF_ATTACHMENT)
-	{
-		gfx_log_error("An attachment reference cannot be written to.");
-		return 0;
-	}
-
 	// Validate memory flags.
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
 	{
@@ -75,7 +61,42 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 		return 0;
 	}
 
+	// We either map or stage, staging may remain NULL.
+	void* ptr = NULL;
+	_GFXStaging* staging = NULL;
+
+	// If it is a host visible buffer, map it.
+	// We cannot map images because we do not allocate linear images (!)
+	// Otherwise, create a staging buffer of an appropriate size.
+	if ((unp.flags & GFX_MEMORY_HOST_VISIBLE) && unp.obj.buffer != NULL)
+	{
+		if ((ptr = _gfx_map(unp.allocator, &unp.obj.buffer->alloc)) == NULL)
+			goto error;
+
+		ptr = (void*)((char*)ptr + unp.value);
+	}
+	else
+	{
+		uint64_t size = 0;
+		staging = _gfx_create_staging(
+			&unp, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size);
+
+		if (staging == NULL)
+			goto error;
+
+		ptr = staging->vk.ptr;
+	}
+
 	// TODO: Continue implementing...
+
+	// Now cleanup staging resources.
+	// If we mapped a buffer, unmap it again.
+	// Otherwise, destroy the staging buffer.
+	if (staging == NULL)
+		_gfx_unmap(unp.allocator, &unp.obj.buffer->alloc);
+	else
+		_gfx_destroy_staging(staging, &unp);
+
 	// TODO: For now, just do concurrent sharing and do transfers on the
 	// dedicated transfer queue.
 	// TODO: In the future we use the graphics queue by default and introduce
@@ -89,6 +110,9 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	// A fast transfer must signal, so we can deduce if we need to release
 	// ownership, so the sync target can acquire it again. This means a fast
 	// transfer can't do only host-blocking...
+	//
+	// Note: this means all objects that allocate things we can reference
+	// need to have both the graphics and transfer queue!
 	//
 	// Then the staging buffer is either purged later on or it is kept
 	// dangling for the next frame. This is the case for all staging buffers,
@@ -104,6 +128,13 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	// do we purge everything at once? Nah, partial purges?
 
 	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Write operation failed.");
+
+	return 0;
 }
 
 /****************************/

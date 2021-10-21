@@ -105,6 +105,7 @@ struct GFXHeap
 	_GFXDevice*   device;    // For format operations.
 	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
 	_GFXMutex     lock;
+	_GFXQueue     graphics;
 	_GFXQueue     transfer;
 
 	GFXList buffers;    // References _GFXBuffer.
@@ -357,6 +358,7 @@ struct GFXRenderer
 	_GFXContext* context;
 	_GFXQueue    graphics;
 	_GFXQueue    present;
+	_GFXQueue    transfer;
 
 	// Render frame (i.e. collection of virtual frames).
 	GFXDeque frames; // Stores GFXFrame.
@@ -509,7 +511,8 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 
 /**
  * Creates a staging buffer for a memory resource references.
- * @param ref Unpacked reference to stage, must be valid and non-empty.
+ * @param ref  Unpacked reference to stage, must be valid and non-empty.
+ * @param size Must be > 0.
  * @return NULL on failure.
  *
  * Will fail if the reference cannot hold staging buffers,
