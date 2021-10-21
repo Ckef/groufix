@@ -10,6 +10,43 @@
 #include <assert.h>
 
 
+/****************************
+ * Internal region 'modification' definition.
+ */
+typedef struct _GFXRegionMod
+{
+	uint64_t offset; // Boundary to move back, UINT64_MAX if none.
+	uint64_t diff;   // Bytes to be moved back.
+
+} _GFXRegionMod
+
+
+/****************************
+ * Computes a list of region modifications that compact the regions
+ * associated with the host pointer, solely for staging buffer allocation.
+ * @param ref        Associated unpacked reference, must be valid and non-empty.
+ * @param numRegions Must be > 0.
+ * @param ptrRegions Cannot be NULL, regions to modify.
+ * @param refRegions Cannot be NULL, regions associated with ref.
+ * @param mods       numRegion output modifications.
+ * @return Resulting size of the staging buffer necessary.
+ */
+static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
+                                   const GFXRegion* ptrRegions,
+                                   const GFXRegion* refRegions,
+                                   _GFXRegionMod* mods)
+{
+	assert(ref != NULL);
+	assert(numRegions > 0);
+	assert(ptrRegions != NULL);
+	assert(refRegions != NULL);
+	assert(mods != NULL);
+
+	// TODO: Implement. First calc disjoint regions, go from there.
+
+	return 0;
+}
+
 /****************************/
 GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
                      const GFXRegion* srcRegions, const GFXRegion* dstRegions)
@@ -62,11 +99,10 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	}
 
 	// We either map or stage, staging may remain NULL.
-	// We keep track of an array of offsets to add to the srcRegions,
-	// this defines a transform to the staging buffer for compactness.
+	// We keep track of region modifications to compact the staging buffer.
 	void* ptr = NULL;
 	_GFXStaging* staging = NULL;
-	uint64_t offsets[numRegions];
+	_GFXRegionMod mods[numRegions];
 
 	// If it is a host visible buffer, map it.
 	// We cannot map images because we do not allocate linear images (!)
@@ -80,8 +116,8 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	}
 	else
 	{
-		// TODO: Calculate 'compact' size for the staging buffer.
-		uint64_t size = 0;
+		uint64_t size = _gfx_stage_compact(
+			&unp, numRegions, srcRegions, dstRegions, mods);
 		staging = _gfx_create_staging(
 			&unp, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size);
 

@@ -195,8 +195,7 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 
 
 /**
- * Compute the texel block size in bits (i.e. total depth).
- * For compressed formats a 'block' contains multiple texels.
+ * Block size in bits (i.e. total depth) & block width/height in texels.
  * Computes the largest size if fmt is a 'fuzzy' set.
  */
 #define GFX_FORMAT_BLOCK_DEPTH(fmt) \
@@ -216,6 +215,18 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 		(int)128 : \
 	((int)(fmt).comps[0] + (int)(fmt).comps[1] + \
 	(int)(fmt).comps[2] + (int)(fmt).comps[3]))
+
+#define GFX_FORMAT_BLOCK_WIDTH(fmt) \
+	((fmt).order == GFX_ORDER_BCn ? 4 : \
+	(fmt).order == GFX_ORDER_ETC2 ? 4 : \
+	(fmt).order == GFX_ORDER_EAC ? 4 : \
+	(fmt).order == GFX_ORDER_ASTC ? (fmt).comps[0] : 1)
+
+#define GFX_FORMAT_BLOCK_HEIGHT(fmt) \
+	((fmt).order == GFX_ORDER_BCn ? 4 : \
+	(fmt).order == GFX_ORDER_ETC2 ? 4 : \
+	(fmt).order == GFX_ORDER_EAC ? 4 : \
+	(fmt).order == GFX_ORDER_ASTC ? (fmt).comps[1] : 1)
 
 
 /**
