@@ -18,7 +18,7 @@ typedef struct _GFXRegionMod
 	uint64_t offset; // Boundary to move back, UINT64_MAX if none.
 	uint64_t diff;   // Bytes to be moved back.
 
-} _GFXRegionMod
+} _GFXRegionMod;
 
 
 /****************************
@@ -43,6 +43,12 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 	assert(mods != NULL);
 
 	// TODO: Implement. First calc disjoint regions, go from there.
+
+	uint64_t offsets[numRegions];
+	uint64_t sizes[numRegions];
+
+	for (size_t r = 0; r < numRegions; ++r)
+		offsets[r] = UINT64_MAX;
 
 	return 0;
 }

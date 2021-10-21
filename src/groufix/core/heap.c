@@ -818,9 +818,9 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 		goto clean;
 	}
 
-	prim->base.usageVertex = unpVer.obj.buffer ?
+	prim->base.usageVertex = (unpVer.obj.buffer != NULL) ?
 		unpVer.obj.buffer->base.usage : prim->buffer.base.usage;
-	prim->base.usageIndex = unpInd.obj.buffer ?
+	prim->base.usageIndex = (unpInd.obj.buffer != NULL) ?
 		unpInd.obj.buffer->base.usage :
 		(numIndices > 0 ? prim->buffer.base.usage : 0);
 
@@ -862,9 +862,9 @@ GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
 	_gfx_mutex_unlock(&heap->lock);
 
 	// Trickle down memory flags to user-land.
-	prim->base.flagsVertex = unpVer.obj.buffer ?
+	prim->base.flagsVertex = (unpVer.obj.buffer != NULL) ?
 		unpVer.obj.buffer->base.flags : prim->buffer.base.flags;
-	prim->base.flagsIndex = unpInd.obj.buffer ?
+	prim->base.flagsIndex = (unpInd.obj.buffer != NULL) ?
 		unpInd.obj.buffer->base.flags :
 		(numIndices > 0 ? prim->buffer.base.flags : 0);
 
