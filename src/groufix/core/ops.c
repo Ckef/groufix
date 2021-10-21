@@ -62,8 +62,11 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	}
 
 	// We either map or stage, staging may remain NULL.
+	// We keep track of an array of offsets to add to the srcRegions,
+	// this defines a transform to the staging buffer for compactness.
 	void* ptr = NULL;
 	_GFXStaging* staging = NULL;
+	uint64_t offsets[numRegions];
 
 	// If it is a host visible buffer, map it.
 	// We cannot map images because we do not allocate linear images (!)
@@ -77,6 +80,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	}
 	else
 	{
+		// TODO: Calculate 'compact' size for the staging buffer.
 		uint64_t size = 0;
 		staging = _gfx_create_staging(
 			&unp, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size);

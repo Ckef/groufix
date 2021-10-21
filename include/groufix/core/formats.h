@@ -195,6 +195,30 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 
 
 /**
+ * Compute the texel block size in bits (i.e. total depth).
+ * For compressed formats a 'block' contains multiple texels.
+ * Computes the largest size if fmt is a 'fuzzy' set.
+ */
+#define GFX_FORMAT_BLOCK_DEPTH(fmt) \
+	((fmt).order == GFX_ORDER_BCn ? \
+		((fmt).comps[0] == 1 ? (int)64 : \
+		(fmt).comps[0] == 2 ? (int)128 : \
+		(fmt).comps[0] == 3 ? (int)128 : \
+		(fmt).comps[0] == 4 ? (int)64 : \
+		(fmt).comps[0] == 5 ? (int)128 : \
+		(fmt).comps[0] == 6 ? (int)128 : \
+		(fmt).comps[0] == 7 ? (int)128 : (int)0) : \
+	(fmt).order == GFX_ORDER_ETC2 ? \
+		(int)64 : \
+	(fmt).order == GFX_ORDER_EAC ? \
+		((fmt).comps[1] == 0 ? (int)64 : (int)128) : \
+	(fmt).order == GFX_ORDER_ASTC ? \
+		(int)128 : \
+	((int)(fmt).comps[0] + (int)(fmt).comps[1] + \
+	(int)(fmt).comps[2] + (int)(fmt).comps[3]))
+
+
+/**
  * Format macros, i.e. constant GFXFormat definitions.
  * Mirrors all Vulkan formats (the subset that groufix supports).
  * Note: some parts of the Vulkan identifiers are omitted.
