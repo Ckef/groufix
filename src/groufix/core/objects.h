@@ -126,7 +126,7 @@ typedef struct _GFXStaging
 	// Vulkan fields.
 	struct
 	{
-		VkBuffer buffer; // VK_NULL_HANDLE if an existing buffer is mapped.
+		VkBuffer buffer;
 		void*    ptr;
 
 	} vk;
@@ -508,25 +508,23 @@ GFXReference _gfx_ref_resolve(GFXReference ref);
 _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 
 /**
- * Stages a memory resource reference, i.e. populates the
- * `vk.buffer`, `vk.ptr` and `alloc` fields of a _GFXStaging object.
- * @param ref     Unpacked reference to stage, MUST be valid non-empty!.
- * @param staging Cannot be NULL.
- * @param size    Must be > 0.
- * @return Zero on failure.
+ * Creates a staging buffer for a memory resource references.
+ * @param ref Unpacked reference to stage, must be valid and non-empty.
+ * @return NULL on failure.
  *
- * It may only map the reference and not allocate a new Vulkan buffer,
- * in this case, `vk.buffer` is assigned VK_NULL_HANDLE.
+ * Will fail if the reference cannot hold staging buffers,
+ * meaning we can only stage resources created through a heap.
  */
-int _gfx_staging_alloc(const _GFXUnpackRef* ref, _GFXStaging* staging,
-                       VkBufferUsageFlags usage, uint64_t size);
+_GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
+                                 VkBufferUsageFlags usage, uint64_t size);
 
 /**
- * Frees all resources created by _gfx_staging_alloc.
- * @param ref     Must reference the same resource staging was created for.
+ * Destroys a staging buffer, freeing all related resources.
  * @param staging Cannot be NULL.
+ * @param ref     Must reference the same resource staging was created for.
  */
-void _gfx_staging_free(const _GFXUnpackRef* ref, _GFXStaging* staging);
+void _gfx_destroy_staging(_GFXStaging* staging,
+                          const _GFXUnpackRef* ref);
 
 
 /****************************

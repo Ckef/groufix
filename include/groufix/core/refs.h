@@ -107,7 +107,7 @@ typedef GFXReference GFXImageRef;
 #define gfx_ref_image(image) \
 	(GFXImageRef){ \
 		.type = GFX_REF_IMAGE, \
-		.obj = image \
+		.obj = image, \
 		.offset = 0, \
 		.values = { 0, 0 } \
 	}
