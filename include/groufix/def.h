@@ -70,16 +70,16 @@
  * General usefulness.
  */
 #define GFX_MIN(x, y) \
-	((x < y) ? x : y)
+	((x) < (y) ? (x) : (y))
 
 #define GFX_MAX(x, y) \
-	((x > y) ? x : y)
+	((x) > (y) ? (x) : (y))
 
 #define GFX_DIFF(x, y) \
-	((x > y) ? x - y : y - x)
+	((x) > (y) ? (x) - (y) : (y) - (x))
 
 #define GFX_CLAMP(x, l, u) \
-	((x < l) ? l : (x > u) ? u : x)
+	((x) < (l) ? (l) : (x) > (u) ? (u) : (x))
 
 
 #endif

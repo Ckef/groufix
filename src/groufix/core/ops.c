@@ -9,15 +9,16 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <limits.h>
+#include <string.h>
 
 
 /****************************
- * Internal stage region (modified region) definition.
+ * Internal stage region (modified host region) definition.
  */
 typedef struct _GFXStageRegion
 {
-	uint64_t offset; // Modified offset.
-	uint64_t size;   // In bytes.
+	uint64_t offset; // Relative to the staging buffer (NOT host pointer).
+	uint64_t size;
 
 } _GFXStageRegion;
 
@@ -85,14 +86,67 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 			uint32_t y = (refRegions[r].height + blockHeight - 1) / blockHeight - 1;
 			uint32_t z = refRegions[r].depth - 1;
 
-			uint64_t last = ((z * (uint64_t)numRows) + y) * (uint64_t)rowSize + x;
+			uint64_t last = (z * (uint64_t)numRows + y) * (uint64_t)rowSize + x;
 			stage[r].size = (last + 1) * blockSize;
 		}
 	}
 
-	// TODO: Implement. First calc disjoint regions, go from there.
+	// Ok now sort them on offset real quick.
+	// Just use insertion sort, number of regions shouldn't be large.
+	// Besides the below compacting algorithm is O(n^2) anyway.
+	_GFXStageRegion sort[numRegions];
+	memcpy(sort, stage, sizeof(sort));
 
-	return 0;
+	for (size_t i = 1; i < numRegions; ++i)
+	{
+		_GFXStageRegion t = sort[i];
+		size_t j = i;
+
+		while (j > 0 && sort[j-1].offset > t.offset)
+			sort[j] = sort[j-1], --j;
+
+		sort[j] = t;
+	}
+
+	// Now we can loop over all regions in 'in-buffer'-order.
+	// We want to get the disjoint regions of memory that get copied,
+	// and move them closer together to compact the actually allocated memory.
+	// Instead of explicitly calculating the disjoint regions,
+	// for each output stage region, loop over all sorted regions and
+	// accumulate the negative displacement to apply to the stage region.
+	for (size_t r = 0; r < numRegions; ++r)
+	{
+		uint64_t displace = sort[0].offset; // Always subtract base offset.
+		_GFXStageRegion t = sort[0];        // Current disjoint region.
+
+		for (size_t s = 1; s < numRegions; ++s)
+		{
+			// First, if we already passed the output stage region,
+			// we do not need to displace it anymore.
+			if (sort[s].offset > stage[r].offset)
+				break;
+
+			// New disjoint set?
+			if (sort[s].offset > t.offset + t.size)
+				// Yes? Apply offset & start new disjoint set.
+				displace += sort[s].offset - (t.offset + t.size),
+				t = sort[s];
+			else
+				// No? Just expand the current disjoint set.
+				t.size = GFX_MAX(t.size,
+					(sort[s].offset - t.offset) + sort[s].size);
+		}
+
+		stage[r].offset -= displace;
+	}
+
+	// Finally calculate the resulting size of the compacted staging buffer :)
+	// Note: the smallest offset of all stage regions must be 0 at this point!
+	uint64_t size = 0;
+	for (size_t r = 0; r < numRegions; ++r)
+		size = GFX_MAX(size, stage[r].offset + stage[r].size);
+
+	return size;
 }
 
 /****************************/
