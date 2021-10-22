@@ -80,12 +80,13 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 			rowSize = (rowSize + blockWidth - 1) / blockWidth;
 			numRows = (numRows + blockHeight - 1) / blockHeight;
 
-			// This might overestimate actual copied bytes...
-			stage[r].size =
-				(uint64_t)blockSize *
-				(uint64_t)rowSize *
-				(uint64_t)numRows *
-				(uint64_t)refRegions[r].depth;
+			// Compute the index of the last texel to get the copy region.
+			uint32_t x = (refRegions[r].width + blockWidth - 1) / blockWidth - 1;
+			uint32_t y = (refRegions[r].height + blockHeight - 1) / blockHeight - 1;
+			uint32_t z = refRegions[r].depth - 1;
+
+			uint64_t last = ((z * (uint64_t)numRows) + y) * (uint64_t)rowSize + x;
+			stage[r].size = (last + 1) * blockSize;
 		}
 	}
 
