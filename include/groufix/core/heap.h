@@ -381,7 +381,7 @@ typedef struct GFXRegion
 
 			// Buffer packing for image operations (0 = tightly packed).
 			uint32_t rowSize; // In texels.
-			uint32_t numRows;
+			uint32_t numRows; // In texels.
 		};
 
 		// Image layers/offset/extent.

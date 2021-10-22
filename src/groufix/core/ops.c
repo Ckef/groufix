@@ -8,47 +8,88 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <limits.h>
 
 
 /****************************
- * Internal region 'modification' definition.
+ * Internal stage region (modified region) definition.
  */
-typedef struct _GFXRegionMod
+typedef struct _GFXStageRegion
 {
-	uint64_t offset; // Boundary to move back, UINT64_MAX if none.
-	uint64_t diff;   // Bytes to be moved back.
+	uint64_t offset; // Modified offset.
+	uint64_t size;   // In bytes.
 
-} _GFXRegionMod;
+} _GFXStageRegion;
 
 
 /****************************
- * Computes a list of region modifications that compact the regions
+ * Computes a list of staging regions that compact (modify) the regions
  * associated with the host pointer, solely for staging buffer allocation.
  * @param ref        Associated unpacked reference, must be valid and non-empty.
  * @param numRegions Must be > 0.
  * @param ptrRegions Cannot be NULL, regions to modify.
  * @param refRegions Cannot be NULL, regions associated with ref.
- * @param mods       numRegion output modifications.
+ * @param stage      numRegion output regions.
  * @return Resulting size of the staging buffer necessary.
  */
 static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
                                    const GFXRegion* ptrRegions,
                                    const GFXRegion* refRegions,
-                                   _GFXRegionMod* mods)
+                                   _GFXStageRegion* stage)
 {
+	static_assert(CHAR_BIT == 8); // Has to be for for size conversion.
+
 	assert(ref != NULL);
 	assert(numRegions > 0);
 	assert(ptrRegions != NULL);
 	assert(refRegions != NULL);
-	assert(mods != NULL);
+	assert(stage != NULL);
+
+	// To calculate any region size when referencing an image,
+	// we need to get the format block size, width and height.
+	// We use GFX_FORMAT_EMPTY to indicate we're not dealing with an image.
+	GFXFormat fmt =
+		(ref->obj.image != NULL) ? ref->obj.image->base.format :
+		(ref->obj.renderer != NULL) ? ((_GFXAttach*)gfx_vec_at(
+			&ref->obj.renderer->backing.attachs, ref->value))->image.base.format :
+		GFX_FORMAT_EMPTY;
+
+	uint32_t blockSize = GFX_FORMAT_BLOCK_SIZE(fmt) / CHAR_BIT; // In bytes.
+	uint32_t blockWidth = GFX_FORMAT_BLOCK_WIDTH(fmt);          // In texels.
+	uint32_t blockHeight = GFX_FORMAT_BLOCK_HEIGHT(fmt);        // In texels.
+
+	// Now, firstly calculate the plain staging regions by mirroring
+	// the host regions, except getting the actual _true_ byte size.
+	for (size_t r = 0; r < numRegions; ++r)
+	{
+		stage[r].offset = ptrRegions[r].offset;
+
+		if (GFX_FORMAT_IS_EMPTY(fmt))
+			// If a buffer, pick the non-zero size of both regions.
+			stage[r].size = (ptrRegions[r].size == 0) ?
+				refRegions[r].size : ptrRegions[r].size;
+		else
+		{
+			// If an image, use rowSize/numRows instead of size.
+			// We perform calculation as Vulkan dictates buffer addressing.
+			// Block depth is assumed to be 1 in all cases.
+			uint32_t rowSize = ptrRegions[r].rowSize;
+			uint32_t numRows = ptrRegions[r].numRows;
+			rowSize = (rowSize == 0) ? refRegions[r].width : rowSize;
+			numRows = (numRows == 0) ? refRegions[r].height : numRows;
+			rowSize = (rowSize + blockWidth - 1) / blockWidth;
+			numRows = (numRows + blockHeight - 1) / blockHeight;
+
+			// This might overestimate actual copied bytes...
+			stage[r].size =
+				(uint64_t)blockSize *
+				(uint64_t)rowSize *
+				(uint64_t)numRows *
+				(uint64_t)refRegions[r].depth;
+		}
+	}
 
 	// TODO: Implement. First calc disjoint regions, go from there.
-
-	uint64_t offsets[numRegions];
-	uint64_t sizes[numRegions];
-
-	for (size_t r = 0; r < numRegions; ++r)
-		offsets[r] = UINT64_MAX;
 
 	return 0;
 }
@@ -105,10 +146,10 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	}
 
 	// We either map or stage, staging may remain NULL.
-	// We keep track of region modifications to compact the staging buffer.
+	// We keep track of staging regions to compact the staging buffer.
 	void* ptr = NULL;
 	_GFXStaging* staging = NULL;
-	_GFXRegionMod mods[numRegions];
+	_GFXStageRegion stage[numRegions];
 
 	// If it is a host visible buffer, map it.
 	// We cannot map images because we do not allocate linear images (!)
@@ -123,7 +164,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	else
 	{
 		uint64_t size = _gfx_stage_compact(
-			&unp, numRegions, srcRegions, dstRegions, mods);
+			&unp, numRegions, srcRegions, dstRegions, stage);
 		staging = _gfx_create_staging(
 			&unp, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size);
 
