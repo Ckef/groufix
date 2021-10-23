@@ -384,7 +384,7 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 	if (list == NULL)
 	{
 		gfx_log_error(
-			"cannot allocate a staging buffer for a memory resource that "
+			"Cannot allocate a staging buffer for a memory resource that "
 			"was not allocated from a heap.");
 
 		return NULL;

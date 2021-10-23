@@ -358,7 +358,6 @@ struct GFXRenderer
 	_GFXContext* context;
 	_GFXQueue    graphics;
 	_GFXQueue    present;
-	_GFXQueue    transfer;
 
 	// Render frame (i.e. collection of virtual frames).
 	GFXDeque frames; // Stores GFXFrame.

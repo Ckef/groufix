@@ -221,6 +221,7 @@ static int _gfx_stage_device(_GFXStaging* staging, const _GFXUnpackRef* ref,
 	//
 	// Note: this means all objects that allocate things we can reference
 	// need to have both the graphics and transfer queue!
+	// OR... disallow non-heap things to fast transfer...
 	//
 	// Then the staging buffer is either purged later on or it is kept
 	// dangling for the next frame. This is the case for all staging buffers,
