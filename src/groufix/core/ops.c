@@ -276,7 +276,68 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 		return 0;
 	}
 
-	// TODO: Continue implementing...
+	// We either map or stage, staging may remain NULL.
+	// @see gfx_write for details.
+	void* ptr = NULL;
+	_GFXStaging* staging = NULL;
+	_GFXStageRegion stage[numRegions];
+
+	// If it is a host visible buffer, map it.
+	if ((unp.flags & GFX_MEMORY_HOST_VISIBLE) && unp.obj.buffer != NULL)
+	{
+		if ((ptr = _gfx_map(unp.allocator, &unp.obj.buffer->alloc)) == NULL)
+			goto error;
+
+		ptr = (void*)((char*)ptr + unp.value);
+	}
+	else
+	{
+		// Here we still compact the regions associated with the host,
+		// even though that's not the source of the data being copied.
+		// Therefore this is not necessarily optimal packing, however the
+		// solution would require even more faffin' about with image packing,
+		// so this is good enough :)
+		uint64_t size = _gfx_stage_compact(
+			&unp, numRegions, dstRegions, srcRegions, stage);
+		staging = _gfx_create_staging(
+			&unp, VK_BUFFER_USAGE_TRANSFER_DST_BIT, size);
+
+		if (staging == NULL)
+			goto error;
+
+		ptr = staging->vk.ptr;
+	}
+
+	// Do the resource -> staging copy.
+	if (
+		staging != NULL &&
+		!_gfx_copy_device(
+			staging, NULL, &unp,
+			1, numRegions,
+			stage, NULL, srcRegions))
+	{
+		_gfx_destroy_staging(staging, &unp);
+		goto error;
+	}
+
+	// Do the staging -> host copy.
+	_gfx_copy_host(
+		dst, ptr, 1, numRegions, dstRegions,
+		(staging == NULL) ? srcRegions : NULL,
+		(staging == NULL) ? NULL : stage);
+
+	// Now cleanup staging resources.
+	if (staging == NULL)
+		_gfx_unmap(unp.allocator, &unp.obj.buffer->alloc);
+	else
+		_gfx_destroy_staging(staging, &unp);
+
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Read operation failed.");
 
 	return 0;
 }
@@ -332,13 +393,13 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 		ptr = staging->vk.ptr;
 	}
 
-	// Do the host copy.
+	// Do the host -> staging copy.
 	_gfx_copy_host(
 		(void*)src, ptr, 0, numRegions, srcRegions,
 		(staging == NULL) ? dstRegions : NULL,
 		(staging == NULL) ? NULL : stage);
 
-	// Do the device copy.
+	// Do the staging -> resource copy.
 	if (
 		staging != NULL &&
 		!_gfx_copy_device(
@@ -404,7 +465,21 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 		return 0;
 	}
 
-	// TODO: Continue implementing...
+	// Do the resource -> resource copy
+	if (!_gfx_copy_device(
+		NULL, &srcUnp, &dstUnp,
+		0, numRegions,
+		NULL, srcRegions, dstRegions))
+	{
+		goto error;
+	}
+
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Copy operation failed.");
 
 	return 0;
 }
