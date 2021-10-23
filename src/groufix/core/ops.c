@@ -189,6 +189,55 @@ static void _gfx_stage_host(void* ptr, void* ref, int rev, size_t numRegions,
 	}
 }
 
+/****************************
+ * TODO: Somehow make this call viable for a normal gfx_copy()?
+ * Stages staging data from a staging buffer to a referenced resource.
+ * @return Non-zero on success.
+ */
+static int _gfx_stage_device(_GFXStaging* staging, const _GFXUnpackRef* ref,
+                             int rev, size_t numRegions,
+                             const _GFXStageRegion* stage,
+                             const GFXRegion* refRegions)
+{
+	assert(staging != NULL);
+	assert(ref != NULL);
+	assert(numRegions > 0);
+	assert(stage != NULL);
+	assert(refRegions != NULL);
+
+	// TODO: Implement transfers on dedicated transfer queue.
+
+	// TODO: In the future we use the graphics queue by default and introduce
+	// GFXTransferFlags with GFX_TRANSFER_FAST to use the transfer queue,
+	// plus a sync target GFX_SYNC_TARGET_FAST_TRANFER or some such so the
+	// blocking queue can release ownership and the fast transfer can
+	// acquire onwership.
+	// A fast transfer can wait so the blocking queue can release, or the
+	// previous operation was also a fast transfer (or nothing) so we don't
+	// need to do the ownership dance.
+	// A fast transfer must signal, so we can deduce if we need to release
+	// ownership, so the sync target can acquire it again. This means a fast
+	// transfer can't do only host-blocking...
+	//
+	// Note: this means all objects that allocate things we can reference
+	// need to have both the graphics and transfer queue!
+	//
+	// Then the staging buffer is either purged later on or it is kept
+	// dangling for the next frame. This is the case for all staging buffers,
+	// except when GFX_TRANSFER_BLOCK is given, in which case the host blocks
+	// and we can cleanup. GFX_TRANSFER_KEEP can be given in combination with
+	// GFX_TRANSFER_BLOCK to keep it dangling anyway.
+	//
+	// The transfer queues can have granularity constraints, so we don't want
+	// to make it the default queue to do operations on, that's why.
+	// We report the constraints for a fast transfer through the GFXDevice.
+	//
+	// TODO: Need to figure out the heap-purging mechanism,
+	// do we purge everything at once? Nah, partial purges?
+
+	return 0;
+}
+
 /****************************/
 GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
                      const GFXRegion* srcRegions, const GFXRegion* dstRegions)
@@ -269,12 +318,19 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	}
 
 	// Do the host copy.
-	if (staging == NULL)
-		_gfx_stage_host((void*)src, ptr, 0, numRegions, srcRegions, dstRegions, NULL);
-	else
-		_gfx_stage_host((void*)src, ptr, 0, numRegions, srcRegions, NULL, stage);
+	_gfx_stage_host(
+		(void*)src, ptr, 0, numRegions, srcRegions,
+		(staging == NULL) ? dstRegions : NULL,
+		(staging == NULL) ? NULL : stage);
 
-	// TODO: Continue implementing...
+	// Do the device copy.
+	if (
+		staging != NULL &&
+		!_gfx_stage_device(staging, &unp, 0, numRegions, stage, dstRegions))
+	{
+		_gfx_destroy_staging(staging, &unp);
+		goto error;
+	}
 
 	// Now cleanup staging resources.
 	// If we mapped a buffer, unmap it again.
@@ -283,36 +339,6 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 		_gfx_unmap(unp.allocator, &unp.obj.buffer->alloc);
 	else
 		_gfx_destroy_staging(staging, &unp);
-
-	// TODO: For now, just do concurrent sharing and do transfers on the
-	// dedicated transfer queue.
-	// TODO: In the future we use the graphics queue by default and introduce
-	// GFXTransferFlags with GFX_TRANSFER_FAST to use the transfer queue,
-	// plus a sync target GFX_SYNC_TARGET_FAST_TRANFER or some such so the
-	// blocking queue can release ownership and the fast transfer can
-	// acquire onwership.
-	// A fast transfer can wait so the blocking queue can release, or the
-	// previous operation was also a fast transfer (or nothing) so we don't
-	// need to do the ownership dance.
-	// A fast transfer must signal, so we can deduce if we need to release
-	// ownership, so the sync target can acquire it again. This means a fast
-	// transfer can't do only host-blocking...
-	//
-	// Note: this means all objects that allocate things we can reference
-	// need to have both the graphics and transfer queue!
-	//
-	// Then the staging buffer is either purged later on or it is kept
-	// dangling for the next frame. This is the case for all staging buffers,
-	// except when GFX_TRANSFER_BLOCK is given, in which case the host blocks
-	// and we can cleanup. GFX_TRANSFER_KEEP can be given in combination with
-	// GFX_TRANSFER_BLOCK to keep it dangling anyway.
-	//
-	// The transfer queues can have granularity constraints, so we don't want
-	// to make it the default queue to do operations on, that's why.
-	// We report the constraints for a fast transfer through the GFXDevice.
-	//
-	// TODO: Need to figure out the heap-purging mechanism,
-	// do we purge everything at once? Nah, partial purges?
 
 	return 1;
 
