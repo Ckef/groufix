@@ -320,16 +320,20 @@ static void _test_init(void)
 
 	GFXBufferRef vert = gfx_ref_primitive_vertices(_test_base.primitive, 0);
 	GFXBufferRef ind = gfx_ref_primitive_indices(_test_base.primitive, 0);
-	void* ptrVert = gfx_map(vert);
-	void* ptrInd = gfx_map(ind);
 
-	if (ptrVert == NULL || ptrInd == NULL)
+	if (!gfx_write(vertexData, vert, 1,
+		(GFXRegion[]){{ .offset = 0, .size = sizeof(vertexData) }},
+		(GFXRegion[]){{ .offset = 0, .size = 0 }}))
+	{
 		TEST_FAIL();
+	}
 
-	memcpy(ptrVert, vertexData, sizeof(vertexData));
-	memcpy(ptrInd, indexData, sizeof(indexData));
-	gfx_unmap(vert);
-	gfx_unmap(ind);
+	if (!gfx_write(indexData, ind, 1,
+		(GFXRegion[]){{ .offset = 0, .size = sizeof(indexData) }},
+		(GFXRegion[]){{ .offset = 0, .size = 0 }}))
+	{
+		TEST_FAIL();
+	}
 
 	// Allocate a group with an mvp matrix.
 	float uboData[] = {
@@ -356,13 +360,13 @@ static void _test_init(void)
 		TEST_FAIL();
 
 	GFXBufferRef ubo = gfx_ref_group_buffer(_test_base.group, 0, 0, 0);
-	void* ptrUbo = gfx_map(ubo);
 
-	if (ptrUbo == NULL)
+	if (!gfx_write(uboData, ubo, 1,
+		(GFXRegion[]){{ .offset = 0, .size = sizeof(uboData) }},
+		(GFXRegion[]){{ .offset = 0, .size = 0 }}))
+	{
 		TEST_FAIL();
-
-	memcpy(ptrUbo, uboData, sizeof(uboData));
-	gfx_unmap(ubo);
+	}
 
 	// Add a single pass that writes to the window.
 	GFXPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);

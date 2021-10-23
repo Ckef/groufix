@@ -81,7 +81,7 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 			rowSize = (rowSize + blockWidth - 1) / blockWidth;
 			numRows = (numRows + blockHeight - 1) / blockHeight;
 
-			// Compute the index of the last texel to get the copy region.
+			// Compute the index of the last texel to get the copy size.
 			uint32_t x = (refRegions[r].width + blockWidth - 1) / blockWidth - 1;
 			uint32_t y = (refRegions[r].height + blockHeight - 1) / blockHeight - 1;
 			uint32_t z = refRegions[r].depth - 1;
@@ -149,6 +149,46 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 	return size;
 }
 
+/****************************
+ * Stages host data from a host pointer to a reference pointer.
+ * @param ptr        Host pointer, cannot be NULL.
+ * @param ref        Memory resource pointer, cannot be NULL.
+ * @param rev        Non-zero to reverse the operation.
+ * @param numRegions Must be > 0.
+ * @param ptrRegions Cannot be NULL, regions associated with ptr.
+ * @param refRegions Reference regions (assumed to be buffer regions).
+ * @param stage      Staging regions.
+ *
+ * Either one of refRegions or stage must be set, the other must be NULL.
+ * This either copies to/from a mapped resource or a staging buffer.
+ */
+static void _gfx_stage_host(void* ptr, void* ref, int rev, size_t numRegions,
+                            const GFXRegion* ptrRegions,
+                            const GFXRegion* refRegions,
+                            const _GFXStageRegion* stage)
+{
+	assert(ptr != NULL);
+	assert(ref != NULL);
+	assert(numRegions > 0);
+	assert(ptrRegions != NULL);
+	assert(refRegions != NULL || stage != NULL);
+	assert(refRegions == NULL || stage == NULL);
+
+	// Yeah just manually copy all regions.
+	for (size_t r = 0; r < numRegions; ++r)
+	{
+		void* src = (char*)ptr + ptrRegions[r].offset;
+		void* dst = (char*)ref +
+			(stage != NULL ? stage[r].offset : refRegions[r].offset);
+
+		memcpy(
+			rev ? src : dst,
+			rev ? dst : src,
+			stage != NULL ? stage[r].size : (ptrRegions[r].size == 0 ?
+				refRegions[r].size : ptrRegions[r].size));
+	}
+}
+
 /****************************/
 GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
                      const GFXRegion* srcRegions, const GFXRegion* dstRegions)
@@ -166,7 +206,7 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) & unp.flags))
 	{
 		gfx_log_error(
-			"Cannot read from a memory resource that was not"
+			"Cannot read from a memory resource that was not "
 			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_READ.");
 
 		return 0;
@@ -174,7 +214,7 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 
 	// TODO: Continue implementing...
 
-	return 1;
+	return 0;
 }
 
 /****************************/
@@ -194,14 +234,13 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
 	{
 		gfx_log_error(
-			"Cannot write to a memory resource that was not"
+			"Cannot write to a memory resource that was not "
 			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_WRITE.");
 
 		return 0;
 	}
 
 	// We either map or stage, staging may remain NULL.
-	// We keep track of staging regions to compact the staging buffer.
 	void* ptr = NULL;
 	_GFXStaging* staging = NULL;
 	_GFXStageRegion stage[numRegions];
@@ -228,6 +267,12 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 
 		ptr = staging->vk.ptr;
 	}
+
+	// Do the host copy.
+	if (staging == NULL)
+		_gfx_stage_host((void*)src, ptr, 0, numRegions, srcRegions, dstRegions, NULL);
+	else
+		_gfx_stage_host((void*)src, ptr, 0, numRegions, srcRegions, NULL, stage);
 
 	// TODO: Continue implementing...
 
@@ -317,7 +362,7 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 
 	// TODO: Continue implementing...
 
-	return 1;
+	return 0;
 }
 
 /****************************/
