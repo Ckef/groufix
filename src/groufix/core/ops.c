@@ -248,9 +248,38 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	// TODO: Need to figure out the heap-purging mechanism,
 	// do we purge everything at once? Nah, partial purges?
 
-	// TODO: Implement transfers on dedicated transfer queue (with graphics fallback).
+	// Get the queue to use & command pool.
+	// We always prefer a transfer queue or command pool from a heap object,
+	// but we fallback to a renderer's graphics queue/pool.
+	_GFXBuffer* buffer = (src != NULL && src->obj.buffer != NULL) ?
+		src->obj.buffer : dst->obj.buffer;
+	_GFXImage* image = (src != NULL && src->obj.image != NULL) ?
+		src->obj.image : dst->obj.image;
+	GFXRenderer* renderer = (src != NULL && src->obj.renderer != NULL) ?
+		src->obj.renderer : dst->obj.renderer;
 
-	return 0;
+	_GFXQueue* queue =
+		(buffer != NULL) ? &buffer->heap->transfer :
+		(image != NULL) ? &buffer->heap->transfer :
+		(renderer != NULL) ? &renderer->graphics :
+		NULL;
+
+	VkCommandPool pool =
+		(buffer != NULL) ? VK_NULL_HANDLE : // TODO: Get.
+		(image != NULL) ? VK_NULL_HANDLE :  // TODO: Get.
+		(renderer != NULL) ? renderer->vk.pool :
+		VK_NULL_HANDLE;
+
+	if (queue == NULL || pool == VK_NULL_HANDLE)
+	{
+		gfx_log_error("Could not acquire resources for a copy operation.");
+		return 0;
+	}
+
+	// TODO: Lock if a heap?
+	// TODO: Continue implementing...
+
+	return 1;
 }
 
 /****************************/

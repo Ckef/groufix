@@ -416,6 +416,8 @@ typedef struct GFXRegion
  *  One of a pair can have a size of zero and it will be ignored.
  *  Likewise, with two images, one can have a width/height/depth of zero.
  *
+ * TODO: Make thread-safe with respect to any heap?
+ *
  * Fails of the resource is a renderer's attachment or was not created with
  *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
  */

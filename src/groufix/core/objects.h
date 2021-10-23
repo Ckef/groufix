@@ -112,6 +112,8 @@ struct GFXHeap
 	GFXList images;     // References _GFXImage.
 	GFXList primitives; // References _GFXPrimitive.
 	GFXList groups;     // References _GFXGroup.
+
+	// TODO: Add command pool.
 };
 
 

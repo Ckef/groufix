@@ -375,6 +375,8 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 
 	_GFXContext* context = ref->allocator->context;
 
+	// TODO: Lock the heap lock for thread-safety of memory operations?
+
 	// Check if we have a place to link the staging buffer into.
 	GFXList* list =
 		(ref->obj.buffer != NULL) ? &ref->obj.buffer->staging :
@@ -467,6 +469,8 @@ void _gfx_destroy_staging(_GFXStaging* staging,
 	assert(ref != NULL);
 
 	_GFXContext* context = ref->allocator->context;
+
+	// TODO: Lock the heap lock for thread-safety of memory operations?
 
 	// Unlink the staging buffer from the reference.
 	// Note that either buffer or image is non-NULL by definition.
