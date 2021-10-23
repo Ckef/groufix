@@ -150,22 +150,22 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 }
 
 /****************************
- * Stages host data from a host pointer to a reference pointer.
+ * Copies data from a host pointer to a mapped resource or staging buffer.
  * @param ptr        Host pointer, cannot be NULL.
- * @param ref        Memory resource pointer, cannot be NULL.
- * @param rev        Non-zero to reverse the operation.
+ * @param ref        Mapped resource or staging pointer, cannot be NULL.
+ * @param rev        Non-zero to reverse the operation (ref -> ptr).
  * @param numRegions Must be > 0.
  * @param ptrRegions Cannot be NULL, regions associated with ptr.
  * @param refRegions Reference regions (assumed to be buffer regions).
  * @param stage      Staging regions.
  *
- * Either one of refRegions or stage must be set, the other must be NULL.
- * This either copies to/from a mapped resource or a staging buffer.
+ * Either one of refRegions and stage must be set, the other must be NULL.
+ * This allows use for either a mapped resource or a staging buffer.
  */
-static void _gfx_stage_host(void* ptr, void* ref, int rev, size_t numRegions,
-                            const GFXRegion* ptrRegions,
-                            const GFXRegion* refRegions,
-                            const _GFXStageRegion* stage)
+static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
+                           const GFXRegion* ptrRegions,
+                           const GFXRegion* refRegions,
+                           const _GFXStageRegion* stage)
 {
 	assert(ptr != NULL);
 	assert(ref != NULL);
@@ -190,22 +190,34 @@ static void _gfx_stage_host(void* ptr, void* ref, int rev, size_t numRegions,
 }
 
 /****************************
- * TODO: Somehow make this call viable for a normal gfx_copy()?
- * Stages staging data from a staging buffer to a referenced resource.
+ * Copies data from a resource or staging buffer to another resource.
+ * @param staging    Staging buffer.
+ * @param src        Unpacked source reference.
+ * @param dst        Unpacked destination reference, cannot be NULL.
+ * @param rev        Non-zero to reverse the operation (dst -> staging/src).
+ * @param numRegions Must be > 0.
+ * @param stage      Staging regions, cannot be NULL if staging is not.
+ * @param srcRegions Source regions, cannot be NULL if src is not.
+ * @param dstRegions Destination regions, Cannot be NULL.
  * @return Non-zero on success.
+ *
+ * Either one of staging and src must be set, the other must be NULL.
+ * This allows use of either memory resource or a staging buffer.
  */
-static int _gfx_stage_device(_GFXStaging* staging, const _GFXUnpackRef* ref,
-                             int rev, size_t numRegions,
-                             const _GFXStageRegion* stage,
-                             const GFXRegion* refRegions)
+static int _gfx_copy_device(_GFXStaging* staging,
+                            const _GFXUnpackRef* src, const _GFXUnpackRef* dst,
+                            int rev, size_t numRegions,
+                            const _GFXStageRegion* stage,
+                            const GFXRegion* srcRegions,
+                            const GFXRegion* dstRegions)
 {
-	assert(staging != NULL);
-	assert(ref != NULL);
+	assert(staging != NULL || src != NULL);
+	assert(staging == NULL || src == NULL);
+	assert(dst != NULL);
 	assert(numRegions > 0);
-	assert(stage != NULL);
-	assert(refRegions != NULL);
-
-	// TODO: Implement transfers on dedicated transfer queue.
+	assert(staging == NULL || stage != NULL);
+	assert(src == NULL || srcRegions != NULL);
+	assert(dstRegions != NULL);
 
 	// TODO: In the future we use the graphics queue by default and introduce
 	// GFXTransferFlags with GFX_TRANSFER_FAST to use the transfer queue,
@@ -235,6 +247,8 @@ static int _gfx_stage_device(_GFXStaging* staging, const _GFXUnpackRef* ref,
 	//
 	// TODO: Need to figure out the heap-purging mechanism,
 	// do we purge everything at once? Nah, partial purges?
+
+	// TODO: Implement transfers on dedicated transfer queue (with graphics fallback).
 
 	return 0;
 }
@@ -319,7 +333,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	}
 
 	// Do the host copy.
-	_gfx_stage_host(
+	_gfx_copy_host(
 		(void*)src, ptr, 0, numRegions, srcRegions,
 		(staging == NULL) ? dstRegions : NULL,
 		(staging == NULL) ? NULL : stage);
@@ -327,7 +341,10 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	// Do the device copy.
 	if (
 		staging != NULL &&
-		!_gfx_stage_device(staging, &unp, 0, numRegions, stage, dstRegions))
+		!_gfx_copy_device(
+			staging, NULL, &unp,
+			0, numRegions,
+			stage, NULL, dstRegions))
 	{
 		_gfx_destroy_staging(staging, &unp);
 		goto error;
