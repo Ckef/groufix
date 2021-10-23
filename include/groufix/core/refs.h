@@ -112,7 +112,7 @@ typedef GFXReference GFXImageRef;
 		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_primitive_vertices(primitive, offset_) \
+#define gfx_ref_prim_vertices(primitive, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_VERTICES, \
 		.obj = primitive, \
@@ -120,7 +120,7 @@ typedef GFXReference GFXImageRef;
 		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_primitive_indices(primitive, offset_) \
+#define gfx_ref_prim_indices(primitive, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_INDICES, \
 		.obj = primitive, \
@@ -144,7 +144,7 @@ typedef GFXReference GFXImageRef;
 		.values = { binding_, index_ } \
 	}
 
-#define gfx_ref_attachment(renderer, index_) \
+#define gfx_ref_attach(renderer, index_) \
 	(GFXImageRef){ \
 		.type = GFX_REF_ATTACHMENT, \
 		.obj = renderer, \

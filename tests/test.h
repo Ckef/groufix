@@ -299,7 +299,7 @@ static void _test_init(void)
 		-0.5f,  0.5f, 0.0f,   0.0f, 0.0f, 1.0f
 	};
 
-	_test_base.primitive = gfx_alloc_primitive(_test_base.heap,
+	_test_base.primitive = gfx_alloc_prim(_test_base.heap,
 		GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_DEVICE_LOCAL, 0,
 		GFX_REF_NULL, GFX_REF_NULL,
 		4, sizeof(float) * 6,
@@ -318,8 +318,8 @@ static void _test_init(void)
 	if (_test_base.primitive == NULL)
 		TEST_FAIL();
 
-	GFXBufferRef vert = gfx_ref_primitive_vertices(_test_base.primitive, 0);
-	GFXBufferRef ind = gfx_ref_primitive_indices(_test_base.primitive, 0);
+	GFXBufferRef vert = gfx_ref_prim_vertices(_test_base.primitive, 0);
+	GFXBufferRef ind = gfx_ref_prim_indices(_test_base.primitive, 0);
 
 	if (!gfx_write(vertexData, vert, 1,
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(vertexData) }},

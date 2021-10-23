@@ -294,32 +294,32 @@ GFX_API void gfx_free_image(GFXImage* image);
  * Fails if the referenced vertex buffer was not created with GFX_BUFFER_VERTEX
  * or the index buffer was not created with GFX_BUFFER_INDEX.
  */
-GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
-                                          GFXMemoryFlags flags, GFXBufferUsage usage,
-                                          GFXBufferRef vertex, GFXBufferRef index,
-                                          uint32_t numVertices, uint32_t stride,
-                                          uint32_t numIndices, char indexSize,
-                                          size_t numAttribs, const GFXAttribute* attribs,
-                                          GFXTopology topology);
+GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
+                                     GFXMemoryFlags flags, GFXBufferUsage usage,
+                                     GFXBufferRef vertex, GFXBufferRef index,
+                                     uint32_t numVertices, uint32_t stride,
+                                     uint32_t numIndices, char indexSize,
+                                     size_t numAttribs, const GFXAttribute* attribs,
+                                     GFXTopology topology);
 
 /**
  * Frees a primitive, excluding any buffers it references.
  * Thread-safe with respect to heap!
  */
-GFX_API void gfx_free_primitive(GFXPrimitive* primitive);
+GFX_API void gfx_free_prim(GFXPrimitive* primitive);
 
 /**
  * Retrieves the number of vertex attributes of a primitive geometry.
  * @param primitive Cannot be NULL.
  */
-GFX_API size_t gfx_primitive_get_num_attribs(GFXPrimitive* primitive);
+GFX_API size_t gfx_prim_get_num_attribs(GFXPrimitive* primitive);
 
 /**
  * Retrieves a vertex attribute description from a primitive geometry.
  * @param primitive Cannot be NULL.
  * @param attrib    Attribute index, must be < gfx_primitive_get_num_attribs(primitive).
  */
-GFX_API GFXAttribute gfx_primitive_get_attrib(GFXPrimitive* primitive, size_t attrib);
+GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib);
 
 /**
  * Allocates a resource group from a heap.

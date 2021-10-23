@@ -546,7 +546,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	while (heap->images.head != NULL) gfx_free_image(
 		(GFXImage*)_GFX_IMAGE_FROM_LIST(heap->images.head));
 
-	while (heap->primitives.head != NULL) gfx_free_primitive(
+	while (heap->primitives.head != NULL) gfx_free_prim(
 		(GFXPrimitive*)_GFX_PRIMITIVE_FROM_LIST(heap->primitives.head));
 
 	while (heap->groups.head != NULL) gfx_free_group(
@@ -727,13 +727,13 @@ GFX_API void gfx_free_image(GFXImage* image)
 }
 
 /****************************/
-GFX_API GFXPrimitive* gfx_alloc_primitive(GFXHeap* heap,
-                                          GFXMemoryFlags flags, GFXBufferUsage usage,
-                                          GFXBufferRef vertex, GFXBufferRef index,
-                                          uint32_t numVertices, uint32_t stride,
-                                          uint32_t numIndices, char indexSize,
-                                          size_t numAttribs, const GFXAttribute* attribs,
-                                          GFXTopology topology)
+GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
+                                     GFXMemoryFlags flags, GFXBufferUsage usage,
+                                     GFXBufferRef vertex, GFXBufferRef index,
+                                     uint32_t numVertices, uint32_t stride,
+                                     uint32_t numIndices, char indexSize,
+                                     size_t numAttribs, const GFXAttribute* attribs,
+                                     GFXTopology topology)
 {
 	assert(heap != NULL);
 	assert((!GFX_REF_IS_NULL(vertex) && (!GFX_REF_IS_NULL(index) || numIndices == 0)) || flags != 0);
@@ -880,7 +880,7 @@ clean:
 }
 
 /****************************/
-GFX_API void gfx_free_primitive(GFXPrimitive* primitive)
+GFX_API void gfx_free_prim(GFXPrimitive* primitive)
 {
 	if (primitive == NULL)
 		return;
@@ -902,7 +902,7 @@ GFX_API void gfx_free_primitive(GFXPrimitive* primitive)
 }
 
 /****************************/
-GFX_API size_t gfx_primitive_get_num_attribs(GFXPrimitive* primitive)
+GFX_API size_t gfx_prim_get_num_attribs(GFXPrimitive* primitive)
 {
 	assert(primitive != NULL);
 
@@ -910,7 +910,7 @@ GFX_API size_t gfx_primitive_get_num_attribs(GFXPrimitive* primitive)
 }
 
 /****************************/
-GFX_API GFXAttribute gfx_primitive_get_attrib(GFXPrimitive* primitive, size_t attrib)
+GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
 {
 	assert(primitive != NULL);
 	assert(attrib < ((_GFXPrimitive*)primitive)->numAttribs);

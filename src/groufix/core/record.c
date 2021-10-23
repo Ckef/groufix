@@ -87,7 +87,7 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	if (prim->base.numIndices > 0)
 	{
 		_GFXUnpackRef index = _gfx_ref_unpack(
-			gfx_ref_primitive_indices(&prim->base, 0));
+			gfx_ref_prim_indices(&prim->base, 0));
 
 		context->vk.CmdBindIndexBuffer(
 			frame->vk.cmd,
@@ -99,7 +99,7 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 
 	// Bind vertex buffer.
 	_GFXUnpackRef vertex = _gfx_ref_unpack(
-		gfx_ref_primitive_vertices(&prim->base, 0));
+		gfx_ref_prim_vertices(&prim->base, 0));
 
 	context->vk.CmdBindVertexBuffers(
 		frame->vk.cmd, 0, 1,
