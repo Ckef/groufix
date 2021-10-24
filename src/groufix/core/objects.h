@@ -516,8 +516,8 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
  * @param size Must be > 0.
  * @return NULL on failure.
  *
- * Will fail if the reference cannot hold staging buffers,
- * meaning we can only stage resources created through a heap.
+ * Thread-safe with respect to the associated heap!
+ * Will fail if the resource was not created through a heap.
  */
 _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
                                  VkBufferUsageFlags usage, uint64_t size);
@@ -526,6 +526,8 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
  * Destroys a staging buffer, freeing all related resources.
  * @param staging Cannot be NULL.
  * @param ref     Must reference the same resource staging was created for.
+ *
+ * Thread-safe with respect to the associated heap!
  */
 void _gfx_destroy_staging(_GFXStaging* staging,
                           const _GFXUnpackRef* ref);

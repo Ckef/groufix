@@ -87,6 +87,35 @@ static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 }
 
 /****************************
+ * Destroys a staging buffer, freeing all related resources,
+ * _WITHOUT_ locking the associated heap!
+ */
+static void _gfx_destroy_staging_unsafe(_GFXStaging* staging,
+                                        const _GFXUnpackRef* ref)
+{
+	_GFXContext* context = ref->allocator->context;
+
+	// Unlink the staging buffer from the reference.
+	// Note that either buffer or image is non-NULL by definition.
+	gfx_list_erase((ref->obj.buffer != NULL) ?
+		&ref->obj.buffer->staging : &ref->obj.image->staging,
+		&staging->list);
+
+	// Then, firstly unmap, this so the map references of the underlying
+	// memory block don't get fckd by staging buffers.
+	_gfx_unmap(ref->allocator, &staging->alloc);
+
+	// Destroy Vulkan buffer.
+	context->vk.DestroyBuffer(
+		context->vk.device, staging->vk.buffer, NULL);
+
+	// Free the memory.
+	_gfx_free(ref->allocator, &staging->alloc);
+
+	free(staging);
+}
+
+/****************************
  * Populates the `vk.buffer`, `alloc` and `staging` fields
  * of a _GFXBuffer object, allocating a new Vulkan buffer in the process.
  * @param buffer Cannot be NULL, base.flags is appropriately modified.
@@ -205,7 +234,7 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
 	// Destroy all staging buffers.
 	_GFXUnpackRef ref = _gfx_ref_unpack(gfx_ref_buffer(buffer, 0));
 	while (buffer->staging.head != NULL)
-		_gfx_destroy_staging((_GFXStaging*)buffer->staging.head, &ref);
+		_gfx_destroy_staging_unsafe((_GFXStaging*)buffer->staging.head, &ref);
 
 	gfx_list_clear(&buffer->staging);
 
@@ -354,7 +383,7 @@ static void _gfx_image_free(_GFXImage* image)
 	// Destroy all staging buffers.
 	_GFXUnpackRef ref = _gfx_ref_unpack(gfx_ref_image(image));
 	while (image->staging.head != NULL)
-		_gfx_destroy_staging((_GFXStaging*)image->staging.head, &ref);
+		_gfx_destroy_staging_unsafe((_GFXStaging*)image->staging.head, &ref);
 
 	gfx_list_clear(&image->staging);
 
@@ -375,15 +404,15 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 
 	_GFXContext* context = ref->allocator->context;
 
-	// TODO: Lock the heap lock for thread-safety of memory operations?
-
-	// Check if we have a place to link the staging buffer into.
-	GFXList* list =
-		(ref->obj.buffer != NULL) ? &ref->obj.buffer->staging :
-		(ref->obj.image != NULL) ? &ref->obj.image->staging :
+	// Get the associated heap, we use this to firstly lock the heap's mutex,
+	// and secondly to assure that there is a list of staging buffers we can
+	// link into.
+	GFXHeap* heap =
+		(ref->obj.buffer != NULL) ? ref->obj.buffer->heap :
+		(ref->obj.image != NULL) ? ref->obj.image->heap :
 		NULL;
 
-	if (list == NULL)
+	if (heap == NULL)
 	{
 		gfx_log_error(
 			"Cannot allocate a staging buffer for a memory resource that "
@@ -421,6 +450,10 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 	context->vk.GetBufferMemoryRequirements(
 		context->vk.device, staging->vk.buffer, &mr);
 
+	// Lock just before the allocation.
+	// Postponed until now because we can, allows many staging buffers :)
+	_gfx_mutex_lock(&heap->lock);
+
 	if (!_gfx_alloc_mem(
 		ref->allocator, &staging->alloc, 1, GFX_MEMORY_HOST_VISIBLE,
 		&mr, NULL, VK_NULL_HANDLE, VK_NULL_HANDLE))
@@ -441,16 +474,24 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 		goto clean_alloc;
 
 	// Lastly, when successful, link the staging buffer into the ref :)
-	gfx_list_insert_before(list, &staging->list, NULL);
+	// Note that either buffer or image must be non-NULL.
+	gfx_list_insert_before((ref->obj.buffer != NULL) ?
+		&ref->obj.buffer->staging : &ref->obj.image->staging,
+		&staging->list, NULL);
+
+	// Unlock only after list insertion,
+	// this way creating staging buffers is completely safe.
+	_gfx_mutex_unlock(&heap->lock);
 
 	return staging;
 
 
 	// Clean on failure.
 clean_alloc:
-	_gfx_free(
-		ref->allocator, &staging->alloc);
+	_gfx_free(ref->allocator, &staging->alloc);
 clean_buffer:
+	_gfx_mutex_unlock(&heap->lock); // Don't forget.
+
 	context->vk.DestroyBuffer(
 		context->vk.device, staging->vk.buffer, NULL);
 clean:
@@ -468,28 +509,17 @@ void _gfx_destroy_staging(_GFXStaging* staging,
 	assert(staging != NULL);
 	assert(ref != NULL);
 
-	_GFXContext* context = ref->allocator->context;
-
-	// TODO: Lock the heap lock for thread-safety of memory operations?
-
-	// Unlink the staging buffer from the reference.
+	// This is essentially just a wrapper around _gfx_destroy_staging_unsafe
+	// to make staging buffers thread-safe to the rest of the engine.
+	// So, get the heap so we can lock it.
 	// Note that either buffer or image is non-NULL by definition.
-	gfx_list_erase((ref->obj.buffer != NULL) ?
-		&ref->obj.buffer->staging : &ref->obj.image->staging,
-		&staging->list);
+	GFXHeap* heap = (ref->obj.buffer != NULL) ?
+		ref->obj.buffer->heap : ref->obj.image->heap;
 
-	// Then, firstly unmap, this so the map references of the underlying
-	// memory block don't get fckd by staging buffers.
-	_gfx_unmap(ref->allocator, &staging->alloc);
-
-	// Destroy Vulkan buffer.
-	context->vk.DestroyBuffer(
-		context->vk.device, staging->vk.buffer, NULL);
-
-	// Free the memory.
-	_gfx_free(ref->allocator, &staging->alloc);
-
-	free(staging);
+	// Lock & destroy.
+	_gfx_mutex_lock(&heap->lock);
+	_gfx_destroy_staging_unsafe(staging, ref);
+	_gfx_mutex_unlock(&heap->lock);
 }
 
 /****************************/

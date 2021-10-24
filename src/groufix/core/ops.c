@@ -260,7 +260,7 @@ static int _gfx_copy_device(_GFXStaging* staging,
 
 	_GFXQueue* queue =
 		(buffer != NULL) ? &buffer->heap->transfer :
-		(image != NULL) ? &buffer->heap->transfer :
+		(image != NULL) ? &image->heap->transfer :
 		(renderer != NULL) ? &renderer->graphics :
 		NULL;
 
