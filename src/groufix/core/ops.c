@@ -231,10 +231,6 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	// ownership, so the sync target can acquire it again. This means a fast
 	// transfer can't do only host-blocking...
 	//
-	// Note: this means all objects that allocate things we can reference
-	// need to have both the graphics and transfer queue!
-	// OR... disallow non-heap things to fast transfer...
-	//
 	// Then the staging buffer is either purged later on or it is kept
 	// dangling for the next frame. This is the case for all staging buffers,
 	// except when GFX_TRANSFER_BLOCK is given, in which case the host blocks
@@ -248,35 +244,26 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	// TODO: Need to figure out the heap-purging mechanism,
 	// do we purge everything at once? Nah, partial purges?
 
-	// Get the queue to use & command pool.
-	// We always prefer a transfer queue or command pool from a heap object,
-	// but we fallback to a renderer's graphics queue/pool.
+	// Get an associated heap, we use this for its queues and command pool.
 	_GFXBuffer* buffer = (src != NULL && src->obj.buffer != NULL) ?
 		src->obj.buffer : dst->obj.buffer;
 	_GFXImage* image = (src != NULL && src->obj.image != NULL) ?
 		src->obj.image : dst->obj.image;
-	GFXRenderer* renderer = (src != NULL && src->obj.renderer != NULL) ?
-		src->obj.renderer : dst->obj.renderer;
 
-	_GFXQueue* queue =
-		(buffer != NULL) ? &buffer->heap->transfer :
-		(image != NULL) ? &image->heap->transfer :
-		(renderer != NULL) ? &renderer->graphics :
+	GFXHeap* heap =
+		(buffer != NULL) ? buffer->heap :
+		(image != NULL) ? image->heap :
 		NULL;
 
-	VkCommandPool pool =
-		(buffer != NULL) ? VK_NULL_HANDLE : // TODO: Get.
-		(image != NULL) ? VK_NULL_HANDLE :  // TODO: Get.
-		(renderer != NULL) ? renderer->vk.pool :
-		VK_NULL_HANDLE;
-
-	if (queue == NULL || pool == VK_NULL_HANDLE)
+	if (heap == NULL)
 	{
-		gfx_log_error("Could not acquire resources for a copy operation.");
+		gfx_log_error(
+			"Cannot perform copy operation between memory resources of "
+			"which neither was allocated from a heap.");
+
 		return 0;
 	}
 
-	// TODO: Lock if a heap?
 	// TODO: Continue implementing...
 
 	return 1;

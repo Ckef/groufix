@@ -412,13 +412,15 @@ typedef struct GFXRegion
  * @param dstRegions Cannot be NULL.
  * @return Non-zero on success.
  *
+ * All memory operations are thread-safe with respect to any associated heap!
+ * For any operation, at least one resource must be allocated from a heap.
+ * Memory operations are also thread-safe with respect to each other!
+ *
  * Undefined behaviour if size/width/height/depth of (src|dst)Regions do not match.
  *  One of a pair can have a size of zero and it will be ignored.
  *  Likewise, with two images, one can have a width/height/depth of zero.
  *
- * TODO: Make thread-safe with respect to any heap?
- *
- * Fails of the resource is a renderer's attachment or was not created with
+ * Fails if the resource was not created with
  *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
  */
 GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
@@ -428,7 +430,7 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
  * Writes data to a memory resource reference.
  * @see gfx_read.
  *
- * Fails of the resource is a renderer's attachment or was not created with
+ * Fails if the resource was not created with
  *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE.
  */
 GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
@@ -438,8 +440,8 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
  * Copies data from one memory resource reference to another.
  * @see gfx_read.
  *
- * Fails of the src was not created with GFX_MEMORY_READ.
- * Fails of the dst was not created with GFX_MEMORY_WRITE.
+ * Fails if the src was not created with GFX_MEMORY_READ.
+ * Fails if the dst was not created with GFX_MEMORY_WRITE.
  */
 GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
                      const GFXRegion* srcRegions, const GFXRegion* dstRegions);

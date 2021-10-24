@@ -94,6 +94,30 @@
 
 
 /****************************
+ * Shading objects.
+ ****************************/
+
+/**
+ * Internal shader.
+ */
+struct GFXShader
+{
+	_GFXDevice*  device; // Associated GPU to use as target environment.
+	_GFXContext* context;
+
+	GFXShaderStage stage;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkShaderModule module;
+
+	} vk;
+};
+
+
+/****************************
  * Memory objects.
  ****************************/
 
@@ -113,7 +137,7 @@ struct GFXHeap
 	GFXList primitives; // References _GFXPrimitive.
 	GFXList groups;     // References _GFXGroup.
 
-	// TODO: Add command pool.
+	// TODO: Add command pool + associated lock.
 };
 
 
@@ -213,30 +237,6 @@ typedef struct _GFXGroup
 	GFXBinding bindings[]; // No reference is GFX_REF_NULL!
 
 } _GFXGroup;
-
-
-/****************************
- * Shading objects.
- ****************************/
-
-/**
- * Internal shader.
- */
-struct GFXShader
-{
-	_GFXDevice*  device; // Associated GPU to use as target environment.
-	_GFXContext* context;
-
-	GFXShaderStage stage;
-
-
-	// Vulkan fields.
-	struct
-	{
-		VkShaderModule module;
-
-	} vk;
-};
 
 
 /****************************
@@ -517,7 +517,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
  * @return NULL on failure.
  *
  * Thread-safe with respect to the associated heap!
- * Will fail if the resource was not created through a heap.
+ * Will fail if the resource was not allocated from a heap.
  */
 _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
                                  VkBufferUsageFlags usage, uint64_t size);
