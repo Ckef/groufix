@@ -194,7 +194,7 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
  * @param staging    Staging buffer.
  * @param src        Unpacked source reference.
  * @param dst        Unpacked destination reference, cannot be NULL.
- * @param rev        Non-zero to reverse the operation (dst -> staging/src).
+ * @param rev        Non-zero to reverse the operation (dst -> staging).
  * @param numRegions Must be > 0.
  * @param stage      Staging regions, cannot be NULL if staging is not.
  * @param srcRegions Source regions, cannot be NULL if src is not.
@@ -203,6 +203,7 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
  *
  * Either one of staging and src must be set, the other must be NULL.
  * This allows use of either memory resource or a staging buffer.
+ * If staging is _not_ set, reverse must be 0.
  */
 static int _gfx_copy_device(_GFXStaging* staging,
                             const _GFXUnpackRef* src, const _GFXUnpackRef* dst,
@@ -214,38 +215,16 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	assert(staging != NULL || src != NULL);
 	assert(staging == NULL || src == NULL);
 	assert(dst != NULL);
+	assert(staging != NULL || rev == 0);
 	assert(numRegions > 0);
 	assert(staging == NULL || stage != NULL);
 	assert(src == NULL || srcRegions != NULL);
 	assert(dstRegions != NULL);
 
-	// TODO: Not always block on the GPU operation and we purge things later.
-	// TODO: In the future we use the graphics queue by default and introduce
-	// GFXTransferFlags with GFX_TRANSFER_FAST to use the transfer queue,
-	// plus a sync target GFX_SYNC_TARGET_FAST_TRANFER or some such so the
-	// blocking queue can release ownership and the fast transfer can
-	// acquire onwership.
-	// A fast transfer can wait so the blocking queue can release, or the
-	// previous operation was also a fast transfer (or nothing) so we don't
-	// need to do the ownership dance.
-	// A fast transfer must signal, so we can deduce if we need to release
-	// ownership, so the sync target can acquire it again. This means a fast
-	// transfer can't do only host-blocking...
-	//
-	// Then the staging buffer is either purged later on or it is kept
-	// dangling for the next frame. This is the case for all staging buffers,
-	// except when GFX_TRANSFER_BLOCK is given, in which case the host blocks
-	// and we can cleanup. GFX_TRANSFER_KEEP can be given in combination with
-	// GFX_TRANSFER_BLOCK to keep it dangling anyway.
-	//
-	// The transfer queues can have granularity constraints, so we don't want
-	// to make it the default queue to do operations on, that's why.
-	// We report the constraints for a fast transfer through the GFXDevice.
-	//
-	// TODO: Need to figure out the heap-purging mechanism,
-	// do we purge everything at once? Nah, partial purges?
+	_GFXContext* context = dst->allocator->context;
 
-	// Get an associated heap, we use this for its queues and command pool.
+	// Get an associated heap.
+	// We use this heap for its queues and command pool.
 	_GFXBuffer* buffer = (src != NULL && src->obj.buffer != NULL) ?
 		src->obj.buffer : dst->obj.buffer;
 	_GFXImage* image = (src != NULL && src->obj.image != NULL) ?
@@ -265,8 +244,8 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		return 0;
 	}
 
-	// Get resources to copy.
-	// Note that there can only be one attachment!
+	// Get resources and metadata to copy.
+	// Note that there can only be one single attachment!
 	_GFXAttach* attach =
 		(src != NULL && src->obj.renderer != NULL) ?
 			gfx_vec_at(&src->obj.renderer->backing.attachs, src->value) :
@@ -294,9 +273,216 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		(dst->obj.renderer != NULL) ? attach->image.vk.image :
 		VK_NULL_HANDLE;
 
-	// TODO: Continue implementing...
+	GFXFormat srcFormat =
+		(staging != NULL) ? GFX_FORMAT_EMPTY :
+		(src->obj.image != NULL) ? src->obj.image->base.format :
+		(src->obj.renderer != NULL) ? attach->image.base.format :
+		GFX_FORMAT_EMPTY;
+
+	GFXFormat dstFormat =
+		(dst->obj.image != NULL) ? dst->obj.image->base.format :
+		(dst->obj.renderer != NULL) ? attach->image.base.format :
+		GFX_FORMAT_EMPTY;
+
+	// Pick a queue, command pool and mutex from the heap.
+	_GFXQueue* queue = &heap->graphics;
+	VkCommandPool pool = heap->vk.gPool;
+	_GFXMutex* mutex = &heap->vk.gLock;
+
+	// TODO: In the future we use the graphics queue by default and introduce
+	// GFXTransferFlags with GFX_TRANSFER_FAST to use the transfer queue,
+	// plus a sync target GFX_SYNC_TARGET_FAST_TRANFER or some such so the
+	// blocking queue can release ownership and the fast transfer can
+	// acquire onwership.
+	// A fast transfer can wait so the blocking queue can release, or the
+	// previous operation was also a fast transfer (or nothing) so we don't
+	// need to do the ownership dance.
+	// A fast transfer must signal, so we can deduce if we need to release
+	// ownership, so the sync target can acquire it again. This means a fast
+	// transfer can't do only host-blocking...
+	//
+	// Then the staging buffer is either purged later on or it is kept
+	// dangling. This is the case for all staging buffers, except when
+	// GFX_TRANSFER_BLOCK is given, in which case the host blocks and we can
+	// cleanup. GFX_TRANSFER_KEEP can be given in combination with
+	// GFX_TRANSFER_BLOCK to keep it dangling anyway.
+	//
+	// The transfer queues can have granularity constraints, so we don't want
+	// to make it the default queue to do operations on, that's why.
+	// We report the constraints for a fast transfer through the GFXDevice.
+	//
+	// TODO: Need to figure out the heap-purging mechanism,
+	// do we purge everything at once? Nah, partial purges?
+
+	// We lock access to the pool with the appropriate lock.
+	// This lock is also used for recording the command buffer.
+	_gfx_mutex_lock(mutex);
+
+	// Allocate a command buffer.
+	// TODO: We can just preemptively allocate the command buffer?
+	VkCommandBufferAllocateInfo cbai = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+
+		.pNext              = NULL,
+		.commandPool        = pool,
+		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+
+	VkCommandBuffer cmd;
+	_GFX_VK_CHECK(context->vk.AllocateCommandBuffers(
+		context->vk.device, &cbai, &cmd), goto unlock);
+
+	// Create a fence so we can block until the operation is done.
+	// TODO: Do not wait on the GPU, take sync/dep objects as arguments.
+	VkFenceCreateInfo fci = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0
+	};
+
+	VkFence fence;
+	_GFX_VK_CHECK(context->vk.CreateFence(
+		context->vk.device, &fci, NULL, &fence), goto clean);
+
+	// Record the command buffer, we check all src/dst resource type
+	// combinations and perform the appropriate copy command.
+	// For each different copy command, we setup its regions accordingly.
+	VkCommandBufferBeginInfo cbbi = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+
+		.pNext            = NULL,
+		.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+		.pInheritanceInfo = NULL
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.BeginCommandBuffer(cmd, &cbbi),
+		goto clean_fence);
+
+	// Buffer -> buffer copy.
+	if (srcBuffer != VK_NULL_HANDLE && dstBuffer != VK_NULL_HANDLE)
+	{
+		VkBufferCopy cRegions[numRegions];
+		for (size_t r = 0; r < numRegions; ++r)
+		{
+			// stage offset OR reference offset + region offset.
+			cRegions[r].srcOffset = (staging != NULL) ?
+				stage[r].offset :
+				src->value + srcRegions[r].offset;
+
+			// reference offset + region offset.
+			cRegions[r].dstOffset =
+				dst->value + dstRegions[r].offset;
+
+			// stage size OR non-zero size of both regions.
+			cRegions[r].size = (staging != NULL) ?
+				stage[r].size :
+				(srcRegions[r].size == 0) ?
+					dstRegions[r].size : srcRegions[r].size;
+
+			// Reverse if asked.
+			if (rev)
+			{
+				VkDeviceSize t = cRegions[r].srcOffset;
+				cRegions[r].srcOffset = cRegions[r].dstOffset;
+				cRegions[r].dstOffset = t;
+			}
+		}
+
+		context->vk.CmdCopyBuffer(cmd,
+			rev ? dstBuffer : srcBuffer,
+			rev ? srcBuffer : dstBuffer,
+			(uint32_t)numRegions, cRegions);
+	}
+
+	// Image -> image copy.
+	else if (srcImage != VK_NULL_HANDLE && dstImage != VK_NULL_HANDLE)
+	{
+		// Note that rev is only allowed to be non-zero when staging is set.
+		// Meaning if rev is set, image -> image copies cannot happen.
+		VkImageCopy cRegions[numRegions];
+
+		// TODO: Implement.
+
+		// TODO: Do not use the undefined layout, depend on sync/deps.
+		context->vk.CmdCopyImage(cmd,
+			srcImage, VK_IMAGE_LAYOUT_UNDEFINED,
+			dstImage, VK_IMAGE_LAYOUT_UNDEFINED,
+			(uint32_t)numRegions, cRegions);
+	}
+
+	// Buffer -> image or image -> buffer copy.
+	else
+	{
+		// Note that rev is only allowed to be non-zero when staging is set.
+		// Meaning if rev is set, it is always an image -> buffer copy.
+		VkBufferImageCopy cRegions[numRegions];
+
+		// TODO: Implement.
+
+		// TODO: Do not use the undefined layout, depend on sync/deps.
+		if (srcBuffer != VK_NULL_HANDLE && rev == 0)
+			context->vk.CmdCopyBufferToImage(cmd,
+				srcBuffer,
+				dstImage, VK_IMAGE_LAYOUT_UNDEFINED,
+				(uint32_t)numRegions, cRegions);
+		else
+			context->vk.CmdCopyImageToBuffer(cmd,
+				rev ? dstImage : srcImage, VK_IMAGE_LAYOUT_UNDEFINED,
+				rev ? srcBuffer : dstBuffer,
+				(uint32_t)numRegions, cRegions);
+	}
+
+	_GFX_VK_CHECK(
+		context->vk.EndCommandBuffer(cmd),
+		goto clean_fence);
+
+	// Now submit the command buffer and immediately wait on it.
+	VkSubmitInfo si = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+
+		.pNext                = NULL,
+		.waitSemaphoreCount   = 0,
+		.pWaitSemaphores      = NULL,
+		.pWaitDstStageMask    = NULL,
+		.commandBufferCount   = 1,
+		.pCommandBuffers      = &cmd,
+		.signalSemaphoreCount = 0,
+		.pSignalSemaphores    = VK_NULL_HANDLE
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.QueueSubmit(queue->queue, 1, &si, fence),
+		goto clean_fence);
+
+	_GFX_VK_CHECK(
+		context->vk.WaitForFences(
+			context->vk.device, 1, &fence, VK_TRUE, UINT64_MAX),
+		goto clean_fence);
+
+	// And finally free all the things & unlock.
+	context->vk.DestroyFence(
+		context->vk.device, fence, NULL);
+	context->vk.FreeCommandBuffers(
+		context->vk.device, pool, 1, &cmd);
+
+	_gfx_mutex_unlock(mutex);
 
 	return 1;
+
+
+	// Cleanup on failure.
+clean_fence:
+	context->vk.DestroyFence(
+		context->vk.device, fence, NULL);
+clean:
+	context->vk.FreeCommandBuffers(
+		context->vk.device, pool, 1, &cmd);
+unlock:
+	_gfx_mutex_unlock(mutex);
+
+	return 0;
 }
 
 /****************************/

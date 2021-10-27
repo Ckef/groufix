@@ -225,6 +225,10 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CmdBindIndexBuffer);
 		_GFX_VK_PFN(CmdBindPipeline);
 		_GFX_VK_PFN(CmdBindVertexBuffers);
+		_GFX_VK_PFN(CmdCopyBuffer);
+		_GFX_VK_PFN(CmdCopyImage);
+		_GFX_VK_PFN(CmdCopyBufferToImage);
+		_GFX_VK_PFN(CmdCopyImageToBuffer);
 		_GFX_VK_PFN(CmdDraw);
 		_GFX_VK_PFN(CmdDrawIndexed);
 		_GFX_VK_PFN(CmdEndRenderPass);

@@ -300,7 +300,7 @@ static void _test_init(void)
 	};
 
 	_test_base.primitive = gfx_alloc_prim(_test_base.heap,
-		GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_DEVICE_LOCAL, 0,
+		GFX_MEMORY_WRITE, 0,
 		GFX_REF_NULL, GFX_REF_NULL,
 		4, sizeof(float) * 6,
 		4, sizeof(uint16_t),
@@ -344,7 +344,7 @@ static void _test_init(void)
 	};
 
 	_test_base.group = gfx_alloc_group(_test_base.heap,
-		GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_DEVICE_LOCAL,
+		GFX_MEMORY_WRITE,
 		GFX_BUFFER_UNIFORM,
 		1, (GFXBinding[]){
 			{
