@@ -562,9 +562,7 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	VkCommandPoolCreateInfo cpci = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.pNext = NULL,
-		.flags =
-			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT |
-			VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
 	};
 
 	cpci.queueFamilyIndex = heap->graphics.family;

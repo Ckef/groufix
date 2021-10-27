@@ -12,6 +12,31 @@
 #include <string.h>
 
 
+#define _GFX_GET_VK_IMAGE_ASPECT(fmt) \
+	(GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ? \
+		((GFX_FORMAT_HAS_DEPTH(fmt) ? \
+			VK_IMAGE_ASPECT_DEPTH_BIT : (VkImageAspectFlags)0) | \
+		(GFX_FORMAT_HAS_STENCIL(fmt) ? \
+			VK_IMAGE_ASPECT_STENCIL_BIT : (VkImageAspectFlags)0)) : \
+		VK_IMAGE_ASPECT_COLOR_BIT)
+
+#define _GFX_VK_WIDTH_DST_TO_SRC(dstWidth, srcFmt, dstFmt) \
+	((GFX_FORMAT_IS_COMPRESSED(srcFmt) && !GFX_FORMAT_IS_COMPRESSED(dstFmt)) ? \
+		dstWidth * GFX_FORMAT_BLOCK_WIDTH(srcFmt) : \
+	(!GFX_FORMAT_IS_COMPRESSED(srcFmt) && GFX_FORMAT_IS_COMPRESSED(dstFmt)) ? \
+		(dstWidth + GFX_FORMAT_BLOCK_WIDTH(dstFmt) - 1) / \
+			GFX_FORMAT_BLOCK_WIDTH(dstFmt) : \
+		dstWidth)
+
+#define _GFX_VK_HEIGHT_DST_TO_SRC(dstHeight, srcFmt, dstFmt) \
+	((GFX_FORMAT_IS_COMPRESSED(srcFmt) && !GFX_FORMAT_IS_COMPRESSED(dstFmt)) ? \
+		dstHeight * GFX_FORMAT_BLOCK_HEIGHT(srcFmt) : \
+	(!GFX_FORMAT_IS_COMPRESSED(srcFmt) && GFX_FORMAT_IS_COMPRESSED(dstFmt)) ? \
+		(dstHeight + GFX_FORMAT_BLOCK_HEIGHT(dstFmt) - 1) / \
+			GFX_FORMAT_BLOCK_HEIGHT(dstFmt) : \
+		dstHeight)
+
+
 /****************************
  * Internal stage region (modified host region) definition.
  */
@@ -197,13 +222,13 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
  * @param rev        Non-zero to reverse the operation (dst -> staging).
  * @param numRegions Must be > 0.
  * @param stage      Staging regions, cannot be NULL if staging is not.
- * @param srcRegions Source regions, cannot be NULL if src is not.
+ * @param srcRegions Source regions, cannot be NULL.
  * @param dstRegions Destination regions, Cannot be NULL.
  * @return Non-zero on success.
  *
  * Either one of staging and src must be set, the other must be NULL.
  * This allows use of either memory resource or a staging buffer.
- * If staging is _not_ set, reverse must be 0.
+ * If staging is _not_ set, rev must be 0.
  */
 static int _gfx_copy_device(_GFXStaging* staging,
                             const _GFXUnpackRef* src, const _GFXUnpackRef* dst,
@@ -218,7 +243,7 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	assert(staging != NULL || rev == 0);
 	assert(numRegions > 0);
 	assert(staging == NULL || stage != NULL);
-	assert(src == NULL || srcRegions != NULL);
+	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
 
 	_GFXContext* context = dst->allocator->context;
@@ -319,7 +344,7 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	_gfx_mutex_lock(mutex);
 
 	// Allocate a command buffer.
-	// TODO: We can just preemptively allocate the command buffer?
+	// TODO: Somehow store used command buffers for later?
 	VkCommandBufferAllocateInfo cbai = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 
@@ -402,8 +427,49 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		// Note that rev is only allowed to be non-zero when staging is set.
 		// Meaning if rev is set, image -> image copies cannot happen.
 		VkImageCopy cRegions[numRegions];
+		for (size_t r = 0; r < numRegions; ++r)
+		{
+			cRegions[r].srcSubresource = (VkImageSubresourceLayers){
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(srcFormat),
+				.mipLevel       = srcRegions[r].mipmap,
+				.baseArrayLayer = srcRegions[r].layer,
+				.layerCount     = srcRegions[r].numLayers
+			};
 
-		// TODO: Implement.
+			cRegions[r].srcOffset = (VkOffset3D){
+				.x = (int32_t)srcRegions[r].x,
+				.y = (int32_t)srcRegions[r].y,
+				.z = (int32_t)srcRegions[r].z
+			};
+
+			cRegions[r].dstSubresource = (VkImageSubresourceLayers){
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(dstFormat),
+				.mipLevel       = dstRegions[r].mipmap,
+				.baseArrayLayer = dstRegions[r].layer,
+				.layerCount     = dstRegions[r].numLayers
+			};
+
+			cRegions[r].dstOffset = (VkOffset3D){
+				.x = (int32_t)dstRegions[r].x,
+				.y = (int32_t)dstRegions[r].y,
+				.z = (int32_t)dstRegions[r].z
+			};
+
+			// Have to convert destination extent when mixing
+			// compressed and uncompressed images.
+			// Again block depth is assumed to be 1 in all cases.
+			cRegions[r].extent = (VkExtent3D){
+				.width = (srcRegions[r].width == 0) ?
+					_GFX_VK_WIDTH_DST_TO_SRC(dstRegions[r].width, srcFormat, dstFormat) :
+					srcRegions[r].width,
+				.height = (srcRegions[r].height == 0) ?
+					_GFX_VK_HEIGHT_DST_TO_SRC(dstRegions[r].height, srcFormat, dstFormat) :
+					srcRegions[r].height,
+				.depth = (srcRegions[r].depth == 0) ?
+					dstRegions[r].depth :
+					srcRegions[r].depth
+			};
+		}
 
 		// TODO: Do not use the undefined layout, depend on sync/deps.
 		context->vk.CmdCopyImage(cmd,
@@ -418,8 +484,44 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		// Note that rev is only allowed to be non-zero when staging is set.
 		// Meaning if rev is set, it is always an image -> buffer copy.
 		VkBufferImageCopy cRegions[numRegions];
+		for (size_t r = 0; r < numRegions; ++r)
+		{
+			// stage offset OR reference offset + region offset.
+			cRegions[r].bufferOffset = (staging != NULL) ?
+				stage[r].offset :
+				(srcBuffer != VK_NULL_HANDLE) ?
+					src->value + srcRegions[r].offset :
+					dst->value + dstRegions[r].offset;
 
-		// TODO: Implement.
+			// Rest must be given by respective regions.
+			const GFXRegion* bufRegions =
+				(srcBuffer != VK_NULL_HANDLE) ? srcRegions : dstRegions;
+			const GFXRegion* imgRegions =
+				(srcImage != VK_NULL_HANDLE) ? srcRegions : dstRegions;
+
+			cRegions[r].bufferRowLength = bufRegions[r].rowSize;
+			cRegions[r].bufferImageHeight = bufRegions[r].numRows;
+
+			cRegions[r].imageSubresource = (VkImageSubresourceLayers){
+				.mipLevel       = imgRegions[r].mipmap,
+				.baseArrayLayer = imgRegions[r].layer,
+				.layerCount     = imgRegions[r].numLayers,
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(
+					(srcImage != VK_NULL_HANDLE) ? srcFormat : dstFormat)
+			};
+
+			cRegions[r].imageOffset = (VkOffset3D){
+				.x = (int32_t)imgRegions[r].x,
+				.y = (int32_t)imgRegions[r].y,
+				.z = (int32_t)imgRegions[r].z
+			};
+
+			cRegions[r].imageExtent = (VkExtent3D){
+				.width  = imgRegions[r].width,
+				.height = imgRegions[r].height,
+				.depth  = imgRegions[r].depth
+			};
+		}
 
 		// TODO: Do not use the undefined layout, depend on sync/deps.
 		if (srcBuffer != VK_NULL_HANDLE && rev == 0)
@@ -546,7 +648,7 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 		!_gfx_copy_device(
 			staging, NULL, &unp,
 			1, numRegions,
-			stage, NULL, srcRegions))
+			stage, dstRegions, srcRegions))
 	{
 		_gfx_destroy_staging(staging, &unp);
 		goto error;
@@ -637,7 +739,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 		!_gfx_copy_device(
 			staging, NULL, &unp,
 			0, numRegions,
-			stage, NULL, dstRegions))
+			stage, srcRegions, dstRegions))
 	{
 		_gfx_destroy_staging(staging, &unp);
 		goto error;
