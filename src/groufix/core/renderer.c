@@ -46,7 +46,6 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	// Create command pool.
 	// This one is used for all the command buffers of all frames.
 	// These buffers will be reset and re-recorded every frame.
-	// OR! for short-lived memory resource operations!
 	VkCommandPoolCreateInfo cpci = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 

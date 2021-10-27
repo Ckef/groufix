@@ -533,10 +533,16 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	if (!_gfx_mutex_init(&heap->lock))
 		goto clean;
 
+	if (!_gfx_mutex_init(&heap->vk.gLock))
+		goto clean_lock;
+
+	if (!_gfx_mutex_init(&heap->vk.tLock))
+		goto clean_graphics_lock;
+
 	// Get context associated with the device.
 	_GFXContext* context;
 	_GFX_GET_DEVICE(heap->device, device);
-	_GFX_GET_CONTEXT(context, device, goto clean_lock);
+	_GFX_GET_CONTEXT(context, device, goto clean_transfer_lock);
 
 	// Pick the first graphics and transfer queues we can find.
 	_GFXQueueSet* graphics =
@@ -546,6 +552,32 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 
 	heap->graphics = _gfx_get_queue(context, graphics, 0);
 	heap->transfer = _gfx_get_queue(context, transfer, 0);
+
+	// Create command pools (one for each queue).
+	// They are used for all memory resource operations.
+	// These are short-lived buffers, as they are never re-used.
+	heap->vk.gPool = VK_NULL_HANDLE;
+	heap->vk.tPool = VK_NULL_HANDLE;
+
+	VkCommandPoolCreateInfo cpci = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.pNext = NULL,
+		.flags =
+			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT |
+			VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+	};
+
+	cpci.queueFamilyIndex = heap->graphics.family;
+	_GFX_VK_CHECK(
+		context->vk.CreateCommandPool(
+			context->vk.device, &cpci, NULL, &heap->vk.gPool),
+		goto clean_pools);
+
+	cpci.queueFamilyIndex = heap->transfer.family;
+	_GFX_VK_CHECK(
+		context->vk.CreateCommandPool(
+			context->vk.device, &cpci, NULL, &heap->vk.tPool),
+		goto clean_pools);
 
 	// Initialize allocator things.
 	_gfx_allocator_init(&heap->allocator, heap->device);
@@ -558,6 +590,15 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 
 
 	// Clean on failure.
+clean_pools:
+	context->vk.DestroyCommandPool(
+		context->vk.device, heap->vk.gPool, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, heap->vk.tPool, NULL);
+clean_transfer_lock:
+	_gfx_mutex_clear(&heap->vk.tLock);
+clean_graphics_lock:
+	_gfx_mutex_clear(&heap->vk.gLock);
 clean_lock:
 	_gfx_mutex_clear(&heap->lock);
 clean:
@@ -572,6 +613,8 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 {
 	if (heap == NULL)
 		return;
+
+	_GFXContext* context = heap->allocator.context;
 
 	// Free all things.
 	while (heap->buffers.head != NULL) gfx_free_buffer(
@@ -593,7 +636,16 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	gfx_list_clear(&heap->primitives);
 	gfx_list_clear(&heap->groups);
 
+	// Destroy command pools.
+	context->vk.DestroyCommandPool(
+		context->vk.device, heap->vk.gPool, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, heap->vk.tPool, NULL);
+
+	_gfx_mutex_clear(&heap->vk.gLock);
+	_gfx_mutex_clear(&heap->vk.tLock);
 	_gfx_mutex_clear(&heap->lock);
+
 	free(heap);
 }
 

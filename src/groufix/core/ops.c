@@ -219,6 +219,7 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	assert(src == NULL || srcRegions != NULL);
 	assert(dstRegions != NULL);
 
+	// TODO: Not always block on the GPU operation and we purge things later.
 	// TODO: In the future we use the graphics queue by default and introduce
 	// GFXTransferFlags with GFX_TRANSFER_FAST to use the transfer queue,
 	// plus a sync target GFX_SYNC_TARGET_FAST_TRANFER or some such so the
@@ -263,6 +264,35 @@ static int _gfx_copy_device(_GFXStaging* staging,
 
 		return 0;
 	}
+
+	// Get resources to copy.
+	// Note that there can only be one attachment!
+	_GFXAttach* attach =
+		(src != NULL && src->obj.renderer != NULL) ?
+			gfx_vec_at(&src->obj.renderer->backing.attachs, src->value) :
+		(dst->obj.renderer != NULL) ?
+			gfx_vec_at(&dst->obj.renderer->backing.attachs, dst->value) :
+		NULL;
+
+	VkBuffer srcBuffer =
+		(staging != NULL) ? staging->vk.buffer :
+		(src->obj.buffer != NULL) ? src->obj.buffer->vk.buffer :
+		VK_NULL_HANDLE;
+
+	VkBuffer dstBuffer =
+		(dst->obj.buffer != NULL) ? dst->obj.buffer->vk.buffer :
+		VK_NULL_HANDLE;
+
+	VkImage srcImage =
+		(staging != NULL) ? VK_NULL_HANDLE :
+		(src->obj.image != NULL) ? src->obj.image->vk.image :
+		(src->obj.renderer != NULL) ? attach->image.vk.image :
+		VK_NULL_HANDLE;
+
+	VkImage dstImage =
+		(dst->obj.image != NULL) ? dst->obj.image->vk.image :
+		(dst->obj.renderer != NULL) ? attach->image.vk.image :
+		VK_NULL_HANDLE;
 
 	// TODO: Continue implementing...
 

@@ -137,7 +137,16 @@ struct GFXHeap
 	GFXList primitives; // References _GFXPrimitive.
 	GFXList groups;     // References _GFXGroup.
 
-	// TODO: Add command pool + associated lock.
+
+	// Vulkan fields.
+	struct
+	{
+		VkCommandPool gPool; // Graphics pool.
+		VkCommandPool tPool; // Transfer pool.
+		_GFXMutex     gLock;
+		_GFXMutex     tLock;
+
+	} vk;
 };
 
 
