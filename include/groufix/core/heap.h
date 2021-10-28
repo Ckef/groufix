@@ -387,6 +387,8 @@ typedef struct GFXRegion
 		// Image layers/offset/extent.
 		struct
 		{
+			// TODO: Add aspect.
+
 			uint32_t mipmap;
 			uint32_t layer;
 			uint32_t numLayers;

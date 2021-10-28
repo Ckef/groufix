@@ -12,6 +12,7 @@
 #include <string.h>
 
 
+// TODO: Wrong, can't have multiple aspect bits.
 #define _GFX_GET_VK_IMAGE_ASPECT(fmt) \
 	(GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ? \
 		((GFX_FORMAT_HAS_DEPTH(fmt) ? \
@@ -72,12 +73,18 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 	assert(stage != NULL);
 
 	// To calculate any region size when referencing an image,
-	// we need to get the format block size, width and height.
+	// we need to get the type and format block size, width and height.
 	// We use GFX_FORMAT_EMPTY to indicate we're not dealing with an image.
+	_GFXAttach* attach = (ref->obj.renderer != NULL) ?
+		gfx_vec_at(&ref->obj.renderer->backing.attachs, ref->value) : NULL;
+
+	VkImageType type = _GFX_GET_VK_IMAGE_TYPE(
+		(ref->obj.image != NULL) ? ref->obj.image->base.type :
+		(ref->obj.renderer != NULL) ? attach->image.base.type : 0);
+
 	GFXFormat fmt =
 		(ref->obj.image != NULL) ? ref->obj.image->base.format :
-		(ref->obj.renderer != NULL) ? ((_GFXAttach*)gfx_vec_at(
-			&ref->obj.renderer->backing.attachs, ref->value))->image.base.format :
+		(ref->obj.renderer != NULL) ? attach->image.base.format :
 		GFX_FORMAT_EMPTY;
 
 	uint32_t blockSize = GFX_FORMAT_BLOCK_SIZE(fmt) / CHAR_BIT; // In bytes.
@@ -107,9 +114,19 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 			numRows = (numRows + blockHeight - 1) / blockHeight;
 
 			// Compute the index of the last texel to get the copy size.
-			uint32_t x = (refRegions[r].width + blockWidth - 1) / blockWidth - 1;
-			uint32_t y = (refRegions[r].height + blockHeight - 1) / blockHeight - 1;
-			uint32_t z = refRegions[r].depth - 1;
+			// If the image is 1D, use layers as height.
+			// If the image is 2D, use layers as depth.
+			// If the image is 3D, it cannot have layers (!)
+			uint32_t x =
+				refRegions[r].width;
+			uint32_t y = (type == VK_IMAGE_TYPE_1D) ?
+				refRegions[r].numLayers : refRegions[r].height;
+			uint32_t z = (type == VK_IMAGE_TYPE_2D) ?
+				refRegions[r].numLayers : refRegions[r].depth;
+
+			x = (x + blockWidth - 1) / blockWidth - 1;
+			y = (y + blockHeight - 1) / blockHeight - 1;
+			z = z - 1;
 
 			uint64_t last = (z * (uint64_t)numRows + y) * (uint64_t)rowSize + x;
 			stage[r].size = (last + 1) * blockSize;

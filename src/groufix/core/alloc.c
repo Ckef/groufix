@@ -279,7 +279,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	gfx_log_debug(
 		"New Vulkan memory object allocated:\n"
 		"    Memory block size: %"PRIu64" bytes%s.\n"
-		"    Preferred block size: %"PRIu64" bytes.\n"
+		"    Prefer block size: %"PRIu64" bytes.\n"
 		"    Memory heap size: %"PRIu64" bytes.\n",
 		blockSize,
 		dedicated ? " (dedicated)" : "",
