@@ -471,10 +471,10 @@ static int _gfx_copy_device(_GFXStaging* staging,
 			};
 		}
 
-		// TODO: Do not use the undefined layout, depend on sync/deps.
+		// TODO: Do not use the general layout, depend on sync/deps.
 		context->vk.CmdCopyImage(cmd,
-			srcImage, VK_IMAGE_LAYOUT_UNDEFINED,
-			dstImage, VK_IMAGE_LAYOUT_UNDEFINED,
+			srcImage, VK_IMAGE_LAYOUT_GENERAL,
+			dstImage, VK_IMAGE_LAYOUT_GENERAL,
 			(uint32_t)numRegions, cRegions);
 	}
 
@@ -523,15 +523,15 @@ static int _gfx_copy_device(_GFXStaging* staging,
 			};
 		}
 
-		// TODO: Do not use the undefined layout, depend on sync/deps.
+		// TODO: Do not use the general layout, depend on sync/deps.
 		if (srcBuffer != VK_NULL_HANDLE && rev == 0)
 			context->vk.CmdCopyBufferToImage(cmd,
 				srcBuffer,
-				dstImage, VK_IMAGE_LAYOUT_UNDEFINED,
+				dstImage, VK_IMAGE_LAYOUT_GENERAL,
 				(uint32_t)numRegions, cRegions);
 		else
 			context->vk.CmdCopyImageToBuffer(cmd,
-				rev ? dstImage : srcImage, VK_IMAGE_LAYOUT_UNDEFINED,
+				rev ? dstImage : srcImage, VK_IMAGE_LAYOUT_GENERAL,
 				rev ? srcBuffer : dstBuffer,
 				(uint32_t)numRegions, cRegions);
 	}

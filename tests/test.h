@@ -335,7 +335,7 @@ static void _test_init(void)
 		TEST_FAIL();
 	}
 
-	// Allocate a group with an mvp matrix.
+	// Allocate a group with an mvp matrix and a texture.
 	float uboData[] = {
 		1.0f, 0.2f, 0.0f, 0.0f,
 		0.0f, 1.0f, 0.0f, 0.0f,
@@ -343,16 +343,36 @@ static void _test_init(void)
 		0.0f, 0.0f, 0.0f, 1.0f
 	};
 
+	uint8_t imgData[] = {
+		255, 0, 255, 0,
+		0, 255, 0, 255,
+		255, 0, 255, 0,
+		0, 255, 0, 255
+	};
+
+	GFXImage* image = gfx_alloc_image(_test_base.heap,
+		GFX_IMAGE_2D, GFX_MEMORY_WRITE,
+		GFX_IMAGE_SAMPLED, GFX_FORMAT_R8_UNORM,
+		1, 1,
+		4, 4, 1);
+
+	if (image == NULL)
+		TEST_FAIL();
+
 	_test_base.group = gfx_alloc_group(_test_base.heap,
 		GFX_MEMORY_WRITE,
 		GFX_BUFFER_UNIFORM,
-		1, (GFXBinding[]){
+		2, (GFXBinding[]){
 			{
 				.type = GFX_BINDING_BUFFER,
 				.count = 1,
 				.elementSize = sizeof(float) * 16,
 				.numElements = 1,
 				.buffers = NULL
+			}, {
+				.type = GFX_BINDING_IMAGE,
+				.count = 1,
+				.images = (GFXImageRef[]){ gfx_ref_image(image) }
 			}
 		});
 
@@ -360,10 +380,26 @@ static void _test_init(void)
 		TEST_FAIL();
 
 	GFXBufferRef ubo = gfx_ref_group_buffer(_test_base.group, 0, 0, 0);
+	GFXImageRef img = gfx_ref_group_image(_test_base.group, 1, 0);
 
 	if (!gfx_write(uboData, ubo, 1,
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(uboData) }},
 		(GFXRegion[]){{ .offset = 0, .size = 0 }}))
+	{
+		TEST_FAIL();
+	}
+
+	if (!gfx_write(imgData, img, 1,
+		(GFXRegion[]){{
+			.offset = 0,
+			.rowSize = 0,
+			.numRows = 0
+		}},
+		(GFXRegion[]){{
+			.mipmap = 0, .layer = 0,  .numLayers = 1,
+			.x = 0,      .y = 0,      .z = 0,
+			.width = 4,  .height = 4, .depth = 1
+		}}))
 	{
 		TEST_FAIL();
 	}

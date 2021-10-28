@@ -796,7 +796,7 @@ GFX_API void gfx_free_image(GFXImage* image)
 	if (image == NULL)
 		return;
 
-	_GFXImage* img = (_GFXImage*)img;
+	_GFXImage* img = (_GFXImage*)image;
 	GFXHeap* heap = img->heap;
 
 	// Unlink from heap & free.
