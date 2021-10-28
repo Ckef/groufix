@@ -343,7 +343,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 			.linearTilingFeatures = 0,
 			.optimalTilingFeatures =
 				_GFX_GET_VK_FORMAT_FEATURES(attachment.flags, attachment.usage) |
-				((GFX_FORMAT_HAS_DEPTH(attachment.format) |
+				((GFX_FORMAT_HAS_DEPTH(attachment.format) ||
 				GFX_FORMAT_HAS_STENCIL(attachment.format)) ?
 					VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT :
 					VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT),

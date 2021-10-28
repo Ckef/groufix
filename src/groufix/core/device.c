@@ -23,27 +23,27 @@
 	} while (0)
 
 #define _GFX_GET_DEVICE_TYPE(vType) \
-	((vType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) ? \
+	(((vType) == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) ? \
 		GFX_DEVICE_DISCRETE_GPU : \
-	(vType == VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU) ? \
+	((vType) == VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU) ? \
 		GFX_DEVICE_VIRTUAL_GPU : \
-	(vType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) ? \
+	((vType) == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) ? \
 		GFX_DEVICE_INTEGRATED_GPU : \
-	(vType == VK_PHYSICAL_DEVICE_TYPE_CPU) ? \
+	((vType) == VK_PHYSICAL_DEVICE_TYPE_CPU) ? \
 		GFX_DEVICE_CPU : \
 		GFX_DEVICE_UNKNOWN)
 
 
 // Gets the complete set of queue flags (adding optional left out bits).
 #define _GFX_QUEUE_FLAGS_ALL(vFlags) \
-	(vFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT) ? \
-		vFlags | VK_QUEUE_TRANSFER_BIT : vFlags)
+	((vFlags) & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT) ? \
+		(vFlags) | VK_QUEUE_TRANSFER_BIT : (vFlags))
 
 // Counts the number of (relevant) set bits in a set of queue flags.
 #define _GFX_QUEUE_FLAGS_COUNT(vFlags) \
-	((vFlags & VK_QUEUE_GRAPHICS_BIT ? 1 : 0) + \
-	(vFlags & VK_QUEUE_COMPUTE_BIT ? 1 : 0) + \
-	(vFlags & VK_QUEUE_TRANSFER_BIT ? 1 : 0))
+	(((vFlags) & VK_QUEUE_GRAPHICS_BIT ? 1 : 0) + \
+	((vFlags) & VK_QUEUE_COMPUTE_BIT ? 1 : 0) + \
+	((vFlags) & VK_QUEUE_TRANSFER_BIT ? 1 : 0))
 
 
 // Gets device version support & features support per version (all lvalues).

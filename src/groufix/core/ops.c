@@ -12,15 +12,23 @@
 #include <string.h>
 
 
-// TODO: Wrong, can't have multiple aspect bits.
-#define _GFX_GET_VK_IMAGE_ASPECT(fmt) \
-	(GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ? \
-		((GFX_FORMAT_HAS_DEPTH(fmt) ? \
-			VK_IMAGE_ASPECT_DEPTH_BIT : (VkImageAspectFlags)0) | \
-		(GFX_FORMAT_HAS_STENCIL(fmt) ? \
-			VK_IMAGE_ASPECT_STENCIL_BIT : (VkImageAspectFlags)0)) : \
-		VK_IMAGE_ASPECT_COLOR_BIT)
+// Modify texel block size according to image aspect.
+#define _GFX_BLOCK_SIZE_TO_DEPTH(blockSize, fmt) \
+	(!GFX_FORMAT_HAS_DEPTH(fmt) ? blockSize : \
+	(GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize & ~(uint32_t)1 : blockSize))
 
+#define _GFX_BLOCK_SIZE_TO_STENCIL(blockSize, fmt) \
+	(!GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize : 1)
+
+#define _GFX_MOD_BLOCK_SIZE(blockSize, fmt, aspect) \
+	(((aspect) & GFX_IMAGE_DEPTH) ? \
+		_GFX_BLOCK_SIZE_TO_DEPTH(blockSize, fmt) : \
+	((aspect) & GFX_IMAGE_STENCIL) ? \
+		_GFX_BLOCK_SIZE_TO_STENCIL(blockSize, fmt) : \
+	blockSize)
+
+
+// Modify destination region dimensions to use as source dimensions.
 #define _GFX_VK_WIDTH_DST_TO_SRC(dstWidth, srcFmt, dstFmt) \
 	((GFX_FORMAT_IS_COMPRESSED(srcFmt) && !GFX_FORMAT_IS_COMPRESSED(dstFmt)) ? \
 		dstWidth * GFX_FORMAT_BLOCK_WIDTH(srcFmt) : \
@@ -128,8 +136,10 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 			y = (y + blockHeight - 1) / blockHeight - 1;
 			z = z - 1;
 
-			uint64_t last = (z * (uint64_t)numRows + y) * (uint64_t)rowSize + x;
-			stage[r].size = (last + 1) * blockSize;
+			uint64_t last =
+				(z * (uint64_t)numRows + y) * (uint64_t)rowSize + x;
+			stage[r].size = (last + 1) *
+				_GFX_MOD_BLOCK_SIZE(blockSize, fmt, refRegions[r].aspect);
 		}
 	}
 
@@ -315,17 +325,6 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		(dst->obj.renderer != NULL) ? attach->image.vk.image :
 		VK_NULL_HANDLE;
 
-	GFXFormat srcFormat =
-		(staging != NULL) ? GFX_FORMAT_EMPTY :
-		(src->obj.image != NULL) ? src->obj.image->base.format :
-		(src->obj.renderer != NULL) ? attach->image.base.format :
-		GFX_FORMAT_EMPTY;
-
-	GFXFormat dstFormat =
-		(dst->obj.image != NULL) ? dst->obj.image->base.format :
-		(dst->obj.renderer != NULL) ? attach->image.base.format :
-		GFX_FORMAT_EMPTY;
-
 	// Pick a queue, command pool and mutex from the heap.
 	_GFXQueue* queue = &heap->graphics;
 	VkCommandPool pool = heap->vk.gPool;
@@ -441,13 +440,19 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	// Image -> image copy.
 	else if (srcImage != VK_NULL_HANDLE && dstImage != VK_NULL_HANDLE)
 	{
+		GFXFormat srcFormat = (src->obj.image != NULL) ?
+			src->obj.image->base.format : attach->image.base.format;
+
+		GFXFormat dstFormat = (dst->obj.image != NULL) ?
+			dst->obj.image->base.format : attach->image.base.format;
+
 		// Note that rev is only allowed to be non-zero when staging is set.
 		// Meaning if rev is set, image -> image copies cannot happen.
 		VkImageCopy cRegions[numRegions];
 		for (size_t r = 0; r < numRegions; ++r)
 		{
 			cRegions[r].srcSubresource = (VkImageSubresourceLayers){
-				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(srcFormat),
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(srcRegions[r].aspect),
 				.mipLevel       = srcRegions[r].mipmap,
 				.baseArrayLayer = srcRegions[r].layer,
 				.layerCount     = srcRegions[r].numLayers
@@ -460,7 +465,7 @@ static int _gfx_copy_device(_GFXStaging* staging,
 			};
 
 			cRegions[r].dstSubresource = (VkImageSubresourceLayers){
-				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(dstFormat),
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(dstRegions[r].aspect),
 				.mipLevel       = dstRegions[r].mipmap,
 				.baseArrayLayer = dstRegions[r].layer,
 				.layerCount     = dstRegions[r].numLayers
@@ -520,11 +525,10 @@ static int _gfx_copy_device(_GFXStaging* staging,
 			cRegions[r].bufferImageHeight = bufRegions[r].numRows;
 
 			cRegions[r].imageSubresource = (VkImageSubresourceLayers){
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(imgRegions[r].aspect),
 				.mipLevel       = imgRegions[r].mipmap,
 				.baseArrayLayer = imgRegions[r].layer,
-				.layerCount     = imgRegions[r].numLayers,
-				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(
-					(srcImage != VK_NULL_HANDLE) ? srcFormat : dstFormat)
+				.layerCount     = imgRegions[r].numLayers
 			};
 
 			cRegions[r].imageOffset = (VkOffset3D){

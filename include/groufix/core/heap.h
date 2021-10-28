@@ -31,6 +31,18 @@ typedef enum GFXImageType
 
 
 /**
+ * Image aspect (i.e. different sub-resources).
+ */
+typedef enum GFXImageAspect
+{
+	GFX_IMAGE_COLOR   = 0x0001,
+	GFX_IMAGE_DEPTH   = 0x0002,
+	GFX_IMAGE_STENCIL = 0x0004
+
+} GFXImageAspect;
+
+
+/**
  * Primitive topology.
  */
 typedef enum GFXTopology
@@ -387,7 +399,7 @@ typedef struct GFXRegion
 		// Image layers/offset/extent.
 		struct
 		{
-			// TODO: Add aspect.
+			GFXImageAspect aspect; // Only 1 aspect can be set.
 
 			uint32_t mipmap;
 			uint32_t layer;

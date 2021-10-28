@@ -396,6 +396,7 @@ static void _test_init(void)
 			.numRows = 0
 		}},
 		(GFXRegion[]){{
+			.aspect = GFX_IMAGE_COLOR,
 			.mipmap = 0, .layer = 0,  .numLayers = 1,
 			.x = 0,      .y = 0,      .z = 0,
 			.width = 4,  .height = 4, .depth = 1
