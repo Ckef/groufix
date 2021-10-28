@@ -13,19 +13,13 @@
 
 
 // Modify texel block size according to image aspect.
-#define _GFX_BLOCK_SIZE_TO_DEPTH(blockSize, fmt) \
-	(!GFX_FORMAT_HAS_DEPTH(fmt) ? blockSize : \
-	(GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize & ~(uint32_t)1 : blockSize))
-
-#define _GFX_BLOCK_SIZE_TO_STENCIL(blockSize, fmt) \
-	(!GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize : 1)
-
 #define _GFX_MOD_BLOCK_SIZE(blockSize, fmt, aspect) \
 	(((aspect) & GFX_IMAGE_DEPTH) ? \
-		_GFX_BLOCK_SIZE_TO_DEPTH(blockSize, fmt) : \
+		(!GFX_FORMAT_HAS_DEPTH(fmt) ? blockSize : \
+		(GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize & ~(uint32_t)1 : blockSize)) : \
 	((aspect) & GFX_IMAGE_STENCIL) ? \
-		_GFX_BLOCK_SIZE_TO_STENCIL(blockSize, fmt) : \
-	blockSize)
+		(!GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize : 1) : \
+		blockSize)
 
 
 // Modify destination region dimensions to use as source dimensions.
