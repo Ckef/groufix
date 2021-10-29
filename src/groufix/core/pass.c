@@ -803,6 +803,8 @@ void _gfx_pass_destruct(GFXPass* pass)
 
 	pass->vk.setLayout = VK_NULL_HANDLE;
 	pass->vk.pool = VK_NULL_HANDLE;
+	pass->vk.sampler = VK_NULL_HANDLE;
+	pass->vk.view = VK_NULL_HANDLE;
 	pass->vk.set = VK_NULL_HANDLE;
 	pass->vk.pipeLayout = VK_NULL_HANDLE;
 
