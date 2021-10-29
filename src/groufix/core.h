@@ -232,6 +232,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CmdDraw);
 		_GFX_VK_PFN(CmdDrawIndexed);
 		_GFX_VK_PFN(CmdEndRenderPass);
+		_GFX_VK_PFN(CmdPipelineBarrier);
 		_GFX_VK_PFN(CreateBuffer);
 		_GFX_VK_PFN(CreateCommandPool);
 		_GFX_VK_PFN(CreateDescriptorPool);

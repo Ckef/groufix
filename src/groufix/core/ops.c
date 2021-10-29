@@ -196,6 +196,55 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 }
 
 /****************************
+ * Merges the regions associated with an image into a VkImageSubresourceRange
+ * struct, useful for for iamge layout transitions.
+ * @param numRegions Must be > 0.
+ * @param regions    To be merged regions, cannot be NULL.
+ * @return Merged range, contains all given regions.
+ */
+static VkImageSubresourceRange _gfx_regions_range(size_t numRegions,
+                                                  const GFXRegion* regions)
+{
+	assert(numRegions > 0);
+	assert(regions != NULL);
+
+	VkImageSubresourceRange range = {
+		.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(regions[0].aspect),
+		.baseMipLevel   = regions[0].mipmap,
+		.levelCount     = 1,
+		.baseArrayLayer = regions[0].layer,
+		.layerCount     = regions[0].numLayers
+	};
+
+	for (size_t r = 1; r < numRegions; ++r)
+	{
+		// First calculate the new actual range.
+		range.levelCount =
+			GFX_MAX(
+				range.baseMipLevel + range.levelCount,
+				regions[r].mipmap + 1) -
+			GFX_MIN(
+				range.baseMipLevel, regions[r].mipmap);
+		range.layerCount =
+			GFX_MAX(
+				range.baseArrayLayer + range.layerCount,
+				regions[r].layer + regions[r].numLayers) -
+			GFX_MIN(
+				range.baseArrayLayer, regions[r].layer);
+
+		// Then set new boundaries.
+		range.aspectMask |=
+			_GFX_GET_VK_IMAGE_ASPECT(regions[r].aspect);
+		range.baseMipLevel =
+			GFX_MIN(range.baseMipLevel, regions[r].mipmap);
+		range.baseArrayLayer =
+			GFX_MIN(range.baseArrayLayer, regions[r].layer);
+	}
+
+	return range;
+}
+
+/****************************
  * Copies data from a host pointer to a mapped resource or staging buffer.
  * @param ptr        Host pointer, cannot be NULL.
  * @param ref        Mapped resource or staging pointer, cannot be NULL.
@@ -395,6 +444,55 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		context->vk.BeginCommandBuffer(cmd, &cbbi),
 		goto clean_fence);
 
+	// Insert an image memory barrier if needed.
+	// TODO: Let memory barriers depend on the taken sync/dep objects.
+	if (srcImage != VK_NULL_HANDLE || dstImage != VK_NULL_HANDLE)
+	{
+		// Note that rev is only allowed to be non-zero when staging is set.
+		// Meaning if rev is set, there can be no source image.
+		VkImageMemoryBarrier imb[2];
+
+		if (srcImage != VK_NULL_HANDLE) imb[0] = (VkImageMemoryBarrier){
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = 0,
+			.dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
+			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image               = srcImage,
+			.subresourceRange    = _gfx_regions_range(numRegions, srcRegions)
+		};
+
+		if (dstImage != VK_NULL_HANDLE) imb[1] = (VkImageMemoryBarrier){
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = 0,
+			.dstAccessMask       = rev ?
+				VK_ACCESS_TRANSFER_READ_BIT :
+				VK_ACCESS_TRANSFER_WRITE_BIT,
+			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout           = rev ?
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image               = dstImage,
+			.subresourceRange    = _gfx_regions_range(numRegions, dstRegions)
+		};
+
+		context->vk.CmdPipelineBarrier(cmd,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0, 0, NULL, 0, NULL,
+			(uint32_t)(srcImage != VK_NULL_HANDLE ? 1 : 0) +
+			(uint32_t)(dstImage != VK_NULL_HANDLE ? 1 : 0),
+			srcImage != VK_NULL_HANDLE ? imb : imb + 1);
+	}
+
 	// Buffer -> buffer copy.
 	if (srcBuffer != VK_NULL_HANDLE && dstBuffer != VK_NULL_HANDLE)
 	{
@@ -487,10 +585,9 @@ static int _gfx_copy_device(_GFXStaging* staging,
 			};
 		}
 
-		// TODO: Do not use the general layout, depend on sync/deps.
 		context->vk.CmdCopyImage(cmd,
-			srcImage, VK_IMAGE_LAYOUT_GENERAL,
-			dstImage, VK_IMAGE_LAYOUT_GENERAL,
+			srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			(uint32_t)numRegions, cRegions);
 	}
 
@@ -538,15 +635,16 @@ static int _gfx_copy_device(_GFXStaging* staging,
 			};
 		}
 
-		// TODO: Do not use the general layout, depend on sync/deps.
 		if (srcBuffer != VK_NULL_HANDLE && rev == 0)
 			context->vk.CmdCopyBufferToImage(cmd,
 				srcBuffer,
-				dstImage, VK_IMAGE_LAYOUT_GENERAL,
+				dstImage,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 				(uint32_t)numRegions, cRegions);
 		else
 			context->vk.CmdCopyImageToBuffer(cmd,
-				rev ? dstImage : srcImage, VK_IMAGE_LAYOUT_GENERAL,
+				rev ? dstImage : srcImage,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 				rev ? srcBuffer : dstBuffer,
 				(uint32_t)numRegions, cRegions);
 	}
