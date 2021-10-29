@@ -724,6 +724,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CreateImageView);
 	_GFX_GET_DEVICE_PROC_ADDR(CreatePipelineLayout);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateRenderPass);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateSampler);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateSemaphore);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateShaderModule);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
@@ -738,6 +739,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipeline);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipelineLayout);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyRenderPass);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroySampler);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroySemaphore);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyShaderModule);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);

@@ -449,6 +449,8 @@ struct GFXPass
 		GFXVec                framebuffers; // Stores VkFramebuffer.
 		VkDescriptorSetLayout setLayout;
 		VkDescriptorPool      pool;
+		VkSampler             sampler;
+		VkImageView           view;
 		VkDescriptorSet       set;
 		VkPipelineLayout      pipeLayout;
 		VkPipeline            pipeline;

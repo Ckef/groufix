@@ -649,6 +649,57 @@ static int _gfx_copy_device(_GFXStaging* staging,
 				(uint32_t)numRegions, cRegions);
 	}
 
+	// Insert an image memory barrier if needed.
+	// TODO: Let memory barriers depend on the taken sync/dep objects.
+	// TODO: This requires pipeline stage, how do we determine this?
+	// TODO: OR! Do this in the object that awaits a given sync/dep object.
+	if (srcImage != VK_NULL_HANDLE || dstImage != VK_NULL_HANDLE)
+	{
+		// Note that rev is only allowed to be non-zero when staging is set.
+		// Meaning if rev is set, there can be no source image.
+		VkImageMemoryBarrier imb[2];
+
+		if (srcImage != VK_NULL_HANDLE) imb[0] = (VkImageMemoryBarrier){
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
+			.dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+			.oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			.newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image               = srcImage,
+			.subresourceRange    = _gfx_regions_range(numRegions, srcRegions)
+		};
+
+		if (dstImage != VK_NULL_HANDLE) imb[1] = (VkImageMemoryBarrier){
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = rev ?
+				VK_ACCESS_TRANSFER_READ_BIT :
+				VK_ACCESS_TRANSFER_WRITE_BIT,
+			.dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+			.oldLayout           = rev ?
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			.newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image               = dstImage,
+			.subresourceRange    = _gfx_regions_range(numRegions, dstRegions)
+		};
+
+		context->vk.CmdPipelineBarrier(cmd,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			0, 0, NULL, 0, NULL,
+			(uint32_t)(srcImage != VK_NULL_HANDLE ? 1 : 0) +
+			(uint32_t)(dstImage != VK_NULL_HANDLE ? 1 : 0),
+			srcImage != VK_NULL_HANDLE ? imb : imb + 1);
+	}
+
 	_GFX_VK_CHECK(
 		context->vk.EndCommandBuffer(cmd),
 		goto clean_fence);

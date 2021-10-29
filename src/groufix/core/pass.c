@@ -222,14 +222,22 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 
 			.pNext        = NULL,
 			.flags        = 0,
-			.bindingCount = 1,
-			.pBindings = (VkDescriptorSetLayoutBinding[]){{
-				.binding            = 0,
-				.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				.descriptorCount    = 1,
-				.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
-				.pImmutableSamplers = NULL
-			}}
+			.bindingCount = 2,
+			.pBindings = (VkDescriptorSetLayoutBinding[]){
+				{
+					.binding            = 0,
+					.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+					.descriptorCount    = 1,
+					.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
+					.pImmutableSamplers = NULL
+				}, {
+					.binding            = 1,
+					.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+					.descriptorCount    = 1,
+					.stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
+					.pImmutableSamplers = NULL
+				}
+			}
 		};
 
 		_GFX_VK_CHECK(context->vk.CreateDescriptorSetLayout(
@@ -245,15 +253,92 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.pNext         = NULL,
 			.flags         = 0,
 			.maxSets       = 1,
-			.poolSizeCount = 1,
-			.pPoolSizes = (VkDescriptorPoolSize[]){{
-				.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				.descriptorCount = 1
-			}}
+			.poolSizeCount = 2,
+			.pPoolSizes = (VkDescriptorPoolSize[]){
+				{
+					.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+					.descriptorCount = 1
+				}, {
+					.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+					.descriptorCount = 1
+				}
+			}
 		};
 
 		_GFX_VK_CHECK(context->vk.CreateDescriptorPool(
 			context->vk.device, &dpci, NULL, &pass->vk.pool), goto error);
+	}
+
+	// Create sampler.
+	// TODO: Somehow get this from renderables.
+	if (pass->vk.sampler == VK_NULL_HANDLE)
+	{
+		VkSamplerCreateInfo sci = {
+			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+
+			.pNext            = NULL,
+			.flags            = 0,
+			.magFilter        = VK_FILTER_NEAREST,
+			.minFilter        = VK_FILTER_NEAREST,
+			.mipmapMode       = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+			.addressModeU     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeV     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeW     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.mipLodBias       = 0.0f,
+			.anisotropyEnable = VK_FALSE,
+			.maxAnisotropy    = 1.0f,
+			.compareEnable    = VK_FALSE,
+			.compareOp        = VK_COMPARE_OP_ALWAYS,
+			.minLod           = 0.0f,
+			.maxLod           = 1.0f,
+			.borderColor      = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+
+			.unnormalizedCoordinates = VK_FALSE
+		};
+
+		_GFX_VK_CHECK(context->vk.CreateSampler(
+			context->vk.device, &sci, NULL, &pass->vk.sampler), goto error);
+	}
+
+	// Create image view.
+	// TODO: Somehow get this from renderables.
+	if (pass->vk.view == VK_NULL_HANDLE)
+	{
+		// Use the second binding of the group as image lol.
+		// TODO: Renderables should define what parts of a group to use.
+		_GFXUnpackRef img = _gfx_ref_unpack(
+			gfx_ref_group_image(&group->base, 1, 0));
+
+		if (img.obj.image == NULL)
+			goto error;
+
+		VkImageViewCreateInfo ivci = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+
+			.pNext    = NULL,
+			.flags    = 0,
+			.image    = img.obj.image->vk.image,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format   = img.obj.image->vk.format,
+
+			.components = {
+				.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+				.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+				.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+				.a = VK_COMPONENT_SWIZZLE_IDENTITY
+			},
+
+			.subresourceRange = {
+				.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel   = 0,
+				.levelCount     = 1,
+				.baseArrayLayer = 0,
+				.layerCount     = 1
+			}
+		};
+
+		_GFX_VK_CHECK(context->vk.CreateImageView(
+			context->vk.device, &ivci, NULL, &pass->vk.view), goto error);
 	}
 
 	// Allocate descriptor set.
@@ -288,20 +373,38 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.range  = group->bindings[0].elementSize
 		};
 
-		VkWriteDescriptorSet wds = {
-			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		VkDescriptorImageInfo dii = {
+			.sampler     = pass->vk.sampler,
+			.imageView   = pass->vk.view,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		};
 
-			.pNext            = NULL,
-			.dstSet           = pass->vk.set,
-			.dstBinding       = 0,
-			.dstArrayElement  = 0,
-			.descriptorCount  = 1,
-			.descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			.pBufferInfo      = &dbi,
+		VkWriteDescriptorSet wds[] = {
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+
+				.pNext           = NULL,
+				.dstSet          = pass->vk.set,
+				.dstBinding      = 0,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				.pBufferInfo     = &dbi
+			}, {
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+
+				.pNext           = NULL,
+				.dstSet          = pass->vk.set,
+				.dstBinding      = 1,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo      = &dii
+			}
 		};
 
 		context->vk.UpdateDescriptorSets(
-			context->vk.device, 1, &wds, 0, NULL);
+			context->vk.device, 2, wds, 0, NULL);
 	}
 
 	// Create pipeline layout.
@@ -565,6 +668,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->vk.pass = VK_NULL_HANDLE;
 	pass->vk.setLayout = VK_NULL_HANDLE;
 	pass->vk.pool = VK_NULL_HANDLE;
+	pass->vk.sampler = VK_NULL_HANDLE;
+	pass->vk.view = VK_NULL_HANDLE;
 	pass->vk.set = VK_NULL_HANDLE;
 	pass->vk.pipeLayout = VK_NULL_HANDLE;
 	pass->vk.pipeline = VK_NULL_HANDLE;
@@ -583,22 +688,28 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		"};\n"
 		"layout(location = 0) in vec3 position;\n"
 		"layout(location = 1) in vec3 color;\n"
+		"layout(location = 2) in vec2 texCoord;\n"
 		"layout(location = 0) out vec3 fragColor;\n"
+		"layout(location = 1) out vec2 fragTexCoord;\n"
 		"out gl_PerVertex {\n"
 		"  vec4 gl_Position;\n"
 		"};\n"
 		"void main() {\n"
 		"  gl_Position = mvp * vec4(position, 1.0);\n"
 		"  fragColor = color;\n"
+		"  fragTexCoord = texCoord;\n"
 		"}\n";
 
 	const char frag[] =
 		"#version 450\n"
 		"#extension GL_ARB_separate_shader_objects : enable\n"
+		"layout(set = 0, binding = 1) uniform sampler2D texSampler;\n"
 		"layout(location = 0) in vec3 fragColor;\n"
+		"layout(location = 1) in vec2 fragTexCoord;\n"
 		"layout(location = 0) out vec4 outColor;\n"
 		"void main() {\n"
-		"  outColor = vec4(fragColor, 1.0);\n"
+		"  float tex = texture(texSampler, fragTexCoord).r;\n"
+		"  outColor = vec4(fragColor, 1.0) * tex;\n"
 		"}\n";
 
 	pass->build.primitive = NULL;
@@ -680,6 +791,12 @@ void _gfx_pass_destruct(GFXPass* pass)
 
 	context->vk.DestroyDescriptorPool(
 		context->vk.device, pass->vk.pool, NULL);
+
+	context->vk.DestroySampler(
+		context->vk.device, pass->vk.sampler, NULL);
+
+	context->vk.DestroyImageView(
+		context->vk.device, pass->vk.view, NULL);
 
 	context->vk.DestroyPipelineLayout(
 		context->vk.device, pass->vk.pipeLayout, NULL);

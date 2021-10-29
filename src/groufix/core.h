@@ -244,6 +244,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CreateImageView);
 		_GFX_VK_PFN(CreatePipelineLayout);
 		_GFX_VK_PFN(CreateRenderPass);
+		_GFX_VK_PFN(CreateSampler);
 		_GFX_VK_PFN(CreateSemaphore);
 		_GFX_VK_PFN(CreateShaderModule);
 		_GFX_VK_PFN(CreateSwapchainKHR);
@@ -259,6 +260,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(DestroyPipeline);
 		_GFX_VK_PFN(DestroyPipelineLayout);
 		_GFX_VK_PFN(DestroyRenderPass);
+		_GFX_VK_PFN(DestroySampler);
 		_GFX_VK_PFN(DestroySemaphore);
 		_GFX_VK_PFN(DestroyShaderModule);
 		_GFX_VK_PFN(DestroySwapchainKHR);
