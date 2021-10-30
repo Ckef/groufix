@@ -83,6 +83,10 @@
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT : (VkImageUsageFlags)0) | \
 	((usage) & GFX_IMAGE_SAMPLED ? \
 		VK_IMAGE_USAGE_SAMPLED_BIT : (VkImageUsageFlags)0) | \
+	((usage) & GFX_IMAGE_SAMPLED_LINEAR ? \
+		VK_IMAGE_USAGE_SAMPLED_BIT : (VkImageUsageFlags)0) | \
+	((usage) & GFX_IMAGE_SAMPLED_MINMAX ? \
+		VK_IMAGE_USAGE_SAMPLED_BIT : (VkImageUsageFlags)0) | \
 	((usage) & GFX_IMAGE_STORAGE ? \
 		VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlags)0))
 
