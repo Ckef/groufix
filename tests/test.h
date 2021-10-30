@@ -301,6 +301,7 @@ static void _test_init(void)
 
 	_test_base.primitive = gfx_alloc_prim(_test_base.heap,
 		GFX_MEMORY_WRITE, 0,
+		GFX_TOPO_TRIANGLE_STRIP,
 		GFX_REF_NULL, GFX_REF_NULL,
 		4, sizeof(float) * 8,
 		4, sizeof(uint16_t),
@@ -315,8 +316,7 @@ static void _test_init(void)
 				.format = GFX_FORMAT_R32G32_SFLOAT,
 				.offset = sizeof(float) * 6
 			}
-		},
-		GFX_TOPO_TRIANGLE_STRIP);
+		});
 
 	if (_test_base.primitive == NULL)
 		TEST_FAIL();

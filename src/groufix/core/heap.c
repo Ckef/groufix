@@ -813,11 +813,11 @@ GFX_API void gfx_free_image(GFXImage* image)
 /****************************/
 GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      GFXMemoryFlags flags, GFXBufferUsage usage,
+                                     GFXTopology topology,
                                      GFXBufferRef vertex, GFXBufferRef index,
                                      uint32_t numVertices, uint32_t stride,
                                      uint32_t numIndices, char indexSize,
-                                     size_t numAttribs, const GFXAttribute* attribs,
-                                     GFXTopology topology)
+                                     size_t numAttribs, const GFXAttribute* attribs)
 {
 	assert(heap != NULL);
 	assert((!GFX_REF_IS_NULL(vertex) && (!GFX_REF_IS_NULL(index) || numIndices == 0)) || flags != 0);

@@ -308,11 +308,11 @@ GFX_API void gfx_free_image(GFXImage* image);
  */
 GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      GFXMemoryFlags flags, GFXBufferUsage usage,
+                                     GFXTopology topology,
                                      GFXBufferRef vertex, GFXBufferRef index,
                                      uint32_t numVertices, uint32_t stride,
                                      uint32_t numIndices, char indexSize,
-                                     size_t numAttribs, const GFXAttribute* attribs,
-                                     GFXTopology topology);
+                                     size_t numAttribs, const GFXAttribute* attribs);
 
 /**
  * Frees a primitive, excluding any buffers it references.
