@@ -261,8 +261,8 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
 /**
  * Allocates an image from a heap.
  * @param heap    Cannot be NULL.
- * @param type    Must be a valid image type.
  * @param flags   At least one flag must be set.
+ * @param type    Must be a valid image type.
  * @param usage   At least one usage must be set.
  * @param format  Cannot be GFX_FORMAT_EMPTY.
  * @param mipmaps Must be > 0.
@@ -276,7 +276,7 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer);
  * Thread-safe with respect to heap!
  */
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
-                                  GFXImageType type, GFXMemoryFlags flags,
+                                  GFXMemoryFlags flags, GFXImageType type,
                                   GFXImageUsage usage, GFXFormat format,
                                   uint32_t mipmaps, uint32_t layers,
                                   uint32_t width, uint32_t height, uint32_t depth);

@@ -354,9 +354,8 @@ static void _test_init(void)
 	};
 
 	GFXImage* image = gfx_alloc_image(_test_base.heap,
-		GFX_IMAGE_2D, GFX_MEMORY_WRITE,
-		GFX_IMAGE_SAMPLED, GFX_FORMAT_R8_UNORM,
-		1, 1,
+		GFX_MEMORY_WRITE, GFX_IMAGE_2D,
+		GFX_IMAGE_SAMPLED, GFX_FORMAT_R8_UNORM, 1, 1,
 		4, 4, 1);
 
 	if (image == NULL)

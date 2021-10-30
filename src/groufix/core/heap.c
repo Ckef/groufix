@@ -715,7 +715,7 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 
 /****************************/
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
-                                  GFXImageType type, GFXMemoryFlags flags,
+                                  GFXMemoryFlags flags, GFXImageType type,
                                   GFXImageUsage usage, GFXFormat format,
                                   uint32_t mipmaps, uint32_t layers,
                                   uint32_t width, uint32_t height, uint32_t depth)
