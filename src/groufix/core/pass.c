@@ -215,6 +215,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 
 	// Create descriptor set layout.
 	// TODO: Will be cached.
+	// TODO: Do NOT use combined image samplers, share samplers between images.
 	if (pass->vk.setLayout == VK_NULL_HANDLE)
 	{
 		VkDescriptorSetLayoutCreateInfo dslci = {
@@ -270,7 +271,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 	}
 
 	// Create sampler.
-	// TODO: Somehow get this from renderables.
+	// TODO: Somehow get this from renderables, cached?.
 	if (pass->vk.sampler == VK_NULL_HANDLE)
 	{
 		VkSamplerCreateInfo sci = {
@@ -301,7 +302,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 	}
 
 	// Create image view.
-	// TODO: Somehow get this from renderables.
+	// TODO: Somehow get this from renderables, cached?.
 	if (pass->vk.view == VK_NULL_HANDLE)
 	{
 		// Use the second binding of the group as image lol.

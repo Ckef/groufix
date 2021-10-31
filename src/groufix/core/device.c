@@ -58,9 +58,13 @@
 
 /****************************
  * Array of Vulkan queue priority values in [0,1].
- * TODO: For now just a single queue, maybe we want more with varying values?
+ * The only separate queues that are allocated within the same family are
+ *  { (graphics|present), transfer, compute }
+ *
+ * where the graphics queue (the first) always gets priority over others.
+ * This is _ALWAYS_ the order of queues adhered to in the entire engine.
  */
-static const float _gfx_vk_queue_priorities[] = { 1.0f };
+static const float _gfx_vk_queue_priorities[] = { 1.0f, 0.5f, 0.5f };
 
 
 /****************************
@@ -338,14 +342,14 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
  * @return Non-zero on success.
  */
 static int _gfx_alloc_queue_set(_GFXContext* context,
-                                uint32_t family, int present, size_t count,
                                 VkDeviceQueueCreateInfo* createInfo,
-                                VkQueueFlags flags)
+                                uint32_t family, size_t count,
+                                int present, VkQueueFlags flags)
 {
 	assert(context != NULL);
-	assert(count > 0);
-	assert(count == 1); // TODO: There is only 1 value for priorities for now.
 	assert(createInfo != NULL);
+	assert(count > 0);
+	assert(count <= sizeof(_gfx_vk_queue_priorities)/sizeof(_gfx_vk_queue_priorities[0]));
 
 	// Allocate a new queue set.
 	_GFXQueueSet* set = malloc(sizeof(_GFXQueueSet) + sizeof(_GFXMutex) * count);
@@ -399,34 +403,38 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	assert(*createInfos == NULL);
 
 	// So get all queue families.
-	uint32_t count;
+	uint32_t families;
 	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-		device->vk.device, &count, NULL);
+		device->vk.device, &families, NULL);
 
-	VkQueueFamilyProperties props[count];
+	VkQueueFamilyProperties props[families];
 	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-		device->vk.device, &count, props);
+		device->vk.device, &families, props);
 
 	// We need a few different queues for different operations.
 	// 1) A general graphics family:
-	// We use the most optimal family with VK_QUEUE_GRAPHICS_BIT set.
+	//  We use the most optimal family with VK_QUEUE_GRAPHICS_BIT set.
 	// 2) A family that supports presentation to surface:
-	// Preferably the graphics queue, otherwise another one.
+	//  Preferably the graphics queue, otherwise another one.
 	// 3) A transfer family:
-	// We use the most optimal family with VK_QUEUE_TRANSFER_BIT set.
-	// TODO: 4) A compute-only family for use when others are stalling.
+	//  We use the most optimal family with VK_QUEUE_TRANSFER_BIT set.
+	// 4) A compute-only family for use when others are stalling.
+	//  We use the most optimal family with VK_QUEUE_COMPUTE_BIT set.
 
 	// UINT32_MAX means no such queue is found.
 	uint32_t graphics = UINT32_MAX;
 	uint32_t present = UINT32_MAX;
 	uint32_t transfer = UINT32_MAX;
+	uint32_t compute = UINT32_MAX;
 
 	// Start with finding a graphics family, hopefully with presentation.
-	// Oh and find a (hopefully better) transfer queue.
+	// Oh and find a (hopefully better) transfer & compute queue.
 	graphics = _gfx_find_queue_family(
-		device, count, props, VK_QUEUE_GRAPHICS_BIT, 1);
+		device, families, props, VK_QUEUE_GRAPHICS_BIT, 1);
 	transfer = _gfx_find_queue_family(
-		device, count, props, VK_QUEUE_TRANSFER_BIT, 0);
+		device, families, props, VK_QUEUE_TRANSFER_BIT, 0);
+	compute = _gfx_find_queue_family(
+		device, families, props, VK_QUEUE_COMPUTE_BIT, 0);
 
 	if (graphics != UINT32_MAX)
 		present = graphics;
@@ -434,9 +442,9 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	{
 		// If no graphics family with presentation found, find separate queues.
 		graphics = _gfx_find_queue_family(
-			device, count, props, VK_QUEUE_GRAPHICS_BIT, 0);
+			device, families, props, VK_QUEUE_GRAPHICS_BIT, 0);
 		present = _gfx_find_queue_family(
-			device, count, props, 0, 1);
+			device, families, props, 0, 1);
 	}
 
 	// Now check if we found all queues (and log for all).
@@ -452,8 +460,16 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 		"[ %s ] lacks a queue family with VK_QUEUE_TRANSFER_BIT set.",
 		device->name);
 
-	if (graphics == UINT32_MAX || present == UINT32_MAX || transfer == UINT32_MAX)
+	if (compute == UINT32_MAX) gfx_log_error(
+		"[ %s ] lacks a queue family with VK_QUEUE_COMPUTE_BIT set.",
+		device->name);
+
+	if (
+		graphics == UINT32_MAX || present == UINT32_MAX ||
+		transfer == UINT32_MAX || compute == UINT32_MAX)
+	{
 		return 0;
+	}
 
 	// If transfer queue is not a lone transfer queue, don't use it.
 	if (_GFX_QUEUE_FLAGS_COUNT(
@@ -466,32 +482,59 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	// Ok so we found all queues, we should now allocate the queue sets and
 	// info structures for Vulkan.
 	// Allocate the maximum number of infostructures.
-	*createInfos = malloc(sizeof(VkDeviceQueueCreateInfo) * 3); // 3!
+	*createInfos = malloc(sizeof(VkDeviceQueueCreateInfo) * 4); // 4!
 	if (*createInfos == NULL)
 		return 0;
 
 	// Allocate queue sets and count how many.
 	uint32_t sets = 0;
+	int success = 1;
 
-	// TODO: Make 2 queues in 1 set if no separate transfer queue.
-	// TODO: All places that get a transfer queue should fallback to second graphics queue.
 	// Allocate main (graphics) queue.
-	int success = _gfx_alloc_queue_set(context,
-		graphics, present == graphics, 1, (*createInfos) + (sets++),
-		VK_QUEUE_GRAPHICS_BIT |
-		(transfer == graphics ? VK_QUEUE_TRANSFER_BIT : 0));
+	{
+		size_t count = GFX_MIN(props[graphics].queueCount, (size_t)1 +
+			(transfer == graphics ? 1 : 0) +
+			(compute == graphics ? 1 : 0));
+
+		success = success && _gfx_alloc_queue_set(context,
+			(*createInfos) + (sets++), graphics, count, present == graphics,
+			VK_QUEUE_GRAPHICS_BIT |
+				(transfer == graphics ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0) |
+				(compute == graphics ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0));
+	}
 
 	// Allocate novel present queue if necessary.
 	if (present != graphics)
+	{
+		size_t count = GFX_MIN(props[present].queueCount, (size_t)1 +
+			(transfer == present ? 1 : 0) +
+			(compute == present ? 1 : 0));
+
 		success = success && _gfx_alloc_queue_set(context,
-			present, 1, 1, (*createInfos) + (sets++),
-			(transfer == present ? VK_QUEUE_TRANSFER_BIT : 0));
+			(*createInfos) + (sets++), present, count, 1,
+				(transfer == present ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0) |
+				(compute == present ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0));
+	}
 
 	// Allocate a novel transfer queue if necessary.
 	if (transfer != graphics && transfer != present)
+	{
+		size_t count = GFX_MIN(props[transfer].queueCount, (size_t)1 +
+			(compute == transfer ? 1 : 0));
+
 		success = success && _gfx_alloc_queue_set(context,
-			transfer, 0, 1, (*createInfos) + (sets++),
-			VK_QUEUE_TRANSFER_BIT);
+			(*createInfos) + (sets++), transfer, count, 0,
+			VK_QUEUE_TRANSFER_BIT |
+				(compute == transfer ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0));
+	}
+
+	// Allocate a novel compute queue if necessary.
+	if (compute != graphics && compute != present && compute != transfer)
+	{
+		success = success && _gfx_alloc_queue_set(context,
+			(*createInfos) + (sets++), compute, 1, 0,
+			VK_QUEUE_COMPUTE_BIT);
+	}
 
 	// Check if we succeeded..
 	if (!success)
@@ -1007,8 +1050,8 @@ _GFXQueueSet* _gfx_pick_queue_set(_GFXContext* context,
 {
 	assert(context != NULL);
 
-	// Generaly speaking (!?), queue sets only report the flags they were
-	// specifically picked for, including the presentation flag.
+	// The queue sets only report the flags they were specifically
+	// picked for, including the presentation flag.
 	// Therefore we just loop over the queue sets and pick the first that
 	// satisfies our requirements :)
 	for (
@@ -1026,22 +1069,56 @@ _GFXQueueSet* _gfx_pick_queue_set(_GFXContext* context,
 }
 
 /****************************/
-_GFXQueue _gfx_get_queue(_GFXContext* context,
-                         _GFXQueueSet* set, size_t index)
+_GFXQueueSet* _gfx_pick_queue(_GFXContext* context,
+                              VkQueueFlags flags, int present,
+                              _GFXQueue* queue)
 {
 	assert(context != NULL);
-	assert(set != NULL);
-	assert(index < set->count);
+	assert(queue != NULL);
 
-	VkQueue queue;
+	// First pick the queue set.
+	_GFXQueueSet* set =
+		_gfx_pick_queue_set(context, flags, present);
+
+	if (set == NULL)
+		return NULL;
+
+	// Pick a queue from the set.
+	// This is done according to the order defined by
+	// _gfx_vk_queue_priorities, every entry is checked for existence.
+	// The graphics and presentation abilities always get the same queue,
+	// so hopefully we submit and present on the same queue.
+	uint32_t index =
+		(flags & VK_QUEUE_GRAPHICS_BIT || present) ? 0 :
+		(flags & VK_QUEUE_TRANSFER_BIT) ?
+			// For transfer queues,
+			// pick the second if there is a graphics/present queue.
+			// pick the first otherwise.
+			((set->flags & VK_QUEUE_GRAPHICS_BIT || set->present) ?
+			1 : 0) :
+		(flags & VK_QUEUE_COMPUTE_BIT) ?
+			// For compute queues,
+			// pick the second if there is a graphics/present queue,
+			// pick the third if there is ALSO a transfer queue.
+			// pick the second if there is ONLY a transfer queue.
+			// pick the first otherwise.
+			((set->flags & VK_QUEUE_GRAPHICS_BIT || set->present) ?
+			(set->flags & VK_QUEUE_TRANSFER_BIT ? 1 : 0) + (uint32_t)1 :
+			(set->flags & VK_QUEUE_TRANSFER_BIT ? 1 : 0)) :
+		0; // Nothing matched, hmmm...
+
+	// Get queue & return it.
+	VkQueue vkQueue;
 	context->vk.GetDeviceQueue(
-		context->vk.device, set->family, (uint32_t)index, &queue);
+		context->vk.device, set->family, index, &vkQueue);
 
-	return (_GFXQueue){
+	*queue = (_GFXQueue){
 		.family = set->family,
-		.queue = queue,
+		.queue = vkQueue,
 		.lock = &set->locks[index]
 	};
+
+	return set;
 }
 
 /****************************/

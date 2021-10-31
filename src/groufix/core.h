@@ -528,7 +528,8 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
 _GFXContext* _gfx_device_init_context(_GFXDevice* device);
 
 /**
- * Picks the queue set supporting the given flag and presentation support.
+ * Picks the queue set supporting the given abilities.
+ * Should only be used to query properties, use _gfx_pick_queue for a queue.
  * @param context Cannot be NULL.
  * @return NULL if not found.
  */
@@ -536,13 +537,18 @@ _GFXQueueSet* _gfx_pick_queue_set(_GFXContext* context,
                                   VkQueueFlags flags, int present);
 
 /**
- * Retrieves a handle to a queue from a queue set.
+ * Picks a queue from the queue set supporting the given abilities.
  * @param context Cannot be NULL.
- * @param set     Cannot be NULL, must be picked from context.
- * @index Index of the queue, must be < set->count.
+ * @param queue   Outputs the handle to the picked queue, cannot be NULL.
+ * @return The queue set it was picked from, NULL if none found.
+ *
+ * When only the presentation bit is set OR it is not and only one of the
+ * VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_TRANSFER_BIT or VK_QUEUE_COMPUTE_BIT
+ * flags are set, this function is guaranteed to succeed.
  */
-_GFXQueue _gfx_get_queue(_GFXContext* context,
-                         _GFXQueueSet* set, size_t index);
+_GFXQueueSet* _gfx_pick_queue(_GFXContext* context,
+                              VkQueueFlags flags, int present,
+                              _GFXQueue* queue);
 
 
 /****************************
