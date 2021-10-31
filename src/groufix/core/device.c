@@ -1107,6 +1107,11 @@ _GFXQueueSet* _gfx_pick_queue(_GFXContext* context,
 			(set->flags & VK_QUEUE_TRANSFER_BIT ? 1 : 0)) :
 		0; // Nothing matched, hmmm...
 
+	// If the queue does not exist, pick the last queue.
+	// This way we kinda cascade back to higher priority queues.
+	if (index >= set->count)
+		index = (uint32_t)set->count - 1;
+
 	// Get queue & return it.
 	VkQueue vkQueue;
 	context->vk.GetDeviceQueue(
