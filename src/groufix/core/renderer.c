@@ -29,8 +29,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_GFX_GET_CONTEXT(rend->context, device, goto clean);
 	_GFXContext* context = rend->context;
 
-	// Pick the first queue from both the graphics and presentation set.
-	// With a bit of luck they'll be the same queues.
+	// Pick the graphics and presentation queues.
 	_gfx_pick_queue(context, VK_QUEUE_GRAPHICS_BIT, 0, &rend->graphics);
 	_gfx_pick_queue(context, 0, 1, &rend->present);
 
