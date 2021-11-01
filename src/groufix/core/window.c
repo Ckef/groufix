@@ -249,10 +249,9 @@ static int _gfx_window_pick_access(_GFXWindow* window)
 
 	// Pick the presentation AND graphics queues.
 	// The graphics queue will need access to these images.
-	_GFXQueueSet* graphics =
-		_gfx_pick_queue_set(context, VK_QUEUE_GRAPHICS_BIT, 0);
-	_GFXQueueSet* present =
-		_gfx_pick_queue_set(context, 0, 1);
+	_GFXQueue graphics, present;
+	_gfx_pick_queue(context, &graphics, VK_QUEUE_GRAPHICS_BIT, 0);
+	_gfx_pick_queue(context, &present, 0, 1);
 
 	// So we checked presentation support in a surface-agnostic manner during
 	// logical device creation, now go check for the given surface.
@@ -262,7 +261,7 @@ static int _gfx_window_pick_access(_GFXWindow* window)
 	// I hear you asking.. well.. shutup >:(
 	VkBool32 support = VK_FALSE;
 	_groufix.vk.GetPhysicalDeviceSurfaceSupportKHR(
-		window->device->vk.device, present->family, window->vk.surface, &support);
+		window->device->vk.device, present.family, window->vk.surface, &support);
 
 	if (support == VK_FALSE)
 	{
@@ -276,8 +275,10 @@ static int _gfx_window_pick_access(_GFXWindow* window)
 
 	// Store the chosen families.
 	// Make sure to not put in duplicate indices!
-	window->access[0] = graphics->family;
-	window->access[1] = (present != graphics) ? present->family : UINT32_MAX;
+	window->access[0] =
+		graphics.family;
+	window->access[1] =
+		(present.family != graphics.family) ? present.family : UINT32_MAX;
 
 	return 1;
 }

@@ -545,8 +545,8 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	_GFX_GET_CONTEXT(context, device, goto clean_transfer_lock);
 
 	// Pick the graphics and transfer queues.
-	_gfx_pick_queue(context, VK_QUEUE_GRAPHICS_BIT, 0, &heap->graphics);
-	_gfx_pick_queue(context, VK_QUEUE_TRANSFER_BIT, 0, &heap->transfer);
+	_gfx_pick_queue(context, &heap->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
+	_gfx_pick_queue(context, &heap->transfer, VK_QUEUE_TRANSFER_BIT, 0);
 
 	// Create command pools (one for each queue).
 	// They are used for all memory resource operations.

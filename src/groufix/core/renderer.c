@@ -30,8 +30,8 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_GFXContext* context = rend->context;
 
 	// Pick the graphics and presentation queues.
-	_gfx_pick_queue(context, VK_QUEUE_GRAPHICS_BIT, 0, &rend->graphics);
-	_gfx_pick_queue(context, 0, 1, &rend->present);
+	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
+	_gfx_pick_queue(context, &rend->present, 0, 1);
 
 	// Initialize the render backing & graph.
 	// Technically it doesn't matter, but let's do it in dependency order.
