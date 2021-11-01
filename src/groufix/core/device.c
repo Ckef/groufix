@@ -298,6 +298,7 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
 {
 	assert(device != NULL);
 	assert(count == 0 || props != NULL);
+	assert(flags != 0 || present != 0);
 
 	// Since we don't know anything about the order of the queues,
 	// we loop over all the things and keep track of the best fit.
@@ -477,8 +478,8 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	if (_GFX_QUEUE_FLAGS_COUNT(
 		_GFX_QUEUE_FLAGS_ALL(props[transfer].queueFlags)) > 1)
 	{
-		// Instead use the compute family, at least it may be asynchronous.
-		transfer = compute;
+		// Instead use the graphics family like a pleb :(
+		transfer = graphics;
 	}
 
 	// Ok so we found all queues, we should now allocate the queue sets and

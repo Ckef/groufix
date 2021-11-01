@@ -151,6 +151,7 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 
 		// For now we set sharing mode to concurrent and use both the
 		// graphics and transfer queue.
+		// TODO: Make exclusive always.
 		.sharingMode =
 			(access[1] != UINT32_MAX) ?
 			VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
@@ -300,6 +301,7 @@ static int _gfx_image_alloc(_GFXImage* image)
 
 		// For now we set sharing mode to concurrent and use both the
 		// graphics and transfer queue.
+		// TODO: Make exclusive always.
 		.sharingMode =
 			(access[1] != UINT32_MAX) ?
 			VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
