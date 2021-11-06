@@ -160,6 +160,8 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 	// Instead of explicitly calculating the disjoint regions,
 	// for each output stage region, loop over all sorted regions and
 	// accumulate the negative displacement to apply to the stage region.
+	uint64_t size = 0;
+
 	for (size_t r = 0; r < numRegions; ++r)
 	{
 		uint64_t displace = sort[0].offset; // Always subtract base offset.
@@ -184,13 +186,11 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 		}
 
 		stage[r].offset -= displace;
-	}
 
-	// Finally calculate the resulting size of the compacted staging buffer :)
-	// Note: the smallest offset of all stage regions must be 0 at this point!
-	uint64_t size = 0;
-	for (size_t r = 0; r < numRegions; ++r)
+		// Calculate the resulting size of the compacted staging buffer :)
+		// Note: the smallest offset of all stage regions will be 0!
 		size = GFX_MAX(size, stage[r].offset + stage[r].size);
+	}
 
 	return size;
 }
