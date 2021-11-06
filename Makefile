@@ -206,6 +206,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/containers/vec.o \
  $(OUT)$(SUB)/groufix/core/alloc.o \
  $(OUT)$(SUB)/groufix/core/backing.o \
+ $(OUT)$(SUB)/groufix/core/dep.o \
  $(OUT)$(SUB)/groufix/core/device.o \
  $(OUT)$(SUB)/groufix/core/format.o \
  $(OUT)$(SUB)/groufix/core/frame.o \

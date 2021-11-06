@@ -53,6 +53,8 @@
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT : (VkBufferUsageFlags)0) | \
 	((usage) & GFX_BUFFER_UNIFORM ? \
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : (VkBufferUsageFlags)0) | \
+	((usage) & GFX_BUFFER_INDIRECT ? \
+		VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT : (VkBufferUsageFlags)0) | \
 	((usage) & GFX_BUFFER_STORAGE ? \
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : (VkBufferUsageFlags)0) | \
 	((usage) & GFX_BUFFER_UNIFORM_TEXEL ? \

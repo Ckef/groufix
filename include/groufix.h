@@ -10,6 +10,7 @@
 #ifndef GROUFIX_H
 #define GROUFIX_H
 
+#include "groufix/core/deps.h"
 #include "groufix/core/device.h"
 #include "groufix/core/formats.h"
 #include "groufix/core/heap.h"
