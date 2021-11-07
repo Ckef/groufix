@@ -458,6 +458,7 @@ static int _gfx_copy_device(_GFXStaging* staging,
 			.pNext               = NULL,
 			.srcAccessMask       = 0,
 			.dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
+			// TODO: Using undefined layout disregards the contents?
 			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
 			.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -474,6 +475,7 @@ static int _gfx_copy_device(_GFXStaging* staging,
 			.dstAccessMask       = rev ?
 				VK_ACCESS_TRANSFER_READ_BIT :
 				VK_ACCESS_TRANSFER_WRITE_BIT,
+			// TODO: Using undefined layout disregards the contents?
 			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
 			.newLayout           = rev ?
 				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
