@@ -297,6 +297,7 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
                                        VkQueueFlags flags, int present)
 {
 	assert(device != NULL);
+	assert(device->vk.device != NULL); // Only field to access!
 	assert(count == 0 || props != NULL);
 	assert(flags != 0 || present != 0);
 
@@ -879,13 +880,27 @@ int _gfx_devices_init(void)
 				VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
 
 			// Get all Vulkan device features as well.
-			// Then define the features and limits part of the new device :)
 			int vk11, vk12;
 			VkPhysicalDeviceFeatures pdf;
 			VkPhysicalDeviceVulkan11Features pdv11f;
 			VkPhysicalDeviceVulkan12Features pdv12f;
 			_GFX_GET_DEVICE_FEATURES(&dev, vk11, vk12, pdf, pdv11f, pdv12f);
 
+			// Sadly we need to get get queue family properties and find
+			// ourselves the transfer queue as well, this so we can report
+			// the transfer's queue image granularity.
+			uint32_t families;
+			_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+				devices[i], &families, NULL);
+
+			VkQueueFamilyProperties props[families];
+			_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+				devices[i], &families, props);
+
+			uint32_t transfer = _gfx_find_queue_family(
+				&dev, families, props, VK_QUEUE_TRANSFER_BIT, 0);
+
+			// Then define the features and limits part of the new device :)
 			dev.base = (GFXDevice){
 				.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
 				.name = NULL,
@@ -917,7 +932,13 @@ int _gfx_devices_init(void)
 					.maxAttributes        = pdp.limits.maxVertexInputAttributes,
 					.maxAttributeOffset   = pdp.limits.maxVertexInputAttributeOffset,
 					.maxPrimitiveStride   = pdp.limits.maxVertexInputBindingStride,
-					.maxBindingBufferSize = pdp.limits.maxUniformBufferRange
+					.maxBindingBufferSize = pdp.limits.maxUniformBufferRange,
+
+					.imageTransferGranularity = {
+						.x = props[transfer].minImageTransferGranularity.width,
+						.y = props[transfer].minImageTransferGranularity.height,
+						.z = props[transfer].minImageTransferGranularity.depth
+					}
 				}
 			};
 

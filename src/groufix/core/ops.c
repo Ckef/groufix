@@ -387,12 +387,7 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	// Then the staging buffer is either purged later on or it is kept
 	// dangling. This is the case for all staging buffers, except when
 	// GFX_TRANSFER_BLOCK is given, in which case the host blocks and we can
-	// cleanup. GFX_TRANSFER_KEEP can be given in combination with
-	// GFX_TRANSFER_BLOCK to keep it dangling anyway?
-	//
-	// The transfer queues can have granularity constraints, so we don't want
-	// to make it the default queue to do operations on, that's why.
-	// We report the constraints for a fast transfer through the GFXDevice.
+	// cleanup.
 	//
 	// TODO: Need to figure out the heap-purging mechanism,
 	// do we purge everything at once? Nah, partial purges?
