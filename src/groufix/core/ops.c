@@ -374,22 +374,21 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	_GFXMutex* mutex = &heap->vk.gLock;
 
 	// TODO: In the future we use the graphics queue by default and introduce
-	// GFXTransferFlags with GFX_TRANSFER_FAST to use the transfer queue,
-	// plus a sync target GFX_SYNC_TARGET_FAST_TRANFER or some such so the
-	// blocking queue can release ownership and the fast transfer can
-	// acquire onwership.
-	// A fast transfer can wait so the blocking queue can release, or the
-	// previous operation was also a fast transfer (or nothing) so we don't
+	// GFXTransferFlags with GFX_TRANSFER_ASYNC to use the transfer queue,
+	// plus the access flag modifier so the blocking queue can release
+	// ownership and the transfer queue can acquire onwership.
+	// An async transfer can wait so the blocking queue can release, or the
+	// previous operation was also an async transfer (or nothing) so we don't
 	// need to do the ownership dance.
-	// A fast transfer must signal, so we can deduce if we need to release
-	// ownership, so the sync target can acquire it again. This means a fast
+	// An async transfer must signal, so we can deduce if we need to release
+	// ownership, so the sync target can acquire it again. This means an async
 	// transfer can't do only host-blocking...
 	//
 	// Then the staging buffer is either purged later on or it is kept
 	// dangling. This is the case for all staging buffers, except when
 	// GFX_TRANSFER_BLOCK is given, in which case the host blocks and we can
 	// cleanup. GFX_TRANSFER_KEEP can be given in combination with
-	// GFX_TRANSFER_BLOCK to keep it dangling anyway.
+	// GFX_TRANSFER_BLOCK to keep it dangling anyway?
 	//
 	// The transfer queues can have granularity constraints, so we don't want
 	// to make it the default queue to do operations on, that's why.
