@@ -307,13 +307,13 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		dedicated ? " (dedicated)" : "",
 		prefBlockSize,
 		heapSize,
-		_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, block->type));
+		_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, type),
+		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, type),
+		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, type),
+		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, type),
+		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, type),
+		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, type),
+		_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, type));
 
 	return block;
 
