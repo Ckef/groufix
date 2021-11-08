@@ -76,7 +76,6 @@ static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		((flags & GFX_MEMORY_DEVICE_LOCAL) ?
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : 0);
 
-	// TODO: Make _gfx_alloc* fallback to required if the optimal heap is full.
 	// Check if the Vulkan implementation wants a dedicated allocation.
 	// Note that we do not check `dreqs->requiresDedicatedAllocation`, this
 	// is only relevant for external memory, which we do not use.

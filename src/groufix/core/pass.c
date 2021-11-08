@@ -635,7 +635,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	for (size_t d = 0; d < numDeps; ++d)
 		if (deps[d]->renderer != renderer)
 		{
-			gfx_log_warn(
+			gfx_log_error(
 				"Pass cannot depend on a pass associated "
 				"with a different renderer.");
 

@@ -73,7 +73,7 @@ typedef struct GFXDevice
 		uint32_t maxPrimitiveStride;
 		uint32_t maxBindingBufferSize; // In total bytes (size * num).
 
-		// Async transfer image granularity (0,0,0 = only whole mip levels).
+		// Async-transfer image granularity (0,0,0 = only whole mip levels).
 		struct { uint32_t x, y, z; } imageTransferGranularity;
 
 	} limits;

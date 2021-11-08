@@ -81,5 +81,8 @@
 #define GFX_CLAMP(x, l, u) \
 	((x) < (l) ? (l) : (x) > (u) ? (u) : (x))
 
+#define GFX_IS_POWER_OF_TWO(x) \
+	(((x) & ((x) - 1)) == 0)
+
 
 #endif

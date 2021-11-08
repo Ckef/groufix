@@ -414,7 +414,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	// Check if the renderer and the window share the same context.
 	if (renderer->context != ((_GFXWindow*)window)->context)
 	{
-		gfx_log_warn(
+		gfx_log_error(
 			"When attaching a window to a renderer they must be built on "
 			"the same logical Vulkan device.");
 
@@ -424,7 +424,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	// Try to lock the window to this attachment.
 	if (!_gfx_swapchain_try_lock((_GFXWindow*)window))
 	{
-		gfx_log_warn(
+		gfx_log_error(
 			"A window can only be attached to one attachment index of one "
 			"renderer at a time.");
 

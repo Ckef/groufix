@@ -11,26 +11,61 @@
 #include <stdlib.h>
 
 
+// Get Vulkan memory property flag bits as a readable string.
+#define _GFX_GET_VK_TYPE_EMPTY_STRING(alloc, type) \
+	((alloc)->vk.properties.memoryTypes[type].propertyFlags == 0 ? \
+		"None." : "")
+
+#define _GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, type) \
+	((VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT & \
+	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
+		"        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT\n" : "")
+
+#define _GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, type) \
+	((VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT & \
+	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
+		"        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT\n" : "")
+
+#define _GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, type) \
+	((VK_MEMORY_PROPERTY_HOST_COHERENT_BIT & \
+	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
+		"        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT\n" : "")
+
+#define _GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, type) \
+	((VK_MEMORY_PROPERTY_HOST_CACHED_BIT & \
+	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
+		"        VK_MEMORY_PROPERTY_HOST_CACHED_BIT\n" : "")
+
+#define _GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, type) \
+	((VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT & \
+	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
+		"        VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT\n" : "")
+
+#define _GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, type) \
+	((VK_MEMORY_PROPERTY_PROTECTED_BIT & \
+	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
+		"        VK_MEMORY_PROPERTY_PROTECTED_BIT\n" : "")
+
+
+// Gets suitable memory types (auto log when none found) assigned to two lvalue.
+#define _GFX_GET_MEM_TYPES(lreq, lopt, alloc, required, optimal, types, action) \
+	do { \
+		lreq = _gfx_get_mem_type(alloc, required, types); \
+		lopt = _gfx_get_mem_type(alloc, optimal, types); \
+		if (lreq == UINT32_MAX && lopt == UINT32_MAX) { \
+			gfx_log_error( \
+				"Could not find suitable Vulkan memory type for allocation."); \
+			action; \
+		} \
+	} while (0)
+
+
 // Maximum size for a heap to be considered 'small' (1 GiB).
 // If a heap is 'small', blocks will be the size of the heap divided by 8.
 #define _GFX_MAX_SMALL_HEAP_SIZE (1024ull * 1024 * 1024)
 
 // Preferred memory block size of a 'large' heap (256 MiB).
 #define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 1024)
-
-
-// Get the size and offset of a key (as an lvalue).
-#define _GFX_KEY_SIZE(key) \
-	((VkDeviceSize*)(key))[0]
-
-#define _GFX_KEY_OFFSET(key) \
-	((VkDeviceSize*)(key))[1]
-
-// Get the strictest alignment (i.e. the least significant bit) of a key.
-// Returns all 1's on no alignment, this so it always compares as stricter.
-#define _GFX_KEY_ALIGN(key) \
-	(_GFX_KEY_OFFSET(key) == 0 ? ~((VkDeviceSize)0) : \
-	_GFX_KEY_OFFSET(key) & (~_GFX_KEY_OFFSET(key) + 1))
 
 
 // Aligns offset up/down to the nearest multiple of align,
@@ -41,21 +76,19 @@
 #define _GFX_ALIGN_DOWN(offset, align) \
 	((offset) & ~(align - 1))
 
-// Check whether a value is a power of two (0 counts).
-#define _GFX_IS_POWER_OF_TWO(x) \
-	(((x) & (x - 1)) == 0)
 
+// Get the size and offset of a key (as an lvalue) +
+// Get the strictest alignment (i.e. the least significant bit) of a key,
+// returns all 1's on no alignment, this so it always compares as stricter.
+#define _GFX_KEY_SIZE(key) \
+	((VkDeviceSize*)(key))[0]
 
-// Gets suitable memory type (auto log when none found), assigned to an lvalue.
-#define _GFX_GET_MEM_TYPE(lvalue, alloc, required, optimal, types, action) \
-	do { \
-		lvalue = _gfx_get_mem_type(alloc, required, optimal, types); \
-		if (lvalue == UINT32_MAX) { \
-			gfx_log_error( \
-				"Could not find suitable Vulkan memory type for allocation."); \
-			action; \
-		} \
-	} while (0)
+#define _GFX_KEY_OFFSET(key) \
+	((VkDeviceSize*)(key))[1]
+
+#define _GFX_KEY_ALIGN(key) \
+	(_GFX_KEY_OFFSET(key) == 0 ? ~((VkDeviceSize)0) : \
+	_GFX_KEY_OFFSET(key) & (~_GFX_KEY_OFFSET(key) + 1))
 
 
 /****************************
@@ -76,26 +109,21 @@ static int _gfx_allocator_cmp(const void* l, const void* r)
 }
 
 /****************************
- * Find a memory type that includes all the optimal flags, with a fallback.
- * @param required Required memory property flags to use as fallback.
- * @param optimal  Optimal memory property flags to search for.
- * @param types    Supported (i.e. required) memory type bits to choose from.
- * @return UINT32_MAX on failure.
+ * Find a memory type that includes all the given memory property flags.
+ * @param types Supported (i.e. required) memory type bits to choose from.
+ * @return UINT32_MAX if none found.
  */
 static uint32_t _gfx_get_mem_type(_GFXAllocator* alloc,
-                                  VkMemoryPropertyFlags required,
-                                  VkMemoryPropertyFlags optimal,
+                                  VkMemoryPropertyFlags flags,
                                   uint32_t types)
 {
 	assert(alloc != NULL);
 	assert(types != 0);
 
-	VkPhysicalDeviceMemoryProperties* pdmp = &alloc->vk.properties;
-	VkMemoryPropertyFlags flags = optimal;
-
-search:
 	// We search in order, Vulkan orders subsets before supersets,
 	// so we don't have to check for the least flags :)
+	VkPhysicalDeviceMemoryProperties* pdmp = &alloc->vk.properties;
+
 	for (uint32_t t = 0; t < pdmp->memoryTypeCount; ++t)
 	{
 		// Not a supported type.
@@ -107,13 +135,6 @@ search:
 			continue;
 
 		return t;
-	}
-
-	// Run again with required flags as fallback.
-	if (flags == optimal && required != optimal)
-	{
-		flags = required;
-		goto search;
 	}
 
 	return UINT32_MAX;
@@ -280,10 +301,19 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		"New Vulkan memory object allocated:\n"
 		"    Memory block size: %"PRIu64" bytes%s.\n"
 		"    Prefer block size: %"PRIu64" bytes.\n"
-		"    Memory heap size: %"PRIu64" bytes.\n",
+		"    Memory heap size: %"PRIu64" bytes.\n"
+		"    Memory heap flags: %s\n%s%s%s%s%s%s",
 		blockSize,
 		dedicated ? " (dedicated)" : "",
-		prefBlockSize, heapSize);
+		prefBlockSize,
+		heapSize,
+		_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, block->type));
 
 	return block;
 
@@ -341,8 +371,17 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 	_gfx_mutex_clear(&block->map.lock);
 
 	gfx_log_debug(
-		"Freed Vulkan memory object of %"PRIu64" bytes.",
-		block->size);
+		"Freed Vulkan memory object:\n"
+		"    Memory block size: %"PRIu64" bytes.\n"
+		"    Memory heap flags: %s\n%s%s%s%s%s%s",
+		block->size,
+		_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, block->type),
+		_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, block->type));
 
 	free(block);
 }
@@ -393,7 +432,7 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 	assert(alloc != NULL);
 	assert(mem != NULL);
 	assert(reqs.size > 0);
-	assert(_GFX_IS_POWER_OF_TWO(reqs.alignment));
+	assert(GFX_IS_POWER_OF_TWO(reqs.alignment));
 	assert(reqs.memoryTypeBits != 0);
 
 	// Normalize linear to 0 or 1 for easy calculation.
@@ -403,9 +442,9 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 	reqs.alignment = (reqs.alignment > 0) ? reqs.alignment : 1;
 
 	// Get memory type index.
-	uint32_t type;
-	_GFX_GET_MEM_TYPE(
-		type, alloc, required, optimal, reqs.memoryTypeBits,
+	uint32_t tReq, tOpt;
+	_GFX_GET_MEM_TYPES(
+		tReq, tOpt, alloc, required, optimal, reqs.memoryTypeBits,
 		return 0);
 
 	// Construct a search key:
@@ -417,8 +456,14 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 	VkDeviceSize key[2] = { reqs.size, reqs.alignment };
 
 	// Find a free memory block with enough space.
+	// Start with a defined memory type.
+	// Note that if neither types are defined we already returned.
+	uint32_t type = (tOpt == UINT32_MAX) ? tReq : tOpt;
 	_GFXMemBlock* block;
 	_GFXMemNode* node = NULL;
+
+	// Goto here to try with another type :)
+try_search:
 
 	for (
 		block = (_GFXMemBlock*)alloc->free.head;
@@ -488,16 +533,43 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 			break;
 	}
 
-	// Allocate a new memory block.
 	if (block == NULL)
 	{
+		// Uh oh the search failed, try to allocate a new memory block.
 		block = _gfx_alloc_mem_block(
 			alloc, type, reqs.size,
 			GFX_MAX(reqs.size, _GFX_DEF_LARGE_HEAP_BLOCK_SIZE),
 			VK_NULL_HANDLE, VK_NULL_HANDLE);
 
+		// Well this is not going well..
 		if (block == NULL)
+		{
+			// If we tried the optimal memory type, and there is a defined
+			// required type as fallback, try to search/allocate using that.
+			// This is a bit much logging going on, however this is quite
+			// an extraordinary situation situation, so we would surely
+			// want to know about it.
+			// Tell it we're still trying through a warning.
+			if (type == tOpt && (tReq != UINT32_MAX && tReq != tOpt))
+			{
+				gfx_log_warn(
+					"Allocation failed, will try to fallback to another "
+					"available memory heap:\n"
+					"    Memory heap flags (failed): %s\n%s%s%s%s%s%s",
+					_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, type),
+					_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, type),
+					_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, type),
+					_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, type),
+					_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, type),
+					_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, type),
+					_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, type));
+
+				type = tReq;
+				goto try_search;
+			}
+
 			return 0;
+		}
 
 		// There's 1 free node, the entire block, just pick it :)
 		// We're at the beginning, so it always aligns, set offset of 0.
@@ -512,7 +584,7 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
 		.block  = block,
 		.size   = _GFX_KEY_SIZE(key),
 		.offset = _GFX_KEY_OFFSET(key),
-		.flags  = alloc->vk.properties.memoryTypes[type].propertyFlags,
+		.flags  = alloc->vk.properties.memoryTypes[block->type].propertyFlags,
 		.linear = linear,
 		.vk     = { .memory = block->vk.memory }
 	};
@@ -577,15 +649,41 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
 
 	// Get memory type index.
-	uint32_t type;
-	_GFX_GET_MEM_TYPE(
-		type, alloc, required, optimal, reqs.memoryTypeBits,
+	uint32_t tReq, tOpt;
+	_GFX_GET_MEM_TYPES(
+		tReq, tOpt, alloc, required, optimal, reqs.memoryTypeBits,
 		return 0);
 
 	// Allocate a memory block.
 	// No free root node is inserted by setting minSize == maxSize.
-	_GFXMemBlock* block = _gfx_alloc_mem_block(
-		alloc, type, reqs.size, reqs.size, buffer, image);
+	_GFXMemBlock* block = NULL;
+
+	// First try the optimal memory type.
+	if (tOpt != UINT32_MAX)
+		block = _gfx_alloc_mem_block(
+			alloc, tOpt, reqs.size, reqs.size, buffer, image);
+
+	// If we failed and there is a defined required type as fallback, try it.
+	// Again this is a bit much logging, but again, it is a situation we
+	// probably want to know about, to optimize our memory usage.
+	// Still, warn that we're still trying.
+	if (block == NULL && (tReq != UINT32_MAX && tReq != tOpt))
+	{
+		if (tOpt != UINT32_MAX) gfx_log_warn(
+			"Dedicated allocation failed, will try to fallback to another "
+			"available memory heap:\n"
+			"    Memory heap flags (failed): %s\n%s%s%s%s%s%s",
+			_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, tOpt),
+			_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, tOpt),
+			_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, tOpt),
+			_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, tOpt),
+			_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, tOpt),
+			_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, tOpt),
+			_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, tOpt));
+
+		block = _gfx_alloc_mem_block(
+			alloc, tReq, reqs.size, reqs.size, buffer, image);
+	}
 
 	if (block == NULL)
 		return 0;
@@ -597,7 +695,7 @@ int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		.block  = block,
 		.size   = reqs.size,
 		.offset = 0,
-		.flags  = alloc->vk.properties.memoryTypes[type].propertyFlags,
+		.flags  = alloc->vk.properties.memoryTypes[block->type].propertyFlags,
 		.linear = 0,
 		.vk     = { .memory = block->vk.memory }
 	};
