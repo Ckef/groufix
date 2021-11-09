@@ -11,13 +11,14 @@
 #define GFX_CORE_DEPS_H
 
 #include "groufix/core/device.h"
+#include "groufix/core/refs.h"
 #include "groufix/def.h"
 
 
 /**
- * Memory access (synchronization) flags.
+ * Memory sync access mask.
  */
-typedef enum GFXAccessFlags
+typedef enum GFXAccessMask
 {
 	GFX_ACCESS_VERTEX_READ   = 0x000001,
 	GFX_ACCESS_INDEX_READ    = 0x000002,
@@ -36,7 +37,33 @@ typedef enum GFXAccessFlags
 	GFX_ACCESS_COMPUTE_ASYNC  = 0x000800,
 	GFX_ACCESS_TRANSFER_ASYNC = 0x001000
 
-} GFXAccessFlags;
+} GFXAccessMask;
+
+
+/**
+ * Dependency sync argument.
+ */
+typedef struct GFXDepArg
+{
+	// Synchronization type.
+	enum
+	{
+		GFX_DEP_SIGNAL,
+		GFX_DEP_WAIT,
+
+	} type;
+
+
+	// To-be synchronized resource.
+	GFXReference ref;
+
+	// Affected resource range.
+	GFXRange range;
+
+	// Access scope that will be signaled.
+	GFXAccessMask access;
+
+} GFXDepArg;
 
 
 /**

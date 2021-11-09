@@ -10,6 +10,7 @@
 #ifndef GFX_CORE_HEAP_H
 #define GFX_CORE_HEAP_H
 
+#include "groufix/core/deps.h"
 #include "groufix/core/device.h"
 #include "groufix/core/formats.h"
 #include "groufix/core/refs.h"
@@ -28,18 +29,6 @@ typedef enum GFXImageType
 	GFX_IMAGE_CUBEMAP
 
 } GFXImageType;
-
-
-/**
- * Image aspect (i.e. different sub-resources).
- */
-typedef enum GFXImageAspect
-{
-	GFX_IMAGE_COLOR   = 0x0001,
-	GFX_IMAGE_DEPTH   = 0x0002,
-	GFX_IMAGE_STENCIL = 0x0004
-
-} GFXImageAspect;
 
 
 /**
@@ -378,45 +367,6 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
 /****************************
  * Memory resource operations.
  ****************************/
-
-/**
- * Unified memory sub-resource (i.e. region of a resource).
- * Meaningless without an accompanied memory resource.
- */
-typedef struct GFXRegion
-{
-	union {
-		// Buffer (or host pointer) offset/size.
-		struct
-		{
-			uint64_t offset;
-			uint64_t size;
-
-			// Buffer packing for image operations (0 = tightly packed).
-			uint32_t rowSize; // In texels.
-			uint32_t numRows; // In texels.
-		};
-
-		// Image layers/offset/extent.
-		struct
-		{
-			GFXImageAspect aspect; // Only 1 aspect can be set.
-
-			uint32_t mipmap;
-			uint32_t layer;
-			uint32_t numLayers;
-
-			uint32_t x;
-			uint32_t y;
-			uint32_t z;
-			uint32_t width;
-			uint32_t height;
-			uint32_t depth;
-		};
-	};
-
-} GFXRegion;
-
 
 /**
  * Reads data from a memory resource reference.
