@@ -16,7 +16,7 @@
 
 
 /**
- * Memory sync access mask.
+ * Synchronization access mask.
  */
 typedef enum GFXAccessMask
 {
@@ -41,32 +41,6 @@ typedef enum GFXAccessMask
 
 
 /**
- * Dependency sync argument.
- */
-typedef struct GFXDepArg
-{
-	// Synchronization type.
-	enum
-	{
-		GFX_DEP_SIGNAL,
-		GFX_DEP_WAIT,
-
-	} type;
-
-
-	// To-be synchronized resource.
-	GFXReference ref;
-
-	// Affected resource range.
-	GFXRange range;
-
-	// Access scope that will be signaled.
-	GFXAccessMask access;
-
-} GFXDepArg;
-
-
-/**
  * Dependency (synchronization) object definition.
  */
 typedef struct GFXDependency GFXDependency;
@@ -83,6 +57,42 @@ GFX_API GFXDependency* gfx_create_dep(GFXDevice* device);
  * Destroys a dependency object.
  */
 GFX_API void gfx_destroy_dep(GFXDependency* dep);
+
+
+/****************************
+ * Dependency (synchronization) injection.
+ ****************************/
+
+/**
+ * Dependency sync argument.
+ */
+typedef struct GFXDepArg
+{
+	// Synchronization type.
+	enum
+	{
+		GFX_DEP_SIGNAL,
+		GFX_DEP_WAIT,
+
+	} type;
+
+
+	// Object to inject a dependency in.
+	GFXDependency* dep;
+
+	// To-be synchronized resource.
+	GFXReference ref;
+
+	// Affected resource range.
+	GFXRange range;
+
+	// Access scope that will be signaled.
+	GFXAccessMask access;
+
+} GFXDepArg;
+
+
+// TODO: Define gfx_dep_sig, gfx_dep_wait etc.
 
 
 #endif
