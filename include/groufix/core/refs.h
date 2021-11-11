@@ -154,7 +154,7 @@ typedef GFXReference GFXImageRef;
 
 
 /****************************
- * Memory resource metadata.
+ * Resource reference metadata.
  ****************************/
 
 /**

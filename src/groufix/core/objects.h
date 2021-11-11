@@ -464,9 +464,9 @@ struct GFXPass
 	} vk;
 
 
-	// Dependency passes.
-	size_t   numDeps;
-	GFXPass* deps[];
+	// Parent passes.
+	size_t   numParents;
+	GFXPass* parents[];
 };
 
 
@@ -700,18 +700,18 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  ****************************/
 
 /**
- * Creates a pass, referencing all dependencies.
- * Each element in deps must be associated with the same renderer.
- * @param renderer Cannot be NULL.
- * @param numDeps  Number of dependencies, 0 for none.
- * @param deps     Passes it depends on, cannot be NULL if numDeps > 0.
+ * Creates a pass, referencing all parents.
+ * Each element in parents must be associated with the same renderer.
+ * @param renderer   Cannot be NULL.
+ * @param numParents Number of parents, 0 for none.
+ * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
  */
 GFXPass* _gfx_create_pass(GFXRenderer* renderer,
-                          size_t numDeps, GFXPass** deps);
+                          size_t numParents, GFXPass** parents);
 
 /**
- * Destroys a pass, unreferencing all dependencies.
+ * Destroys a pass, unreferencing all parents.
  * Undefined behaviour if destroying a pass that is referenced by another.
  * @param pass Cannot be NULL.
  */

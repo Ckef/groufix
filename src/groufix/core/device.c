@@ -432,6 +432,7 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 
 	// Start with finding a graphics family, hopefully with presentation.
 	// Oh and find a (hopefully better) compute & transfer family.
+	// TODO: Try to find a graphics queue that supports compute?
 	graphics = _gfx_find_queue_family(
 		device, families, props, VK_QUEUE_GRAPHICS_BIT, 1);
 	compute = _gfx_find_queue_family(

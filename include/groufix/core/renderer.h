@@ -155,24 +155,23 @@ GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
                                            size_t index);
 
 /**
- * Adds a new (target) pass to the renderer given a set of dependencies.
- * Each element in deps must be associated with the same renderer.
- * @param renderer Cannot be NULL.
- * @param numDeps  Number of dependencies, 0 for none.
- * @param deps     Passes it depends on, cannot be NULL if numDeps > 0.
+ * Adds a new (target) pass to the renderer given a set of parent.
+ * A pass will be after all its parents in submission order.
+ * Each element in parents must be associated with the same renderer.
+ * @param renderer   Cannot be NULL.
+ * @param numParents Number of parents, 0 for none.
+ * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
  *
  * The renderer shares resources with all passes, it cannot concurrently
  * operate with any pass and passes cannot concurrently operate among themselves.
- * A pass cannot be removed, nor can its dependencies be changed once it has
- * been added to a renderer.
  */
 GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
-                                  size_t numDeps, GFXPass** deps);
+                                  size_t numParents, GFXPass** parents);
 
 /**
  * Retrieves the number of target passes of a renderer.
- * A target pass is one that no other pass depends on (last in the path).
+ * A target pass is one that is not a parent off any pass (last in the path).
  * @param renderer Cannot be NULL.
  *
  * This number may change when a new pass is added.
@@ -237,17 +236,17 @@ GFX_API int gfx_pass_write(GFXPass* pass, size_t index);
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
 
 /**
- * Retrieves the number of passes a single pass depends on.
+ * Retrieves the number of parents of a pass.
  * @param pass Cannot be NULL.
  */
-GFX_API size_t gfx_pass_get_num_deps(GFXPass* pass);
+GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
 
 /**
- * Retrieves a dependency of a pass.
- * @param pass Cannot be NULL.
- * @param dep  Dependency index, must be < gfx_pass_get_num(pass).
+ * Retrieves a parent of a pass.
+ * @param pass   Cannot be NULL.
+ * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
  */
-GFX_API GFXPass* gfx_pass_get_dep(GFXPass* pass, size_t dep);
+GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
 
 /**
  * TODO: Totally temporary!

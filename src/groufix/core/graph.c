@@ -30,7 +30,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 
 	// Destroy all passes, we want to make sure we do not destroy any pass
 	// before all passes that reference it are destroyed.
-	// Luckily, all dependencies of a pass will be to its left due to
+	// Luckily, all parents of a pass will be to its left due to
 	// submission order, which is always honored.
 	// So we manually destroy 'em all in reverse order :)
 	for (size_t i = renderer->graph.passes.size; i > 0; --i)
@@ -153,20 +153,20 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer)
 
 /****************************/
 GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
-                                  size_t numDeps, GFXPass** deps)
+                                  size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
 	assert(renderer->pFrame.vk.done == VK_NULL_HANDLE);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numParents == 0 || parents != NULL);
 
 	// Create a new pass.
 	GFXPass* pass =
-		_gfx_create_pass(renderer, numDeps, deps);
+		_gfx_create_pass(renderer, numParents, parents);
 
 	if (pass == NULL)
 		goto error;
 
-	// Add the new pass as a target, as nothing depends on it yet.
+	// Add the new pass as a target, as it has no 'children' yet.
 	if (!gfx_vec_push(&renderer->graph.targets, 1, &pass))
 		goto clean;
 
@@ -192,7 +192,7 @@ GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
 		goto clean;
 	}
 
-	// Loop through all targets, remove if it's now a dependency.
+	// Loop through all targets, remove if it's now a parent.
 	// Skip the last element, as we just added that.
 	for (size_t t = renderer->graph.targets.size-1; t > 0; --t)
 	{
@@ -200,15 +200,15 @@ GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
 			*(GFXPass**)gfx_vec_at(&renderer->graph.targets, t-1);
 
 		size_t d;
-		for (d = 0; d < numDeps; ++d)
-			if (target == deps[d]) break;
+		for (d = 0; d < numParents; ++d)
+			if (target == parents[d]) break;
 
-		if (d < numDeps)
+		if (d < numParents)
 			gfx_vec_erase(&renderer->graph.targets, 1, t-1);
 	}
 
 	// We added a pass, clearly we need to rebuild.
-	// Plus we need to re-analyze because we may have new dependencies.
+	// Plus we need to re-analyze because we may have new parent/child links.
 	renderer->graph.built = 0;
 	renderer->graph.valid = 0;
 

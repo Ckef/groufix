@@ -87,7 +87,7 @@ typedef struct GFXDepArg
 	GFXRange range;
 
 	// Access scope that will be signaled.
-	GFXAccessMask access;
+	GFXAccessMask mask;
 
 } GFXDepArg;
 

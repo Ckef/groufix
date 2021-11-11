@@ -626,17 +626,17 @@ error:
 
 /****************************/
 GFXPass* _gfx_create_pass(GFXRenderer* renderer,
-                          size_t numDeps, GFXPass** deps)
+                          size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numParents == 0 || parents != NULL);
 
-	// Check if all dependencies use this renderer.
-	for (size_t d = 0; d < numDeps; ++d)
-		if (deps[d]->renderer != renderer)
+	// Check if all parents use this renderer.
+	for (size_t d = 0; d < numParents; ++d)
+		if (parents[d]->renderer != renderer)
 		{
 			gfx_log_error(
-				"Pass cannot depend on a pass associated "
+				"Pass cannot be the parent of a pass associated "
 				"with a different renderer.");
 
 			return NULL;
@@ -645,7 +645,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	// Allocate a new pass.
 	GFXPass* pass = malloc(
 		sizeof(GFXPass) +
-		sizeof(GFXPass*) * numDeps);
+		sizeof(GFXPass*) * numParents);
 
 	if (pass == NULL)
 		return NULL;
@@ -653,15 +653,15 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	// Initialize things.
 	pass->renderer = renderer;
 	pass->level = 0;
-	pass->numDeps = numDeps;
+	pass->numParents = numParents;
 
-	if (numDeps) memcpy(
-		pass->deps, deps, sizeof(GFXPass*) * numDeps);
+	if (numParents) memcpy(
+		pass->parents, parents, sizeof(GFXPass*) * numParents);
 
-	// The level is the highest level of all dependencies + 1.
-	for (size_t d = 0; d < numDeps; ++d)
-		if (deps[d]->level >= pass->level)
-			pass->level = deps[d]->level + 1;
+	// The level is the highest level of all parents + 1.
+	for (size_t d = 0; d < numParents; ++d)
+		if (parents[d]->level >= pass->level)
+			pass->level = parents[d]->level + 1;
 
 	// Initialize building stuff.
 	pass->build.backing = SIZE_MAX;
@@ -874,20 +874,20 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 }
 
 /****************************/
-GFX_API size_t gfx_pass_get_num_deps(GFXPass* pass)
+GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	return pass->numDeps;
+	return pass->numParents;
 }
 
 /****************************/
-GFX_API GFXPass* gfx_pass_get_dep(GFXPass* pass, size_t dep)
+GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
 {
 	assert(pass != NULL);
-	assert(dep < pass->numDeps);
+	assert(parent < pass->numParents);
 
-	return pass->deps[dep];
+	return pass->parents[parent];
 }
 
 /****************************/
