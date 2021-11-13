@@ -64,7 +64,7 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep);
  ****************************/
 
 /**
- * Dependency sync argument.
+ * Dependency argument.
  */
 typedef struct GFXDepArg
 {
@@ -72,6 +72,7 @@ typedef struct GFXDepArg
 	enum
 	{
 		GFX_DEP_SIGNAL,
+		GFX_DEP_SIGNAL_RANGE,
 		GFX_DEP_WAIT,
 
 	} type;
@@ -80,10 +81,10 @@ typedef struct GFXDepArg
 	// Object to inject a dependency in.
 	GFXDependency* dep;
 
-	// To-be synchronized resource.
+	// To-be synchronized resource (may be GFX_REF_NULL).
 	GFXReference ref;
 
-	// Affected resource range.
+	// Affected resource range (ignored if not GFX_DEP_SIGNAL_RANGE).
 	GFXRange range;
 
 	// Access scope that will be signaled.
@@ -92,7 +93,77 @@ typedef struct GFXDepArg
 } GFXDepArg;
 
 
-// TODO: Define gfx_dep_sig, gfx_dep_wait etc.
+/**
+ * Dependency argument macros, dependency objects store transition and
+ * synchronization metadata between resources. One can signal a dependency
+ * object or one can wait upon it, both with respect to (a set of) resources
+ * on the GPU, the CPU is never blocked!
+ *
+ * In order for resources to be able to transition between different operations
+ * that can be performed on them, a dependency must be inserted inbetween them.
+ * A dependency is formed by a pair of signal/wait commands.
+ * If this is ignored, the contents of the resource may be discarded by the
+ * engine and/or GPU when they see fit.
+ *
+ * To force synchronization on a specific resource, use
+ *  gfx_dep_sigr and gfx_dep_waitr
+ *
+ * To limit synchronization to a range (area) of a resource, use
+ *  gfx_dep_siga
+ *
+ * To apply both of the above simultaneously, use
+ *  gfx_dep_sigra
+ *
+ * Functions that take a dependency argument are _always_ thread-safe with
+ * respect to the dependency objects being referenced!
+ */
+#define gfx_dep_sig(dep_, mask_) \
+	(GFXDepArg){ \
+		.type = GFX_DEP_SIGNAL, \
+		.dep = dep_, \
+		.ref = GFX_REF_NULL, \
+		.mask = mask_ \
+	}
+
+#define gfx_dep_sigr(dep_, mask_, ref_) \
+	(GFXDepArg){ \
+		.type = GFX_DEP_SIGNAL, \
+		.dep = dep_, \
+		.ref = ref_, \
+		.mask = mask_ \
+	}
+
+#define gfx_dep_siga(dep_, mask_, range_) \
+	(GFXDepArg){ \
+		.type = GFX_DEP_SIGNAL_RANGE, \
+		.dep = dep_, \
+		.ref = GFX_REF_NULL, \
+		.range = range_, \
+		.mask = mask_ \
+	}
+
+#define gfx_dep_sigra(dep_, mask_, ref_, range_) \
+	(GFXDepArg){ \
+		.type = GFX_DEP_SIGNAL_RANGE, \
+		.dep = dep_, \
+		.ref = ref_, \
+		.range = range_, \
+		.mask = mask_ \
+	}
+
+#define gfx_dep_wait(dep_) \
+	(GFXDepArg){ \
+		.type = GFX_DEP_WAIT, \
+		.dep = dep_, \
+		.ref = GFX_REF_NULL \
+	}
+
+#define gfx_dep_waitr(dep_, ref_) \
+	(GFXDepArg){ \
+		.type = GFX_DEP_WAIT, \
+		.dep = dep_, \
+		.ref = ref_ \
+	}
 
 
 #endif

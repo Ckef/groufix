@@ -180,7 +180,7 @@ typedef struct GFXRange
 		struct
 		{
 			uint64_t offset;
-			uint64_t size;
+			uint64_t size; // 0 for all bytes after `offset`.
 		};
 
 		// Image aspect/mips/layers.
@@ -189,9 +189,9 @@ typedef struct GFXRange
 			GFXImageAspect aspect;
 
 			uint32_t mipmap;
-			uint32_t numMipmaps;
+			uint32_t numMipmaps; // 0 for all mipmaps after `mipmap`.
 			uint32_t layer;
-			uint32_t numLayers;
+			uint32_t numLayers; // 0 for all layers after `layer`.
 		};
 	};
 
@@ -199,7 +199,7 @@ typedef struct GFXRange
 
 
 /**
- * Unified memory region (i.e. area of a sub-resource).
+ * Unified memory region (i.e. part of a sub-resource).
  * Meaningless without an accompanied memory resource.
  */
 typedef struct GFXRegion

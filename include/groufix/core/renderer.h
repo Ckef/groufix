@@ -229,6 +229,9 @@ GFX_API int gfx_pass_read(GFXPass* pass, size_t index);
  */
 GFX_API int gfx_pass_write(GFXPass* pass, size_t index);
 
+// TODO: Replace read() and write() with consume():
+//GFX_API int gfx_pass_consume(GFXPass* pass, size_t index, GFXAccessMask mask);
+
 /**
  * Release any set reference to an attachment of the renderer.
  * @see gfx_pass_read.
