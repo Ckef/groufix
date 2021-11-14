@@ -28,20 +28,24 @@ typedef enum GFXAccessMask
 
 	GFX_ACCESS_STORAGE_READ     = 0x000020,
 	GFX_ACCESS_STORAGE_WRITE    = 0x000040,
-	GFX_ACCESS_ATTACHMENT_READ  = 0x000080,
-	GFX_ACCESS_ATTACHMENT_WRITE = 0x000100,
-	GFX_ACCESS_TRANSFER_READ    = 0x000200,
-	GFX_ACCESS_TRANSFER_WRITE   = 0x000400,
+	GFX_ACCESS_ATTACHMENT_INPUT = 0x000080,
+	GFX_ACCESS_ATTACHMENT_READ  = 0x000100, // Necessary for blending.
+	GFX_ACCESS_ATTACHMENT_WRITE = 0x000200, // Necessary for depth/stencil testing.
+	GFX_ACCESS_TRANSFER_READ    = 0x000400,
+	GFX_ACCESS_TRANSFER_WRITE   = 0x000800,
+	GFX_ACCESS_HOST_READ        = 0x001000,
+	GFX_ACCESS_HOST_WRITE       = 0x002000,
 
 	// Modifiers, meaningless without other flags.
-	GFX_ACCESS_COMPUTE_ASYNC  = 0x000800,
-	GFX_ACCESS_TRANSFER_ASYNC = 0x001000
+	GFX_ACCESS_COMPUTE_ASYNC  = 0x004000,
+	GFX_ACCESS_TRANSFER_ASYNC = 0x008000
 
 } GFXAccessMask;
 
 
 /**
- * Dependency (synchronization) object definition.
+ * Dependency object definition.
+ * Stores transition & synchronization metadata.
  */
 typedef struct GFXDependency GFXDependency;
 
@@ -94,16 +98,14 @@ typedef struct GFXDepArg
 
 
 /**
- * Dependency argument macros, dependency objects store transition and
- * synchronization metadata between resources. One can signal a dependency
- * object or one can wait upon it, both with respect to (a set of) resources
- * on the GPU, the CPU is never blocked!
+ * Dependency argument macros. Such an object can be signaled or waited upon
+ * with respect to (a set of) resources on the GPU, the CPU is never blocked!
  *
- * In order for resources to be able to transition between different operations
- * that can be performed on them, a dependency must be inserted inbetween them.
+ * In order for resources to transition between different operations performed
+ * on them, a dependency must be inserted inbetween the two operations.
  * A dependency is formed by a pair of signal/wait commands.
- * If this is ignored, the contents of the resource may be discarded by the
- * engine and/or GPU when they see fit.
+ * If this is ignored, caches might not be flushed or invalidated, or worse,
+ * the contents may be discarded by the engine and/or GPU when they see fit.
  *
  * To force synchronization on a specific resource, use
  *  gfx_dep_sigr and gfx_dep_waitr

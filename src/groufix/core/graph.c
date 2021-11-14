@@ -215,7 +215,7 @@ GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
 	return pass;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	_gfx_destroy_pass(pass);
 error:

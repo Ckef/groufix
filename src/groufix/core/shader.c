@@ -113,7 +113,7 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 	return shader;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	gfx_log_error("Could not create a new shader.");
 	free(shader);
@@ -318,7 +318,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	return 1;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean_result:
 	shaderc_result_release(result);
 clean:
@@ -379,7 +379,7 @@ GFX_API int gfx_shader_load(GFXShader* shader, const char* file)
 	return 1;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean_close:
 	fclose(f);
 clean:

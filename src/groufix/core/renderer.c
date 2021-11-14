@@ -79,7 +79,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	return rend;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean_frames:
 	gfx_deque_clear(&rend->frames);
 	context->vk.DestroyCommandPool(

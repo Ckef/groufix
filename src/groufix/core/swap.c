@@ -280,7 +280,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 	}
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	gfx_log_error(
 		"[ %s ] could not (re)create a swapchain.",

@@ -320,7 +320,7 @@ int _gfx_device_init_formats(_GFXDevice* device)
 	return 1;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	gfx_log_error(
 		"[ %s ] could not initialize format dictionary.",

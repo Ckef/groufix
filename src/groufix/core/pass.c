@@ -765,7 +765,7 @@ int _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	return 1;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	gfx_log_error("Could not (re)build a pass.");
 	_gfx_pass_destruct(pass);

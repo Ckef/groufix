@@ -208,7 +208,7 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	return 1;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean_alloc:
 	gfx_list_clear(&buffer->staging);
 	_gfx_free(&heap->allocator, &buffer->alloc);
@@ -358,7 +358,7 @@ static int _gfx_image_alloc(_GFXImage* image)
 	return 1;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean_alloc:
 	gfx_list_clear(&image->staging);
 	_gfx_free(&heap->allocator, &image->alloc);
@@ -487,7 +487,7 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 	return staging;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean_alloc:
 	_gfx_free(ref->allocator, &staging->alloc);
 clean_buffer:
@@ -583,7 +583,7 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	return heap;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean_pools:
 	context->vk.DestroyCommandPool(
 		context->vk.device, heap->vk.gPool, NULL);
@@ -681,7 +681,7 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
 	return &buffer->base;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	gfx_log_error("Could not allocate a new buffer.");
 	free(buffer);
@@ -777,7 +777,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 	return &image->base;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	free(image);
 error:
@@ -951,7 +951,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	return &prim->base;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	gfx_log_error("Could not allocate a new primitive geometry.");
 	free(prim);
@@ -1148,7 +1148,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	return &group->base;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	gfx_log_error("Could not allocate a new resource group.");
 	free(group);

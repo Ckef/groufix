@@ -98,7 +98,7 @@ static int _gfx_alloc_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
 	return 1;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	gfx_log_error(
 		"Could not allocate synchronization objects of a virtual frame.");
@@ -166,7 +166,7 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
 	return 1;
 
 
-	// Clean on failure.
+	// Cleanup on failure.
 clean:
 	gfx_log_error("Could not create virtual frame.");
 
