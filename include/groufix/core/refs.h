@@ -82,11 +82,12 @@ typedef GFXReference GFXImageRef;
 	(ref).type == GFX_REF_ATTACHMENT)
 
 #define GFX_REF_IS_EQUAL(refa, refb) \
-	((refa).type == (refb).type && \
-	(refa).obj == (refb).obj && \
-	(refa).offset = (refb).offset && \
-	(refa).values[0] == (refb).values[0] && \
-	(refa).values[1] == (refb).values[1])
+	(((refa).type == GFX_REF_EMPTY && (refb).type == GFX_REF_EMPTY) || \
+		((refa).type == (refb).type && \
+		((refa).obj == (refb).obj && \
+		(refa).offset == (refb).offset && \
+		(refa).values[0] == (refb).values[0] && \
+		(refa).values[1] == (refb).values[1])))
 
 
 /**
