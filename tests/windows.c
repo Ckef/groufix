@@ -31,7 +31,7 @@ TEST_DESCRIBE(windows, _t)
 	if (pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_write(pass, 1))
+	if (!gfx_pass_consume(pass, 1, GFX_ACCESS_ATTACHMENT_WRITE))
 		TEST_FAIL();
 
 	// Make it render the thing.

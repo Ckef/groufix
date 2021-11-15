@@ -216,25 +216,16 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  ****************************/
 
 /**
- * Set pass to read from an attachment of the renderer.
- * @param pass Cannot be NULL.
- * @return Zero on failure.
- */
-GFX_API int gfx_pass_read(GFXPass* pass, size_t index);
-
-/**
  * TODO: shader location == in add-order?
- * Set pass to write to an attachment of the renderer.
- * @see gfx_pass_read.
+ * Consume an attachment of a renderer.
+ * @param pass Cannot be NULL.
+ * @param mask Access mask to consume the attachment with.
  */
-GFX_API int gfx_pass_write(GFXPass* pass, size_t index);
-
-// TODO: Replace read() and write() with consume():
-//GFX_API int gfx_pass_consume(GFXPass* pass, size_t index, GFXAccessMask mask);
+GFX_API int gfx_pass_consume(GFXPass* pass, size_t index, GFXAccessMask mask);
 
 /**
- * Release any set reference to an attachment of the renderer.
- * @see gfx_pass_read.
+ * Release any consumption of an attachment of the renderer.
+ * @param pass Cannot be NULL.
  */
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
 

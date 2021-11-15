@@ -12,6 +12,15 @@
 #include <string.h>
 
 
+// Get a consumption's attachment index (as an lvalue).
+#define _GFX_CONSUME_INDEX(con) \
+	(*(size_t*)con)
+
+// Get a consumption's access mask (as an lvalue).
+#define _GFX_CONSUME_MASK(con) \
+	(*(GFXAccessMask*)((size_t*)con + 1))
+
+
 /****************************
  * Destructs the Vulkan object structure, non-recursively.
  * @param pass  Cannot be NULL.
@@ -77,21 +86,25 @@ static size_t _gfx_pass_pick_backing(GFXPass* pass)
 
 	// Validate that there is exactly 1 window we write to.
 	// We don't really have to but we're nice, in case of Vulkan spam...
-	for (size_t w = 0; w < pass->writes.size; ++w)
+	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
-		size_t b = *(size_t*)gfx_vec_at(&pass->writes, w);
+		void* con = gfx_vec_at(&pass->consumes, i);
 
-		// Validate that the attachment exists and is a window.
-		if (b >= rend->backing.attachs.size)
+		// Validate the access mask &
+		// that the attachment exists and is a window.
+		if (
+			_GFX_CONSUME_MASK(con) != GFX_ACCESS_ATTACHMENT_WRITE ||
+			_GFX_CONSUME_INDEX(con) >= rend->backing.attachs.size ||
+			((_GFXAttach*)gfx_vec_at(
+				&rend->backing.attachs,
+				_GFX_CONSUME_INDEX(con)))->type != _GFX_ATTACH_WINDOW)
+		{
 			continue;
-
-		_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, b);
-		if (at->type != _GFX_ATTACH_WINDOW)
-			continue;
+		}
 
 		// If it is, check if we already had a backing window.
 		if (backing == SIZE_MAX)
-			backing = b;
+			backing = _GFX_CONSUME_INDEX(con);
 		else
 		{
 			// If so, well we cannot, throw a warning.
@@ -676,8 +689,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->vk.pipeline = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
-	gfx_vec_init(&pass->reads, sizeof(size_t));
-	gfx_vec_init(&pass->writes, sizeof(size_t));
+	gfx_vec_init(&pass->consumes, sizeof(size_t) + sizeof(GFXAccessMask));
 
 
 	// TODO: Super temporary!!
@@ -740,8 +752,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 	_gfx_pass_destruct(pass);
 
 	// Clear all pre-building information.
-	gfx_vec_clear(&pass->reads);
-	gfx_vec_clear(&pass->writes);
+	gfx_vec_clear(&pass->consumes);
 
 	free(pass);
 }
@@ -814,39 +825,31 @@ void _gfx_pass_destruct(GFXPass* pass)
 }
 
 /****************************/
-GFX_API int gfx_pass_read(GFXPass* pass, size_t index)
+GFX_API int gfx_pass_consume(GFXPass* pass, size_t index, GFXAccessMask mask)
 {
 	assert(pass != NULL);
 	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
 	// Try to find it first.
-	// Just a linear search, nothing is sorted, whatever.
-	for (size_t i = 0; i < pass->reads.size; ++i)
-		if (*(size_t*)gfx_vec_at(&pass->reads, i) == index)
-			return 1;
+	for (size_t i = 0; i < pass->consumes.size; ++i)
+	{
+		void* con = gfx_vec_at(&pass->consumes, i);
+		if (_GFX_CONSUME_INDEX(con) == index)
+		{
+			if ((_GFX_CONSUME_MASK(con) & mask) != mask)
+				_GFX_CONSUME_MASK(con) |= mask;
 
-	if (!gfx_vec_push(&pass->reads, 1, &index))
+			return 1;
+		}
+	}
+
+	// Insert anew.
+	if (!gfx_vec_push(&pass->consumes, 1, NULL))
 		return 0;
 
-	// Changed a pass, the graph is invalidated.
-	_gfx_render_graph_invalidate(pass->renderer);
-
-	return 1;
-}
-
-/****************************/
-GFX_API int gfx_pass_write(GFXPass* pass, size_t index)
-{
-	assert(pass != NULL);
-	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
-
-	// Try to find it first.
-	for (size_t i = 0; i < pass->writes.size; ++i)
-		if (*(size_t*)gfx_vec_at(&pass->writes, i) == index)
-			return 1;
-
-	if (!gfx_vec_push(&pass->writes, 1, &index))
-		return 0;
+	void* con = gfx_vec_at(&pass->consumes, pass->consumes.size-1);
+	_GFX_CONSUME_INDEX(con) = index;
+	_GFX_CONSUME_MASK(con) = mask;
 
 	// Changed a pass, the graph is invalidated.
 	_gfx_render_graph_invalidate(pass->renderer);
@@ -860,14 +863,10 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 	assert(pass != NULL);
 	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
-	// Find and erase.
-	for (size_t i = pass->reads.size; i > 0; --i)
-		if (*(size_t*)gfx_vec_at(&pass->reads, i-1) == index)
-			gfx_vec_erase(&pass->reads, 1, i-1);
-
-	for (size_t i = pass->writes.size; i > 0; --i)
-		if (*(size_t*)gfx_vec_at(&pass->writes, i-1) == index)
-			gfx_vec_erase(&pass->writes, 1, i-1);
+	// FInd and erase.
+	for (size_t i = pass->consumes.size; i > 0; --i)
+		if (_GFX_CONSUME_INDEX(gfx_vec_at(&pass->consumes, i)) == index)
+			gfx_vec_erase(&pass->consumes, 1, i-1);
 
 	// Changed a pass, the graph is invalidated.
 	_gfx_render_graph_invalidate(pass->renderer);

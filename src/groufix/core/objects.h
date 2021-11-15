@@ -429,8 +429,7 @@ struct GFXPass
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
 
-	GFXVec reads;  // Stores size_t.
-	GFXVec writes; // Stores size_t.
+	GFXVec consumes; // Stores { size_t, GFXAccessMask }.
 
 
 	// Building output (can be invalidated).
