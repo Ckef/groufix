@@ -217,6 +217,7 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 /**
  * TODO: shader location == in add-order?
+ * TODO: Add range?
  * Consume an attachment of a renderer.
  * @param pass Cannot be NULL.
  * @param mask Access mask to consume the attachment with.

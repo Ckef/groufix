@@ -59,6 +59,8 @@ GFX_API GFXDependency* gfx_create_dep(GFXDevice* device);
 
 /**
  * Destroys a dependency object.
+ * Undefined behaviour if destroyed when it holds metadata
+ * about pairs of GPU operations that have not yet completed!
  */
 GFX_API void gfx_destroy_dep(GFXDependency* dep);
 
@@ -68,7 +70,7 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep);
  ****************************/
 
 /**
- * Dependency argument.
+ * Dependency 'command' argument.
  */
 typedef struct GFXDepArg
 {
@@ -98,11 +100,11 @@ typedef struct GFXDepArg
 
 
 /**
- * Dependency argument macros. Such an object can be signaled or waited upon
+ * Dependency argument macros. Dependency objects can be signaled or waited for
  * with respect to (a set of) resources on the GPU, the CPU is never blocked!
  *
  * In order for resources to transition between different operations performed
- * on them, a dependency must be inserted inbetween the two operations.
+ * on them, a dependency must be injected inbetween the two operations.
  * A dependency is formed by a pair of signal/wait commands.
  * If this is ignored, caches might not be flushed or invalidated, or worse,
  * the contents may be discarded by the engine and/or GPU when they see fit.
