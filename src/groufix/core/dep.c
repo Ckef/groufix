@@ -61,12 +61,33 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep)
 }
 
 /****************************/
-int _gfx_deps_prepare(size_t numDeps, const GFXDepArg* deps,
+int _gfx_deps_catch(VkCommandBuffer cmd, uint32_t family,
+                    size_t numDeps, const GFXDepArg* deps,
+                    size_t numRefs, const GFXReference* refs,
+                    _GFXInjection* injection)
+{
+	assert(cmd != VK_NULL_HANDLE);
+	assert(numDeps == 0 || deps != NULL);
+	assert(numRefs == 0 || refs != NULL);
+	assert(injection != NULL);
+
+	// Initialize the injection to empty.
+	injection->numWaits = 0;
+	injection->waits = NULL;
+	injection->numSigs = 0;
+	injection->sigs = NULL;
+
+	return 0;
+}
+
+/****************************/
+int _gfx_deps_prepare(VkCommandBuffer cmd, uint32_t family,
+                      size_t numDeps, const GFXDepArg* deps,
                       size_t numRefs, const GFXReference* refs,
                       _GFXInjection* injection)
 {
-	assert(numDeps > 0);
-	assert(deps != NULL);
+	assert(cmd != VK_NULL_HANDLE);
+	assert(numDeps == 0 || deps != NULL);
 	assert(numRefs == 0 || refs != NULL);
 	assert(injection != NULL);
 
@@ -74,27 +95,17 @@ int _gfx_deps_prepare(size_t numDeps, const GFXDepArg* deps,
 }
 
 /****************************/
-void _gfx_deps_record_wait(VkCommandBuffer cmd, const _GFXInjection* injection)
+void _gfx_deps_abort(size_t numDeps, const GFXDepArg* deps,
+                     _GFXInjection* injection)
 {
-	assert(cmd != VK_NULL_HANDLE);
+	assert(numDeps == 0 || deps != NULL);
 	assert(injection != NULL);
 }
 
 /****************************/
-void _gfx_deps_record_sig(VkCommandBuffer cmd, const _GFXInjection* injection)
+void _gfx_deps_finish(size_t numDeps, const GFXDepArg* deps,
+                      _GFXInjection* injection)
 {
-	assert(cmd != VK_NULL_HANDLE);
-	assert(injection != NULL);
-}
-
-/****************************/
-void _gfx_deps_abort(_GFXInjection* injection)
-{
-	assert(injection != NULL);
-}
-
-/****************************/
-void _gfx_deps_finish(_GFXInjection* injection)
-{
+	assert(numDeps == 0 || deps != NULL);
 	assert(injection != NULL);
 }
