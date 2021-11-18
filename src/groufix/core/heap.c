@@ -1013,9 +1013,14 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 		numRefs += bindings[b].count;
 
 	// Allocate a new group.
+	// We allocate references at the tail of the group,
+	// make sure to adhere to its alignment requirements!
+	size_t structSize = GFX_ALIGN_UP(
+		sizeof(_GFXGroup) + sizeof(GFXBinding) * numBindings,
+		_Alignof(GFXReference));
+
 	_GFXGroup* group = malloc(
-		sizeof(_GFXGroup) +
-		sizeof(GFXBinding) * numBindings +
+		structSize +
 		sizeof(GFXReference) * numRefs);
 
 	if (group == NULL)
@@ -1024,7 +1029,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	// Initialize bindings & copy references.
 	// While we're at it, compute the size of the buffers to allocate.
 	GFXReference* refPtr =
-		(GFXReference*)((GFXBinding*)(group + 1) + numBindings);
+		(GFXReference*)((char*)group + structSize);
 
 	group->numBindings = numBindings;
 	uint64_t size = 0;

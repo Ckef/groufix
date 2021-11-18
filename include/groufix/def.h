@@ -81,8 +81,15 @@
 #define GFX_CLAMP(x, l, u) \
 	((x) < (l) ? (l) : (x) > (u) ? (u) : (x))
 
-#define GFX_IS_POWER_OF_TWO(x) \
+
+#define GFX_IS_POWER_OF_TWO(x) /* 0 counts. */ \
 	(((x) & ((x) - 1)) == 0)
+
+#define GFX_ALIGN_UP(offset, align) /* align must be a power of 2. */ \
+	(((offset) + (align) - 1) & ~((align) - 1))
+
+#define GFX_ALIGN_DOWN(offset, align) /* align must be a power of 2. */ \
+	((offset) & ~((align) - 1))
 
 
 #endif

@@ -11,70 +11,12 @@
 #include <stdlib.h>
 
 
-// Get Vulkan memory property flag bits as a readable string.
-#define _GFX_GET_VK_TYPE_EMPTY_STRING(alloc, type) \
-	((alloc)->vk.properties.memoryTypes[type].propertyFlags == 0 ? \
-		"None." : "")
-
-#define _GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, type) \
-	((VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT & \
-	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
-		"        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT\n" : "")
-
-#define _GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, type) \
-	((VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT & \
-	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
-		"        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT\n" : "")
-
-#define _GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, type) \
-	((VK_MEMORY_PROPERTY_HOST_COHERENT_BIT & \
-	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
-		"        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT\n" : "")
-
-#define _GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, type) \
-	((VK_MEMORY_PROPERTY_HOST_CACHED_BIT & \
-	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
-		"        VK_MEMORY_PROPERTY_HOST_CACHED_BIT\n" : "")
-
-#define _GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, type) \
-	((VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT & \
-	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
-		"        VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT\n" : "")
-
-#define _GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, type) \
-	((VK_MEMORY_PROPERTY_PROTECTED_BIT & \
-	(alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
-		"        VK_MEMORY_PROPERTY_PROTECTED_BIT\n" : "")
-
-
-// Gets suitable memory types (auto log when none found) assigned to two lvalue.
-#define _GFX_GET_MEM_TYPES(lreq, lopt, alloc, required, optimal, types, action) \
-	do { \
-		lreq = _gfx_get_mem_type(alloc, required, types); \
-		lopt = _gfx_get_mem_type(alloc, optimal, types); \
-		if (lreq == UINT32_MAX && lopt == UINT32_MAX) { \
-			gfx_log_error( \
-				"Could not find suitable Vulkan memory type for allocation."); \
-			action; \
-		} \
-	} while (0)
-
-
 // Maximum size for a heap to be considered 'small' (1 GiB).
 // If a heap is 'small', blocks will be the size of the heap divided by 8.
 #define _GFX_MAX_SMALL_HEAP_SIZE (1024ull * 1024 * 1024)
 
 // Preferred memory block size of a 'large' heap (256 MiB).
 #define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 1024)
-
-
-// Aligns offset up/down to the nearest multiple of align,
-// which is assumed to be a power of two.
-#define _GFX_ALIGN_UP(offset, align) \
-	((offset + align - 1) & ~(align - 1))
-
-#define _GFX_ALIGN_DOWN(offset, align) \
-	((offset) & ~(align - 1))
 
 
 // Get the size and offset of a key (as an lvalue) +
@@ -89,6 +31,47 @@
 #define _GFX_KEY_ALIGN(key) \
 	(_GFX_KEY_OFFSET(key) == 0 ? ~((VkDeviceSize)0) : \
 	_GFX_KEY_OFFSET(key) & (~_GFX_KEY_OFFSET(key) + 1))
+
+
+// Get Vulkan memory property flag bits as a readable string.
+#define _GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, flag) \
+	((flag & (alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
+		"        "#flag"\n" : "")
+
+#define _GFX_GET_VK_TYPE_EMPTY_STRING(alloc, type) \
+	((alloc)->vk.properties.memoryTypes[type].propertyFlags == 0 ? \
+		"None." : "")
+
+#define _GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+
+#define _GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+
+#define _GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+
+#define _GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
+
+#define _GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)
+
+#define _GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_PROTECTED_BIT)
+
+
+// Gets suitable memory types (auto log when none found) assigned to two lvalue.
+#define _GFX_GET_MEM_TYPES(lreq, lopt, alloc, required, optimal, types, action) \
+	do { \
+		lreq = _gfx_get_mem_type(alloc, required, types); \
+		lopt = _gfx_get_mem_type(alloc, optimal, types); \
+		if (lreq == UINT32_MAX && lopt == UINT32_MAX) { \
+			gfx_log_error( \
+				"Could not find suitable Vulkan memory type for allocation."); \
+			action; \
+		} \
+	} while (0)
 
 
 /****************************
@@ -508,7 +491,7 @@ try_search:
 				GFX_MAX(alloc->granularity, reqs.alignment) : reqs.alignment;
 
 			VkDeviceSize offset =
-				_GFX_ALIGN_UP(_GFX_KEY_OFFSET(fKey), align);
+				GFX_ALIGN_UP(_GFX_KEY_OFFSET(fKey), align);
 			VkDeviceSize waste =
 				offset - _GFX_KEY_OFFSET(fKey);
 
@@ -516,7 +499,7 @@ try_search:
 			// This is necessary because a free block also directly ends at
 			// the start of a claimed block.
 			if (rGran) waste +=
-				right->offset - _GFX_ALIGN_DOWN(right->offset, alloc->granularity);
+				right->offset - GFX_ALIGN_DOWN(right->offset, alloc->granularity);
 
 			// Check if we didn't waste all space and
 			// we have enough for the asked size.
