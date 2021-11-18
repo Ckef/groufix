@@ -19,15 +19,6 @@
 		} \
 	} while(0)
 
-#define _GFX_GET_FORMAT(elem) \
-	(*(GFXFormat*)(elem))
-
-#define _GFX_GET_VK_FORMAT(elem) \
-	(*(VkFormat*)((char*)(elem) + sizeof(GFXFormat)))
-
-#define _GFX_GET_VK_FORMAT_PROPERTIES(elem) \
-	(*(VkFormatProperties*)((char*)(elem) + sizeof(GFXFormat) + sizeof(VkFormat)))
-
 #define _GFX_GET_DISTANCE(fmta, fmtb) \
 	((unsigned int)GFX_DIFF((fmta).comps[0], (fmtb).comps[0]) + \
 	(unsigned int)GFX_DIFF((fmta).comps[1], (fmtb).comps[1]) + \
@@ -62,6 +53,18 @@
 
 
 /****************************
+ * Format dictionary element definition.
+ */
+typedef struct _GFXFormatElem
+{
+	GFXFormat gfx;
+	VkFormat vk;
+	VkFormatProperties props;
+
+} _GFXFormatElem;
+
+
+/****************************
  * Pushes an element to the format dictionary, mapping a groufix format
  * constant to a Vulkan format enumeration, including format properties.
  * @return Non-zero on success.
@@ -71,22 +74,18 @@
 static int _gfx_device_map_format(_GFXDevice* device,
                                   GFXFormat fmt, VkFormat vkFmt)
 {
-	VkFormatProperties props;
+	_GFXFormatElem elem = { .gfx = fmt, .vk = vkFmt };
+
 	_groufix.vk.GetPhysicalDeviceFormatProperties(
-		device->vk.device, vkFmt, &props);
+		device->vk.device, vkFmt, &elem.props);
 
 	if (
-		props.linearTilingFeatures ||
-		props.optimalTilingFeatures ||
-		props.bufferFeatures)
+		elem.props.linearTilingFeatures ||
+		elem.props.optimalTilingFeatures ||
+		elem.props.bufferFeatures)
 	{
-		if (!gfx_vec_push(&device->formats, 1, NULL))
+		if (!gfx_vec_push(&device->formats, 1, &elem))
 			return 0;
-
-		void* elem = gfx_vec_at(&device->formats, device->formats.size-1);
-		_GFX_GET_FORMAT(elem) = fmt;
-		_GFX_GET_VK_FORMAT(elem) = vkFmt;
-		_GFX_GET_VK_FORMAT_PROPERTIES(elem) = props;
 	}
 
 	return 1;
@@ -98,12 +97,8 @@ int _gfx_device_init_formats(_GFXDevice* device)
 	assert(device != NULL);
 
 	// Initialize the format 'dictionary'.
-	// i.e. a vector storing { GFXFormat, VkFormat, VkFormatProperties }.
 	// We cannot use an actual map because we want to perform fuzzy search.
-	gfx_vec_init(&device->formats,
-		sizeof(GFXFormat) +
-		sizeof(VkFormat) +
-		sizeof(VkFormatProperties));
+	gfx_vec_init(&device->formats, sizeof(_GFXFormatElem));
 
 	_GFX_MAP_FMT(GFX_FORMAT_R4G4_UNORM, VK_FORMAT_R4G4_UNORM_PACK8);
 	_GFX_MAP_FMT(GFX_FORMAT_R4G4B4A4_UNORM, VK_FORMAT_R4G4B4A4_UNORM_PACK16);
@@ -345,29 +340,28 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
 	// Loop over all known formats of the device.
 	for (size_t f = 0; f < device->formats.size; ++f)
 	{
-		void* elem = gfx_vec_at(&device->formats, f);
-		VkFormatProperties* eProps = &_GFX_GET_VK_FORMAT_PROPERTIES(elem);
+		_GFXFormatElem* elem = gfx_vec_at(&device->formats, f);
 
 		// Match against the given format & minimal properties.
 		if (
-			!GFX_FORMAT_IS_CONTAINED(_GFX_GET_FORMAT(elem), *fmt) ||
+			!GFX_FORMAT_IS_CONTAINED(elem->gfx, *fmt) ||
 			(props &&
-				((props->linearTilingFeatures & eProps->linearTilingFeatures)
+				((props->linearTilingFeatures & elem->props.linearTilingFeatures)
 					!= props->linearTilingFeatures ||
-				(props->optimalTilingFeatures & eProps->optimalTilingFeatures)
+				(props->optimalTilingFeatures & elem->props.optimalTilingFeatures)
 					!= props->optimalTilingFeatures ||
-				(props->bufferFeatures & eProps->bufferFeatures)
+				(props->bufferFeatures & elem->props.bufferFeatures)
 					!= props->bufferFeatures)))
 		{
 			continue;
 		}
 
 		// Get 'closest' match.
-		unsigned int d = _GFX_GET_DISTANCE(_GFX_GET_FORMAT(elem), *fmt);
+		unsigned int d = _GFX_GET_DISTANCE(elem->gfx, *fmt);
 		if (d < dist)
 		{
-			vkFmt = _GFX_GET_VK_FORMAT(elem);
-			gfxFmt = _GFX_GET_FORMAT(elem);
+			vkFmt = elem->vk;
+			gfxFmt = elem->gfx;
 			dist = d;
 		}
 	}
@@ -389,14 +383,14 @@ GFX_API GFXFormatFeatures gfx_format_support(GFXFormat fmt,
 	// Loop over all known formats of the device.
 	for (size_t f = 0; f < dev->formats.size; ++f)
 	{
-		void* elem = gfx_vec_at(&dev->formats, f);
+		_GFXFormatElem* elem = gfx_vec_at(&dev->formats, f);
 
 		// Match against the given format.
-		if (!GFX_FORMAT_IS_CONTAINED(_GFX_GET_FORMAT(elem), fmt))
+		if (!GFX_FORMAT_IS_CONTAINED(elem->gfx, fmt))
 			continue;
 
 		// If a match, add supported features.
-		features |= _GFX_GET_FEATURES(_GFX_GET_VK_FORMAT_PROPERTIES(elem));
+		features |= _GFX_GET_FEATURES(elem->props);
 	}
 
 	return features;
@@ -417,22 +411,18 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 	// Loop over all known formats of the device.
 	for (size_t f = 0; f < dev->formats.size; ++f)
 	{
-		void* elem = gfx_vec_at(&dev->formats, f);
-		GFXFormat* eFmt = &_GFX_GET_FORMAT(elem);
+		_GFXFormatElem* elem = gfx_vec_at(&dev->formats, f);
 
 		// Match against the given format type/order and minimal features.
-		// Note this is not the same as GFX_FORMAT_IS_CONTAINED(*eFmt, fmt)!
+		// Note this is not the same as GFX_FORMAT_IS_CONTAINED(elem->gfx, fmt)!
 		// Containment checks for bit depth as well, we do not care about
 		// the depth here, we fuzzy search over _ALL_ depths!
-		GFXFormatFeatures eFeatures =
-			_GFX_GET_FEATURES(_GFX_GET_VK_FORMAT_PROPERTIES(elem));
-
 		if (
-			(features & eFeatures) != features ||
-			(eFmt->type & fmt.type) != eFmt->type ||
-			(GFX_FORMAT_IS_COMPRESSED(*eFmt) ?
-				eFmt->order != fmt.order :
-				(eFmt->order & fmt.order) != eFmt->order))
+			(features & _GFX_GET_FEATURES(elem->props)) != features ||
+			(elem->gfx.type & fmt.type) != elem->gfx.type ||
+			(GFX_FORMAT_IS_COMPRESSED(elem->gfx) ?
+				elem->gfx.order != fmt.order :
+				(elem->gfx.order & fmt.order) != elem->gfx.order))
 		{
 			continue;
 		}
@@ -440,27 +430,27 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 		// We do however match against given bit depth requirements.
 		if (
 			((flags & GFX_FUZZY_MIN_DEPTH) &&
-				(eFmt->comps[0] < fmt.comps[0] ||
-				eFmt->comps[1] < fmt.comps[1] ||
-				eFmt->comps[2] < fmt.comps[2] ||
-				eFmt->comps[3] < fmt.comps[3])) ||
+				(elem->gfx.comps[0] < fmt.comps[0] ||
+				elem->gfx.comps[1] < fmt.comps[1] ||
+				elem->gfx.comps[2] < fmt.comps[2] ||
+				elem->gfx.comps[3] < fmt.comps[3])) ||
 			((flags & GFX_FUZZY_MAX_DEPTH) &&
-				(eFmt->comps[0] > fmt.comps[0] ||
-				eFmt->comps[1] > fmt.comps[1] ||
-				eFmt->comps[2] > fmt.comps[2] ||
-				eFmt->comps[3] > fmt.comps[3])))
+				(elem->gfx.comps[0] > fmt.comps[0] ||
+				elem->gfx.comps[1] > fmt.comps[1] ||
+				elem->gfx.comps[2] > fmt.comps[2] ||
+				elem->gfx.comps[3] > fmt.comps[3])))
 		{
 			continue;
 		}
 
 		// Get 'closest' match.
 		// We always prefer contained formats.
-		int cont = GFX_FORMAT_IS_CONTAINED(*eFmt, fmt);
-		unsigned int d = _GFX_GET_DISTANCE(*eFmt, fmt);
+		int cont = GFX_FORMAT_IS_CONTAINED(elem->gfx, fmt);
+		unsigned int d = _GFX_GET_DISTANCE(elem->gfx, fmt);
 
 		if (contained ? (cont && d < dist) : (cont || d < dist))
 		{
-			retFmt = *eFmt;
+			retFmt = elem->gfx;
 			contained = cont;
 			dist = d;
 		}
