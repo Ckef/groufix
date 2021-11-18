@@ -62,12 +62,12 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep)
 
 /****************************/
 int _gfx_deps_catch(VkCommandBuffer cmd, uint32_t family,
-                    size_t numDeps, const GFXDepArg* deps,
+                    size_t numInjs, const GFXInject* injs,
                     size_t numRefs, const GFXReference* refs,
                     _GFXInjection* injection)
 {
 	assert(cmd != VK_NULL_HANDLE);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 	assert(numRefs == 0 || refs != NULL);
 	assert(injection != NULL);
 
@@ -82,12 +82,12 @@ int _gfx_deps_catch(VkCommandBuffer cmd, uint32_t family,
 
 /****************************/
 int _gfx_deps_prepare(VkCommandBuffer cmd, uint32_t family,
-                      size_t numDeps, const GFXDepArg* deps,
+                      size_t numInjs, const GFXInject* injs,
                       size_t numRefs, const GFXReference* refs,
                       _GFXInjection* injection)
 {
 	assert(cmd != VK_NULL_HANDLE);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 	assert(numRefs == 0 || refs != NULL);
 	assert(injection != NULL);
 
@@ -95,17 +95,17 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, uint32_t family,
 }
 
 /****************************/
-void _gfx_deps_abort(size_t numDeps, const GFXDepArg* deps,
+void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
                      _GFXInjection* injection)
 {
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 }
 
 /****************************/
-void _gfx_deps_finish(size_t numDeps, const GFXDepArg* deps,
+void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection)
 {
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 }

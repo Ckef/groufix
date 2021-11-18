@@ -119,11 +119,12 @@
  */
 typedef struct
 {
-	GFXWindow*    window;
-	GFXHeap*      heap;
-	GFXRenderer*  renderer; // Window is attached at index 0.
-	GFXPrimitive* primitive;
-	GFXGroup*     group;
+	GFXWindow*     window;
+	GFXHeap*       heap;
+	GFXDependency* dep;
+	GFXRenderer*   renderer; // Window is attached at index 0.
+	GFXPrimitive*  primitive;
+	GFXGroup*      group;
 
 } TestBase;
 
@@ -152,7 +153,15 @@ typedef struct
 /**
  * Instance of the test base state.
  */
-static TestBase _test_base = { NULL, NULL, NULL, NULL, NULL };
+static TestBase _test_base =
+{
+	.window = NULL,
+	.heap = NULL,
+	.dep = NULL,
+	.renderer = NULL,
+	.primitive = NULL,
+	.group = NULL
+};
 
 
 /****************************
@@ -200,6 +209,7 @@ static void _test_key_release(GFXWindow* window,
 static void _test_clear(void)
 {
 	gfx_destroy_renderer(_test_base.renderer);
+	gfx_destroy_dep(_test_base.dep);
 	gfx_destroy_heap(_test_base.heap);
 	gfx_destroy_window(_test_base.window);
 	gfx_terminate();
@@ -273,9 +283,13 @@ static void _test_init(void)
 	_test_base.window->events.key.release = _test_key_release;
 #endif
 
-	// Create a heap.
+	// Create a heap & dependency.
 	_test_base.heap = gfx_create_heap(NULL);
 	if (_test_base.heap == NULL)
+		TEST_FAIL();
+
+	_test_base.dep = gfx_create_dep(NULL);
+	if (_test_base.dep == NULL)
 		TEST_FAIL();
 
 	// Create a renderer and attach the window at index 0.

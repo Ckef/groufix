@@ -16,7 +16,7 @@
 
 
 /**
- * Synchronization access mask.
+ * Dependency access mask.
  */
 typedef enum GFXAccessMask
 {
@@ -66,15 +66,15 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep);
 
 
 /****************************
- * Dependency (synchronization) injection.
+ * Dependency (transition/synchronization) injection.
  ****************************/
 
 /**
- * Dependency 'command' argument.
+ * Dependency injection command.
  */
-typedef struct GFXDepArg
+typedef struct GFXInject
 {
-	// Synchronization type.
+	// Injection type.
 	enum
 	{
 		GFX_DEP_SIGNAL,
@@ -96,11 +96,11 @@ typedef struct GFXDepArg
 	// Access scope that will be signaled.
 	GFXAccessMask mask;
 
-} GFXDepArg;
+} GFXInject;
 
 
 /**
- * Dependency argument macros. Dependency objects can be signaled or waited for
+ * Injection macros. Dependency objects can be signaled or waited upon
  * with respect to (a set of) resources on the GPU, the CPU is never blocked!
  *
  * In order for resources to transition between different operations performed
@@ -109,20 +109,20 @@ typedef struct GFXDepArg
  * If this is ignored, caches might not be flushed or invalidated, or worse,
  * the contents may be discarded by the engine and/or GPU when they see fit.
  *
- * To force synchronization on a specific resource, use
+ * To force the dependency on a specific resource, use
  *  gfx_dep_sigr and gfx_dep_waitr
  *
- * To limit synchronization to a range (area) of a resource, use
+ * To limit the dependency to a range (area) of a resource, use
  *  gfx_dep_siga
  *
  * To apply both of the above simultaneously, use
  *  gfx_dep_sigra
  *
- * Functions that take a dependency argument are _always_ thread-safe with
+ * Functions that take injections as an argument are _always_ thread-safe with
  * respect to the dependency objects being referenced!
  */
 #define gfx_dep_sig(dep_, mask_) \
-	(GFXDepArg){ \
+	(GFXInject){ \
 		.type = GFX_DEP_SIGNAL, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL, \
@@ -130,7 +130,7 @@ typedef struct GFXDepArg
 	}
 
 #define gfx_dep_sigr(dep_, mask_, ref_) \
-	(GFXDepArg){ \
+	(GFXInject){ \
 		.type = GFX_DEP_SIGNAL, \
 		.dep = dep_, \
 		.ref = ref_, \
@@ -138,7 +138,7 @@ typedef struct GFXDepArg
 	}
 
 #define gfx_dep_siga(dep_, mask_, range_) \
-	(GFXDepArg){ \
+	(GFXInject){ \
 		.type = GFX_DEP_SIGNAL_RANGE, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL, \
@@ -147,7 +147,7 @@ typedef struct GFXDepArg
 	}
 
 #define gfx_dep_sigra(dep_, mask_, ref_, range_) \
-	(GFXDepArg){ \
+	(GFXInject){ \
 		.type = GFX_DEP_SIGNAL_RANGE, \
 		.dep = dep_, \
 		.ref = ref_, \
@@ -156,14 +156,14 @@ typedef struct GFXDepArg
 	}
 
 #define gfx_dep_wait(dep_) \
-	(GFXDepArg){ \
+	(GFXInject){ \
 		.type = GFX_DEP_WAIT, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL \
 	}
 
 #define gfx_dep_waitr(dep_, ref_) \
-	(GFXDepArg){ \
+	(GFXInject){ \
 		.type = GFX_DEP_WAIT, \
 		.dep = dep_, \
 		.ref = ref_ \

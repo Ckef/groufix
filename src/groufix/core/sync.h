@@ -93,12 +93,12 @@ struct GFXDependency
 
 /**
  * TODO: Somehow generate or pass a tag for recycling.
- * Starts a new dependency injection by catching all pending signal commands.
+ * Starts a new dependency injection by catching pending signal commands.
  * The object pointed to by injection cannot be moved or copied!
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
  * @param family    Vulkan queue family cmd will be submitted to.
- * @param numDeps   Number of given dependency arguments.
- * @param deps      Given dependency arguments.
+ * @param numInjs   Number of given injection commands.
+ * @param injs      Given injection commands.
  * @param numRefs   Number of references involved in this operation.
  * @param refs      References involved in this operation.
  * @param injection Output injection metadata, cannot be NULL.
@@ -109,7 +109,7 @@ struct GFXDependency
  * arguments to appropriately cleanup and free the injection metadata!
  */
 int _gfx_deps_catch(VkCommandBuffer cmd, uint32_t family,
-                    size_t numDeps, const GFXDepArg* deps,
+                    size_t numInjs, const GFXInject* injs,
                     size_t numRefs, const GFXReference* refs,
                     _GFXInjection* injection);
 
@@ -122,7 +122,7 @@ int _gfx_deps_catch(VkCommandBuffer cmd, uint32_t family,
  * with the exact same arguments.
  */
 int _gfx_deps_prepare(VkCommandBuffer cmd, uint32_t family,
-                      size_t numDeps, const GFXDepArg* deps,
+                      size_t numInjs, const GFXInject* injs,
                       size_t numRefs, const GFXReference* refs,
                       _GFXInjection* injection);
 
@@ -133,7 +133,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, uint32_t family,
  * Thread-safe with respect to all dependency objects!
  * The content of injection is invalidated after this call.
  */
-void _gfx_deps_abort(size_t numDeps, const GFXDepArg* deps,
+void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
                      _GFXInjection* injection);
 
 /**
@@ -144,7 +144,7 @@ void _gfx_deps_abort(size_t numDeps, const GFXDepArg* deps,
  * Thread-safe with respect to all dependency objects!
  * The content of injection is invalidated after this call.
  */
-void _gfx_deps_finish(size_t numDeps, const GFXDepArg* deps,
+void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection);
 
 
