@@ -244,7 +244,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	}
 
 	// At this point we have memory!
-	// Initialize the block & the list of nodes and free tree.
+	// Initialize the block and the list of nodes & free tree.
 	VkDeviceSize key[2] = { blockSize, 0 };
 	block->type = type;
 	block->size = blockSize;
@@ -252,8 +252,11 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	block->map.refs = 0;
 	block->map.ptr = NULL;
 
-	gfx_tree_init(&block->nodes.free, sizeof(key), _gfx_allocator_cmp);
 	gfx_list_init(&block->nodes.list);
+	gfx_tree_init(&block->nodes.free, sizeof(key),
+		// Take the largest alignment of the key and element types.
+		GFX_MAX(_Alignof(VkDeviceSize[2]), _Alignof(_GFXMemNode)),
+		_gfx_allocator_cmp);
 
 	// If an exact size, link the block into the allocd list.
 	// As there is no free root node, it will be regarded as full.

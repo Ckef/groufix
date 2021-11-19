@@ -14,15 +14,19 @@
 
 // Retrieve the _GFXTreeNode from a public element pointer.
 #define _GFX_GET_NODE(tree, element) \
-	((_GFXTreeNode*)((char*)element - tree->keySize) - 1)
+	(_GFXTreeNode*)((char*)element - \
+		GFX_ALIGN_UP(tree->keySize, tree->align) - \
+		GFX_ALIGN_UP(sizeof(_GFXTreeNode), tree->align))
 
 // Retrieve the key from a _GFXTreeNode.
 #define _GFX_GET_KEY(tree, tNode) \
-	((void*)((_GFXTreeNode*)tNode + 1))
+	(void*)((char*)tNode + \
+		GFX_ALIGN_UP(sizeof(_GFXTreeNode), tree->align))
 
 // Retrieve the element data from a _GFXTreeNode.
 #define _GFX_GET_ELEMENT(tree, tNode) \
-	((void*)((char*)((_GFXTreeNode*)tNode + 1) + tree->keySize))
+	(void*)((char*)_GFX_GET_KEY(tree, tNode) + \
+		GFX_ALIGN_UP(tree->keySize, tree->align))
 
 // Replace the child of a node with a new one (without touching the children).
 #define _GFX_REPLACE_CHILD(tNode, child, new) \
@@ -365,14 +369,16 @@ static void _gfx_tree_erase(GFXTree* tree, _GFXTreeNode* tNode)
 }
 
 /****************************/
-GFX_API void gfx_tree_init(GFXTree* tree, size_t keySize,
+GFX_API void gfx_tree_init(GFXTree* tree, size_t keySize, size_t align,
                            int (*cmp)(const void*, const void*))
 {
 	assert(tree != NULL);
 	assert(keySize > 0);
+	assert(GFX_IS_POWER_OF_TWO(align));
 	assert(cmp != NULL);
 
 	tree->keySize = keySize;
+	tree->align = align == 0 ? _Alignof(max_align_t) : align;
 	tree->root = NULL;
 	tree->cmp = cmp;
 }
@@ -396,9 +402,12 @@ GFX_API void* gfx_tree_insert(GFXTree* tree, size_t elemSize, const void* elem,
 	assert(key != NULL);
 
 	// Allocate a new node.
-	// We allocate a _GFXTreeNode appended with the key and element data.
+	// We allocate a _GFXTreeNode appended with the key and element data,
+	// make sure to adhere to their alignment requirements!
 	_GFXTreeNode* tNode = malloc(
-		sizeof(_GFXTreeNode) + tree->keySize + elemSize);
+		GFX_ALIGN_UP(sizeof(_GFXTreeNode), tree->align) +
+		GFX_ALIGN_UP(tree->keySize, tree->align) +
+		elemSize);
 
 	if (tNode == NULL)
 		return NULL;
