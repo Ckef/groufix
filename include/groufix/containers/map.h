@@ -21,6 +21,7 @@ typedef struct GFXMap
 	size_t size;     // Number of stored elements.
 	size_t capacity; // Number of buckets.
 	size_t elementSize;
+	size_t align;
 
 	void** buckets;
 
@@ -39,24 +40,27 @@ typedef struct GFXMap
  */
 static inline const void* gfx_map_key(GFXMap* map, const void* elem)
 {
-	return (const void*)((const char*)elem + map->elementSize);
+	return (const void*)((const char*)elem + GFX_ALIGN_UP(map->elementSize, map->align));
 }
 
 /**
  * Initializes a map.
  * @param map      Cannot be NULL.
  * @param elemSize Must be > 0.
+ * @parma align    Must be a power of two, zero for scalar type alignment.
  * @param hash     Cannot be NULL.
  * @param cmp      Cannot be NULL.
  *
- * hash takes one key and should return:
+ * 'align' shall be the alignment of both key and element data.
+ *
+ * 'hash' takes one key and should return:
  *  a hash code of any value of type uint64_t.
  *
- * cmp takes two keys, l and r, it should return:
+ * 'cmp' takes two keys, l and r, it should return:
  *  0 if l == r
  *  !0 if l != r
  */
-GFX_API void gfx_map_init(GFXMap* map, size_t elemSize,
+GFX_API void gfx_map_init(GFXMap* map, size_t elemSize, size_t align,
                           uint64_t (*hash)(const void*),
                           int (*cmp)(const void*, const void*));
 

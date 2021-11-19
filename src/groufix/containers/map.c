@@ -20,11 +20,13 @@
 
 // Retrieve the element data from a bucket node.
 #define _GFX_GET_ELEMENT(map, node) \
-	(void*)((void**)node + 1)
+	(void*)((char*)node + \
+		GFX_ALIGN_UP(sizeof(void*), map->align))
 
 // Retrieve the key from a bucket node.
 #define _GFX_GET_KEY(map, node) \
-	(void*)((char*)((void**)node + 1) + map->elementSize)
+	(void*)((char*)_GFX_GET_ELEMENT(map, node) + \
+		GFX_ALIGN_UP(map->elementSize, map->align))
 
 
 /****************************
@@ -110,18 +112,20 @@ static void _gfx_map_shrink(GFXMap* map)
 }
 
 /****************************/
-GFX_API void gfx_map_init(GFXMap* map, size_t elemSize,
+GFX_API void gfx_map_init(GFXMap* map, size_t elemSize, size_t align,
                           uint64_t (*hash)(const void*),
                           int (*cmp)(const void*, const void*))
 {
 	assert(map != NULL);
 	assert(elemSize > 0);
+	assert(GFX_IS_POWER_OF_TWO(align));
 	assert(hash != NULL);
 	assert(cmp != NULL);
 
 	map->size = 0;
 	map->capacity = 0;
 	map->elementSize = elemSize;
+	map->align = align == 0 ? _Alignof(max_align_t) : align;
 	map->buckets = NULL;
 
 	map->hash = hash;
@@ -188,9 +192,12 @@ GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
 	}
 
 	// Allocate a new node.
-	// We allocate a next pointer appended with the element and key data.
+	// We allocate a next pointer appended with the element and key data,
+	// make sure to adhere to their alignment requirements!
 	_GFXMapNode node = malloc(
-		sizeof(void*) + map->elementSize + keySize);
+		GFX_ALIGN_UP(sizeof(void*), map->align) +
+		GFX_ALIGN_UP(map->elementSize, map->align) +
+		keySize);
 
 	if (node == NULL)
 		return NULL;

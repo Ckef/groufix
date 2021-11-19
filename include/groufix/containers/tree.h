@@ -46,7 +46,7 @@ typedef struct GFXTree
  */
 static inline const void* gfx_tree_key(GFXTree* tree, const void* node)
 {
-	return (const void*)((const char*)node - tree->keySize);
+	return (const void*)((const char*)node - GFX_ALIGN_UP(tree->keySize, tree->align));
 }
 
 /**
@@ -57,6 +57,7 @@ static inline const void* gfx_tree_key(GFXTree* tree, const void* node)
  * @param cmp     Cannot be NULL.
  *
  * 'align' shall be the alignment of both key and element data.
+ *
  * 'cmp' takes two keys, l and r, it should return:
  *  < 0 if l < r
  *  > 0 if l > r
