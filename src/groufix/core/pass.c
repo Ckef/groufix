@@ -12,13 +12,15 @@
 #include <string.h>
 
 
-// Get a consumption's attachment index (as an lvalue).
-#define _GFX_CONSUME_INDEX(con) \
-	(*(size_t*)con)
+/****************************
+ * Attachment consumption element defintion.
+ */
+typedef struct _GFXConsumeElem
+{
+	size_t index;
+	GFXAccessMask mask;
 
-// Get a consumption's access mask (as an lvalue).
-#define _GFX_CONSUME_MASK(con) \
-	(*(GFXAccessMask*)((size_t*)con + 1))
+} _GFXConsumeElem;
 
 
 /****************************
@@ -88,23 +90,23 @@ static size_t _gfx_pass_pick_backing(GFXPass* pass)
 	// We don't really have to but we're nice, in case of Vulkan spam...
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
-		void* con = gfx_vec_at(&pass->consumes, i);
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
 
 		// Validate the access mask &
 		// that the attachment exists and is a window.
 		if (
-			_GFX_CONSUME_MASK(con) != GFX_ACCESS_ATTACHMENT_WRITE ||
-			_GFX_CONSUME_INDEX(con) >= rend->backing.attachs.size ||
+			con->mask != GFX_ACCESS_ATTACHMENT_WRITE ||
+			con->index >= rend->backing.attachs.size ||
 			((_GFXAttach*)gfx_vec_at(
 				&rend->backing.attachs,
-				_GFX_CONSUME_INDEX(con)))->type != _GFX_ATTACH_WINDOW)
+				con->index))->type != _GFX_ATTACH_WINDOW)
 		{
 			continue;
 		}
 
 		// If it is, check if we already had a backing window.
 		if (backing == SIZE_MAX)
-			backing = _GFX_CONSUME_INDEX(con);
+			backing = con->index;
 		else
 		{
 			// If so, well we cannot, throw a warning.
@@ -689,7 +691,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->vk.pipeline = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
-	gfx_vec_init(&pass->consumes, sizeof(size_t) + sizeof(GFXAccessMask));
+	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
 
 
 	// TODO: Super temporary!!
@@ -833,23 +835,19 @@ GFX_API int gfx_pass_consume(GFXPass* pass, size_t index, GFXAccessMask mask)
 	// Try to find it first.
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
-		void* con = gfx_vec_at(&pass->consumes, i);
-		if (_GFX_CONSUME_INDEX(con) == index)
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		if (con->index == index)
 		{
-			if ((_GFX_CONSUME_MASK(con) & mask) != mask)
-				_GFX_CONSUME_MASK(con) |= mask;
-
+			con->mask |= mask;
 			return 1;
 		}
 	}
 
 	// Insert anew.
-	if (!gfx_vec_push(&pass->consumes, 1, NULL))
-		return 0;
+	_GFXConsumeElem elem = { .index = index, .mask = mask };
 
-	void* con = gfx_vec_at(&pass->consumes, pass->consumes.size-1);
-	_GFX_CONSUME_INDEX(con) = index;
-	_GFX_CONSUME_MASK(con) = mask;
+	if (!gfx_vec_push(&pass->consumes, 1, &elem))
+		return 0;
 
 	// Changed a pass, the graph is invalidated.
 	_gfx_render_graph_invalidate(pass->renderer);
@@ -865,7 +863,7 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 
 	// FInd and erase.
 	for (size_t i = pass->consumes.size; i > 0; --i)
-		if (_GFX_CONSUME_INDEX(gfx_vec_at(&pass->consumes, i)) == index)
+		if (((_GFXConsumeElem*)gfx_vec_at(&pass->consumes, i))->index == index)
 			gfx_vec_erase(&pass->consumes, 1, i-1);
 
 	// Changed a pass, the graph is invalidated.

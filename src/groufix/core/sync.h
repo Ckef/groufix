@@ -93,6 +93,7 @@ struct GFXDependency
 
 /**
  * TODO: Somehow generate or pass a tag for recycling.
+ * TODO: Add access mask, 0 to catch all.
  * Starts a new dependency injection by catching pending signal commands.
  * The object pointed to by injection cannot be moved or copied!
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
