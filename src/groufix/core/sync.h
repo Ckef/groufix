@@ -19,11 +19,29 @@
  */
 typedef struct _GFXInjection
 {
-	size_t       numWaits;
-	VkSemaphore* waits;
+	// Operation input, must be pre-initialized!
+	struct
+	{
+		uint32_t family;
+		size_t   numRefs; // May be zero!
 
-	size_t       numSigs;
-	VkSemaphore* sigs;
+		const GFXReference*  refs; // May not contain GFX_REF_NULL.
+		const GFXRange*      ranges;
+		const GFXAccessMask* masks;
+
+	} inp;
+
+
+	// Synchronization output.
+	struct
+	{
+		size_t       numWaits;
+		VkSemaphore* waits;
+
+		size_t       numSigs;
+		VkSemaphore* sigs;
+
+	} out;
 
 } _GFXInjection;
 
@@ -66,6 +84,9 @@ typedef struct _GFXSync
 		uint32_t      srcFamily;
 		uint32_t      dstFamily;
 
+		VkPipelineStageFlags srcStage;
+		VkPipelineStageFlags dstStage;
+
 	} vk;
 
 } _GFXSync;
@@ -93,25 +114,21 @@ struct GFXDependency
 
 /**
  * TODO: Somehow generate or pass a tag for recycling.
- * TODO: Add access mask, 0 to catch all.
  * Starts a new dependency injection by catching pending signal commands.
  * The object pointed to by injection cannot be moved or copied!
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
- * @param family    Vulkan queue family cmd will be submitted to.
  * @param numInjs   Number of given injection commands.
  * @param injs      Given injection commands.
- * @param numRefs   Number of references involved in this operation.
- * @param refs      References involved in this operation.
- * @param injection Output injection metadata, cannot be NULL.
+ * @param injection Input & output injection metadata, cannot be NULL.
  * @param Zero on failure.
  *
  * Thread-safe with respect to all dependency objects!
  * Either _gfx_deps_abort() or _gfx_deps_finish() must be called with the same
- * arguments to appropriately cleanup and free the injection metadata!
+ * injection object (and other arguments) to appropriately cleanup and free
+ * the all metadata, this call itself can only be called once!
  */
-int _gfx_deps_catch(VkCommandBuffer cmd, uint32_t family,
+int _gfx_deps_catch(VkCommandBuffer cmd,
                     size_t numInjs, const GFXInject* injs,
-                    size_t numRefs, const GFXReference* refs,
                     _GFXInjection* injection);
 
 /**
@@ -119,12 +136,11 @@ int _gfx_deps_catch(VkCommandBuffer cmd, uint32_t family,
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * Can only be called after a successful call to _gfx_deps_catch,
- * with the exact same arguments.
+ * Must have succesfully reteurned from _gfx_deps_catch with injection before
+ * calling, as must all other arguments be the same.
  */
-int _gfx_deps_prepare(VkCommandBuffer cmd, uint32_t family,
+int _gfx_deps_prepare(VkCommandBuffer cmd,
                       size_t numInjs, const GFXInject* injs,
-                      size_t numRefs, const GFXReference* refs,
                       _GFXInjection* injection);
 
 /**

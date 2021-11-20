@@ -61,35 +61,37 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep)
 }
 
 /****************************/
-int _gfx_deps_catch(VkCommandBuffer cmd, uint32_t family,
+int _gfx_deps_catch(VkCommandBuffer cmd,
                     size_t numInjs, const GFXInject* injs,
-                    size_t numRefs, const GFXReference* refs,
                     _GFXInjection* injection)
 {
 	assert(cmd != VK_NULL_HANDLE);
 	assert(numInjs == 0 || injs != NULL);
-	assert(numRefs == 0 || refs != NULL);
 	assert(injection != NULL);
+	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
+	assert(injection->inp.numRefs == 0 || injection->inp.ranges != NULL);
+	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 
-	// Initialize the injection to empty.
-	injection->numWaits = 0;
-	injection->waits = NULL;
-	injection->numSigs = 0;
-	injection->sigs = NULL;
+	// Initialize the injection output.
+	injection->out.numWaits = 0;
+	injection->out.waits = NULL;
+	injection->out.numSigs = 0;
+	injection->out.sigs = NULL;
 
 	return 0;
 }
 
 /****************************/
-int _gfx_deps_prepare(VkCommandBuffer cmd, uint32_t family,
+int _gfx_deps_prepare(VkCommandBuffer cmd,
                       size_t numInjs, const GFXInject* injs,
-                      size_t numRefs, const GFXReference* refs,
                       _GFXInjection* injection)
 {
 	assert(cmd != VK_NULL_HANDLE);
 	assert(numInjs == 0 || injs != NULL);
-	assert(numRefs == 0 || refs != NULL);
 	assert(injection != NULL);
+	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
+	assert(injection->inp.numRefs == 0 || injection->inp.ranges != NULL);
+	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 
 	return 0;
 }
