@@ -23,17 +23,17 @@
 	((language) == GFX_HLSL) ? "hlsl" : "*")
 
 #define _GFX_GET_STAGE_STRING(stage) \
-	(((stage) == GFX_SHADER_VERTEX) ? \
+	(((stage) == GFX_STAGE_VERTEX) ? \
 		"vertex" : \
-	((stage) == GFX_SHADER_TESS_CONTROL) ? \
+	((stage) == GFX_STAGE_TESS_CONTROL) ? \
 		"tessellation control" : \
-	((stage) == GFX_SHADER_TESS_EVALUATION) ? \
+	((stage) == GFX_STAGE_TESS_EVALUATION) ? \
 		"tessellation evaluation" : \
-	((stage) == GFX_SHADER_GEOMETRY) ? \
+	((stage) == GFX_STAGE_GEOMETRY) ? \
 		"geometry" : \
-	((stage) == GFX_SHADER_FRAGMENT) ? \
+	((stage) == GFX_STAGE_FRAGMENT) ? \
 		"fragment" : \
-	((stage) == GFX_SHADER_COMPUTE) ? \
+	((stage) == GFX_STAGE_COMPUTE) ? \
 		"compute" : "unknown")
 
 #define _GFX_GET_SHADERC_LANGUAGE(language) \
@@ -44,17 +44,17 @@
 		shaderc_source_language_glsl)
 
 #define _GFX_GET_SHADERC_KIND(stage) \
-	(((stage) == GFX_SHADER_VERTEX) ? \
+	(((stage) == GFX_STAGE_VERTEX) ? \
 		shaderc_vertex_shader : \
-	((stage) == GFX_SHADER_TESS_CONTROL) ? \
+	((stage) == GFX_STAGE_TESS_CONTROL) ? \
 		shaderc_tess_control_shader : \
-	((stage) == GFX_SHADER_TESS_EVALUATION) ? \
+	((stage) == GFX_STAGE_TESS_EVALUATION) ? \
 		shaderc_tess_evaluation_shader : \
-	((stage) == GFX_SHADER_GEOMETRY) ? \
+	((stage) == GFX_STAGE_GEOMETRY) ? \
 		shaderc_geometry_shader : \
-	((stage) == GFX_SHADER_FRAGMENT) ? \
+	((stage) == GFX_STAGE_FRAGMENT) ? \
 		shaderc_fragment_shader : \
-	((stage) == GFX_SHADER_COMPUTE) ? \
+	((stage) == GFX_STAGE_COMPUTE) ? \
 		shaderc_compute_shader : \
 		shaderc_glsl_infer_from_source)
 
@@ -171,6 +171,13 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	shaderc_compile_options_set_source_language(
 		options, _GFX_GET_SHADERC_LANGUAGE(language));
 
+	// Set target environment.
+	shaderc_compile_options_set_target_env(
+		options, shaderc_target_env_vulkan,
+		VK_MAKE_API_VERSION(0,
+			VK_API_VERSION_MAJOR(device->api),
+			VK_API_VERSION_MINOR(device->api), 0));
+
 #if !defined (NDEBUG)
 	// If in debug mode, generate debug info :)
 	shaderc_compile_options_set_generate_debug_info(
@@ -185,12 +192,6 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		// Optimization level and target environment.
 		shaderc_compile_options_set_optimization_level(
 			options, shaderc_optimization_level_performance);
-
-		shaderc_compile_options_set_target_env(
-			options, shaderc_target_env_vulkan,
-			VK_MAKE_API_VERSION(0,
-				VK_API_VERSION_MINOR(device->api),
-				VK_API_VERSION_MINOR(device->api), 0));
 
 		// GPU limits.
 		VkPhysicalDeviceProperties pdp;

@@ -12,6 +12,7 @@
 
 #include "groufix/core/device.h"
 #include "groufix/core/refs.h"
+#include "groufix/core/shader.h"
 #include "groufix/def.h"
 
 
@@ -80,6 +81,7 @@ typedef struct GFXInject
 		GFX_DEP_SIGNAL,
 		GFX_DEP_SIGNAL_RANGE,
 		GFX_DEP_WAIT,
+		GFX_DEP_WAIT_RANGE
 
 	} type;
 
@@ -90,11 +92,14 @@ typedef struct GFXInject
 	// To-be synchronized resource (may be GFX_REF_NULL).
 	GFXReference ref;
 
-	// Affected resource range (ignored if not GFX_DEP_SIGNAL_RANGE).
+	// Affected resource range.
 	GFXRange range;
 
 	// Access scope that will be signaled.
 	GFXAccessMask mask;
+
+	// Shader stage that will have access.
+	GFXShaderStage stage;
 
 } GFXInject;
 
@@ -105,54 +110,61 @@ typedef struct GFXInject
  *
  * In order for resources to transition between different operations performed
  * on them, a dependency must be injected inbetween the two operations.
- * A dependency is formed by a pair of signal/wait commands.
  * If this is ignored, caches might not be flushed or invalidated, or worse,
  * the contents may be discarded by the engine and/or GPU when they see fit.
  *
+ * A dependency is formed by a pair of signal/wait commands.
+ * Wait and signal commands match if their resource references are equivalent
+ * AND have an overlapping resource range (unspecified range = entire resource).
+ *
  * To force the dependency on a specific resource, use
- *  gfx_dep_sigr and gfx_dep_waitr
+ *  `gfx_dep_sigr` and `gfx_dep_waitr`
  *
  * To limit the dependency to a range (area) of a resource, use
- *  gfx_dep_siga
+ *  `gfx_dep_siga` and `gfx_dep_waita`
  *
  * To apply both of the above simultaneously, use
- *  gfx_dep_sigra
+ *  `gfx_dep_sigra` and `gfx_dep_waitra`
  *
  * Functions that take injections as an argument are _always_ thread-safe with
  * respect to the dependency objects being referenced!
  */
-#define gfx_dep_sig(dep_, mask_) \
+#define gfx_dep_sig(dep_, mask_, stage_) \
 	(GFXInject){ \
 		.type = GFX_DEP_SIGNAL, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL, \
-		.mask = mask_ \
+		.mask = mask_, \
+		.stage = stage_ \
 	}
 
-#define gfx_dep_sigr(dep_, mask_, ref_) \
+#define gfx_dep_sigr(dep_, mask_, stage_, ref_) \
 	(GFXInject){ \
 		.type = GFX_DEP_SIGNAL, \
 		.dep = dep_, \
 		.ref = ref_, \
-		.mask = mask_ \
+		.mask = mask_, \
+		.stage = stage_ \
 	}
 
-#define gfx_dep_siga(dep_, mask_, range_) \
+#define gfx_dep_siga(dep_, mask_, stage_, range_) \
 	(GFXInject){ \
 		.type = GFX_DEP_SIGNAL_RANGE, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL, \
 		.range = range_, \
-		.mask = mask_ \
+		.mask = mask_, \
+		.stage = stage_ \
 	}
 
-#define gfx_dep_sigra(dep_, mask_, ref_, range_) \
+#define gfx_dep_sigra(dep_, mask_, stage_, ref_, range_) \
 	(GFXInject){ \
 		.type = GFX_DEP_SIGNAL_RANGE, \
 		.dep = dep_, \
 		.ref = ref_, \
 		.range = range_, \
-		.mask = mask_ \
+		.mask = mask_, \
+		.stage = stage_ \
 	}
 
 #define gfx_dep_wait(dep_) \
@@ -167,6 +179,22 @@ typedef struct GFXInject
 		.type = GFX_DEP_WAIT, \
 		.dep = dep_, \
 		.ref = ref_ \
+	}
+
+#define gfx_dep_waita(dep_, range_) \
+	(GFXInject){ \
+		.type = GFX_DEP_WAIT_RANGE, \
+		.dep = dep_, \
+		.ref = GFX_REF_NULL, \
+		.range = range_ \
+	}
+
+#define gfx_dep_waitra(dep_, ref_, range_) \
+	(GFXInject){ \
+		.type = GFX_DEP_WAIT_RANGE, \
+		.dep = dep_, \
+		.ref = ref_, \
+		.range = range_ \
 	}
 
 

@@ -229,6 +229,14 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 			context->vk.device, 1, &frame->vk.done),
 		goto error);
 
+	// TODO: Split the function here? Move everything below to record/submit?
+	// Imagine double buffering, the frame is done rendering and now no images
+	// of the swapchain are available, yet we can already start recording the
+	// next frame. So we do not want to acquire yet...
+	// But then we do want to rebuild the backing/graph. And the next
+	// acquisition might want a rebuild, in which case we need to record all
+	// over again :(
+
 	// Count the number of sync objects necessary (i.e. #windows).
 	size_t numSyncs = 0;
 	for (size_t i = 0; i < attachs->size; ++i)

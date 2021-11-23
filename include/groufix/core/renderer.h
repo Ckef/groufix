@@ -10,6 +10,7 @@
 #ifndef GFX_CORE_RENDERER_H
 #define GFX_CORE_RENDERER_H
 
+#include "groufix/core/deps.h"
 #include "groufix/core/device.h"
 #include "groufix/core/formats.h"
 #include "groufix/core/heap.h"

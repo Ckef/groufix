@@ -729,8 +729,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	pass->build.primitive = NULL;
 	pass->build.group = NULL;
-	pass->build.vertex = gfx_create_shader(GFX_SHADER_VERTEX, NULL);
-	pass->build.fragment = gfx_create_shader(GFX_SHADER_FRAGMENT, NULL);
+	pass->build.vertex = gfx_create_shader(GFX_STAGE_VERTEX, NULL);
+	pass->build.fragment = gfx_create_shader(GFX_STAGE_FRAGMENT, NULL);
 
 	gfx_shader_compile(pass->build.vertex, GFX_GLSL, vert, 1, NULL);
 	gfx_shader_compile(pass->build.fragment, GFX_GLSL, frag, 1, NULL);

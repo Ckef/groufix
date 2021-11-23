@@ -38,7 +38,7 @@ typedef struct GFXReference
 	//  GFXBuffer* | GFXImage* | GFXPrimitive* | GFXGroup* | GFXRenderer*.
 	void* obj;
 
-	// Reference buffer offset (0 for images).
+	// Reference buffer offset (0 for images), ignored for equality!
 	uint64_t offset;
 
 	// Reference values,
@@ -62,6 +62,7 @@ typedef GFXReference GFXImageRef;
 
 /**
  * Empty reference macro (i.e. null reference) & type checkers.
+ * Buffer references with different offsets still evaluate to equal.
  * Type checkers cannot take constants (including GFX_REF_NULL) as argument!
  */
 #define GFX_REF_NULL \
@@ -85,7 +86,6 @@ typedef GFXReference GFXImageRef;
 	(((refa).type == GFX_REF_EMPTY && (refb).type == GFX_REF_EMPTY) || \
 		((refa).type == (refb).type && \
 		((refa).obj == (refb).obj && \
-		(refa).offset == (refb).offset && \
 		(refa).values[0] == (refb).values[0] && \
 		(refa).values[1] == (refb).values[1])))
 
