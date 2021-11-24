@@ -6,7 +6,7 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/core/sync.h"
+#include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
 

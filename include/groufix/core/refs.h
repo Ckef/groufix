@@ -62,7 +62,6 @@ typedef GFXReference GFXImageRef;
 
 /**
  * Empty reference macro (i.e. null reference) & type checkers.
- * Buffer references with different offsets still evaluate to equal.
  * Type checkers cannot take constants (including GFX_REF_NULL) as argument!
  */
 #define GFX_REF_NULL \
@@ -81,13 +80,6 @@ typedef GFXReference GFXImageRef;
 	((ref).type == GFX_REF_IMAGE || \
 	(ref).type == GFX_REF_GROUP_IMAGE || \
 	(ref).type == GFX_REF_ATTACHMENT)
-
-#define GFX_REF_IS_EQUAL(refa, refb) \
-	(((refa).type == GFX_REF_EMPTY && (refb).type == GFX_REF_EMPTY) || \
-		((refa).type == (refb).type && \
-		((refa).obj == (refb).obj && \
-		(refa).values[0] == (refb).values[0] && \
-		(refa).values[1] == (refb).values[1])))
 
 
 /**

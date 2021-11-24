@@ -558,6 +558,161 @@ void _gfx_destroy_staging(_GFXStaging* staging,
 
 
 /****************************
+ * Dependency injection objects & operations.
+ ****************************/
+
+/**
+ * Dependency injection metadata.
+ */
+typedef struct _GFXInjection
+{
+	// Operation input, must be pre-initialized!
+	struct
+	{
+		uint32_t family;
+		size_t   numRefs; // May be zero!
+
+		const _GFXUnpackRef* refs;
+		const GFXRange*      ranges;
+		const GFXAccessMask* masks;
+
+	} inp;
+
+
+	// Synchronization output.
+	struct
+	{
+		size_t       numWaits;
+		VkSemaphore* waits;
+
+		size_t       numSigs;
+		VkSemaphore* sigs;
+
+	} out;
+
+} _GFXInjection;
+
+
+/**
+ * Synchronization (metadata) object.
+ */
+typedef struct _GFXSync
+{
+	GFXRange      range;
+	_GFXUnpackRef ref; // If not _GFX_UNPACK_REF_EMPTY, used to validate on waits.
+	unsigned long tag; // So we can recycle, 0 = yet untagged.
+
+	// Claimed by (injections can be async), may be NULL.
+	const _GFXInjection* inj;
+
+
+	// Stage in the object's lifecycle.
+	enum
+	{
+		_GFX_SYNC_UNUSED,
+		_GFX_SYNC_PREPARE,
+		_GFX_SYNC_PENDING,
+		_GFX_SYNC_CATCH,
+		_GFX_SYNC_USED
+
+	} stage;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkSemaphore signaled; // May be VK_NULL_HANDLE.
+
+		// Barrier metadata.
+		VkAccessFlags srcAccess;
+		VkAccessFlags dstAccess;
+		VkImageLayout oldLayout;
+		VkImageLayout newLayout;
+		uint32_t      srcFamily;
+		uint32_t      dstFamily;
+
+		VkPipelineStageFlags srcStage;
+		VkPipelineStageFlags dstStage;
+
+		// Unpacked for consistency.
+		VkBuffer buffer;
+		VkImage  image;
+
+	} vk;
+
+} _GFXSync;
+
+
+/**
+ * Internal dependency object.
+ */
+struct GFXDependency
+{
+	_GFXContext* context;
+	GFXVec       syncs; // Stores _GFXSync.
+	_GFXMutex    lock;
+
+	// Vulkan family indices.
+	uint32_t graphics;
+	uint32_t compute;
+	uint32_t transfer;
+};
+
+
+/**
+ * TODO: Somehow generate or pass a tag for recycling.
+ * Starts a new dependency injection by catching pending signal commands.
+ * The object pointed to by injection cannot be moved or copied!
+ * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
+ * @param numInjs   Number of given injection commands.
+ * @param injs      Given injection commands.
+ * @param injection Input & output injection metadata, cannot be NULL.
+ * @param Zero on failure.
+ *
+ * Thread-safe with respect to all dependency objects!
+ * Either _gfx_deps_abort() or _gfx_deps_finish() must be called with the same
+ * injection object (and other arguments) to appropriately cleanup and free
+ * the all metadata, this call itself can only be called once!
+ */
+int _gfx_deps_catch(VkCommandBuffer cmd,
+                    size_t numInjs, const GFXInject* injs,
+                    _GFXInjection* injection);
+
+/**
+ * Injects dependencies by preparing new signal commands.
+ * @see _gfx_deps_catch.
+ *
+ * Thread-safe with respect to all dependency objects!
+ * Must have succesfully reteurned from _gfx_deps_catch with injection before
+ * calling, as must all other arguments be the same.
+ */
+int _gfx_deps_prepare(VkCommandBuffer cmd,
+                      size_t numInjs, const GFXInject* injs,
+                      _GFXInjection* injection);
+
+/**
+ * Aborts a dependency injection, freeing all data.
+ * @see _gfx_deps_catch.
+ *
+ * Thread-safe with respect to all dependency objects!
+ * The content of injection is invalidated after this call.
+ */
+void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
+                     _GFXInjection* injection);
+
+/**
+ * Finalizes a dependency injection, all signal commands are made visible for
+ * future wait commands and all wait commands are finalized and cleaned up.
+ * @see _gfx_deps_catch.
+ *
+ * Thread-safe with respect to all dependency objects!
+ * The content of injection is invalidated after this call.
+ */
+void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
+                      _GFXInjection* injection);
+
+
+/****************************
  * Virtual 'render' frame.
  ****************************/
 

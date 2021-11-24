@@ -39,7 +39,8 @@ typedef enum GFXAccessMask
 
 	// Modifiers, meaningless without other flags.
 	GFX_ACCESS_COMPUTE_ASYNC  = 0x004000,
-	GFX_ACCESS_TRANSFER_ASYNC = 0x008000
+	GFX_ACCESS_TRANSFER_ASYNC = 0x008000,
+	GFX_ACCESS_DISCARD        = 0x010000 // Contents may be discarded.
 
 } GFXAccessMask;
 
@@ -114,8 +115,12 @@ typedef struct GFXInject
  * the contents may be discarded by the engine and/or GPU when they see fit.
  *
  * A dependency is formed by a pair of signal/wait commands.
- * Wait and signal commands match if their resource references are equivalent
- * AND have an overlapping resource range (unspecified range = entire resource).
+ * Wait and signal commands match iff they reference the same underlying
+ * resource AND have an overlapping range (unspecified range = entire resource).
+ *
+ * Resources are considered referenced by the dependency object as long as it
+ * has not formed a valid signal/wait pair, meaning the resources in question
+ * cannot be freed until its dependencies are waited upon.
  *
  * To force the dependency on a specific resource, use
  *  `gfx_dep_sigr` and `gfx_dep_waitr`
