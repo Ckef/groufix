@@ -479,7 +479,7 @@ struct GFXPass
  */
 typedef struct _GFXUnpackRef
 {
-	// Referenced object.
+	// Referenced object (all mutually exclusive).
 	struct
 	{
 		_GFXBuffer*  buffer;
@@ -513,6 +513,16 @@ typedef struct _GFXUnpackRef
 		.flags = 0, \
 		.allocator = NULL \
 	}
+
+/**
+ * Check for equality of unpacked references.
+ * Only checks for resource equality, offsets are ignored.
+ */
+#define _GFX_UNPACK_REF_IS_EQUAL(refa, refb) \
+	((refa).obj.buffer == (refb).obj.buffer || \
+	(refa).obj.image == (refb).obj.image || \
+	((refa).obj.renderer == (refb).obj.renderer && (refa).value == (refb).value))
+
 
 /**
  * Resolves & validates a memory reference, meaning:
@@ -588,8 +598,8 @@ typedef struct _GFXInjection
 		size_t       numSigs;
 		VkSemaphore* sigs;
 
-		// TODO: Add attachment history image handles for the frame
-		// to save and/or destroy when it's done.
+		// TODO: Add invalidated reference's actual image/buffer handles,
+		// e.g. for resized attachments (so we can save/use/destroy its history).
 
 	} out;
 
@@ -664,7 +674,6 @@ struct GFXDependency
 
 /**
  * TODO: Somehow generate or pass a tag for recycling.
- * TODO: Return VkBuffer/VkImage handles for each ref in injection.
  * Starts a new dependency injection by catching pending signal commands.
  * The object pointed to by injection cannot be moved or copied!
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
@@ -683,7 +692,6 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
                     _GFXInjection* injection);
 
 /**
- * TODO: Take VkBuffer/VkImage handles from _gfx_deps_catch as input again.
  * Injects dependencies by preparing new signal commands.
  * @see _gfx_deps_catch.
  *
