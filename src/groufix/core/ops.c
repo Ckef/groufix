@@ -339,6 +339,19 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		return 0;
 	}
 
+	// TODO: Get the resources from _gfx_deps_catch, it takes the unpacked refs
+	// from the _GFXInjection struct, then matches against pending signal cmds.
+	// If it happens to be an attachment, it might be of an old image, i.e.
+	// one that has been resized and remembered because we issued a signal
+	// command on it (NOTE: yes, the renderer should remember that an attachment
+	// will be used for smth else and keep a "history").
+	// In that case we want to perform the copy an that old image handle stored
+	// in the dependency object. If no matching pending signal cmd present,
+	// _gfx_deps_catch just defaults to the handle given by the unpacked refs.
+	//
+	// This should somehow be passed to _gfx_deps_prepare so the correct
+	// image handle is used for possible subsequent copies/operations...
+
 	// Get resources and metadata to copy.
 	// Note that there can only be one single attachment!
 	_GFXAttach* attach =

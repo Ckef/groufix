@@ -38,7 +38,7 @@ typedef struct GFXReference
 	//  GFXBuffer* | GFXImage* | GFXPrimitive* | GFXGroup* | GFXRenderer*.
 	void* obj;
 
-	// Reference buffer offset (0 for images), ignored for equality!
+	// Reference buffer offset (0 for images).
 	uint64_t offset;
 
 	// Reference values,

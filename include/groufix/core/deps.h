@@ -114,7 +114,7 @@ typedef struct GFXInject
  * If this is ignored, caches might not be flushed or invalidated, or worse,
  * the contents may be discarded by the engine and/or GPU when they see fit.
  *
- * A dependency is formed by a pair of signal/wait commands.
+ * A dependency is formed by a matching pair of signal/wait commands.
  * Wait and signal commands match iff they reference the same underlying
  * resource AND have an overlapping range (unspecified range = entire resource).
  *

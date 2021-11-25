@@ -588,6 +588,9 @@ typedef struct _GFXInjection
 		size_t       numSigs;
 		VkSemaphore* sigs;
 
+		// TODO: Add attachment history image handles for the frame
+		// to save and/or destroy when it's done.
+
 	} out;
 
 } _GFXInjection;
@@ -661,6 +664,7 @@ struct GFXDependency
 
 /**
  * TODO: Somehow generate or pass a tag for recycling.
+ * TODO: Return VkBuffer/VkImage handles for each ref in injection.
  * Starts a new dependency injection by catching pending signal commands.
  * The object pointed to by injection cannot be moved or copied!
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
@@ -671,20 +675,21 @@ struct GFXDependency
  *
  * Thread-safe with respect to all dependency objects!
  * Either _gfx_deps_abort() or _gfx_deps_finish() must be called with the same
- * injection object (and other arguments) to appropriately cleanup and free
- * the all metadata, this call itself can only be called once!
+ * injection object (and other inputs) to appropriately cleanup and free all
+ * metadata. Note: this call itself can only be called once!
  */
 int _gfx_deps_catch(VkCommandBuffer cmd,
                     size_t numInjs, const GFXInject* injs,
                     _GFXInjection* injection);
 
 /**
+ * TODO: Take VkBuffer/VkImage handles from _gfx_deps_catch as input again.
  * Injects dependencies by preparing new signal commands.
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * Must have succesfully reteurned from _gfx_deps_catch with injection before
- * calling, as must all other arguments be the same.
+ * Must have succesfully returned from _gfx_deps_catch with injection as
+ * argument before calling, as must all other inputs be the same.
  */
 int _gfx_deps_prepare(VkCommandBuffer cmd,
                       size_t numInjs, const GFXInject* injs,
