@@ -7,6 +7,7 @@
  */
 
 #include "groufix/core/objects.h"
+#include <assert.h>
 
 
 #define _GFX_BUFFER ((_GFXBuffer*)ref.obj)
@@ -41,6 +42,34 @@
 		} while (0)
 #endif
 
+
+/****************************/
+uint64_t _gfx_ref_size(GFXBufferRef ref)
+{
+	assert(GFX_REF_IS_BUFFER(ref));
+
+	switch (ref.type)
+	{
+	case GFX_REF_BUFFER:
+		return _GFX_BUFFER->base.size - ref.offset;
+
+	case GFX_REF_PRIMITIVE_VERTICES:
+		return ((uint64_t)_GFX_PRIMITIVE->base.stride *
+			_GFX_PRIMITIVE->base.numVertices) - ref.offset;
+
+	case GFX_REF_PRIMITIVE_INDICES:
+		return ((uint64_t)_GFX_PRIMITIVE->base.indexSize *
+			_GFX_PRIMITIVE->base.numIndices) - ref.offset;
+
+	case GFX_REF_GROUP_BUFFER:
+		return ((uint64_t)_GFX_BINDING->elementSize *
+			_GFX_BINDING->numElements) - ref.offset;
+
+	default:
+		// All others are not a buffer.
+		return 0;
+	}
+}
 
 /****************************/
 GFXReference _gfx_ref_resolve(GFXReference ref)

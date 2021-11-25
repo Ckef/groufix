@@ -519,10 +519,20 @@ typedef struct _GFXUnpackRef
  * Only checks for resource equality, offsets are ignored.
  */
 #define _GFX_UNPACK_REF_IS_EQUAL(refa, refb) \
-	((refa).obj.buffer == (refb).obj.buffer || \
-	(refa).obj.image == (refb).obj.image || \
-	((refa).obj.renderer == (refb).obj.renderer && (refa).value == (refb).value))
+	(((refa).obj.buffer != NULL && \
+		(refa).obj.buffer == (refb).obj.buffer) || \
+	((refa).obj.image != NULL && \
+		(refa).obj.image == (refb).obj.image) || \
+	((refa).obj.renderer != NULL && (refa).value == (refb).value && \
+		(refa).obj.renderer == (refb).obj.renderer))
 
+
+/**
+ * Calculates the remaining size of a buffer reference from its offset.
+ * The size is dictated by the top-most object being referenced, not by the
+ * underlying resource (e.g. the size claimed for a group buffer).
+ */
+uint64_t _gfx_ref_size(GFXBufferRef ref);
 
 /**
  * Resolves & validates a memory reference, meaning:

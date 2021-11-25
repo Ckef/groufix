@@ -78,7 +78,48 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 	injection->out.numSigs = 0;
 	injection->out.sigs = NULL;
 
-	return 0;
+	// Ok so during a catch, we loop over all injections and filter out the
+	// wait commands. For each wait command, we match against all pending
+	// sychronization objects and 'catch' them with a barrier.
+	for (size_t i = 0; i < numInjs; ++i)
+	{
+		if (
+			injs[i].type != GFX_DEP_WAIT &&
+			injs[i].type != GFX_DEP_WAIT_RANGE)
+		{
+			continue;
+		}
+
+		_GFXUnpackRef unp = _gfx_ref_unpack(injs[i].ref);
+
+		// If the wait command AND the injection metadata specify references,
+		// filter the wait commands against that, ignore on mismatch.
+		if (!GFX_REF_IS_NULL(injs[i].ref) && injection->inp.numRefs > 0)
+		{
+			size_t r;
+			for (r = 0; r < injection->inp.numRefs; ++r)
+				if (_GFX_UNPACK_REF_IS_EQUAL(injection->inp.refs[r], unp))
+					break;
+
+			if (r >= injection->inp.numRefs)
+			{
+				gfx_log_warn(
+					"Dependency wait command ignored, "
+					"given resource not used by operation.");
+
+				continue;
+			}
+		}
+
+		// We lock for each command individually.
+		_gfx_mutex_lock(&injs[i].dep->lock);
+
+		// TODO: Continue implementing...
+
+		_gfx_mutex_unlock(&injs[i].dep->lock);
+	}
+
+	return 1;
 }
 
 /****************************/
