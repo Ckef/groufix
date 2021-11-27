@@ -118,7 +118,8 @@ typedef struct GFXInject
  * signal command can only match with one wait command, but a wait command can
  * match with any number of signal commands.
  * Wait and signal commands match iff they reference the same underlying
- * resource AND have an overlapping range (unspecified range = entire resource).
+ * resource with an overlapping range (unspecified range = entire resource) AND
+ * the access mask of the signal command matches the waiting operation.
  *
  * Resources are considered referenced by the dependency object as long as it
  * has not formed a valid signal/wait pair, meaning the resources in question

@@ -531,6 +531,7 @@ typedef struct _GFXUnpackRef
  * Calculates the remaining size of a buffer reference from its offset.
  * The size is dictated by the top-most object being referenced, not by the
  * underlying resource (e.g. the size claimed for a group buffer).
+ * @return Zero if ref is not a buffer reference.
  */
 uint64_t _gfx_ref_size(GFXBufferRef ref);
 
@@ -593,8 +594,8 @@ typedef struct _GFXInjection
 		size_t   numRefs; // May be zero!
 
 		const _GFXUnpackRef* refs;
-		const GFXRange*      ranges;
 		const GFXAccessMask* masks;
+		const uint64_t*      sizes; // Buffer sizes, may be NULL if all images.
 
 	} inp;
 

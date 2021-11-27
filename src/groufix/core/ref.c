@@ -7,7 +7,6 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 
 
 #define _GFX_BUFFER ((_GFXBuffer*)ref.obj)
@@ -46,8 +45,6 @@
 /****************************/
 uint64_t _gfx_ref_size(GFXBufferRef ref)
 {
-	assert(GFX_REF_IS_BUFFER(ref));
-
 	switch (ref.type)
 	{
 	case GFX_REF_BUFFER:

@@ -69,7 +69,6 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
-	assert(injection->inp.numRefs == 0 || injection->inp.ranges != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 
 	// Initialize the injection output.
@@ -80,7 +79,7 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 
 	// Ok so during a catch, we loop over all injections and filter out the
 	// wait commands. For each wait command, we match against all pending
-	// sychronization objects and 'catch' them with a barrier.
+	// sychronization objects and 'catch' them with a potential barrier.
 	for (size_t i = 0; i < numInjs; ++i)
 	{
 		if (
@@ -90,31 +89,49 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 			continue;
 		}
 
-		_GFXUnpackRef unp = _gfx_ref_unpack(injs[i].ref);
-
 		// If the wait command AND the injection metadata specify references,
 		// filter the wait commands against that, ignore on mismatch.
+		// Keep track of the reference's index in the injection metadata,
+		// so we can get its access mask with respect to the operation.
+		_GFXUnpackRef unp = _gfx_ref_unpack(injs[i].ref);
+		size_t injRef = SIZE_MAX;
+
 		if (!GFX_REF_IS_NULL(injs[i].ref) && injection->inp.numRefs > 0)
 		{
-			size_t r;
-			for (r = 0; r < injection->inp.numRefs; ++r)
-				if (_GFX_UNPACK_REF_IS_EQUAL(injection->inp.refs[r], unp))
+			for (injRef = 0; injRef < injection->inp.numRefs; ++injRef)
+				if (_GFX_UNPACK_REF_IS_EQUAL(injection->inp.refs[injRef], unp))
 					break;
 
-			if (r >= injection->inp.numRefs)
+			if (injRef >= injection->inp.numRefs)
 			{
 				gfx_log_warn(
-					"Dependency wait command ignored, "
-					"given resource not used by operation.");
+					"Dependency injection (wait) command ignored, "
+					"given underlying resource not used by operation.");
 
 				continue;
 			}
 		}
 
+		// Compute the resources & their range to match against.
+		// TODO: do.
+
+		// Now the bit where we match against all synchronization objects.
 		// We lock for each command individually.
 		_gfx_mutex_lock(&injs[i].dep->lock);
 
-		// TODO: Continue implementing...
+		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
+		{
+			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
+
+			if (
+				sync->stage != _GFX_SYNC_PENDING ||
+				sync->vk.dstFamily != injection->inp.family)
+			{
+				continue;
+			}
+
+			// TODO: Continue implementing...
+		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);
 	}
@@ -131,10 +148,25 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
-	assert(injection->inp.numRefs == 0 || injection->inp.ranges != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 
-	return 0;
+	// During a prepare, we again loop over all injections and filter out the
+	// signal commands. For each signal command we find the resources it is
+	// supposed to signal, claim a new synchronization object and 'prepare'
+	// them with a potential barrier.
+	for (size_t i = 0; i < numInjs; ++i)
+	{
+		if (
+			injs[i].type != GFX_DEP_SIGNAL &&
+			injs[i].type != GFX_DEP_SIGNAL_RANGE)
+		{
+			continue;
+		}
+
+		// TODO: Continue implementing...
+	}
+
+	return 1;
 }
 
 /****************************/
