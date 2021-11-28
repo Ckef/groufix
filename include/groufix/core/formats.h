@@ -148,7 +148,7 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 
 /**
  * Empty format macro (i.e. undefined) & checkers.
- * Checkers cannot take constants (including GFX_FORMAT_EMPTY) as argument!
+ * Containment checks if fmta is in the 'fuzzy' set fmtb.
  */
 #define GFX_FORMAT_EMPTY \
 	(GFXFormat){ .comps = {0,0,0,0}, .type = 0, .order = 0 }

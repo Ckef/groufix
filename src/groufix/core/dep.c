@@ -9,7 +9,6 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 
 
 /****************************
@@ -45,8 +44,8 @@ static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref,
 		};
 
 	// Resolve whole aspect from format.
-	GFXFormat fmt =
-		(ref->obj.image != NULL) ? ref->obj.image->base.format :
+	GFXFormat fmt = (ref->obj.image != NULL) ?
+		ref->obj.image->base.format :
 		((_GFXAttach*)gfx_vec_at(
 			&ref->obj.renderer->backing.attachs,
 			ref->value))->image.base.format;
@@ -77,9 +76,11 @@ static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref,
 }
 
 /****************************
- * Computes whether or not two 'unpacked' range associated with the same
+ * Computes whether or not two 'unpacked' ranges associated with the same
  * unpacked resource reference overlap.
- * @param ref Must be a non-empty valid unpacked reference.
+ * @param ref    Must be a non-empty valid unpacked reference.
+ * @param rangea Must be unpacked!
+ * @param rangeb Must be unpacked!
  */
 static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
                                const GFXRange* rangea, const GFXRange* rangeb)
@@ -184,6 +185,18 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 	injection->out.numSigs = 0;
 	injection->out.sigs = NULL;
 
+	// Keep track of matching references & ranges for each injection.
+	// If there are no operation refs, make VLAs of size 1 for legality.
+	size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
+	const _GFXUnpackRef* refs;
+	const GFXAccessMask* masks;
+	GFXRange ranges[vlaRefs]; // Unpacked!
+	VkAccessFlags access[vlaRefs];
+	VkImageLayout layouts[vlaRefs];
+
+	// TODO: For each image reference in injection not waited upon,
+	// insert a 'discard' barrier to transition to the correct layout
+
 	// Ok so during a catch, we loop over all injections and filter out the
 	// wait commands. For each wait command, we match against all pending
 	// sychronization objects and 'catch' them with a potential barrier.
@@ -201,15 +214,15 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 		// Keep track of the reference's index in the injection metadata,
 		// so we can get its access mask with respect to the operation.
 		_GFXUnpackRef unp = _gfx_ref_unpack(injs[i].ref);
-		size_t injRef = SIZE_MAX;
+		size_t iM = SIZE_MAX;
 
 		if (!GFX_REF_IS_NULL(injs[i].ref) && injection->inp.numRefs > 0)
 		{
-			for (injRef = 0; injRef < injection->inp.numRefs; ++injRef)
-				if (_GFX_UNPACK_REF_IS_EQUAL(injection->inp.refs[injRef], unp))
+			for (iM = 0; iM < injection->inp.numRefs; ++iM)
+				if (_GFX_UNPACK_REF_IS_EQUAL(injection->inp.refs[iM], unp))
 					break;
 
-			if (injRef >= injection->inp.numRefs)
+			if (iM >= injection->inp.numRefs)
 			{
 				gfx_log_warn(
 					"Dependency injection (wait) command ignored, "
@@ -220,22 +233,20 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 		}
 
 		// Compute the resources & their range to match against.
-		// If there are no operation refs, make VLAs of size 1 for legality.
-		size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
-		size_t numRefs = 1; // 1 is also the default if a ref is given :)
-
-		_GFXUnpackRef refs[vlaRefs];
-		GFXRange ranges[vlaRefs]; // Unpacked!
+		// 1 is the default if a command ref is given.
+		size_t numRefs = 1;
 
 		if (!GFX_REF_IS_NULL(injs[i].ref))
-			refs[0] = unp,
+			refs = &unp,
+			masks = iM != SIZE_MAX ? &injection->inp.masks[iM] : NULL,
 			ranges[0] = _gfx_range_unpack(&unp,
 				injs[i].type == GFX_DEP_WAIT_RANGE ? &injs[i].range : NULL,
 				_gfx_ref_size(injs[i].ref));
 		else
 		{
 			numRefs = injection->inp.numRefs; // Could be 0.
-			memcpy(refs, injection->inp.refs, sizeof(_GFXUnpackRef) * numRefs);
+			refs = injection->inp.refs;
+			masks = injection->inp.masks;
 
 			for (size_t r = 0; r < numRefs; ++r)
 				// If given a range but not a reference,
@@ -244,6 +255,29 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 				ranges[r] = _gfx_range_unpack(&unp,
 					injs[i].type == GFX_DEP_WAIT_RANGE ? &injs[i].range : NULL,
 					injection->inp.sizes[r]);
+		}
+
+		// Compute the access mask and image layouts to match against.
+		// These are determined by the operation, catch all if unknown.
+		for (size_t r = 0; r < numRefs; ++r)
+		{
+			if (masks == NULL)
+				access[r] = 0,
+				layouts[r] = VK_IMAGE_LAYOUT_UNDEFINED;
+			else
+			{
+				GFXFormat fmt =
+					(refs[r].obj.image != NULL) ?
+						refs[r].obj.image->base.format :
+					(refs[r].obj.renderer != NULL) ?
+						((_GFXAttach*)gfx_vec_at(
+							&refs[r].obj.renderer->backing.attachs,
+							refs[r].value))->image.base.format :
+						GFX_FORMAT_EMPTY;
+
+				access[r] = _GFX_GET_VK_ACCESS_FLAGS(masks[r], fmt);
+				layouts[r] = _GFX_GET_VK_IMAGE_LAYOUT(masks[r], fmt);
+			}
 		}
 
 		// Now the bit where we match against all synchronization objects.
@@ -265,15 +299,20 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 			// Then filter on underlying resource & overlapping ranges.
 			size_t r;
 			for (r = 0; r < numRefs; ++r)
+				// We also match on access mask and image layout.
+				// If we do not know either of the two, catch all.
 				if (
 					_GFX_UNPACK_REF_IS_EQUAL(sync->ref, refs[r]) &&
-					_gfx_ranges_overlap(&refs[r], &ranges[r], &sync->range))
+					_gfx_ranges_overlap(&refs[r], &ranges[r], &sync->range) &&
+					(access[r] == (sync->vk.dstAccess & access[r])) &&
+					(layouts[r] == VK_IMAGE_LAYOUT_UNDEFINED ||
+					layouts[r] == sync->vk.newLayout))
 				{
 					break;
 				}
 
-			if (r >= numRefs) // Never skip if numRefs == 0!
-				continue;
+			if (numRefs > 0 && r >= numRefs)
+				continue; // No underlying resources means catch all.
 
 			// TODO: Continue implementing...
 		}
@@ -294,6 +333,8 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 	assert(injection != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
+
+	// TODO: Merge signal commands on the same reference range.
 
 	// During a prepare, we again loop over all injections and filter out the
 	// signal commands. For each signal command we find the resources it is
