@@ -9,7 +9,114 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
+
+/****************************
+ * Computes the 'unpacked' range associated with an unpacked reference,
+ * meaning buffer offsets, zero buffer sizes and image aspects are resolved :)
+ * @param ref   Must be a non-empty valid unpacked reference.
+ * @param range May be NULL to take the entire resource as range.
+ * @param size  Must be the value of the associated _gfx_ref_size(<packed-ref>)!
+ *
+ * The returned range is not valid for the unpacked reference anymore,
+ * it is only valid for the raw VkBuffer or VkImage handle!
+ *
+ * Note that zero image mipmaps/layers do not need to be resolved,
+ * from user-land we cannot reference part of an image, only the whole,
+ * meaning we can use the Vulkan 'remaining mipmaps/layers' flags.
+ */
+static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref,
+                                  const GFXRange* range, uint64_t size)
+{
+	assert(
+		ref->obj.buffer != NULL ||
+		ref->obj.image != NULL ||
+		ref->obj.renderer != NULL);
+
+	if (ref->obj.buffer != NULL)
+		return (GFXRange){
+			// Normalize offset to be independent of references.
+			.offset = (range == NULL) ? ref->value :
+				ref->value + range->offset,
+			.size = (range == NULL) ? size :
+				// Resolve zero buffer size.
+				(range->size == 0 ? size - range->offset : range->size)
+		};
+
+	// Resolve whole aspect from format.
+	GFXFormat fmt =
+		(ref->obj.image != NULL) ? ref->obj.image->base.format :
+		((_GFXAttach*)gfx_vec_at(
+			&ref->obj.renderer->backing.attachs,
+			ref->value))->image.base.format;
+
+	GFXImageAspect aspect =
+		GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ?
+			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
+			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
+			GFX_IMAGE_COLOR;
+
+	if (range == NULL)
+		return (GFXRange){
+			.aspect = aspect,
+			.mipmap = 0,
+			.numMipmaps = 0,
+			.layer = 0,
+			.numLayers = 0
+		};
+	else
+		return (GFXRange){
+			// Fix aspect, cause we're nice :)
+			.aspect = range->aspect & aspect,
+			.mipmap = range->mipmap,
+			.numMipmaps = range->numMipmaps,
+			.layer = range->layer,
+			.numLayers = range->numLayers
+		};
+}
+
+/****************************
+ * Computes whether or not two 'unpacked' range associated with the same
+ * unpacked resource reference overlap.
+ * @param ref Must be a non-empty valid unpacked reference.
+ */
+static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
+                               const GFXRange* rangea, const GFXRange* rangeb)
+{
+	assert(
+		ref->obj.buffer != NULL ||
+		ref->obj.image != NULL ||
+		ref->obj.renderer != NULL);
+
+	// Check if buffer range overlaps.
+	if (ref->obj.buffer != NULL)
+		// They are unpacked, so size is non-zero & offset is normalized :)
+		return
+			rangea->offset < (rangeb->offset + rangeb->size) &&
+			rangeb->offset < (rangea->offset + rangea->size);
+
+	// Check if mipmaps overlap.
+	int mipA = rangea->mipmap < (rangeb->mipmap + rangeb->numMipmaps);
+	int mipB = rangeb->mipmap < (rangea->mipmap + rangea->numMipmaps);
+	int mips =
+		(rangea->numMipmaps == 0 && rangeb->numMipmaps == 0) ||
+		(rangea->numMipmaps == 0 && mipA) ||
+		(rangeb->numMipmaps == 0 && mipB) ||
+		(mipA && mipB);
+
+	// Check if layers overlap.
+	int layA = rangea->layer < (rangeb->layer + rangeb->numLayers);
+	int layB = rangeb->layer < (rangea->layer + rangea->numLayers);
+	int lays =
+		(rangea->numLayers == 0 && rangeb->numLayers == 0) ||
+		(rangea->numLayers == 0 && layA) ||
+		(rangeb->numLayers == 0 && layB) ||
+		(layA && layB);
+
+	// Check if aspect overlaps.
+	return (rangea->aspect & rangeb->aspect) != 0 && mips && lays;
+}
 
 /****************************/
 GFX_API GFXDependency* gfx_create_dep(GFXDevice* device)
@@ -113,7 +220,31 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 		}
 
 		// Compute the resources & their range to match against.
-		// TODO: do.
+		// If there are no operation refs, make VLAs of size 1 for legality.
+		size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
+		size_t numRefs = 1; // 1 is also the default if a ref is given :)
+
+		_GFXUnpackRef refs[vlaRefs];
+		GFXRange ranges[vlaRefs]; // Unpacked!
+
+		if (!GFX_REF_IS_NULL(injs[i].ref))
+			refs[0] = unp,
+			ranges[0] = _gfx_range_unpack(&unp,
+				injs[i].type == GFX_DEP_WAIT_RANGE ? &injs[i].range : NULL,
+				_gfx_ref_size(injs[i].ref));
+		else
+		{
+			numRefs = injection->inp.numRefs; // Could be 0.
+			memcpy(refs, injection->inp.refs, sizeof(_GFXUnpackRef) * numRefs);
+
+			for (size_t r = 0; r < numRefs; ++r)
+				// If given a range but not a reference,
+				// use this same range for all resources..
+				// TODO: Maybe remove range-only commands?
+				ranges[r] = _gfx_range_unpack(&unp,
+					injs[i].type == GFX_DEP_WAIT_RANGE ? &injs[i].range : NULL,
+					injection->inp.sizes[r]);
+		}
 
 		// Now the bit where we match against all synchronization objects.
 		// We lock for each command individually.
@@ -123,12 +254,26 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 		{
 			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
 
+			// First filter on pending signals using the same queue family.
 			if (
 				sync->stage != _GFX_SYNC_PENDING ||
 				sync->vk.dstFamily != injection->inp.family)
 			{
 				continue;
 			}
+
+			// Then filter on underlying resource & overlapping ranges.
+			size_t r;
+			for (r = 0; r < numRefs; ++r)
+				if (
+					_GFX_UNPACK_REF_IS_EQUAL(sync->ref, refs[r]) &&
+					_gfx_ranges_overlap(&refs[r], &ranges[r], &sync->range))
+				{
+					break;
+				}
+
+			if (r >= numRefs) // Never skip if numRefs == 0!
+				continue;
 
 			// TODO: Continue implementing...
 		}

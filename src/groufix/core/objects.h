@@ -595,7 +595,7 @@ typedef struct _GFXInjection
 
 		const _GFXUnpackRef* refs;
 		const GFXAccessMask* masks;
-		const uint64_t*      sizes; // Buffer sizes, may be NULL if all images.
+		const uint64_t*      sizes; // Must be _gfx_ref_size(..)!
 
 	} inp;
 
@@ -622,9 +622,9 @@ typedef struct _GFXInjection
  */
 typedef struct _GFXSync
 {
-	GFXRange      range;
-	_GFXUnpackRef ref; // If not _GFX_UNPACK_REF_EMPTY, used to validate on waits.
-	unsigned long tag; // So we can recycle, 0 = yet untagged.
+	_GFXUnpackRef ref;
+	GFXRange      range; // Unpacked, i.e. normalized offset & non-zero size.
+	unsigned long tag;   // So we can recycle, 0 = yet untagged.
 
 	// Claimed by (injections can be async), may be NULL.
 	const _GFXInjection* inj;
@@ -646,6 +646,7 @@ typedef struct _GFXSync
 	struct
 	{
 		VkSemaphore signaled; // May be VK_NULL_HANDLE.
+		VkImage     image;    // Used to check for recreated attachments.
 
 		// Barrier metadata.
 		VkAccessFlags srcAccess;
@@ -657,10 +658,6 @@ typedef struct _GFXSync
 
 		VkPipelineStageFlags srcStage;
 		VkPipelineStageFlags dstStage;
-
-		// Unpacked for consistency.
-		VkBuffer buffer;
-		VkImage  image;
 
 	} vk;
 
