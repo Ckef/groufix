@@ -591,6 +591,15 @@ typedef struct _GFXUnpackRef
 	((refa).obj.renderer != NULL && (refa).value == (refb).value && \
 		(refa).obj.renderer == (refb).obj.renderer))
 
+/**
+ * Retrieves the _GFXImageAttach* from an unpacked reference.
+ * Resolves to NULL if not referencing an attachment.
+ */
+#define _GFX_UNPACK_REF_ATTACH(ref) \
+	((ref).obj.renderer == NULL ? NULL : \
+		&((_GFXAttach*)gfx_vec_at( \
+			&(ref).obj.renderer->backing.attachs, (ref).value))->image)
+
 
 /**
  * Calculates the remaining size of a buffer reference from its offset.
@@ -660,7 +669,7 @@ typedef struct _GFXInjection
 
 		const _GFXUnpackRef* refs;
 		const GFXAccessMask* masks;
-		const uint64_t*      sizes; // Must be _gfx_ref_size(..)!
+		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
 
 	} inp;
 
@@ -711,7 +720,6 @@ typedef struct _GFXSync
 	struct
 	{
 		VkSemaphore signaled; // May be VK_NULL_HANDLE.
-		VkImage     image;    // Used to check for recreated attachments.
 
 		// Barrier metadata.
 		VkAccessFlags srcAccess;
@@ -723,6 +731,10 @@ typedef struct _GFXSync
 
 		VkPipelineStageFlags srcStage;
 		VkPipelineStageFlags dstStage;
+
+		// Unpacked for locality.
+		VkBuffer buffer;
+		VkImage  image;
 
 	} vk;
 

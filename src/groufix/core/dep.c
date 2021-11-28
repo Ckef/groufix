@@ -46,9 +46,7 @@ static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref,
 	// Resolve whole aspect from format.
 	GFXFormat fmt = (ref->obj.image != NULL) ?
 		ref->obj.image->base.format :
-		((_GFXAttach*)gfx_vec_at(
-			&ref->obj.renderer->backing.attachs,
-			ref->value))->image.base.format;
+		_GFX_UNPACK_REF_ATTACH(*ref)->base.format;
 
 	GFXImageAspect aspect =
 		GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ?
@@ -185,7 +183,7 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 	injection->out.numSigs = 0;
 	injection->out.sigs = NULL;
 
-	// Keep track of matching references & ranges for each injection.
+	// Keep track of matching references & metadata for each injection.
 	// If there are no operation refs, make VLAs of size 1 for legality.
 	size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
 	const _GFXUnpackRef* refs;
@@ -252,7 +250,7 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 				// If given a range but not a reference,
 				// use this same range for all resources..
 				// TODO: Maybe remove range-only commands?
-				ranges[r] = _gfx_range_unpack(&unp,
+				ranges[r] = _gfx_range_unpack(&refs[r],
 					injs[i].type == GFX_DEP_WAIT_RANGE ? &injs[i].range : NULL,
 					injection->inp.sizes[r]);
 		}
@@ -270,9 +268,7 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 					(refs[r].obj.image != NULL) ?
 						refs[r].obj.image->base.format :
 					(refs[r].obj.renderer != NULL) ?
-						((_GFXAttach*)gfx_vec_at(
-							&refs[r].obj.renderer->backing.attachs,
-							refs[r].value))->image.base.format :
+						_GFX_UNPACK_REF_ATTACH(refs[r])->base.format :
 						GFX_FORMAT_EMPTY;
 
 				access[r] = _GFX_GET_VK_ACCESS_FLAGS(masks[r], fmt);
@@ -334,7 +330,9 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 
-	// TODO: Merge signal commands on the same reference range.
+	// TODO: Merge signal commands on the same reference range?
+	// TODO: Somehow get source access mask and layout from wait commands if
+	// there are no operation references to get it from.
 
 	// During a prepare, we again loop over all injections and filter out the
 	// signal commands. For each signal command we find the resources it is

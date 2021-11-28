@@ -77,16 +77,16 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 	// To calculate any region size when referencing an image,
 	// we need to get the type and format block size, width and height.
 	// We use GFX_FORMAT_EMPTY to indicate we're not dealing with an image.
-	_GFXAttach* attach = (ref->obj.renderer != NULL) ?
-		gfx_vec_at(&ref->obj.renderer->backing.attachs, ref->value) : NULL;
+	_GFXImageAttach* attach =
+		_GFX_UNPACK_REF_ATTACH(*ref);
 
 	VkImageType type = _GFX_GET_VK_IMAGE_TYPE(
 		(ref->obj.image != NULL) ? ref->obj.image->base.type :
-		(ref->obj.renderer != NULL) ? attach->image.base.type : 0);
+		(ref->obj.renderer != NULL) ? attach->base.type : 0);
 
 	GFXFormat fmt =
 		(ref->obj.image != NULL) ? ref->obj.image->base.format :
-		(ref->obj.renderer != NULL) ? attach->image.base.format :
+		(ref->obj.renderer != NULL) ? attach->base.format :
 		GFX_FORMAT_EMPTY;
 
 	uint32_t blockSize = GFX_FORMAT_BLOCK_SIZE(fmt) / CHAR_BIT; // In bytes.
@@ -354,12 +354,8 @@ static int _gfx_copy_device(_GFXStaging* staging,
 
 	// Get resources and metadata to copy.
 	// Note that there can only be one single attachment!
-	_GFXAttach* attach =
-		(src != NULL && src->obj.renderer != NULL) ?
-			gfx_vec_at(&src->obj.renderer->backing.attachs, src->value) :
-		(dst->obj.renderer != NULL) ?
-			gfx_vec_at(&dst->obj.renderer->backing.attachs, dst->value) :
-		NULL;
+	_GFXImageAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
+		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
 
 	VkBuffer srcBuffer =
 		(staging != NULL) ? staging->vk.buffer :
@@ -373,12 +369,12 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	VkImage srcImage =
 		(staging != NULL) ? VK_NULL_HANDLE :
 		(src->obj.image != NULL) ? src->obj.image->vk.image :
-		(src->obj.renderer != NULL) ? attach->image.vk.image :
+		(src->obj.renderer != NULL) ? attach->vk.image :
 		VK_NULL_HANDLE;
 
 	VkImage dstImage =
 		(dst->obj.image != NULL) ? dst->obj.image->vk.image :
-		(dst->obj.renderer != NULL) ? attach->image.vk.image :
+		(dst->obj.renderer != NULL) ? attach->vk.image :
 		VK_NULL_HANDLE;
 
 	// Pick a queue, command pool and mutex from the heap.
@@ -542,10 +538,10 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	else if (srcImage != VK_NULL_HANDLE && dstImage != VK_NULL_HANDLE)
 	{
 		GFXFormat srcFormat = (src->obj.image != NULL) ?
-			src->obj.image->base.format : attach->image.base.format;
+			src->obj.image->base.format : attach->base.format;
 
 		GFXFormat dstFormat = (dst->obj.image != NULL) ?
-			dst->obj.image->base.format : attach->image.base.format;
+			dst->obj.image->base.format : attach->base.format;
 
 		// Note that rev is only allowed to be non-zero when staging is set.
 		// Meaning if rev is set, image -> image copies cannot happen.
