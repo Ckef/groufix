@@ -316,19 +316,10 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
 
-	_GFXContext* context = dst->allocator->context;
-
 	// Get an associated heap.
 	// We use this heap for its queues and command pool.
-	_GFXBuffer* buffer = (src != NULL && src->obj.buffer != NULL) ?
-		src->obj.buffer : dst->obj.buffer;
-	_GFXImage* image = (src != NULL && src->obj.image != NULL) ?
-		src->obj.image : dst->obj.image;
-
-	GFXHeap* heap =
-		(buffer != NULL) ? buffer->heap :
-		(image != NULL) ? image->heap :
-		NULL;
+	GFXHeap* heap = (src != NULL) ?
+		_GFX_UNPACK_REF_HEAP(*src) : _GFX_UNPACK_REF_HEAP(*dst);
 
 	if (heap == NULL)
 	{
@@ -338,6 +329,9 @@ static int _gfx_copy_device(_GFXStaging* staging,
 
 		return 0;
 	}
+
+	// Get context from heap.
+	_GFXContext* context = heap->allocator.context;
 
 	// TODO: Get the resources from _gfx_deps_catch, it takes all references
 	// and matches them against pending signal cmds and such.
@@ -770,7 +764,8 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 	_GFXUnpackRef unp = _gfx_ref_unpack(src);
 
 	// Validate memory flags.
-	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) & unp.flags))
+	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) &
+		_GFX_UNPACK_REF_FLAGS(unp)))
 	{
 		gfx_log_error(
 			"Cannot read from a memory resource that was not "
@@ -786,11 +781,13 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 	_GFXStageRegion stage[numRegions];
 
 	// If it is a host visible buffer, map it.
-	if ((unp.flags & GFX_MEMORY_HOST_VISIBLE) && unp.obj.buffer != NULL)
+	if (unp.obj.buffer != NULL &&
+		(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
 	{
-		if ((ptr = _gfx_map(unp.allocator, &unp.obj.buffer->alloc)) == NULL)
-			goto error;
+		ptr = _gfx_map(
+			&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
 
+		if (ptr == NULL) goto error;
 		ptr = (void*)((char*)ptr + unp.value);
 	}
 	else
@@ -831,7 +828,7 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 
 	// Now cleanup staging resources.
 	if (staging == NULL)
-		_gfx_unmap(unp.allocator, &unp.obj.buffer->alloc);
+		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
 	else
 		_gfx_destroy_staging(staging, &unp);
 
@@ -859,7 +856,8 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
 
 	// Validate memory flags.
-	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) & unp.flags))
+	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) &
+		_GFX_UNPACK_REF_FLAGS(unp)))
 	{
 		gfx_log_error(
 			"Cannot write to a memory resource that was not "
@@ -876,11 +874,13 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	// If it is a host visible buffer, map it.
 	// We cannot map images because we do not allocate linear images (!)
 	// Otherwise, create a staging buffer of an appropriate size.
-	if ((unp.flags & GFX_MEMORY_HOST_VISIBLE) && unp.obj.buffer != NULL)
+	if (unp.obj.buffer != NULL &&
+		(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
 	{
-		if ((ptr = _gfx_map(unp.allocator, &unp.obj.buffer->alloc)) == NULL)
-			goto error;
+		ptr = _gfx_map(
+			&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
 
+		if (ptr == NULL) goto error;
 		ptr = (void*)((char*)ptr + unp.value);
 	}
 	else
@@ -918,7 +918,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	// If we mapped a buffer, unmap it again.
 	// Otherwise, destroy the staging buffer.
 	if (staging == NULL)
-		_gfx_unmap(unp.allocator, &unp.obj.buffer->alloc);
+		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
 	else
 		_gfx_destroy_staging(staging, &unp);
 
@@ -947,9 +947,7 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 	_GFXUnpackRef dstUnp = _gfx_ref_unpack(dst);
 
 	// Check that the resources share the same context.
-	if (
-		!srcUnp.allocator || !dstUnp.allocator ||
-		srcUnp.allocator->context != dstUnp.allocator->context)
+	if (_GFX_UNPACK_REF_CONTEXT(srcUnp) != _GFX_UNPACK_REF_CONTEXT(dstUnp))
 	{
 		gfx_log_error(
 			"When copying from one memory resource to another they must be "
@@ -959,7 +957,9 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 	}
 
 	// Validate memory flags.
-	if (!(GFX_MEMORY_READ & srcUnp.flags) || !(GFX_MEMORY_WRITE & dstUnp.flags))
+	if (
+		!(GFX_MEMORY_READ & _GFX_UNPACK_REF_FLAGS(srcUnp)) ||
+		!(GFX_MEMORY_WRITE & _GFX_UNPACK_REF_FLAGS(dstUnp)))
 	{
 		gfx_log_error(
 			"Cannot copy from one memory resource to another if they were "
@@ -996,7 +996,7 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
 	// Validate host visibility.
-	if (!(GFX_MEMORY_HOST_VISIBLE & unp.flags))
+	if (!(GFX_MEMORY_HOST_VISIBLE & _GFX_UNPACK_REF_FLAGS(unp)))
 	{
 		gfx_log_error(
 			"Cannot map a memory resource that was not "
@@ -1009,7 +1009,7 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	void* ptr = NULL;
 
 	if (unp.obj.buffer != NULL)
-		ptr = _gfx_map(unp.allocator, &unp.obj.buffer->alloc),
+		ptr = _gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc),
 		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp.value);
 
 	return ptr;
@@ -1028,5 +1028,5 @@ GFX_API void gfx_unmap(GFXBufferRef ref)
 	// for every gfx_map, given this is the exact same assumption as
 	// _gfx_unmap makes, this should all work out...
 	if (unp.obj.buffer != NULL)
-		_gfx_unmap(unp.allocator, &unp.obj.buffer->alloc);
+		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
 }

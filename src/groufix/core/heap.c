@@ -92,7 +92,8 @@ static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 static void _gfx_destroy_staging_unsafe(_GFXStaging* staging,
                                         const _GFXUnpackRef* ref)
 {
-	_GFXContext* context = ref->allocator->context;
+	_GFXAllocator* alloc = _GFX_UNPACK_REF_ALLOC(*ref);
+	_GFXContext* context = alloc->context;
 
 	// Unlink the staging buffer from the reference.
 	// Note that either buffer or image is non-NULL by definition.
@@ -102,14 +103,14 @@ static void _gfx_destroy_staging_unsafe(_GFXStaging* staging,
 
 	// Then, firstly unmap, this so the map references of the underlying
 	// memory block don't get fckd by staging buffers.
-	_gfx_unmap(ref->allocator, &staging->alloc);
+	_gfx_unmap(alloc, &staging->alloc);
 
 	// Destroy Vulkan buffer.
 	context->vk.DestroyBuffer(
 		context->vk.device, staging->vk.buffer, NULL);
 
 	// Free the memory.
-	_gfx_free(ref->allocator, &staging->alloc);
+	_gfx_free(alloc, &staging->alloc);
 
 	free(staging);
 }
@@ -403,16 +404,10 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 	assert(ref != NULL);
 	assert(size > 0);
 
-	_GFXContext* context = ref->allocator->context;
-
 	// Get the associated heap, we use this to firstly lock the heap's mutex,
 	// and secondly to assure that there is a list of staging buffers we can
 	// link into.
-	GFXHeap* heap =
-		(ref->obj.buffer != NULL) ? ref->obj.buffer->heap :
-		(ref->obj.image != NULL) ? ref->obj.image->heap :
-		NULL;
-
+	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(*ref);
 	if (heap == NULL)
 	{
 		gfx_log_error(
@@ -421,6 +416,9 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 
 		return NULL;
 	}
+
+	// Get context from heap.
+	_GFXContext* context = heap->allocator.context;
 
 	// Allocate a new staging buffer.
 	_GFXStaging* staging = malloc(sizeof(_GFXStaging));
@@ -456,7 +454,7 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 	_gfx_mutex_lock(&heap->lock);
 
 	if (!_gfx_alloc_mem(
-		ref->allocator, &staging->alloc, 1, GFX_MEMORY_HOST_VISIBLE,
+		&heap->allocator, &staging->alloc, 1, GFX_MEMORY_HOST_VISIBLE,
 		&mr, NULL, VK_NULL_HANDLE, VK_NULL_HANDLE))
 	{
 		goto clean_buffer;
@@ -471,7 +469,7 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 		goto clean_alloc);
 
 	// Map the buffer.
-	if ((staging->vk.ptr = _gfx_map(ref->allocator, &staging->alloc)) == NULL)
+	if ((staging->vk.ptr = _gfx_map(&heap->allocator, &staging->alloc)) == NULL)
 		goto clean_alloc;
 
 	// Lastly, when successful, link the staging buffer into the ref :)
@@ -489,7 +487,7 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 
 	// Cleanup on failure.
 clean_alloc:
-	_gfx_free(ref->allocator, &staging->alloc);
+	_gfx_free(&heap->allocator, &staging->alloc);
 clean_buffer:
 	_gfx_mutex_unlock(&heap->lock); // Don't forget.
 
@@ -513,9 +511,7 @@ void _gfx_destroy_staging(_GFXStaging* staging,
 	// This is essentially just a wrapper around _gfx_destroy_staging_unsafe
 	// to make staging buffers thread-safe to the rest of the engine.
 	// So, get the heap so we can lock it.
-	// Note that either buffer or image is non-NULL by definition.
-	GFXHeap* heap = (ref->obj.buffer != NULL) ?
-		ref->obj.buffer->heap : ref->obj.image->heap;
+	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(*ref);
 
 	// Lock & destroy.
 	_gfx_mutex_lock(&heap->lock);
@@ -888,8 +884,10 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	}
 
 	if (
-		(unpVer.allocator && unpVer.allocator->context != heap->allocator.context) ||
-		(unpInd.allocator && unpInd.allocator->context != heap->allocator.context))
+		(!GFX_REF_IS_NULL(prim->refVertex) &&
+			_GFX_UNPACK_REF_CONTEXT(unpVer) != heap->allocator.context) ||
+		(!GFX_REF_IS_NULL(prim->refIndex) &&
+			_GFX_UNPACK_REF_CONTEXT(unpInd) != heap->allocator.context))
 	{
 		gfx_log_error(
 			"A buffer referenced by a primitive geometry must be built on "
@@ -1101,9 +1099,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 				goto clean;
 			}
 
-			if (
-				!unp.allocator ||
-				unp.allocator->context != heap->allocator.context)
+			if (_GFX_UNPACK_REF_CONTEXT(unp) != heap->allocator.context)
 			{
 				gfx_log_error(
 					"A resource group binding description's resource "

@@ -558,26 +558,8 @@ typedef struct _GFXUnpackRef
 	//  buffer offset | attachment index.
 	uint64_t value;
 
-	// Associated memory flags (to determine use).
-	GFXMemoryFlags flags;
-
-	// Associated allocator (for context matching and such).
-	_GFXAllocator* allocator;
-
 } _GFXUnpackRef;
 
-
-/**
- * Empty unpacked reference macro (i.e. 0'd out).
- * If any field of an unpacked ref is set, all others must be valid.
- */
-#define _GFX_UNPACK_REF_EMPTY \
-	(_GFXUnpackRef){ \
-		.obj = { .buffer = NULL, .image = NULL, .renderer = NULL }, \
-		.value = 0, \
-		.flags = 0, \
-		.allocator = NULL \
-	}
 
 /**
  * Check for equality of unpacked references.
@@ -592,13 +574,58 @@ typedef struct _GFXUnpackRef
 		(refa).obj.renderer == (refb).obj.renderer))
 
 /**
+ * Retrieves the _GFXContext* from an unpacked reference.
+ * Resolves to NULL if an empty reference.
+ */
+#define _GFX_UNPACK_REF_CONTEXT(ref) \
+	((ref).obj.buffer != NULL ? \
+		(ref).obj.buffer->heap->allocator.context : \
+	(ref).obj.image != NULL ? \
+		(ref).obj.image->heap->allocator.context : \
+	(ref).obj.renderer != NULL ? \
+		(ref).obj.renderer->context : NULL)
+
+/**
+ * Retrieves the _GFXAllocator* from an unpacked reference.
+ * Resolves to NULL if an empty reference.
+ */
+#define _GFX_UNPACK_REF_ALLOC(ref) \
+	((ref).obj.buffer != NULL ? \
+		&(ref).obj.buffer->heap->allocator : \
+	(ref).obj.image != NULL ? \
+		&(ref).obj.image->heap->allocator : \
+	(ref).obj.renderer != NULL ? \
+		&(ref).obj.renderer->backing.allocator : NULL)
+
+/**
+ * Retrieves the memory flags from an unpacked reference.
+ * Resolves to 0 if an empty reference.
+ */
+#define _GFX_UNPACK_REF_FLAGS(ref) \
+	((ref).obj.buffer != NULL ? \
+		(ref).obj.buffer->base.flags : \
+	(ref).obj.image != NULL ? \
+		(ref).obj.image->base.flags : \
+	(ref).obj.renderer != NULL ? \
+		((_GFXAttach*)gfx_vec_at(&(ref).obj.renderer->backing.attachs, \
+			(ref).value))->image.base.flags : 0)
+
+/**
+ * Retrieves the GFXHeap* from an unpacked reference.
+ * Resolves to NULL if not referencing a resource from a heap.
+ */
+#define _GFX_UNPACK_REF_HEAP(ref) \
+	((ref).obj.buffer != NULL ? (ref).obj.buffer->heap : \
+	(ref).obj.image != NULL ? (ref).obj.image->heap : NULL)
+
+/**
  * Retrieves the _GFXImageAttach* from an unpacked reference.
  * Resolves to NULL if not referencing an attachment.
  */
 #define _GFX_UNPACK_REF_ATTACH(ref) \
 	((ref).obj.renderer == NULL ? NULL : \
-		&((_GFXAttach*)gfx_vec_at( \
-			&(ref).obj.renderer->backing.attachs, (ref).value))->image)
+		&((_GFXAttach*)gfx_vec_at(&(ref).obj.renderer->backing.attachs, \
+			(ref).value))->image)
 
 
 /**
@@ -624,7 +651,7 @@ GFXReference _gfx_ref_resolve(GFXReference ref);
  * if an object is composed of other memory objects internally, it will be
  * 'unpacked' into its elementary non-composed memory objects.
  *
- * Returns _GFX_UNPACK_REF_EMPTY and warns when the reference is invalid.
+ * Returns empty (all NULL's) and warns when the reference is invalid.
  * If in debug mode & out of bounds, it silently warns.
  */
 _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
