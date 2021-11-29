@@ -605,7 +605,7 @@ typedef struct _GFXUnpackRef
  */
 #if defined (NDEBUG)
 	#define _GFX_UNPACK_REF_FLAGS(ref) \
-		static_assert(0, "Use _GFX_UNPACK_REF_FLAGS in debug mode only.")
+		_Static_assert(0, "Use _GFX_UNPACK_REF_FLAGS in debug mode only.")
 #else
 	#define _GFX_UNPACK_REF_FLAGS(ref) \
 		((ref).obj.buffer != NULL ? \

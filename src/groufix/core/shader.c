@@ -69,7 +69,7 @@
 static int _gfx_shader_build(GFXShader* shader,
                              size_t size, const uint32_t* code)
 {
-	static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
+	_Static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 
 	assert(shader != NULL);
 	assert(shader->vk.module == VK_NULL_HANDLE);

@@ -15,6 +15,7 @@
  * Computes the 'unpacked' range associated with an unpacked reference,
  * meaning buffer offsets, zero buffer sizes and image aspects are resolved :)
  * @param ref   Must be a non-empty valid unpacked reference.
+ * @param mask  Access mask to unpack the Vulkan access flags and image layout.
  * @param range May be NULL to take the entire resource as range.
  * @param size  Must be the value of the associated _gfx_ref_size(<packed-ref>)!
  *
@@ -25,15 +26,25 @@
  * from user-land we cannot reference part of an image, only the whole,
  * meaning we can use the Vulkan 'remaining mipmaps/layers' flags.
  */
-static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref,
-                                  const GFXRange* range, uint64_t size)
+static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref, GFXAccessMask mask,
+                                  const GFXRange* range, uint64_t size,
+                                  VkAccessFlags* access, VkImageLayout* layout)
 {
+	assert(ref != NULL);
+	assert(access != NULL);
+	assert(layout != NULL);
 	assert(
 		ref->obj.buffer != NULL ||
 		ref->obj.image != NULL ||
 		ref->obj.renderer != NULL);
 
 	if (ref->obj.buffer != NULL)
+	{
+		// Resolve access flags.
+		GFXFormat fmt = GFX_FORMAT_EMPTY;
+		*access = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
+		*layout = VK_IMAGE_LAYOUT_UNDEFINED; // It's a buffer.
+
 		return (GFXRange){
 			// Normalize offset to be independent of references.
 			.offset = (range == NULL) ? ref->value :
@@ -42,6 +53,7 @@ static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref,
 				// Resolve zero buffer size.
 				(range->size == 0 ? size - range->offset : range->size)
 		};
+	}
 
 	// Resolve whole aspect from format.
 	GFXFormat fmt = (ref->obj.image != NULL) ?
@@ -53,6 +65,10 @@ static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref,
 			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
 			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
 			GFX_IMAGE_COLOR;
+
+	// Resolve access flags and image layout from format.
+	*access = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
+	*layout = _GFX_GET_VK_IMAGE_LAYOUT(mask, fmt);
 
 	if (range == NULL)
 		return (GFXRange){
@@ -83,6 +99,9 @@ static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref,
 static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
                                const GFXRange* rangea, const GFXRange* rangeb)
 {
+	assert(ref != NULL);
+	assert(rangea != NULL);
+	assert(rangeb != NULL);
 	assert(
 		ref->obj.buffer != NULL ||
 		ref->obj.image != NULL ||
@@ -187,7 +206,6 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 	// If there are no operation refs, make VLAs of size 1 for legality.
 	size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
 	const _GFXUnpackRef* refs;
-	const GFXAccessMask* masks;
 	GFXRange ranges[vlaRefs]; // Unpacked!
 	VkAccessFlags access[vlaRefs];
 	VkImageLayout layouts[vlaRefs];
@@ -230,50 +248,31 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 			}
 		}
 
-		// Compute the resources & their range to match against.
+		// Compute the resources & their range/mask/layout to match against.
 		// 1 is the default if a command ref is given.
 		size_t numRefs = 1;
 
 		if (!GFX_REF_IS_NULL(injs[i].ref))
 			refs = &unp,
-			masks = iM != SIZE_MAX ? &injection->inp.masks[iM] : NULL,
 			ranges[0] = _gfx_range_unpack(&unp,
+				iM != SIZE_MAX ? injection->inp.masks[iM] : 0,
 				injs[i].type == GFX_DEP_WAIT_RANGE ? &injs[i].range : NULL,
-				_gfx_ref_size(injs[i].ref));
+				_gfx_ref_size(injs[i].ref),
+				access, layouts);
 		else
 		{
 			numRefs = injection->inp.numRefs; // Could be 0.
 			refs = injection->inp.refs;
-			masks = injection->inp.masks;
 
 			for (size_t r = 0; r < numRefs; ++r)
 				// If given a range but not a reference,
 				// use this same range for all resources..
 				// TODO: Maybe remove range-only commands?
 				ranges[r] = _gfx_range_unpack(&refs[r],
+					injection->inp.masks[r],
 					injs[i].type == GFX_DEP_WAIT_RANGE ? &injs[i].range : NULL,
-					injection->inp.sizes[r]);
-		}
-
-		// Compute the access mask and image layouts to match against.
-		// These are determined by the operation, catch all if unknown.
-		for (size_t r = 0; r < numRefs; ++r)
-		{
-			if (masks == NULL)
-				access[r] = 0,
-				layouts[r] = VK_IMAGE_LAYOUT_UNDEFINED;
-			else
-			{
-				GFXFormat fmt =
-					(refs[r].obj.image != NULL) ?
-						refs[r].obj.image->base.format :
-					(refs[r].obj.renderer != NULL) ?
-						_GFX_UNPACK_REF_ATTACH(refs[r])->base.format :
-						GFX_FORMAT_EMPTY;
-
-				access[r] = _GFX_GET_VK_ACCESS_FLAGS(masks[r], fmt);
-				layouts[r] = _GFX_GET_VK_IMAGE_LAYOUT(masks[r], fmt);
-			}
+					injection->inp.sizes[r],
+					access + r, layouts + r);
 		}
 
 		// Now the bit where we match against all synchronization objects.
