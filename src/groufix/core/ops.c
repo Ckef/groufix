@@ -66,7 +66,7 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
                                    const GFXRegion* refRegions,
                                    _GFXStageRegion* stage)
 {
-	static_assert(CHAR_BIT == 8); // Has to be for for size conversion.
+	static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
 
 	assert(ref != NULL);
 	assert(numRegions > 0);
@@ -763,6 +763,7 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(src);
 
+#if !defined (NDEBUG)
 	// Validate memory flags.
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) &
 		_GFX_UNPACK_REF_FLAGS(unp)))
@@ -773,6 +774,7 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 
 		return 0;
 	}
+#endif
 
 	// We either map or stage, staging may remain NULL.
 	// @see gfx_write for details.
@@ -855,6 +857,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
 
+#if !defined (NDEBUG)
 	// Validate memory flags.
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) &
 		_GFX_UNPACK_REF_FLAGS(unp)))
@@ -865,6 +868,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 
 		return 0;
 	}
+#endif
 
 	// We either map or stage, staging may remain NULL.
 	void* ptr = NULL;
@@ -956,6 +960,7 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 		return 0;
 	}
 
+#if !defined (NDEBUG)
 	// Validate memory flags.
 	if (
 		!(GFX_MEMORY_READ & _GFX_UNPACK_REF_FLAGS(srcUnp)) ||
@@ -967,6 +972,7 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 
 		return 0;
 	}
+#endif
 
 	// Do the resource -> resource copy
 	if (!_gfx_copy_device(
@@ -995,6 +1001,7 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
 
+#if !defined (NDEBUG)
 	// Validate host visibility.
 	if (!(GFX_MEMORY_HOST_VISIBLE & _GFX_UNPACK_REF_FLAGS(unp)))
 	{
@@ -1004,6 +1011,7 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 
 		return NULL;
 	}
+#endif
 
 	// Map the buffer.
 	void* ptr = NULL;

@@ -590,15 +590,6 @@ typedef struct _GFXUnpackRef
 	(ref).obj.renderer != NULL ? \
 		&(ref).obj.renderer->backing.allocator : NULL)
 
-#define _GFX_UNPACK_REF_FLAGS(ref) \
-	((ref).obj.buffer != NULL ? \
-		(ref).obj.buffer->base.flags : \
-	(ref).obj.image != NULL ? \
-		(ref).obj.image->base.flags : \
-	(ref).obj.renderer != NULL ? \
-		((_GFXAttach*)gfx_vec_at(&(ref).obj.renderer->backing.attachs, \
-			(ref).value))->image.base.flags : 0)
-
 #define _GFX_UNPACK_REF_HEAP(ref) \
 	((ref).obj.buffer != NULL ? (ref).obj.buffer->heap : \
 	(ref).obj.image != NULL ? (ref).obj.image->heap : NULL)
@@ -607,6 +598,23 @@ typedef struct _GFXUnpackRef
 	((ref).obj.renderer == NULL ? NULL : \
 		&((_GFXAttach*)gfx_vec_at(&(ref).obj.renderer->backing.attachs, \
 			(ref).value))->image)
+
+/**
+ * Retrieves the memory flags associated with an unpacked reference.
+ * Meant for the debug build, where we validate flags and usages.
+ */
+#if defined (NDEBUG)
+	#define _GFX_UNPACK_REF_FLAGS(ref) \
+		static_assert(0, "Use _GFX_UNPACK_REF_FLAGS in debug mode only.")
+#else
+	#define _GFX_UNPACK_REF_FLAGS(ref) \
+		((ref).obj.buffer != NULL ? \
+			(ref).obj.buffer->base.flags : \
+		(ref).obj.image != NULL ? \
+			(ref).obj.image->base.flags : \
+		(ref).obj.renderer != NULL ? \
+			_GFX_UNPACK_REF_ATTACH(ref)->base.flags : 0)
+#endif
 
 
 /**

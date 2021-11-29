@@ -867,7 +867,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		(GFX_REF_IS_NULL(index) ? (numIndices * (unsigned char)indexSize) : 0);
 
 	// We actually resolve the references (!) to get
-	// appropriate public usage & validate context and usage.
+	// appropriate public usage & validate context and such.
 	prim->refVertex = _gfx_ref_resolve(vertex);
 	prim->refIndex = _gfx_ref_resolve(index);
 	_GFXUnpackRef unpVer = _gfx_ref_unpack(prim->refVertex);
@@ -902,6 +902,8 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		unpInd.obj.buffer->base.usage :
 		(numIndices > 0 ? prim->buffer.base.usage : 0);
 
+#if !defined (NDEBUG)
+	// Usage flag validation is a debug feature, just like memory flags.
 	if (!(prim->base.usageVertex & GFX_BUFFER_VERTEX))
 	{
 		gfx_log_error(
@@ -919,6 +921,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 
 		goto clean;
 	}
+#endif
 
 	// Allocate a buffer if required.
 	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.

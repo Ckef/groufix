@@ -311,6 +311,7 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 				continue; // No underlying resources means catch all.
 
 			// TODO: Continue implementing...
+			// TODO: Check for context equality somewhere?
 		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);
