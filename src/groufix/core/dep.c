@@ -12,8 +12,57 @@
 
 
 /****************************
- * Computes the 'unpacked' range associated with an unpacked reference,
- * meaning buffer offsets, zero buffer sizes and image aspects are resolved :)
+ * Computes whether or not two 'unpacked' ranges associated with the same
+ * unpacked resource reference overlap.
+ * @param ref    Must be a non-empty valid unpacked reference.
+ * @param rangea Must be unpacked!
+ * @param rangeb Must be unpacked!
+ *
+ * @see _gfx_dep_unpack for retrieving 'unpacked' ranges.
+ */
+static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
+                               const GFXRange* rangea, const GFXRange* rangeb)
+{
+	assert(ref != NULL);
+	assert(rangea != NULL);
+	assert(rangeb != NULL);
+	assert(
+		ref->obj.buffer != NULL ||
+		ref->obj.image != NULL ||
+		ref->obj.renderer != NULL);
+
+	// Check if buffer range overlaps.
+	if (ref->obj.buffer != NULL)
+		// They are unpacked, so size is non-zero & offset is normalized :)
+		return
+			rangea->offset < (rangeb->offset + rangeb->size) &&
+			rangeb->offset < (rangea->offset + rangea->size);
+
+	// Check if mipmaps overlap.
+	int mipA = rangea->mipmap < (rangeb->mipmap + rangeb->numMipmaps);
+	int mipB = rangeb->mipmap < (rangea->mipmap + rangea->numMipmaps);
+	int mips =
+		(rangea->numMipmaps == 0 && rangeb->numMipmaps == 0) ||
+		(rangea->numMipmaps == 0 && mipA) ||
+		(rangeb->numMipmaps == 0 && mipB) ||
+		(mipA && mipB);
+
+	// Check if layers overlap.
+	int layA = rangea->layer < (rangeb->layer + rangeb->numLayers);
+	int layB = rangeb->layer < (rangea->layer + rangea->numLayers);
+	int lays =
+		(rangea->numLayers == 0 && rangeb->numLayers == 0) ||
+		(rangea->numLayers == 0 && layA) ||
+		(rangeb->numLayers == 0 && layB) ||
+		(layA && layB);
+
+	// Check if aspect overlaps.
+	return (rangea->aspect & rangeb->aspect) != 0 && mips && lays;
+}
+
+/****************************
+ * Computes the 'unpacked' range, access flags and image layout associated
+ * with an injection's reference (normalizes offsets and resolves sizes).
  * @param ref   Must be a non-empty valid unpacked reference.
  * @param mask  Access mask to unpack the Vulkan access flags and image layout.
  * @param range May be NULL to take the entire resource as range.
@@ -26,9 +75,9 @@
  * from user-land we cannot reference part of an image, only the whole,
  * meaning we can use the Vulkan 'remaining mipmaps/layers' flags.
  */
-static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref, GFXAccessMask mask,
-                                  const GFXRange* range, uint64_t size,
-                                  VkAccessFlags* access, VkImageLayout* layout)
+static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref, GFXAccessMask mask,
+                                const GFXRange* range, uint64_t size,
+                                VkAccessFlags* access, VkImageLayout* layout)
 {
 	assert(ref != NULL);
 	assert(access != NULL);
@@ -87,53 +136,6 @@ static GFXRange _gfx_range_unpack(const _GFXUnpackRef* ref, GFXAccessMask mask,
 			.layer = range->layer,
 			.numLayers = range->numLayers
 		};
-}
-
-/****************************
- * Computes whether or not two 'unpacked' ranges associated with the same
- * unpacked resource reference overlap.
- * @param ref    Must be a non-empty valid unpacked reference.
- * @param rangea Must be unpacked!
- * @param rangeb Must be unpacked!
- */
-static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
-                               const GFXRange* rangea, const GFXRange* rangeb)
-{
-	assert(ref != NULL);
-	assert(rangea != NULL);
-	assert(rangeb != NULL);
-	assert(
-		ref->obj.buffer != NULL ||
-		ref->obj.image != NULL ||
-		ref->obj.renderer != NULL);
-
-	// Check if buffer range overlaps.
-	if (ref->obj.buffer != NULL)
-		// They are unpacked, so size is non-zero & offset is normalized :)
-		return
-			rangea->offset < (rangeb->offset + rangeb->size) &&
-			rangeb->offset < (rangea->offset + rangea->size);
-
-	// Check if mipmaps overlap.
-	int mipA = rangea->mipmap < (rangeb->mipmap + rangeb->numMipmaps);
-	int mipB = rangeb->mipmap < (rangea->mipmap + rangea->numMipmaps);
-	int mips =
-		(rangea->numMipmaps == 0 && rangeb->numMipmaps == 0) ||
-		(rangea->numMipmaps == 0 && mipA) ||
-		(rangeb->numMipmaps == 0 && mipB) ||
-		(mipA && mipB);
-
-	// Check if layers overlap.
-	int layA = rangea->layer < (rangeb->layer + rangeb->numLayers);
-	int layB = rangeb->layer < (rangea->layer + rangea->numLayers);
-	int lays =
-		(rangea->numLayers == 0 && rangeb->numLayers == 0) ||
-		(rangea->numLayers == 0 && layA) ||
-		(rangeb->numLayers == 0 && layB) ||
-		(layA && layB);
-
-	// Check if aspect overlaps.
-	return (rangea->aspect & rangeb->aspect) != 0 && mips && lays;
 }
 
 /****************************/
@@ -254,7 +256,7 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 
 		if (!GFX_REF_IS_NULL(injs[i].ref))
 			refs = &unp,
-			ranges[0] = _gfx_range_unpack(&unp,
+			ranges[0] = _gfx_dep_unpack(&unp,
 				iM != SIZE_MAX ? injection->inp.masks[iM] : 0,
 				injs[i].type == GFX_DEP_WAIT_RANGE ? &injs[i].range : NULL,
 				_gfx_ref_size(injs[i].ref),
@@ -267,8 +269,7 @@ int _gfx_deps_catch(VkCommandBuffer cmd,
 			for (size_t r = 0; r < numRefs; ++r)
 				// If given a range but not a reference,
 				// use this same range for all resources..
-				// TODO: Maybe remove range-only commands?
-				ranges[r] = _gfx_range_unpack(&refs[r],
+				ranges[r] = _gfx_dep_unpack(&refs[r],
 					injection->inp.masks[r],
 					injs[i].type == GFX_DEP_WAIT_RANGE ? &injs[i].range : NULL,
 					injection->inp.sizes[r],

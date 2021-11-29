@@ -134,6 +134,9 @@ typedef struct GFXInject
  * To apply both of the above simultaneously, use
  *  `gfx_dep_sigra` and `gfx_dep_waitra`
  *
+ * Injections that reference attachments are _NOT_ thread-safe with respect
+ * to the attachment, not even if referenced implicitly.
+ *
  * Functions that take injections as an argument are _always_ thread-safe with
  * respect to the dependency objects being referenced!
  */
