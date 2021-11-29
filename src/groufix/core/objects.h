@@ -562,8 +562,9 @@ typedef struct _GFXUnpackRef
 
 
 /**
- * Check for equality of unpacked references.
+ * Check for equality of unpacked references & getters.
  * Only checks for resource equality, offsets are ignored.
+ * Getters will resolve to NULL or 0 if none found.
  */
 #define _GFX_UNPACK_REF_IS_EQUAL(refa, refb) \
 	(((refa).obj.buffer != NULL && \
@@ -573,10 +574,6 @@ typedef struct _GFXUnpackRef
 	((refa).obj.renderer != NULL && (refa).value == (refb).value && \
 		(refa).obj.renderer == (refb).obj.renderer))
 
-/**
- * Retrieves the _GFXContext* from an unpacked reference.
- * Resolves to NULL if an empty reference.
- */
 #define _GFX_UNPACK_REF_CONTEXT(ref) \
 	((ref).obj.buffer != NULL ? \
 		(ref).obj.buffer->heap->allocator.context : \
@@ -585,10 +582,6 @@ typedef struct _GFXUnpackRef
 	(ref).obj.renderer != NULL ? \
 		(ref).obj.renderer->context : NULL)
 
-/**
- * Retrieves the _GFXAllocator* from an unpacked reference.
- * Resolves to NULL if an empty reference.
- */
 #define _GFX_UNPACK_REF_ALLOC(ref) \
 	((ref).obj.buffer != NULL ? \
 		&(ref).obj.buffer->heap->allocator : \
@@ -597,10 +590,6 @@ typedef struct _GFXUnpackRef
 	(ref).obj.renderer != NULL ? \
 		&(ref).obj.renderer->backing.allocator : NULL)
 
-/**
- * Retrieves the memory flags from an unpacked reference.
- * Resolves to 0 if an empty reference.
- */
 #define _GFX_UNPACK_REF_FLAGS(ref) \
 	((ref).obj.buffer != NULL ? \
 		(ref).obj.buffer->base.flags : \
@@ -610,18 +599,10 @@ typedef struct _GFXUnpackRef
 		((_GFXAttach*)gfx_vec_at(&(ref).obj.renderer->backing.attachs, \
 			(ref).value))->image.base.flags : 0)
 
-/**
- * Retrieves the GFXHeap* from an unpacked reference.
- * Resolves to NULL if not referencing a resource from a heap.
- */
 #define _GFX_UNPACK_REF_HEAP(ref) \
 	((ref).obj.buffer != NULL ? (ref).obj.buffer->heap : \
 	(ref).obj.image != NULL ? (ref).obj.image->heap : NULL)
 
-/**
- * Retrieves the _GFXImageAttach* from an unpacked reference.
- * Resolves to NULL if not referencing an attachment.
- */
 #define _GFX_UNPACK_REF_ATTACH(ref) \
 	((ref).obj.renderer == NULL ? NULL : \
 		&((_GFXAttach*)gfx_vec_at(&(ref).obj.renderer->backing.attachs, \
