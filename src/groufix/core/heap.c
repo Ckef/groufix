@@ -896,33 +896,6 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		goto clean;
 	}
 
-	prim->base.usageVertex = (unpVer.obj.buffer != NULL) ?
-		unpVer.obj.buffer->base.usage : prim->buffer.base.usage;
-	prim->base.usageIndex = (unpInd.obj.buffer != NULL) ?
-		unpInd.obj.buffer->base.usage :
-		(numIndices > 0 ? prim->buffer.base.usage : 0);
-
-#if !defined (NDEBUG)
-	// Usage flag validation is a debug feature, just like memory flags.
-	if (!(prim->base.usageVertex & GFX_BUFFER_VERTEX))
-	{
-		gfx_log_error(
-			"A buffer referenced by a primitive geometry as vertex buffer "
-			"must be created with GFX_BUFFER_VERTEX.");
-
-		goto clean;
-	}
-
-	if (numIndices > 0 && !(prim->base.usageIndex & GFX_BUFFER_INDEX))
-	{
-		gfx_log_error(
-			"A buffer referenced by a primitive geometry as index buffer "
-			"must be created with GFX_BUFFER_INDEX.");
-
-		goto clean;
-	}
-#endif
-
 	// Allocate a buffer if required.
 	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.
 	prim->buffer.vk.buffer = VK_NULL_HANDLE;
@@ -942,12 +915,31 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 
 	_gfx_mutex_unlock(&heap->lock);
 
-	// Trickle down memory flags to user-land.
+	// Trickle down memory & usage flags to user-land.
 	prim->base.flagsVertex = (unpVer.obj.buffer != NULL) ?
 		unpVer.obj.buffer->base.flags : prim->buffer.base.flags;
 	prim->base.flagsIndex = (unpInd.obj.buffer != NULL) ?
 		unpInd.obj.buffer->base.flags :
 		(numIndices > 0 ? prim->buffer.base.flags : 0);
+
+	prim->base.usageVertex = (unpVer.obj.buffer != NULL) ?
+		unpVer.obj.buffer->base.usage : prim->buffer.base.usage;
+	prim->base.usageIndex = (unpInd.obj.buffer != NULL) ?
+		unpInd.obj.buffer->base.usage :
+		(numIndices > 0 ? prim->buffer.base.usage : 0);
+
+#if !defined (NDEBUG)
+	// Usage flag validation is a debug feature, just like memory flags.
+	if (!(prim->base.usageVertex & GFX_BUFFER_VERTEX))
+		gfx_log_warn(
+			"A buffer referenced by a primitive geometry as vertex buffer "
+			"must be created with GFX_BUFFER_VERTEX.");
+
+	if (numIndices > 0 && !(prim->base.usageIndex & GFX_BUFFER_INDEX))
+		gfx_log_warn(
+			"A buffer referenced by a primitive geometry as index buffer "
+			"must be created with GFX_BUFFER_INDEX.");
+#endif
 
 	return &prim->base;
 

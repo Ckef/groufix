@@ -768,11 +768,9 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) &
 		_GFX_UNPACK_REF_FLAGS(unp)))
 	{
-		gfx_log_error(
+		gfx_log_warn(
 			"Cannot read from a memory resource that was not "
 			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_READ.");
-
-		return 0;
 	}
 #endif
 
@@ -862,11 +860,9 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) &
 		_GFX_UNPACK_REF_FLAGS(unp)))
 	{
-		gfx_log_error(
+		gfx_log_warn(
 			"Cannot write to a memory resource that was not "
 			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_WRITE.");
-
-		return 0;
 	}
 #endif
 
@@ -966,11 +962,9 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 		!(GFX_MEMORY_READ & _GFX_UNPACK_REF_FLAGS(srcUnp)) ||
 		!(GFX_MEMORY_WRITE & _GFX_UNPACK_REF_FLAGS(dstUnp)))
 	{
-		gfx_log_error(
+		gfx_log_warn(
 			"Cannot copy from one memory resource to another if they were "
 			"not created with GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
-
-		return 0;
 	}
 #endif
 
@@ -1004,13 +998,9 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 #if !defined (NDEBUG)
 	// Validate host visibility.
 	if (!(GFX_MEMORY_HOST_VISIBLE & _GFX_UNPACK_REF_FLAGS(unp)))
-	{
-		gfx_log_error(
+		gfx_log_warn(
 			"Cannot map a memory resource that was not "
 			"created with GFX_MEMORY_HOST_VISIBLE.");
-
-		return NULL;
-	}
 #endif
 
 	// Map the buffer.
