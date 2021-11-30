@@ -188,15 +188,27 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep)
 }
 
 /****************************/
-int _gfx_deps_catch(VkCommandBuffer cmd,
+int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
                     size_t numInjs, const GFXInject* injs,
                     _GFXInjection* injection)
 {
+	assert(context != NULL);
 	assert(cmd != VK_NULL_HANDLE);
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
+
+	// Context validation of all dependency objects.
+	for (size_t i = 0; i < numInjs; ++i)
+		if (injs[i].dep->context != context)
+		{
+			gfx_log_error(
+				"When injecting dependencies, the dependency objects must "
+				"be built on the same logical Vulkan device.");
+
+			return 0;
+		}
 
 	// Initialize the injection output.
 	injection->out.numWaits = 0;
