@@ -370,10 +370,13 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				if (
 					_GFX_UNPACK_REF_IS_EQUAL(sync->ref, refs[r]) &&
 					_gfx_ranges_overlap(&refs[r], &ranges[r], &sync->range) &&
-					(flags[r] == (sync->vk.dstAccess & flags[r])) &&
-					(layouts[r] == VK_IMAGE_LAYOUT_UNDEFINED ||
-					layouts[r] == sync->vk.newLayout))
+					(layouts[r] == sync->vk.newLayout))
 				{
+					if (flags[r] != sync->vk.dstAccess) gfx_log_warn(
+						"Dependency wait command matched with a signal "
+						"command, but has mismatching VKAccessFlagBits; "
+						"potential race condition on the GPU.");
+
 					break;
 				}
 
