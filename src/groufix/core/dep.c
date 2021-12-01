@@ -12,6 +12,58 @@
 
 
 /****************************
+ * TODO: Make this take multiple sync objs and merge them on equal stage masks?
+ * Injects a pipeline/memory barrier, just as stored in a _GFXSync object.
+ * Assumes either sync->vk.buffer OR sync->vk.image is set.
+ */
+static void _gfx_inject_barrier(VkCommandBuffer cmd,
+                                const _GFXSync* sync, _GFXContext* context)
+{
+	VkBufferMemoryBarrier bmb;
+	VkImageMemoryBarrier imb;
+
+	if (sync->vk.buffer != VK_NULL_HANDLE)
+		bmb = (VkBufferMemoryBarrier){
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = sync->vk.srcAccess,
+			.dstAccessMask       = sync->vk.dstAccess,
+			.srcQueueFamilyIndex = sync->vk.srcFamily,
+			.dstQueueFamilyIndex = sync->vk.dstFamily,
+			.buffer              = sync->vk.buffer,
+			.offset              = sync->range.offset,
+			.size                = sync->range.size
+		};
+	else
+		imb = (VkImageMemoryBarrier){
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = sync->vk.srcAccess,
+			.dstAccessMask       = sync->vk.dstAccess,
+			.oldLayout           = sync->vk.oldLayout,
+			.newLayout           = sync->vk.newLayout,
+			.srcQueueFamilyIndex = sync->vk.srcFamily,
+			.dstQueueFamilyIndex = sync->vk.dstFamily,
+			.image               = sync->vk.image,
+			.subresourceRange = {
+				.aspectMask     = sync->range.aspect,
+				.baseMipLevel   = sync->range.mipmap,
+				.levelCount     = sync->range.numMipmaps,
+				.baseArrayLayer = sync->range.layer,
+				.layerCount     = sync->range.numLayers
+			}
+		};
+
+	context->vk.CmdPipelineBarrier(cmd,
+		sync->vk.srcStage, sync->vk.dstStage,
+		0, 0, NULL,
+		sync->vk.buffer != VK_NULL_HANDLE ? 1 : 0, &bmb,
+		sync->vk.image != VK_NULL_HANDLE ? 1 : 0, &imb);
+}
+
+/****************************
  * Computes whether or not two 'unpacked' ranges associated with the same
  * unpacked resource reference overlap.
  * @param ref    Must be a non-empty valid unpacked reference.
@@ -374,16 +426,26 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				{
 					if (flags[r] != sync->vk.dstAccess) gfx_log_warn(
 						"Dependency wait command matched with a signal "
-						"command, but has mismatching VKAccessFlagBits; "
+						"command, but has mismatching VkAccessFlagBits; "
 						"potential race condition on the GPU.");
 
 					break;
 				}
 
+			// No underlying resources means catch all.
 			if (numRefs > 0 && r >= numRefs)
-				continue; // No underlying resources means catch all.
+				continue;
 
-			// TODO: Continue implementing...
+			// We have a matching synchronization object, in other words,
+			// we are going to catch a signal command with this wait command.
+			// First put the object in the catch stage.
+			sync->stage = _GFX_SYNC_CATCH;
+			sync->inj = injection;
+
+			// Insert barrier to acquire ownership if necessary.
+			// TODO: Output the wait semaphore!
+			if (sync->vk.srcFamily != sync->vk.dstFamily)
+				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);
