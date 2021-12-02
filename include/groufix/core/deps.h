@@ -34,6 +34,7 @@ typedef enum GFXAccessMask
 	GFX_ACCESS_ATTACHMENT_WRITE = 0x000200, // Necessary for depth/stencil testing.
 	GFX_ACCESS_TRANSFER_READ    = 0x000400,
 	GFX_ACCESS_TRANSFER_WRITE   = 0x000800,
+	// TODO: How are we even going to handle host access?
 	GFX_ACCESS_HOST_READ        = 0x001000,
 	GFX_ACCESS_HOST_WRITE       = 0x002000,
 

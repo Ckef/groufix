@@ -9,6 +9,7 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 /****************************
@@ -198,22 +199,26 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
  * @param injRef  Must be _gfx_ref_unpack(inj->ref).
  * @param numRefs Number of output references.
  * @param refs    Output pointer to references (pointer, not array!).
+ * @param indices Output array of resource indices into injection->inp.refs.
  * @param ranges  Output array of 'unpacked' ranges.
  * @param flags   Output array of Vulkan access flags.
  * @param layouts Output array of Vulkan image layouts.
  * @param Zero if this command should be ignored.
  *
  * All output arrays must be at least of size injection->inp.numRefs.
+ * Outputs index of SIZE_MAX if not an operation reference.
  */
 static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
-                             size_t* numRefs,
-                             const _GFXUnpackRef** refs, GFXRange* ranges,
+                             size_t* numRefs, const _GFXUnpackRef** refs,
+                             size_t* indices, GFXRange* ranges,
                              VkAccessFlags* flags, VkImageLayout* layouts,
                              _GFXInjection* injection)
 {
 	assert(inj != NULL);
 	assert(injRef != NULL);
+	assert(numRefs != NULL);
 	assert(refs != NULL);
+	assert(indices != NULL);
 	assert(ranges != NULL);
 	assert(flags != NULL);
 	assert(layouts != NULL);
@@ -261,6 +266,7 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 	{
 		*numRefs = 1;
 		*refs = injRef;
+		indices[0] = iM;
 		ranges[0] = _gfx_dep_unpack(injRef,
 			injRange,
 			_gfx_ref_size(inj->ref),
@@ -273,6 +279,7 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 		*refs = injection->inp.refs;
 
 		for (size_t r = 0; r < *numRefs; ++r)
+			indices[r] = r,
 			// If given a range but not a reference,
 			// use this same range for all resources..
 			ranges[r] = _gfx_dep_unpack((*refs) + r,
@@ -346,9 +353,6 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 
-	// TODO: For each image reference in injection not waited upon,
-	// insert a 'discard' barrier to transition to the correct layout
-
 	// Context validation of all dependency objects.
 	for (size_t i = 0; i < numInjs; ++i)
 		if (injs[i].dep->context != context)
@@ -370,9 +374,15 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	// If there are no operation refs, make VLAs of size 1 for legality.
 	size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
 	const _GFXUnpackRef* refs;
+	size_t indices[vlaRefs];
 	GFXRange ranges[vlaRefs]; // Unpacked!
 	VkAccessFlags flags[vlaRefs];
 	VkImageLayout layouts[vlaRefs];
+
+	// Also keep track if all operation references have been transitioned
+	// properly. So we can do initial layout transitions for images.
+	unsigned char transitioned[vlaRefs];
+	memset(transitioned, 0, injection->inp.numRefs);
 
 	// Ok so during a catch, we loop over all injections and filter out the
 	// wait commands. For each wait command, we match against all pending
@@ -392,7 +402,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 		if (!_gfx_dep_validate(
 			&injs[i], &unp, &numRefs,
-			&refs, ranges, flags, layouts,
+			&refs, indices, ranges, flags, layouts,
 			injection))
 		{
 			continue;
@@ -443,13 +453,65 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			sync->inj = injection;
 
 			// Insert barrier to acquire ownership if necessary.
+			// TODO: Maybe do something special with host read/write flags?
 			// TODO: For attachments: check if the VkImage has changed!
 			// TODO: Output the wait semaphores!
 			if (sync->vk.srcFamily != sync->vk.dstFamily)
-				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
+				_gfx_inject_barrier(cmd, sync, context);
+
+			// Signal that the operation resource has been transitioned.
+			if (numRefs > 0 && indices[r] != SIZE_MAX)
+				transitioned[indices[r]] = 1;
 		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);
+	}
+
+	// For each operation reference, check if it has been transitioned.
+	// If not, insert an initial layout transition for images.
+	for (size_t i = 0; i < injection->inp.numRefs; ++i)
+	{
+		// If transitioned or a buffer, nothing to do.
+		if (transitioned[i] || injection->inp.refs[i].obj.buffer != NULL)
+			continue;
+
+		// Get unpacked metadata & inject barrier manually,
+		// just stick it in the 0th index, we don't need to look back :)
+		ranges[0] = _gfx_dep_unpack(
+			injection->inp.refs + i, NULL,
+			injection->inp.sizes[i], injection->inp.masks[i],
+			flags, layouts);
+
+		VkImageMemoryBarrier imb = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = 0,
+			.dstAccessMask       = flags[0],
+			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout           = layouts[0],
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+
+			.image = (injection->inp.refs[i].obj.image != NULL) ?
+				injection->inp.refs[i].obj.image->vk.image :
+				_GFX_UNPACK_REF_ATTACH(injection->inp.refs[i])->vk.image,
+
+			.subresourceRange = {
+				.aspectMask     = ranges[0].aspect,
+				.baseMipLevel   = ranges[0].mipmap,
+				.levelCount     = ranges[0].numMipmaps,
+				.baseArrayLayer = ranges[0].layer,
+				.layerCount     = ranges[0].numLayers
+			},
+		};
+
+		// TODO: Somehow get destination stage flags.
+		// TODO: Merge on equal destination stage masks?
+		context->vk.CmdPipelineBarrier(cmd,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			0,
+			0, 0, NULL, 0, NULL, 1, &imb);
 	}
 
 	return 1;
@@ -474,6 +536,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 	// If there are no operation refs, make VLAs of size 1 for legality.
 	size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
 	const _GFXUnpackRef* refs;
+	size_t indices[vlaRefs];
 	GFXRange ranges[vlaRefs]; // Unpacked!
 	VkAccessFlags flags[vlaRefs];
 	VkImageLayout layouts[vlaRefs];
@@ -497,7 +560,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 
 		if (!_gfx_dep_validate(
 			&injs[i], &unp, &numRefs,
-			&refs, ranges, flags, layouts,
+			&refs, indices, ranges, flags, layouts,
 			injection))
 		{
 			continue;

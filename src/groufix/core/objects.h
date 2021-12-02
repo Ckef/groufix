@@ -777,7 +777,7 @@ struct GFXDependency
  * TODO: Somehow generate or pass a tag for recycling.
  * Starts a new dependency injection by catching pending signal commands.
  * The object pointed to by injection cannot be moved or copied!
- * @param context   For context validation, cannot be NULL.
+ * @param context   Cannot be NULL.
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
  * @param numInjs   Number of given injection commands.
  * @param injs      Given injection commands.
