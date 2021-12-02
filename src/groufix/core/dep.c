@@ -443,7 +443,8 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			sync->inj = injection;
 
 			// Insert barrier to acquire ownership if necessary.
-			// TODO: Output the wait semaphore!
+			// TODO: For attachments: check if the VkImage has changed!
+			// TODO: Output the wait semaphores!
 			if (sync->vk.srcFamily != sync->vk.dstFamily)
 				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 		}

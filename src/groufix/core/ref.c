@@ -163,8 +163,8 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	// Init empty.
 	_GFXUnpackRef unp = {
-		.obj = { .buffer = NULL, .image = NULL, .renderer = NULL },
-		.value = 0
+		.value = 0,
+		.obj = { .buffer = NULL, .image = NULL, .renderer = NULL }
 	};
 
 	// Fill the unpacked ref.
@@ -200,8 +200,8 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
 		unp.value = ref.offset +
 			// Augment offset into the vertex/index buffer.
-			GFX_REF_IS_NULL(_GFX_PRIMITIVE->refVertex) ?
-				_GFX_PRIMITIVE->base.numVertices * _GFX_PRIMITIVE->base.stride : 0;
+			(GFX_REF_IS_NULL(_GFX_PRIMITIVE->refVertex) ?
+				_GFX_PRIMITIVE->base.numVertices * _GFX_PRIMITIVE->base.stride : 0);
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,

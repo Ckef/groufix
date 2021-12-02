@@ -544,6 +544,11 @@ struct GFXPass
  */
 typedef struct _GFXUnpackRef
 {
+	// Unpacked reference value(s),
+	//  buffer offset | attachment index.
+	uint64_t value;
+
+
 	// Referenced object (all mutually exclusive).
 	struct
 	{
@@ -552,11 +557,6 @@ typedef struct _GFXUnpackRef
 		GFXRenderer* renderer;
 
 	} obj;
-
-
-	// Unpacked reference value(s),
-	//  buffer offset | attachment index.
-	uint64_t value;
 
 } _GFXUnpackRef;
 
