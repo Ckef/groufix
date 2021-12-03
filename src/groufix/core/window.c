@@ -295,12 +295,40 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	assert(title != NULL);
 
 	// Allocate and set a new window.
-	// Just set the user pointer and all callbacks to all 0's.
+	// Just set the user pointer and all callbacks to all NULL's.
 	_GFXWindow* window = malloc(sizeof(_GFXWindow));
 	if (window == NULL) goto clean;
 
-	// TODO: Not necessarily equal to all NULL tho...
-	memset(&window->base, 0, sizeof(GFXWindow));
+	window->base = (GFXWindow){
+		.ptr = NULL,
+		.events = {
+			.close = NULL,
+			.drop = NULL,
+			.focus = NULL,
+			.blur = NULL,
+			.maximize = NULL,
+			.minimize = NULL,
+			.restore = NULL,
+			.move = NULL,
+			.resize = NULL,
+
+			.key = {
+				.press = NULL,
+				.release = NULL,
+				.repeat = NULL,
+				.text = NULL
+			},
+
+			.mouse = {
+				.enter = NULL,
+				.leave = NULL,
+				.move = NULL,
+				.press = NULL,
+				.release = NULL,
+				.scroll = NULL
+			}
+		}
+	};
 
 	// Create a GLFW window.
 	glfwDefaultWindowHints();
