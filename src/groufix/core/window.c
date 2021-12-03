@@ -299,6 +299,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	_GFXWindow* window = malloc(sizeof(_GFXWindow));
 	if (window == NULL) goto clean;
 
+	// TODO: Not necessarily equal to all NULL tho...
 	memset(&window->base, 0, sizeof(GFXWindow));
 
 	// Create a GLFW window.

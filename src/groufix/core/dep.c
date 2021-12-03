@@ -114,12 +114,13 @@ static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
 }
 
 /****************************
- * Computes the 'unpacked' range, access flags and image layout associated
- * with an injection's reference (normalizes offsets and resolves sizes).
+ * Computes the 'unpacked' range, access/stage flags and image layout
+ * associated with an injection's ref (normalizes offsets and resolves sizes).
  * @param ref   Must be a non-empty valid unpacked reference.
  * @param range May be NULL to take the entire resource as range.
  * @param size  Must be the value of the associated _gfx_ref_size(<packed-ref>)!
  * @param mask  Access mask to unpack the Vulkan access flags and image layout.
+ * @param stage Shader stage to unpack Vulkan pipeline stage flags.
  *
  * The returned range is not valid for the unpacked reference anymore,
  * it is only valid for the raw VkBuffer or VkImage handle!
@@ -130,12 +131,15 @@ static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
  */
 static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
                                 const GFXRange* range, uint64_t size,
-                                GFXAccessMask mask,
-                                VkAccessFlags* flags, VkImageLayout* layout)
+                                GFXAccessMask mask, GFXShaderStage shader,
+                                VkAccessFlags* flags,
+                                VkImageLayout* layout,
+                                VkPipelineStageFlags* stage)
 {
 	assert(ref != NULL);
 	assert(flags != NULL);
 	assert(layout != NULL);
+	assert(stage != NULL);
 	assert(
 		ref->obj.buffer != NULL ||
 		ref->obj.image != NULL ||
@@ -143,10 +147,11 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 
 	if (ref->obj.buffer != NULL)
 	{
-		// Resolve access flags.
+		// Resolve access flags, image layout and pipeline stage.
 		GFXFormat fmt = GFX_FORMAT_EMPTY;
 		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
 		*layout = VK_IMAGE_LAYOUT_UNDEFINED; // It's a buffer.
+		*stage = _GFX_GET_VK_PIPELINE_STAGE(mask, fmt, shader);
 
 		return (GFXRange){
 			// Normalize offset to be independent of references.
@@ -169,9 +174,10 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
 			GFX_IMAGE_COLOR;
 
-	// Resolve access flags and image layout from format.
+	// Resolve access flags, image layout and pipeline stage from format.
 	*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
 	*layout = _GFX_GET_VK_IMAGE_LAYOUT(mask, fmt);
+	*stage = _GFX_GET_VK_PIPELINE_STAGE(mask, fmt, shader);
 
 	if (range == NULL)
 		return (GFXRange){
@@ -195,6 +201,7 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 /****************************
  * Validates & unpacks an injection command, retrieves all resources that
  * should be signaled OR matched against while catching signals.
+ * All output metadata (except range) is in relation to the operation's use.
  * @param inj     The injection command to validate & unpack, cannot be NULL.
  * @param injRef  Must be _gfx_ref_unpack(inj->ref).
  * @param numRefs Number of output references.
@@ -203,6 +210,7 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
  * @param ranges  Output array of 'unpacked' ranges.
  * @param flags   Output array of Vulkan access flags.
  * @param layouts Output array of Vulkan image layouts.
+ * @param stages  Output array of Vulkan pipeline stage flags.
  * @param Zero if this command should be ignored.
  *
  * All output arrays must be at least of size injection->inp.numRefs.
@@ -211,7 +219,9 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
                              size_t* numRefs, const _GFXUnpackRef** refs,
                              size_t* indices, GFXRange* ranges,
-                             VkAccessFlags* flags, VkImageLayout* layouts,
+                             VkAccessFlags* flags,
+                             VkImageLayout* layouts,
+                             VkPipelineStageFlags* stages,
                              _GFXInjection* injection)
 {
 	assert(inj != NULL);
@@ -222,6 +232,7 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 	assert(ranges != NULL);
 	assert(flags != NULL);
 	assert(layouts != NULL);
+	assert(stages != NULL);
 	assert(injection != NULL);
 
 	// Do a quick context check.
@@ -257,7 +268,8 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 		}
 	}
 
-	// Compute the resources & their range/mask/layout.
+	// Compute the resources & their range/access/stage/layout.
+	// All but range are in relation to the operation inbetween the injections!
 	const GFXRange* injRange =
 		(inj->type == GFX_DEP_SIGNAL_RANGE || inj->type == GFX_DEP_WAIT_RANGE) ?
 			&inj->range : NULL;
@@ -270,8 +282,8 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 		ranges[0] = _gfx_dep_unpack(injRef,
 			injRange,
 			_gfx_ref_size(inj->ref),
-			iM != SIZE_MAX ? injection->inp.masks[iM] : 0,
-			flags, layouts);
+			iM != SIZE_MAX ? injection->inp.masks[iM] : 0, 0,
+			flags, layouts, stages);
 	}
 	else
 	{
@@ -285,8 +297,8 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 			ranges[r] = _gfx_dep_unpack((*refs) + r,
 				injRange,
 				injection->inp.sizes[r],
-				injection->inp.masks[r],
-				flags + r, layouts + r);
+				injection->inp.masks[r], 0,
+				flags + r, layouts + r, stages + r);
 	}
 
 	return 1;
@@ -378,6 +390,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	GFXRange ranges[vlaRefs]; // Unpacked!
 	VkAccessFlags flags[vlaRefs];
 	VkImageLayout layouts[vlaRefs];
+	VkPipelineStageFlags stages[vlaRefs];
 
 	// Also keep track if all operation references have been transitioned
 	// properly. So we can do initial layout transitions for images.
@@ -402,7 +415,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 		if (!_gfx_dep_validate(
 			&injs[i], &unp, &numRefs,
-			&refs, indices, ranges, flags, layouts,
+			&refs, indices, ranges, flags, layouts, stages,
 			injection))
 		{
 			continue;
@@ -427,17 +440,22 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			// Then filter on underlying resource & overlapping ranges.
 			size_t r;
 			for (r = 0; r < numRefs; ++r)
-				// We also match on access mask and image layout.
-				// If we do not know either of the two, catch all.
+				// Oh and layouts must equal, otherwise nothing can happen.
+				// If access or stage flags mismatch, silently warn.
 				if (
 					_GFX_UNPACK_REF_IS_EQUAL(sync->ref, refs[r]) &&
 					_gfx_ranges_overlap(&refs[r], &ranges[r], &sync->range) &&
 					(layouts[r] == sync->vk.newLayout))
 				{
-					if (flags[r] != sync->vk.dstAccess) gfx_log_warn(
+					int race =
+						flags[r] != sync->vk.dstAccess ||
+						stages[r] != sync->vk.dstStage;
+
+					if (race) gfx_log_warn(
 						"Dependency wait command matched with a signal "
-						"command, but has mismatching VkAccessFlagBits; "
-						"potential race condition on the GPU.");
+						"command, but has mismatching VkAccessFlagBits "
+						"or VkPipelineStageFlagBits; potential race "
+						"condition on the GPU.");
 
 					break;
 				}
@@ -479,8 +497,8 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		// just stick it in the 0th index, we don't need to look back :)
 		ranges[0] = _gfx_dep_unpack(
 			injection->inp.refs + i, NULL,
-			injection->inp.sizes[i], injection->inp.masks[i],
-			flags, layouts);
+			injection->inp.sizes[i], injection->inp.masks[i], 0,
+			flags, layouts, stages);
 
 		VkImageMemoryBarrier imb = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -506,11 +524,10 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			},
 		};
 
-		// TODO: Somehow get destination stage flags.
 		// TODO: Merge on equal destination stage masks?
 		context->vk.CmdPipelineBarrier(cmd,
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			0,
+			stages[0],
 			0, 0, NULL, 0, NULL, 1, &imb);
 	}
 
@@ -540,6 +557,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 	GFXRange ranges[vlaRefs]; // Unpacked!
 	VkAccessFlags flags[vlaRefs];
 	VkImageLayout layouts[vlaRefs];
+	VkPipelineStageFlags stages[vlaRefs];
 
 	// During a prepare, we again loop over all injections and filter out the
 	// signal commands. For each signal command we find the resources it is
@@ -560,7 +578,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 
 		if (!_gfx_dep_validate(
 			&injs[i], &unp, &numRefs,
-			&refs, indices, ranges, flags, layouts,
+			&refs, indices, ranges, flags, layouts, stages,
 			injection))
 		{
 			continue;

@@ -13,7 +13,7 @@
 
 
 /****************************
- * Attachment consumption element defintion.
+ * Attachment consumption element definition.
  */
 typedef struct _GFXConsumeElem
 {
