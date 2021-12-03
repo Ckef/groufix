@@ -15,7 +15,7 @@
 /****************************
  * TODO: Make this take multiple sync objs and merge them on equal stage masks?
  * Injects a pipeline/memory barrier, just as stored in a _GFXSync object.
- * Assumes either sync->vk.buffer OR sync->vk.image is set.
+ * Assumes exactly one of `sync->vk.buffer` and `sync->vk.image` is set.
  */
 static void _gfx_inject_barrier(VkCommandBuffer cmd,
                                 const _GFXSync* sync, _GFXContext* context)
@@ -51,9 +51,12 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 			.subresourceRange = {
 				.aspectMask     = sync->range.aspect,
 				.baseMipLevel   = sync->range.mipmap,
-				.levelCount     = sync->range.numMipmaps,
 				.baseArrayLayer = sync->range.layer,
-				.layerCount     = sync->range.numLayers
+
+				.levelCount = sync->range.numMipmaps == 0 ?
+					VK_REMAINING_MIP_LEVELS : sync->range.numMipmaps,
+				.layerCount = sync->range.numLayers == 0 ?
+					VK_REMAINING_ARRAY_LAYERS : sync->range.numLayers
 			}
 		};
 
@@ -485,6 +488,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		_gfx_mutex_unlock(&injs[i].dep->lock);
 	}
 
+	// At this point we have processed all injection commands.
 	// For each operation reference, check if it has been transitioned.
 	// If not, insert an initial layout transition for images.
 	for (size_t i = 0; i < injection->inp.numRefs; ++i)
@@ -518,9 +522,12 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			.subresourceRange = {
 				.aspectMask     = ranges[0].aspect,
 				.baseMipLevel   = ranges[0].mipmap,
-				.levelCount     = ranges[0].numMipmaps,
 				.baseArrayLayer = ranges[0].layer,
-				.layerCount     = ranges[0].numLayers
+
+				.levelCount = ranges[0].numMipmaps == 0 ?
+					VK_REMAINING_MIP_LEVELS : ranges[0].numMipmaps,
+				.layerCount = ranges[0].numLayers == 0 ?
+					VK_REMAINING_ARRAY_LAYERS : ranges[0].numLayers
 			},
 		};
 
@@ -544,10 +551,6 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 	assert(injection != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
-
-	// TODO: Merge signal commands on the same reference range?
-	// TODO: Somehow get source access mask and layout from wait commands if
-	// there are no operation references to get it from.
 
 	// Keep track of related resources & metadata for each injection.
 	// If there are no operation refs, make VLAs of size 1 for legality.
@@ -598,7 +601,26 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 		// We lock for each command individually.
 		_gfx_mutex_lock(&injs[i].dep->lock);
 
-		// TODO: Continue implementing...
+		for (size_t r = 0; r < numRefs; ++r)
+		{
+			// Unpack again for destination access/stage/layout.
+			// We already have the correct range...
+			// Therefore we can ignore the range and size arguments.
+			// TODO: Can prolly do it manually, need to get the VkBuffer/VkImage anyway.
+			VkAccessFlags dstAccess;
+			VkImageLayout newLayout;
+			VkPipelineStageFlags dstStage;
+
+			_gfx_dep_unpack(refs + r, NULL, 0,
+				injs[i].mask, injs[i].stage,
+				&dstAccess, &newLayout, &dstStage);
+
+			// TODO: Somehow get source access mask and layout from wait
+			// commands if there are no operation references to get it from.
+
+			// TODO: Merge signal commands on the same reference range?
+			// TODO: Continue implementing...
+		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);
 	}
