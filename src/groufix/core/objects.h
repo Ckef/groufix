@@ -765,7 +765,7 @@ typedef struct _GFXSync
 	// Stage in the object's lifecycle.
 	enum
 	{
-		_GFX_SYNC_UNUSED,
+		_GFX_SYNC_UNUSED, // Everything but `vk.signaled` is undefined.
 		_GFX_SYNC_PREPARE,
 		_GFX_SYNC_PENDING,
 		_GFX_SYNC_CATCH,
@@ -784,7 +784,7 @@ typedef struct _GFXSync
 		VkAccessFlags dstAccess;
 		VkImageLayout oldLayout;
 		VkImageLayout newLayout;
-		uint32_t      srcFamily;
+		uint32_t      srcFamily; // VK_QUEUE_FAMILY_IGNORED on discard.
 		uint32_t      dstFamily;
 
 		VkPipelineStageFlags srcStage;
@@ -824,10 +824,10 @@ struct GFXDependency
  * @param numInjs   Number of given injection commands.
  * @param injs      Given injection commands.
  * @param injection Input & output injection metadata, cannot be NULL.
- * @param Zero on failure.
+ * @param Zero on failure, must call _gfx_deps_abort.
  *
  * Thread-safe with respect to all dependency objects!
- * Either _gfx_deps_abort() or _gfx_deps_finish() must be called with the same
+ * Either `_gfx_deps_abort` or `_gfx_deps_finish` must be called with the same
  * injection object (and other inputs) to appropriately cleanup and free all
  * metadata. Note: this call itself can only be called once!
  */
