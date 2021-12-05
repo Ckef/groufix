@@ -564,6 +564,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			// TODO: Maybe do something special with host read/write flags?
 			// TODO: For attachments: check if the VkImage has changed!
 			// TODO: Output the wait semaphore (even on discard)!
+			// TODO: How do we determine if we need a semaphore tho :(
 			if (
 				sync->vk.srcFamily != VK_QUEUE_FAMILY_IGNORED &&
 				sync->vk.srcFamily != sync->vk.dstFamily)
@@ -730,6 +731,11 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 
 			// TODO: Somehow get source access/stage/layout from wait
 			// commands if there are no operation references to get it from.
+			// TODO: Except for attachments, we need to know the last layout
+			// they were in from the operation. So maybe add 'stages' to
+			// injection.inp, and a flag to determine if we need to match
+			// against all references given (during a catch) or just use
+			// them for mask/stage lookup.
 
 			// Get source access/stage flags from operation.
 			sync->vk.srcAccess = flags[r];
@@ -775,7 +781,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 			_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 
 			// Always set destination family back to actual family,
-			// this so we can determine if we need a wait semaphore.
+			// this so we can match against the used queue.
 			// We leave the source family as ignored to indicate a discard.
 			sync->vk.dstFamily = family;
 		}
@@ -792,6 +798,8 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
 {
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
+
+	// TODO: Implement.
 }
 
 /****************************/
@@ -800,4 +808,6 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 {
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
+
+	// TODO: Implement.
 }
