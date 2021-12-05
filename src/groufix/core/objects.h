@@ -778,13 +778,14 @@ typedef struct _GFXSync
 	struct
 	{
 		VkSemaphore signaled; // May be VK_NULL_HANDLE.
+		int         discard;  // Non-zero to discard the contents.
 
 		// Barrier metadata.
 		VkAccessFlags srcAccess;
 		VkAccessFlags dstAccess;
 		VkImageLayout oldLayout;
 		VkImageLayout newLayout;
-		uint32_t      srcFamily; // VK_QUEUE_FAMILY_IGNORED on discard.
+		uint32_t      srcFamily;
 		uint32_t      dstFamily;
 
 		VkPipelineStageFlags srcStage;

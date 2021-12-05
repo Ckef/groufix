@@ -564,9 +564,8 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			// TODO: Maybe do something special with host read/write flags?
 			// TODO: For attachments: check if the VkImage has changed!
 			// TODO: Output the wait semaphore (even on discard)!
-			// TODO: How do we determine if we need a semaphore tho :(
 			if (
-				sync->vk.srcFamily != VK_QUEUE_FAMILY_IGNORED &&
+				!sync->vk.discard &&
 				sync->vk.srcFamily != sync->vk.dstFamily)
 			{
 				_gfx_inject_barrier(cmd, sync, context);
@@ -780,10 +779,12 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 			// TODO: Output the signal semaphore!
 			_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 
-			// Always set destination family back to actual family,
-			// this so we can match against the used queue.
-			// We leave the source family as ignored to indicate a discard.
+			// Always set queue families back to actual families,
+			// this so we can match queue & do ownership transfers.
+			// Also set the discard flag.
+			sync->vk.srcFamily = injection->inp.family;
 			sync->vk.dstFamily = family;
+			sync->vk.discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
 		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);
