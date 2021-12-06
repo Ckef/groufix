@@ -751,13 +751,9 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 
 			// TODO: Somehow get source access/stage/layout from wait
 			// commands if there are no operation references to get it from.
-			// TODO: Except for attachments, we need to know the last layout
-			// they were in from the operation. So maybe add 'stages' to
-			// injection.inp, and a flag to determine if we need to match
-			// against all references given (during a catch) or just use
-			// them for mask/stage lookup.
-			// OR: Add 'vk.finalLayout' to _GFXImageAttach!
-			// TODO: Do we need final access/stage flags for attachments?
+			// TODO: Except for attachments, we need to know the last layout they
+			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
+			// Do we need final access/stage flags for attachments?
 
 			// Get source access/stage flags from operation.
 			sync->vk.srcAccess = flags[r];
@@ -790,7 +786,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 			_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 
 			// Always set queue families back to actual families,
-			// this so we can match queues.
+			// this so we can match queues & check semaphore usage.
 			sync->vk.srcFamily = injection->inp.family;
 			sync->vk.dstFamily = family;
 		}
@@ -808,7 +804,37 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 
-	// TODO: Implement.
+	// Free the injection output.
+	free(injection->out.waits);
+	free(injection->out.sigs);
+
+	// For aborting we loop over all synchronization objects of each
+	// command's dependency object. If it contains objects claimed by the
+	// given injection metadata, revert its stage.
+	// We do not need to worry about undoing any commands, as the operation
+	// has failed and should not submit its command buffers :)
+	for (size_t i = 0; i < numInjs; ++i)
+	{
+		// We lock for each command individually.
+		_gfx_mutex_lock(&injs[i].dep->lock);
+
+		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
+		{
+			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
+			if (sync->inj == injection)
+			{
+				sync->stage = (sync->stage == _GFX_SYNC_CATCH) ?
+					_GFX_SYNC_PENDING :
+					_GFX_SYNC_UNUSED;
+
+				sync->inj = NULL;
+			}
+		}
+
+		// TODO: Shrink dep, i.e. reduce number of sync objects.
+
+		_gfx_mutex_unlock(&injs[i].dep->lock);
+	}
 }
 
 /****************************/
@@ -818,5 +844,41 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 
-	// TODO: Implement.
+	// Free the injection output.
+	free(injection->out.waits);
+	free(injection->out.sigs);
+
+	// To finish an injection, we loop over all synchronization objects of
+	// each command's dependency object. If it contains objects claimed by the
+	// given injection metadata, advance the stage.
+	for (size_t i = 0; i < numInjs; ++i)
+	{
+		// We lock for each command individually.
+		_gfx_mutex_lock(&injs[i].dep->lock);
+
+		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
+		{
+			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
+			if (sync->inj == injection)
+			{
+				// If the object was prepared, it is now pending.
+				// Otherwise it _must_ have been caught, in which case we
+				// advance it to used or unused.
+				// It only needs to be used if the semaphore was used,
+				// in which case we cannot reclaim this object yet...
+				sync->stage =
+					(sync->stage == _GFX_SYNC_PREPARE) ?
+						_GFX_SYNC_PENDING :
+					(sync->vk.srcFamily != sync->vk.dstFamily) ?
+						_GFX_SYNC_USED :
+						_GFX_SYNC_UNUSED;
+
+				sync->inj = NULL;
+			}
+		}
+
+		// TODO: Shrink dep, i.e. reduce number of sync objects.
+
+		_gfx_mutex_unlock(&injs[i].dep->lock);
+	}
 }
