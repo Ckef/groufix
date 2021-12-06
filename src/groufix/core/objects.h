@@ -169,6 +169,8 @@
 	!((mask) & ~(GFXAccessMask)( \
 	GFX_ACCESS_TRANSFER_WRITE | GFX_ACCESS_TRANSFER_ASYNC | GFX_ACCESS_DISCARD)) ? \
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL : \
+	(mask == 0) ? \
+		VK_IMAGE_LAYOUT_UNDEFINED : /* Default is to discard. */ \
 		VK_IMAGE_LAYOUT_GENERAL)
 
 #define _GFX_GET_VK_PIPELINE_STAGE(mask, fmt, stage) \

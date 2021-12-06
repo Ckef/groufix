@@ -146,7 +146,7 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 	// Note that we always pass 0 for shader stage flags.
 	// This function is only used to compute metadata of resources during
 	// the operation that is are injecting dependencies into.
-	// For now we do not have any operations that has associated resources
+	// For now we do not have any operations with associated resources
 	// that operates on a specific shader stage (only the renderer does so).
 
 	if (ref->obj.buffer != NULL)
@@ -289,6 +289,7 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 		ranges[0] = _gfx_dep_unpack(injRef,
 			injRange,
 			_gfx_ref_size(inj->ref),
+			// Passing a mask of 0 yields an undefined image layout.
 			iM != SIZE_MAX ? injection->inp.masks[iM] : 0,
 			flags, layouts, stages);
 	}
@@ -531,11 +532,13 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			size_t r;
 			for (r = 0; r < numRefs; ++r)
 				// Oh and layouts must equal, otherwise nothing can happen.
+				// Except when we do not know the layout from the operation.
 				// If access or stage flags mismatch, silently warn.
 				if (
 					_GFX_UNPACK_REF_IS_EQUAL(sync->ref, refs[r]) &&
 					_gfx_ranges_overlap(&refs[r], &ranges[r], &sync->range) &&
-					(layouts[r] == sync->vk.newLayout))
+					(layouts[r] == VK_IMAGE_LAYOUT_UNDEFINED ||
+					layouts[r] == sync->vk.newLayout))
 				{
 					int race =
 						flags[r] != sync->vk.dstAccess ||
@@ -579,7 +582,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		_gfx_mutex_unlock(&injs[i].dep->lock);
 	}
 
-	// At this point we have processed all injection commands.
+	// At this point we have processed all wait commands.
 	// For each operation reference, check if it has been transitioned.
 	// If not, insert an initial layout transition for images.
 	for (size_t i = 0; i < injection->inp.numRefs; ++i)
@@ -698,8 +701,9 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 				injs[i].dep->transfer :
 				injs[i].dep->graphics;
 
-		// Flag whether we need a semaphore.
+		// Flag whether we need a semaphore & whether we want to discard.
 		int semaphore = (family != injection->inp.family);
+		int discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
 
 		// Aaaand the bit where we prepare all signals.
 		// We lock for each command individually.
@@ -727,29 +731,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 
 			sync->ref = refs[r];
 			sync->range = ranges[r];
-
-			// TODO: Somehow get source access/stage/layout from wait
-			// commands if there are no operation references to get it from.
-			// TODO: Except for attachments, we need to know the last layout
-			// they were in from the operation. So maybe add 'stages' to
-			// injection.inp, and a flag to determine if we need to match
-			// against all references given (during a catch) or just use
-			// them for mask/stage lookup.
-
-			// Get source access/stage flags from operation.
-			sync->vk.srcAccess = flags[r];
-			sync->vk.srcStage = stages[r];
-
-			// Get old layout, set to undefined if we want to discard.
-			sync->vk.oldLayout = injs[i].mask & GFX_ACCESS_DISCARD ?
-				VK_IMAGE_LAYOUT_UNDEFINED : layouts[r];
-
-			// Get families, explicitly ignore if we want to discard.
-			sync->vk.srcFamily = injs[i].mask & GFX_ACCESS_DISCARD ?
-				VK_QUEUE_FAMILY_IGNORED : injection->inp.family;
-
-			sync->vk.dstFamily = injs[i].mask & GFX_ACCESS_DISCARD ?
-				VK_QUEUE_FAMILY_IGNORED : family;
+			sync->vk.discard = discard;
 
 			// Manually unpack the destination access/stage/layout.
 			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(refs[r]);
@@ -762,10 +744,37 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 			sync->vk.dstStage =
 				_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, fmt, injs[i].stage);
 			sync->vk.newLayout =
-				// Again, undefined layout if a buffer.
+				// Undefined layout for buffers.
 				(refs[r].obj.buffer != NULL) ?
 					VK_IMAGE_LAYOUT_UNDEFINED :
 					_GFX_GET_VK_IMAGE_LAYOUT(injs[i].mask, fmt);
+
+			// TODO: Somehow get source access/stage/layout from wait
+			// commands if there are no operation references to get it from.
+			// TODO: Except for attachments, we need to know the last layout
+			// they were in from the operation. So maybe add 'stages' to
+			// injection.inp, and a flag to determine if we need to match
+			// against all references given (during a catch) or just use
+			// them for mask/stage lookup.
+			// OR: Add 'vk.finalLayout' to _GFXImageAttach!
+			// TODO: Do we need final access/stage flags for attachments?
+
+			// Get source access/stage flags from operation.
+			sync->vk.srcAccess = flags[r];
+			sync->vk.srcStage = stages[r];
+
+			// Get old layout, set to undefined if we want to discard.
+			// However if no layout transition, don't explicitly discard!
+			sync->vk.oldLayout =
+				(discard && sync->vk.newLayout != layouts[r]) ?
+				VK_IMAGE_LAYOUT_UNDEFINED : layouts[r];
+
+			// Get families, explicitly ignore if we want to discard.
+			sync->vk.srcFamily = discard ?
+				VK_QUEUE_FAMILY_IGNORED : injection->inp.family;
+
+			sync->vk.dstFamily = discard ?
+				VK_QUEUE_FAMILY_IGNORED : family;
 
 			// Unpack VkBuffer & VkImage handles.
 			sync->vk.buffer = (refs[r].obj.buffer != NULL) ?
@@ -776,15 +785,14 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 				(attach != NULL ? attach->vk.image : VK_NULL_HANDLE);
 
 			// Insert barrier
+			// TODO: Skip barrier if semaphore && discard && no layout transition?
 			// TODO: Output the signal semaphore!
 			_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 
 			// Always set queue families back to actual families,
-			// this so we can match queue & do ownership transfers.
-			// Also set the discard flag.
+			// this so we can match queues.
 			sync->vk.srcFamily = injection->inp.family;
 			sync->vk.dstFamily = family;
-			sync->vk.discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
 		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);
