@@ -31,7 +31,10 @@ TEST_DESCRIBE(render_loop, _t)
 {
 	// Like the other loop, but submit the renderer :)
 	while (!termSig)
-		gfx_frame_submit(gfx_renderer_acquire(_t->renderer));
+	{
+		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
+		gfx_frame_submit(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
+	}
 }
 
 

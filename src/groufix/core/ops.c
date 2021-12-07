@@ -196,55 +196,6 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 }
 
 /****************************
- * Merges the regions associated with an image into a VkImageSubresourceRange
- * struct, useful for for iamge layout transitions.
- * @param numRegions Must be > 0.
- * @param regions    To be merged regions, cannot be NULL.
- * @return Merged range, contains all given regions.
- */
-static VkImageSubresourceRange _gfx_regions_range(size_t numRegions,
-                                                  const GFXRegion* regions)
-{
-	assert(numRegions > 0);
-	assert(regions != NULL);
-
-	VkImageSubresourceRange range = {
-		.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(regions[0].aspect),
-		.baseMipLevel   = regions[0].mipmap,
-		.levelCount     = 1,
-		.baseArrayLayer = regions[0].layer,
-		.layerCount     = regions[0].numLayers
-	};
-
-	for (size_t r = 1; r < numRegions; ++r)
-	{
-		// First calculate the new actual range.
-		range.levelCount =
-			GFX_MAX(
-				range.baseMipLevel + range.levelCount,
-				regions[r].mipmap + 1) -
-			GFX_MIN(
-				range.baseMipLevel, regions[r].mipmap);
-		range.layerCount =
-			GFX_MAX(
-				range.baseArrayLayer + range.layerCount,
-				regions[r].layer + regions[r].numLayers) -
-			GFX_MIN(
-				range.baseArrayLayer, regions[r].layer);
-
-		// Then set new boundaries.
-		range.aspectMask |=
-			_GFX_GET_VK_IMAGE_ASPECT(regions[r].aspect);
-		range.baseMipLevel =
-			GFX_MIN(range.baseMipLevel, regions[r].mipmap);
-		range.baseArrayLayer =
-			GFX_MIN(range.baseArrayLayer, regions[r].layer);
-	}
-
-	return range;
-}
-
-/****************************
  * Copies data from a host pointer to a mapped resource or staging buffer.
  * @param ptr        Host pointer, cannot be NULL.
  * @param ref        Mapped resource or staging pointer, cannot be NULL.
@@ -285,6 +236,7 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
 }
 
 /****************************
+ * TODO: Remove src and dst args and get them from injection.
  * Copies data from a resource or staging buffer to another resource.
  * @param staging    Staging buffer.
  * @param src        Unpacked source reference.
@@ -294,6 +246,8 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
  * @param stage      Staging regions, cannot be NULL if staging is not.
  * @param srcRegions Source regions, cannot be NULL.
  * @param dstRegions Destination regions, Cannot be NULL.
+ * @param deps       Cannot be NULL if numDeps > 0.
+ * @param injection  All of `inp` except for family must be initialized!
  * @return Non-zero on success.
  *
  * Either one of staging and src must be set, the other must be NULL.
@@ -302,10 +256,13 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
  */
 static int _gfx_copy_device(_GFXStaging* staging,
                             const _GFXUnpackRef* src, const _GFXUnpackRef* dst,
-                            int rev, size_t numRegions,
+                            GFXTransferFlags flags, int rev,
+                            size_t numRegions, size_t numDeps,
                             const _GFXStageRegion* stage,
                             const GFXRegion* srcRegions,
-                            const GFXRegion* dstRegions)
+                            const GFXRegion* dstRegions,
+                            const GFXInject* deps,
+                            _GFXInjection* injection)
 {
 	assert(staging != NULL || src != NULL);
 	assert(staging == NULL || src == NULL);
@@ -315,6 +272,8 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	assert(staging == NULL || stage != NULL);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
+	assert(numDeps == 0 || deps != NULL);
+	assert(injection != NULL);
 
 	// Get an associated heap.
 	// We use this heap for its queues and command pool.
@@ -330,8 +289,57 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		return 0;
 	}
 
-	// Get context from heap.
+	// Pick queue, command pool and mutex from the heap.
+	// Also get context & fill in injection metadata family queue.
+	_GFXQueue* queue = (flags & GFX_TRANSFER_ASYNC) ?
+		&heap->transfer : &heap->graphics;
+
+	VkCommandPool pool = (flags & GFX_TRANSFER_ASYNC) ?
+		heap->vk.tPool : heap->vk.gPool;
+
+	_GFXMutex* mutex = (flags & GFX_TRANSFER_ASYNC) ?
+		&heap->vk.tLock : &heap->vk.gLock;
+
 	_GFXContext* context = heap->allocator.context;
+	injection->inp.family = queue->family;
+
+	// We lock access to the pool with the appropriate lock.
+	// This lock is also used for recording the command buffer.
+	_gfx_mutex_lock(mutex);
+
+	// Allocate a command buffer.
+	// TODO: Somehow store used command buffers for later?
+	VkCommandBufferAllocateInfo cbai = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+
+		.pNext              = NULL,
+		.commandPool        = pool,
+		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+
+	VkCommandBuffer cmd;
+	_GFX_VK_CHECK(context->vk.AllocateCommandBuffers(
+		context->vk.device, &cbai, &cmd), goto unlock);
+
+	// Record the command buffer, we check all src/dst resource type
+	// combinations and perform the appropriate copy command.
+	// For each different copy command, we setup its regions accordingly.
+	VkCommandBufferBeginInfo cbbi = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+
+		.pNext            = NULL,
+		.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+		.pInheritanceInfo = NULL
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.BeginCommandBuffer(cmd, &cbbi),
+		goto clean);
+
+	// Inject wait commands.
+	if (!_gfx_deps_catch(context, cmd, numDeps, deps, injection))
+		goto clean_deps;
 
 	// TODO: Get the resources from _gfx_deps_catch, it takes all references
 	// and matches them against pending signal cmds and such.
@@ -341,13 +349,22 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	// that an attachment will be used outside of itself and keep a "history",
 	// it can "reclaim" and destroy that old image when it waits on it as a
 	// dependency again).
-	//
-	// _gfx_deps_catch stores the actual handle to such a resource in the
+	// _gfx_deps_catch will store the actual handle to such a resource in the
 	// _GFXInjection object, with both the reference and handle so we can find it.
 	// This way both the operation and _gfx_deps_prepare can find the correct handles.
+	//
+	// TODO: The staging buffer is either purged later on or it is kept
+	// dangling. This is the case for all staging buffers, except when
+	// GFX_TRANSFER_BLOCK is given, in which case the host blocks and we can
+	// cleanup.
+	// TODO: Need to figure out the heap-purging mechanism,
+	// do we purge everything at once? Nah, partial purges?
+	//
+ 	// TODO: Make it block with a fence if GFX_TRANSFER_BLOCK is set.
 
 	// Get resources and metadata to copy.
-	// Note that there can only be one single attachment!
+	// Note that there can only be one single attachment,
+	// because there must be at least one heap involved!
 	_GFXImageAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
 		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
 
@@ -370,127 +387,6 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		(dst->obj.image != NULL) ? dst->obj.image->vk.image :
 		(dst->obj.renderer != NULL) ? attach->vk.image :
 		VK_NULL_HANDLE;
-
-	// Pick a queue, command pool and mutex from the heap.
-	_GFXQueue* queue = &heap->graphics;
-	VkCommandPool pool = heap->vk.gPool;
-	_GFXMutex* mutex = &heap->vk.gLock;
-
-	// TODO: In the future we use the graphics queue by default and introduce
-	// GFXTransferFlags with GFX_TRANSFER_ASYNC to use the transfer queue,
-	// plus the access flag modifier so the blocking queue can release
-	// ownership and the transfer queue can acquire onwership.
-	// An async transfer can wait so the blocking queue can release, or the
-	// previous operation was also an async transfer (or nothing) so we don't
-	// need to do the ownership dance.
-	// An async transfer must signal, so we can deduce if we need to release
-	// ownership, so the sync target can acquire it again. This means an async
-	// transfer can't do only host-blocking...
-	//
-	// Then the staging buffer is either purged later on or it is kept
-	// dangling. This is the case for all staging buffers, except when
-	// GFX_TRANSFER_BLOCK is given, in which case the host blocks and we can
-	// cleanup.
-	//
-	// TODO: Need to figure out the heap-purging mechanism,
-	// do we purge everything at once? Nah, partial purges?
-
-	// We lock access to the pool with the appropriate lock.
-	// This lock is also used for recording the command buffer.
-	_gfx_mutex_lock(mutex);
-
-	// Allocate a command buffer.
-	// TODO: Somehow store used command buffers for later?
-	VkCommandBufferAllocateInfo cbai = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-
-		.pNext              = NULL,
-		.commandPool        = pool,
-		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1
-	};
-
-	VkCommandBuffer cmd;
-	_GFX_VK_CHECK(context->vk.AllocateCommandBuffers(
-		context->vk.device, &cbai, &cmd), goto unlock);
-
-	// Create a fence so we can block until the operation is done.
-	// TODO: Do not wait on the GPU, take sync/dep objects as arguments.
-	VkFenceCreateInfo fci = {
-		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-		.pNext = NULL,
-		.flags = 0
-	};
-
-	VkFence fence;
-	_GFX_VK_CHECK(context->vk.CreateFence(
-		context->vk.device, &fci, NULL, &fence), goto clean);
-
-	// Record the command buffer, we check all src/dst resource type
-	// combinations and perform the appropriate copy command.
-	// For each different copy command, we setup its regions accordingly.
-	VkCommandBufferBeginInfo cbbi = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-
-		.pNext            = NULL,
-		.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-		.pInheritanceInfo = NULL
-	};
-
-	_GFX_VK_CHECK(
-		context->vk.BeginCommandBuffer(cmd, &cbbi),
-		goto clean_fence);
-
-	// Insert an image memory barrier if needed.
-	// TODO: Let memory barriers depend on the taken sync/dep objects.
-	if (srcImage != VK_NULL_HANDLE || dstImage != VK_NULL_HANDLE)
-	{
-		// Note that rev is only allowed to be non-zero when staging is set.
-		// Meaning if rev is set, there can be no source image.
-		VkImageMemoryBarrier imb[2];
-
-		if (srcImage != VK_NULL_HANDLE) imb[0] = (VkImageMemoryBarrier){
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-
-			.pNext               = NULL,
-			.srcAccessMask       = 0,
-			.dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
-			// TODO: Using undefined layout disregards the contents?
-			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-			.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image               = srcImage,
-			.subresourceRange    = _gfx_regions_range(numRegions, srcRegions)
-		};
-
-		if (dstImage != VK_NULL_HANDLE) imb[1] = (VkImageMemoryBarrier){
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-
-			.pNext               = NULL,
-			.srcAccessMask       = 0,
-			.dstAccessMask       = rev ?
-				VK_ACCESS_TRANSFER_READ_BIT :
-				VK_ACCESS_TRANSFER_WRITE_BIT,
-			// TODO: Using undefined layout disregards the contents?
-			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-			.newLayout           = rev ?
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image               = dstImage,
-			.subresourceRange    = _gfx_regions_range(numRegions, dstRegions)
-		};
-
-		context->vk.CmdPipelineBarrier(cmd,
-			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			0, 0, NULL, 0, NULL,
-			(uint32_t)(srcImage != VK_NULL_HANDLE ? 1 : 0) +
-			(uint32_t)(dstImage != VK_NULL_HANDLE ? 1 : 0),
-			srcImage != VK_NULL_HANDLE ? imb : imb + 1);
-	}
 
 	// Buffer -> buffer copy.
 	if (srcBuffer != VK_NULL_HANDLE && dstBuffer != VK_NULL_HANDLE)
@@ -648,99 +544,58 @@ static int _gfx_copy_device(_GFXStaging* staging,
 				(uint32_t)numRegions, cRegions);
 	}
 
-	// Insert an image memory barrier if needed.
-	// TODO: Let memory barriers depend on the taken sync/dep objects.
-	// TODO: This requires pipeline stage, how do we determine this?
-	// TODO: OR! Do this in the object that awaits a given sync/dep object.
-	if (srcImage != VK_NULL_HANDLE || dstImage != VK_NULL_HANDLE)
-	{
-		// Note that rev is only allowed to be non-zero when staging is set.
-		// Meaning if rev is set, there can be no source image.
-		VkImageMemoryBarrier imb[2];
-
-		if (srcImage != VK_NULL_HANDLE) imb[0] = (VkImageMemoryBarrier){
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-
-			.pNext               = NULL,
-			.srcAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
-			.dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-			.oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			.newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image               = srcImage,
-			.subresourceRange    = _gfx_regions_range(numRegions, srcRegions)
-		};
-
-		if (dstImage != VK_NULL_HANDLE) imb[1] = (VkImageMemoryBarrier){
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-
-			.pNext               = NULL,
-			.srcAccessMask       = rev ?
-				VK_ACCESS_TRANSFER_READ_BIT :
-				VK_ACCESS_TRANSFER_WRITE_BIT,
-			.dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-			.oldLayout           = rev ?
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			.newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image               = dstImage,
-			.subresourceRange    = _gfx_regions_range(numRegions, dstRegions)
-		};
-
-		context->vk.CmdPipelineBarrier(cmd,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-			0, 0, NULL, 0, NULL,
-			(uint32_t)(srcImage != VK_NULL_HANDLE ? 1 : 0) +
-			(uint32_t)(dstImage != VK_NULL_HANDLE ? 1 : 0),
-			srcImage != VK_NULL_HANDLE ? imb : imb + 1);
-	}
+	// Inject signal commands.
+	if (!_gfx_deps_prepare(cmd, numDeps, deps, injection))
+		goto clean_deps;
 
 	_GFX_VK_CHECK(
 		context->vk.EndCommandBuffer(cmd),
-		goto clean_fence);
+		goto clean_deps);
 
-	// Now submit the command buffer and immediately wait on it.
-	VkSubmitInfo si = {
-		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+	// TODO: Get destination stages from injection too.
+	// TODO: Remove this scope for the vla/goto.
+	{
+		VkPipelineStageFlags waitStages[injection->out.numWaits];
+		for (size_t w = 0; w < injection->out.numWaits; ++w)
+			waitStages[w] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
-		.pNext                = NULL,
-		.waitSemaphoreCount   = 0,
-		.pWaitSemaphores      = NULL,
-		.pWaitDstStageMask    = NULL,
-		.commandBufferCount   = 1,
-		.pCommandBuffers      = &cmd,
-		.signalSemaphoreCount = 0,
-		.pSignalSemaphores    = VK_NULL_HANDLE
-	};
+		// Now submit the command buffer and immediately wait on it.
+		VkSubmitInfo si = {
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
-	_GFX_VK_CHECK(
-		context->vk.QueueSubmit(queue->queue, 1, &si, fence),
-		goto clean_fence);
+			.pNext                = NULL,
+			.waitSemaphoreCount   = (uint32_t)injection->out.numWaits,
+			.pWaitSemaphores      = injection->out.waits,
+			.pWaitDstStageMask    = waitStages,
+			.commandBufferCount   = 1,
+			.pCommandBuffers      = &cmd,
+			.signalSemaphoreCount = (uint32_t)injection->out.numSigs,
+			.pSignalSemaphores    = injection->out.sigs
+		};
 
-	_GFX_VK_CHECK(
-		context->vk.WaitForFences(
-			context->vk.device, 1, &fence, VK_TRUE, UINT64_MAX),
-		goto clean_fence);
+		_GFX_VK_CHECK(
+			context->vk.QueueSubmit(queue->queue, 1, &si, VK_NULL_HANDLE),
+			goto clean_deps);
+	}
 
-	// And finally free all the things & unlock.
-	context->vk.DestroyFence(
-		context->vk.device, fence, NULL);
-	context->vk.FreeCommandBuffers(
-		context->vk.device, pool, 1, &cmd);
+	// Free the things & unlock.
+	// TODO: Woopsie daisy cannot free this!
+	// TODO: Store this someplace else D:
+	//context->vk.FreeCommandBuffers(
+	//	context->vk.device, pool, 1, &cmd);
 
 	_gfx_mutex_unlock(mutex);
+
+	// And lastly, make all commands visible for future operations.
+	// We can do this outside of the pool lock :)
+	_gfx_deps_finish(numDeps, deps, injection);
 
 	return 1;
 
 
 	// Cleanup on failure.
-clean_fence:
-	context->vk.DestroyFence(
-		context->vk.device, fence, NULL);
+clean_deps:
+	_gfx_deps_abort(numDeps, deps, injection);
 clean:
 	context->vk.FreeCommandBuffers(
 		context->vk.device, pool, 1, &cmd);
@@ -751,14 +606,18 @@ unlock:
 }
 
 /****************************/
-GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions)
+GFX_API int gfx_read(GFXReference src, void* dst,
+                     GFXTransferFlags flags,
+                     size_t numRegions, size_t numDeps,
+                     const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                     const GFXInject* deps)
 {
 	assert(!GFX_REF_IS_NULL(src));
 	assert(dst != NULL);
 	assert(numRegions > 0);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
+	assert(numDeps == 0 || deps != NULL);
 
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(src);
@@ -809,15 +668,26 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 	}
 
 	// Do the resource -> staging copy.
-	if (
-		staging != NULL &&
-		!_gfx_copy_device(
-			staging, NULL, &unp,
-			1, numRegions,
-			stage, dstRegions, srcRegions))
+	if (staging != NULL)
 	{
-		_gfx_destroy_staging(staging, &unp);
-		goto error;
+		// Prepare injection metadata.
+		_GFXInjection injection = {
+			.inp = {
+				.numRefs = 1,
+				.refs = (_GFXUnpackRef[]){ unp },
+				.masks = (GFXAccessMask[]){ GFX_ACCESS_TRANSFER_READ },
+				.sizes = (uint64_t[]){ _gfx_ref_size(src) }
+			}
+		};
+
+		if (!_gfx_copy_device(
+			staging, NULL, &unp,
+			flags, 1, numRegions, numDeps,
+			stage, dstRegions, srcRegions, deps, &injection))
+		{
+			_gfx_destroy_staging(staging, &unp);
+			goto error;
+		}
 	}
 
 	// Do the staging -> host copy.
@@ -826,11 +696,9 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
 		(staging == NULL) ? srcRegions : NULL,
 		(staging == NULL) ? NULL : stage);
 
-	// Now cleanup staging resources.
+	// Unmap if not staging.
 	if (staging == NULL)
 		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
-	else
-		_gfx_destroy_staging(staging, &unp);
 
 	return 1;
 
@@ -843,14 +711,18 @@ error:
 }
 
 /****************************/
-GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
-                      const GFXRegion* srcRegions, const GFXRegion* dstRegions)
+GFX_API int gfx_write(const void* src, GFXReference dst,
+                      GFXTransferFlags flags,
+                      size_t numRegions, size_t numDeps,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                      const GFXInject* deps)
 {
 	assert(src != NULL);
 	assert(!GFX_REF_IS_NULL(dst));
 	assert(numRegions > 0);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
+	assert(numDeps == 0 || deps != NULL);
 
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
@@ -903,24 +775,31 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
 		(staging == NULL) ? NULL : stage);
 
 	// Do the staging -> resource copy.
-	if (
-		staging != NULL &&
-		!_gfx_copy_device(
-			staging, NULL, &unp,
-			0, numRegions,
-			stage, srcRegions, dstRegions))
+	if (staging != NULL)
 	{
-		_gfx_destroy_staging(staging, &unp);
-		goto error;
+		// Prepare injection metadata.
+		_GFXInjection injection = {
+			.inp = {
+				.numRefs = 1,
+				.refs = (_GFXUnpackRef[]){ unp },
+				.masks = (GFXAccessMask[]){ GFX_ACCESS_TRANSFER_WRITE },
+				.sizes = (uint64_t[]){ _gfx_ref_size(dst) }
+			}
+		};
+
+		if (!_gfx_copy_device(
+			staging, NULL, &unp,
+			flags, 0, numRegions, numDeps,
+			stage, srcRegions, dstRegions, deps, &injection))
+		{
+			_gfx_destroy_staging(staging, &unp);
+			goto error;
+		}
 	}
 
-	// Now cleanup staging resources.
-	// If we mapped a buffer, unmap it again.
-	// Otherwise, destroy the staging buffer.
+	// Unmap if not staging.
 	if (staging == NULL)
 		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
-	else
-		_gfx_destroy_staging(staging, &unp);
 
 	return 1;
 
@@ -933,21 +812,43 @@ error:
 }
 
 /****************************/
-GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions)
+GFX_API int gfx_copy(GFXReference src, GFXReference dst,
+                     GFXTransferFlags flags,
+                     size_t numRegions, size_t numDeps,
+                     const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                     const GFXInject* deps)
 {
 	assert(!GFX_REF_IS_NULL(src));
 	assert(!GFX_REF_IS_NULL(dst));
 	assert(numRegions > 0);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
+	assert(numDeps == 0 || deps != NULL);
 
-	// Unpack references.
-	_GFXUnpackRef srcUnp = _gfx_ref_unpack(src);
-	_GFXUnpackRef dstUnp = _gfx_ref_unpack(dst);
+	// Prepare injection metadata.
+	_GFXInjection injection = {
+		.inp = {
+			.numRefs = 2,
+			.refs = (_GFXUnpackRef[]){
+				_gfx_ref_unpack(src),
+				_gfx_ref_unpack(dst)
+			},
+			.masks = (GFXAccessMask[]){
+				GFX_ACCESS_TRANSFER_READ,
+				GFX_ACCESS_TRANSFER_WRITE
+			},
+			.sizes = (uint64_t[]){
+				_gfx_ref_size(src),
+				_gfx_ref_size(dst)
+			}
+		}
+	};
 
 	// Check that the resources share the same context.
-	if (_GFX_UNPACK_REF_CONTEXT(srcUnp) != _GFX_UNPACK_REF_CONTEXT(dstUnp))
+	_GFXUnpackRef *srcUnp = (_GFXUnpackRef*)(injection.inp.refs + 0);
+	_GFXUnpackRef *dstUnp = (_GFXUnpackRef*)(injection.inp.refs + 1);
+
+	if (_GFX_UNPACK_REF_CONTEXT(*srcUnp) != _GFX_UNPACK_REF_CONTEXT(*dstUnp))
 	{
 		gfx_log_error(
 			"When copying from one memory resource to another they must be "
@@ -959,8 +860,8 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 #if !defined (NDEBUG)
 	// Validate memory flags.
 	if (
-		!(GFX_MEMORY_READ & _GFX_UNPACK_REF_FLAGS(srcUnp)) ||
-		!(GFX_MEMORY_WRITE & _GFX_UNPACK_REF_FLAGS(dstUnp)))
+		!(GFX_MEMORY_READ & _GFX_UNPACK_REF_FLAGS(*srcUnp)) ||
+		!(GFX_MEMORY_WRITE & _GFX_UNPACK_REF_FLAGS(*dstUnp)))
 	{
 		gfx_log_warn(
 			"Cannot copy from one memory resource to another if they were "
@@ -970,9 +871,9 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
 
 	// Do the resource -> resource copy
 	if (!_gfx_copy_device(
-		NULL, &srcUnp, &dstUnp,
-		0, numRegions,
-		NULL, srcRegions, dstRegions))
+		NULL, srcUnp, dstUnp,
+		flags, 0, numRegions, numDeps,
+		NULL, srcRegions, dstRegions, deps, &injection))
 	{
 		goto error;
 	}

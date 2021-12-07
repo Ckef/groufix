@@ -264,8 +264,9 @@ struct GFXHeap
 	// Vulkan fields.
 	struct
 	{
-		VkCommandPool gPool; // Graphics pool.
-		VkCommandPool tPool; // Transfer pool.
+		// Graphics/transfer pools & locks.
+		VkCommandPool gPool;
+		VkCommandPool tPool;
 		_GFXMutex     gLock;
 		_GFXMutex     tLock;
 
@@ -667,7 +668,7 @@ typedef struct _GFXUnpackRef
  * underlying resource (e.g. the size claimed for a group buffer).
  * @return Zero if ref is not a buffer reference.
  */
-uint64_t _gfx_ref_size(GFXBufferRef ref);
+uint64_t _gfx_ref_size(GFXReference ref);
 
 /**
  * Resolves & validates a memory reference, meaning:
@@ -728,7 +729,7 @@ typedef struct _GFXInjection
 		size_t   numRefs; // May be zero!
 
 		const _GFXUnpackRef* refs;
-		const GFXAccessMask* masks;
+		const GFXAccessMask* masks; // Modifiers are ignored.
 		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
 
 	} inp;
@@ -739,6 +740,7 @@ typedef struct _GFXInjection
 	{
 		size_t       numWaits;
 		VkSemaphore* waits;
+		// TODO: Add destination stage for the wait semaphores.
 
 		size_t       numSigs;
 		VkSemaphore* sigs;
@@ -912,11 +914,13 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
  * Must be called exactly once for each call to _gfx_frame_acquire.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
+ * @param deps     Cannot be NULL if numDeps > 0.
  * @return Zero if the frame could not be submitted.
  *
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
-int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);
+int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
+                      size_t numDeps, const GFXInject* deps);
 
 /**
  * Blocks until all virtual frames of a renderer are done.

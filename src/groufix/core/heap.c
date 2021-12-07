@@ -135,12 +135,6 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	VkBufferUsageFlags usage =
 		_GFX_GET_VK_BUFFER_USAGE(buffer->base.flags, buffer->base.usage);
 
-	uint32_t access[2] = {
-		heap->transfer.family,
-		(heap->transfer.family == heap->graphics.family) ?
-			UINT32_MAX : heap->graphics.family
-	};
-
 	VkBufferCreateInfo bci = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 
@@ -148,19 +142,9 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 		.flags                 = 0,
 		.size                  = buffer->base.size,
 		.usage                 = usage,
-
-		// For now we set sharing mode to concurrent and use both the
-		// graphics and transfer queue.
-		// TODO: Make exclusive always.
-		.sharingMode =
-			(access[1] != UINT32_MAX) ?
-			VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
-
-		.queueFamilyIndexCount =
-			(access[1] != UINT32_MAX) ? 2 : 0,
-
-		.pQueueFamilyIndices =
-			(access[1] != UINT32_MAX) ? access : NULL
+		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices   = NULL
 	};
 
 	_GFX_VK_CHECK(context->vk.CreateBuffer(
@@ -273,12 +257,6 @@ static int _gfx_image_alloc(_GFXImage* image)
 	VkImageUsageFlags usage =
 		_GFX_GET_VK_IMAGE_USAGE(image->base.flags, image->base.usage);
 
-	uint32_t access[2] = {
-		heap->transfer.family,
-		(heap->transfer.family == heap->graphics.family) ?
-			UINT32_MAX : heap->graphics.family
-	};
-
 	VkImageCreateInfo ici = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 
@@ -297,20 +275,10 @@ static int _gfx_image_alloc(_GFXImage* image)
 		.samples               = VK_SAMPLE_COUNT_1_BIT,
 		.tiling                = VK_IMAGE_TILING_OPTIMAL,
 		.usage                 = usage,
-		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
-
-		// For now we set sharing mode to concurrent and use both the
-		// graphics and transfer queue.
-		// TODO: Make exclusive always.
-		.sharingMode =
-			(access[1] != UINT32_MAX) ?
-			VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
-
-		.queueFamilyIndexCount =
-			(access[1] != UINT32_MAX) ? 2 : 0,
-
-		.pQueueFamilyIndices =
-			(access[1] != UINT32_MAX) ? access : NULL
+		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices   = NULL,
+		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED
 	};
 
 	_GFX_VK_CHECK(context->vk.CreateImage(

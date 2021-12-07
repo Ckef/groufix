@@ -104,7 +104,7 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	// Force submission if public frame is dangling.
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-		gfx_frame_submit(&renderer->pFrame);
+		gfx_frame_submit(&renderer->pFrame, 0, NULL);
 
 	// Clear all frames, will block until rendering is done.
 	for (size_t f = 0; f < renderer->frames.size; ++f)
@@ -146,15 +146,17 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API void gfx_frame_submit(GFXFrame* frame)
+GFX_API void gfx_frame_submit(GFXFrame* frame,
+                              size_t numDeps, const GFXInject* deps)
 {
 	assert(frame != NULL);
+	assert(numDeps == 0 || deps != NULL);
 
 	// frame == &renderer->pFrame.
 	GFXRenderer* renderer = _GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
 
 	// Submit the frame :)
-	_gfx_frame_submit(renderer, frame);
+	_gfx_frame_submit(renderer, frame, numDeps, deps);
 
 	// And then stick it in the deque at the other end.
 	if (!gfx_deque_push(&renderer->frames, 1, frame))

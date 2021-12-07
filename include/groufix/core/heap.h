@@ -369,12 +369,24 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
  ****************************/
 
 /**
+ * Transfer operation flags.
+ */
+typedef enum GFXTransferFlags
+{
+	GFX_TRANSFER_ASYNC = 0x0001,
+	GFX_TRANSFER_BLOCK = 0x0002
+
+} GFXTransferFlags;
+
+
+/**
  * Reads data from a memory resource reference.
  * @param src        Cannot be NULL/GFX_REF_NULL.
  * @param dst        Cannot be NULL/GFX_REF_NULL.
  * @param numRegions Must be > 0.
  * @param srcRegions Cannot be NULL.
  * @param dstRegions Cannot be NULL.
+ * @param deps       Cannot be NULL if numDeps > 0.
  * @return Non-zero on success.
  *
  * All memory operations are thread-safe with respect to any associated heap!
@@ -388,8 +400,11 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
  * Fails if the resource was not created with
  *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
  */
-GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions);
+GFX_API int gfx_read(GFXReference src, void* dst,
+                     GFXTransferFlags flags,
+                     size_t numRegions, size_t numDeps,
+                     const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                     const GFXInject* deps);
 
 /**
  * Writes data to a memory resource reference.
@@ -398,8 +413,11 @@ GFX_API int gfx_read(GFXReference src, void* dst, size_t numRegions,
  * Fails if the resource was not created with
  *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE.
  */
-GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
-                      const GFXRegion* srcRegions, const GFXRegion* dstRegions);
+GFX_API int gfx_write(const void* src, GFXReference dst,
+                      GFXTransferFlags flags,
+                      size_t numRegions, size_t numDeps,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                      const GFXInject* deps);
 
 /**
  * Copies data from one memory resource reference to another.
@@ -408,8 +426,11 @@ GFX_API int gfx_write(const void* src, GFXReference dst, size_t numRegions,
  * Fails if the src was not created with GFX_MEMORY_READ.
  * Fails if the dst was not created with GFX_MEMORY_WRITE.
  */
-GFX_API int gfx_copy(GFXReference src, GFXReference dst, size_t numRegions,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions);
+GFX_API int gfx_copy(GFXReference src, GFXReference dst,
+                     GFXTransferFlags flags,
+                     size_t numRegions, size_t numDeps,
+                     const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                     const GFXInject* deps);
 
 /**
  * Maps a buffer reference to a host virtual address pointer.

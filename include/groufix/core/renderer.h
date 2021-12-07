@@ -205,11 +205,13 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
  * Submits the acquired virtual frame of a renderer.
  * Must be called exactly once for each call to gfx_renderer_acquire.
  * @param frame Cannot be NULL.
+ * @param deps  Cannot be NULL if numDeps > 0.
  *
  * Failure during submission cannot be recovered from,
  * any such failure is appropriately logged.
  */
-GFX_API void gfx_frame_submit(GFXFrame* frame);
+GFX_API void gfx_frame_submit(GFXFrame* frame,
+                              size_t numDeps, const GFXInject* deps);
 
 
 /****************************

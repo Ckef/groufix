@@ -12,6 +12,27 @@
 #include <string.h>
 
 
+// Outputs an injection element & auto log, num and elems are lvalues.
+#define _GFX_INJ_OUTPUT(num, elems, size, insert, action) \
+	do { \
+		if (GFX_IS_POWER_OF_TWO(num)) { \
+			void* _gfx_inj_ptr = realloc(elems, \
+				size * ((num) == 0 ? 2 : (num) << 1)); \
+			if (_gfx_inj_ptr == NULL) { \
+				gfx_log_error( \
+					"Dependency injection failed, " \
+					"could not allocate metadata output."); \
+				action; \
+			} else {\
+				elems = _gfx_inj_ptr; \
+				elems[(num)++] = insert; \
+			} \
+		} else { \
+			elems[(num)++] = insert; \
+		} \
+	} while (0)
+
+
 /****************************
  * TODO: Make this take multiple sync objs and merge them on equal stage masks?
  * Injects a pipeline/memory barrier, just as stored in a _GFXSync object.
@@ -456,6 +477,13 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.sizes != NULL);
 
+	// Initialize the injection output.
+	// Must be done first so _gfx_deps_abort can be called.
+	injection->out.numWaits = 0;
+	injection->out.waits = NULL;
+	injection->out.numSigs = 0;
+	injection->out.sigs = NULL;
+
 	// Context validation of all dependency objects.
 	for (size_t i = 0; i < numInjs; ++i)
 		if (injs[i].dep->context != context)
@@ -466,12 +494,6 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 			return 0;
 		}
-
-	// Initialize the injection output.
-	injection->out.numWaits = 0;
-	injection->out.waits = NULL;
-	injection->out.numSigs = 0;
-	injection->out.sigs = NULL;
 
 	// Keep track of related resources & metadata for each injection.
 	// If there are no operation refs, make VLAs of size 1 for legality.
@@ -566,13 +588,19 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			// Insert barrier to acquire ownership if necessary.
 			// TODO: Maybe do something special with host read/write flags?
 			// TODO: For attachments: check if the VkImage has changed!
-			// TODO: Output the wait semaphore (even on discard)!
 			if (
 				!sync->vk.discard &&
 				sync->vk.srcFamily != sync->vk.dstFamily)
 			{
 				_gfx_inject_barrier(cmd, sync, context);
 			}
+
+			// Output the wait semaphore if necessary.
+			if (sync->vk.srcFamily != sync->vk.dstFamily)
+				_GFX_INJ_OUTPUT(
+					injection->out.numWaits, injection->out.waits,
+					sizeof(VkSemaphore), sync->vk.signaled,
+					return 0);
 
 			// Signal that the operation resource has been transitioned.
 			if (numRefs > 0 && indices[r] != SIZE_MAX)
@@ -780,10 +808,20 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 				refs[r].obj.image->vk.image :
 				(attach != NULL ? attach->vk.image : VK_NULL_HANDLE);
 
-			// Insert barrier
-			// TODO: Skip barrier if semaphore && discard && no layout transition?
-			// TODO: Output the signal semaphore!
-			_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
+			// Insert barrier if necessary.
+			if (
+				!semaphore || !discard ||
+				sync->vk.oldLayout != sync->vk.newLayout)
+			{
+				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
+			}
+
+			// Output the signal semaphore if necessary.
+			if (semaphore)
+				_GFX_INJ_OUTPUT(
+					injection->out.numSigs, injection->out.sigs,
+					sizeof(VkSemaphore), sync->vk.signaled,
+					return 0);
 
 			// Always set queue families back to actual families,
 			// this so we can match queues & check semaphore usage.

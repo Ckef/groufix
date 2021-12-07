@@ -338,16 +338,22 @@ static void _test_init(void)
 	GFXBufferRef vert = gfx_ref_prim_vertices(_test_base.primitive, 0);
 	GFXBufferRef ind = gfx_ref_prim_indices(_test_base.primitive, 0);
 
-	if (!gfx_write(vertexData, vert, 1,
+	if (!gfx_write(vertexData, vert, GFX_TRANSFER_ASYNC, 1, 1,
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(vertexData) }},
-		(GFXRegion[]){{ .offset = 0, .size = 0 }}))
+		(GFXRegion[]){{ .offset = 0, .size = 0 }},
+		(GFXInject[]){
+			gfx_dep_sig(_test_base.dep, GFX_ACCESS_VERTEX_READ, 0)
+		}))
 	{
 		TEST_FAIL();
 	}
 
-	if (!gfx_write(indexData, ind, 1,
+	if (!gfx_write(indexData, ind, GFX_TRANSFER_ASYNC, 1, 1,
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(indexData) }},
-		(GFXRegion[]){{ .offset = 0, .size = 0 }}))
+		(GFXRegion[]){{ .offset = 0, .size = 0 }},
+		(GFXInject[]){
+			gfx_dep_sig(_test_base.dep, GFX_ACCESS_INDEX_READ, 0)
+		}))
 	{
 		TEST_FAIL();
 	}
@@ -398,14 +404,18 @@ static void _test_init(void)
 	GFXBufferRef ubo = gfx_ref_group_buffer(_test_base.group, 0, 0, 0);
 	GFXImageRef img = gfx_ref_group_image(_test_base.group, 1, 0);
 
-	if (!gfx_write(uboData, ubo, 1,
+	if (!gfx_write(uboData, ubo, GFX_TRANSFER_ASYNC, 1, 1,
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(uboData) }},
-		(GFXRegion[]){{ .offset = 0, .size = 0 }}))
+		(GFXRegion[]){{ .offset = 0, .size = 0 }},
+		(GFXInject[]){
+			gfx_dep_sig(_test_base.dep,
+				GFX_ACCESS_UNIFORM_READ, GFX_STAGE_VERTEX)
+		}))
 	{
 		TEST_FAIL();
 	}
 
-	if (!gfx_write(imgData, img, 1,
+	if (!gfx_write(imgData, img, GFX_TRANSFER_ASYNC, 1, 1,
 		(GFXRegion[]){{
 			.offset = 0,
 			.rowSize = 0,
@@ -416,7 +426,11 @@ static void _test_init(void)
 			.mipmap = 0, .layer = 0,  .numLayers = 1,
 			.x = 0,      .y = 0,      .z = 0,
 			.width = 4,  .height = 4, .depth = 1
-		}}))
+		}},
+		(GFXInject[]){
+			gfx_dep_sig(_test_base.dep,
+				GFX_ACCESS_SAMPLED_READ, GFX_STAGE_FRAGMENT)
+		}))
 	{
 		TEST_FAIL();
 	}

@@ -316,13 +316,23 @@ error:
 }
 
 /****************************/
-int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
+int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
+                      size_t numDeps, const GFXInject* deps)
 {
 	assert(frame != NULL);
 	assert(renderer != NULL);
+	assert(numDeps == 0 || deps != NULL);
 
 	_GFXContext* context = renderer->context;
 	GFXVec* attachs = &renderer->backing.attachs;
+
+	// Prepare injection metadata.
+	_GFXInjection injection = {
+		.inp = {
+			.family = renderer->graphics.family,
+			.numRefs = 0
+		}
+	};
 
 	// Go and record all passes in submission order.
 	// We wrap a loop over all passes inbetween a begin and end command.
@@ -339,14 +349,23 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		context->vk.BeginCommandBuffer(frame->vk.cmd, &cbbi),
 		goto error);
 
+	// Inject wait commands.
+	if (!_gfx_deps_catch(context, frame->vk.cmd, numDeps, deps, &injection))
+		goto clean_deps;
+
+	// Record all passes.
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
 		_gfx_pass_record(
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p),
 			frame);
 
+	// Inject signal commands.
+	if (!_gfx_deps_prepare(frame->vk.cmd, numDeps, deps, &injection))
+		goto clean_deps;
+
 	_GFX_VK_CHECK(
 		context->vk.EndCommandBuffer(frame->vk.cmd),
-		goto error);
+		goto clean_deps);
 
 	// Get other stuff to be able to submit & present.
 	// We do submission and presentation in one call, making all windows
@@ -355,43 +374,63 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	{
 		// If there are no sync objects, make VLAs of size 1 for legality.
 		// Then we count the presentable swapchains and go off of that.
-		size_t vlaSyncs = frame->syncs.size > 0 ? frame->syncs.size : 1;
+		// We stick the injection waits after all available semaphores.
+		size_t numWaits = frame->syncs.size + injection.out.numWaits;
+		size_t vlaSyncs = numWaits > 0 ? numWaits : 1;
 		size_t presentable = 0;
 
-		VkSemaphore available[vlaSyncs];
+		VkSemaphore waits[vlaSyncs];
 		VkPipelineStageFlags waitStages[vlaSyncs];
 		_GFXWindow* windows[vlaSyncs];
 		uint32_t indices[vlaSyncs];
 		_GFXRecreateFlags flags[vlaSyncs];
 
+		// Get all available semaphores & other sync object data.
 		for (size_t s = 0; s < frame->syncs.size; ++s)
 		{
 			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
 			if (sync->image == UINT32_MAX)
 				continue;
 
-			available[presentable] = sync->vk.available;
-			waitStages[presentable] = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			waits[presentable] = sync->vk.available;
+			// Swapchain images are only written to as a color attachment.
+			waitStages[presentable] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 			windows[presentable] = sync->window;
 			indices[presentable] = sync->image;
 			++presentable;
 		}
 
+		// Get all injection wait semaphores.
+		// TODO: Get destination stages from injection too.
+		numWaits = presentable + injection.out.numWaits;
+		for (size_t w = 0; w < injection.out.numWaits; ++w)
+			waits[presentable + w] = injection.out.waits[w],
+			waitStages[presentable + w] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+		// Get all injection signal semaphores.
+		// Stick the rendered semaphore at the end.
+		size_t numSigs = (presentable > 0 ? 1 : 0) + injection.out.numSigs;
+		vlaSyncs = numSigs > 0 ? numSigs : 1;
+
+		VkSemaphore sigs[vlaSyncs];
+		for (size_t w = 0; w < injection.out.numSigs; ++w)
+			sigs[w] = injection.out.sigs[w];
+
+		if (presentable > 0)
+			sigs[injection.out.numSigs] = frame->vk.rendered;
+
 		// Lock queue and submit.
 		VkSubmitInfo si = {
 			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
-			.pNext              = NULL,
-			.waitSemaphoreCount = (uint32_t)presentable,
-			.pWaitSemaphores    = available,
-			.pWaitDstStageMask  = waitStages,
-			.commandBufferCount = 1,
-			.pCommandBuffers    = &frame->vk.cmd,
-
-			.signalSemaphoreCount =
-				(presentable > 0) ? 1 : 0,
-			.pSignalSemaphores =
-				(presentable > 0) ? &frame->vk.rendered : VK_NULL_HANDLE
+			.pNext                = NULL,
+			.waitSemaphoreCount   = (uint32_t)numWaits,
+			.pWaitSemaphores      = waits,
+			.pWaitDstStageMask    = waitStages,
+			.commandBufferCount   = 1,
+			.pCommandBuffers      = &frame->vk.cmd,
+			.signalSemaphoreCount = (uint32_t)numSigs,
+			.pSignalSemaphores    = sigs
 		};
 
 		_gfx_mutex_lock(renderer->graphics.lock);
@@ -401,7 +440,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 				renderer->graphics.queue, 1, &si, frame->vk.done),
 			{
 				_gfx_mutex_unlock(renderer->graphics.lock);
-				goto error;
+				goto clean_deps;
 			});
 
 		_gfx_mutex_unlock(renderer->graphics.lock);
@@ -428,10 +467,15 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		}
 	}
 
+	// Lastly, make all commands visible for future operations.
+	_gfx_deps_finish(numDeps, deps, &injection);
+
 	return 1;
 
 
-	// Error on failure.
+	// Cleanup on failure.
+clean_deps:
+	_gfx_deps_abort(numDeps, deps, &injection);
 error:
 	gfx_log_fatal("Submission of virtual frame failed.");
 

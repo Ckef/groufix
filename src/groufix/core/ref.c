@@ -43,7 +43,7 @@
 
 
 /****************************/
-uint64_t _gfx_ref_size(GFXBufferRef ref)
+uint64_t _gfx_ref_size(GFXReference ref)
 {
 	switch (ref.type)
 	{
