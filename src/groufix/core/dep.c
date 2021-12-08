@@ -334,6 +334,7 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 }
 
 /****************************
+ * TODO: Maybe to an insertion-sort like thing to batch barriers.
  * Claims (creates) a synchronization object to use for an injection.
  * _WITHOUT_ locking the dependency object!
  * @param semaphore Non-zero to indicate we need a VkSemaphore.
@@ -729,8 +730,9 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 				injs[i].dep->transfer :
 				injs[i].dep->graphics;
 
-		// Flag whether we need a semaphore & whether we want to discard.
-		int semaphore = (family != injection->inp.family);
+		// Flag whether we need an ownership transfer &
+		// whether we want to discard or not.
+		int ownership = (family != injection->inp.family);
 		int discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
 
 		// Aaaand the bit where we prepare all signals.
@@ -740,7 +742,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 		for (size_t r = 0; r < numRefs; ++r)
 		{
 			// First get us a synchronization object.
-			_GFXSync* sync = _gfx_dep_claim(injs[i].dep, semaphore);
+			_GFXSync* sync = _gfx_dep_claim(injs[i].dep, ownership);
 			if (sync == NULL)
 			{
 				gfx_log_error(
@@ -769,8 +771,13 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 
 			sync->vk.dstAccess =
 				_GFX_GET_VK_ACCESS_FLAGS(injs[i].mask, fmt);
+
 			sync->vk.dstStage =
-				_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, fmt, injs[i].stage);
+				// If discarding to a different queue, no barrier needed.
+				(ownership && discard) ?
+					VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT :
+					_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, fmt, injs[i].stage);
+
 			sync->vk.newLayout =
 				// Undefined layout for buffers.
 				(refs[r].obj.buffer != NULL) ?
@@ -810,14 +817,25 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 
 			// Insert barrier if necessary.
 			if (
-				!semaphore || !discard ||
+				!ownership || !discard ||
 				sync->vk.oldLayout != sync->vk.newLayout)
 			{
+				// If releasing ownership, zero out destination access mask.
+				// Also zero out source mask for the acquire operation.
+				VkAccessFlags dstAccess = sync->vk.dstAccess;
+
+				if (ownership)
+					sync->vk.dstAccess = 0;
+
 				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
+
+				if (ownership)
+					sync->vk.srcAccess = 0,
+					sync->vk.dstAccess = dstAccess;
 			}
 
 			// Output the signal semaphore if necessary.
-			if (semaphore)
+			if (ownership)
 				_GFX_INJ_OUTPUT(
 					injection->out.numSigs, injection->out.sigs,
 					sizeof(VkSemaphore), sync->vk.signaled,

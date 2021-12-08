@@ -372,6 +372,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 	// attached to a renderer as synchronized as possible.
 	// We use a scope here so the goto's above are allowed.
 	{
+		// TODO: Do not use VLAs for injection semaphores, could be many!
 		// If there are no sync objects, make VLAs of size 1 for legality.
 		// Then we count the presentable swapchains and go off of that.
 		// We stick the injection waits after all available semaphores.
