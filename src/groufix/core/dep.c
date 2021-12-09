@@ -871,7 +871,7 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 
-	// Free the injection output.
+	// Free the injection output (always free() to allow external reallocs!).
 	free(injection->out.waits);
 	free(injection->out.sigs);
 	free(injection->out.stages);
@@ -912,7 +912,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 
-	// Free the injection output.
+	// Free the injection output (always free() to allow external reallocs!).
 	free(injection->out.waits);
 	free(injection->out.sigs);
 	free(injection->out.stages);

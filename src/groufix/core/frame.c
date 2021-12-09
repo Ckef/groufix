@@ -8,6 +8,21 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <stdlib.h>
+
+
+// Grows an injection output & auto log, elems is an lvalue.
+// This assumes that _gfx_deps_(abort|finish) will always free() its outputs!
+#define _GFX_INJ_GROW(elems, size, num, action) \
+	do { \
+		void* _gfx_inj_ptr = realloc(elems, size * (num)); \
+		if (_gfx_inj_ptr == NULL) { \
+			gfx_log_error("Could not grow injection metadata output."); \
+			action; \
+		} else { \
+			elems = _gfx_inj_ptr; \
+		} \
+	} while (0)
 
 
 /****************************
@@ -370,54 +385,62 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 	// Get other stuff to be able to submit & present.
 	// We do submission and presentation in one call, making all windows
 	// attached to a renderer as synchronized as possible.
+	// We are going to abuse the injection object a little bit by reallocating
+	// all outputs and appending our own values to it.
+	size_t numWaits = injection.out.numWaits + frame->syncs.size;
+
+	_GFX_INJ_GROW(injection.out.waits,
+		sizeof(VkSemaphore), numWaits, goto clean_deps);
+
+	_GFX_INJ_GROW(injection.out.stages,
+		sizeof(VkPipelineStageFlags), numWaits, goto clean_deps);
+
 	// We use a scope here so the goto's above are allowed.
 	{
-		// TODO: Do not use VLAs for injection semaphores, could be many!
+		// Get all the available semaphores & metadata.
 		// If there are no sync objects, make VLAs of size 1 for legality.
 		// Then we count the presentable swapchains and go off of that.
-		// We stick the injection waits after all available semaphores.
-		size_t numWaits = frame->syncs.size + injection.out.numWaits;
-		size_t vlaSyncs = numWaits > 0 ? numWaits : 1;
+		size_t vlaSyncs = frame->syncs.size > 0 ? frame->syncs.size : 1;
 		size_t presentable = 0;
 
-		VkSemaphore waits[vlaSyncs];
-		VkPipelineStageFlags waitStages[vlaSyncs];
 		_GFXWindow* windows[vlaSyncs];
 		uint32_t indices[vlaSyncs];
 		_GFXRecreateFlags flags[vlaSyncs];
 
-		// Get all available semaphores & other sync object data.
 		for (size_t s = 0; s < frame->syncs.size; ++s)
 		{
 			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
 			if (sync->image == UINT32_MAX)
 				continue;
 
-			waits[presentable] = sync->vk.available;
-			// Swapchain images are only written to as a color attachment.
-			waitStages[presentable] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			injection.out.waits[injection.out.numWaits + presentable] =
+				sync->vk.available;
+			injection.out.stages[injection.out.numWaits + presentable] =
+				// Swapchain images are only written to as color attachment.
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
 			windows[presentable] = sync->window;
 			indices[presentable] = sync->image;
 			++presentable;
 		}
 
-		// Get all injection wait semaphores.
-		numWaits = presentable + injection.out.numWaits;
-		for (size_t w = 0; w < injection.out.numWaits; ++w)
-			waits[presentable + w] = injection.out.waits[w],
-			waitStages[presentable + w] = injection.out.stages[w];
+		// Correct wait semaphore count.
+		numWaits = injection.out.numWaits + presentable;
 
-		// Get all injection signal semaphores.
-		// Stick the rendered semaphore at the end.
-		size_t numSigs = (presentable > 0 ? 1 : 0) + injection.out.numSigs;
-		vlaSyncs = numSigs > 0 ? numSigs : 1;
+		// And lastly get the signal semaphores.
+		// We use the same abuse to insert our own semaphore.
+		size_t numSigs = injection.out.numSigs + (presentable > 0 ? 1 : 0);
+		VkSemaphore* sigs = &frame->vk.rendered;
 
-		VkSemaphore sigs[vlaSyncs];
-		for (size_t w = 0; w < injection.out.numSigs; ++w)
-			sigs[w] = injection.out.sigs[w];
+		if (injection.out.numSigs > 0 && presentable > 0)
+		{
+			_GFX_INJ_GROW(injection.out.sigs,
+				sizeof(VkSemaphore), injection.out.numSigs + 1,
+				goto clean_deps);
 
-		if (presentable > 0)
+			sigs = injection.out.sigs;
 			sigs[injection.out.numSigs] = frame->vk.rendered;
+		}
 
 		// Lock queue and submit.
 		VkSubmitInfo si = {
@@ -425,8 +448,8 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 
 			.pNext                = NULL,
 			.waitSemaphoreCount   = (uint32_t)numWaits,
-			.pWaitSemaphores      = waits,
-			.pWaitDstStageMask    = waitStages,
+			.pWaitSemaphores      = injection.out.waits,
+			.pWaitDstStageMask    = injection.out.stages,
 			.commandBufferCount   = 1,
 			.pCommandBuffers      = &frame->vk.cmd,
 			.signalSemaphoreCount = (uint32_t)numSigs,
