@@ -837,6 +837,9 @@ struct GFXDependency
  * Either `_gfx_deps_abort` or `_gfx_deps_finish` must be called with the same
  * injection object (and other inputs) to appropriately cleanup and free all
  * metadata. Note: this call itself can only be called once!
+ *
+ * All output arrays in injection may be externally realloc'd,
+ * they will be properly freed when aborted or finished.
  */
 int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
                     size_t numInjs, const GFXInject* injs,

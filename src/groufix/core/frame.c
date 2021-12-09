@@ -11,8 +11,7 @@
 #include <stdlib.h>
 
 
-// Grows an injection output & auto log, elems is an lvalue.
-// This assumes that _gfx_deps_(abort|finish) will always free() its outputs!
+// Grows an injection output array & auto log, elems is an lvalue.
 #define _GFX_INJ_GROW(elems, size, num, action) \
 	do { \
 		void* _gfx_inj_ptr = realloc(elems, size * (num)); \
@@ -385,8 +384,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 	// Get other stuff to be able to submit & present.
 	// We do submission and presentation in one call, making all windows
 	// attached to a renderer as synchronized as possible.
-	// We are going to abuse the injection object a little bit by reallocating
-	// all outputs and appending our own values to it.
+	// Append available semaphores and stages to the injection output.
 	size_t numWaits = injection.out.numWaits + frame->syncs.size;
 
 	_GFX_INJ_GROW(injection.out.waits,
@@ -428,7 +426,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 		numWaits = injection.out.numWaits + presentable;
 
 		// And lastly get the signal semaphores.
-		// We use the same abuse to insert our own semaphore.
+		// Again, append to injection output.
 		size_t numSigs = injection.out.numSigs + (presentable > 0 ? 1 : 0);
 		VkSemaphore* sigs = &frame->vk.rendered;
 
