@@ -484,6 +484,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	injection->out.waits = NULL;
 	injection->out.numSigs = 0;
 	injection->out.sigs = NULL;
+	injection->out.stages = NULL;
 
 	// Context validation of all dependency objects.
 	for (size_t i = 0; i < numInjs; ++i)
@@ -596,12 +597,21 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				_gfx_inject_barrier(cmd, sync, context);
 			}
 
-			// Output the wait semaphore if necessary.
+			// Output the wait semaphore and stage if necessary.
 			if (sync->vk.srcFamily != sync->vk.dstFamily)
+			{
+				size_t numWaits = injection->out.numWaits; // Placeholder.
+
 				_GFX_INJ_OUTPUT(
 					injection->out.numWaits, injection->out.waits,
 					sizeof(VkSemaphore), sync->vk.signaled,
 					return 0);
+
+				_GFX_INJ_OUTPUT(
+					numWaits, injection->out.stages,
+					sizeof(VkPipelineStageFlagBits), sync->vk.dstStage,
+					return 0);
+			}
 
 			// Signal that the operation resource has been transitioned.
 			if (numRefs > 0 && indices[r] != SIZE_MAX)
@@ -771,13 +781,8 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 
 			sync->vk.dstAccess =
 				_GFX_GET_VK_ACCESS_FLAGS(injs[i].mask, fmt);
-
 			sync->vk.dstStage =
-				// If discarding to a different queue, no barrier needed.
-				(ownership && discard) ?
-					VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT :
-					_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, fmt, injs[i].stage);
-
+				_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, fmt, injs[i].stage);
 			sync->vk.newLayout =
 				// Undefined layout for buffers.
 				(refs[r].obj.buffer != NULL) ?
@@ -822,16 +827,22 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 			{
 				// If releasing ownership, zero out destination access mask.
 				// Also zero out source mask for the acquire operation.
+				// And nullify destination stage if discarding & transfering.
 				VkAccessFlags dstAccess = sync->vk.dstAccess;
+				VkPipelineStageFlags dstStage = sync->vk.dstStage;
 
 				if (ownership)
 					sync->vk.dstAccess = 0;
+				if (ownership && discard)
+					sync->vk.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
 				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 
 				if (ownership)
-					sync->vk.srcAccess = 0,
-					sync->vk.dstAccess = dstAccess;
+					sync->vk.srcAccess = 0;
+
+				sync->vk.dstAccess = dstAccess;
+				sync->vk.dstStage = dstStage;
 			}
 
 			// Output the signal semaphore if necessary.
@@ -863,6 +874,7 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
 	// Free the injection output.
 	free(injection->out.waits);
 	free(injection->out.sigs);
+	free(injection->out.stages);
 
 	// For aborting we loop over all synchronization objects of each
 	// command's dependency object. If it contains objects claimed by the
@@ -903,6 +915,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 	// Free the injection output.
 	free(injection->out.waits);
 	free(injection->out.sigs);
+	free(injection->out.stages);
 
 	// To finish an injection, we loop over all synchronization objects of
 	// each command's dependency object. If it contains objects claimed by the

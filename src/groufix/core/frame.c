@@ -402,11 +402,10 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 		}
 
 		// Get all injection wait semaphores.
-		// TODO: Get destination stages from injection too.
 		numWaits = presentable + injection.out.numWaits;
 		for (size_t w = 0; w < injection.out.numWaits; ++w)
 			waits[presentable + w] = injection.out.waits[w],
-			waitStages[presentable + w] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+			waitStages[presentable + w] = injection.out.stages[w];
 
 		// Get all injection signal semaphores.
 		// Stick the rendered semaphore at the end.

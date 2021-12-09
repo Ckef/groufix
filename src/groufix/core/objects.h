@@ -740,10 +740,12 @@ typedef struct _GFXInjection
 	{
 		size_t       numWaits;
 		VkSemaphore* waits;
-		// TODO: Add destination stage for the wait semaphores.
 
 		size_t       numSigs;
 		VkSemaphore* sigs;
+
+		// Wait stages, of the same size as waits.
+		VkPipelineStageFlags* stages;
 
 		// TODO: Add invalidated reference's actual image/buffer handles,
 		// e.g. for resized attachments (so we can save/use/destroy its history).

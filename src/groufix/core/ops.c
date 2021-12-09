@@ -552,31 +552,23 @@ static int _gfx_copy_device(_GFXStaging* staging,
 		context->vk.EndCommandBuffer(cmd),
 		goto clean_deps);
 
-	// TODO: Get destination stages from injection too.
-	// TODO: Remove this scope for the vla/goto.
-	{
-		VkPipelineStageFlags waitStages[injection->out.numWaits];
-		for (size_t w = 0; w < injection->out.numWaits; ++w)
-			waitStages[w] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+	// Now submit the command buffer and immediately wait on it.
+	VkSubmitInfo si = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
-		// Now submit the command buffer and immediately wait on it.
-		VkSubmitInfo si = {
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.pNext                = NULL,
+		.waitSemaphoreCount   = (uint32_t)injection->out.numWaits,
+		.pWaitSemaphores      = injection->out.waits,
+		.pWaitDstStageMask    = injection->out.stages,
+		.commandBufferCount   = 1,
+		.pCommandBuffers      = &cmd,
+		.signalSemaphoreCount = (uint32_t)injection->out.numSigs,
+		.pSignalSemaphores    = injection->out.sigs
+	};
 
-			.pNext                = NULL,
-			.waitSemaphoreCount   = (uint32_t)injection->out.numWaits,
-			.pWaitSemaphores      = injection->out.waits,
-			.pWaitDstStageMask    = waitStages,
-			.commandBufferCount   = 1,
-			.pCommandBuffers      = &cmd,
-			.signalSemaphoreCount = (uint32_t)injection->out.numSigs,
-			.pSignalSemaphores    = injection->out.sigs
-		};
-
-		_GFX_VK_CHECK(
-			context->vk.QueueSubmit(queue->queue, 1, &si, VK_NULL_HANDLE),
-			goto clean_deps);
-	}
+	_GFX_VK_CHECK(
+		context->vk.QueueSubmit(queue->queue, 1, &si, VK_NULL_HANDLE),
+		goto clean_deps);
 
 	// Free the things & unlock.
 	// TODO: Woopsie daisy cannot free this!
