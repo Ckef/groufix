@@ -62,7 +62,6 @@ typedef struct GFXDevice
 	struct
 	{
 		uint32_t maxIndexUint32;
-		uint32_t maxBufferTexels;
 		uint32_t maxImageSize1D;      // For { width }.
 		uint32_t maxImageSize2D;      // For { width, height }.
 		uint32_t maxImageSize3D;      // For { width, height, depth }.
@@ -71,7 +70,6 @@ typedef struct GFXDevice
 		uint32_t maxAttributes;
 		uint32_t maxAttributeOffset;
 		uint32_t maxPrimitiveStride;
-		uint32_t maxBindingBufferSize; // In total bytes (size * num).
 
 		// Async-transfer image granularity (0,0,0 = only whole mip levels).
 		struct { uint32_t x, y, z; } imageTransferGranularity;

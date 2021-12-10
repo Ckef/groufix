@@ -925,17 +925,15 @@ int _gfx_devices_init(void)
 					.samplerMinmax      = (char)(vk12 ? pdv12f.samplerFilterMinmax : 0)
 				},
 				.limits = {
-					.maxIndexUint32       = pdp.limits.maxDrawIndexedIndexValue,
-					.maxBufferTexels      = pdp.limits.maxTexelBufferElements,
-					.maxImageSize1D       = pdp.limits.maxImageDimension1D,
-					.maxImageSize2D       = pdp.limits.maxImageDimension2D,
-					.maxImageSize3D       = pdp.limits.maxImageDimension3D,
-					.maxImageSizeCubemap  = pdp.limits.maxImageDimensionCube,
-					.maxImageLayers       = pdp.limits.maxImageArrayLayers,
-					.maxAttributes        = pdp.limits.maxVertexInputAttributes,
-					.maxAttributeOffset   = pdp.limits.maxVertexInputAttributeOffset,
-					.maxPrimitiveStride   = pdp.limits.maxVertexInputBindingStride,
-					.maxBindingBufferSize = pdp.limits.maxUniformBufferRange,
+					.maxIndexUint32      = pdp.limits.maxDrawIndexedIndexValue,
+					.maxImageSize1D      = pdp.limits.maxImageDimension1D,
+					.maxImageSize2D      = pdp.limits.maxImageDimension2D,
+					.maxImageSize3D      = pdp.limits.maxImageDimension3D,
+					.maxImageSizeCubemap = pdp.limits.maxImageDimensionCube,
+					.maxImageLayers      = pdp.limits.maxImageArrayLayers,
+					.maxAttributes       = pdp.limits.maxVertexInputAttributes,
+					.maxAttributeOffset  = pdp.limits.maxVertexInputAttributeOffset,
+					.maxPrimitiveStride  = pdp.limits.maxVertexInputBindingStride,
 
 					.imageTransferGranularity = {
 						.x = props[transfer].minImageTransferGranularity.width,

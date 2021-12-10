@@ -236,13 +236,10 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
 }
 
 /****************************
- * TODO: Remove src and dst args and get them from injection.
  * Copies data from a resource or staging buffer to another resource.
- * @param staging    Staging buffer.
- * @param src        Unpacked source reference.
- * @param dst        Unpacked destination reference, cannot be NULL.
  * @param rev        Non-zero to reverse the operation (dst -> staging).
  * @param numRegions Must be > 0.
+ * @param staging    Staging buffer.
  * @param stage      Staging regions, cannot be NULL if staging is not.
  * @param srcRegions Source regions, cannot be NULL.
  * @param dstRegions Destination regions, Cannot be NULL.
@@ -250,35 +247,35 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
  * @param injection  All of `inp` except for family must be initialized!
  * @return Non-zero on success.
  *
- * Either one of staging and src must be set, the other must be NULL.
- * This allows use of either memory resource or a staging buffer.
+ * Staging must be set OR injection->inp.numRefs must be >= 2.
+ * This allows use of either a memory resource or a staging buffer.
  * If staging is _not_ set, rev must be 0.
  */
-static int _gfx_copy_device(_GFXStaging* staging,
-                            const _GFXUnpackRef* src, const _GFXUnpackRef* dst,
-                            GFXTransferFlags flags, int rev,
+static int _gfx_copy_device(GFXTransferFlags flags, int rev,
                             size_t numRegions, size_t numDeps,
+                            _GFXStaging* staging,
                             const _GFXStageRegion* stage,
                             const GFXRegion* srcRegions,
                             const GFXRegion* dstRegions,
                             const GFXInject* deps,
                             _GFXInjection* injection)
 {
-	assert(staging != NULL || src != NULL);
-	assert(staging == NULL || src == NULL);
-	assert(dst != NULL);
-	assert(staging != NULL || rev == 0);
 	assert(numRegions > 0);
+	assert(rev == 0 || staging != NULL);
 	assert(staging == NULL || stage != NULL);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
 	assert(numDeps == 0 || deps != NULL);
 	assert(injection != NULL);
+	assert(injection->inp.numRefs >= 1);
+	assert(injection->inp.numRefs >= 2 || staging != NULL);
 
 	// Get an associated heap.
 	// We use this heap for its queues and command pool.
-	GFXHeap* heap = (src != NULL) ?
-		_GFX_UNPACK_REF_HEAP(*src) : _GFX_UNPACK_REF_HEAP(*dst);
+	GFXHeap* heap =
+		_GFX_UNPACK_REF_HEAP(injection->inp.refs[0]);
+	if (heap == NULL && staging == NULL) heap =
+		_GFX_UNPACK_REF_HEAP(injection->inp.refs[1]);
 
 	if (heap == NULL)
 	{
@@ -365,6 +362,12 @@ static int _gfx_copy_device(_GFXStaging* staging,
 	// Get resources and metadata to copy.
 	// Note that there can only be one single attachment,
 	// because there must be at least one heap involved!
+	const _GFXUnpackRef* src = (staging != NULL) ?
+		NULL : &injection->inp.refs[0];
+
+	const _GFXUnpackRef* dst = (staging != NULL) ?
+		&injection->inp.refs[0] : &injection->inp.refs[1];
+
 	_GFXImageAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
 		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
 
@@ -673,9 +676,8 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 		};
 
 		if (!_gfx_copy_device(
-			staging, NULL, &unp,
 			flags, 1, numRegions, numDeps,
-			stage, dstRegions, srcRegions, deps, &injection))
+			staging, stage, dstRegions, srcRegions, deps, &injection))
 		{
 			_gfx_destroy_staging(staging, &unp);
 			goto error;
@@ -689,6 +691,7 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 		(staging == NULL) ? NULL : stage);
 
 	// Unmap if not staging.
+	// TODO: Free staging if blocking.
 	if (staging == NULL)
 		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
 
@@ -780,9 +783,8 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
 		};
 
 		if (!_gfx_copy_device(
-			staging, NULL, &unp,
 			flags, 0, numRegions, numDeps,
-			stage, srcRegions, dstRegions, deps, &injection))
+			staging, stage, srcRegions, dstRegions, deps, &injection))
 		{
 			_gfx_destroy_staging(staging, &unp);
 			goto error;
@@ -790,6 +792,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
 	}
 
 	// Unmap if not staging.
+	// TODO: Free staging if blocking.
 	if (staging == NULL)
 		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
 
@@ -863,9 +866,8 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst,
 
 	// Do the resource -> resource copy
 	if (!_gfx_copy_device(
-		NULL, srcUnp, dstUnp,
 		flags, 0, numRegions, numDeps,
-		NULL, srcRegions, dstRegions, deps, &injection))
+		NULL, NULL, srcRegions, dstRegions, deps, &injection))
 	{
 		goto error;
 	}

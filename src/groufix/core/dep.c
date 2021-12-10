@@ -536,24 +536,21 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			continue;
 		}
 
-		// Now the bit where we match against all synchronization objects.
+		// Now the bit where we match against all pending sync objects.
 		// We lock for each command individually.
 		_gfx_mutex_lock(&injs[i].dep->lock);
 
 		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
 		{
 			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
-
-			// First filter on pending signals using the same queue family.
-			if (
-				sync->stage != _GFX_SYNC_PENDING ||
-				sync->vk.dstFamily != injection->inp.family)
-			{
+			if (sync->stage != _GFX_SYNC_PENDING)
 				continue;
-			}
 
-			// Then filter on underlying resource & overlapping ranges.
+			// Then filter on queue family, underlying resources and
+			// whether it overlaps those resource.
 			size_t r;
+			int mismatch = (sync->vk.dstFamily != injection->inp.family);
+
 			for (r = 0; r < numRefs; ++r)
 				// Oh and layouts must equal, otherwise nothing can happen.
 				// Except when we do not know the layout from the operation.
@@ -568,6 +565,12 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 						flags[r] != sync->vk.dstAccess ||
 						stages[r] != sync->vk.dstStage;
 
+					if (mismatch) gfx_log_warn(
+						"Dependency wait command *could* match with a "
+						"signal command, but has mismatching queue families; "
+						"probable missing GFX_ACCESS_COMPUTE_ASYNC or "
+						"GFX_ACCESS_TRANSFER_ASYNC flags.");
+
 					if (race) gfx_log_warn(
 						"Dependency wait command matched with a signal "
 						"command, but has mismatching VkAccessFlagBits "
@@ -578,7 +581,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				}
 
 			// No underlying resources means catch all.
-			if (numRefs > 0 && r >= numRefs)
+			if (mismatch || (numRefs > 0 && r >= numRefs))
 				continue;
 
 			// We have a matching synchronization object, in other words,
