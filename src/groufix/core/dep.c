@@ -165,8 +165,8 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 		ref->obj.renderer != NULL);
 
 	// Note that we always pass 0 for shader stage flags.
-	// This function is only used to compute metadata of resources during
-	// the operation that is are injecting dependencies into.
+	// This function is only used to compute metadata of resources known by
+	// the operation that we are injecting dependencies into.
 	// For now we do not have any operations with associated resources
 	// that operates on a specific shader stage (only the renderer does so).
 
@@ -176,7 +176,7 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 		GFXFormat fmt = GFX_FORMAT_EMPTY;
 		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
 		*layout = VK_IMAGE_LAYOUT_UNDEFINED; // It's a buffer.
-		*stage = _GFX_GET_VK_PIPELINE_STAGE(mask, fmt, 0);
+		*stage = _GFX_GET_VK_PIPELINE_STAGE(mask, 0, fmt);
 
 		return (GFXRange){
 			// Normalize offset to be independent of references.
@@ -205,7 +205,7 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 	// meaning we can use the Vulkan 'remaining mipmaps/layers' flags.
 	*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
 	*layout = _GFX_GET_VK_IMAGE_LAYOUT(mask, fmt);
-	*stage = _GFX_GET_VK_PIPELINE_STAGE(mask, fmt, 0);
+	*stage = _GFX_GET_VK_PIPELINE_STAGE(mask, 0, fmt);
 
 	if (range == NULL)
 		return (GFXRange){
@@ -571,7 +571,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 						"probable missing GFX_ACCESS_COMPUTE_ASYNC or "
 						"GFX_ACCESS_TRANSFER_ASYNC flags.");
 
-					if (race) gfx_log_warn(
+					else if (race) gfx_log_warn(
 						"Dependency wait command matched with a signal "
 						"command, but has mismatching VkAccessFlagBits "
 						"or VkPipelineStageFlagBits; potential race "
@@ -785,7 +785,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 			sync->vk.dstAccess =
 				_GFX_GET_VK_ACCESS_FLAGS(injs[i].mask, fmt);
 			sync->vk.dstStage =
-				_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, fmt, injs[i].stage);
+				_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, injs[i].stage, fmt);
 			sync->vk.newLayout =
 				// Undefined layout for buffers.
 				(refs[r].obj.buffer != NULL) ?

@@ -173,7 +173,7 @@
 		VK_IMAGE_LAYOUT_UNDEFINED : /* Default is to discard. */ \
 		VK_IMAGE_LAYOUT_GENERAL)
 
-#define _GFX_GET_VK_PIPELINE_STAGE(mask, fmt, stage) \
+#define _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt) \
 	(((mask) & GFX_ACCESS_VERTEX_READ ? \
 		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT : (VkPipelineStageFlags)0) | \
 	((mask) & GFX_ACCESS_INDEX_READ ? \
