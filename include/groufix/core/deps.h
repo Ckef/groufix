@@ -42,6 +42,7 @@ typedef enum GFXAccessMask
 	GFX_ACCESS_COMPUTE_ASYNC  = 0x004000,
 	GFX_ACCESS_TRANSFER_ASYNC = 0x008000,
 	GFX_ACCESS_DISCARD        = 0x010000 // Contents may be discarded.
+	// TODO: Add a modifier for framebuffer local regions?
 
 } GFXAccessMask;
 
@@ -122,10 +123,6 @@ typedef struct GFXInject
  * resource with an overlapping range (unspecified range = entire resource) AND
  * the access mask of the signal command matches the waiting operation.
  *
- * Resources are considered referenced by the dependency object as long as it
- * has not formed a valid signal/wait pair, meaning the resources in question
- * cannot be freed until its dependencies are waited upon.
- *
  * To force the dependency on a specific resource, use
  *  `gfx_dep_sigr` and `gfx_dep_waitr`
  *
@@ -134,6 +131,10 @@ typedef struct GFXInject
  *
  * To apply both of the above simultaneously, use
  *  `gfx_dep_sigra` and `gfx_dep_waitra`
+ *
+ * Resources are considered referenced by the dependency object as long as it
+ * has not formed a valid signal/wait pair, meaning the resources in question
+ * cannot be freed until its dependencies are waited upon.
  *
  * Injections that reference attachments are _NOT_ thread-safe with respect
  * to the attachment, not even if referenced implicitly.
