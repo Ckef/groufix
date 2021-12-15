@@ -357,7 +357,7 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 	// TODO: Need to figure out the heap-purging mechanism,
 	// do we purge everything at once? Nah, partial purges?
 	//
- 	// TODO: Make it block with a fence if GFX_TRANSFER_BLOCK is set.
+	// TODO: Make it block with a fence if GFX_TRANSFER_BLOCK is set.
 	// Also make dependencies not output a semaphore if blocking.
 
 	// Get resources and metadata to copy.

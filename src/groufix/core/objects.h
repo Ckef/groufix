@@ -256,11 +256,16 @@ struct GFXHeap
 	// Vulkan fields.
 	struct
 	{
-		// Graphics/transfer pools & locks.
+		// Graphics/transfer pools, buffers & locks.
 		VkCommandPool gPool;
-		VkCommandPool tPool;
 		_GFXMutex     gLock;
+
+		VkCommandPool tPool;
 		_GFXMutex     tLock;
+
+		// TODO: Add a deque (?) of { cmd buffer, fence } pairs that we recycle?
+		// Add a reference to staging buffers here? (call them _GFXTransfer?)
+		// Can't put staging buffer directly in it cause it contains a _GFXMemAlloc.
 
 	} vk;
 };
@@ -283,6 +288,8 @@ typedef struct _GFXStaging
 
 		// TODO: Add references to command pool/buffer/lock for purging?
 		// Cannot be the main purging mechanism tho as copying doesn't stage.
+		// TODO: Or remove staging from _GFXBuffer and _GFXImage and let the
+		// heap's cmd buffer deques also destroy staging buffers.
 
 	} vk;
 

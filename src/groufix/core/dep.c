@@ -804,6 +804,8 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 			// TODO: Except for attachments, we need to know the last layout they
 			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
 			// Do we need final access/stage flags for attachments?
+			// TODO: What if we have a normal image resource without matching
+			// wait command, how to get source layout?
 
 			// Get source access/stage flags from operation.
 			sync->vk.srcAccess = flags[r];
