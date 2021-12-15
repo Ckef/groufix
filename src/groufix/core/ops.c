@@ -358,6 +358,7 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 	// do we purge everything at once? Nah, partial purges?
 	//
  	// TODO: Make it block with a fence if GFX_TRANSFER_BLOCK is set.
+	// Also make dependencies not output a semaphore if blocking.
 
 	// Get resources and metadata to copy.
 	// Note that there can only be one single attachment,
@@ -643,6 +644,11 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 
 		if (ptr == NULL) goto error;
 		ptr = (void*)((char*)ptr + unp.value);
+
+		// Warn if we have injection commands but cannot submit them.
+		if (numDeps > 0) gfx_log_warn(
+			"All dependency injection commands ignored, "
+			"the operation is not asynchronous (mappable buffer read).");
 	}
 	else
 	{
@@ -749,6 +755,11 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
 
 		if (ptr == NULL) goto error;
 		ptr = (void*)((char*)ptr + unp.value);
+
+		// Warn if we have injection commands but cannot submit them.
+		if (numDeps > 0) gfx_log_warn(
+			"All dependency injection commands ignored, "
+			"the operation is not asynchronous (mappable buffer write).");
 	}
 	else
 	{
@@ -840,8 +851,8 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst,
 	};
 
 	// Check that the resources share the same context.
-	_GFXUnpackRef *srcUnp = (_GFXUnpackRef*)(injection.inp.refs + 0);
-	_GFXUnpackRef *dstUnp = (_GFXUnpackRef*)(injection.inp.refs + 1);
+	const _GFXUnpackRef *srcUnp = (injection.inp.refs + 0);
+	const _GFXUnpackRef *dstUnp = (injection.inp.refs + 1);
 
 	if (_GFX_UNPACK_REF_CONTEXT(*srcUnp) != _GFX_UNPACK_REF_CONTEXT(*dstUnp))
 	{

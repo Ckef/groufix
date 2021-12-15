@@ -766,6 +766,13 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 				return 0;
 			}
 
+			// Output the signal semaphore if necessary.
+			if (ownership)
+				_GFX_INJ_OUTPUT(
+					injection->out.numSigs, injection->out.sigs,
+					sizeof(VkSemaphore), sync->vk.signaled,
+					return 0);
+
 			// Now we need to actually 'claim' it &
 			// put the object in the prepare stage.
 			sync->stage = _GFX_SYNC_PREPARE;
@@ -847,13 +854,6 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 				sync->vk.dstAccess = dstAccess;
 				sync->vk.dstStage = dstStage;
 			}
-
-			// Output the signal semaphore if necessary.
-			if (ownership)
-				_GFX_INJ_OUTPUT(
-					injection->out.numSigs, injection->out.sigs,
-					sizeof(VkSemaphore), sync->vk.signaled,
-					return 0);
 
 			// Always set queue families back to actual families,
 			// this so we can match queues & check semaphore usage.
