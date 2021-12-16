@@ -334,7 +334,7 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 }
 
 /****************************
- * TODO: Maybe to an insertion-sort like thing to batch barriers.
+ * TODO: Maybe do an insertion-sort like thing to batch barriers.
  * Claims (creates) a synchronization object to use for an injection.
  * _WITHOUT_ locking the dependency object!
  * @param semaphore Non-zero to indicate we need a VkSemaphore.

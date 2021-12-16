@@ -237,6 +237,46 @@ struct GFXShader
  ****************************/
 
 /**
+ * Staging buffer.
+ */
+typedef struct _GFXStaging
+{
+	// TODO: Remove list, _GFXTransfer points to this.
+	GFXListNode  list;  // Base-type, linked into the parent object.
+	_GFXMemAlloc alloc; // Stores the size.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkBuffer buffer;
+		void*    ptr;
+
+	} vk;
+
+} _GFXStaging;
+
+
+/**
+ * Transfer operation.
+ */
+typedef struct _GFXTransfer
+{
+	_GFXStaging* staging; // Automatically freed, may be NULL.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkCommandBuffer cmd;
+		VkFence         done; // Mostly for polling.
+
+	} vk;
+
+} _GFXTransfer;
+
+
+/**
  * Internal heap.
  */
 struct GFXHeap
@@ -253,47 +293,21 @@ struct GFXHeap
 	GFXList groups;     // References _GFXGroup.
 
 
-	// Vulkan fields.
+	// TODO: Rename to `ops`.
+	// TODO: Make anonymous structs `graphics` and `transfer`.
+	// Transfer operation resources (for graphics/transfer queues).
 	struct
 	{
-		// Graphics/transfer pools, buffers & locks.
 		VkCommandPool gPool;
 		_GFXMutex     gLock;
+		GFXDeque      gTransfers; // Stores _GFXTransfer.
 
 		VkCommandPool tPool;
 		_GFXMutex     tLock;
-
-		// TODO: Add a deque (?) of { cmd buffer, fence } pairs that we recycle?
-		// Add a reference to staging buffers here? (call them _GFXTransfer?)
-		// Can't put staging buffer directly in it cause it contains a _GFXMemAlloc.
+		GFXDeque      tTransfers; // Stores _GFXTransfer.
 
 	} vk;
 };
-
-
-/**
- * Staging buffer.
- */
-typedef struct _GFXStaging
-{
-	GFXListNode  list;  // Base-type, linked into the parent object.
-	_GFXMemAlloc alloc; // Stores the size.
-
-
-	// Vulkan fields.
-	struct
-	{
-		VkBuffer buffer;
-		void*    ptr;
-
-		// TODO: Add references to command pool/buffer/lock for purging?
-		// Cannot be the main purging mechanism tho as copying doesn't stage.
-		// TODO: Or remove staging from _GFXBuffer and _GFXImage and let the
-		// heap's cmd buffer deques also destroy staging buffers.
-
-	} vk;
-
-} _GFXStaging;
 
 
 /**
@@ -306,6 +320,7 @@ typedef struct _GFXBuffer
 	GFXListNode list;
 
 	_GFXMemAlloc alloc;
+	// TODO: Remove.
 	GFXList      staging; // References _GFXStaging.
 
 
@@ -329,6 +344,7 @@ typedef struct _GFXImage
 	GFXListNode list;
 
 	_GFXMemAlloc alloc;
+	// TODO: Remove.
 	GFXList      staging; // References _GFXStaging.
 
 
@@ -692,28 +708,6 @@ GFXReference _gfx_ref_resolve(GFXReference ref);
  */
 _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 
-/**
- * Creates a staging buffer for a memory resource references.
- * @param ref  Unpacked reference to stage, must be valid and non-empty.
- * @param size Must be > 0.
- * @return NULL on failure.
- *
- * Thread-safe with respect to the associated heap!
- * Will fail if the resource was not allocated from a heap.
- */
-_GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
-                                 VkBufferUsageFlags usage, uint64_t size);
-
-/**
- * Destroys a staging buffer, freeing all related resources.
- * @param staging Cannot be NULL.
- * @param ref     Must reference the same resource staging was created for.
- *
- * Thread-safe with respect to the associated heap!
- */
-void _gfx_destroy_staging(_GFXStaging* staging,
-                          const _GFXUnpackRef* ref);
-
 
 /****************************
  * Dependency injection objects & operations.
@@ -879,6 +873,37 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
  */
 void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection);
+
+
+/****************************
+ * Staging buffers.
+ ****************************/
+
+// TODO: Rename to _gfx_alloc_staging and _gfx_free_staging because
+// _GFXTransfer will auto-free them, if blocking the ops themselves will free.
+// TODO: Means they take a GFXHeap* instead of a reference.
+
+/**
+ * Creates a staging buffer for a memory resource references.
+ * @param ref  Unpacked reference to stage, must be valid and non-empty.
+ * @param size Must be > 0.
+ * @return NULL on failure.
+ *
+ * Thread-safe with respect to the associated heap!
+ * Will fail if the resource was not allocated from a heap.
+ */
+_GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
+                                 VkBufferUsageFlags usage, uint64_t size);
+
+/**
+ * Destroys a staging buffer, freeing all related resources.
+ * @param staging Cannot be NULL.
+ * @param ref     Must reference the same resource staging was created for.
+ *
+ * Thread-safe with respect to the associated heap!
+ */
+void _gfx_destroy_staging(_GFXStaging* staging,
+                          const _GFXUnpackRef* ref);
 
 
 /****************************

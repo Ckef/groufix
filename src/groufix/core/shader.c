@@ -172,6 +172,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		options, _GFX_GET_SHADERC_LANGUAGE(language));
 
 	// Set target environment.
+	// Omits patch version (Shaderc doesn't understand it).
 	shaderc_compile_options_set_target_env(
 		options, shaderc_target_env_vulkan,
 		VK_MAKE_API_VERSION(0,
@@ -186,7 +187,6 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 	// Add all these options only if we compile for this specific platform.
 	// This will enable optimization for the target API and GPU limits.
-	// Target API omits patch version (Shaderc doesn't understand it).
 	if (optimize)
 	{
 		// Optimization level and target environment.
