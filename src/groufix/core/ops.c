@@ -196,6 +196,179 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 }
 
 /****************************
+ * Claims (creates) a transfer operation object (for purging/recycling).
+ * Also outputs the queue and command pool mutex to use.
+ * @param heap Cannot be NULL.
+ * @return NULL on failure.
+ *
+ * Note: leaves the mutex locked, even on failure!
+ * To cleanup the last call to this function when something else failed,
+ * call _gfx_pop_transfer.
+ */
+static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, GFXTransferFlags flags,
+                                         _GFXQueue** queue, _GFXMutex** lock)
+{
+	assert(heap != NULL);
+	assert(queue != NULL);
+	assert(lock != NULL);
+
+	_GFXContext* context = heap->allocator.context;
+
+	// Pick queue and lock from the heap.
+	*queue = (flags & GFX_TRANSFER_ASYNC) ?
+		&heap->transfer : &heap->graphics;
+
+	*lock = (flags & GFX_TRANSFER_ASYNC) ?
+		&heap->ops.transfer.lock : &heap->ops.graphics.lock;
+
+	// Pick command pool and transfer object deque to use.
+	VkCommandPool pool = (flags & GFX_TRANSFER_ASYNC) ?
+		heap->ops.transfer.pool : heap->ops.graphics.pool;
+
+	GFXDeque* transfers = (flags & GFX_TRANSFER_ASYNC) ?
+		&heap->ops.transfer.transfers : &heap->ops.graphics.transfers;
+
+	// Immediately lock, we are modifying the transfer deque!
+	// This will be left unlocked when returning...
+	_gfx_mutex_lock(*lock);
+
+	// Then check if it has any elements.
+	// If it does, see if we can recycle the front-most transfer op.
+	// This way we end up with round-robin like behaviour :)
+	if (transfers->size > 0)
+	{
+		_GFXTransfer* transfer = gfx_deque_at(transfers, 0);
+
+		VkResult result = context->vk.GetFenceStatus(
+			context->vk.device, transfer->vk.done);
+
+		if (result == VK_SUCCESS)
+		{
+			// If recycling, firstly pop it from the deque,
+			// Then free the staging buffer and reset the fence.
+			// The command buffer will be implicitly reset during recording.
+			_GFXTransfer newTransfer = *transfer;
+			gfx_deque_pop_front(transfers, 1);
+
+			if (newTransfer.staging != NULL)
+			{
+				_gfx_free_staging(heap, newTransfer.staging);
+				newTransfer.staging = NULL;
+			}
+
+			_GFX_VK_CHECK(
+				context->vk.ResetFences(
+					context->vk.device, 1, &newTransfer.vk.done),
+				goto clean_recycle);
+
+			// Then push it right back into the round-robin situation.
+			if (!gfx_deque_push(transfers, 1, &newTransfer))
+				goto clean_recycle;
+
+			return gfx_deque_at(transfers, transfers->size - 1);
+
+
+			// Clean the thing we tried to recycle (at least it is purged).
+		clean_recycle:
+			context->vk.FreeCommandBuffers(
+				context->vk.device, pool, 1, &newTransfer.vk.cmd);
+			context->vk.DestroyFence(
+				context->vk.device, newTransfer.vk.done, NULL);
+
+			return NULL;
+		}
+
+		if (result != VK_NOT_READY)
+		{
+			// Well nevermind...
+			_GFX_VK_CHECK(result, {});
+			return NULL;
+		}
+	}
+
+	// At this point we apparently need to create a new transfer object.
+	_GFXTransfer newTransfer;
+	newTransfer.staging = NULL;
+	newTransfer.vk.cmd = NULL;
+	newTransfer.vk.done = VK_NULL_HANDLE;
+
+	// Allocate a command buffer.
+	VkCommandBufferAllocateInfo cbai = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+
+		.pNext              = NULL,
+		.commandPool        = pool,
+		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+
+	_GFX_VK_CHECK(context->vk.AllocateCommandBuffers(
+		context->vk.device, &cbai, &newTransfer.vk.cmd), goto clean);
+
+	// And create fence.
+	VkFenceCreateInfo fci = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.pNext = NULL,
+		.flags = 0
+	};
+
+	_GFX_VK_CHECK(context->vk.CreateFence(
+		context->vk.device, &fci, NULL, &newTransfer.vk.done), goto clean);
+
+	// Aaand push it into the deque.
+	if (!gfx_deque_push(transfers, 1, &newTransfer))
+		goto clean;
+
+	return gfx_deque_at(transfers, transfers->size - 1);
+
+
+	// Cleanup on failure.
+clean:
+	context->vk.FreeCommandBuffers(
+		context->vk.device, pool, 1, &newTransfer.vk.cmd);
+	context->vk.DestroyFence(
+		context->vk.device, newTransfer.vk.done, NULL);
+
+	return NULL;
+}
+
+/****************************
+ * Cleans up resources from the last call to _gfx_claim_transfer.
+ * @param heap  Cannot be NULL.
+ * @param flags Must be the same as passed to the claim call!
+ *
+ * This call should only be called to cleanup on failure.
+ * Note: _STILL_ leaves the mutex locked!
+ */
+static void _gfx_pop_transfer(GFXHeap* heap, GFXTransferFlags flags)
+{
+	assert(heap != NULL);
+
+	_GFXContext* context = heap->allocator.context;
+
+	// Get resources to pop.
+	VkCommandPool pool = (flags & GFX_TRANSFER_ASYNC) ?
+		heap->ops.transfer.pool : heap->ops.graphics.pool;
+
+	GFXDeque* transfers = (flags & GFX_TRANSFER_ASYNC) ?
+		&heap->ops.transfer.transfers : &heap->ops.graphics.transfers;
+
+	// Get the transfer object to pop.
+	// Note that size MUST be > 0, otherwise this call must not be called!
+	_GFXTransfer* transfer = gfx_deque_at(transfers, transfers->size - 1);
+
+	// Destroy its resources.
+	// We ignore staging here, as this is only used for cleanup on failure!
+	context->vk.FreeCommandBuffers(
+		context->vk.device, pool, 1, &transfer->vk.cmd);
+	context->vk.DestroyFence(
+		context->vk.device, transfer->vk.done, NULL);
+
+	// Pop it!
+	gfx_deque_pop(transfers, 1);
+}
+
+/****************************
  * Copies data from a host pointer to a mapped resource or staging buffer.
  * @param ptr        Host pointer, cannot be NULL.
  * @param ref        Mapped resource or staging pointer, cannot be NULL.
@@ -237,6 +410,7 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
 
 /****************************
  * Copies data from a resource or staging buffer to another resource.
+ * @param heap       Cannot be NULL.
  * @param rev        Non-zero to reverse the operation (dst -> staging).
  * @param numRegions Must be > 0.
  * @param staging    Staging buffer.
@@ -251,7 +425,7 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
  * This allows use of either a memory resource or a staging buffer.
  * If staging is _not_ set, rev must be 0.
  */
-static int _gfx_copy_device(GFXTransferFlags flags, int rev,
+static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
                             size_t numRegions, size_t numDeps,
                             _GFXStaging* staging,
                             const _GFXStageRegion* stage,
@@ -260,8 +434,9 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
                             const GFXInject* deps,
                             _GFXInjection* injection)
 {
-	assert(numRegions > 0);
+	assert(heap != NULL);
 	assert(rev == 0 || staging != NULL);
+	assert(numRegions > 0);
 	assert(staging == NULL || stage != NULL);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
@@ -270,54 +445,27 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 	assert(injection->inp.numRefs >= 1);
 	assert(injection->inp.numRefs >= 2 || staging != NULL);
 
-	// Get an associated heap.
-	// We use this heap for its queues and command pool.
-	GFXHeap* heap =
-		_GFX_UNPACK_REF_HEAP(injection->inp.refs[0]);
-	if (heap == NULL && staging == NULL) heap =
-		_GFX_UNPACK_REF_HEAP(injection->inp.refs[1]);
+	_GFXContext* context = heap->allocator.context;
 
-	if (heap == NULL)
+	// First get us a transfer object & queue, command pool and mutex.
+	// Note that this will lock the lock for us, we use this lock for
+	// recording as well!
+	_GFXQueue* queue;
+	_GFXMutex* lock;
+	_GFXTransfer* transfer = _gfx_claim_transfer(heap, flags, &queue, &lock);
+
+	if (transfer == NULL)
 	{
-		gfx_log_error(
-			"Cannot perform copy operation between memory resources of "
-			"which neither was allocated from a heap.");
-
-		return 0;
+		gfx_log_error("Could not claim transfer operation resources.");
+		goto unlock;
 	}
 
-	// Pick queue, command pool and mutex from the heap.
-	// Also get context & fill in injection metadata family queue.
-	_GFXQueue* queue = (flags & GFX_TRANSFER_ASYNC) ?
-		&heap->transfer : &heap->graphics;
+	// Set the staging buffer if not blocking, so it gets freed at some point.
+	if (staging != NULL && !(flags & GFX_TRANSFER_BLOCK))
+		transfer->staging = staging;
 
-	VkCommandPool pool = (flags & GFX_TRANSFER_ASYNC) ?
-		heap->vk.tPool : heap->vk.gPool;
-
-	_GFXMutex* mutex = (flags & GFX_TRANSFER_ASYNC) ?
-		&heap->vk.tLock : &heap->vk.gLock;
-
-	_GFXContext* context = heap->allocator.context;
+	// Fill in injection metadata family queue.
 	injection->inp.family = queue->family;
-
-	// We lock access to the pool with the appropriate lock.
-	// This lock is also used for recording the command buffer.
-	_gfx_mutex_lock(mutex);
-
-	// Allocate a command buffer.
-	// TODO: Somehow store used command buffers for later?
-	VkCommandBufferAllocateInfo cbai = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-
-		.pNext              = NULL,
-		.commandPool        = pool,
-		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1
-	};
-
-	VkCommandBuffer cmd;
-	_GFX_VK_CHECK(context->vk.AllocateCommandBuffers(
-		context->vk.device, &cbai, &cmd), goto unlock);
 
 	// Record the command buffer, we check all src/dst resource type
 	// combinations and perform the appropriate copy command.
@@ -331,11 +479,11 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 	};
 
 	_GFX_VK_CHECK(
-		context->vk.BeginCommandBuffer(cmd, &cbbi),
+		context->vk.BeginCommandBuffer(transfer->vk.cmd, &cbbi),
 		goto clean);
 
 	// Inject wait commands.
-	if (!_gfx_deps_catch(context, cmd, numDeps, deps, injection))
+	if (!_gfx_deps_catch(context, transfer->vk.cmd, numDeps, deps, injection))
 		goto clean_deps;
 
 	// TODO: Get the resources from _gfx_deps_catch, it takes all references
@@ -349,16 +497,6 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 	// _gfx_deps_catch will store the actual handle to such a resource in the
 	// _GFXInjection object, with both the reference and handle so we can find it.
 	// This way both the operation and _gfx_deps_prepare can find the correct handles.
-	//
-	// TODO: The staging buffer is either purged later on or it is kept
-	// dangling. This is the case for all staging buffers, except when
-	// GFX_TRANSFER_BLOCK is given, in which case the host blocks and we can
-	// cleanup.
-	// TODO: Need to figure out the heap-purging mechanism,
-	// do we purge everything at once? Nah, partial purges?
-	//
-	// TODO: Make it block with a fence if GFX_TRANSFER_BLOCK is set.
-	// Also make dependencies not output a semaphore if blocking.
 
 	// Get resources and metadata to copy.
 	// Note that there can only be one single attachment,
@@ -422,7 +560,7 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 			}
 		}
 
-		context->vk.CmdCopyBuffer(cmd,
+		context->vk.CmdCopyBuffer(transfer->vk.cmd,
 			rev ? dstBuffer : srcBuffer,
 			rev ? srcBuffer : dstBuffer,
 			(uint32_t)numRegions, cRegions);
@@ -484,7 +622,7 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 			};
 		}
 
-		context->vk.CmdCopyImage(cmd,
+		context->vk.CmdCopyImage(transfer->vk.cmd,
 			srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 			dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			(uint32_t)numRegions, cRegions);
@@ -535,13 +673,13 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 		}
 
 		if (srcBuffer != VK_NULL_HANDLE && rev == 0)
-			context->vk.CmdCopyBufferToImage(cmd,
+			context->vk.CmdCopyBufferToImage(transfer->vk.cmd,
 				srcBuffer,
 				dstImage,
 				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 				(uint32_t)numRegions, cRegions);
 		else
-			context->vk.CmdCopyImageToBuffer(cmd,
+			context->vk.CmdCopyImageToBuffer(transfer->vk.cmd,
 				rev ? dstImage : srcImage,
 				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 				rev ? srcBuffer : dstBuffer,
@@ -549,11 +687,12 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 	}
 
 	// Inject signal commands.
-	if (!_gfx_deps_prepare(cmd, numDeps, deps, injection))
+	// TODO: Make dependencies not output a semaphore if blocking?
+	if (!_gfx_deps_prepare(transfer->vk.cmd, numDeps, deps, injection))
 		goto clean_deps;
 
 	_GFX_VK_CHECK(
-		context->vk.EndCommandBuffer(cmd),
+		context->vk.EndCommandBuffer(transfer->vk.cmd),
 		goto clean_deps);
 
 	// Now submit the command buffer and immediately wait on it.
@@ -565,25 +704,35 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 		.pWaitSemaphores      = injection->out.waits,
 		.pWaitDstStageMask    = injection->out.stages,
 		.commandBufferCount   = 1,
-		.pCommandBuffers      = &cmd,
+		.pCommandBuffers      = &transfer->vk.cmd,
 		.signalSemaphoreCount = (uint32_t)injection->out.numSigs,
 		.pSignalSemaphores    = injection->out.sigs
 	};
 
 	_GFX_VK_CHECK(
-		context->vk.QueueSubmit(queue->queue, 1, &si, VK_NULL_HANDLE),
+		context->vk.QueueSubmit(queue->queue, 1, &si, transfer->vk.done),
 		goto clean_deps);
 
-	// Free the things & unlock.
-	// TODO: Woopsie daisy cannot free this!
-	// TODO: Store this someplace else D:
-	//context->vk.FreeCommandBuffers(
-	//	context->vk.device, pool, 1, &cmd);
+	// Manually unlock the lock left locked by _gfx_claim_transfer!
+	// Make sure to remember the fence in case we want to block.
+	// We want to unlock BEFORE blocking, so other operations can start.
+	// Also note: this means we cannot free the transfer object,
+	// as it might not be the last one pushed anymore.
+	VkFence done = transfer->vk.done;
+	_gfx_mutex_unlock(lock);
 
-	_gfx_mutex_unlock(mutex);
+	// Ok so block if asked.
+	// TODO: Do we need another lock to lock access to this fence >.> ?
+	if (flags & GFX_TRANSFER_BLOCK)
+		_GFX_VK_CHECK(context->vk.WaitForFences(
+			context->vk.device, 1, &done, VK_TRUE, UINT64_MAX),
+		{
+			// We can't undo what we've done, treat as fatal :(
+			gfx_log_fatal("Transfer operation could not block.");
+		});
 
 	// And lastly, make all commands visible for future operations.
-	// We can do this outside of the pool lock :)
+	// This must be last so visibility happens EXACTLY on return!
 	_gfx_deps_finish(numDeps, deps, injection);
 
 	return 1;
@@ -593,10 +742,9 @@ static int _gfx_copy_device(GFXTransferFlags flags, int rev,
 clean_deps:
 	_gfx_deps_abort(numDeps, deps, injection);
 clean:
-	context->vk.FreeCommandBuffers(
-		context->vk.device, pool, 1, &cmd);
+	_gfx_pop_transfer(heap, flags);
 unlock:
-	_gfx_mutex_unlock(mutex);
+	_gfx_mutex_unlock(lock);
 
 	return 0;
 }
@@ -614,6 +762,9 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
 	assert(numDeps == 0 || deps != NULL);
+
+	// When reading we always need to block...
+	flags |= GFX_TRANSFER_BLOCK;
 
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(src);
@@ -634,13 +785,14 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 	void* ptr = NULL;
 	_GFXStaging* staging = NULL;
 	_GFXStageRegion stage[numRegions];
+	GFXHeap* heap = NULL;
 
 	// If it is a host visible buffer, map it.
 	if (unp.obj.buffer != NULL &&
 		(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
 	{
-		ptr = _gfx_map(
-			&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+		heap = unp.obj.buffer->heap;
+		ptr = _gfx_map(&heap->allocator, &unp.obj.buffer->alloc);
 
 		if (ptr == NULL) goto error;
 		ptr = (void*)((char*)ptr + unp.value);
@@ -652,6 +804,17 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 	}
 	else
 	{
+		// We need a heap.
+		heap = _GFX_UNPACK_REF_HEAP(unp);
+		if (heap == NULL)
+		{
+			gfx_log_error(
+				"Cannot perform read operation on a memory resource "
+				"that was not allocated from a heap.");
+
+			return 0;
+		}
+
 		// Here we still compact the regions associated with the host,
 		// even though that's not the source of the data being copied.
 		// Therefore this is not necessarily optimal packing, however the
@@ -659,18 +822,16 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 		// so this is good enough :)
 		uint64_t size = _gfx_stage_compact(
 			&unp, numRegions, dstRegions, srcRegions, stage);
-		staging = _gfx_create_staging(
-			&unp, VK_BUFFER_USAGE_TRANSFER_DST_BIT, size);
+		staging = _gfx_alloc_staging(
+			heap, VK_BUFFER_USAGE_TRANSFER_DST_BIT, size);
 
 		if (staging == NULL)
 			goto error;
 
 		ptr = staging->vk.ptr;
-	}
 
-	// Do the resource -> staging copy.
-	if (staging != NULL)
-	{
+		// Do the resource -> staging copy.
+		// We can immediately do this as opposed to write!
 		// Prepare injection metadata.
 		_GFXInjection injection = {
 			.inp = {
@@ -682,10 +843,10 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 		};
 
 		if (!_gfx_copy_device(
-			flags, 1, numRegions, numDeps,
+			heap, flags, 1, numRegions, numDeps,
 			staging, stage, dstRegions, srcRegions, deps, &injection))
 		{
-			_gfx_destroy_staging(staging, &unp);
+			_gfx_free_staging(heap, staging);
 			goto error;
 		}
 	}
@@ -696,10 +857,11 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 		(staging == NULL) ? srcRegions : NULL,
 		(staging == NULL) ? NULL : stage);
 
-	// Unmap if not staging.
-	// TODO: Free staging if blocking.
+	// Unmap if not staging, free staging otherwise (we always block).
 	if (staging == NULL)
-		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+		_gfx_unmap(&heap->allocator, &unp.obj.buffer->alloc);
+	else
+		_gfx_free_staging(heap, staging);
 
 	return 1;
 
@@ -743,6 +905,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
 	void* ptr = NULL;
 	_GFXStaging* staging = NULL;
 	_GFXStageRegion stage[numRegions];
+	GFXHeap* heap = NULL;
 
 	// If it is a host visible buffer, map it.
 	// We cannot map images because we do not allocate linear images (!)
@@ -750,8 +913,8 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
 	if (unp.obj.buffer != NULL &&
 		(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
 	{
-		ptr = _gfx_map(
-			&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+		heap = unp.obj.buffer->heap;
+		ptr = _gfx_map(&heap->allocator, &unp.obj.buffer->alloc);
 
 		if (ptr == NULL) goto error;
 		ptr = (void*)((char*)ptr + unp.value);
@@ -763,10 +926,23 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
 	}
 	else
 	{
+		// We need a heap.
+		heap = _GFX_UNPACK_REF_HEAP(unp);
+		if (heap == NULL)
+		{
+			gfx_log_error(
+				"Cannot perform write operation on a memory resource "
+				"that was not allocated from a heap.");
+
+			return 0;
+		}
+
+		// Compact regions associated with the host,
+		// allocate a staging buffer for it :)
 		uint64_t size = _gfx_stage_compact(
 			&unp, numRegions, srcRegions, dstRegions, stage);
-		staging = _gfx_create_staging(
-			&unp, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size);
+		staging = _gfx_alloc_staging(
+			heap, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size);
 
 		if (staging == NULL)
 			goto error;
@@ -794,18 +970,19 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
 		};
 
 		if (!_gfx_copy_device(
-			flags, 0, numRegions, numDeps,
+			heap, flags, 0, numRegions, numDeps,
 			staging, stage, srcRegions, dstRegions, deps, &injection))
 		{
-			_gfx_destroy_staging(staging, &unp);
+			_gfx_free_staging(heap, staging);
 			goto error;
 		}
 	}
 
-	// Unmap if not staging.
-	// TODO: Free staging if blocking.
+	// Unmap if not staging, otherwise, free staging buffer IFF blocking.
 	if (staging == NULL)
-		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+		_gfx_unmap(&heap->allocator, &unp.obj.buffer->alloc);
+	else if (flags & GFX_TRANSFER_BLOCK)
+		_gfx_free_staging(heap, staging);
 
 	return 1;
 
@@ -863,6 +1040,19 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst,
 		return 0;
 	}
 
+	// We need a heap.
+	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(*srcUnp);
+	if (heap == NULL) heap = _GFX_UNPACK_REF_HEAP(*dstUnp);
+
+	if (heap == NULL)
+	{
+		gfx_log_error(
+			"Cannot perform copy operation between memory resources of "
+			"which neither was allocated from a heap.");
+
+		return 0;
+	}
+
 #if !defined (NDEBUG)
 	// Validate memory flags.
 	if (
@@ -877,7 +1067,7 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst,
 
 	// Do the resource -> resource copy
 	if (!_gfx_copy_device(
-		flags, 0, numRegions, numDeps,
+		heap, flags, 0, numRegions, numDeps,
 		NULL, NULL, srcRegions, dstRegions, deps, &injection))
 	{
 		goto error;

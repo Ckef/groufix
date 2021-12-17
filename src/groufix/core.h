@@ -271,6 +271,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(GetBufferMemoryRequirements);
 		_GFX_VK_PFN(GetBufferMemoryRequirements2);
 		_GFX_VK_PFN(GetDeviceQueue);
+		_GFX_VK_PFN(GetFenceStatus);
 		_GFX_VK_PFN(GetImageMemoryRequirements2);
 		_GFX_VK_PFN(GetSwapchainImagesKHR);
 		_GFX_VK_PFN(MapMemory);

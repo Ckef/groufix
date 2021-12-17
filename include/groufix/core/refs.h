@@ -182,6 +182,7 @@ typedef struct GFXRange
 			uint64_t size; // 0 for all bytes after `offset`.
 		};
 
+
 		// Image aspect/mips/layers.
 		struct
 		{
@@ -214,6 +215,7 @@ typedef struct GFXRegion
 			uint32_t rowSize; // In texels.
 			uint32_t numRows; // In texels.
 		};
+
 
 		// Image aspect/mip/layers/offset/extent.
 		struct

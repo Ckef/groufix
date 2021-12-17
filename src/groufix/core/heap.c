@@ -86,37 +86,7 @@ static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 }
 
 /****************************
- * Destroys a staging buffer, freeing all related resources,
- * _WITHOUT_ locking the associated heap!
- */
-static void _gfx_destroy_staging_unsafe(_GFXStaging* staging,
-                                        const _GFXUnpackRef* ref)
-{
-	_GFXAllocator* alloc = _GFX_UNPACK_REF_ALLOC(*ref);
-	_GFXContext* context = alloc->context;
-
-	// Unlink the staging buffer from the reference.
-	// Note that either buffer or image is non-NULL by definition.
-	gfx_list_erase((ref->obj.buffer != NULL) ?
-		&ref->obj.buffer->staging : &ref->obj.image->staging,
-		&staging->list);
-
-	// Then, firstly unmap, this so the map references of the underlying
-	// memory block don't get fckd by staging buffers.
-	_gfx_unmap(alloc, &staging->alloc);
-
-	// Destroy Vulkan buffer.
-	context->vk.DestroyBuffer(
-		context->vk.device, staging->vk.buffer, NULL);
-
-	// Free the memory.
-	_gfx_free(alloc, &staging->alloc);
-
-	free(staging);
-}
-
-/****************************
- * Populates the `vk.buffer`, `alloc` and `staging` fields
+ * Populates the `vk.buffer` and `alloc` fields
  * of a _GFXBuffer object, allocating a new Vulkan buffer in the process.
  * @param buffer Cannot be NULL, base.flags is appropriately modified.
  * @return Zero on failure.
@@ -178,8 +148,7 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 		goto clean;
 	}
 
-	// Init other buffer fields.
-	gfx_list_init(&buffer->staging);
+	// Get public memory flags.
 	_GFX_MOD_MEMORY_FLAGS(buffer->base.flags, buffer->alloc.flags);
 
 	// Bind the buffer to the memory.
@@ -195,7 +164,6 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 
 	// Cleanup on failure.
 clean_alloc:
-	gfx_list_clear(&buffer->staging);
 	_gfx_free(&heap->allocator, &buffer->alloc);
 clean:
 	context->vk.DestroyBuffer(
@@ -216,13 +184,6 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
 	GFXHeap* heap = buffer->heap;
 	_GFXContext* context = heap->allocator.context;
 
-	// Destroy all staging buffers.
-	_GFXUnpackRef ref = _gfx_ref_unpack(gfx_ref_buffer(buffer, 0));
-	while (buffer->staging.head != NULL)
-		_gfx_destroy_staging_unsafe((_GFXStaging*)buffer->staging.head, &ref);
-
-	gfx_list_clear(&buffer->staging);
-
 	// Destroy Vulkan buffer.
 	context->vk.DestroyBuffer(
 		context->vk.device, buffer->vk.buffer, NULL);
@@ -232,7 +193,7 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
 }
 
 /****************************
- * Populates the `vk.image`, `alloc` and `staging` fields
+ * Populates the `vk.image` and `alloc` fields
  * of a _GFXImage object, allocating a new Vulkan image in the process.
  * @param image Cannot be NULL, base.flags is appropriately modified.
  * @return Zero on failure.
@@ -312,8 +273,7 @@ static int _gfx_image_alloc(_GFXImage* image)
 		goto clean;
 	}
 
-	// Init other image fields.
-	gfx_list_init(&image->staging);
+	// Get public memory flags.
 	_GFX_MOD_MEMORY_FLAGS(image->base.flags, image->alloc.flags);
 
 	// Bind the image to the memory.
@@ -329,7 +289,6 @@ static int _gfx_image_alloc(_GFXImage* image)
 
 	// Cleanup on failure.
 clean_alloc:
-	gfx_list_clear(&image->staging);
 	_gfx_free(&heap->allocator, &image->alloc);
 clean:
 	context->vk.DestroyImage(
@@ -350,13 +309,6 @@ static void _gfx_image_free(_GFXImage* image)
 	GFXHeap* heap = image->heap;
 	_GFXContext* context = heap->allocator.context;
 
-	// Destroy all staging buffers.
-	_GFXUnpackRef ref = _gfx_ref_unpack(gfx_ref_image(image));
-	while (image->staging.head != NULL)
-		_gfx_destroy_staging_unsafe((_GFXStaging*)image->staging.head, &ref);
-
-	gfx_list_clear(&image->staging);
-
 	// Destroy Vulkan image.
 	context->vk.DestroyImage(
 		context->vk.device, image->vk.image, NULL);
@@ -366,26 +318,12 @@ static void _gfx_image_free(_GFXImage* image)
 }
 
 /****************************/
-_GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
-                                 VkBufferUsageFlags usage, uint64_t size)
+_GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
+                                VkBufferUsageFlags usage, uint64_t size)
 {
-	assert(ref != NULL);
+	assert(heap != NULL);
 	assert(size > 0);
 
-	// Get the associated heap, we use this to firstly lock the heap's mutex,
-	// and secondly to assure that there is a list of staging buffers we can
-	// link into.
-	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(*ref);
-	if (heap == NULL)
-	{
-		gfx_log_error(
-			"Cannot allocate a staging buffer for a memory resource that "
-			"was not allocated from a heap.");
-
-		return NULL;
-	}
-
-	// Get context from heap.
 	_GFXContext* context = heap->allocator.context;
 
 	// Allocate a new staging buffer.
@@ -394,7 +332,6 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 		goto clean;
 
 	// Create a new Vulkan buffer.
-	// We always set sharing mode to exclusive, only one transfer is done!
 	VkBufferCreateInfo bci = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 
@@ -436,18 +373,10 @@ _GFXStaging* _gfx_create_staging(const _GFXUnpackRef* ref,
 			staging->alloc.vk.memory, staging->alloc.offset),
 		goto clean_alloc);
 
-	// Map the buffer.
+	// Map the buffer & unlock.
 	if ((staging->vk.ptr = _gfx_map(&heap->allocator, &staging->alloc)) == NULL)
 		goto clean_alloc;
 
-	// Lastly, when successful, link the staging buffer into the ref :)
-	// Note that either buffer or image must be non-NULL.
-	gfx_list_insert_before((ref->obj.buffer != NULL) ?
-		&ref->obj.buffer->staging : &ref->obj.image->staging,
-		&staging->list, NULL);
-
-	// Unlock only after list insertion,
-	// this way creating staging buffers is completely safe.
 	_gfx_mutex_unlock(&heap->lock);
 
 	return staging;
@@ -470,21 +399,28 @@ clean:
 }
 
 /****************************/
-void _gfx_destroy_staging(_GFXStaging* staging,
-                          const _GFXUnpackRef* ref)
+void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging)
 {
+	assert(heap != NULL);
 	assert(staging != NULL);
-	assert(ref != NULL);
 
-	// This is essentially just a wrapper around _gfx_destroy_staging_unsafe
-	// to make staging buffers thread-safe to the rest of the engine.
-	// So, get the heap so we can lock it.
-	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(*ref);
+	_GFXAllocator* alloc = &heap->allocator;
+	_GFXContext* context = alloc->context;
 
-	// Lock & destroy.
+	// Firstly unmap, this so the map references of the underlying
+	// memory block don't get fckd by staging buffers.
+	_gfx_unmap(alloc, &staging->alloc);
+
+	// Destroy Vulkan buffer.
+	context->vk.DestroyBuffer(
+		context->vk.device, staging->vk.buffer, NULL);
+
+	// Lock, free the memory & unlock.
 	_gfx_mutex_lock(&heap->lock);
-	_gfx_destroy_staging_unsafe(staging, ref);
+	_gfx_free(alloc, &staging->alloc);
 	_gfx_mutex_unlock(&heap->lock);
+
+	free(staging);
 }
 
 /****************************/
@@ -498,10 +434,10 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	if (!_gfx_mutex_init(&heap->lock))
 		goto clean;
 
-	if (!_gfx_mutex_init(&heap->vk.gLock))
+	if (!_gfx_mutex_init(&heap->ops.graphics.lock))
 		goto clean_lock;
 
-	if (!_gfx_mutex_init(&heap->vk.tLock))
+	if (!_gfx_mutex_init(&heap->ops.transfer.lock))
 		goto clean_graphics_lock;
 
 	// Get context associated with the device.
@@ -516,25 +452,27 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	// Create command pools (one for each queue).
 	// They are used for all memory resource operations.
 	// These are short-lived buffers, as they are never re-used.
-	heap->vk.gPool = VK_NULL_HANDLE;
-	heap->vk.tPool = VK_NULL_HANDLE;
+	heap->ops.graphics.pool = VK_NULL_HANDLE;
+	heap->ops.transfer.pool = VK_NULL_HANDLE;
 
 	VkCommandPoolCreateInfo cpci = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.pNext = NULL,
-		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+		.flags =
+			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT |
+			VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
 	};
 
 	cpci.queueFamilyIndex = heap->graphics.family;
 	_GFX_VK_CHECK(
 		context->vk.CreateCommandPool(
-			context->vk.device, &cpci, NULL, &heap->vk.gPool),
+			context->vk.device, &cpci, NULL, &heap->ops.graphics.pool),
 		goto clean_pools);
 
 	cpci.queueFamilyIndex = heap->transfer.family;
 	_GFX_VK_CHECK(
 		context->vk.CreateCommandPool(
-			context->vk.device, &cpci, NULL, &heap->vk.tPool),
+			context->vk.device, &cpci, NULL, &heap->ops.transfer.pool),
 		goto clean_pools);
 
 	// Initialize allocator things.
@@ -544,19 +482,22 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	gfx_list_init(&heap->primitives);
 	gfx_list_init(&heap->groups);
 
+	gfx_deque_init(&heap->ops.graphics.transfers, sizeof(_GFXTransfer));
+	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(_GFXTransfer));
+
 	return heap;
 
 
 	// Cleanup on failure.
 clean_pools:
 	context->vk.DestroyCommandPool(
-		context->vk.device, heap->vk.gPool, NULL);
+		context->vk.device, heap->ops.graphics.pool, NULL);
 	context->vk.DestroyCommandPool(
-		context->vk.device, heap->vk.tPool, NULL);
+		context->vk.device, heap->ops.transfer.pool, NULL);
 clean_transfer_lock:
-	_gfx_mutex_clear(&heap->vk.tLock);
+	_gfx_mutex_clear(&heap->ops.transfer.lock);
 clean_graphics_lock:
-	_gfx_mutex_clear(&heap->vk.gLock);
+	_gfx_mutex_clear(&heap->ops.graphics.lock);
 clean_lock:
 	_gfx_mutex_clear(&heap->lock);
 clean:
@@ -573,6 +514,45 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 		return;
 
 	_GFXContext* context = heap->allocator.context;
+
+	// Destroy operation resources first so we can wait on them.
+	// First destroy the graphics queue ops.
+	GFXDeque* transfers = &heap->ops.graphics.transfers;
+
+destroy_ops:
+	// Note we loop from front to back, in the same order we purge/recycle.
+	// We wait for each operation individually, to gradually release memory.
+	// Command buffers are implicitly freed down below.
+	// Also, we don't lock, as we're in the destroy call!
+	for (size_t t = 0; t < transfers->size; ++t)
+	{
+		_GFXTransfer* transfer = gfx_deque_at(transfers, t);
+
+		_GFX_VK_CHECK(context->vk.WaitForFences(
+			context->vk.device, 1, &transfer->vk.done, VK_TRUE, UINT64_MAX), {});
+		context->vk.DestroyFence(
+			context->vk.device, transfer->vk.done, NULL);
+
+		if (transfer->staging != NULL)
+			_gfx_free_staging(heap, transfer->staging);
+	}
+
+	// Then destroy transfer queue ops.
+	if (transfers == &heap->ops.graphics.transfers)
+	{
+		transfers = &heap->ops.transfer.transfers;
+		goto destroy_ops;
+	}
+
+	context->vk.DestroyCommandPool(
+		context->vk.device, heap->ops.graphics.pool, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, heap->ops.transfer.pool, NULL);
+
+	gfx_deque_clear(&heap->ops.graphics.transfers);
+	gfx_deque_clear(&heap->ops.transfer.transfers);
+	_gfx_mutex_clear(&heap->ops.graphics.lock);
+	_gfx_mutex_clear(&heap->ops.transfer.lock);
 
 	// Free all things.
 	while (heap->buffers.head != NULL) gfx_free_buffer(
@@ -593,18 +573,72 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	gfx_list_clear(&heap->images);
 	gfx_list_clear(&heap->primitives);
 	gfx_list_clear(&heap->groups);
-
-	// Destroy command pools.
-	context->vk.DestroyCommandPool(
-		context->vk.device, heap->vk.gPool, NULL);
-	context->vk.DestroyCommandPool(
-		context->vk.device, heap->vk.tPool, NULL);
-
-	_gfx_mutex_clear(&heap->vk.gLock);
-	_gfx_mutex_clear(&heap->vk.tLock);
 	_gfx_mutex_clear(&heap->lock);
 
 	free(heap);
+}
+
+/****************************/
+GFX_API void gfx_heap_purge(GFXHeap* heap)
+{
+	assert(heap != NULL);
+
+	_GFXContext* context = heap->allocator.context;
+
+	// First purge the graphics queue ops.
+	VkCommandPool pool = heap->ops.graphics.pool;
+	_GFXMutex* lock = &heap->ops.graphics.lock;
+	GFXDeque* transfers = &heap->ops.graphics.transfers;
+
+purge:
+	// Lock so we can free command buffers.
+	_gfx_mutex_lock(lock);
+
+	// Check the front-most transfer operation, continue
+	// until one is not done yet, it's a round-robin.
+	while (transfers->size > 0)
+	{
+		_GFXTransfer* transfer = gfx_deque_at(transfers, 0);
+
+		// Check if the transfer is done.
+		// If it is not, we are done purging.
+		VkResult result = context->vk.GetFenceStatus(
+			context->vk.device, transfer->vk.done);
+
+		if (result == VK_NOT_READY)
+			break;
+
+		if (result != VK_SUCCESS)
+		{
+			// Woopsie daisy, treat as fatal...?
+			_GFX_VK_CHECK(result, {});
+			gfx_log_fatal("Heap purge failed.");
+			return;
+		}
+
+		// If it is, destroy its resources.
+		context->vk.FreeCommandBuffers(
+			context->vk.device, pool, 1, &transfer->vk.cmd);
+		context->vk.DestroyFence(
+			context->vk.device, transfer->vk.done, NULL);
+
+		if (transfer->staging != NULL)
+			_gfx_free_staging(heap, transfer->staging);
+
+		gfx_deque_pop_front(transfers, 1);
+	}
+
+	_gfx_mutex_unlock(lock);
+
+	// Then purge transfer queue ops.
+	if (transfers == &heap->ops.graphics.transfers)
+	{
+		pool = heap->ops.transfer.pool;
+		lock = &heap->ops.transfer.lock;
+		transfers = &heap->ops.transfer.transfers;
+
+		goto purge;
+	}
 }
 
 /****************************/

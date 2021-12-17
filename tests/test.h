@@ -209,8 +209,8 @@ static void _test_key_release(GFXWindow* window,
 static void _test_clear(void)
 {
 	gfx_destroy_renderer(_test_base.renderer);
-	gfx_destroy_dep(_test_base.dep);
 	gfx_destroy_heap(_test_base.heap);
+	gfx_destroy_dep(_test_base.dep);
 	gfx_destroy_window(_test_base.window);
 	gfx_terminate();
 

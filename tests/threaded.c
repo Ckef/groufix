@@ -34,6 +34,7 @@ TEST_DESCRIBE(render_loop, _t)
 	{
 		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
 		gfx_frame_submit(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
+		gfx_heap_purge(_t->heap);
 	}
 }
 

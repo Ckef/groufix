@@ -225,8 +225,16 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device);
 
 /**
  * Destroys a memory heap, freeing all resources allocated from it.
+ * This will block until all associated memory operations are done!
  */
 GFX_API void gfx_destroy_heap(GFXHeap* heap);
+
+/**
+ * Purges all resources of operations that have finished.
+ * Will _NOT_ block for operations to be done!
+ * @param heap Cannot be NULL.
+ */
+GFX_API void gfx_heap_purge(GFXHeap* heap);
 
 /**
  * Allocates a buffer from a heap.
@@ -397,8 +405,11 @@ typedef enum GFXTransferFlags
  *  One of a pair can have a size of zero and it will be ignored.
  *  Likewise, with two images, one can have a width/height/depth of zero.
  *
- * Fails if the resource was not created with
- *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
+ * gfx_read only:
+ *  Will act as if GFX_TRANSFER_BLOCK is always set!
+ *
+ *  Fails if the resource was not created with
+ *   GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
  */
 GFX_API int gfx_read(GFXReference src, void* dst,
                      GFXTransferFlags flags,
