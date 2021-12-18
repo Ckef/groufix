@@ -697,7 +697,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 		context->vk.EndCommandBuffer(transfer->vk.cmd),
 		goto clean_deps);
 
-	// Now submit the command buffer and immediately wait on it.
+	// Lock queue and submit.
 	VkSubmitInfo si = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
@@ -711,9 +711,17 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 		.pSignalSemaphores    = injection->out.sigs
 	};
 
+	_gfx_mutex_lock(queue->lock);
+
 	_GFX_VK_CHECK(
-		context->vk.QueueSubmit(queue->queue, 1, &si, transfer->vk.done),
-		goto clean_deps);
+		context->vk.QueueSubmit(
+			queue->queue, 1, &si, transfer->vk.done),
+		{
+			_gfx_mutex_unlock(queue->lock);
+			goto clean_deps;
+		});
+
+	_gfx_mutex_unlock(queue->lock);
 
 	// Manually unlock the lock left locked by _gfx_claim_transfer!
 	// Make sure to remember the fence in case we want to block.
