@@ -25,16 +25,17 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	if (rend == NULL) goto clean;
 
 	// Get context associated with the device.
+	_GFXContext* context;
 	_GFX_GET_DEVICE(rend->device, device);
-	_GFX_GET_CONTEXT(rend->context, device, goto clean);
-	_GFXContext* context = rend->context;
+	_GFX_GET_CONTEXT(context, device, goto clean);
 
 	// Pick the graphics and presentation queues.
 	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
 	_gfx_pick_queue(context, &rend->present, 0, 1);
 
-	// Initialize the render backing & graph.
+	// Initialize the allocator, render backing & graph.
 	// Technically it doesn't matter, but let's do it in dependency order.
+	_gfx_allocator_init(&rend->allocator, rend->device);
 	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
 
@@ -100,7 +101,7 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	if (renderer == NULL)
 		return;
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 
 	// Force submission if public frame is dangling.
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
@@ -116,10 +117,11 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	context->vk.DestroyCommandPool(
 		context->vk.device, renderer->vk.pool, NULL);
 
-	// Clear the backing and graph in the order that makes sense,
+	// Clear the allocator, backing and graph in the order that makes sense,
 	// considering the graph depends on the backing :)
 	_gfx_render_graph_clear(renderer);
 	_gfx_render_backing_clear(renderer);
+	_gfx_allocator_clear(&renderer->allocator);
 
 	free(renderer);
 }

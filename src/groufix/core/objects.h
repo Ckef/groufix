@@ -510,10 +510,10 @@ struct GFXFrame
  */
 struct GFXRenderer
 {
-	_GFXDevice*  device; // For format operations.
-	_GFXContext* context;
-	_GFXQueue    graphics;
-	_GFXQueue    present;
+	_GFXDevice*   device;    // For format operations.
+	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
+	_GFXQueue     graphics;
+	_GFXQueue     present;
 
 	// Render frame (i.e. collection of virtual frames).
 	GFXDeque frames; // Stores GFXFrame.
@@ -523,8 +523,7 @@ struct GFXRenderer
 	// Render backing (i.e. attachments).
 	struct
 	{
-		_GFXAllocator allocator;
-		GFXVec        attachs; // Stores _GFXAttach.
+		GFXVec attachs; // Stores _GFXAttach.
 
 		int built;
 
@@ -646,15 +645,7 @@ typedef struct _GFXUnpackRef
 	(ref).obj.image != NULL ? \
 		(ref).obj.image->heap->allocator.context : \
 	(ref).obj.renderer != NULL ? \
-		(ref).obj.renderer->context : NULL)
-
-#define _GFX_UNPACK_REF_ALLOC(ref) \
-	((ref).obj.buffer != NULL ? \
-		&(ref).obj.buffer->heap->allocator : \
-	(ref).obj.image != NULL ? \
-		&(ref).obj.image->heap->allocator : \
-	(ref).obj.renderer != NULL ? \
-		&(ref).obj.renderer->backing.allocator : NULL)
+		(ref).obj.renderer->allocator.context : NULL)
 
 #define _GFX_UNPACK_REF_HEAP(ref) \
 	((ref).obj.buffer != NULL ? (ref).obj.buffer->heap : \

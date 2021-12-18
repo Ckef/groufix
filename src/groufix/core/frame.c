@@ -56,7 +56,7 @@ static void _gfx_free_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
 	assert(renderer != NULL);
 	assert(frame != NULL);
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 
 	// Well, destroy 'm.
 	if ((num = GFX_MIN(frame->syncs.size, num)) == 0)
@@ -84,7 +84,7 @@ static int _gfx_alloc_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
 	assert(renderer != NULL);
 	assert(frame != NULL);
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 	size_t size = frame->syncs.size;
 
 	if (num <= size)
@@ -128,7 +128,7 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
 	assert(renderer != NULL);
 	assert(frame != NULL);
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 
 	// Initialize things.
 	gfx_vec_init(&frame->refs, sizeof(size_t));
@@ -201,7 +201,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 	assert(renderer != NULL);
 	assert(frame != NULL);
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 
 	// First wait for the frame to be done.
 	_GFX_VK_CHECK(context->vk.WaitForFences(
@@ -226,7 +226,7 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 	assert(frame != NULL);
 	assert(renderer != NULL);
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 	GFXVec* attachs = &renderer->backing.attachs;
 
 	// First we wait for the frame to be done, so all its resource are
@@ -337,7 +337,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 	assert(renderer != NULL);
 	assert(numDeps == 0 || deps != NULL);
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 	GFXVec* attachs = &renderer->backing.attachs;
 
 	// Prepare injection metadata.
@@ -508,7 +508,7 @@ int _gfx_sync_frames(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 
 	// If no frames found, we're done.
 	// This is necessary because this can be called during _gfx_frame_submit.

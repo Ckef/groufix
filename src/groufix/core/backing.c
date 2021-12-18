@@ -82,7 +82,7 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 	assert(renderer != NULL);
 	assert(index < renderer->backing.attachs.size);
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 	_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Destruct the parts of the graph dependent on the attachment.
@@ -121,7 +121,7 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 	assert(renderer != NULL);
 	assert(index < renderer->backing.attachs.size);
 
-	_GFXContext* context = renderer->context;
+	_GFXContext* context = renderer->allocator.context;
 	_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Build an image.
@@ -242,7 +242,6 @@ void _gfx_render_backing_init(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	_gfx_allocator_init(&renderer->backing.allocator, renderer->device);
 	gfx_vec_init(&renderer->backing.attachs, sizeof(_GFXAttach));
 
 	// No backing is a valid backing.
@@ -260,7 +259,6 @@ void _gfx_render_backing_clear(GFXRenderer* renderer)
 		_gfx_detach_attachment(renderer, i);
 
 	gfx_vec_clear(&renderer->backing.attachs);
-	_gfx_allocator_clear(&renderer->backing.allocator);
 }
 
 /****************************/
@@ -412,7 +410,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	}
 
 	// Check if the renderer and the window share the same context.
-	if (renderer->context != ((_GFXWindow*)window)->context)
+	if (renderer->allocator.context != ((_GFXWindow*)window)->context)
 	{
 		gfx_log_error(
 			"When attaching a window to a renderer they must be built on "

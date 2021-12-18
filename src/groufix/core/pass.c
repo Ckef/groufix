@@ -33,7 +33,7 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 {
 	assert(pass != NULL);
 
-	_GFXContext* context = pass->renderer->context;
+	_GFXContext* context = pass->renderer->allocator.context;
 
 	// The recreate flag is always set if anything is set and signals that
 	// the actual images have been recreated.
@@ -133,7 +133,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXDevice* device = rend->device;
-	_GFXContext* context = rend->context;
+	_GFXContext* context = rend->allocator.context;
 	_GFXAttach* at = NULL;
 	_GFXPrimitive* prim = pass->build.primitive;
 	_GFXGroup* group = pass->build.group;
@@ -791,7 +791,7 @@ void _gfx_pass_destruct(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	_GFXContext* context = pass->renderer->context;
+	_GFXContext* context = pass->renderer->allocator.context;
 
 	// Remove reference to backing window.
 	pass->build.backing = SIZE_MAX;

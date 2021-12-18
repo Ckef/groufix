@@ -17,7 +17,7 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	assert(frame != NULL);
 
 	GFXRenderer* rend = pass->renderer;
-	_GFXContext* context = rend->context;
+	_GFXContext* context = rend->allocator.context;
 	_GFXPrimitive* prim = pass->build.primitive;
 
 	// Can't be recording if resources are missing.
