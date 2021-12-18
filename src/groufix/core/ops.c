@@ -196,17 +196,19 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 }
 
 /****************************
- * Claims (creates) a transfer operation object (for purging/recycling).
+ * Pushes a new transfer operation object.
  * Also outputs the queue and command pool mutex to use.
- * @param heap Cannot be NULL.
+ * @param heap  Cannot be NULL.
+ * @param queue Cannot be NULL.
+ * @param lock  Cannot be NULL, outputs on failure as well.
  * @return NULL on failure.
  *
  * Note: leaves the mutex locked, even on failure!
  * To cleanup the last call to this function when something else failed,
  * call _gfx_pop_transfer.
  */
-static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, GFXTransferFlags flags,
-                                         _GFXQueue** queue, _GFXMutex** lock)
+static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, GFXTransferFlags flags,
+                                        _GFXQueue** queue, _GFXMutex** lock)
 {
 	assert(heap != NULL);
 	assert(queue != NULL);
@@ -229,7 +231,7 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, GFXTransferFlags flags,
 		&heap->ops.transfer.transfers : &heap->ops.graphics.transfers;
 
 	// Immediately lock, we are modifying the transfer deque!
-	// This will be left unlocked when returning...
+	// This will be left locked no matter what.
 	_gfx_mutex_lock(*lock);
 
 	// Then check if it has any elements.
@@ -268,7 +270,7 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, GFXTransferFlags flags,
 			return gfx_deque_at(transfers, transfers->size - 1);
 
 
-			// Clean the thing we tried to recycle (at least it is purged).
+		// Clean the thing we tried to recycle (at least it is purged now).
 		clean_recycle:
 			context->vk.FreeCommandBuffers(
 				context->vk.device, pool, 1, &newTransfer.vk.cmd);
@@ -287,10 +289,10 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, GFXTransferFlags flags,
 	}
 
 	// At this point we apparently need to create a new transfer object.
-	_GFXTransfer newTransfer;
-	newTransfer.staging = NULL;
-	newTransfer.vk.cmd = NULL;
-	newTransfer.vk.done = VK_NULL_HANDLE;
+	_GFXTransfer newTransfer = {
+		.staging = NULL,
+		.vk = { .cmd = NULL, .done = VK_NULL_HANDLE }
+	};
 
 	// Allocate a command buffer.
 	VkCommandBufferAllocateInfo cbai = {
@@ -333,9 +335,9 @@ clean:
 }
 
 /****************************
- * Cleans up resources from the last call to _gfx_claim_transfer.
+ * Cleans up resources from the last call to _gfx_push_transfer.
  * @param heap  Cannot be NULL.
- * @param flags Must be the same as passed to the claim call!
+ * @param flags Must be the same as was passed to the push call!
  *
  * This call should only be called to cleanup on failure.
  * Note: _STILL_ leaves the mutex locked!
@@ -452,20 +454,20 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	// recording as well!
 	_GFXQueue* queue;
 	_GFXMutex* lock;
-	_GFXTransfer* transfer = _gfx_claim_transfer(heap, flags, &queue, &lock);
+	_GFXTransfer* transfer = _gfx_push_transfer(heap, flags, &queue, &lock);
 
 	if (transfer == NULL)
 	{
-		gfx_log_error("Could not claim transfer operation resources.");
+		gfx_log_error("Could not initialize transfer operation resources.");
 		goto unlock;
 	}
+
+	// Fill in injection metadata family queue.
+	injection->inp.family = queue->family;
 
 	// Set the staging buffer if not blocking, so it gets freed at some point.
 	if (staging != NULL && !(flags & GFX_TRANSFER_BLOCK))
 		transfer->staging = staging;
-
-	// Fill in injection metadata family queue.
-	injection->inp.family = queue->family;
 
 	// Record the command buffer, we check all src/dst resource type
 	// combinations and perform the appropriate copy command.
@@ -728,7 +730,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 			context->vk.device, 1, &done, VK_TRUE, UINT64_MAX),
 		{
 			// We can't undo what we've done, treat as fatal :(
-			gfx_log_fatal("Transfer operation could not block.");
+			gfx_log_fatal("Transfer operation failed to block.");
 		});
 
 	// And lastly, make all commands visible for future operations.

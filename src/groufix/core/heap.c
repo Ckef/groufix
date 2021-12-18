@@ -610,9 +610,9 @@ purge:
 
 		if (result != VK_SUCCESS)
 		{
-			// Woopsie daisy, treat as fatal...?
+			// Woopsie daisy :o
 			_GFX_VK_CHECK(result, {});
-			gfx_log_fatal("Heap purge failed.");
+			gfx_log_warn("Heap purge failed.");
 			return;
 		}
 

@@ -161,7 +161,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	if (compiler == NULL || options == NULL)
 	{
 		gfx_log_error(
-			"Could not create resources to compile %s shader.",
+			"Could not initialize resources to compile %s shader.",
 			_GFX_GET_STAGE_STRING(shader->stage));
 
 		goto clean;
