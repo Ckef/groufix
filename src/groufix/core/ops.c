@@ -723,7 +723,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 
 	_gfx_mutex_unlock(queue->lock);
 
-	// Manually unlock the lock left locked by _gfx_claim_transfer!
+	// Manually unlock the lock left locked by _gfx_push_transfer!
 	// Make sure to remember the fence in case we want to block.
 	// We want to unlock BEFORE blocking, so other operations can start.
 	// Also note: this means we cannot free the transfer object,
