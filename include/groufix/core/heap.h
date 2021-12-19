@@ -233,6 +233,10 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap);
  * Purges all resources of operations that have finished.
  * Will _NOT_ block for operations to be done!
  * @param heap Cannot be NULL.
+ *
+ * Thread-safe with respect to heap!
+ * If any memory operation called with GFX_TRANSFER_BLOCK is
+ * blocking the host, this call will resolve to a no-op.
  */
 GFX_API void gfx_heap_purge(GFXHeap* heap);
 
@@ -406,7 +410,7 @@ typedef enum GFXTransferFlags
  *  Likewise, with two images, one can have a width/height/depth of zero.
  *
  * gfx_read only:
- *  Will act as if GFX_TRANSFER_BLOCK is always set!
+ *  Will act as if GFX_TRANSFER_BLOCK is always passed!
  *
  *  Fails if the resource was not created with
  *   GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.

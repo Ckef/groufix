@@ -298,8 +298,9 @@ struct GFXHeap
 		struct
 		{
 			VkCommandPool pool;
-			_GFXMutex     lock;
 			GFXDeque      transfers; // Stores _GFXTransfer.
+			_GFXMutex     lock;
+			unsigned int  blocking;
 
 		} graphics;
 
@@ -308,8 +309,9 @@ struct GFXHeap
 		struct
 		{
 			VkCommandPool pool;
-			_GFXMutex     lock;
 			GFXDeque      transfers; // Stores _GFXTransfer.
+			_GFXMutex     lock;
+			unsigned int  blocking;
 
 		} transfer;
 

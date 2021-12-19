@@ -482,8 +482,11 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	gfx_list_init(&heap->primitives);
 	gfx_list_init(&heap->groups);
 
+	// Initialize operation things.
 	gfx_deque_init(&heap->ops.graphics.transfers, sizeof(_GFXTransfer));
 	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(_GFXTransfer));
+	heap->ops.graphics.blocking = 0;
+	heap->ops.transfer.blocking = 0;
 
 	return heap;
 
@@ -587,8 +590,9 @@ GFX_API void gfx_heap_purge(GFXHeap* heap)
 
 	// First purge the graphics queue ops.
 	VkCommandPool pool = heap->ops.graphics.pool;
-	_GFXMutex* lock = &heap->ops.graphics.lock;
 	GFXDeque* transfers = &heap->ops.graphics.transfers;
+	_GFXMutex* lock = &heap->ops.graphics.lock;
+	unsigned int* blocking = &heap->ops.graphics.blocking;
 
 purge:
 	// Lock so we can free command buffers.
@@ -596,7 +600,9 @@ purge:
 
 	// Check the front-most transfer operation, continue
 	// until one is not done yet, it's a round-robin.
-	while (transfers->size > 0)
+	// Note we check if the host is blocking for any operations,
+	// if so, we cannot destroy the fences, so skip purging...
+	while (*blocking == 0 && transfers->size > 0)
 	{
 		_GFXTransfer* transfer = gfx_deque_at(transfers, 0);
 
@@ -634,8 +640,9 @@ purge:
 	if (transfers == &heap->ops.graphics.transfers)
 	{
 		pool = heap->ops.transfer.pool;
-		lock = &heap->ops.transfer.lock;
 		transfers = &heap->ops.transfer.transfers;
+		lock = &heap->ops.transfer.lock;
+		blocking = &heap->ops.transfer.blocking;
 
 		goto purge;
 	}

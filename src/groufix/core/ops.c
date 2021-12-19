@@ -198,9 +198,10 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 /****************************
  * Pushes a new transfer operation object.
  * Also outputs the queue and command pool mutex to use.
- * @param heap  Cannot be NULL.
- * @param queue Cannot be NULL.
- * @param lock  Cannot be NULL, outputs on failure as well.
+ * @param heap     Cannot be NULL.
+ * @param queue    Cannot be NULL.
+ * @param lock     Cannot be NULL, outputs on failure as well.
+ * @param blocking Cannot be NULL.
  * @return NULL on failure.
  *
  * Note: leaves the mutex locked, even on failure!
@@ -208,20 +209,26 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
  * call _gfx_pop_transfer.
  */
 static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, GFXTransferFlags flags,
-                                        _GFXQueue** queue, _GFXMutex** lock)
+                                        _GFXQueue** queue,
+                                        _GFXMutex** lock,
+                                        unsigned int** blocking)
 {
 	assert(heap != NULL);
 	assert(queue != NULL);
 	assert(lock != NULL);
+	assert(blocking != NULL);
 
 	_GFXContext* context = heap->allocator.context;
 
-	// Pick queue and lock from the heap.
+	// Pick queue, lock and blocking count from the heap.
 	*queue = (flags & GFX_TRANSFER_ASYNC) ?
 		&heap->transfer : &heap->graphics;
 
 	*lock = (flags & GFX_TRANSFER_ASYNC) ?
 		&heap->ops.transfer.lock : &heap->ops.graphics.lock;
+
+	*blocking = (flags & GFX_TRANSFER_ASYNC) ?
+		&heap->ops.transfer.blocking : &heap->ops.graphics.blocking;
 
 	// Pick command pool and transfer object deque to use.
 	VkCommandPool pool = (flags & GFX_TRANSFER_ASYNC) ?
@@ -237,7 +244,9 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, GFXTransferFlags flags,
 	// Then check if it has any elements.
 	// If it does, see if we can recycle the front-most transfer op.
 	// This way we end up with round-robin like behaviour :)
-	if (transfers->size > 0)
+	// Note we check if the host is blocking for any transfers,
+	// if so, we cannot reset the fence, so skip recycling...
+	if (**blocking == 0 && transfers->size > 0)
 	{
 		_GFXTransfer* transfer = gfx_deque_at(transfers, 0);
 
@@ -454,7 +463,10 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	// recording as well!
 	_GFXQueue* queue;
 	_GFXMutex* lock;
-	_GFXTransfer* transfer = _gfx_push_transfer(heap, flags, &queue, &lock);
+	unsigned int* blocking;
+
+	_GFXTransfer* transfer =
+		_gfx_push_transfer(heap, flags, &queue, &lock, &blocking);
 
 	if (transfer == NULL)
 	{
@@ -724,22 +736,31 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	_gfx_mutex_unlock(queue->lock);
 
 	// Manually unlock the lock left locked by _gfx_push_transfer!
-	// Make sure to remember the fence in case we want to block.
+	// Make sure to remember the fence in case we want to block AND
+	// increase the block count!
 	// We want to unlock BEFORE blocking, so other operations can start.
 	// Also note: this means we cannot free the transfer object,
 	// as it might not be the last one pushed anymore.
 	VkFence done = transfer->vk.done;
+	if (flags & GFX_TRANSFER_BLOCK) ++(*blocking);
+
 	_gfx_mutex_unlock(lock);
 
-	// Ok so block if asked.
-	// TODO: Do we need another lock to lock access to this fence >.> ?
+	// Ok so block if asked (+ decrease block count back down).
 	if (flags & GFX_TRANSFER_BLOCK)
+	{
 		_GFX_VK_CHECK(context->vk.WaitForFences(
 			context->vk.device, 1, &done, VK_TRUE, UINT64_MAX),
 		{
 			// We can't undo what we've done, treat as fatal :(
 			gfx_log_fatal("Transfer operation failed to block.");
 		});
+
+		// Lock access to count..
+		_gfx_mutex_lock(lock);
+		--(*blocking);
+		_gfx_mutex_unlock(lock);
+	}
 
 	// And lastly, make all commands visible for future operations.
 	// This must be last so visibility happens EXACTLY on return!
