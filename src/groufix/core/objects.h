@@ -741,6 +741,7 @@ typedef struct _GFXInjection
 
 		// TODO: Add invalidated reference's actual image/buffer handles,
 		// e.g. for resized attachments (so we can save/use/destroy its history).
+		// OR some other identifier if we can't use the handle for comparison.
 
 	} out;
 
@@ -790,6 +791,9 @@ typedef struct _GFXSync
 		VkPipelineStageFlags dstStage;
 
 		// Unpacked for locality.
+		// TODO: Can't use to check if an attachment changed because Vulkan
+		// handles aren't valid anymore when destroyed (can be reused).
+		// OR we can create the new image _before_ we destroy the old...
 		VkBuffer buffer;
 		VkImage  image;
 

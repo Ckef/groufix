@@ -533,9 +533,9 @@ try_search:
 			// If we tried the optimal memory type, and there is a defined
 			// required type as fallback, try to search/allocate using that.
 			// This is a bit much logging going on, however this is quite
-			// an extraordinary situation situation, so we would surely
-			// want to know about it.
-			// Tell it we're still trying through a warning.
+			// an extraordinary situation, so we would surely want to
+			// know about it.
+			// Announce we're still trying through a warning.
 			if (type == tOpt && (tReq != UINT32_MAX && tReq != tOpt))
 			{
 				gfx_log_warn(
