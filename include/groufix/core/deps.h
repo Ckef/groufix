@@ -101,7 +101,7 @@ typedef struct GFXInject
 	// Access scope that will be signaled.
 	GFXAccessMask mask;
 
-	// Shader stage that will have access.
+	// Shader stages that will have access.
 	GFXShaderStage stage;
 
 } GFXInject;

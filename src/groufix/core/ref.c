@@ -54,7 +54,7 @@ uint64_t _gfx_ref_size(GFXReference ref)
 
 	case GFX_REF_PRIMITIVE_VERTICES:
 		return _GFX_PRIMITIVE->bindings[_GFX_ATTRIBUTE->binding].size -
-			// Undo normalization for a correct user-land size.
+			// Subtract normalization factor for a correct user-land size.
 			(_GFX_ATTRIBUTE->offset - _GFX_ATTRIBUTE->base.offset) -
 			ref.offset;
 

@@ -17,8 +17,10 @@
  */
 typedef struct _GFXConsumeElem
 {
-	size_t index;
-	GFXAccessMask mask;
+	size_t         index;
+	GFXAccessMask  mask;
+	GFXShaderStage stage;
+	GFXRange       range;
 
 } _GFXConsumeElem;
 
@@ -827,10 +829,35 @@ void _gfx_pass_destruct(GFXPass* pass)
 }
 
 /****************************/
-GFX_API int gfx_pass_consume(GFXPass* pass, size_t index, GFXAccessMask mask)
+GFX_API int gfx_pass_consume(GFXPass* pass, size_t index,
+                             GFXAccessMask mask, GFXShaderStage stage)
+{
+	// Just call gfx_pass_consumea with the entire resource.
+	return gfx_pass_consumea(pass, index, mask, stage,
+		(GFXRange){
+			// Specify all aspect flags, will be filtered later on.
+			.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
+			.mipmap = 0,
+			.numMipmaps = 0,
+			.layer = 0,
+			.numLayers = 0
+		});
+}
+
+/****************************/
+GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
+                              GFXAccessMask mask, GFXShaderStage stage,
+                              GFXRange range)
 {
 	assert(pass != NULL);
 	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+
+	_GFXConsumeElem elem = {
+		.index = index,
+		.mask = mask,
+		.stage = stage,
+		.range = range
+	};
 
 	// Try to find it first.
 	for (size_t i = 0; i < pass->consumes.size; ++i)
@@ -838,14 +865,12 @@ GFX_API int gfx_pass_consume(GFXPass* pass, size_t index, GFXAccessMask mask)
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
 		if (con->index == index)
 		{
-			con->mask |= mask;
+			*con = elem;
 			return 1;
 		}
 	}
 
 	// Insert anew.
-	_GFXConsumeElem elem = { .index = index, .mask = mask };
-
 	if (!gfx_vec_push(&pass->consumes, 1, &elem))
 		return 0;
 

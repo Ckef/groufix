@@ -445,7 +445,7 @@ static void _test_init(void)
 	if (pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_consume(pass, 0, GFX_ACCESS_ATTACHMENT_WRITE))
+	if (!gfx_pass_consume(pass, 0, GFX_ACCESS_ATTACHMENT_WRITE, 0))
 		TEST_FAIL();
 
 	// Make it render the thing.

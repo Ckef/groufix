@@ -220,13 +220,22 @@ GFX_API void gfx_frame_submit(GFXFrame* frame,
 
 /**
  * TODO: shader location == in add-order?
- * TODO: Add shader stage?
- * TODO: Add range?
  * Consume an attachment of a renderer.
- * @param pass Cannot be NULL.
- * @param mask Access mask to consume the attachment with.
+ * @param pass  Cannot be NULL.
+ * @param mask  Access mask to consume the attachment with.
+ * @param stage Shader stages with access to the attachment.
+ * @return Zero on failure.
  */
-GFX_API int gfx_pass_consume(GFXPass* pass, size_t index, GFXAccessMask mask);
+GFX_API int gfx_pass_consume(GFXPass* pass, size_t index,
+                             GFXAccessMask mask, GFXShaderStage stage);
+
+/**
+ * Consumes a range (area) of an attachment of a renderer.
+ * @see _gfx_pass_consume.
+ */
+GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
+                              GFXAccessMask mask, GFXShaderStage stage,
+                              GFXRange range);
 
 /**
  * Release any consumption of an attachment of the renderer.
