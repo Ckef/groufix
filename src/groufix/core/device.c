@@ -934,7 +934,8 @@ int _gfx_devices_init(void)
 					.maxImageLayers      = pdp.limits.maxImageArrayLayers,
 					.maxAttributes       = pdp.limits.maxVertexInputAttributes,
 					.maxAttributeOffset  = pdp.limits.maxVertexInputAttributeOffset,
-					.maxPrimitiveStride  = pdp.limits.maxVertexInputBindingStride,
+					.maxAttributeStride  = pdp.limits.maxVertexInputBindingStride,
+					.maxPrimitiveBuffers = pdp.limits.maxVertexInputBindings,
 
 					.imageTransferGranularity = {
 						.x = props[transfer].minImageTransferGranularity.width,

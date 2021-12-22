@@ -110,7 +110,11 @@ typedef enum GFXBindingType
 typedef struct GFXAttribute
 {
 	GFXFormat format;
-	uint32_t  offset; // In bytes.
+	uint32_t  offset; // Additional offset into buffer, in bytes.
+	uint32_t  stride; // In bytes.
+
+	// Bound data (input only).
+	GFXBufferRef buffer; // May be GFX_REF_NULL to allocate new.
 
 } GFXAttribute;
 
@@ -184,18 +188,16 @@ typedef struct GFXImage
  */
 typedef struct GFXPrimitive
 {
-	// All read-only.
+	// All read-only, flags & usages of any newly allocated buffer only.
 	GFXMemoryFlags flagsVertex;
 	GFXMemoryFlags flagsIndex;
 	GFXBufferUsage usageVertex;
 	GFXBufferUsage usageIndex;
 
 	GFXTopology topology;
-
-	uint32_t stride;    // i.e. vertex size in bytes.
-	char     indexSize; // Index size in bytes.
-	uint32_t numVertices;
-	uint32_t numIndices;
+	uint32_t    numVertices;
+	uint32_t    numIndices;
+	char        indexSize; // In bytes.
 
 } GFXPrimitive;
 
@@ -205,9 +207,9 @@ typedef struct GFXPrimitive
  */
 typedef struct GFXGroup
 {
-	// All read-only.
-	GFXMemoryFlags flags; // Flags of any newly allocated buffer.
-	GFXBufferUsage usage; // Usage of any newly allocated buffer.
+	// All read-only, flags & usages of any newly allocated buffer only.
+	GFXMemoryFlags flags;
+	GFXBufferUsage usage;
 
 } GFXGroup;
 
@@ -294,10 +296,8 @@ GFX_API void gfx_free_image(GFXImage* image);
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Added usage for any newly allocated buffer.
- * @param vertex      Vertex buffer to use, GFX_REF_NULL to allocate new.
  * @param index       Index buffer to use, GFX_REF_NULL to allocate new.
  * @param numVertices Number of vertices to claim, must be > 0.
- * @param stride      Vertex size in bytes, must be > 0.
  * @param numIndices  Number of indices to claim.
  * @param indexSize   Index size, must be 0 or sizeof(uint16_t | uint32_t).
  * @param numAttribs  Number of vertex attributes, must be > 0.
@@ -310,9 +310,8 @@ GFX_API void gfx_free_image(GFXImage* image);
  */
 GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      GFXMemoryFlags flags, GFXBufferUsage usage,
-                                     GFXTopology topology,
-                                     GFXBufferRef vertex, GFXBufferRef index,
-                                     uint32_t numVertices, uint32_t stride,
+                                     GFXTopology topology, GFXBufferRef index,
+                                     uint32_t numVertices,
                                      uint32_t numIndices, char indexSize,
                                      size_t numAttribs, const GFXAttribute* attribs);
 
@@ -332,6 +331,8 @@ GFX_API size_t gfx_prim_get_num_attribs(GFXPrimitive* primitive);
  * Retrieves a vertex attribute description from a primitive geometry.
  * @param primitive Cannot be NULL.
  * @param attrib    Attribute index, must be < gfx_primitive_get_num_attribs(primitive).
+ *
+ * The `buffer` field of the returned attribute will be GFX_REF_NULL.
  */
 GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib);
 

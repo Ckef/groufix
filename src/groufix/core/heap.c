@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 
 
@@ -814,16 +815,15 @@ GFX_API void gfx_free_image(GFXImage* image)
 /****************************/
 GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      GFXMemoryFlags flags, GFXBufferUsage usage,
-                                     GFXTopology topology,
-                                     GFXBufferRef vertex, GFXBufferRef index,
-                                     uint32_t numVertices, uint32_t stride,
+                                     GFXTopology topology, GFXBufferRef index,
+                                     uint32_t numVertices,
                                      uint32_t numIndices, char indexSize,
-                                     size_t numAttribs, const GFXAttribute* attribs)
+                                     size_t numAttribs, const GFXAttribute* attribs);
 {
+	_Static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
+
 	assert(heap != NULL);
-	assert((!GFX_REF_IS_NULL(vertex) && (!GFX_REF_IS_NULL(index) || numIndices == 0)) || flags != 0);
 	assert(numVertices > 0);
-	assert(stride > 0);
 	assert(numIndices == 0 || indexSize == sizeof(uint16_t) || indexSize == sizeof(uint32_t));
 	assert(numAttribs > 0);
 	assert(attribs != NULL);
@@ -832,21 +832,39 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	if (numIndices == 0) index = GFX_REF_NULL;
 
 	// Allocate a new primitive.
+	// We allocate vertex buffers at the tail end of the primitive,
+	// we just take the maximum amount (#attributes).
+	// Make sure to adhere to its alignment requirements!
+	size_t structSize = GFX_ALIGN_UP(
+		sizeof(_GFXPrimitive) + sizeof(_GFXAttribute) * numAttribs,
+		_Alignof(_GFXPrimBuffer));
+
 	_GFXPrimitive* prim = malloc(
-		sizeof(_GFXPrimitive) +
-		sizeof(GFXAttribute) * numAttribs);
+		structSize +
+		sizeof(_GFXPrimBuffer) * numAttribs);
 
 	if (prim == NULL)
 		goto clean;
 
-	// Copy attributes & resolve formats.
+	// Initialize attributes, vertex input bindings & resolve formats.
+	// Meaning we 'merge' attribute buffers into primitive buffers.
+	// While we're at it, compute the size of the buffers to allocate.
 	prim->numAttribs = numAttribs;
+	prim->numBindings = 0;
+	prim->bindings = (_GFXPrimBuffer*)((char*)prim + structSize);
+
+	uint64_t vertexSize = 0;
+	uint64_t indexSize = GFX_REF_IS_NULL(index) ?
+		(uint64_t)numIndices * indexSize : 0;
 
 	for (size_t a = 0; a < numAttribs; ++a)
 	{
-		prim->attribs[a] = attribs[a];
+		// Set values & resolve format.
+		_GFXAttribute* attrib = &prim->attribs[a];
+		attrib->base = attribs[a];
+
 		VkFormat vkFmt;
-		_GFX_RESOLVE_FORMAT(prim->attribs[a].format, vkFmt, heap->device,
+		_GFX_RESOLVE_FORMAT(attrib->base.format, vkFmt, heap->device,
 			((VkFormatProperties){
 				.linearTilingFeatures = 0,
 				.optimalTilingFeatures = 0,
@@ -855,7 +873,105 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 				gfx_log_error("Vertex attribute format is not supported.");
 				goto clean;
 			});
+
+		// We store the resolved (!) attribute references.
+		// If no reference, insert a reference to the primitive's buffer.
+		// And get the primitive buffer & stride we need to merge with.
+		_GFXPrimBuffer pBuff;
+		pBuff.size = 0;
+		pBuff.stride = attrib->base.stride;
+
+		attrib->offset = attrib->base.offset; // To be normalized.
+
+		if (GFX_REF_IS_NULL(attrib->base.buffer))
+		{
+			// No reference found.
+			attrib->base.buffer = gfx_ref_buffer(&prim->buffer, indexSize);
+			pBuff.buffer = &prim->buffer;
+			pBuff.offset = indexSize;
+
+			vertexSize = GFX_MAX(vertexSize,
+				attrib->base.offset +
+				attrib->base.stride * ((uint64_t)numVertices - 1) +
+				GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT);
+		}
+		else
+		{
+			// Resolve & validate reference type and its context.
+			attrib->base.buffer = _gfx_ref_resolve(attrib->base.buffer);
+			_GFXUnpackRef unp = _gfx_ref_unpack(attrib->base.buffer);
+
+			pBuff.buffer = unp.obj.buffer;
+			pBuff.offset = unp.value;
+
+			if (!GFX_REF_IS_BUFFER(attrib->base.buffer))
+			{
+				gfx_log_error(
+					"A resource referenced by a primitive geometry "
+					"must be a buffer.");
+
+				goto clean;
+			}
+
+			if (_GFX_UNPACK_REF_CONTEXT(unp) != heap->allocator.context)
+			{
+				gfx_log_error(
+					"A buffer referenced by a primitive geometry must be "
+					"built on the same logical Vulkan device.");
+
+				goto clean;
+			}
+		}
+
+		// Then find a primitive buffer to merge with, we point each
+		// attribute to this buffer (i.e. the vertex input binding) by index.
+		// Merge if buffer & stride are equal, normalize offset.
+		for (size_t b = 0; b < prim->numBindings; ++b)
+			if (prim->bindings[b].buffer == pBuff.buffer &&
+				prim->bindings[b].stride == pBuff.stride) break;
+
+		attrib->binding = b;
+
+		if (b < prim->numBindings)
+			// If merging, take the lowest offset as input binding offset.
+			prim->bindings[b].offset =
+				GFX_MIN(prim->bindings[b].offset, pBuff.offset);
+		else
+		{
+			++prim->numBindings;
+			prim->bindings[b] = pBuff;
+		}
 	}
+
+	// Loop over all attributes again and check if their reference's offset
+	// is still equal to that of the associated input binding. If not,
+	// we add the extra offset, i.e. normalize it.
+	// We do this so we do't modify the user-land attribute, plus when
+	// referencing this vertex buffer in user-land we get correct offsets.
+	for (size_t a = 0; a < numAttribs; ++a)
+	{
+		_GFXAttribute* attrib = &prim->attribs[a];
+		_GFXPrimBuffer* pBuff = &prim->bindings[attrib->binding];
+		uint64_t aOffset = _gfx_ref_unpack(attrib->base.buffer).value;
+		uint64_t pOffset = pBuff->offset;
+
+		if (pOffset < aOffset)
+			attrib->offset += aOffset - pOffset;
+
+		// Also calculate the total size.
+		pBuff->size = GFX_MAX(pBuff->size,
+			attrib->offset +
+			pBuff->stride * ((uint64_t)numVertices - 1) +
+			GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT);
+	}
+
+	// TODO: Continue this madness..
+	// TODO: Also modify ref.c and pass.c and record.c
+
+
+
+
+
 
 	// Init all meta fields & get size of buffers to allocate.
 	prim->base.topology = topology;
@@ -997,7 +1113,12 @@ GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
 	assert(primitive != NULL);
 	assert(attrib < ((_GFXPrimitive*)primitive)->numAttribs);
 
-	return ((_GFXPrimitive*)primitive)->attribs[attrib];
+	// Don't return the actually stored attribute.
+	// NULL-ify the buffer field, don't expose it.
+	GFXAttribute attrib = ((_GFXPrimitive*)primitive)->attribs[attrib].base;
+	attrib.buffer = GFX_REF_IS_NULL;
+
+	return attrib;
 }
 
 /****************************/
@@ -1039,7 +1160,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	for (size_t b = 0; b < numBindings; ++b)
 	{
 		// Set values for each binding.
-		GFXBinding* bind = group->bindings + b;
+		GFXBinding* bind = &group->bindings[b];
 		const GFXReference* srcPtr = NULL;
 
 		*bind = bindings[b];

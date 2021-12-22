@@ -313,29 +313,37 @@ static void _test_init(void)
 		-0.5f,  0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 1.0f
 	};
 
+	// TODO: Mimic gltf more (also leverages Vulkan better).
+	// i.e. move buffer ref + stride to attributes.
+	// Then merge binding descriptions internally.
 	_test_base.primitive = gfx_alloc_prim(_test_base.heap,
 		GFX_MEMORY_WRITE, 0,
 		GFX_TOPO_TRIANGLE_STRIP,
-		GFX_REF_NULL, GFX_REF_NULL,
-		4, sizeof(float) * 8,
-		4, sizeof(uint16_t),
+		GFX_REF_NULL,
+		4, 4, sizeof(uint16_t),
 		3, (GFXAttribute[]){
 			{
 				.format = GFX_FORMAT_R32G32B32_SFLOAT,
-				.offset = 0
+				.offset = 0,
+				.stride = sizeof(float) * 8,
+				.buffer = GFX_REF_NULL
 			}, {
 				.format = GFX_FORMAT_R32G32B32_SFLOAT,
-				.offset = sizeof(float) * 3
+				.offset = sizeof(float) * 3,
+				.stride = sizeof(float) * 8,
+				.buffer = GFX_REF_NULL
 			}, {
 				.format = GFX_FORMAT_R32G32_SFLOAT,
-				.offset = sizeof(float) * 6
+				.offset = sizeof(float) * 6,
+				.stride = sizeof(float) * 8,
+				.buffer = GFX_REF_NULL
 			}
 		});
 
 	if (_test_base.primitive == NULL)
 		TEST_FAIL();
 
-	GFXBufferRef vert = gfx_ref_prim_vertices(_test_base.primitive, 0);
+	GFXBufferRef vert = gfx_ref_prim_vertices(_test_base.primitive, 0, 0);
 	GFXBufferRef ind = gfx_ref_prim_indices(_test_base.primitive, 0);
 
 	if (!gfx_write(vertexData, vert, GFX_TRANSFER_ASYNC, 1, 1,

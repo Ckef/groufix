@@ -365,18 +365,45 @@ typedef struct _GFXImage
 
 
 /**
+ * Primitive buffer (i.e. Vulkan vertex input binding).
+ */
+typedef struct _GFXPrimBuffer
+{
+	_GFXBuffer* buffer;
+	uint64_t    offset; // Offset to bind at.
+	uint64_t    size;   // Total size (including the last attribute) in bytes.
+	uint32_t    stride;
+
+} _GFXPrimBuffer;
+
+
+/**
+ * Internal vertex attribute.
+ */
+typedef struct _GFXAttribute
+{
+	GFXAttribute base; // `offset` field is replaced.
+	uint32_t     offset;
+	uint32_t     binding; // Vulkan input binding.
+
+} _GFXAttribute;
+
+
+/**
  * Internal primitive geometry (superset of buffer).
  */
 typedef struct _GFXPrimitive
 {
 	GFXPrimitive base;
 	_GFXBuffer   buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
+	_GFXBuffer*  index;  // May be NULL.
+	uint64_t     indexOffset;
 
-	GFXBufferRef refVertex; // Can be GFX_REF_NULL.
-	GFXBufferRef refIndex;  // Can be GFX_REF_NULL.
+	size_t          numBindings;
+	_GFXPrimBuffer* bindings; // Vulkan input bindings.
 
-	size_t       numAttribs;
-	GFXAttribute attribs[];
+	size_t        numAttribs;
+	_GFXAttribute attribs[]; // No reference is GFX_REF_NULL.
 
 } _GFXPrimitive;
 
@@ -390,7 +417,7 @@ typedef struct _GFXGroup
 	_GFXBuffer buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
 
 	size_t     numBindings;
-	GFXBinding bindings[]; // No reference is GFX_REF_NULL!
+	GFXBinding bindings[]; // No reference is GFX_REF_NULL.
 
 } _GFXGroup;
 
@@ -439,7 +466,7 @@ typedef struct _GFXWindowAttach
 
 
 /**
- * Internal attachment description.
+ * Internal attachment.
  */
 typedef struct _GFXAttach
 {

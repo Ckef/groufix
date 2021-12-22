@@ -42,7 +42,7 @@ typedef struct GFXReference
 	uint64_t offset;
 
 	// Reference values,
-	//  { binding | attachment | 0, index | 0 }.
+	//  { attribute | binding | attachment | 0, index | 0 }.
 	size_t values[2];
 
 } GFXReference;
@@ -85,7 +85,7 @@ typedef GFXReference GFXImageRef;
  * Resource referencing macros, objects that can be referenced:
  *  GFXBuffer
  *  GFXImage
- *  GFXPrimitive (its vertex or index buffer)
+ *  GFXPrimitive (its vertex or index buffers)
  *  GFXGroup     (one of its buffers or images)
  *  GFXRenderer  (its image attachments)
  *
@@ -111,12 +111,12 @@ typedef GFXReference GFXImageRef;
 		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_prim_vertices(primitive, offset_) \
+#define gfx_ref_prim_vertices(primitive, offset_, attribute_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_VERTICES, \
 		.obj = primitive, \
 		.offset = offset_, \
-		.values = { 0, 0 } \
+		.values = { attribute_, 0 } \
 	}
 
 #define gfx_ref_prim_indices(primitive, offset_) \
