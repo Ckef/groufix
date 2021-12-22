@@ -818,7 +818,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      GFXTopology topology, GFXBufferRef index,
                                      uint32_t numVertices,
                                      uint32_t numIndices, char indexSize,
-                                     size_t numAttribs, const GFXAttribute* attribs);
+                                     size_t numAttribs, const GFXAttribute* attribs)
 {
 	_Static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
 
@@ -853,9 +853,9 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	prim->numBindings = 0;
 	prim->bindings = (_GFXPrimBuffer*)((char*)prim + structSize);
 
-	uint64_t vertexSize = 0;
-	uint64_t indexSize = GFX_REF_IS_NULL(index) ?
-		(uint64_t)numIndices * indexSize : 0;
+	uint64_t verSize = 0;
+	uint64_t indSize = GFX_REF_IS_NULL(index) ?
+		(uint64_t)numIndices * (uint64_t)indexSize : 0;
 
 	for (size_t a = 0; a < numAttribs; ++a)
 	{
@@ -863,8 +863,8 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		_GFXAttribute* attrib = &prim->attribs[a];
 		attrib->base = attribs[a];
 
-		VkFormat vkFmt;
-		_GFX_RESOLVE_FORMAT(attrib->base.format, vkFmt, heap->device,
+		_GFX_RESOLVE_FORMAT(
+			attrib->base.format, attrib->vk.format, heap->device,
 			((VkFormatProperties){
 				.linearTilingFeatures = 0,
 				.optimalTilingFeatures = 0,
@@ -875,7 +875,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 			});
 
 		// We store the resolved (!) attribute references.
-		// If no reference, insert a reference to the primitive's buffer.
+		// If no reference, insert a reference to the newly allocated buffer.
 		// And get the primitive buffer & stride we need to merge with.
 		_GFXPrimBuffer pBuff;
 		pBuff.size = 0;
@@ -886,11 +886,11 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		if (GFX_REF_IS_NULL(attrib->base.buffer))
 		{
 			// No reference found.
-			attrib->base.buffer = gfx_ref_buffer(&prim->buffer, indexSize);
+			attrib->base.buffer = gfx_ref_buffer(&prim->buffer, indSize);
 			pBuff.buffer = &prim->buffer;
-			pBuff.offset = indexSize;
+			pBuff.offset = indSize;
 
-			vertexSize = GFX_MAX(vertexSize,
+			verSize = GFX_MAX(verSize,
 				attrib->base.offset +
 				attrib->base.stride * ((uint64_t)numVertices - 1) +
 				GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT);
@@ -924,13 +924,14 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		}
 
 		// Then find a primitive buffer to merge with, we point each
-		// attribute to this buffer (i.e. the vertex input binding) by index.
+		// attribute to this buffer by index (i.e. the vertex input binding).
 		// Merge if buffer & stride are equal, normalize offset.
-		for (size_t b = 0; b < prim->numBindings; ++b)
+		size_t b;
+		for (b = 0; b < prim->numBindings; ++b)
 			if (prim->bindings[b].buffer == pBuff.buffer &&
 				prim->bindings[b].stride == pBuff.stride) break;
 
-		attrib->binding = b;
+		attrib->binding = (uint32_t)b;
 
 		if (b < prim->numBindings)
 			// If merging, take the lowest offset as input binding offset.
@@ -952,11 +953,13 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	{
 		_GFXAttribute* attrib = &prim->attribs[a];
 		_GFXPrimBuffer* pBuff = &prim->bindings[attrib->binding];
-		uint64_t aOffset = _gfx_ref_unpack(attrib->base.buffer).value;
 		uint64_t pOffset = pBuff->offset;
+		uint64_t aOffset = (pBuff->buffer == &prim->buffer) ?
+			// To avoid an unpack warning.
+			indSize : _gfx_ref_unpack(attrib->base.buffer).value;
 
 		if (pOffset < aOffset)
-			attrib->offset += aOffset - pOffset;
+			attrib->offset += (uint32_t)(aOffset - pOffset);
 
 		// Also calculate the total size.
 		pBuff->size = GFX_MAX(pBuff->size,
@@ -965,61 +968,49 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 			GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT);
 	}
 
-	// TODO: Continue this madness..
-	// TODO: Also modify ref.c and pass.c and record.c
+	// Also resolve (!) the index reference real quick.
+	if (GFX_REF_IS_NULL(index))
+		prim->index = indSize > 0 ?
+			gfx_ref_buffer(&prim->buffer, 0) : GFX_REF_NULL;
+	else
+	{
+		// Resolve & validate reference type and its context.
+		prim->index = _gfx_ref_resolve(index);
+		_GFXUnpackRef unp = _gfx_ref_unpack(prim->index);
 
+		if (!GFX_REF_IS_BUFFER(index))
+		{
+			gfx_log_error(
+				"A resource referenced by a primitive geometry "
+				"must be a buffer.");
 
+			goto clean;
+		}
 
+		if (_GFX_UNPACK_REF_CONTEXT(unp) != heap->allocator.context)
+		{
+			gfx_log_error(
+				"A buffer referenced by a primitive geometry must be "
+				"built on the same logical Vulkan device.");
 
+			goto clean;
+		}
+	}
 
+	// Init all meta fields now that we know what to allocate.
+	prim->buffer.heap = heap;
+	prim->buffer.base.size = indSize + verSize;
+	prim->buffer.base.flags = flags;
+	prim->buffer.base.usage = usage |
+		(verSize > 0 ? GFX_BUFFER_VERTEX : 0) |
+		(indSize > 0 ? GFX_BUFFER_INDEX : 0);
 
-	// Init all meta fields & get size of buffers to allocate.
+	prim->base.flags = 0;
+	prim->base.usage = 0;
 	prim->base.topology = topology;
-
-	prim->base.stride = stride;
-	prim->base.indexSize = numIndices > 0 ? indexSize : 0;
 	prim->base.numVertices = numVertices;
 	prim->base.numIndices = numIndices;
-
-	prim->buffer.heap = heap;
-	prim->buffer.base.flags = flags;
-	prim->buffer.base.usage =
-		usage |
-		(GFX_REF_IS_NULL(vertex) ? GFX_BUFFER_VERTEX : 0) |
-		(GFX_REF_IS_NULL(index) ? GFX_BUFFER_INDEX : 0);
-	prim->buffer.base.size =
-		(GFX_REF_IS_NULL(vertex) ? (numVertices * stride) : 0) +
-		(GFX_REF_IS_NULL(index) ? (numIndices * (unsigned char)indexSize) : 0);
-
-	// We actually resolve the references (!) to get
-	// appropriate public usage & validate context and such.
-	prim->refVertex = _gfx_ref_resolve(vertex);
-	prim->refIndex = _gfx_ref_resolve(index);
-	_GFXUnpackRef unpVer = _gfx_ref_unpack(prim->refVertex);
-	_GFXUnpackRef unpInd = _gfx_ref_unpack(prim->refIndex);
-
-	if (
-		!(GFX_REF_IS_NULL(prim->refVertex) || GFX_REF_IS_BUFFER(prim->refVertex)) ||
-		!(GFX_REF_IS_NULL(prim->refIndex) || GFX_REF_IS_BUFFER(prim->refIndex)))
-	{
-		gfx_log_error(
-			"A resource referenced by a primitive geometry must be a buffer.");
-
-		goto clean;
-	}
-
-	if (
-		(!GFX_REF_IS_NULL(prim->refVertex) &&
-			_GFX_UNPACK_REF_CONTEXT(unpVer) != heap->allocator.context) ||
-		(!GFX_REF_IS_NULL(prim->refIndex) &&
-			_GFX_UNPACK_REF_CONTEXT(unpInd) != heap->allocator.context))
-	{
-		gfx_log_error(
-			"A buffer referenced by a primitive geometry must be built on "
-			"the same logical Vulkan device.");
-
-		goto clean;
-	}
+	prim->base.indexSize = numIndices > 0 ? indexSize : 0;
 
 	// Allocate a buffer if required.
 	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.
@@ -1029,42 +1020,22 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	_gfx_mutex_lock(&heap->lock);
 
 	if (prim->buffer.base.size > 0)
+	{
 		if (!_gfx_buffer_alloc(&prim->buffer))
 		{
 			_gfx_mutex_unlock(&heap->lock);
 			goto clean;
 		}
 
+		// Trickle down memory flags & usage to user-land.
+		prim->base.flags = prim->buffer.base.flags;
+		prim->base.usage = prim->buffer.base.usage;
+	}
+
 	// Link into the heap & unlock.
 	gfx_list_insert_after(&heap->primitives, &prim->buffer.list, NULL);
 
 	_gfx_mutex_unlock(&heap->lock);
-
-	// Trickle down memory & usage flags to user-land.
-	prim->base.flagsVertex = (unpVer.obj.buffer != NULL) ?
-		unpVer.obj.buffer->base.flags : prim->buffer.base.flags;
-	prim->base.flagsIndex = (unpInd.obj.buffer != NULL) ?
-		unpInd.obj.buffer->base.flags :
-		(numIndices > 0 ? prim->buffer.base.flags : 0);
-
-	prim->base.usageVertex = (unpVer.obj.buffer != NULL) ?
-		unpVer.obj.buffer->base.usage : prim->buffer.base.usage;
-	prim->base.usageIndex = (unpInd.obj.buffer != NULL) ?
-		unpInd.obj.buffer->base.usage :
-		(numIndices > 0 ? prim->buffer.base.usage : 0);
-
-#if !defined (NDEBUG)
-	// Usage flag validation is a debug feature, just like memory flags.
-	if (!(prim->base.usageVertex & GFX_BUFFER_VERTEX))
-		gfx_log_warn(
-			"A buffer referenced by a primitive geometry as vertex buffer "
-			"must be created with GFX_BUFFER_VERTEX.");
-
-	if (numIndices > 0 && !(prim->base.usageIndex & GFX_BUFFER_INDEX))
-		gfx_log_warn(
-			"A buffer referenced by a primitive geometry as index buffer "
-			"must be created with GFX_BUFFER_INDEX.");
-#endif
 
 	return &prim->base;
 
@@ -1115,10 +1086,10 @@ GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
 
 	// Don't return the actually stored attribute.
 	// NULL-ify the buffer field, don't expose it.
-	GFXAttribute attrib = ((_GFXPrimitive*)primitive)->attribs[attrib].base;
-	attrib.buffer = GFX_REF_IS_NULL;
+	GFXAttribute attr = ((_GFXPrimitive*)primitive)->attribs[attrib].base;
+	attr.buffer = GFX_REF_NULL;
 
-	return attrib;
+	return attr;
 }
 
 /****************************/
@@ -1244,8 +1215,8 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	group->buffer.base.usage = usage;
 	group->buffer.base.size = size;
 
-	group->base.flags = 0; // Set down below.
-	group->base.usage = size > 0 ? usage : 0;
+	group->base.flags = 0;
+	group->base.usage = 0;
 
 	// Allocate a buffer if required.
 	// If nothing gets allocated, vk.buffer is set to VK_NULL_HANDLE.
@@ -1262,8 +1233,9 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			goto clean;
 		}
 
-		// Trickle down memory flags to user-land.
+		// Trickle down memory flags & usage to user-land.
 		group->base.flags = group->buffer.base.flags;
+		group->base.usage = group->buffer.base.usage;
 	}
 
 	// Link into the heap & unlock.

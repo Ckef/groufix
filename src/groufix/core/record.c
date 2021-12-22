@@ -82,7 +82,6 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
 		pass->vk.pipeLayout, 0, 1, &pass->vk.set, 0, NULL);
 
-	// TODO: Unpacking is not thread-safe, renderables should be careful!
 	// Bind index buffer.
 	if (prim->base.numIndices > 0)
 	{
@@ -97,14 +96,18 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 				VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
 	}
 
-	// Bind vertex buffer.
-	_GFXUnpackRef vertex = _gfx_ref_unpack(
-		gfx_ref_prim_vertices(&prim->base, 0));
+	// Bind vertex buffers.
+	VkBuffer vertexBuffs[prim->numBindings];
+	VkDeviceSize vertexOffsets[prim->numBindings];
+
+	for (size_t i = 0; i < prim->numBindings; ++i)
+		vertexBuffs[i] = prim->bindings[i].buffer->vk.buffer,
+		vertexOffsets[i] = prim->bindings[i].offset;
 
 	context->vk.CmdBindVertexBuffers(
-		frame->vk.cmd, 0, 1,
-		&vertex.obj.buffer->vk.buffer,
-		(VkDeviceSize[]){ vertex.value });
+		frame->vk.cmd,
+		0, (uint32_t)prim->numBindings,
+		vertexBuffs, vertexOffsets);
 
 	// Draw.
 	// TODO: Renderable objects should define what range of the primitive to draw.

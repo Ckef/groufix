@@ -382,9 +382,17 @@ typedef struct _GFXPrimBuffer
  */
 typedef struct _GFXAttribute
 {
-	GFXAttribute base; // `offset` field is replaced.
-	uint32_t     offset;
+	GFXAttribute base;
+	uint32_t     offset;  // Normalized version of base.offset.
 	uint32_t     binding; // Vulkan input binding.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkFormat format;
+
+	} vk;
 
 } _GFXAttribute;
 
@@ -396,8 +404,7 @@ typedef struct _GFXPrimitive
 {
 	GFXPrimitive base;
 	_GFXBuffer   buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
-	_GFXBuffer*  index;  // May be NULL.
-	uint64_t     indexOffset;
+	GFXBufferRef index;  // May be GFX_REF_NULL.
 
 	size_t          numBindings;
 	_GFXPrimBuffer* bindings; // Vulkan input bindings.

@@ -111,7 +111,7 @@ typedef GFXReference GFXImageRef;
 		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_prim_vertices(primitive, offset_, attribute_) \
+#define gfx_ref_prim_vertices(primitive, attribute_, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_VERTICES, \
 		.obj = primitive, \

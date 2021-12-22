@@ -132,7 +132,6 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 	assert(pass->build.group != NULL); // TODO: Uh oh, temporary.
 
 	GFXRenderer* rend = pass->renderer;
-	_GFXDevice* device = rend->device;
 	_GFXContext* context = rend->allocator.context;
 	_GFXAttach* at = NULL;
 	_GFXPrimitive* prim = pass->build.primitive;
@@ -471,17 +470,22 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 
 		// Pipeline vertex input state.
 		VkVertexInputAttributeDescription viad[prim->numAttribs];
+		VkVertexInputBindingDescription vibd[prim->numBindings];
 
 		for (size_t i = 0; i < prim->numAttribs; ++i)
-		{
-			GFXFormat fmt = prim->attribs[i].format;
 			viad[i] = (VkVertexInputAttributeDescription){
 				.location = (uint32_t)i,
-				.binding  = 0,
-				.format   = _gfx_resolve_format(device, &fmt, NULL),
+				.binding  = prim->attribs[i].binding,
+				.format   = prim->attribs[i].vk.format,
 				.offset   = prim->attribs[i].offset
 			};
-		}
+
+		for (size_t i = 0; i < prim->numBindings; ++i)
+			vibd[i] = (VkVertexInputBindingDescription){
+				.binding   = (uint32_t)i,
+				.stride    = prim->bindings[i].stride,
+				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+			};
 
 		VkPipelineVertexInputStateCreateInfo pvisci = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -490,12 +494,8 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.flags                           = 0,
 			.vertexAttributeDescriptionCount = (uint32_t)prim->numAttribs,
 			.pVertexAttributeDescriptions    = viad,
-			.vertexBindingDescriptionCount   = 1,
-			.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]){{
-				.binding   = 0,
-				.stride    = prim->base.stride,
-				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-			}}
+			.vertexBindingDescriptionCount   = (uint32_t)prim->numBindings,
+			.pVertexBindingDescriptions      = vibd
 		};
 
 		// Pipeline input assembly state.

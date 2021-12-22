@@ -12,10 +12,12 @@
 #define _GFX_BUFFER ((_GFXBuffer*)ref.obj)
 #define _GFX_IMAGE ((_GFXImage*)ref.obj)
 #define _GFX_PRIMITIVE ((_GFXPrimitive*)ref.obj)
+#define _GFX_ATTRIBUTE (((_GFXPrimitive*)ref.obj)->attribs + ref.values[0])
 #define _GFX_GROUP ((_GFXGroup*)ref.obj)
 #define _GFX_BINDING (((_GFXGroup*)ref.obj)->bindings + ref.values[0])
 #define _GFX_RENDERER ((GFXRenderer*)ref.obj)
 
+#define _GFX_VATTRIBUTE(ref) ref.values[0]
 #define _GFX_VBINDING(ref) ref.values[0]
 #define _GFX_VATTACHMENT(ref) ref.values[0]
 #define _GFX_VINDEX(ref) ref.values[1]
@@ -51,8 +53,10 @@ uint64_t _gfx_ref_size(GFXReference ref)
 		return _GFX_BUFFER->base.size - ref.offset;
 
 	case GFX_REF_PRIMITIVE_VERTICES:
-		return ((uint64_t)_GFX_PRIMITIVE->base.stride *
-			_GFX_PRIMITIVE->base.numVertices) - ref.offset;
+		return _GFX_PRIMITIVE->bindings[_GFX_ATTRIBUTE->binding].size -
+			// Undo normalization for a correct user-land size.
+			(_GFX_ATTRIBUTE->offset - _GFX_ATTRIBUTE->base.offset) -
+			ref.offset;
 
 	case GFX_REF_PRIMITIVE_INDICES:
 		return ((uint64_t)_GFX_PRIMITIVE->base.indexSize *
@@ -82,11 +86,14 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 	{
 	case GFX_REF_PRIMITIVE_VERTICES:
 		_GFX_CHECK_RESOLVE(
-			_GFX_PRIMITIVE->base.numVertices > 0,
+			_GFX_VATTRIBUTE(ref) < _GFX_PRIMITIVE->numAttribs,
 			"Referencing a non-existent vertex buffer!");
 
-		rec = _GFX_PRIMITIVE->refVertex; // Must be a buffer.
-		rec.offset += ref.offset;
+		rec = _GFX_ATTRIBUTE->base.buffer; // Must be a buffer.
+
+		// If referencing the primitive's buffer, just return the prim itself.
+		if (rec.obj == &_GFX_PRIMITIVE->buffer) rec = GFX_REF_NULL;
+		else rec.offset += ref.offset;
 		break;
 
 	case GFX_REF_PRIMITIVE_INDICES:
@@ -94,8 +101,11 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 			_GFX_PRIMITIVE->base.numIndices > 0,
 			"Referencing a non-existent index buffer!");
 
-		rec = _GFX_PRIMITIVE->refIndex; // Must be a buffer.
-		rec.offset += ref.offset;
+		rec = _GFX_PRIMITIVE->index; // Must be a buffer.
+
+		// If referencing the primitive's buffer, just return the prim itself.
+		if (rec.obj == &_GFX_PRIMITIVE->buffer) rec = GFX_REF_NULL;
+		else rec.offset += ref.offset;
 		break;
 
 	case GFX_REF_GROUP_BUFFER:
@@ -188,7 +198,9 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_PRIMITIVE_VERTICES:
 		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
-		unp.value = ref.offset;
+		unp.value = ref.offset +
+			// Augment offset into index/vertex buffer.
+			_GFX_ATTRIBUTE->base.buffer.offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
@@ -198,10 +210,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_PRIMITIVE_INDICES:
 		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
-		unp.value = ref.offset +
-			// Augment offset into the vertex/index buffer.
-			(GFX_REF_IS_NULL(_GFX_PRIMITIVE->refVertex) ?
-				_GFX_PRIMITIVE->base.numVertices * _GFX_PRIMITIVE->base.stride : 0);
+		unp.value = ref.offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,

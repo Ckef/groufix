@@ -188,11 +188,9 @@ typedef struct GFXImage
  */
 typedef struct GFXPrimitive
 {
-	// All read-only, flags & usages of any newly allocated buffer only.
-	GFXMemoryFlags flagsVertex;
-	GFXMemoryFlags flagsIndex;
-	GFXBufferUsage usageVertex;
-	GFXBufferUsage usageIndex;
+	// All read-only, flags/usage of newly allocated buffers only.
+	GFXMemoryFlags flags;
+	GFXBufferUsage usage;
 
 	GFXTopology topology;
 	uint32_t    numVertices;
@@ -207,7 +205,7 @@ typedef struct GFXPrimitive
  */
 typedef struct GFXGroup
 {
-	// All read-only, flags & usages of any newly allocated buffer only.
+	// All read-only, flags/usage of newly allocated buffers only.
 	GFXMemoryFlags flags;
 	GFXBufferUsage usage;
 

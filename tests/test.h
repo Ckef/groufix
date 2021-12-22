@@ -313,9 +313,6 @@ static void _test_init(void)
 		-0.5f,  0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 1.0f
 	};
 
-	// TODO: Mimic gltf more (also leverages Vulkan better).
-	// i.e. move buffer ref + stride to attributes.
-	// Then merge binding descriptions internally.
 	_test_base.primitive = gfx_alloc_prim(_test_base.heap,
 		GFX_MEMORY_WRITE, 0,
 		GFX_TOPO_TRIANGLE_STRIP,
