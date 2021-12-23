@@ -200,6 +200,7 @@ clean-all: clean clean-bin clean-deps
 
 OBJS = \
  $(OUT)$(SUB)/groufix/containers/deque.o \
+ $(OUT)$(SUB)/groufix/containers/io.o \
  $(OUT)$(SUB)/groufix/containers/list.o \
  $(OUT)$(SUB)/groufix/containers/map.o \
  $(OUT)$(SUB)/groufix/containers/tree.o \
