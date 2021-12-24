@@ -41,6 +41,18 @@ typedef struct GFXWriter
 
 
 /**
+ * Constant string stream definition.
+ */
+typedef struct GFXStringReader
+{
+	GFXReader reader;
+	size_t pos;
+	const char* str;
+
+} GFXStringReader;
+
+
+/**
  * File reader/writer stream definition.
  */
 typedef struct GFXFile
@@ -115,7 +127,18 @@ GFX_API long long gfx_io_writef(const GFXWriter* str, const char* fmt, ...);
 GFX_API long long gfx_io_vwritef(const GFXWriter* str, const char* fmt, va_list args);
 
 /**
- * Initializes a file (i.e. opens it).
+ * Initializes a constant string stream.
+ * Does not need to be cleared, hence no _init postfix.
+ * @param str    Cannot be NULL.
+ * @param string Cannot be NULL, must be NULL-terminated.
+ *
+ * The string will NOT be copied, the reader is invalidated if
+ * string is freed or otherwise moved.
+ */
+GFX_API void gfx_string_reader(GFXStringReader* str, const char* string);
+
+/**
+ * Initializes a file stream (i.e. opens it).
  * @param file Cannot be NULL.
  * @param name Filename, cannot be NULL, must be NULL-terminated.
  * @param mode File access mode, cannot be NULL, must be NULL-terminated.
@@ -126,7 +149,7 @@ GFX_API long long gfx_io_vwritef(const GFXWriter* str, const char* fmt, va_list 
 GFX_API int gfx_file_init(GFXFile* file, const char* name, const char* mode);
 
 /**
- * Clears a file (i.e. closes it).
+ * Clears a file stream (i.e. closes it).
  * @param file Cannot be NULL.
  */
 GFX_API void gfx_file_clear(GFXFile* file);

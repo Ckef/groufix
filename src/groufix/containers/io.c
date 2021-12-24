@@ -9,6 +9,7 @@
 #include "groufix/containers/io.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 /****************************
@@ -25,6 +26,34 @@ static long long _gfx_stdout(const GFXWriter* str, const void* data, size_t len)
 static long long _gfx_stderr(const GFXWriter* str, const void* data, size_t len)
 {
 	return (long long)fwrite(data, 1, len, stderr);
+}
+
+/****************************
+ * GFXStringReader implementation of the len function.
+ */
+static long long _gfx_string_reader_len(const GFXReader* str)
+{
+	GFXStringReader* reader = GFX_IO_OBJ(str, GFXStringReader, reader);
+	return (long long)strlen(reader->str);
+}
+
+/****************************
+ * GFXStringReader implementation of the read function.
+ */
+static long long _gfx_string_reader_read(const GFXReader* str, void* data, size_t len)
+{
+	GFXStringReader* reader = GFX_IO_OBJ(str, GFXStringReader, reader);
+
+	// Read all characters.
+	size_t pos = 0;
+	while (pos < len && reader->str[reader->pos] != '\0')
+		((char*)data)[pos++] = reader->str[reader->pos++];
+
+	// Reset position.
+	if (reader->str[reader->pos] == '\0')
+		reader->pos = 0;
+
+	return (long long)pos;
 }
 
 /****************************
@@ -149,6 +178,19 @@ GFX_API long long gfx_io_vwritef(const GFXWriter* str, const char* fmt, va_list 
 error:
 	va_end(args2);
 	return -1;
+}
+
+/****************************/
+GFX_API void gfx_string_reader(GFXStringReader* str, const char* string)
+{
+	assert(str != NULL);
+	assert(string != NULL);
+
+	str->reader.len = _gfx_string_reader_len;
+	str->reader.read = _gfx_string_reader_read;
+
+	str->pos = 0;
+	str->str = string;
 }
 
 /****************************/
