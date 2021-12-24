@@ -259,23 +259,33 @@ $(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
 	$(CC) $(TFLAGS) -Itests $< -o $@ -L$(BIN)$(SUB) -Wl,-rpath='$$ORIGIN' -lgroufix
 
 
-# Platform builds
+# Platform flags
+UNIX_TESTS = \
+ $(BIN)$(SUB)/fps \
+ $(BIN)$(SUB)/minimal \
+ $(BIN)$(SUB)/threaded \
+ $(BIN)$(SUB)/windows
+
+WIN_TESTS = \
+ $(BIN)$(SUB)/fps.exe \
+ $(BIN)$(SUB)/minimal.exe \
+ $(BIN)$(SUB)/threaded.exe \
+ $(BIN)$(SUB)/windows.exe
+
 MFLAGS_ALL  = --no-print-directory
 MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix EXT=.so PTEST=%
 MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win EXT=.dll PTEST=%.exe
 
+build-win-tests: $(WIN_TESTS)
+build-unix-tests: $(UNIX_TESTS)
+
+# Platform builds
 unix:
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/libgroufix.so
 unix-tests:
-	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/fps
-	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/minimal
-	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/threaded
-	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/windows
+	@$(MAKE) $(MFLAGS_UNIX) build-unix-tests
 
 win:
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/libgroufix.dll
 win-tests:
-	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/fps.exe
-	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/minimal.exe
-	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/threaded.exe
-	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/windows.exe
+	@$(MAKE) $(MFLAGS_WIN) build-win-tests
