@@ -33,18 +33,18 @@ static long long _gfx_stderr(const GFXWriter* str, const void* data, size_t len)
 static long long _gfx_file_len(const GFXReader* str)
 {
 	GFXFile* file = GFX_IO_OBJ(str, GFXFile, reader);
-	if (file->file == NULL) return -1;
+	if (file->handle == NULL) return -1;
 
 	// Get current position.
-	long pos = ftell(file->file);
+	long pos = ftell(file->handle);
 	if (pos < 0) return -1;
 
 	// Seek end, get length.
-	if (fseek(file->file, 0, SEEK_END)) return -1;
-	long len = ftell(file->file);
+	if (fseek(file->handle, 0, SEEK_END)) return -1;
+	long len = ftell(file->handle);
 
 	// Reset to old position.
-	if (fseek(file->file, pos, SEEK_SET)) return -1;
+	if (fseek(file->handle, pos, SEEK_SET)) return -1;
 
 	return len;
 }
@@ -55,10 +55,10 @@ static long long _gfx_file_len(const GFXReader* str)
 static long long _gfx_file_read(const GFXReader* str, void* data, size_t len)
 {
 	GFXFile* file = GFX_IO_OBJ(str, GFXFile, reader);
-	if (file->file == NULL) return -1;
+	if (file->handle == NULL) return -1;
 
-	size_t ret = fread(data, 1, len, file->file);
-	return ferror(file->file) ? -1 : (long long)ret;
+	size_t ret = fread(data, 1, len, file->handle);
+	return ferror(file->handle) ? -1 : (long long)ret;
 }
 
 /****************************
@@ -67,10 +67,10 @@ static long long _gfx_file_read(const GFXReader* str, void* data, size_t len)
 static long long _gfx_file_write(const GFXWriter* str, const void* data, size_t len)
 {
 	GFXFile* file = GFX_IO_OBJ(str, GFXFile, writer);
-	if (file->file == NULL) return -1;
+	if (file->handle == NULL) return -1;
 
-	size_t ret = fwrite(data, 1, len, file->file);
-	return ferror(file->file) ? -1 : (long long)ret;
+	size_t ret = fwrite(data, 1, len, file->handle);
+	return ferror(file->handle) ? -1 : (long long)ret;
 }
 
 
@@ -96,7 +96,6 @@ GFX_API long long gfx_io_writef(const GFXWriter* str, const char* fmt, ...)
 
 	va_list args;
 
-	// Wrap around gfx_io_vwritef.
 	va_start(args, fmt);
 	long long ret = gfx_io_vwritef(str, fmt, args);
 	va_end(args);
@@ -162,9 +161,10 @@ GFX_API int gfx_file_init(GFXFile* file, const char* name, const char* mode)
 	file->reader.len = _gfx_file_len;
 	file->reader.read = _gfx_file_read;
 	file->writer.write = _gfx_file_write;
-	file->file = fopen(name, mode);
 
-	return file->file != NULL;
+	file->handle = fopen(name, mode);
+
+	return file->handle != NULL;
 }
 
 /****************************/
@@ -172,6 +172,9 @@ GFX_API void gfx_file_clear(GFXFile* file)
 {
 	assert(file != NULL);
 
-	fclose(file->file);
-	file->file = NULL;
+	if (file->handle != NULL)
+	{
+		fclose(file->handle);
+		file->handle = NULL;
+	}
 }

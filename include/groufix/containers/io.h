@@ -47,7 +47,7 @@ typedef struct GFXFile
 {
 	GFXReader reader;
 	GFXWriter writer;
-	FILE* file;
+	FILE* handle;
 
 } GFXFile;
 
@@ -71,7 +71,7 @@ GFX_API const GFXWriter gfx_io_stderr;
  * assert(&stream == GFX_IO_OBJ(&stream->str, struct Type, str))
  */
 #define GFX_IO_OBJ(str, type_, member_) \
-	((type_*)((char*)(str) - offsetof(type_, member_)))
+	((type_*)((const char*)(str) - offsetof(type_, member_)))
 
 
 /**

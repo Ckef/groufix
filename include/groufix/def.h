@@ -67,6 +67,16 @@
 
 
 /**
+ * Platform agnostic size_t print format.
+ */
+#if defined (GFX_WIN32)
+	#define GFX_PRIs "%Iu"
+#else
+	#define GFX_PRIs "%zu"
+#endif
+
+
+/**
  * General usefulness.
  */
 #define GFX_MIN(x, y) \

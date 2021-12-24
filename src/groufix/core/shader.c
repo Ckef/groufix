@@ -271,8 +271,8 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 	gfx_log_debug(
 		"Successfully compiled %s shader:\n"
-		"    Output size: %zu words (%zu bytes).\n"
-		"    #warnings: %zu.\n%s%s",
+		"    Output size: "GFX_PRIs" words ("GFX_PRIs" bytes).\n"
+		"    #warnings: "GFX_PRIs".\n%s%s",
 		_GFX_GET_STAGE_STRING(shader->stage),
 		size / sizeof(uint32_t), size,
 		warnings,
@@ -296,7 +296,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 				gfx_log_warn("Could not write to SPIR-V file: %s.", file);
 			else
 				gfx_log_info(
-					"Written SPIR-V to file: %s (%zu bytes).",
+					"Written SPIR-V to file: %s ("GFX_PRIs" bytes).",
 					file, size);
 
 			fclose(f);
