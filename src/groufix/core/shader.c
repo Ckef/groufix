@@ -283,11 +283,8 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	// We explicitly log shader errors/warnings AND stream out.
 	if (status != shaderc_compilation_status_success)
 	{
-		const char* msg =
-			shaderc_result_get_error_message(result);
-
-		if (err != NULL)
-			gfx_io_write(err, msg, strlen(msg));
+		const char* msg = shaderc_result_get_error_message(result);
+		if (err != NULL) gfx_io_write(err, msg, strlen(msg));
 
 		gfx_log_error(
 			"Could not compile %s shader:\n%s",
@@ -297,8 +294,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	}
 
 	// We have no errors, but maybe warnings.
-	size_t warnings =
-		shaderc_result_get_num_warnings(result);
+	size_t warnings = shaderc_result_get_num_warnings(result);
 
 	// Stream warnings out.
 	if (err != NULL && warnings > 0)
@@ -307,12 +303,19 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		gfx_io_write(err, msg, strlen(msg));
 	}
 
-	// Get bytecode and attempt to build the shader module.
+	// Get bytecode and its length / word size.
 	// Round the size to a multiple of 4 just in case it isn't.
 	size_t size = shaderc_result_get_length(result);
 	const char* bytes = shaderc_result_get_bytes(result);
 	size_t wordSize = (size / sizeof(uint32_t)) * sizeof(uint32_t);
 
+	// First, stream out the resulting SPIR-V bytecode.
+	if (out != NULL && gfx_io_write(out, bytes, size) > 0)
+		gfx_log_info(
+			"Written SPIR-V to stream ("GFX_PRIs" bytes).",
+			size);
+
+	// Then, attempt to build the shader module.
 	if (!_gfx_shader_build(shader, wordSize, (const uint32_t*)bytes))
 	{
 		gfx_log_error(
@@ -332,12 +335,6 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		warnings,
 		warnings > 0 ? "\n" : "",
 		warnings > 0 ? shaderc_result_get_error_message(result) : "");
-
-	// Stream out the resulting SPIR-V bytecode.
-	if (out != NULL && gfx_io_write(out, bytes, size) > 0)
-		gfx_log_info(
-			"Written SPIR-V to stream ("GFX_PRIs" bytes).",
-			size);
 
 	// Get rid of the resources and return.
 	shaderc_result_release(result);

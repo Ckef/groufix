@@ -64,7 +64,7 @@ GFX_API void gfx_destroy_shader(GFXShader* shader);
  * Compiles a shader from GLSL/HLSL source into SPIR-V bytecode for use.
  * @param shader   Cannot be NULL.
  * @param optimize Non-zero to enable platform-specific compiler options.
- * @param src      Input stream, cannot be NULL.
+ * @param src      Source stream, cannot be NULL.
  * @param out      Optional SPIR-V bytecode output stream.
  * @param err      Optional error/warning output stream.
  * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
@@ -78,7 +78,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 /**
  * Loads SPIR-V bytecode for use.
  * @param shader Cannot be NULL.
- * @param src    Input stream, cannot be NULL.
+ * @param src    Source bytecode stream, cannot be NULL.
  * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
  */
 GFX_API int gfx_shader_load(GFXShader* shader, const GFXReader* src);

@@ -149,7 +149,7 @@ GFX_API void gfx_string_reader(GFXStringReader* str, const char* string);
 GFX_API int gfx_file_init(GFXFile* file, const char* name, const char* mode);
 
 /**
- * Clears a file stream (i.e. closes it).
+ * Clears a file stream (i.e. flushes & closes it).
  * @param file Cannot be NULL.
  */
 GFX_API void gfx_file_clear(GFXFile* file);
