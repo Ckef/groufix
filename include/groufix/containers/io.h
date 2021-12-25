@@ -108,7 +108,7 @@ static inline long long gfx_io_read(const GFXReader* str, void* data, size_t len
  * Shorthand to call the write function.
  * @return Number of bytes written, negative on failure.
  */
-static inline long long gfx_io_write(const GFXWriter* str, void* data, size_t len)
+static inline long long gfx_io_write(const GFXWriter* str, const void* data, size_t len)
 {
 	return str->write(str, data, len);
 }

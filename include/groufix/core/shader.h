@@ -10,6 +10,7 @@
 #ifndef GFX_CORE_SHADER_H
 #define GFX_CORE_SHADER_H
 
+#include "groufix/containers/io.h"
 #include "groufix/core/device.h"
 #include "groufix/def.h"
 
@@ -59,30 +60,28 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device);
 GFX_API void gfx_destroy_shader(GFXShader* shader);
 
 /**
- * TODO: Stream compiler errors/warnings to user.
  * TODO: Allow recompilation (and reload), cause modules can be destroyed?
- * Compiles a shader from GLSL source into SPIR-V bytecode for use.
+ * Compiles a shader from GLSL/HLSL source into SPIR-V bytecode for use.
  * @param shader   Cannot be NULL.
- * @param source   Must be NULL-terminated, cannot be NULL.
  * @param optimize Non-zero to enable platform-specific compiler options.
- * @param file     Must be NULL or NULL-terminated.
+ * @param src      Input stream, cannot be NULL.
+ * @param out      Optional SPIR-V bytecode output stream.
+ * @param err      Optional error/warning output stream.
  * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
  *
- * Optionally writes SPIR-V bytecode to file, if this action fails, it will log
- * a warning, but the compiled shader will still be used by the shader.
- * Non-existing directories will NOT get automatically created by this call.
+ * Output stream failure is ignored.
  */
 GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
-                               const char* source, int optimize,
-                               const char* file);
+                               int optimize, const GFXReader* src,
+                               const GFXWriter* out, const GFXWriter* err);
 
 /**
- * Loads SPIR-V bytecode from a file for use.
+ * Loads SPIR-V bytecode for use.
  * @param shader Cannot be NULL.
- * @param file   Must be NULL-terminated, cannot be NULL.
+ * @param src    Input stream, cannot be NULL.
  * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
  */
-GFX_API int gfx_shader_load(GFXShader* shader, const char* file);
+GFX_API int gfx_shader_load(GFXShader* shader, const GFXReader* src);
 
 
 #endif

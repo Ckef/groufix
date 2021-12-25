@@ -697,7 +697,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 
 	// TODO: Super temporary!!
-	const char vert[] =
+	GFXStringReader vert;
+	gfx_string_reader(&vert,
 		"#version 450\n"
 		"#extension GL_ARB_separate_shader_objects : enable\n"
 		"layout(row_major, set = 0, binding = 0) uniform UBO {\n"
@@ -715,9 +716,10 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		"  gl_Position = mvp * vec4(position, 1.0);\n"
 		"  fragColor = color;\n"
 		"  fragTexCoord = texCoord;\n"
-		"}\n";
+		"}\n");
 
-	const char frag[] =
+	GFXStringReader frag;
+	gfx_string_reader(&frag,
 		"#version 450\n"
 		"#extension GL_ARB_separate_shader_objects : enable\n"
 		"layout(set = 0, binding = 1) uniform sampler2D texSampler;\n"
@@ -727,15 +729,15 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		"void main() {\n"
 		"  float tex = texture(texSampler, fragTexCoord).r;\n"
 		"  outColor = vec4(fragColor, 1.0) * tex;\n"
-		"}\n";
+		"}\n");
 
 	pass->build.primitive = NULL;
 	pass->build.group = NULL;
 	pass->build.vertex = gfx_create_shader(GFX_STAGE_VERTEX, NULL);
 	pass->build.fragment = gfx_create_shader(GFX_STAGE_FRAGMENT, NULL);
 
-	gfx_shader_compile(pass->build.vertex, GFX_GLSL, vert, 1, NULL);
-	gfx_shader_compile(pass->build.fragment, GFX_GLSL, frag, 1, NULL);
+	gfx_shader_compile(pass->build.vertex, GFX_GLSL, 1, &vert.reader, NULL, NULL);
+	gfx_shader_compile(pass->build.fragment, GFX_GLSL, 1, &frag.reader, NULL, NULL);
 
 
 	return pass;

@@ -138,17 +138,48 @@ GFX_API void gfx_destroy_shader(GFXShader* shader)
 
 /****************************/
 GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
-                               const char* source, int optimize,
-                               const char* file)
+                               int optimize, const GFXReader* src,
+                               const GFXWriter* out, const GFXWriter* err)
 {
 	assert(shader != NULL);
-	assert(source != NULL);
+	assert(src != NULL);
 
 	_GFXDevice* device = shader->device;
 
 	// Already has a shader module.
 	if (shader->vk.module != VK_NULL_HANDLE)
 		return 1;
+
+	// Allocate source buffer.
+	long long len = gfx_io_len(src);
+	if (len <= 0)
+	{
+		gfx_log_error(
+			"Zero or unknown stream length, cannot compile %s shader.",
+			_GFX_GET_STAGE_STRING(shader->stage));
+
+		return 0;
+	}
+
+	char* source = malloc((size_t)len);
+	if (source == NULL)
+	{
+		gfx_log_error(
+			"Could not allocate source buffer to compile %s shader.",
+			_GFX_GET_STAGE_STRING(shader->stage));
+
+		return 0;
+	}
+
+	// Read source.
+	if (gfx_io_read(src, source, (size_t)len) <= 0)
+	{
+		gfx_log_error(
+			"Could not read source from stream to compile %s shader.",
+			_GFX_GET_STAGE_STRING(shader->stage));
+
+		goto clean;
+	}
 
 	// Create compiler and compile options.
 	// We create new resources for every shader,
@@ -164,7 +195,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 			"Could not initialize resources to compile %s shader.",
 			_GFX_GET_STAGE_STRING(shader->stage));
 
-		goto clean;
+		goto clean_compiler;
 	}
 
 	// Set source language.
@@ -239,7 +270,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 	// Compile the shader.
 	shaderc_compilation_result_t result = shaderc_compile_into_spv(
-		compiler, source, strlen(source),
+		compiler, source, (size_t)len,
 		_GFX_GET_SHADERC_KIND(shader->stage),
 		_GFX_GET_LANGUAGE_STRING(language),
 		"main",
@@ -249,26 +280,49 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		shaderc_result_get_compilation_status(result);
 
 	// Something went wrong.
-	// We explicitly log shader errors/warnings.
+	// We explicitly log shader errors/warnings AND stream out.
 	if (status != shaderc_compilation_status_success)
 	{
+		const char* msg =
+			shaderc_result_get_error_message(result);
+
+		if (err != NULL)
+			gfx_io_write(err, msg, strlen(msg));
+
 		gfx_log_error(
 			"Could not compile %s shader:\n%s",
-			_GFX_GET_STAGE_STRING(shader->stage),
-			shaderc_result_get_error_message(result));
+			_GFX_GET_STAGE_STRING(shader->stage), msg);
 
 		goto clean_result;
 	}
 
-	// Get bytecode.
-	size_t size = shaderc_result_get_length(result);
-	const char* bytes = shaderc_result_get_bytes(result);
-
-#if !defined (NDEBUG)
-	// Victory!
+	// We have no errors, but maybe warnings.
 	size_t warnings =
 		shaderc_result_get_num_warnings(result);
 
+	// Stream warnings out.
+	if (err != NULL && warnings > 0)
+	{
+		const char* msg = shaderc_result_get_error_message(result);
+		gfx_io_write(err, msg, strlen(msg));
+	}
+
+	// Get bytecode and attempt to build the shader module.
+	// Round the size to a multiple of 4 just in case it isn't.
+	size_t size = shaderc_result_get_length(result);
+	const char* bytes = shaderc_result_get_bytes(result);
+	size_t wordSize = (size / sizeof(uint32_t)) * sizeof(uint32_t);
+
+	if (!_gfx_shader_build(shader, wordSize, (const uint32_t*)bytes))
+	{
+		gfx_log_error(
+			"Failed to load compiled %s shader.",
+			_GFX_GET_STAGE_STRING(shader->stage));
+
+		goto clean_result;
+	}
+
+	// Victory log!
 	gfx_log_debug(
 		"Successfully compiled %s shader:\n"
 		"    Output size: "GFX_PRIs" words ("GFX_PRIs" bytes).\n"
@@ -278,43 +332,19 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		warnings,
 		warnings > 0 ? "\n" : "",
 		warnings > 0 ? shaderc_result_get_error_message(result) : "");
-#endif
 
-	// Just before building the actual shader,
-	// write the resulting SPIR-V to file if asked.
-	if (file != NULL)
-	{
-		// Open file (in binary mode!) and immediately write.
-		// We treat any failure as a warning, as we do have a functional shader.
-		FILE* f = fopen(file, "wb");
-
-		if (f == NULL)
-			gfx_log_warn("Could not open SPIR-V file: %s.", file);
-		else
-		{
-			if (fwrite(bytes, 1, size, f) < size)
-				gfx_log_warn("Could not write to SPIR-V file: %s.", file);
-			else
-				gfx_log_info(
-					"Written SPIR-V to file: %s ("GFX_PRIs" bytes).",
-					file, size);
-
-			fclose(f);
-		}
-	}
-
-	// Attempt to build the shader module.
-	// Round the size to a multiple of 4 just in case it isn't.
-	size_t wordSize =
-		(size / sizeof(uint32_t)) * sizeof(uint32_t);
-
-	if (!_gfx_shader_build(shader, wordSize, (const uint32_t*)bytes))
-		goto clean_result;
+	// Stream out the resulting SPIR-V bytecode.
+	if (out != NULL && gfx_io_write(out, bytes, size) > 0)
+		gfx_log_info(
+			"Written SPIR-V to stream ("GFX_PRIs" bytes).",
+			size);
 
 	// Get rid of the resources and return.
 	shaderc_result_release(result);
 	shaderc_compiler_release(compiler);
 	shaderc_compile_options_release(options);
+
+	free(source);
 
 	return 1;
 
@@ -322,70 +352,68 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	// Cleanup on failure.
 clean_result:
 	shaderc_result_release(result);
-clean:
+clean_compiler:
 	shaderc_compiler_release(compiler);
 	shaderc_compile_options_release(options);
-	shader->vk.module = VK_NULL_HANDLE;
+clean:
+	free(source);
 
 	return 0;
 }
 
 /****************************/
-GFX_API int gfx_shader_load(GFXShader* shader, const char* file)
+GFX_API int gfx_shader_load(GFXShader* shader, const GFXReader* src)
 {
 	assert(shader != NULL);
-	assert(file != NULL);
+	assert(src != NULL);
 
 	// Already has a shader module.
 	if (shader->vk.module != VK_NULL_HANDLE)
 		return 1;
 
-	// Open the file (in binary mode!) and get its byte-size.
-	FILE* f = fopen(file, "rb");
-	if (f == NULL) goto clean;
-
-	fseek(f, 0, SEEK_END);
-
-	long int size = ftell(f);
-	if (size == -1L) goto clean_close;
-
-	fseek(f, 0, SEEK_SET);
-
-	// Read the contents and close the file.
-	// We actually use malloc as this might be large.
-	uint32_t* bytes = malloc((size_t)size);
-	if (bytes == NULL) goto clean_close;
-
-	if (fread(bytes, 1, (size_t)size, f) < (size_t)size)
+	// Allocate source buffer.
+	long long len = gfx_io_len(src);
+	if (len <= 0)
 	{
-		free(bytes);
-		goto clean_close;
+		gfx_log_error(
+			"Zero or unknown stream length, cannot load %s shader.",
+			_GFX_GET_STAGE_STRING(shader->stage));
+
+		return 0;
 	}
 
-	fclose(f);
+	void* source = malloc((size_t)len);
+	if (source == NULL)
+	{
+		gfx_log_error(
+			"Could not allocate source buffer to load %s shader.",
+			_GFX_GET_STAGE_STRING(shader->stage));
+
+		return 0;
+	}
+
+	// Read source.
+	if (gfx_io_read(src, source, (size_t)len) <= 0)
+	{
+		gfx_log_error(
+			"Could not read source from stream to load %s shader.",
+			_GFX_GET_STAGE_STRING(shader->stage));
+
+		free(source);
+		return 0;
+	}
 
 	// Attempt to build the shader module.
 	// Round the size to a multiple of 4 just in case it isn't.
-	size_t wordSize = ((size_t)size / sizeof(uint32_t)) * sizeof(uint32_t);
+	size_t wordSize =
+		((size_t)len / sizeof(uint32_t)) * sizeof(uint32_t);
 
-	if (!_gfx_shader_build(shader, wordSize, bytes))
-	{
-		free(bytes);
-		goto clean;
-	}
+	int ret = _gfx_shader_build(shader, wordSize, source);
+	if (ret == 0)
+		gfx_log_error(
+			"Failed to load %s shader.",
+			_GFX_GET_STAGE_STRING(shader->stage));
 
-	// Yep that's it, get rid of temp buffer.
-	free(bytes);
-
-	return 1;
-
-
-	// Cleanup on failure.
-clean_close:
-	fclose(f);
-clean:
-	gfx_log_error("Could not open SPIR-V file: %s.", file);
-	shader->vk.module = VK_NULL_HANDLE;
-
-	return 0;
+	free(source);
+	return ret;
 }
