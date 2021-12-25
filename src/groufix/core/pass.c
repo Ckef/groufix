@@ -697,47 +697,48 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 
 	// TODO: Super temporary!!
-	GFXStringReader vert;
-	gfx_string_reader(&vert,
-		"#version 450\n"
-		"#extension GL_ARB_separate_shader_objects : enable\n"
-		"layout(row_major, set = 0, binding = 0) uniform UBO {\n"
-		"  mat4 mvp;\n"
-		"};\n"
-		"layout(location = 0) in vec3 position;\n"
-		"layout(location = 1) in vec3 color;\n"
-		"layout(location = 2) in vec2 texCoord;\n"
-		"layout(location = 0) out vec3 fragColor;\n"
-		"layout(location = 1) out vec2 fragTexCoord;\n"
-		"out gl_PerVertex {\n"
-		"  vec4 gl_Position;\n"
-		"};\n"
-		"void main() {\n"
-		"  gl_Position = mvp * vec4(position, 1.0);\n"
-		"  fragColor = color;\n"
-		"  fragTexCoord = texCoord;\n"
-		"}\n");
-
-	GFXStringReader frag;
-	gfx_string_reader(&frag,
-		"#version 450\n"
-		"#extension GL_ARB_separate_shader_objects : enable\n"
-		"layout(set = 0, binding = 1) uniform sampler2D texSampler;\n"
-		"layout(location = 0) in vec3 fragColor;\n"
-		"layout(location = 1) in vec2 fragTexCoord;\n"
-		"layout(location = 0) out vec4 outColor;\n"
-		"void main() {\n"
-		"  float tex = texture(texSampler, fragTexCoord).r;\n"
-		"  outColor = vec4(fragColor, 1.0) * tex;\n"
-		"}\n");
-
 	pass->build.primitive = NULL;
 	pass->build.group = NULL;
 	pass->build.vertex = gfx_create_shader(GFX_STAGE_VERTEX, NULL);
 	pass->build.fragment = gfx_create_shader(GFX_STAGE_FRAGMENT, NULL);
 
-	gfx_shader_compile(pass->build.vertex, GFX_GLSL, 1, &vert.reader, NULL, NULL);
-	gfx_shader_compile(pass->build.fragment, GFX_GLSL, 1, &frag.reader, NULL, NULL);
+	GFXStringReader str;
+
+	gfx_shader_compile(pass->build.vertex, GFX_GLSL, 1,
+		gfx_string_reader(&str,
+			"#version 450\n"
+			"#extension GL_ARB_separate_shader_objects : enable\n"
+			"layout(row_major, set = 0, binding = 0) uniform UBO {\n"
+			"  mat4 mvp;\n"
+			"};\n"
+			"layout(location = 0) in vec3 position;\n"
+			"layout(location = 1) in vec3 color;\n"
+			"layout(location = 2) in vec2 texCoord;\n"
+			"layout(location = 0) out vec3 fragColor;\n"
+			"layout(location = 1) out vec2 fragTexCoord;\n"
+			"out gl_PerVertex {\n"
+			"  vec4 gl_Position;\n"
+			"};\n"
+			"void main() {\n"
+			"  gl_Position = mvp * vec4(position, 1.0);\n"
+			"  fragColor = color;\n"
+			"  fragTexCoord = texCoord;\n"
+			"}\n"),
+		NULL, NULL);
+
+	gfx_shader_compile(pass->build.fragment, GFX_GLSL, 1,
+		gfx_string_reader(&str,
+			"#version 450\n"
+			"#extension GL_ARB_separate_shader_objects : enable\n"
+			"layout(set = 0, binding = 1) uniform sampler2D texSampler;\n"
+			"layout(location = 0) in vec3 fragColor;\n"
+			"layout(location = 1) in vec2 fragTexCoord;\n"
+			"layout(location = 0) out vec4 outColor;\n"
+			"void main() {\n"
+			"  float tex = texture(texSampler, fragTexCoord).r;\n"
+			"  outColor = vec4(fragColor, 1.0) * tex;\n"
+			"}\n"),
+		NULL, NULL);
 
 
 	return pass;
