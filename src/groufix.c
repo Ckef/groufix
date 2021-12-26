@@ -42,9 +42,9 @@ GFX_API int gfx_init(void)
 		goto terminate;
 
 	// During initialization we log to stderr.
-	// This because no logging file can be set, but we want the logs somewhere.
+	// This because no logging stream can be set, but we want the logs somewhere.
 	// After logging is setup, init GLFW and the Vulkan loader.
-	gfx_log_set_out(1);
+	gfx_log_set(GFX_IO_STDERR);
 	glfwSetErrorCallback(_gfx_glfw_error);
 
 	if (!glfwInit())
@@ -69,7 +69,7 @@ GFX_API int gfx_init(void)
 
 	// If not in debug mode, disable logging to stderr again.
 #if defined (NDEBUG)
-	gfx_log_set_out(0);
+	gfx_log_set(NULL);
 #endif
 
 	return 1;
@@ -127,7 +127,7 @@ GFX_API int gfx_attach(void)
 	// If not in debug mode, disable logging to stderr,
 	// it's now the user's responsibility.
 #if defined (NDEBUG)
-	gfx_log_set_out(0);
+	gfx_log_set(NULL);
 #endif
 
 	return 1;
@@ -141,7 +141,7 @@ GFX_API void gfx_detach(void)
 		return;
 
 	// Every thread may have one last say :)
-	gfx_log_set_out(1);
+	gfx_log_set(GFX_IO_STDERR);
 	gfx_log_info("Detaching self from groufix.");
 
 	_gfx_destroy_local();

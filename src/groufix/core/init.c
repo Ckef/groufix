@@ -115,8 +115,7 @@ int _gfx_create_local(void)
 
 	// Initialize the logging stuff.
 	state->log.level = _groufix.logDef;
-	state->log.std = 1; // For initial identification.
-	state->log.file = NULL;
+	state->log.out = GFX_IO_STDERR; // For initial identification.
 
 	return 1;
 }
@@ -127,13 +126,8 @@ void _gfx_destroy_local(void)
 	assert(_groufix.initialized);
 	assert(_gfx_thread_key_get(_groufix.thread.key));
 
-	// Get the key and clear all its data.
+	// Get key and free it.
 	_GFXThreadState* state = _gfx_thread_key_get(_groufix.thread.key);
-
-	if (state->log.file != NULL)
-		fclose(state->log.file);
-
-	// Then free it.
 	free(state);
 
 	// I mean this better not fail...

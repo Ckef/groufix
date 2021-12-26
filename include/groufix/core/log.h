@@ -10,6 +10,7 @@
 #ifndef GFX_CORE_LOG_H
 #define GFX_CORE_LOG_H
 
+#include "groufix/containers/io.h"
 #include "groufix/def.h"
 
 
@@ -68,7 +69,7 @@ typedef enum GFXLogLevel
  * If this call is made before the calling thread is attached,
  * it outputs to stderr, assuming thread id 0 (as if the main thread) and the
  * global log level that can be set before initialization with gfx_log_set_level.
- * Access to stderr will be synchronized when groufix is initialized.
+ * Access to the output stream will be synchronized when groufix is initialized.
  */
 GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
                      const char* fmt, ...);
@@ -85,24 +86,14 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 GFX_API int gfx_log_set_level(GFXLogLevel level);
 
 /**
- * Sets whether to output logging to stderr for the calling thread.
+ * Sets the output writer stream for logging of the calling thread.
+ * @param out NULL to disable logging.
  * @return Zero if calling thread is not attached.
  *
- * All threads default to 1 if built with DEBUG=ON,
- * otherwise they all default to 0.
+ * All threads default to GFX_IO_STDERR if built with DEBUG=ON,
+ * otherwise they all default to NULL.
  */
-GFX_API int gfx_log_set_out(int out);
-
-/**
- * Sets the output file for logging of the calling thread.
- * @param file Must be NULL or NULL-terminated.
- * @return Zero if calling thread is not attached or file creation failed.
- *
- * The file name will be appended with the calling thread's id
- * before the first '.' character (or at the end if no '.' found).
- * Non-existing directories will NOT get automatically created by this call.
- */
-GFX_API int gfx_log_set_file(const char* file);
+GFX_API int gfx_log_set(const GFXWriter* out);
 
 
 #endif

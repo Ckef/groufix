@@ -8,7 +8,6 @@
 
 #include "groufix/core.h"
 #include <assert.h>
-#include <stdarg.h>
 #include <string.h>
 #include <time.h>
 
@@ -39,30 +38,32 @@ static const char* _gfx_log_colors[] = {
 
 
 /****************************
- * Logs a new line to stderr.
+ * Logs a new line to a writer stream.
  */
-static void _gfx_log_out(unsigned long thread,
-                         GFXLogLevel level, double timeMs,
-                         const char* file, unsigned int line,
-                         const char* fmt, va_list args)
+static void _gfx_log(const GFXWriter* out, unsigned long thread,
+                     GFXLogLevel level, double timeMs,
+                     const char* file, unsigned int line,
+                     const char* fmt, va_list args)
 {
 	const char* L = _gfx_log_levels[level-1];
 
 #if defined (GFX_UNIX)
-	if (isatty(STDERR_FILENO))
+	if (
+		(out == GFX_IO_STDOUT && isatty(STDOUT_FILENO)) ||
+		(out == GFX_IO_STDERR && isatty(STDERR_FILENO)))
 	{
-		// If on unix and stderr is a tty, use color.
+		// If on unix, logging to stdout/stderr and it is a tty, use color.
 		const char* C = _gfx_log_colors[level-1];
 
-		fprintf(stderr,
-			"%.2ems %s%-5s \x1b[90mthread-%lu: %s:%u:\x1b[0m ",
+		gfx_io_writef(out,
+			"%.2ems %s%-5s \x1b[90mthread-%lu: %s:%u: \x1b[0m",
 			timeMs, C, L, thread, file, line);
 	}
 	else
 	{
 #endif
 		// If not, or not on unix at all, output regularly.
-		fprintf(stderr,
+		gfx_io_writef(out,
 			"%.2ems %-5s thread-%lu: %s:%u: ",
 			timeMs, L, thread, file, line);
 
@@ -70,25 +71,8 @@ static void _gfx_log_out(unsigned long thread,
 	}
 #endif
 
-	vfprintf(stderr, fmt, args);
-	putc('\n', stderr);
-}
-
-/****************************
- * Logs a new line to a log file.
- */
-static void _gfx_log_file(FILE* out,
-                          GFXLogLevel level, double timeMs,
-                          const char* file, unsigned int line,
-                          const char* fmt, va_list args)
-{
-	const char* L = _gfx_log_levels[level-1];
-
-	fprintf(out, "%.2ems %-5s %s:%u: ",
-		timeMs, L, file, line);
-
-	vfprintf(out, fmt, args);
-	fputc('\n', out);
+	gfx_io_vwritef(out, fmt, args);
+	gfx_io_write(out, "\n", sizeof(char));
 }
 
 /****************************/
@@ -106,67 +90,48 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	const char* f = strstr(file, "groufix");
 	file = (f == NULL) ? file : f;
 
-	// So we get seconds that the CPU has spent on this program...
-	// We calculate it here so stderr and the file record the same time.
+	// So we get seconds that the CPU has spent on this program.
 	double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
-	unsigned long thread = 0;
 
-	// Logging is special, when groufix is not initialized,
-	// we still output to stderr.
-	// Check against default log level.
-	if (!_groufix.initialized)
+	// If groufix is initialized..
+	if (_groufix.initialized)
 	{
-		if (level <= _groufix.logDef)
+		// Default to stderr with default log level.
+		const GFXWriter* out = GFX_IO_STDERR;
+		unsigned long thread = 0;
+		GFXLogLevel logLevel = _groufix.logDef;
+
+		// If there is thread local state, use its params.
+		_GFXThreadState* state = _gfx_get_local();
+		if (state != NULL)
 		{
-			va_start(args, fmt);
-			_gfx_log_out(thread, level, timeMs, file, line, fmt, args);
-			va_end(args);
+			out = state->log.out;
+			thread = state->id;
+			logLevel = state->log.level;
 		}
-		return;
-	}
 
-	// Get the thread local state.
-	_GFXThreadState* state = _gfx_get_local();
-	if (state == NULL)
-	{
-		// If no state, check against default log level.
-		if (level > _groufix.logDef)
-			return;
-	}
-	else
-	{
-		// Check against thread log level.
-		if (level > state->log.level)
-			return;
-
-		// If the state contains a file, output to that.
-		if (state->log.file != NULL)
+		// Check output stream & log level.
+		if (out != NULL && level <= logLevel)
 		{
 			va_start(args, fmt);
 
-			_gfx_log_file(state->log.file,
-				level, timeMs, file, line, fmt, args);
+			_gfx_mutex_lock(&_groufix.thread.ioLock);
+			_gfx_log(out, thread, level, timeMs, file, line, fmt, args);
+			_gfx_mutex_unlock(&_groufix.thread.ioLock);
 
 			va_end(args);
 		}
-
-		// If the state says not to output to stderr, we're done.
-		if (!state->log.std)
-			return;
-
-		thread = state->id;
 	}
 
-	// If no thread local state was present
-	// OR the state said so, we output to stderr.
-	// But groufix is initialized, so we need to lock access to stderr.
-	va_start(args, fmt);
-
-	_gfx_mutex_lock(&_groufix.thread.ioLock);
-	_gfx_log_out(thread, level, timeMs, file, line, fmt, args);
-	_gfx_mutex_unlock(&_groufix.thread.ioLock);
-
-	va_end(args);
+	// Logging is special;
+	// when groufix is not initialized we output to stderr,
+	// assuming thread id 0 and the default log level.
+	else if (level <= _groufix.logDef)
+	{
+		va_start(args, fmt);
+		_gfx_log(GFX_IO_STDERR, 0, level, timeMs, file, line, fmt, args);
+		va_end(args);
+	}
 }
 
 /****************************/
@@ -192,7 +157,7 @@ GFX_API int gfx_log_set_level(GFXLogLevel level)
 }
 
 /****************************/
-GFX_API int gfx_log_set_out(int out)
+GFX_API int gfx_log_set(const GFXWriter* out)
 {
 	// Again, logging is special.
 	if (!_groufix.initialized)
@@ -202,57 +167,7 @@ GFX_API int gfx_log_set_out(int out)
 	if (state == NULL)
 		return 0;
 
-	state->log.std = out;
-
-	return 1;
-}
-
-/****************************/
-GFX_API int gfx_log_set_file(const char* file)
-{
-	if (!_groufix.initialized)
-		return 0;
-
-	_GFXThreadState* state = _gfx_get_local();
-	if (state == NULL)
-		return 0;
-
-	// If a previous file was present, close it.
-	if (state->log.file != NULL)
-		fclose(state->log.file);
-
-	state->log.file = NULL;
-
-	if (file != NULL)
-	{
-		// Now open the appropriate logging file, if any.
-		// We are going to append the thread id to the filename...
-		// First find the length of the thread id.
-		size_t idLen = (size_t)snprintf(NULL, 0, "%.4lu", state->id);
-
-		// Now find the point at which to insert the thread id.
-		// This is before the first '.' character.
-		// Append to end if no '.' found.
-		size_t s = strlen(file);
-		size_t i;
-
-		for (i = 0; i < s; ++i)
-			if (file[i] == '.') break;
-
-		// Create a string for the file name.
-		char f[s + idLen + 1];
-		sprintf(f, "%.*s%.4lu%s", (int)i, file, state->id, file + i);
-
-		// Now finally attempt to open the file.
-		state->log.file = fopen(f, "w");
-
-		// Log error in case we output to stderr.
-		if (state->log.file == NULL)
-		{
-			gfx_log_error("Could not open log file: %s", f);
-			return 0;
-		}
-	}
+	state->log.out = out;
 
 	return 1;
 }

@@ -10,11 +10,11 @@
 #ifndef _GFX_CORE_H
 #define _GFX_CORE_H
 
+#include "groufix/containers/io.h"
 #include "groufix/containers/list.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/threads.h"
 #include "groufix.h"
-#include <stdio.h>
 
 #if !defined (__STDC_NO_ATOMICS__)
 	#include <stdatomic.h>
@@ -82,8 +82,7 @@ typedef struct _GFXThreadState
 	struct
 	{
 		GFXLogLevel level;
-		int         std;
-		FILE*       file;
+		const GFXWriter* out;
 
 	} log;
 
