@@ -595,7 +595,7 @@ struct GFXPass
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
 
-	GFXVec consumes; // Stores { size_t, GFXAccessMask }.
+	GFXVec consumes; // Stores { size_t, GFXAccessMask, GFXShaderStage, GFXRange }.
 
 
 	// Building output (can be invalidated).
@@ -819,7 +819,7 @@ typedef struct _GFXSync
 	// Vulkan fields.
 	struct
 	{
-		VkSemaphore signaled; // May be VK_NULL_HANDLE.
+		VkSemaphore signaled; // May be VK_NULL_HANDLE, may be recycled.
 
 		// Barrier metadata.
 		VkAccessFlags srcAccess;
@@ -884,7 +884,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 /**
  * Injects dependencies by preparing new signal commands.
- * @param blocking Non-zero to indicate the operation was blocking.
+ * @param blocking Non-zero to indicate the operation is blocking.
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
