@@ -127,8 +127,7 @@ void _gfx_destroy_local(void)
 	assert(_gfx_thread_key_get(_groufix.thread.key));
 
 	// Get key and free it.
-	_GFXThreadState* state = _gfx_thread_key_get(_groufix.thread.key);
-	free(state);
+	free(_gfx_thread_key_get(_groufix.thread.key));
 
 	// I mean this better not fail...
 	_gfx_thread_key_set(_groufix.thread.key, NULL);
