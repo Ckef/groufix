@@ -701,9 +701,11 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	}
 
 	// Inject signal commands.
-	// TODO: Make dependencies not output a semaphore if blocking?
-	if (!_gfx_deps_prepare(transfer->vk.cmd, numDeps, deps, injection))
+	if (!_gfx_deps_prepare(transfer->vk.cmd,
+		flags & GFX_TRANSFER_BLOCK, numDeps, deps, injection))
+	{
 		goto clean_deps;
+	}
 
 	_GFX_VK_CHECK(
 		context->vk.EndCommandBuffer(transfer->vk.cmd),

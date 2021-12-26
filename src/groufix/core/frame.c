@@ -137,7 +137,6 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
 	frame->vk.rendered = VK_NULL_HANDLE;
 	frame->vk.done = VK_NULL_HANDLE;
 
-	// TODO: Do not use a semaphore if render and present family are the same?
 	// A semaphore for device synchronization.
 	VkSemaphoreCreateInfo sci = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -374,7 +373,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 			frame);
 
 	// Inject signal commands.
-	if (!_gfx_deps_prepare(frame->vk.cmd, numDeps, deps, &injection))
+	if (!_gfx_deps_prepare(frame->vk.cmd, 0, numDeps, deps, &injection))
 		goto clean_deps;
 
 	_GFX_VK_CHECK(

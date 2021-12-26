@@ -131,12 +131,12 @@ GFX_API long long gfx_io_vwritef(const GFXWriter* str, const char* fmt, va_list 
  * Does not need to be cleared, hence no _init postfix.
  * @param str    Cannot be NULL.
  * @param string Cannot be NULL, must be NULL-terminated.
- * @return str.
+ * @return &str->reader.
  *
  * The string will NOT be copied, the reader is invalidated if
  * string is freed or otherwise moved.
  */
-GFX_API GFXStringReader* gfx_string_reader(GFXStringReader* str, const char* string);
+GFX_API GFXReader* gfx_string_reader(GFXStringReader* str, const char* string);
 
 /**
  * Initializes a file stream (i.e. opens it).

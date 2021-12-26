@@ -181,7 +181,7 @@ error:
 }
 
 /****************************/
-GFX_API GFXStringReader* gfx_string_reader(GFXStringReader* str, const char* string)
+GFX_API GFXReader* gfx_string_reader(GFXStringReader* str, const char* string)
 {
 	assert(str != NULL);
 	assert(string != NULL);
@@ -192,7 +192,7 @@ GFX_API GFXStringReader* gfx_string_reader(GFXStringReader* str, const char* str
 	str->pos = 0;
 	str->str = string;
 
-	return str;
+	return &str->reader;
 }
 
 /****************************/

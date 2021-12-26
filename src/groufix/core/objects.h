@@ -807,11 +807,19 @@ typedef struct _GFXSync
 	} stage;
 
 
+	// Synchronization flags.
+	enum
+	{
+		_GFX_SYNC_SEMAPHORE = 0x0001, // If `vk.signaled` is used.
+		_GFX_SYNC_DISCARD   = 0x0002
+
+	} flags;
+
+
 	// Vulkan fields.
 	struct
 	{
 		VkSemaphore signaled; // May be VK_NULL_HANDLE.
-		int         discard;  // Non-zero to discard the contents.
 
 		// Barrier metadata.
 		VkAccessFlags srcAccess;
@@ -826,8 +834,7 @@ typedef struct _GFXSync
 
 		// Unpacked for locality.
 		// TODO: Can't use to check if an attachment changed because Vulkan
-		// handles aren't valid anymore when destroyed (can be reused).
-		// OR we can create the new image _before_ we destroy the old...
+		// handles can't be compared... need some 'history' identifier.
 		VkBuffer buffer;
 		VkImage  image;
 
@@ -877,13 +884,14 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 /**
  * Injects dependencies by preparing new signal commands.
+ * @param blocking Non-zero to indicate the operation was blocking.
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
  * Must have succesfully returned from _gfx_deps_catch with injection as
  * argument before calling, as must all other inputs be the same.
  */
-int _gfx_deps_prepare(VkCommandBuffer cmd,
+int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
                       size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection);
 

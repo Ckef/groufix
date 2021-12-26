@@ -594,14 +594,14 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			// TODO: Maybe do something special with host read/write flags?
 			// TODO: For attachments: check if the VkImage has changed!
 			if (
-				!sync->vk.discard &&
+				!(sync->flags & _GFX_SYNC_DISCARD) &&
 				sync->vk.srcFamily != sync->vk.dstFamily)
 			{
 				_gfx_inject_barrier(cmd, sync, context);
 			}
 
 			// Output the wait semaphore and stage if necessary.
-			if (sync->vk.srcFamily != sync->vk.dstFamily)
+			if (sync->flags & _GFX_SYNC_SEMAPHORE)
 			{
 				size_t numWaits = injection->out.numWaits; // Placeholder.
 
@@ -678,7 +678,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 }
 
 /****************************/
-int _gfx_deps_prepare(VkCommandBuffer cmd,
+int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
                       size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection)
 {
@@ -743,10 +743,12 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 				injs[i].dep->transfer :
 				injs[i].dep->graphics;
 
-		// Flag whether we need an ownership transfer &
-		// whether we want to discard or not.
+		// Flag whether we need an ownership transfer,
+		// whether we want to discard &
+		// whether we need a semaphore or not.
 		int ownership = (family != injection->inp.family);
 		int discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
+		int semaphore = ownership && !blocking;
 
 		// Aaaand the bit where we prepare all signals.
 		// We lock for each command individually.
@@ -755,7 +757,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 		for (size_t r = 0; r < numRefs; ++r)
 		{
 			// First get us a synchronization object.
-			_GFXSync* sync = _gfx_dep_claim(injs[i].dep, ownership);
+			_GFXSync* sync = _gfx_dep_claim(injs[i].dep, semaphore);
 			if (sync == NULL)
 			{
 				gfx_log_error(
@@ -767,7 +769,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 			}
 
 			// Output the signal semaphore if necessary.
-			if (ownership)
+			if (semaphore)
 				_GFX_INJ_OUTPUT(
 					injection->out.numSigs, injection->out.sigs,
 					sizeof(VkSemaphore), sync->vk.signaled,
@@ -775,13 +777,15 @@ int _gfx_deps_prepare(VkCommandBuffer cmd,
 
 			// Now we need to actually 'claim' it &
 			// put the object in the prepare stage.
-			sync->stage = _GFX_SYNC_PREPARE;
-			sync->inj = injection;
-			sync->tag = 0;
-
 			sync->ref = refs[r];
 			sync->range = ranges[r];
-			sync->vk.discard = discard;
+			sync->tag = 0;
+			sync->inj = injection;
+
+			sync->stage = _GFX_SYNC_PREPARE;
+			sync->flags =
+				(semaphore ? _GFX_SYNC_SEMAPHORE : 0) |
+				(discard ? _GFX_SYNC_DISCARD : 0);
 
 			// Manually unpack the destination access/stage/layout.
 			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(refs[r]);
