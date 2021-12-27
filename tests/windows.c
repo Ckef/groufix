@@ -22,6 +22,9 @@ TEST_DESCRIBE(windows, _t)
 	if (window2 == NULL)
 		TEST_FAIL();
 
+	// Register the default key events.
+	window2->events.key.release = TEST_EVT_KEY_RELEASE;
+
 	// Add second window to the renderer.
 	if (!gfx_renderer_attach_window(_t->renderer, 1, window2))
 		TEST_FAIL();

@@ -42,6 +42,8 @@
  *
  * TEST_SKIP_EVENT_HANDLERS
  *   Do not register the default event handlers for the base window.
+ *   To set event handlers yourself, default event handlers are defined:
+ *    TEST_EVT_KEY_RELEASE
  *
  * TEST_SKIP_CREATE_RENDER_GRAPH
  *   Do not build a render graph,
@@ -112,6 +114,12 @@
 		_test_end(); \
 	} \
 	int _test_unused_for_semicolon
+
+
+/**
+ * Default event handlers.
+ */
+#define TEST_EVT_KEY_RELEASE _test_key_release
 
 
 /**
@@ -279,8 +287,8 @@ static void _test_init(void)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_EVENT_HANDLERS)
-	// Register the default key release event.
-	_test_base.window->events.key.release = _test_key_release;
+	// Register the default key events.
+	_test_base.window->events.key.release = TEST_EVT_KEY_RELEASE;
 #endif
 
 	// Create a heap & dependency.
