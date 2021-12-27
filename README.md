@@ -15,9 +15,9 @@ Building
 
 Check out all source code:
 
-	$ git clone https://github.com/Ckef/groufix.git && cd groufix
-	$ git submodule update --init
-	$ python3 ./deps/shaderc/utils/git-sync-deps
+	git clone https://github.com/Ckef/groufix.git && cd groufix
+	git submodule update --init
+	python3 ./deps/shaderc/utils/git-sync-deps
 
 The project is shipped with a Makefile, run `make` or `mingw32-make` without a target to view all possible build targets. Each supported operating system has an explicit target. It is also possible to cross-compile _groufix_ to Windows using the `mingw-w64` package.
 
