@@ -384,6 +384,7 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
  */
 typedef enum GFXTransferFlags
 {
+	// TODO: Introduce GFX_TRANSFER_POOL, for pooling into 1 command buffer.
 	GFX_TRANSFER_ASYNC = 0x0001,
 	GFX_TRANSFER_BLOCK = 0x0002
 

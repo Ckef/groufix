@@ -581,7 +581,8 @@ struct GFXRenderer
 	// Vulkan fields.
 	struct
 	{
-		VkCommandPool pool; // TODO: Multiple for threaded recording?
+		// TODO: Multiple for threaded recording? Store in frame?
+		VkCommandPool pool;
 
 	} vk;
 };
