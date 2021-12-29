@@ -303,8 +303,6 @@ GFX_API void gfx_free_image(GFXImage* image);
  * @return NULL on failure.
  *
  * Thread-safe with respect to heap!
- * Fails if the referenced vertex buffer was not created with GFX_BUFFER_VERTEX
- * or the index buffer was not created with GFX_BUFFER_INDEX.
  */
 GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      GFXMemoryFlags flags, GFXBufferUsage usage,
@@ -346,8 +344,6 @@ GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
  * @return NULL on failure.
  *
  * Thread-safe with respect to heap!
- * The contents of the `buffers` or `images` field of each binding are copied
- * during allocation and will not be read from anymore after this call.
  */
 GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
                                   GFXMemoryFlags flags, GFXBufferUsage usage,
