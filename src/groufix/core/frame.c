@@ -427,16 +427,13 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 		// And lastly get the signal semaphores.
 		// Again, append to injection output.
 		size_t numSigs = injection.out.numSigs + (presentable > 0 ? 1 : 0);
-		VkSemaphore* sigs = &frame->vk.rendered;
-
 		if (injection.out.numSigs > 0 && presentable > 0)
 		{
 			_GFX_INJ_GROW(injection.out.sigs,
 				sizeof(VkSemaphore), injection.out.numSigs + 1,
 				goto clean_deps);
 
-			sigs = injection.out.sigs;
-			sigs[injection.out.numSigs] = frame->vk.rendered;
+			injection.out.sigs[injection.out.numSigs] = frame->vk.rendered;
 		}
 
 		// Lock queue and submit.
@@ -450,7 +447,10 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 			.commandBufferCount   = 1,
 			.pCommandBuffers      = &frame->vk.cmd,
 			.signalSemaphoreCount = (uint32_t)numSigs,
-			.pSignalSemaphores    = sigs
+
+			// Take the rendered semaphore if not signaling anything else.
+			.pSignalSemaphores = injection.out.numSigs > 0 ?
+				injection.out.sigs : &frame->vk.rendered
 		};
 
 		_gfx_mutex_lock(renderer->graphics.lock);
