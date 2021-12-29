@@ -42,6 +42,8 @@ typedef void** _GFXMapNode;
  */
 static int _gfx_map_realloc(GFXMap* map, size_t capacity)
 {
+	assert(capacity > 0);
+
 	void** new = malloc(capacity * sizeof(void*));
 	if (new == NULL) return 0;
 
@@ -57,9 +59,9 @@ static int _gfx_map_realloc(GFXMap* map, size_t capacity)
 			map->buckets[i] = _GFX_GET_NEXT(map, node);
 
 			// Stick it in new.
-			uint64_t hash = map->hash(_GFX_GET_KEY(map, node)) % capacity;
-			*node = new[hash];
-			new[hash] = node;
+			uint64_t hInd = map->hash(_GFX_GET_KEY(map, node)) % capacity;
+			*node = new[hInd];
+			new[hInd] = node;
 		}
 
 	free(map->buckets);
@@ -170,25 +172,24 @@ GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
 	assert(keySize > 0);
 	assert(key != NULL);
 
-	uint64_t rawHash = map->hash(key);
+	return gfx_map_hinsert(map, elem, keySize, key, map->hash(key));
+}
 
-	// Hash & search to overwrite.
-	uint64_t hash = rawHash % map->capacity;
-	size_t cap = map->capacity;
+/****************************/
+GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
+                              size_t keySize, const void* key, uint64_t hash)
+{
+	assert(map != NULL);
+	assert(keySize > 0);
+	assert(key != NULL);
 
-	for (
-		_GFXMapNode node = map->buckets[hash];
-		node != NULL;
-		node = _GFX_GET_NEXT(map, node))
+	// First try to find it.
+	void* found = gfx_map_hsearch(map, key, hash);
+	if (found != NULL)
 	{
 		// When found, overwrite & return.
-		if (map->cmp(key, _GFX_GET_KEY(map, node)) == 0)
-		{
-			if (elem != NULL)
-				memcpy(_GFX_GET_ELEMENT(map, node), elem, map->elementSize);
-
-			return _GFX_GET_ELEMENT(map, node);
-		}
+		if (elem != NULL) memcpy(found, elem, map->elementSize);
+		return found;
 	}
 
 	// Allocate a new node.
@@ -218,12 +219,10 @@ GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
 
 	memcpy(_GFX_GET_KEY(map, node), key, keySize);
 
-	// Insert, rehash if we've grown.
-	if (cap != map->capacity)
-		hash = rawHash % map->capacity;
-
-	*node = map->buckets[hash];
-	map->buckets[hash] = node;
+	// Insert element.
+	uint64_t hInd = hash % map->capacity;
+	*node = map->buckets[hInd];
+	map->buckets[hInd] = node;
 
 	return _GFX_GET_ELEMENT(map, node);
 }
@@ -234,11 +233,22 @@ GFX_API void* gfx_map_search(GFXMap* map, const void* key)
 	assert(map != NULL);
 	assert(key != NULL);
 
+	return gfx_map_hsearch(map, key, map->hash(key));
+}
+
+/****************************/
+GFX_API void* gfx_map_hsearch(GFXMap* map, const void* key, uint64_t hash)
+{
+	assert(map != NULL);
+	assert(key != NULL);
+
+	if (map->capacity == 0) return NULL;
+
 	// Hash & search :)
-	uint64_t hash = map->hash(key) % map->capacity;
+	uint64_t hInd = hash % map->capacity;
 
 	for (
-		_GFXMapNode node = map->buckets[hash];
+		_GFXMapNode node = map->buckets[hInd];
 		node != NULL;
 		node = _GFX_GET_NEXT(map, node))
 	{
@@ -255,18 +265,29 @@ GFX_API void gfx_map_erase(GFXMap* map, const void* key)
 	assert(map != NULL);
 	assert(key != NULL);
 
+	gfx_map_herase(map, key, map->hash(key));
+}
+
+/****************************/
+GFX_API void gfx_map_herase(GFXMap* map, const void* key, uint64_t hash)
+{
+	assert(map != NULL);
+	assert(key != NULL);
+
+	if (map->capacity == 0) return;
+
 	// Hash & search, but erase!
-	uint64_t hash = map->hash(key) & map->capacity;
+	uint64_t hInd = hash & map->capacity;
 
 	// So this is a bit annoying,
 	// we need to find the element BEFORE the one with the key.
-	_GFXMapNode bNode = map->buckets[hash];
+	_GFXMapNode bNode = map->buckets[hInd];
 	if (bNode == NULL) return;
 
 	// If it happens to be the first, just replace with the next.
 	if (map->cmp(key, _GFX_GET_KEY(map, bNode)) == 0)
 	{
-		map->buckets[hash] = _GFX_GET_NEXT(map, bNode);
+		map->buckets[hInd] = _GFX_GET_NEXT(map, bNode);
 		free(bNode);
 
 		--map->size, _gfx_map_shrink(map);

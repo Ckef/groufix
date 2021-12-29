@@ -96,12 +96,27 @@ GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
                              size_t keySize, const void* key);
 
 /**
+ * Inserts an element with pre-calculated hash into the map.
+ * @param hash Must be `map->hash(key)`.
+ * @see gfx_map_insert.
+ */
+GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
+                              size_t keySize, const void* key, uint64_t hash);
+
+/**
  * Searches for an element in the map.
  * @param map Cannot be NULL.
  * @param key Cannot be NULL.
  * @return The found element, NULL if not found.
  */
 GFX_API void* gfx_map_search(GFXMap* map, const void* key);
+
+/**
+ * Searches for an element in the map with pre-calculated hash.
+ * @param hash Must be `map->hash(key)`.
+ * @see gfx_map_search.
+ */
+GFX_API void* gfx_map_hsearch(GFXMap* map, const void* key, uint64_t hash);
 
 /**
  * Erases an element from the map.
@@ -111,6 +126,13 @@ GFX_API void* gfx_map_search(GFXMap* map, const void* key);
  * Note: the element is freed, cannot access its memory after this call!
  */
 GFX_API void gfx_map_erase(GFXMap* map, const void* key);
+
+/**
+ * Erases an element with pre-calculated hash from the map.
+ * @param hash Must be `map->hash(key)`.
+ * @see gfx_map_erase.
+ */
+GFX_API void gfx_map_herase(GFXMap* map, const void* key, uint64_t hash);
 
 
 #endif
