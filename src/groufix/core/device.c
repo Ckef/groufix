@@ -1126,7 +1126,7 @@ _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
 		queue->lock = &set->locks[index];
 
 		context->vk.GetDeviceQueue(
-			context->vk.device, set->family, index, &queue->queue);
+			context->vk.device, set->family, index, &queue->vk.queue);
 
 		return set;
 	}

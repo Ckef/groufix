@@ -187,8 +187,15 @@ typedef struct _GFXQueueSet
 typedef struct _GFXQueue
 {
 	uint32_t   family; // Vulkan family index.
-	VkQueue    queue;
 	_GFXMutex* lock;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkQueue queue;
+
+	} vk;
 
 } _GFXQueue;
 

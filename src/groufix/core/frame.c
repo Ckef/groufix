@@ -457,7 +457,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 
 		_GFX_VK_CHECK(
 			context->vk.QueueSubmit(
-				renderer->graphics.queue, 1, &si, frame->vk.done),
+				renderer->graphics.vk.queue, 1, &si, frame->vk.done),
 			{
 				_gfx_mutex_unlock(renderer->graphics.lock);
 				goto clean_deps;

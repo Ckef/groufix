@@ -442,7 +442,7 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 
 	// Lock queue and submit.
 	_gfx_mutex_lock(present.lock);
-	context->vk.QueuePresentKHR(present.queue, &pi);
+	context->vk.QueuePresentKHR(present.vk.queue, &pi);
 	_gfx_mutex_unlock(present.lock);
 
 	// Now go over each window and handle the results as appropriate.

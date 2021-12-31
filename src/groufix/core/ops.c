@@ -713,7 +713,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 
 	_GFX_VK_CHECK(
 		context->vk.QueueSubmit(
-			queue->queue, 1, &si, transfer->vk.done),
+			queue->vk.queue, 1, &si, transfer->vk.done),
 		{
 			_gfx_mutex_unlock(queue->lock);
 			goto clean_deps;
