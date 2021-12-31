@@ -453,8 +453,8 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	// Create command pools (one for each queue).
 	// They are used for all memory resource operations.
 	// These are short-lived buffers, as they are never re-used.
-	heap->ops.graphics.pool = VK_NULL_HANDLE;
-	heap->ops.transfer.pool = VK_NULL_HANDLE;
+	heap->ops.graphics.vk.pool = VK_NULL_HANDLE;
+	heap->ops.transfer.vk.pool = VK_NULL_HANDLE;
 
 	VkCommandPoolCreateInfo cpci = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -467,13 +467,13 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	cpci.queueFamilyIndex = heap->graphics.family;
 	_GFX_VK_CHECK(
 		context->vk.CreateCommandPool(
-			context->vk.device, &cpci, NULL, &heap->ops.graphics.pool),
+			context->vk.device, &cpci, NULL, &heap->ops.graphics.vk.pool),
 		goto clean_pools);
 
 	cpci.queueFamilyIndex = heap->transfer.family;
 	_GFX_VK_CHECK(
 		context->vk.CreateCommandPool(
-			context->vk.device, &cpci, NULL, &heap->ops.transfer.pool),
+			context->vk.device, &cpci, NULL, &heap->ops.transfer.vk.pool),
 		goto clean_pools);
 
 	// Initialize allocator things.
@@ -495,9 +495,9 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	// Cleanup on failure.
 clean_pools:
 	context->vk.DestroyCommandPool(
-		context->vk.device, heap->ops.graphics.pool, NULL);
+		context->vk.device, heap->ops.graphics.vk.pool, NULL);
 	context->vk.DestroyCommandPool(
-		context->vk.device, heap->ops.transfer.pool, NULL);
+		context->vk.device, heap->ops.transfer.vk.pool, NULL);
 clean_transfer_lock:
 	_gfx_mutex_clear(&heap->ops.transfer.lock);
 clean_graphics_lock:
@@ -520,17 +520,17 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	_GFXContext* context = heap->allocator.context;
 
 	// Destroy operation resources first so we can wait on them.
-	// First destroy the graphics queue ops.
-	GFXDeque* transfers = &heap->ops.graphics.transfers;
+	// First destroy the graphics queue pool.
+	_GFXTransferPool* pool = &heap->ops.graphics;
 
-destroy_ops:
+destroy_pool:
 	// Note we loop from front to back, in the same order we purge/recycle.
 	// We wait for each operation individually, to gradually release memory.
 	// Command buffers are implicitly freed down below.
 	// Also, we don't lock, as we're in the destroy call!
-	for (size_t t = 0; t < transfers->size; ++t)
+	for (size_t t = 0; t < pool->transfers.size; ++t)
 	{
-		_GFXTransfer* transfer = gfx_deque_at(transfers, t);
+		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, t);
 
 		_GFX_VK_CHECK(context->vk.WaitForFences(
 			context->vk.device, 1, &transfer->vk.done, VK_TRUE, UINT64_MAX), {});
@@ -541,22 +541,19 @@ destroy_ops:
 			_gfx_free_staging(heap, transfer->staging);
 	}
 
-	// Then destroy transfer queue ops.
-	if (transfers == &heap->ops.graphics.transfers)
+	// Destroy pool, transfers deque & lock.
+	context->vk.DestroyCommandPool(
+		context->vk.device, pool->vk.pool, NULL);
+
+	gfx_deque_clear(&pool->transfers);
+	_gfx_mutex_clear(&pool->lock);
+
+	// Then destroy transfer queue pool.
+	if (pool == &heap->ops.graphics)
 	{
-		transfers = &heap->ops.transfer.transfers;
-		goto destroy_ops;
+		pool = &heap->ops.transfer;
+		goto destroy_pool;
 	}
-
-	context->vk.DestroyCommandPool(
-		context->vk.device, heap->ops.graphics.pool, NULL);
-	context->vk.DestroyCommandPool(
-		context->vk.device, heap->ops.transfer.pool, NULL);
-
-	gfx_deque_clear(&heap->ops.graphics.transfers);
-	gfx_deque_clear(&heap->ops.transfer.transfers);
-	_gfx_mutex_clear(&heap->ops.graphics.lock);
-	_gfx_mutex_clear(&heap->ops.transfer.lock);
 
 	// Free all things.
 	while (heap->buffers.head != NULL) gfx_free_buffer(
@@ -589,23 +586,20 @@ GFX_API void gfx_heap_purge(GFXHeap* heap)
 
 	_GFXContext* context = heap->allocator.context;
 
-	// First purge the graphics queue ops.
-	VkCommandPool pool = heap->ops.graphics.pool;
-	GFXDeque* transfers = &heap->ops.graphics.transfers;
-	_GFXMutex* lock = &heap->ops.graphics.lock;
-	unsigned int* blocking = &heap->ops.graphics.blocking;
+	// First purge the graphics queue pool.
+	_GFXTransferPool* pool = &heap->ops.graphics;
 
 purge:
 	// Lock so we can free command buffers.
-	_gfx_mutex_lock(lock);
+	_gfx_mutex_lock(&pool->lock);
 
 	// Check the front-most transfer operation, continue
 	// until one is not done yet, it's a round-robin.
 	// Note we check if the host is blocking for any operations,
 	// if so, we cannot destroy the fences, so skip purging...
-	while (*blocking == 0 && transfers->size > 0)
+	while (pool->blocking == 0 && pool->transfers.size > 0)
 	{
-		_GFXTransfer* transfer = gfx_deque_at(transfers, 0);
+		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, 0);
 
 		// Check if the transfer is done.
 		// If it is not, we are done purging.
@@ -618,6 +612,8 @@ purge:
 		if (result != VK_SUCCESS)
 		{
 			// Woopsie daisy :o
+			_gfx_mutex_unlock(&pool->lock);
+
 			_GFX_VK_CHECK(result, {});
 			gfx_log_warn("Heap purge failed.");
 			return;
@@ -625,26 +621,22 @@ purge:
 
 		// If it is, destroy its resources.
 		context->vk.FreeCommandBuffers(
-			context->vk.device, pool, 1, &transfer->vk.cmd);
+			context->vk.device, pool->vk.pool, 1, &transfer->vk.cmd);
 		context->vk.DestroyFence(
 			context->vk.device, transfer->vk.done, NULL);
 
 		if (transfer->staging != NULL)
 			_gfx_free_staging(heap, transfer->staging);
 
-		gfx_deque_pop_front(transfers, 1);
+		gfx_deque_pop_front(&pool->transfers, 1);
 	}
 
-	_gfx_mutex_unlock(lock);
+	_gfx_mutex_unlock(&pool->lock);
 
-	// Then purge transfer queue ops.
-	if (transfers == &heap->ops.graphics.transfers)
+	// Then purge transfer queue pool.
+	if (pool == &heap->ops.graphics)
 	{
-		pool = heap->ops.transfer.pool;
-		transfers = &heap->ops.transfer.transfers;
-		lock = &heap->ops.transfer.lock;
-		blocking = &heap->ops.transfer.blocking;
-
+		pool = &heap->ops.transfer;
 		goto purge;
 	}
 }

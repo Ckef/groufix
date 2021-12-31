@@ -275,6 +275,27 @@ typedef struct _GFXTransfer
 
 
 /**
+ * Transfer operation pool.
+ */
+typedef struct _GFXTransferPool
+{
+	GFXDeque  transfers; // Stores _GFXTransfer.
+	_GFXMutex lock;
+
+	unsigned int blocking;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkCommandPool pool;
+
+	} vk;
+
+} _GFXTransferPool;
+
+
+/**
  * Internal heap.
  */
 struct GFXHeap
@@ -291,29 +312,12 @@ struct GFXHeap
 	GFXList groups;     // References _GFXGroup.
 
 
-	// Operation resources.
+	// Operation resources,
+	//  for both the graphics and transfer queues.
 	struct
 	{
-		// Graphics queue.
-		struct
-		{
-			VkCommandPool pool;
-			GFXDeque      transfers; // Stores _GFXTransfer.
-			_GFXMutex     lock;
-			unsigned int  blocking;
-
-		} graphics;
-
-
-		// Transfer queue.
-		struct
-		{
-			VkCommandPool pool;
-			GFXDeque      transfers; // Stores _GFXTransfer.
-			_GFXMutex     lock;
-			unsigned int  blocking;
-
-		} transfer;
+		_GFXTransferPool graphics;
+		_GFXTransferPool transfer;
 
 	} ops;
 };
