@@ -7,7 +7,6 @@
  */
 
 #include "groufix/core/mem.h"
-#include <assert.h>
 #include <string.h>
 
 #if defined (GFX_WIN32)
@@ -59,9 +58,6 @@ static int _gfx_cache_cmp(const void* l, const void* r)
 static uint64_t _gfx_cache_murmur3(const void* key)
 {
 	_Static_assert(sizeof(uint32_t) == 4, "MurmurHash3 blocks must be 4 bytes.");
-
-	assert(key != NULL);
-	assert(((const _GFXCacheKey*)key)->len <= UINT32_MAX);
 
 	const _GFXCacheKey* cKey = key;
 	const size_t nblocks = cKey->len / sizeof(uint32_t);
