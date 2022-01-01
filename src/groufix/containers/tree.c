@@ -441,7 +441,7 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 
 	while (tNode != NULL)
 	{
-		int cmp = tree->cmp(key, _GFX_GET_KEY(tree, tNode));
+		const int cmp = tree->cmp(key, _GFX_GET_KEY(tree, tNode));
 
 		if (cmp < 0)
 		{

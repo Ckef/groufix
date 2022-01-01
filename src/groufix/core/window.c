@@ -362,7 +362,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	glfwSetWindowUserPointer(window->handle, window);
 
 	// Set the input mode for the cursor and caps/num lock.
-	int cursor =
+	const int cursor =
 		(flags & GFX_WINDOW_CAPTURE_MOUSE) ? GLFW_CURSOR_DISABLED :
 		(flags & GFX_WINDOW_HIDE_MOUSE) ? GLFW_CURSOR_HIDDEN :
 		GLFW_CURSOR_NORMAL;
@@ -571,7 +571,7 @@ GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags)
 		glfwMaximizeWindow(win->handle);
 
 	// Set the input mode for the cursor.
-	int cursor =
+	const int cursor =
 		(flags & GFX_WINDOW_CAPTURE_MOUSE) ? GLFW_CURSOR_DISABLED :
 		(flags & GFX_WINDOW_HIDE_MOUSE) ? GLFW_CURSOR_HIDDEN :
 		GLFW_CURSOR_NORMAL;

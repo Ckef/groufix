@@ -59,7 +59,7 @@ static int _gfx_map_realloc(GFXMap* map, size_t capacity)
 			map->buckets[i] = _GFX_GET_NEXT(map, node);
 
 			// Stick it in new.
-			uint64_t hInd = map->hash(_GFX_GET_KEY(map, node)) % capacity;
+			const uint64_t hInd = map->hash(_GFX_GET_KEY(map, node)) % capacity;
 			*node = new[hInd];
 			new[hInd] = node;
 		}
@@ -220,7 +220,7 @@ GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
 	memcpy(_GFX_GET_KEY(map, node), key, keySize);
 
 	// Insert element.
-	uint64_t hInd = hash % map->capacity;
+	const uint64_t hInd = hash % map->capacity;
 	*node = map->buckets[hInd];
 	map->buckets[hInd] = node;
 
@@ -245,7 +245,7 @@ GFX_API void* gfx_map_hsearch(GFXMap* map, const void* key, uint64_t hash)
 	if (map->capacity == 0) return NULL;
 
 	// Hash & search :)
-	uint64_t hInd = hash % map->capacity;
+	const uint64_t hInd = hash % map->capacity;
 
 	for (
 		_GFXMapNode node = map->buckets[hInd];
@@ -277,7 +277,7 @@ GFX_API void gfx_map_herase(GFXMap* map, const void* key, uint64_t hash)
 	if (map->capacity == 0) return;
 
 	// Hash & search, but erase!
-	uint64_t hInd = hash & map->capacity;
+	const uint64_t hInd = hash & map->capacity;
 
 	// So this is a bit annoying,
 	// we need to find the element BEFORE the one with the key.

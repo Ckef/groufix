@@ -901,7 +901,7 @@ int _gfx_devices_init(void)
 			_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
 				devices[i], &families, props);
 
-			uint32_t transfer = _gfx_find_queue_family(
+			const uint32_t transfer = _gfx_find_queue_family(
 				&dev, families, props, VK_QUEUE_TRANSFER_BIT, 0);
 
 			// Then define the features and limits part of the new device :)
@@ -948,7 +948,7 @@ int _gfx_devices_init(void)
 			// Check if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.
 			// If the type is equal, pick the greater Vulkan version.
-			int isPrim = (i == 0) ||
+			const int isPrim = (i == 0) ||
 				dev.base.type < type ||
 				(dev.base.type == type && pdp.apiVersion > ver);
 

@@ -70,9 +70,9 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 
 	window->frame.recreate = 0;
 
-	uint32_t width = window->frame.rWidth;
-	uint32_t height = window->frame.rHeight;
-	GFXWindowFlags wFlags = window->frame.flags;
+	const uint32_t width = window->frame.rWidth;
+	const uint32_t height = window->frame.rHeight;
+	const GFXWindowFlags wFlags = window->frame.flags;
 
 	_gfx_mutex_unlock(&window->frame.lock);
 

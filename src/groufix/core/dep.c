@@ -499,7 +499,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 	// Keep track of related resources & metadata for each injection.
 	// If there are no operation refs, make VLAs of size 1 for legality.
-	size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
+	const size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
 	const _GFXUnpackRef* refs;
 	size_t indices[vlaRefs];
 	GFXRange ranges[vlaRefs]; // Unpacked!
@@ -549,7 +549,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			// Then filter on queue family, underlying resources and
 			// whether it overlaps those resource.
 			size_t r;
-			int mismatch = (sync->vk.dstFamily != injection->inp.family);
+			const int mismatch = (sync->vk.dstFamily != injection->inp.family);
 
 			for (r = 0; r < numRefs; ++r)
 				// Oh and layouts must equal, otherwise nothing can happen.
@@ -561,7 +561,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 					(layouts[r] == VK_IMAGE_LAYOUT_UNDEFINED ||
 					layouts[r] == sync->vk.newLayout))
 				{
-					int race =
+					const int race =
 						flags[r] != sync->vk.dstAccess ||
 						stages[r] != sync->vk.dstStage;
 
@@ -691,7 +691,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 
 	// Keep track of related resources & metadata for each injection.
 	// If there are no operation refs, make VLAs of size 1 for legality.
-	size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
+	const size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
 	const _GFXUnpackRef* refs;
 	size_t indices[vlaRefs];
 	GFXRange ranges[vlaRefs]; // Unpacked!
@@ -736,7 +736,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 		}
 
 		// Get queue family to transfer ownership to.
-		uint32_t family =
+		const uint32_t family =
 			injs[i].mask & GFX_ACCESS_COMPUTE_ASYNC ?
 				injs[i].dep->compute :
 			injs[i].mask & GFX_ACCESS_TRANSFER_ASYNC ?
@@ -746,9 +746,9 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 		// Flag whether we need an ownership transfer,
 		// whether we want to discard &
 		// whether we need a semaphore or not.
-		int ownership = (family != injection->inp.family);
-		int discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
-		int semaphore = ownership && !blocking;
+		const int ownership = (family != injection->inp.family);
+		const int discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
+		const int semaphore = ownership && !blocking;
 
 		// Aaaand the bit where we prepare all signals.
 		// We lock for each command individually.

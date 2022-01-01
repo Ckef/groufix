@@ -89,9 +89,9 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 		(ref->obj.renderer != NULL) ? attach->base.format :
 		GFX_FORMAT_EMPTY;
 
-	uint32_t blockSize = GFX_FORMAT_BLOCK_SIZE(fmt) / CHAR_BIT; // In bytes.
-	uint32_t blockWidth = GFX_FORMAT_BLOCK_WIDTH(fmt);          // In texels.
-	uint32_t blockHeight = GFX_FORMAT_BLOCK_HEIGHT(fmt);        // In texels.
+	const uint32_t blockSize = GFX_FORMAT_BLOCK_SIZE(fmt) / CHAR_BIT; // In bytes.
+	const uint32_t blockWidth = GFX_FORMAT_BLOCK_WIDTH(fmt);          // In texels.
+	const uint32_t blockHeight = GFX_FORMAT_BLOCK_HEIGHT(fmt);        // In texels.
 
 	// Now, firstly calculate the plain staging regions by mirroring
 	// the host regions, except getting the actual _true_ byte size.
@@ -130,7 +130,7 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 			y = (y + blockHeight - 1) / blockHeight - 1;
 			z = z - 1;
 
-			uint64_t last =
+			const uint64_t last =
 				(z * (uint64_t)numRows + y) * (uint64_t)rowSize + x;
 			stage[r].size = (last + 1) *
 				_GFX_MOD_BLOCK_SIZE(blockSize, fmt, refRegions[r].aspect);
@@ -837,7 +837,7 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 		// Therefore this is not necessarily optimal packing, however the
 		// solution would require even more faffin' about with image packing,
 		// so this is good enough :)
-		uint64_t size = _gfx_stage_compact(
+		const uint64_t size = _gfx_stage_compact(
 			&unp, numRegions, dstRegions, srcRegions, stage);
 		staging = _gfx_alloc_staging(
 			heap, VK_BUFFER_USAGE_TRANSFER_DST_BIT, size);
@@ -956,7 +956,7 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
 
 		// Compact regions associated with the host,
 		// allocate a staging buffer for it :)
-		uint64_t size = _gfx_stage_compact(
+		const uint64_t size = _gfx_stage_compact(
 			&unp, numRegions, srcRegions, dstRegions, stage);
 		staging = _gfx_alloc_staging(
 			heap, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size);
