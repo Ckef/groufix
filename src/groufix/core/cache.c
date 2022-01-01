@@ -8,6 +8,7 @@
 
 #include "groufix/core/mem.h"
 #include <assert.h>
+#include <string.h>
 
 #if defined (GFX_WIN32)
 	#include <stdlib.h>
@@ -38,10 +39,24 @@ typedef struct _GFXCacheKey
 
 
 /****************************
+ * Hashtable key comparison function,
+ * key is of type _GFXCacheKey*, assumes packed data.
+ */
+static int _gfx_cache_cmp(const void* l, const void* r)
+{
+	const _GFXCacheKey* kL = l;
+	const _GFXCacheKey* kR = r;
+
+	return
+		kL->len == kR->len &&
+		memcmp(kL->bytes, kR->bytes, kL->len) == 0;
+}
+
+/****************************
  * MurmurHash3 (32 bits) implementation as hashtable hash function,
  * key is of type _GFXCacheKey*.
  */
-static uint64_t _gfx_murmur3_hash(const void* key)
+static uint64_t _gfx_cache_murmur3(const void* key)
 {
 	_Static_assert(sizeof(uint32_t) == 4, "MurmurHash3 blocks must be 4 bytes.");
 
