@@ -15,6 +15,10 @@
 #include "groufix/core.h"
 
 
+/****************************
+ * Vulkan memory management.
+ ****************************/
+
 /**
  * Memory block (i.e. Vulkan memory object to be subdivided).
  */
@@ -117,10 +121,6 @@ typedef struct _GFXAllocator
 } _GFXAllocator;
 
 
-/****************************
- * Vulkan memory management.
- ****************************/
-
 /**
  * Initializes an allocator.
  * @param alloc  Cannot be NULL.
@@ -199,6 +199,13 @@ void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem);
  * This function is reentrant!
  */
 void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem);
+
+
+/****************************
+ * Vulkan object cache.
+ ****************************/
+
+// TODO: Implement.
 
 
 #endif
