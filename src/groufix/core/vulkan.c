@@ -182,7 +182,7 @@ int _gfx_vulkan_init(void)
 		// TODO: Enable VK_EXT_swapchain_colorspace?
 		// Add our own extensions and layers if in debug mode.
 #if !defined (NDEBUG)
-		uint32_t count = glfwCount + 1;
+		const uint32_t count = glfwCount + 1;
 		const char* extensions[count];
 		memcpy(extensions, glfwExtensions, sizeof(char*) * glfwCount);
 

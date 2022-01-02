@@ -294,7 +294,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	}
 
 	// We have no errors, but maybe warnings.
-	size_t warnings = shaderc_result_get_num_warnings(result);
+	const size_t warnings = shaderc_result_get_num_warnings(result);
 
 	// Stream warnings out.
 	if (err != NULL && warnings > 0)
@@ -305,9 +305,9 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 	// Get bytecode and its length / word size.
 	// Round the size to a multiple of 4 just in case it isn't.
-	size_t size = shaderc_result_get_length(result);
+	const size_t size = shaderc_result_get_length(result);
 	const char* bytes = shaderc_result_get_bytes(result);
-	size_t wordSize = (size / sizeof(uint32_t)) * sizeof(uint32_t);
+	const size_t wordSize = (size / sizeof(uint32_t)) * sizeof(uint32_t);
 
 	// First, stream out the resulting SPIR-V bytecode.
 	if (out != NULL && gfx_io_write(out, bytes, size) > 0)
@@ -402,7 +402,7 @@ GFX_API int gfx_shader_load(GFXShader* shader, const GFXReader* src)
 
 	// Attempt to build the shader module.
 	// Round the size to a multiple of 4 just in case it isn't.
-	size_t wordSize =
+	const size_t wordSize =
 		((size_t)len / sizeof(uint32_t)) * sizeof(uint32_t);
 
 	int ret = _gfx_shader_build(shader, wordSize, source);

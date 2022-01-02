@@ -17,13 +17,13 @@
 static inline int _gfx_cmp_attachments(GFXAttachment* l, GFXAttachment* r)
 {
 	// Cannot use memcmp because of padding.
-	int abs =
+	const int abs =
 		(l->size == GFX_SIZE_ABSOLUTE) && (r->size == GFX_SIZE_ABSOLUTE) &&
 		(l->width == r->width) &&
 		(l->height == r->height) &&
 		(l->depth == r->depth);
 
-	int rel =
+	const int rel =
 		(l->size == GFX_SIZE_RELATIVE) && (r->size == GFX_SIZE_RELATIVE) &&
 		(l->ref == r->ref) &&
 		(l->xScale == r->xScale) &&

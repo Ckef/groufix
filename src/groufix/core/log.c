@@ -91,7 +91,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	file = (f == NULL) ? file : f;
 
 	// So we get seconds that the CPU has spent on this program.
-	double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
+	const double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
 
 	// If groufix is initialized..
 	if (_groufix.initialized)

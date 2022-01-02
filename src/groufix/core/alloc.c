@@ -105,7 +105,7 @@ static uint32_t _gfx_get_mem_type(_GFXAllocator* alloc,
 
 	// We search in order, Vulkan orders subsets before supersets,
 	// so we don't have to check for the least flags :)
-	VkPhysicalDeviceMemoryProperties* pdmp = &alloc->vk.properties;
+	const VkPhysicalDeviceMemoryProperties* pdmp = &alloc->vk.properties;
 
 	for (uint32_t t = 0; t < pdmp->memoryTypeCount; ++t)
 	{
@@ -162,9 +162,9 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	}
 
 	// Validate that we have enough memory.
-	VkPhysicalDeviceMemoryProperties* pdmp =
+	const VkPhysicalDeviceMemoryProperties* pdmp =
 		&alloc->vk.properties;
-	VkDeviceSize heapSize =
+	const VkDeviceSize heapSize =
 		pdmp->memoryHeaps[pdmp->memoryTypes[type].heapIndex].size;
 
 	if (minSize > heapSize)
@@ -179,7 +179,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 
 	// Calculate block size in Vulkan units.
 	// If it is a 'small' heap, we allocate the heap's size divided by 8.
-	VkDeviceSize prefBlockSize =
+	const VkDeviceSize prefBlockSize =
 		(heapSize <= _GFX_MAX_SMALL_HEAP_SIZE) ?
 		heapSize / 8 :
 		_GFX_DEF_LARGE_HEAP_BLOCK_SIZE;
@@ -188,7 +188,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		GFX_CLAMP(prefBlockSize, minSize, maxSize);
 
 	// Check whether we want to allocate Vulkan dedicated memory.
-	int dedicated =
+	const int dedicated =
 		(minSize == maxSize) &&
 		(buffer != VK_NULL_HANDLE || image != VK_NULL_HANDLE);
 
@@ -245,7 +245,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 
 	// At this point we have memory!
 	// Initialize the block and the list of nodes & free tree.
-	VkDeviceSize key[2] = { blockSize, 0 };
+	const VkDeviceSize key[2] = { blockSize, 0 };
 	block->type = type;
 	block->size = blockSize;
 
@@ -480,8 +480,8 @@ try_search:
 			_GFXMemAlloc* right = (_GFXMemAlloc*)node->list.next;
 
 			// If neighbors exist, they must be an allocation.
-			int lGran = (left != NULL && left->linear != linear);
-			int rGran = (right != NULL && right->linear != linear);
+			const int lGran = (left != NULL && left->linear != linear);
+			const int rGran = (right != NULL && right->linear != linear);
 
 			// Get the alignment we want, if left granularity applies,
 			// we use the largest of the asked alignment and the granularity.
@@ -490,11 +490,11 @@ try_search:
 			// end of a claimed block, so we need to align up.
 			// Otherwise we still need to align up because we can encounter
 			// less strict alignments when the node's size is larger.
-			VkDeviceSize align = lGran ?
+			const VkDeviceSize align = lGran ?
 				GFX_MAX(alloc->granularity, reqs.alignment) : reqs.alignment;
-
-			VkDeviceSize offset =
+			const VkDeviceSize offset =
 				GFX_ALIGN_UP(_GFX_KEY_OFFSET(fKey), align);
+
 			VkDeviceSize waste =
 				offset - _GFX_KEY_OFFSET(fKey);
 
@@ -589,9 +589,9 @@ try_search:
 	// However to the right of the memory we might still have a big free block.
 	const VkDeviceSize* cKey = gfx_tree_key(&block->nodes.free, node);
 
-	VkDeviceSize rOffset =
+	const VkDeviceSize rOffset =
 		_GFX_KEY_OFFSET(key) + _GFX_KEY_SIZE(key);
-	VkDeviceSize rSize =
+	const VkDeviceSize rSize =
 		_GFX_KEY_SIZE(cKey) - (rOffset - _GFX_KEY_OFFSET(cKey));
 
 	// The waste we created to the left is at most (alignment - 1) in size,
@@ -715,14 +715,14 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	// We may have created some wasted space during allocation, make sure to
 	// reclaim those areas as free space as well.
 	// This is why we first calculate the range of space we can reclaim.
-	VkDeviceSize lBound =
+	const VkDeviceSize lBound =
 		(left == NULL) ? 0 :
 		(left->free) ?
 			_GFX_KEY_OFFSET(gfx_tree_key(&block->nodes.free, left)) :
 			((_GFXMemAlloc*)left)->offset +
 			((_GFXMemAlloc*)left)->size;
 
-	VkDeviceSize rBound =
+	const VkDeviceSize rBound =
 		(right == NULL) ? block->size :
 		(right->free) ?
 			_GFX_KEY_OFFSET(gfx_tree_key(&block->nodes.free, right)) +
@@ -730,9 +730,9 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 			((_GFXMemAlloc*)right)->offset;
 
 	// Now modify the list and free tree to reflect the claimed space.
-	VkDeviceSize key[2] = { rBound - lBound, lBound };
-	int lFree = (left != NULL) && left->free;
-	int rFree = (right != NULL) && right->free;
+	const VkDeviceSize key[2] = { rBound - lBound, lBound };
+	const int lFree = (left != NULL) && left->free;
+	const int rFree = (right != NULL) && right->free;
 
 	if (lFree || rFree)
 	{
@@ -757,7 +757,7 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	}
 	else
 	{
-		int full = (block->nodes.free.root == NULL);
+		const int full = (block->nodes.free.root == NULL);
 
 		// We know no free neighbour exists AND at least one neighbour exists,
 		// if no neighbour were to exist at all we exit early at the top.

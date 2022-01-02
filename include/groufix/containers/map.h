@@ -35,12 +35,12 @@ typedef struct GFXMap
 
 
 /**
- * Retrieves the key value from a map element.
- * Undefined behaviour if elem is not a value returned by gfx_map_insert.
+ * Retrieves the key value from a map node. Undefined behaviour if
+ * node is not a non-NULL value returned by gfx_map_(h)insert.
  */
-static inline const void* gfx_map_key(GFXMap* map, const void* elem)
+static inline const void* gfx_map_key(GFXMap* map, const void* node)
 {
-	return (const void*)((const char*)elem + GFX_ALIGN_UP(map->elementSize, map->align));
+	return (const void*)((const char*)node + GFX_ALIGN_UP(map->elementSize, map->align));
 }
 
 /**
@@ -65,13 +65,13 @@ GFX_API void gfx_map_init(GFXMap* map, size_t elemSize, size_t align,
                           int (*cmp)(const void*, const void*));
 
 /**
- * Clears the content of a map, erasing all elements.
+ * Clears the content of a map, erasing all nodes.
  * @param map Cannot be NULL.
  */
 GFX_API void gfx_map_clear(GFXMap* map);
 
 /**
- * Reserves a minimum size, this 'capacity' holds until elements are erased.
+ * Reserves a minimum size, this 'capacity' holds until nodes are erased.
  * Load factor is accounted for to compute the actual capacity.
  * @param map Cannot be NULL.
  * @return Zero when out of memory.
@@ -79,16 +79,17 @@ GFX_API void gfx_map_clear(GFXMap* map);
  * Only useful to avoid the map resizing itself a bunch of times during
  * multiple insertions, does not guarantee any insertion won't fail!
  */
-GFX_API int gfx_map_reserve(GFXMap* map, size_t numElems);
+GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes);
 
 /**
- * Inserts an element into the map.
+ * Inserts a node into the map.
  * @param map     Cannot be NULL.
  * @param elem    Can be NULL to insert empty.
  * @param keySize Must be > 0.
  * @param key     Cannot be NULL.
- * @return The inserted element (constant address), NULL when out of memory.
+ * @return The inserted node (constant address), NULL when out of memory.
  *
+ * The returned node pointer points to the modifiable element data.
  * When the key is already present in the map it is returned instead,
  * and if elem != NULL, its element value is overwritten.
  */
@@ -96,7 +97,7 @@ GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
                              size_t keySize, const void* key);
 
 /**
- * Inserts an element with pre-calculated hash into the map.
+ * Inserts a node with pre-calculated hash into the map.
  * @param hash Must be `map->hash(key)`.
  * @see gfx_map_insert.
  */
@@ -104,35 +105,35 @@ GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
                               size_t keySize, const void* key, uint64_t hash);
 
 /**
- * Searches for an element in the map.
+ * Searches for a node in the map.
  * @param map Cannot be NULL.
  * @param key Cannot be NULL.
- * @return The found element, NULL if not found.
+ * @return The found node, NULL if not found.
  */
 GFX_API void* gfx_map_search(GFXMap* map, const void* key);
 
 /**
- * Searches for an element in the map with pre-calculated hash.
+ * Searches for a node in the map with pre-calculated hash.
  * @param hash Must be `map->hash(key)`.
  * @see gfx_map_search.
  */
 GFX_API void* gfx_map_hsearch(GFXMap* map, const void* key, uint64_t hash);
 
 /**
- * Erases an element from the map.
- * @param map Cannot be NULL.
- * @param key Cannot be NULL.
+ * Erases a node from the map.
+ * @param map  Cannot be NULL.
+ * @param node Must be a non-NULL value returned by gfx_map_(h)insert.
  *
- * Note: the element is freed, cannot access its memory after this call!
+ * Note: node is freed, cannot access its memory after this call!
  */
-GFX_API void gfx_map_erase(GFXMap* map, const void* key);
+GFX_API void gfx_map_erase(GFXMap* map, const void* node);
 
 /**
- * Erases an element with pre-calculated hash from the map.
+ * Erases a node with pre-calculated hash from the map.
  * @param hash Must be `map->hash(key)`.
  * @see gfx_map_erase.
  */
-GFX_API void gfx_map_herase(GFXMap* map, const void* key, uint64_t hash);
+GFX_API void gfx_map_herase(GFXMap* map, const void* node, uint64_t hash);
 
 
 #endif
