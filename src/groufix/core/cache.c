@@ -10,7 +10,7 @@
 #include <string.h>
 
 #if defined (GFX_WIN32)
-	#include <stdlib.h>
+	#include <intrin.h>
 #endif
 
 
