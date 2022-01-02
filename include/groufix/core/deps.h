@@ -137,7 +137,7 @@ typedef struct GFXInject
  * cannot be freed until its dependencies are waited upon.
  *
  * Injections that reference attachments are _NOT_ thread-safe with respect
- * to the attachment, not even if referenced implicitly.
+ * to the renderer it belongs to, not even if referenced implicitly.
  *
  * Functions that take injections as an argument are _always_ thread-safe with
  * respect to the dependency objects being referenced!
