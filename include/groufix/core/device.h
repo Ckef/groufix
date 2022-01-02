@@ -37,6 +37,9 @@ typedef struct GFXDevice
 	GFXDeviceType type;
 	const char*   name;
 
+	int available; // Zero if it does not support the required Vulkan version.
+
+
 	// Device features.
 	struct
 	{

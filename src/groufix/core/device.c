@@ -908,6 +908,8 @@ int _gfx_devices_init(void)
 			dev.base = (GFXDevice){
 				.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
 				.name = NULL,
+				.available = dev.api >= _GFX_VK_API_VERSION,
+
 				.features = {
 					.indexUint32        = (char)pdf.fullDrawIndexUint32,
 					.cubemapArray       = (char)pdf.imageCubeArray,
@@ -925,6 +927,7 @@ int _gfx_devices_init(void)
 					.shaderFloat64      = (char)pdf.shaderFloat64,
 					.samplerMinmax      = (char)(vk12 ? pdv12f.samplerFilterMinmax : 0)
 				},
+
 				.limits = {
 					.maxIndexUint32      = pdp.limits.maxDrawIndexedIndexValue,
 					.maxImageSize1D      = pdp.limits.maxImageDimension1D,
