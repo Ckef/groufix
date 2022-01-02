@@ -41,8 +41,8 @@ typedef struct GFXTree
 
 
 /**
- * Retrieves the key value from a tree node.
- * Undefined behaviour if node is not a value returned by gfx_tree_insert.
+ * Retrieves the key value from a tree node. Undefined behaviour if
+ * node is not a non-NULL value returned by gfx_tree_insert.
  */
 static inline const void* gfx_tree_key(GFXTree* tree, const void* node)
 {
@@ -79,6 +79,8 @@ GFX_API void gfx_tree_clear(GFXTree* tree);
  * @param elem     Can be NULL for an empty node.
  * @param key      Cannot be NULL.
  * @return The inserted node (constant address), NULL when out of memory.
+ *
+ * The returned node pointer points to the modifiable element data.
  */
 GFX_API void* gfx_tree_insert(GFXTree* tree, size_t elemSize, const void* elem,
                               const void* key);
@@ -101,7 +103,7 @@ GFX_API void* gfx_tree_search(GFXTree* tree, const void* key,
 /**
  * Retrieves the predecessor of a node.
  * @param tree Cannot be NULL.
- * @param node Must be a value returned by gfx_tree_insert.
+ * @param node Must be a non-NULL value returned by gfx_tree_insert.
  * @return NULL if none found.
  */
 GFX_API void* gfx_tree_pred(GFXTree* tree, const void* node);
@@ -115,15 +117,15 @@ GFX_API void* gfx_tree_succ(GFXTree* tree, const void* node);
 /**
  * Updates the key of a node.
  * @param tree Cannot be NULL.
- * @param node Must be a value returned by gfx_tree_insert.
+ * @param node Must be a non-NULL value returned by gfx_tree_insert.
  * @param key  Cannot be NULL.
  */
 GFX_API void gfx_tree_update(GFXTree* tree, const void* node, const void* key);
 
 /**
- * Erases a node from the tree, also freeing the modifiable element data.
+ * Erases a node from the tree.
  * @param tree Cannot be NULL.
- * @param node Must be a value returned by gfx_tree_insert.
+ * @param node Must be a non-NULL value returned by gfx_tree_insert.
  *
  * Note: node is freed, cannot access its memory after this call!
  */
