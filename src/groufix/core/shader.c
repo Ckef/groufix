@@ -9,7 +9,6 @@
 #include "groufix/core/objects.h"
 #include <shaderc/shaderc.h>
 #include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -172,7 +171,8 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	}
 
 	// Read source.
-	if (gfx_io_read(src, source, (size_t)len) <= 0)
+	len = gfx_io_read(src, source, (size_t)len);
+	if (len <= 0)
 	{
 		gfx_log_error(
 			"Could not read source from stream to compile %s shader.",
@@ -390,7 +390,8 @@ GFX_API int gfx_shader_load(GFXShader* shader, const GFXReader* src)
 	}
 
 	// Read source.
-	if (gfx_io_read(src, source, (size_t)len) <= 0)
+	len = gfx_io_read(src, source, (size_t)len);
+	if (len <= 0)
 	{
 		gfx_log_error(
 			"Could not read source from stream to load %s shader.",
