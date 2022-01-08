@@ -282,7 +282,7 @@ typedef struct _GFXTransferPool
 	GFXDeque  transfers; // Stores _GFXTransfer.
 	_GFXMutex lock;
 
-	unsigned int blocking;
+	unsigned int blocking; // #blocking threads.
 
 
 	// Vulkan fields.
@@ -302,7 +302,7 @@ struct GFXHeap
 {
 	_GFXDevice*   device;    // For format operations.
 	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
-	_GFXMutex     lock;
+	_GFXMutex     lock;      // For allocation.
 	_GFXQueue     graphics;
 	_GFXQueue     transfer;
 
@@ -760,7 +760,7 @@ typedef struct _GFXInjection
 		size_t   numRefs; // May be zero!
 
 		const _GFXUnpackRef* refs;
-		const GFXAccessMask* masks; // Modifiers are ignored.
+		const GFXAccessMask* masks;
 		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
 
 	} inp;
