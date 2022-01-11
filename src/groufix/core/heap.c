@@ -827,7 +827,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	// We allocate vertex buffers at the tail end of the primitive,
 	// we just take the maximum amount (#attributes).
 	// Make sure to adhere to its alignment requirements!
-	size_t structSize = GFX_ALIGN_UP(
+	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(_GFXPrimitive) + sizeof(_GFXAttribute) * numAttribs,
 		_Alignof(_GFXPrimBuffer));
 
@@ -1101,7 +1101,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	// Allocate a new group.
 	// We allocate references at the tail of the group,
 	// make sure to adhere to its alignment requirements!
-	size_t structSize = GFX_ALIGN_UP(
+	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(_GFXGroup) + sizeof(GFXBinding) * numBindings,
 		_Alignof(GFXReference));
 
