@@ -154,7 +154,7 @@ else ifeq ($(OS),Windows_NT)
 else
  GLFW_FLAGS        = $(GLFW_FLAGS_UNIX)
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) -G "Unix Makefiles"
- SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL)
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) -DSPIRV_CROSS_FORCE_PIC=ON
 endif
 
 
@@ -257,8 +257,8 @@ OBJS = \
 LIBS = \
  $(BUILD)$(SUB)/glfw/src/libglfw3.a \
  $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a \
- $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a \
- $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a
+ $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a \
+ $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a
 
 
 # Generated dependency files
@@ -274,8 +274,8 @@ $(BUILD)$(SUB)/glfw/src/libglfw3.a: | $(BUILD)$(SUB)
 $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a: | $(BUILD)$(SUB)
 	@cd $(BUILD)$(SUB)/shaderc && cmake $(SHADERC_FLAGS) $(CURDIR)/deps/shaderc && $(MAKE)
 
-$(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a \
-$(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a &: | $(BUILD)$(SUB)
+$(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a:
+$(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a: | $(BUILD)$(SUB)
 	@cd $(BUILD)$(SUB)/SPIRV-Cross && cmake $(SPIRV_CROSS_FLAGS) $(CURDIR)/deps/SPIRV-Cross && $(MAKE)
 
 
@@ -309,16 +309,16 @@ MFLAGS_ALL  = --no-print-directory
 MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix EXT=.so PTEST=%
 MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win EXT=.dll PTEST=%.exe
 
-build-win-tests: $(WIN_TESTS)
-build-unix-tests: $(UNIX_TESTS)
+.build-win-tests: $(WIN_TESTS)
+.build-unix-tests: $(UNIX_TESTS)
 
 # Platform builds
 unix:
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/libgroufix.so
 unix-tests:
-	@$(MAKE) $(MFLAGS_UNIX) build-unix-tests
+	@$(MAKE) $(MFLAGS_UNIX) .build-unix-tests
 
 win:
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/libgroufix.dll
 win-tests:
-	@$(MAKE) $(MFLAGS_WIN) build-win-tests
+	@$(MAKE) $(MFLAGS_WIN) .build-win-tests

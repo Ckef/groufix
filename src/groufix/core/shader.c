@@ -60,10 +60,82 @@
 
 
 /****************************
- * Creates a new shader module to actually use.
- * shader->vk.module must be NULL, no prior shader module must be created.
- * @param size   Must be a multiple of sizeof(uint32_t).
+ * Callback for SPIRV-Cross errors.
+ */
+void _gfx_spirv_cross_error(void* userData, const char* error)
+{
+	// Just log it as a groufix error.
+	gfx_log_error("SPIRV-Cross: %s", error);
+}
+
+/****************************
+ * Performs reflection and creates metadata for a shader.
  * @param shader Cannot be NULL.
+ * @return Zero on failure.
+ */
+static int _gfx_shader_reflect(GFXShader* shader,
+                               size_t size, const uint32_t* code)
+{
+	assert(shader != NULL);
+
+	// Create SPIR-V context.
+	spvc_context context = NULL;
+	spvc_result result = spvc_context_create(&context);
+
+	if (result != SPVC_SUCCESS)
+		goto error;
+
+	// Set error callback.
+	spvc_context_set_error_callback(context, _gfx_spirv_cross_error, NULL);
+
+	// Parse SPIR-V!
+	// Size is rounded down.
+	spvc_parsed_ir ir = NULL;
+	result = spvc_context_parse_spirv(context,
+		(const SpvId*)code, size / sizeof(uint32_t), &ir);
+
+	if (result != SPVC_SUCCESS)
+		goto clean;
+
+	// Create compiler and give it the data.
+	spvc_compiler compiler = NULL;
+	result = spvc_context_create_compiler(context,
+		SPVC_BACKEND_NONE, ir, SPVC_CAPTURE_MODE_TAKE_OWNERSHIP, &compiler);
+
+	if (result != SPVC_SUCCESS)
+		goto clean;
+
+	// Get shader resources.
+	spvc_resources resources = NULL;
+	result = spvc_compiler_create_shader_resources(compiler, &resources);
+
+	if (result != SPVC_SUCCESS)
+		goto clean;
+
+	// TODO: Get all resource types and store it somewhere.
+
+	// Destroy all resources.
+	spvc_context_destroy(context);
+
+	return 1;
+
+
+	// Cleanup on failure.
+clean:
+	spvc_context_destroy(context);
+error:
+	gfx_log_error(
+		"Reflection on %s shader failed.",
+		_GFX_GET_STAGE_STRING(shader->stage));
+
+	return 0;
+}
+
+/****************************
+ * Creates a new shader module & metadata to actually use.
+ * shader->vk.module must be NULL, no prior shader module must be created.
+ * @param shader Cannot be NULL.
+ * @param size   Must be a multiple of sizeof(uint32_t).
  * @return Zero on failure.
  */
 static int _gfx_shader_build(GFXShader* shader,
@@ -77,7 +149,11 @@ static int _gfx_shader_build(GFXShader* shader,
 
 	_GFXContext* context = shader->context;
 
-	// Create the Vulkan shader module.
+	// First perform reflection.
+	if (!_gfx_shader_reflect(shader, size, code))
+		return 0;
+
+	// Then create the Vulkan shader module.
 	VkShaderModuleCreateInfo smci = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 
