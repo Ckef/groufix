@@ -77,8 +77,8 @@ endif
 
 
 # Linker flags
-LFLAGS_ALL  = -shared -pthread
-LFLAGS_WIN  = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
+LFLAGS_ALL = -shared -pthread
+LFLAGS_WIN = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
 
 ifeq ($(USE_WAYLAND),ON)
  LFLAGS_UNIX = $(LFLAGS_ALL) -ldl -lwayland-client
