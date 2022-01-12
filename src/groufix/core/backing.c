@@ -486,8 +486,9 @@ GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer,
 		return attach->image.base;
 
 	return (GFXAttachment){
-		.size   = GFX_SIZE_ABSOLUTE,
 		.format = GFX_FORMAT_EMPTY,
+		.layers = 0,
+		.size   = GFX_SIZE_ABSOLUTE,
 		.width  = 0,
 		.height = 0,
 		.depth  = 0
