@@ -213,6 +213,36 @@
  ****************************/
 
 /**
+ * Shader input/output resource.
+ */
+typedef struct _GFXShaderResource
+{
+	// Array size.
+	size_t count;
+
+
+	// Input type.
+	enum
+	{
+		_GFX_SHADER_VERTEX_INPUT,
+		_GFX_SHADER_FRAGMENT_OUTPUT,
+		_GFX_SHADER_BUFFER_UNIFORM, // Can be dynamic.
+		_GFX_SHADER_BUFFER_STORAGE, // Can be dynamic.
+		_GFX_SHADER_BUFFER_UNIFORM_TEXEL,
+		_GFX_SHADER_BUFFER_STORAGE_TEXEL,
+		_GFX_SHADER_IMAGE_AND_SAMPLER,
+		_GFX_SHADER_IMAGE_SAMPLED,
+		_GFX_SHADER_IMAGE_STORAGE,
+		_GFX_SHADER_SAMPLER,
+		_GFX_SHADER_PUSH_CONSTANT,
+		_GFX_SHADER_ATTACHMENT,
+
+	} type;
+
+} _GFXShaderResource;
+
+
+/**
  * Internal shader.
  */
 struct GFXShader
@@ -221,6 +251,19 @@ struct GFXShader
 	_GFXContext* context;
 
 	GFXShaderStage stage;
+
+
+	// Reflection metadata.
+	struct
+	{
+		size_t locations;
+		size_t sets;
+		size_t bindings;
+
+		// Order: inputs, outputs, descriptors (sorted on { set, binding }).
+		_GFXShaderResource* resources;
+
+	} reflect;
 
 
 	// Vulkan fields.

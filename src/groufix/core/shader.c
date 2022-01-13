@@ -70,6 +70,7 @@ void _gfx_spirv_cross_error(void* userData, const char* error)
 
 /****************************
  * Performs reflection and creates metadata for a shader.
+ * shader->reflect.resources must be NULL, no prior reflection must be performed.
  * @param shader Cannot be NULL.
  * @return Zero on failure.
  */
@@ -77,6 +78,7 @@ static int _gfx_shader_reflect(GFXShader* shader,
                                size_t size, const uint32_t* code)
 {
 	assert(shader != NULL);
+	assert(shader->reflect.resources == NULL);
 
 	// Create SPIR-V context.
 	spvc_context context = NULL;
@@ -115,6 +117,7 @@ static int _gfx_shader_reflect(GFXShader* shader,
 	// TODO: Get all resource types and store it somewhere.
 
 	// Destroy all resources.
+	// The context owns all memory allocations, no need to free others.
 	spvc_context_destroy(context);
 
 	return 1;
@@ -168,6 +171,19 @@ static int _gfx_shader_build(GFXShader* shader,
 			context->vk.device, &smci, NULL, &shader->vk.module),
 		return 0);
 
+	// Victory log!
+	gfx_log_debug(
+		"Successfully loaded %s shader:\n"
+		"    SPIR-V size: "GFX_PRIs" words ("GFX_PRIs" bytes).\n"
+		"    #input/output locations: "GFX_PRIs".\n"
+		"    #descriptor sets: "GFX_PRIs".\n"
+		"    #descriptor bindings: "GFX_PRIs".\n",
+		_GFX_GET_STAGE_STRING(shader->stage),
+		size / sizeof(uint32_t), size,
+		shader->reflect.locations,
+		shader->reflect.sets,
+		shader->reflect.bindings);
+
 	return 1;
 }
 
@@ -185,6 +201,11 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 
 	shader->stage = stage;
 	shader->vk.module = VK_NULL_HANDLE;
+
+	shader->reflect.locations = 0;
+	shader->reflect.sets = 0;
+	shader->reflect.bindings = 0;
+	shader->reflect.resources = NULL;
 
 	return shader;
 
@@ -204,6 +225,9 @@ GFX_API void gfx_destroy_shader(GFXShader* shader)
 		return;
 
 	_GFXContext* context = shader->context;
+
+	// Free reflection metadata.
+	free(shader->reflect.resources);
 
 	// Destroy the shader module.
 	context->vk.DestroyShaderModule(
@@ -386,7 +410,19 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	const char* bytes = shaderc_result_get_bytes(result);
 	const size_t wordSize = (size / sizeof(uint32_t)) * sizeof(uint32_t);
 
-	// First, stream out the resulting SPIR-V bytecode.
+	// Compilation victory log!
+	gfx_log_debug(
+		"Successfully compiled %s shader:\n"
+		"    Output size: "GFX_PRIs" words ("GFX_PRIs" bytes).\n"
+		"    #warnings: "GFX_PRIs".\n%s%s",
+		_GFX_GET_STAGE_STRING(shader->stage),
+		size / sizeof(uint32_t), size,
+		warnings,
+		warnings > 0 ? "\n" : "",
+		warnings > 0 ? shaderc_result_get_error_message(result) : "");
+
+
+	// Then, stream out the resulting SPIR-V bytecode.
 	if (out != NULL && gfx_io_write(out, bytes, size) > 0)
 		gfx_log_info(
 			"Written SPIR-V to stream ("GFX_PRIs" bytes).",
@@ -401,17 +437,6 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 		goto clean_result;
 	}
-
-	// Victory log!
-	gfx_log_debug(
-		"Successfully compiled %s shader:\n"
-		"    Output size: "GFX_PRIs" words ("GFX_PRIs" bytes).\n"
-		"    #warnings: "GFX_PRIs".\n%s%s",
-		_GFX_GET_STAGE_STRING(shader->stage),
-		size / sizeof(uint32_t), size,
-		warnings,
-		warnings > 0 ? "\n" : "",
-		warnings > 0 ? shaderc_result_get_error_message(result) : "");
 
 	// Get rid of the resources and return.
 	shaderc_result_release(result);
