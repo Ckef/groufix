@@ -213,15 +213,23 @@
  ****************************/
 
 /**
- * Shader input/output resource.
+ * Reflected shader input/output.
  */
 typedef struct _GFXShaderResource
 {
-	// Array size.
-	size_t count;
+	uint32_t location; // Or set.
+	uint32_t binding;  // Unused for vert/frag io.
 
 
-	// Input type.
+	// Size information.
+	union
+	{
+		uint32_t size; // Push constant block size.
+		size_t count;  // Array size (increasing location for vert/frag io).
+	};
+
+
+	// Resource type.
 	enum
 	{
 		_GFX_SHADER_VERTEX_INPUT,
@@ -260,7 +268,9 @@ struct GFXShader
 		size_t sets;
 		size_t bindings;
 
-		// Order: inputs, outputs, descriptors (sorted on { set, binding }).
+		// Order:
+		//  inputs/outputs (sorted on { location }),
+		//  descriptor bindings (sorted on { set, binding }).
 		_GFXShaderResource* resources;
 
 	} reflect;
