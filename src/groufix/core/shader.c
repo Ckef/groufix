@@ -14,10 +14,6 @@
 #include <string.h>
 
 
-#define _GFX_SET_SHADERC_LIMIT(shc, vk) \
-	shaderc_compile_options_set_limit(options, \
-		shaderc_limit_##shc, (int)pdp.limits.vk)
-
 #define _GFX_GET_LANGUAGE_STRING(language) \
 	(((language) == GFX_GLSL) ? "glsl" : \
 	((language) == GFX_HLSL) ? "hlsl" : "*")
@@ -58,6 +54,20 @@
 		shaderc_compute_shader : \
 		shaderc_glsl_infer_from_source)
 
+#define _GFX_GET_RESOURCE_LIST(type, list, size) \
+	do { \
+		result = spvc_resources_get_resource_list_for_type( \
+			resources, type, &list, &size); \
+		if (result != SPVC_SUCCESS) \
+			goto clean; \
+	} while (0)
+
+#define _GFX_SET_SHADERC_LIMIT(shc, vk) \
+	do { \
+		shaderc_compile_options_set_limit(options, \
+			shaderc_limit_##shc, (int)pdp.limits.vk); \
+	} while (0)
+
 
 /****************************
  * Callback for SPIRV-Cross errors.
@@ -70,14 +80,20 @@ void _gfx_spirv_cross_error(void* userData, const char* error)
 
 /****************************
  * Performs reflection and creates metadata for a shader.
- * shader->reflect.resources must be NULL, no prior reflection must be performed.
+ * shader->reflect.* must be 0/NULL, no prior reflection must be performed.
  * @param shader Cannot be NULL.
  * @return Zero on failure.
+ *
+ * Reflection data is not cleaned on failure!
  */
 static int _gfx_shader_reflect(GFXShader* shader,
                                size_t size, const uint32_t* code)
 {
 	assert(shader != NULL);
+	assert(shader->reflect.push == 0);
+	assert(shader->reflect.locations == 0);
+	assert(shader->reflect.sets == 0);
+	assert(shader->reflect.bindings == 0);
 	assert(shader->reflect.resources == NULL);
 
 	// Create SPIR-V context.
@@ -114,7 +130,53 @@ static int _gfx_shader_reflect(GFXShader* shader,
 	if (result != SPVC_SUCCESS)
 		goto clean;
 
-	// TODO: Get all resource types and store it somewhere.
+	// Get all resource types we care about.
+	const spvc_reflected_resource* inps = NULL;
+	const spvc_reflected_resource* outs = NULL;
+	const spvc_reflected_resource* pushs = NULL;
+	const spvc_reflected_resource* subs = NULL;
+	const spvc_reflected_resource* ubos = NULL;
+	const spvc_reflected_resource* sbos = NULL;
+	const spvc_reflected_resource* imgs = NULL;
+	const spvc_reflected_resource* simgs = NULL;
+	const spvc_reflected_resource* sepimgs = NULL;
+	const spvc_reflected_resource* samps = NULL;
+
+	size_t numInps = 0, numOuts = 0,
+		numPushs = 0, numSubs = 0,
+		numUbos = 0, numSbos = 0,
+		numImgs = 0, numSimgs = 0, numSepimgs = 0, numSamps = 0;
+
+	if (shader->stage == GFX_STAGE_VERTEX)
+		_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
+
+	else if (shader->stage == GFX_STAGE_FRAGMENT)
+		_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
+
+	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_PUSH_CONSTANT, pushs, numPushs);
+	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
+	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
+	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
+	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
+	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
+	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
+	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
+
+	// Count the number of resources and allocate them.
+	// We allocate one big block for all of them, and insertion sort them
+	// into place.
+	shader->reflect.locations = numInps + numOuts;
+	shader->reflect.bindings = numSubs + numUbos + numSbos +
+		numImgs + numSimgs + numSepimgs + numSamps;
+
+	shader->reflect.resources = malloc(
+		sizeof(_GFXShaderResource) *
+		(shader->reflect.locations + shader->reflect.bindings));
+
+	if (shader->reflect.resources == NULL)
+		goto clean;
+
+	// TODO: Continue implementing.
 
 	// Destroy all resources.
 	// The context owns all memory allocations, no need to free others.
@@ -154,7 +216,7 @@ static int _gfx_shader_build(GFXShader* shader,
 
 	// First perform reflection.
 	if (!_gfx_shader_reflect(shader, size, code))
-		return 0;
+		goto clean_reflect;
 
 	// Then create the Vulkan shader module.
 	VkShaderModuleCreateInfo smci = {
@@ -169,7 +231,11 @@ static int _gfx_shader_build(GFXShader* shader,
 	_GFX_VK_CHECK(
 		context->vk.CreateShaderModule(
 			context->vk.device, &smci, NULL, &shader->vk.module),
-		return 0);
+		{
+			// Explicitly set module so we can call compile() or load() again.
+			shader->vk.module = VK_NULL_HANDLE;
+			goto clean_reflect;
+		});
 
 	// Victory log!
 	gfx_log_debug(
@@ -187,6 +253,19 @@ static int _gfx_shader_build(GFXShader* shader,
 		shader->reflect.bindings);
 
 	return 1;
+
+
+	// Cleanup on failure.
+clean_reflect:
+	free(shader->reflect.resources);
+
+	shader->reflect.push = 0;
+	shader->reflect.locations = 0;
+	shader->reflect.sets = 0;
+	shader->reflect.bindings = 0;
+	shader->reflect.resources = NULL;
+
+	return 0;
 }
 
 /****************************/

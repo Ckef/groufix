@@ -213,7 +213,7 @@
  ****************************/
 
 /**
- * Reflected shader input/output.
+ * Reflected shader resource.
  */
 typedef struct _GFXShaderResource
 {
