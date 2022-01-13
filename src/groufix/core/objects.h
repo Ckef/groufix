@@ -220,13 +220,8 @@ typedef struct _GFXShaderResource
 	uint32_t location; // Or set.
 	uint32_t binding;  // Unused for vert/frag io.
 
-
-	// Size information.
-	union
-	{
-		uint32_t size; // Push constant block size.
-		size_t count;  // Array size (increasing location for vert/frag io).
-	};
+	// Array size (increasing location for vert/frag io).
+	size_t count;
 
 
 	// Resource type.
@@ -242,7 +237,6 @@ typedef struct _GFXShaderResource
 		_GFX_SHADER_IMAGE_SAMPLED,
 		_GFX_SHADER_IMAGE_STORAGE,
 		_GFX_SHADER_SAMPLER,
-		_GFX_SHADER_PUSH_CONSTANT,
 		_GFX_SHADER_ATTACHMENT,
 
 	} type;
@@ -264,9 +258,10 @@ struct GFXShader
 	// Reflection metadata.
 	struct
 	{
-		size_t locations;
-		size_t sets;
-		size_t bindings;
+		uint32_t push; // Push constant block size.
+		size_t   locations;
+		size_t   sets;
+		size_t   bindings;
 
 		// Order:
 		//  inputs/outputs (sorted on { location }),

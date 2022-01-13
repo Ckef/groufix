@@ -174,12 +174,14 @@ static int _gfx_shader_build(GFXShader* shader,
 	// Victory log!
 	gfx_log_debug(
 		"Successfully loaded %s shader:\n"
-		"    SPIR-V size: "GFX_PRIs" words ("GFX_PRIs" bytes).\n"
-		"    #input/output locations: "GFX_PRIs".\n"
-		"    #descriptor sets: "GFX_PRIs".\n"
-		"    #descriptor bindings: "GFX_PRIs".\n",
+		"    SPIR-V size: %"GFX_PRIs" words (%"GFX_PRIs" bytes).\n"
+		"    Push constants size: %"PRIu32" bytes.\n"
+		"    #input/output locations: %"GFX_PRIs".\n"
+		"    #descriptor sets: %"GFX_PRIs".\n"
+		"    #descriptor bindings: %"GFX_PRIs".\n",
 		_GFX_GET_STAGE_STRING(shader->stage),
 		size / sizeof(uint32_t), size,
+		shader->reflect.push,
 		shader->reflect.locations,
 		shader->reflect.sets,
 		shader->reflect.bindings);
@@ -202,6 +204,7 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 	shader->stage = stage;
 	shader->vk.module = VK_NULL_HANDLE;
 
+	shader->reflect.push = 0;
 	shader->reflect.locations = 0;
 	shader->reflect.sets = 0;
 	shader->reflect.bindings = 0;
@@ -413,8 +416,8 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	// Compilation victory log!
 	gfx_log_debug(
 		"Successfully compiled %s shader:\n"
-		"    Output size: "GFX_PRIs" words ("GFX_PRIs" bytes).\n"
-		"    #warnings: "GFX_PRIs".\n%s%s",
+		"    Output size: %"GFX_PRIs" words (%"GFX_PRIs" bytes).\n"
+		"    #warnings: %"GFX_PRIs".\n%s%s",
 		_GFX_GET_STAGE_STRING(shader->stage),
 		size / sizeof(uint32_t), size,
 		warnings,
@@ -425,7 +428,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	// Then, stream out the resulting SPIR-V bytecode.
 	if (out != NULL && gfx_io_write(out, bytes, size) > 0)
 		gfx_log_info(
-			"Written SPIR-V to stream ("GFX_PRIs" bytes).",
+			"Written SPIR-V to stream (%"GFX_PRIs" bytes).",
 			size);
 
 	// Then, attempt to build the shader module.
