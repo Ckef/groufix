@@ -54,12 +54,19 @@
 		shaderc_compute_shader : \
 		shaderc_glsl_infer_from_source)
 
-#define _GFX_GET_RESOURCE_LIST(type, list, size) \
+#define _GFX_GET_RESOURCES(type, list, size) \
 	do { \
 		result = spvc_resources_get_resource_list_for_type( \
 			resources, type, &list, &size); \
 		if (result != SPVC_SUCCESS) \
 			goto clean; \
+	} while (0)
+
+#define _GFX_RESOURCES_REFLECT(shader, compiler, type, list, size) \
+	do { \
+		for (size_t i = 0; i < size; ++i) \
+			_gfx_reflect_resource( \
+				shader, compiler, type, list + i, rList + (rInd++)); \
 	} while (0)
 
 #define _GFX_SET_SHADERC_LIMIT(shc, vk) \
@@ -76,6 +83,39 @@ void _gfx_spirv_cross_error(void* userData, const char* error)
 {
 	// Just log it as a groufix error.
 	gfx_log_error("SPIRV-Cross: %s", error);
+}
+
+/****************************
+ * Initializes a reflected shader resource at the given address,
+ * then insertion-sorts it backwards into the shader->reflect.resources array.
+ * Make sure to reflect vert/frag io first!
+ */
+static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
+                                  spvc_resource_type type,
+                                  const spvc_reflected_resource* in,
+                                  _GFXShaderResource* out)
+{
+	int hasLocation =
+		type == SPVC_RESOURCE_TYPE_STAGE_INPUT ||
+		type == SPVC_RESOURCE_TYPE_STAGE_OUTPUT;
+
+	if (hasLocation)
+	{
+		// Get location of vertex inputs or fragment outputs.
+		out->location = spvc_compiler_get_decoration(
+			compiler, in->id, SpvDecorationLocation);
+		out->binding = 0;
+	}
+	else
+	{
+		// Get binding & set of descriptor bindings.
+		out->set = spvc_compiler_get_decoration(
+			compiler, in->id, SpvDecorationDescriptorSet);
+		out->binding = spvc_compiler_get_decoration(
+			compiler, in->id, SpvDecorationBinding);
+	}
+
+	// TODO: Continue implementing.
 }
 
 /****************************
@@ -148,35 +188,64 @@ static int _gfx_shader_reflect(GFXShader* shader,
 		numImgs = 0, numSimgs = 0, numSepimgs = 0, numSamps = 0;
 
 	if (shader->stage == GFX_STAGE_VERTEX)
-		_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
+		_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
 
 	else if (shader->stage == GFX_STAGE_FRAGMENT)
-		_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
+		_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
 
-	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_PUSH_CONSTANT, pushs, numPushs);
-	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
-	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
-	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
-	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
-	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
-	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
-	_GFX_GET_RESOURCE_LIST(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
+	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_PUSH_CONSTANT, pushs, numPushs);
+	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
+	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
+	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
+	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
+	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
+	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
+	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
 
 	// Count the number of resources and allocate them.
-	// We allocate one big block for all of them, and insertion sort them
+	// We allocate one big block for all of them, and insertion-sort them
 	// into place.
 	shader->reflect.locations = numInps + numOuts;
 	shader->reflect.bindings = numSubs + numUbos + numSbos +
 		numImgs + numSimgs + numSepimgs + numSamps;
 
-	shader->reflect.resources = malloc(
+	_GFXShaderResource* rList = malloc(
 		sizeof(_GFXShaderResource) *
 		(shader->reflect.locations + shader->reflect.bindings));
 
-	if (shader->reflect.resources == NULL)
+	if (rList == NULL)
 		goto clean;
 
-	// TODO: Continue implementing.
+	// We keep track of the position to insert at.
+	// _gfx_reflect_resource will insertion-sort them into place.
+	shader->reflect.resources = rList;
+	size_t rInd = 0;
+
+	// Make sure to reflect vert/frag io first!
+	_GFX_RESOURCES_REFLECT(
+		shader, compiler, SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
+	_GFX_RESOURCES_REFLECT(
+		shader, compiler, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
+	_GFX_RESOURCES_REFLECT(
+		shader, compiler, SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
+	_GFX_RESOURCES_REFLECT(
+		shader, compiler, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
+	_GFX_RESOURCES_REFLECT(
+		shader, compiler, SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
+	_GFX_RESOURCES_REFLECT(
+		shader, compiler, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
+	_GFX_RESOURCES_REFLECT(
+		shader, compiler, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
+	_GFX_RESOURCES_REFLECT(
+		shader, compiler, SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
+	_GFX_RESOURCES_REFLECT(
+		shader, compiler, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
+
+	// Count number of descriptor sets.
+	// TODO: do.
+
+	// Get push constant block size.
+	// TODO: do.
 
 	// Destroy all resources.
 	// The context owns all memory allocations, no need to free others.
@@ -240,7 +309,7 @@ static int _gfx_shader_build(GFXShader* shader,
 	// Victory log!
 	gfx_log_debug(
 		"Successfully loaded %s shader:\n"
-		"    SPIR-V size: %"GFX_PRIs" words (%"GFX_PRIs" bytes).\n"
+		"    Input size: %"GFX_PRIs" words (%"GFX_PRIs" bytes).\n"
 		"    Push constants size: %"PRIu32" bytes.\n"
 		"    #input/output locations: %"GFX_PRIs".\n"
 		"    #descriptor sets: %"GFX_PRIs".\n"
