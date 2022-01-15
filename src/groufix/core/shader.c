@@ -62,7 +62,7 @@
 			goto clean; \
 	} while (0)
 
-#define _GFX_RESOURCES_REFLECT(shader, compiler, type, list, size) \
+#define _GFX_RESOURCES_REFLECT(type, list, size) \
 	do { \
 		for (size_t i = 0; i < size; ++i) \
 			_gfx_reflect_resource( \
@@ -320,25 +320,16 @@ static int _gfx_shader_reflect(GFXShader* shader,
 	size_t rInd = 0;
 
 	// Make sure to reflect vert/frag io resources first!
-	_GFX_RESOURCES_REFLECT(
-		shader, compiler, SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
-	_GFX_RESOURCES_REFLECT(
-		shader, compiler, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
+	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
+	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
 
-	_GFX_RESOURCES_REFLECT(
-		shader, compiler, SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
-	_GFX_RESOURCES_REFLECT(
-		shader, compiler, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
-	_GFX_RESOURCES_REFLECT(
-		shader, compiler, SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
-	_GFX_RESOURCES_REFLECT(
-		shader, compiler, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
-	_GFX_RESOURCES_REFLECT(
-		shader, compiler, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
-	_GFX_RESOURCES_REFLECT(
-		shader, compiler, SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
-	_GFX_RESOURCES_REFLECT(
-		shader, compiler, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
+	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
+	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
+	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
+	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
+	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
+	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
+	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
 
 	// Count number of descriptor sets (which should be sorted!).
 	uint32_t curSet = UINT32_MAX;
