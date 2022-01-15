@@ -224,7 +224,7 @@ typedef struct _GFXShaderResource
 
 	uint32_t binding;
 
-	// Array size (increasing location for vert/frag io).
+	// Array size (increasing location for vert/frag io), 0 = unsized.
 	size_t count;
 
 

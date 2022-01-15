@@ -88,7 +88,7 @@ void _gfx_spirv_cross_error(void* userData, const char* error)
 /****************************
  * Initializes a reflected shader resource at the given address,
  * then insertion-sorts it backwards into the shader->reflect.resources array.
- * Make sure to reflect vert/frag io first!
+ * Make sure to reflect vert/frag io resources first!
  */
 static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
                                   spvc_resource_type type,
@@ -101,21 +101,119 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 
 	if (hasLocation)
 	{
-		// Get location of vertex inputs or fragment outputs.
+		// Get location of vertex input or fragment output.
+		// Leave binding undefined.
 		out->location = spvc_compiler_get_decoration(
 			compiler, in->id, SpvDecorationLocation);
-		out->binding = 0;
 	}
 	else
 	{
-		// Get binding & set of descriptor bindings.
+		// Get binding & set of descriptor binding.
 		out->set = spvc_compiler_get_decoration(
 			compiler, in->id, SpvDecorationDescriptorSet);
 		out->binding = spvc_compiler_get_decoration(
 			compiler, in->id, SpvDecorationBinding);
 	}
 
-	// TODO: Continue implementing.
+	// Then we get array size.
+	const spvc_type hType =
+		spvc_compiler_get_type_handle(compiler, in->type_id);
+	unsigned int numDims =
+		spvc_type_get_num_array_dimensions(hType);
+
+	// Multiply all array dimensions together.
+	// If one of them is 0, so should count, as it is unsized.
+	out->count = (numDims == 0) ? 1 :
+		spvc_type_get_array_dimension(hType, 0);
+
+	for (unsigned int d = 1; d < numDims; ++d)
+		out->count *= spvc_type_get_array_dimension(hType, d);
+
+	// And lastly, deduce the type of the shader resource.
+	// For this we need information about the base type.
+	const spvc_type hBaseType =
+		spvc_compiler_get_type_handle(compiler, in->base_type_id);
+	const spvc_basetype baseType =
+		spvc_type_get_basetype(hBaseType);
+
+	const SpvDim imageDim =
+		baseType == SPVC_BASETYPE_IMAGE ||
+		baseType == SPVC_BASETYPE_SAMPLED_IMAGE ?
+			spvc_type_get_image_dimension(hBaseType) : 0;
+
+	switch (type)
+	{
+	case SPVC_RESOURCE_TYPE_STAGE_INPUT:
+		out->type = _GFX_SHADER_VERTEX_INPUT;
+		break;
+
+	case SPVC_RESOURCE_TYPE_STAGE_OUTPUT:
+		out->type = _GFX_SHADER_FRAGMENT_OUTPUT;
+		break;
+
+	case SPVC_RESOURCE_TYPE_SUBPASS_INPUT:
+		out->type = _GFX_SHADER_ATTACHMENT_INPUT;
+		break;
+
+	case SPVC_RESOURCE_TYPE_UNIFORM_BUFFER:
+		out->type = _GFX_SHADER_BUFFER_UNIFORM;
+		break;
+
+	case SPVC_RESOURCE_TYPE_STORAGE_BUFFER:
+		out->type = _GFX_SHADER_BUFFER_STORAGE;
+		break;
+
+	case SPVC_RESOURCE_TYPE_STORAGE_IMAGE:
+		out->type = imageDim == SpvDimBuffer ?
+			_GFX_SHADER_BUFFER_STORAGE_TEXEL :
+			_GFX_SHADER_IMAGE_STORAGE;
+		break;
+
+	case SPVC_RESOURCE_TYPE_SAMPLED_IMAGE:
+		out->type = _GFX_SHADER_IMAGE_AND_SAMPLER;
+		break;
+
+	case SPVC_RESOURCE_TYPE_SEPARATE_IMAGE:
+		out->type = imageDim == SpvDimBuffer ?
+			_GFX_SHADER_BUFFER_UNIFORM_TEXEL :
+			_GFX_SHADER_IMAGE_SAMPLED;
+		break;
+
+	case SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS:
+		out->type = _GFX_SHADER_SAMPLER;
+		break;
+
+	default:
+		break;
+	}
+
+	// Now we have all information, it needs to be insertion-sorted
+	// backwards into the shader->reflect.resources array.
+	_GFXShaderResource t = *out;
+
+	while (out != shader->reflect.resources)
+	{
+		_GFXShaderResource* bef = out-1;
+
+		// Check if the previous position needs to go to the right.
+		// NOTE: We assume all vert/frag io resources are inserted before
+		// any others!!
+		int greater = hasLocation ?
+			// Compare locations if it is a vert/frag io.
+			bef->location > t.location :
+			// Check if it is not a vert/frag io AND compare set/binding.
+			bef->type != _GFX_SHADER_VERTEX_INPUT &&
+			bef->type != _GFX_SHADER_FRAGMENT_OUTPUT &&
+				(bef->set > t.set ||
+					(bef->set == t.set && bef->binding > t.binding));
+
+		if (!greater) break;
+
+		*out = *bef;
+		out = bef;
+	}
+
+	*out = t;
 }
 
 /****************************
@@ -221,11 +319,12 @@ static int _gfx_shader_reflect(GFXShader* shader,
 	shader->reflect.resources = rList;
 	size_t rInd = 0;
 
-	// Make sure to reflect vert/frag io first!
+	// Make sure to reflect vert/frag io resources first!
 	_GFX_RESOURCES_REFLECT(
 		shader, compiler, SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
 	_GFX_RESOURCES_REFLECT(
 		shader, compiler, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
+
 	_GFX_RESOURCES_REFLECT(
 		shader, compiler, SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
 	_GFX_RESOURCES_REFLECT(
@@ -241,11 +340,33 @@ static int _gfx_shader_reflect(GFXShader* shader,
 	_GFX_RESOURCES_REFLECT(
 		shader, compiler, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
 
-	// Count number of descriptor sets.
-	// TODO: do.
+	// Count number of descriptor sets (which should be sorted!).
+	uint32_t curSet = UINT32_MAX;
+	for (size_t b = 0; b < shader->reflect.bindings; ++b)
+	{
+		_GFXShaderResource* res = rList + shader->reflect.locations + b;
+		if (curSet == UINT32_MAX || res->set > curSet)
+		{
+			++shader->reflect.sets;
+			curSet = res->set;
+		}
+	}
 
 	// Get push constant block size.
-	// TODO: do.
+	for (size_t i = 0; i < numPushs; ++i)
+	{
+		const spvc_type hBaseType = spvc_compiler_get_type_handle(
+			compiler, pushs[i].base_type_id);
+
+		size_t pushSize = 0;
+		result = spvc_compiler_get_declared_struct_size(
+			compiler, hBaseType, &pushSize);
+
+		if (result != SPVC_SUCCESS)
+			goto clean;
+
+		shader->reflect.push += (uint32_t)pushSize;
+	}
 
 	// Destroy all resources.
 	// The context owns all memory allocations, no need to free others.
