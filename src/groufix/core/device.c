@@ -729,9 +729,9 @@ static void _gfx_create_context(_GFXDevice* device)
 	gfx_log_debug(
 		"Logical Vulkan device of version %u.%u.%u created:\n"
 		"    Contains at least: [ %s ].\n"
-		"    #physical devices: "GFX_PRIs".\n"
+		"    #physical devices: %"GFX_PRIs".\n"
 		"    #queue sets: %"PRIu32".\n"
-		"    #queues (total): "GFX_PRIs".\n",
+		"    #queues (total): %"GFX_PRIs".\n",
 		(unsigned int)VK_API_VERSION_MAJOR(device->api),
 		(unsigned int)VK_API_VERSION_MINOR(device->api),
 		(unsigned int)VK_API_VERSION_PATCH(device->api),
@@ -908,6 +908,8 @@ int _gfx_devices_init(void)
 			dev.base = (GFXDevice){
 				.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
 				.name = NULL,
+				.available = dev.api >= _GFX_VK_API_VERSION,
+
 				.features = {
 					.indexUint32        = (char)pdf.fullDrawIndexUint32,
 					.cubemapArray       = (char)pdf.imageCubeArray,
@@ -925,6 +927,7 @@ int _gfx_devices_init(void)
 					.shaderFloat64      = (char)pdf.shaderFloat64,
 					.samplerMinmax      = (char)(vk12 ? pdv12f.samplerFilterMinmax : 0)
 				},
+
 				.limits = {
 					.maxIndexUint32      = pdp.limits.maxDrawIndexedIndexValue,
 					.maxImageSize1D      = pdp.limits.maxImageDimension1D,

@@ -213,6 +213,42 @@
  ****************************/
 
 /**
+ * Reflected shader resource.
+ */
+typedef struct _GFXShaderResource
+{
+	union {
+		uint32_t location;
+		uint32_t set;
+	};
+
+	uint32_t binding;
+
+	// Array size (increasing location for vert/frag io), 0 = unsized.
+	size_t count;
+
+
+	// Resource type.
+	enum
+	{
+		_GFX_SHADER_VERTEX_INPUT,
+		_GFX_SHADER_FRAGMENT_OUTPUT,
+		_GFX_SHADER_BUFFER_UNIFORM, // Can be dynamic.
+		_GFX_SHADER_BUFFER_STORAGE, // Can be dynamic.
+		_GFX_SHADER_BUFFER_UNIFORM_TEXEL,
+		_GFX_SHADER_BUFFER_STORAGE_TEXEL,
+		_GFX_SHADER_IMAGE_AND_SAMPLER,
+		_GFX_SHADER_IMAGE_SAMPLED,
+		_GFX_SHADER_IMAGE_STORAGE,
+		_GFX_SHADER_SAMPLER,
+		_GFX_SHADER_ATTACHMENT_INPUT,
+
+	} type;
+
+} _GFXShaderResource;
+
+
+/**
  * Internal shader.
  */
 struct GFXShader
@@ -221,6 +257,22 @@ struct GFXShader
 	_GFXContext* context;
 
 	GFXShaderStage stage;
+
+
+	// Reflection metadata.
+	struct
+	{
+		uint32_t push; // Push constant block size.
+		size_t   locations;
+		size_t   sets;
+		size_t   bindings;
+
+		// Order:
+		//  inputs/outputs (sorted on location).
+		//  descriptor bindings (sorted on set, then binding).
+		_GFXShaderResource* resources;
+
+	} reflect;
 
 
 	// Vulkan fields.
@@ -282,7 +334,7 @@ typedef struct _GFXTransferPool
 	GFXDeque  transfers; // Stores _GFXTransfer.
 	_GFXMutex lock;
 
-	unsigned int blocking;
+	unsigned int blocking; // #blocking threads.
 
 
 	// Vulkan fields.
@@ -302,7 +354,7 @@ struct GFXHeap
 {
 	_GFXDevice*   device;    // For format operations.
 	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
-	_GFXMutex     lock;
+	_GFXMutex     lock;      // For allocation.
 	_GFXQueue     graphics;
 	_GFXQueue     transfer;
 
@@ -760,7 +812,7 @@ typedef struct _GFXInjection
 		size_t   numRefs; // May be zero!
 
 		const _GFXUnpackRef* refs;
-		const GFXAccessMask* masks; // Modifiers are ignored.
+		const GFXAccessMask* masks;
 		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
 
 	} inp;

@@ -7,3 +7,6 @@
 [submodule "deps/shaderc"]
 	path = deps/shaderc
 	url = https://github.com/google/shaderc
+[submodule "deps/SPIRV-Cross"]
+	path = deps/SPIRV-Cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross

@@ -141,7 +141,10 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
  * Retrieves the properties of an image attachment of a renderer.
  * @param renderer Cannot be NULL.
  * @param index    Must be < largest attachment index of renderer.
- * @return Empty attachment of size 0x0x0 if no attachment.
+ * @return Empty attachment if none attached.
+ *
+ * An empty attachment has 0'd out values and
+ * undefined `type`, `flags`, `usage` and `ref` fields.
  */
 GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer,
                                               size_t index);

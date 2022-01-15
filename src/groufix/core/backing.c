@@ -58,7 +58,7 @@ static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 	if (!gfx_vec_push(attachs, elems, NULL))
 	{
 		gfx_log_error(
-			"Could not allocate attachment "GFX_PRIs" of a renderer.",
+			"Could not allocate attachment %"GFX_PRIs" of a renderer.",
 			index);
 
 		return 0;
@@ -195,7 +195,7 @@ static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 clean:
 	gfx_log_error(
 		"Could not (re)create swapchain-dependent resources "
-		"of attachment "GFX_PRIs" of a renderer.",
+		"of attachment %"GFX_PRIs" of a renderer.",
 		index);
 
 	_gfx_destruct_attachment(renderer, index);
@@ -486,8 +486,9 @@ GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer,
 		return attach->image.base;
 
 	return (GFXAttachment){
-		.size   = GFX_SIZE_ABSOLUTE,
 		.format = GFX_FORMAT_EMPTY,
+		.layers = 0,
+		.size   = GFX_SIZE_ABSOLUTE,
 		.width  = 0,
 		.height = 0,
 		.depth  = 0
