@@ -66,7 +66,8 @@ OFLAGS_ALL = \
  $(CFLAGS) -c -s -MP -MMD -DGFX_BUILD_LIB -Isrc \
  -Ideps/glfw/include \
  -Ideps/Vulkan-Headers/include \
- -Ideps/shaderc/libshaderc/include
+ -Ideps/shaderc/libshaderc/include \
+ -Ideps/SPIRV-Cross
 
 ifeq ($(OS),Windows_NT)
  OFLAGS = $(OFLAGS_ALL)
@@ -110,7 +111,9 @@ endif
 SHADERC_FLAGS_ALL = \
  -Wno-dev \
  -DCMAKE_BUILD_TYPE=Release \
+ -DSHADERC_SKIP_EXAMPLES=ON \
  -DSHADERC_SKIP_TESTS=ON \
+ -DSPIRV_SKIP_EXECUTABLES=ON \
  -DSPIRV_SKIP_TESTS=ON
 
 SHADERC_MINGW_TOOLCHAIN = \
@@ -118,18 +121,40 @@ SHADERC_MINGW_TOOLCHAIN = \
  -DMINGW_COMPILER_PREFIX=$(CC_PREFIX) \
  -Dgtest_disable_pthreads=ON
 
-SHADERC_FLAGS_UNIX = $(SHADERC_FLAGS_ALL) -G "Unix Makefiles"
-SHADERC_FLAGS_WIN  = $(SHADERC_FLAGS_ALL) -G "MinGW Makefiles"
+SPIRV_CROSS_FLAGS_ALL = \
+ -DSPIRV_CROSS_STATIC=ON \
+ -DSPIRV_CROSS_SHARED=OFF \
+ -DSPIRV_CROSS_CLI=OFF \
+ -DSPIRV_CROSS_ENABLE_TESTS=OFF \
+ -DSPIRV_CROSS_ENABLE_GLSL=OFF \
+ -DSPIRV_CROSS_ENABLE_HLSL=OFF \
+ -DSPIRV_CROSS_ENABLE_MSL=OFF \
+ -DSPIRV_CROSS_ENABLE_CPP=OFF \
+ -DSPIRV_CROSS_ENABLE_REFLECT=OFF \
+ -DSPIRV_CROSS_ENABLE_UTIL=OFF
+
+SPIRV_CROSS_MINGW_TOOLCHAIN = \
+ -DCMAKE_SYSTEM_NAME=Windows \
+ -DCMAKE_C_COMPILER=$(CC_PREFIX)-gcc \
+ -DCMAKE_CXX_COMPILER=$(CC_PREFIX)-g++ \
+ -DCMAKE_RC_COMPILER=$(CC_PREFIX)-windres \
+ -DCMAKE_FIND_ROOT_PATH=/usr/$(CC_PREFIX) \
+ -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=Never \
+ -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=Only \
+ -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=Only
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
- GLFW_FLAGS    = $(GLFW_FLAGS_ALL) -DCMAKE_TOOLCHAIN_FILE=CMake/$(CC_PREFIX).cmake
- SHADERC_FLAGS = $(SHADERC_FLAGS_UNIX) $(SHADERC_MINGW_TOOLCHAIN)
+ GLFW_FLAGS        = $(GLFW_FLAGS_ALL) -DCMAKE_TOOLCHAIN_FILE=CMake/$(CC_PREFIX).cmake
+ SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(SHADERC_MINGW_TOOLCHAIN) -G "Unix Makefiles"
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(SPIRV_CROSS_MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
- GLFW_FLAGS    = $(GLFW_FLAGS_ALL) -DCMAKE_C_COMPILER=$(CC) -G "MinGW Makefiles"
- SHADERC_FLAGS = $(SHADERC_FLAGS_WIN)
+ GLFW_FLAGS        = $(GLFW_FLAGS_ALL) -DCMAKE_C_COMPILER=$(CC) -G "MinGW Makefiles"
+ SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) -G "MinGW Makefiles"
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) -G "MinGW Makefiles"
 else
- GLFW_FLAGS    = $(GLFW_FLAGS_UNIX)
- SHADERC_FLAGS = $(SHADERC_FLAGS_UNIX)
+ GLFW_FLAGS        = $(GLFW_FLAGS_UNIX)
+ SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) -G "Unix Makefiles"
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) -DSPIRV_CROSS_FORCE_PIC=ON
 endif
 
 
@@ -149,9 +174,11 @@ ifeq ($(OS),Windows_NT)
 	$(eval BUILDSUB_W = $(subst /,\,$(BUILD)$(SUB)))
 	@if not exist $(BUILDSUB_W)\glfw\nul mkdir $(BUILDSUB_W)\glfw
 	@if not exist $(BUILDSUB_W)\shaderc\nul mkdir $(BUILDSUB_W)\shaderc
+	@if not exist $(BUILDSUB_W)\SPIRV-Cross\nul mkdir $(BUILDSUB_W)\SPIRV-Cross
 else
 	@mkdir -p $(BUILD)$(SUB)/glfw
 	@mkdir -p $(BUILD)$(SUB)/shaderc
+	@mkdir -p $(BUILD)$(SUB)/SPIRV-Cross
 endif
 
 $(OUT)$(SUB):
@@ -229,7 +256,9 @@ OBJS = \
 
 LIBS = \
  $(BUILD)$(SUB)/glfw/src/libglfw3.a \
- $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a
+ $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a \
+ $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a \
+ $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a
 
 
 # Generated dependency files
@@ -244,6 +273,10 @@ $(BUILD)$(SUB)/glfw/src/libglfw3.a: | $(BUILD)$(SUB)
 
 $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a: | $(BUILD)$(SUB)
 	@cd $(BUILD)$(SUB)/shaderc && cmake $(SHADERC_FLAGS) $(CURDIR)/deps/shaderc && $(MAKE)
+
+$(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a:
+$(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a: | $(BUILD)$(SUB)
+	@cd $(BUILD)$(SUB)/SPIRV-Cross && cmake $(SPIRV_CROSS_FLAGS) $(CURDIR)/deps/SPIRV-Cross && $(MAKE)
 
 
 # Object files
@@ -276,16 +309,17 @@ MFLAGS_ALL  = --no-print-directory
 MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix EXT=.so PTEST=%
 MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win EXT=.dll PTEST=%.exe
 
-build-win-tests: $(WIN_TESTS)
-build-unix-tests: $(UNIX_TESTS)
+.build-win-tests: $(WIN_TESTS)
+.build-unix-tests: $(UNIX_TESTS)
+
 
 # Platform builds
 unix:
 	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/libgroufix.so
 unix-tests:
-	@$(MAKE) $(MFLAGS_UNIX) build-unix-tests
+	@$(MAKE) $(MFLAGS_UNIX) .build-unix-tests
 
 win:
 	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/libgroufix.dll
 win-tests:
-	@$(MAKE) $(MFLAGS_WIN) build-win-tests
+	@$(MAKE) $(MFLAGS_WIN) .build-win-tests
