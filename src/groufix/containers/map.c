@@ -55,7 +55,7 @@ static int _gfx_map_realloc(GFXMap* map, size_t capacity)
 	// Firstly, set all buckets to NULL.
 	for (size_t i = 0; i < capacity; ++i) new[i] = NULL;
 
-	// Move (i.e. rehash) all nodes to the new memory block.
+	// Move all nodes to the new memory block.
 	for (size_t i = 0; i < map->capacity; ++i)
 		while (map->buckets[i] != NULL)
 		{
@@ -170,6 +170,41 @@ GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes)
 }
 
 /****************************/
+GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src)
+{
+	assert(map != NULL);
+	assert(src != NULL);
+	assert(src->elementSize == map->elementSize);
+	assert(src->align == map->align);
+
+	// Firstly, try to grow the destination map.
+	if (!_gfx_map_grow(map, map->size + src->size))
+		return 0;
+
+	// Move all nodes from the source to the destination map.
+	for (size_t i = 0; i < src->capacity; ++i)
+		while (src->buckets[i] != NULL)
+		{
+			// Remove it from the map.
+			_GFXMapNode* mNode = src->buckets[i];
+			src->buckets[i] = mNode->next;
+
+			// Stick it in destination.
+			// We rehash if we use a different hash function!
+			if (src->hash != map->hash)
+				mNode->hash = map->hash(_GFX_GET_KEY(map, mNode));
+
+			const uint64_t hInd = mNode->hash % map->capacity;
+			mNode->next = map->buckets[hInd];
+			map->buckets[hInd] = mNode;
+		}
+
+	map->size += src->size;
+
+	return 1;
+}
+
+/****************************/
 GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
                              size_t keySize, const void* key)
 {
@@ -259,6 +294,7 @@ GFX_API void* gfx_map_hsearch(GFXMap* map, const void* key, uint64_t hash)
 		mNode = mNode->next)
 	{
 		if (
+			// First compare raw hash for faster comparisons.
 			hash == mNode->hash &&
 			map->cmp(key, _GFX_GET_KEY(map, mNode)) == 0)
 		{

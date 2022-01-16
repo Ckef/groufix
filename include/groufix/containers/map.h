@@ -82,6 +82,18 @@ GFX_API void gfx_map_clear(GFXMap* map);
 GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes);
 
 /**
+ * Merges two maps, emptying the source into the destination.
+ * @param map Cannot be NULL.
+ * @param src Cannot be NULL, must have the same elemSize and align as map.
+ * @return Zero on failure.
+ *
+ * When any key in src is already present in the destination map,
+ * _NO_ duplicate merging is performed, which means duplicates may exist
+ * after this call!
+ */
+GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src);
+
+/**
  * Inserts a node into the map.
  * @param map     Cannot be NULL.
  * @param elem    Can be NULL to insert empty.
