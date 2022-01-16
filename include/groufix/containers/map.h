@@ -120,6 +120,22 @@ GFX_API void* gfx_map_search(GFXMap* map, const void* key);
 GFX_API void* gfx_map_hsearch(GFXMap* map, const void* key, uint64_t hash);
 
 /**
+ * Retrieves the first node in memory of the map.
+ * Use in combination with gfx_map_next to iterate over all elements.
+ * @param map Cannot be NULL.
+ * @return NULL if none found.
+ */
+GFX_API void* gfx_map_first(GFXMap* map);
+
+/**
+ * Retrieves the next node (in undefined order) in memory of the map.
+ * @param map  Cannot be NULL.
+ * @param node Must be a non-NULL value returned by gfx_map_(h)insert.
+ * @return NULL if none found.
+ */
+GFX_API void* gfx_map_next(GFXMap* map, const void* node);
+
+/**
  * Erases a node from the map.
  * @param map  Cannot be NULL.
  * @param node Must be a non-NULL value returned by gfx_map_(h)insert.
@@ -127,13 +143,6 @@ GFX_API void* gfx_map_hsearch(GFXMap* map, const void* key, uint64_t hash);
  * Note: node is freed, cannot access its memory after this call!
  */
 GFX_API void gfx_map_erase(GFXMap* map, const void* node);
-
-/**
- * Erases a node with pre-calculated hash from the map.
- * @param hash Must be `map->hash(key)`.
- * @see gfx_map_erase.
- */
-GFX_API void gfx_map_herase(GFXMap* map, const void* node, uint64_t hash);
 
 
 #endif

@@ -46,9 +46,9 @@ static int _gfx_cache_cmp(const void* l, const void* r)
 	const _GFXCacheKey* kL = l;
 	const _GFXCacheKey* kR = r;
 
-	return
-		kL->len == kR->len &&
-		memcmp(kL->bytes, kR->bytes, kL->len) == 0;
+	// Note that we return 0 on equality!
+	return !(kL->len == kR->len &&
+		memcmp(kL->bytes, kR->bytes, kL->len) == 0);
 }
 
 /****************************
