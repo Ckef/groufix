@@ -201,6 +201,11 @@ GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src)
 
 	map->size += src->size;
 
+	free(src->buckets);
+	src->size = 0;
+	src->capacity = 0;
+	src->buckets = NULL;
+
 	return 1;
 }
 
@@ -323,6 +328,7 @@ GFX_API void* gfx_map_next(GFXMap* map, const void* node)
 {
 	assert(map != NULL);
 	assert(node != NULL);
+	assert(map->capacity > 0);
 
 	_GFXMapNode* mNode = _GFX_GET_NODE(map, node);
 
