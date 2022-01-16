@@ -33,9 +33,10 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
 	_gfx_pick_queue(context, &rend->present, 0, 1);
 
-	// Initialize the allocator, render backing & graph.
+	// Initialize the allocator, cache, render backing & graph.
 	// Technically it doesn't matter, but let's do it in dependency order.
 	_gfx_allocator_init(&rend->allocator, rend->device);
+	_gfx_cache_init(&rend->cache, rend->device);
 	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
 
@@ -88,6 +89,8 @@ clean_frames:
 clean_render:
 	_gfx_render_graph_clear(rend);
 	_gfx_render_backing_clear(rend);
+	_gfx_cache_clear(&rend->cache);
+	_gfx_allocator_clear(&rend->allocator);
 clean:
 	gfx_log_error("Could not create a new renderer.");
 	free(rend);
@@ -117,10 +120,11 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	context->vk.DestroyCommandPool(
 		context->vk.device, renderer->vk.pool, NULL);
 
-	// Clear the allocator, backing and graph in the order that makes sense,
+	// Clear the allocator, cache, backing & graph in a sensible order,
 	// considering the graph depends on the backing :)
 	_gfx_render_graph_clear(renderer);
 	_gfx_render_backing_clear(renderer);
+	_gfx_cache_clear(&renderer->cache);
 	_gfx_allocator_clear(&renderer->allocator);
 
 	free(renderer);

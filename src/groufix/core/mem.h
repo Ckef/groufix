@@ -11,6 +11,7 @@
 #define _GFX_CORE_MEM_H
 
 #include "groufix/containers/list.h"
+#include "groufix/containers/map.h"
 #include "groufix/containers/tree.h"
 #include "groufix/core.h"
 
@@ -205,7 +206,64 @@ void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem);
  * Vulkan object cache.
  ****************************/
 
-// TODO: Implement.
+/**
+ * Cached element (i.e. cachable Vulkan object).
+ */
+typedef struct _GFXCacheElem
+{
+	// Input structure type.
+	VkStructureType type;
+
+
+	// Output Vulkan object.
+	union
+	{
+		VkDescriptorSetLayout setLayout;
+		VkPipeline            pipeline;
+		VkPipelineLayout      layout;
+		VkSampler             sampler;
+
+	} obj;
+
+} _GFXCacheElem;
+
+
+/**
+ * Vulkan object cache definition.
+ */
+typedef struct _GFXCache
+{
+	_GFXContext* context;
+
+	GFXMap immutable; // Stores { size_t, char[] } : { _GFXCacheElem }.
+	GFXMap mutable;   // Stores { size_t, char[] } : { _GFXCacheElem }.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkPipelineCache cache;
+
+	} vk;
+
+} _GFXCache;
+
+
+/**
+ * Initializes a cache.
+ * @param cache  Cannot be NULL.
+ * @param device Cannot be NULL.
+ *
+ * _gfx_device_init_context must have returned successfully at least once
+ * for the given device.
+ */
+void _gfx_cache_init(_GFXCache* cache, _GFXDevice* device);
+
+/**
+ * Clears a cache, destroying all objects.
+ * @param cache Cannot be NULL.
+ */
+void _gfx_cache_clear(_GFXCache* cache);
 
 
 #endif

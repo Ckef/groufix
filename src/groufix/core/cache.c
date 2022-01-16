@@ -7,6 +7,7 @@
  */
 
 #include "groufix/core/mem.h"
+#include <assert.h>
 #include <string.h>
 
 #if defined (GFX_WIN32)
@@ -46,9 +47,8 @@ static int _gfx_cache_cmp(const void* l, const void* r)
 	const _GFXCacheKey* kL = l;
 	const _GFXCacheKey* kR = r;
 
-	// Note that we return 0 on equality!
-	return !(kL->len == kR->len &&
-		memcmp(kL->bytes, kR->bytes, kL->len) == 0);
+	// Non-zero = inequal.
+	return kL->len != kR->len || memcmp(kL->bytes, kR->bytes, kL->len);
 }
 
 /****************************
@@ -114,4 +114,36 @@ static uint64_t _gfx_cache_murmur3(const void* key)
 	h ^= h >> 16;
 
 	return h;
+}
+
+/****************************/
+void _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
+{
+	assert(cache != NULL);
+	assert(device != NULL);
+	assert(device->context != NULL);
+
+	cache->context = device->context;
+	cache->vk.cache = VK_NULL_HANDLE;
+
+	// Take the largest alignment of the key and element types.
+	size_t align =
+		GFX_MAX(_Alignof(_GFXCacheKey), _Alignof(_GFXCacheElem));
+
+	gfx_map_init(&cache->immutable,
+		sizeof(_GFXCacheElem), align, _gfx_cache_murmur3, _gfx_cache_cmp);
+
+	gfx_map_init(&cache->mutable,
+		sizeof(_GFXCacheElem), align, _gfx_cache_murmur3, _gfx_cache_cmp);
+}
+
+/****************************/
+void _gfx_cache_clear(_GFXCache* cache)
+{
+	assert(cache != NULL);
+
+	// TODO: Destroy all objects.
+
+	gfx_map_clear(&cache->immutable);
+	gfx_map_clear(&cache->mutable);
 }

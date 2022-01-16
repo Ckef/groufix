@@ -604,6 +604,7 @@ struct GFXRenderer
 {
 	_GFXDevice*   device;    // For format operations.
 	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
+	_GFXCache     cache;
 	_GFXQueue     graphics;
 	_GFXQueue     present;
 
