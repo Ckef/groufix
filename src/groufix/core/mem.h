@@ -222,8 +222,7 @@ typedef struct _GFXCacheElem
 		VkPipeline            pipeline;
 		VkPipelineLayout      layout;
 		VkSampler             sampler;
-
-	} obj;
+	};
 
 } _GFXCacheElem;
 
@@ -235,8 +234,11 @@ typedef struct _GFXCache
 {
 	_GFXContext* context;
 
-	GFXMap immutable; // Stores { size_t, char[] } : { _GFXCacheElem }.
-	GFXMap mutable;   // Stores { size_t, char[] } : { _GFXCacheElem }.
+	GFXMap immutable; // Stores { size_t, char[] } : _GFXCacheElem.
+	GFXMap mutable;   // Stores { size_t, char[] } : _GFXCacheElem.
+
+	_GFXMutex lookupLock;
+	_GFXMutex createLock;
 
 
 	// Vulkan fields.
@@ -253,11 +255,12 @@ typedef struct _GFXCache
  * Initializes a cache.
  * @param cache  Cannot be NULL.
  * @param device Cannot be NULL.
+ * @return Non-zero on success.
  *
  * _gfx_device_init_context must have returned successfully at least once
  * for the given device.
  */
-void _gfx_cache_init(_GFXCache* cache, _GFXDevice* device);
+int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device);
 
 /**
  * Clears a cache, destroying all objects.

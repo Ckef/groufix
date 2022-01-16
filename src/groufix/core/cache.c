@@ -117,7 +117,7 @@ static uint64_t _gfx_cache_murmur3(const void* key)
 }
 
 /****************************/
-void _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
+int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
 {
 	assert(cache != NULL);
 	assert(device != NULL);
@@ -126,6 +126,17 @@ void _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
 	cache->context = device->context;
 	cache->vk.cache = VK_NULL_HANDLE;
 
+	// Initialize the locks.
+	if (!_gfx_mutex_init(&cache->lookupLock))
+		return 0;
+
+	if (!_gfx_mutex_init(&cache->createLock))
+	{
+		_gfx_mutex_clear(&cache->lookupLock);
+		return 0;
+	}
+
+	// Initialize the hashtables.
 	// Take the largest alignment of the key and element types.
 	size_t align =
 		GFX_MAX(_Alignof(_GFXCacheKey), _Alignof(_GFXCacheElem));
@@ -135,6 +146,8 @@ void _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
 
 	gfx_map_init(&cache->mutable,
 		sizeof(_GFXCacheElem), align, _gfx_cache_murmur3, _gfx_cache_cmp);
+
+	return 1;
 }
 
 /****************************/
@@ -146,4 +159,7 @@ void _gfx_cache_clear(_GFXCache* cache)
 
 	gfx_map_clear(&cache->immutable);
 	gfx_map_clear(&cache->mutable);
+
+	_gfx_mutex_clear(&cache->createLock);
+	_gfx_mutex_clear(&cache->lookupLock);
 }

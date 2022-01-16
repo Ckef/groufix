@@ -33,10 +33,13 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
 	_gfx_pick_queue(context, &rend->present, 0, 1);
 
-	// Initialize the allocator, cache, render backing & graph.
+	// Initialize the cache first.
+	if (!_gfx_cache_init(&rend->cache, rend->device))
+		goto clean;
+
+	// Then initialize the allocator, render backing & graph.
 	// Technically it doesn't matter, but let's do it in dependency order.
 	_gfx_allocator_init(&rend->allocator, rend->device);
-	_gfx_cache_init(&rend->cache, rend->device);
 	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
 
