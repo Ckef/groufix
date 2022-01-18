@@ -268,5 +268,42 @@ int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device);
  */
 void _gfx_cache_clear(_GFXCache* cache);
 
+/**
+ * Flushes all elements in the mutable cache to the immutable cache.
+ * @param cache Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * Not thread-safe at all.
+ */
+int _gfx_cache_flush(_GFXCache* cache);
+
+/**
+ * Warms up the immutable cache (i.e. inserts an element in it).
+ * Input is a Vk*CreateInfo struct with replace handles for non-hashable fields.
+ * @param cache      Cannot be NULL.
+ * @param createInfo A pointer to a Vk*CreateInfo struct, cannot be NULL.
+ * @param handles    Cannot be NULL if numHandles > 0.
+ * @return Non-zero on success.
+ *
+ * This function is reentrant!
+ * However, cannot run concurrently with _gfx_cache_get (or other calls).
+ */
+int _gfx_cache_warmup(_GFXCache* cache,
+                      const VkStructureType* createInfo,
+                      size_t numHandles, const void** handles);
+
+/**
+ * Retrieves an element from the cache.
+ * If none found, inserts a new element in the mutable cache.
+ * @see _gfx_cache_warmup.
+ * @return NULL on failure.
+ *
+ * This function is reentrant!
+ * However, cannot run concurrently with _gfx_cache_warmup (or other calls).
+ */
+_GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
+                              const VkStructureType* createInfo,
+                              size_t numHandles, const void** handles);
+
 
 #endif

@@ -163,3 +163,41 @@ void _gfx_cache_clear(_GFXCache* cache)
 	_gfx_mutex_clear(&cache->createLock);
 	_gfx_mutex_clear(&cache->lookupLock);
 }
+
+/****************************/
+int _gfx_cache_flush(_GFXCache* cache)
+{
+	assert(cache != NULL);
+
+	// TODO: Implement.
+
+	return 0;
+}
+
+/****************************/
+int _gfx_cache_warmup(_GFXCache* cache,
+                      const VkStructureType* createInfo,
+                      size_t numHandles, const void** handles)
+{
+	assert(cache != NULL);
+	assert(createInfo != NULL);
+	assert(numHandles == 0 || handles != NULL);
+
+	// TODO: Implement.
+
+	return 0;
+}
+
+/****************************/
+_GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
+                              const VkStructureType* createInfo,
+                              size_t numHandles, const void** handles)
+{
+	assert(cache != NULL);
+	assert(createInfo != NULL);
+	assert(numHandles == 0 || handles != NULL);
+
+	// TODO: Implement.
+
+	return NULL;
+}

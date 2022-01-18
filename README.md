@@ -7,7 +7,7 @@ _groufix_ is a cross-platform, thread-friendly and hardware accelerated graphics
 The engine currently supports the following targets:
 
 * __Unix__-like ([GCC](https://gcc.gnu.org/))
-* __Windows__ (XP+) ([Mingw-w64](http://mingw-w64.org/doku.php))
+* __Windows__ (XP+) ([Mingw-w64](https://www.mingw-w64.org/))
 
 
 Building
@@ -44,7 +44,7 @@ _When cross-compiling to Windows_:
 * `mingw-w64` : for building source files for windows (in addition to the above packages), the `CC` flag needs to be set as described under [#Building](#building).
 
 _When building on Windows_:
-* [CMake](https://cmake.org/) and [Mingw-w64](http://mingw-w64.org/doku.php) need to be installed, which should include the `cmake.exe` and `mingw32-make.exe` binaries. To use these to build _groufix_, add the `bin` directory of both to your `PATH` variable. Make sure to install the compiler using `POSIX` threads.
+* [CMake](https://cmake.org/) and [Mingw-w64](https://www.mingw-w64.org/) need to be installed, which should include the `cmake.exe` and `mingw32-make.exe` binaries. To use these to build _groufix_, add the `bin` directory of both to your `PATH` variable. Make sure to install the compiler using `POSIX` threads.
 * [Python 3](https://www.python.org/) needs to be installed for building [Shaderc](https://github.com/google/shaderc), make sure to install Python to your `PATH` variable.
 
 

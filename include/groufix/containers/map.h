@@ -87,6 +87,7 @@ GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes);
  * @param src Cannot be NULL, must have the same elemSize and align as map.
  * @return Zero on failure.
  *
+ * All node pointers of src remain valid.
  * When any key in src is already present in the destination map,
  * _NO_ duplicate merging is performed, which means duplicates may exist
  * after this call!
