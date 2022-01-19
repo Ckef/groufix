@@ -122,7 +122,7 @@ static uint64_t _gfx_cache_murmur3(const void* key)
  * with given replace handles for non-hashable fields.
  * @return Key value, must call free() on success (NULL on failure).
  */
-static _GFXCacheKey* _gfx_cache_build_key(const VkStructureType* createInfo,
+static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
                                           const void** handles)
 {
 	assert(createInfo != NULL);
@@ -137,11 +137,12 @@ static _GFXCacheKey* _gfx_cache_build_key(const VkStructureType* createInfo,
  * outputs to the given _GFXCacheElem struct.
  * @return Non-zero on success.
  */
-static int _gfx_cache_build_elem(const VkStructureType* createInfo,
-                                 _GFXCacheElem* elem)
+static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
+                                  const VkStructureType* createInfo)
 {
-	assert(createInfo != NULL);
+	assert(cache != NULL);
 	assert(elem != NULL);
+	assert(createInfo != NULL);
 
 	// Firstly, set type.
 	elem->type = *createInfo;
@@ -149,6 +150,17 @@ static int _gfx_cache_build_elem(const VkStructureType* createInfo,
 	// TODO: Implement.
 
 	return 0;
+}
+
+/****************************
+ * Destroys the Vulkan object stored in the given _GFXCacheElem struct.
+ */
+static void _gfx_cache_destroy_elem(_GFXCache* cache, _GFXCacheElem* elem)
+{
+	assert(cache != NULL);
+	assert(elem != NULL);
+
+	// TODO: Implement.
 }
 
 /****************************/
@@ -190,8 +202,25 @@ void _gfx_cache_clear(_GFXCache* cache)
 {
 	assert(cache != NULL);
 
-	// TODO: Destroy all objects.
+	// Destroy all objects in the mutable cache.
+	for (
+		_GFXCacheElem* elem = gfx_map_first(&cache->mutable);
+		elem != NULL;
+		elem = gfx_map_next(&cache->mutable, elem))
+	{
+		_gfx_cache_destroy_elem(cache, elem);
+	}
 
+	// Destroy all objects in the immutable cache.
+	for (
+		_GFXCacheElem* elem = gfx_map_first(&cache->immutable);
+		elem != NULL;
+		elem = gfx_map_next(&cache->immutable, elem))
+	{
+		_gfx_cache_destroy_elem(cache, elem);
+	}
+
+	// Clear all other things.
 	gfx_map_clear(&cache->immutable);
 	gfx_map_clear(&cache->mutable);
 
@@ -217,7 +246,7 @@ int _gfx_cache_warmup(_GFXCache* cache,
 	assert(createInfo != NULL);
 
 	// Firstly we create a key value & hash it.
-	_GFXCacheKey* key = _gfx_cache_build_key(createInfo, handles);
+	_GFXCacheKey* key = _gfx_cache_alloc_key(createInfo, handles);
 	if (key == NULL) return 0;
 
 	const uint64_t hash = cache->immutable.hash(key);
@@ -231,7 +260,7 @@ int _gfx_cache_warmup(_GFXCache* cache,
 	// Try to find a matching element first.
 	_GFXCacheElem* elem = gfx_map_hsearch(&cache->immutable, key, hash);
 	if (elem != NULL)
-		// Found one, done, we do not care if it is built yet.
+		// Found one, done, we do not care if it is completely built yet.
 		_gfx_mutex_unlock(&cache->lookupLock);
 	else
 	{
@@ -242,8 +271,8 @@ int _gfx_cache_warmup(_GFXCache* cache,
 
 		_gfx_mutex_unlock(&cache->lookupLock);
 
-		// THEN build it :)
-		if (elem == NULL || !_gfx_cache_build_elem(createInfo, elem))
+		// THEN create it :)
+		if (elem == NULL || !_gfx_cache_create_elem(cache, elem, createInfo))
 		{
 			// Failed.. I suppose we erase the element.
 			if (elem != NULL)
@@ -271,7 +300,79 @@ _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
 	assert(cache != NULL);
 	assert(createInfo != NULL);
 
-	// TODO: Implement.
+	// Again, create a key value & hash it.
+	_GFXCacheKey* key = _gfx_cache_alloc_key(createInfo, handles);
+	if (key == NULL) return NULL;
 
+	const uint64_t hash = cache->immutable.hash(key);
+
+	// First we check the immutable cache.
+	// Since this function is only allowed to run concurrently with itself,
+	// we do not modify and therefore do not lock this cache :)
+	_GFXCacheElem* elem = gfx_map_hsearch(&cache->immutable, key, hash);
+	if (elem != NULL) goto found;
+
+	// If not found in the immutable cache, check the mutable cache.
+	// For this lookup we obviously do lock.
+	_gfx_mutex_lock(&cache->lookupLock);
+	elem = gfx_map_hsearch(&cache->mutable, key, hash);
+	_gfx_mutex_unlock(&cache->lookupLock);
+
+	if (elem != NULL) goto found;
+
+	// If we did not find it yet, we need to insert a new element in the
+	// mutable cache. We want other threads to still be able to query while
+	// creating, so we lock for 'creation' separately.
+	// But then we need to immediately check if the element already exists.
+	// This because multiple threads could simultaneously decide to create
+	// the same new element.
+	// TODO: Have a more fine grained mechanism for locking, so we only
+	// block when trying to create the SAME object, and not for ALL objects?
+	_gfx_mutex_lock(&cache->createLock);
+
+	_gfx_mutex_lock(&cache->lookupLock);
+	elem = gfx_map_hsearch(&cache->mutable, key, hash);
+	_gfx_mutex_unlock(&cache->lookupLock);
+
+	if (elem != NULL)
+	{
+		_gfx_mutex_unlock(&cache->createLock);
+		goto found;
+	}
+
+	// At this point we are the thread to actually create the new element.
+	// We first create, then insert, so other threads don't accidentally
+	// pick an incomplete element.
+	_GFXCacheElem newElem;
+	if (!_gfx_cache_create_elem(cache, &newElem, createInfo))
+	{
+		// Uh oh failed to create :(
+		_gfx_mutex_unlock(&cache->createLock);
+		free(key);
+		return NULL;
+	}
+
+	// We created the thing, now insert the thing.
+	// For this we block any lookups again.
+	// When we're done we can also unlock for creation tho :)
+	_gfx_mutex_lock(&cache->lookupLock);
+
+	elem = gfx_map_hinsert(&cache->mutable, &newElem,
+		sizeof(_GFXCacheKey) + sizeof(char) * key->len, key, hash);
+
+	_gfx_mutex_unlock(&cache->lookupLock);
+	_gfx_mutex_unlock(&cache->createLock);
+
+	if (elem != NULL) goto found;
+
+	// Ah, well, it is not in the map, away with it then...
+	_gfx_cache_destroy_elem(cache, &newElem);
+	free(key);
 	return NULL;
+
+
+	// Free data & return when found.
+found:
+	free(key);
+	return elem;
 }
