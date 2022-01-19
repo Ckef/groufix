@@ -282,7 +282,7 @@ int _gfx_cache_flush(_GFXCache* cache);
  * Input is a Vk*CreateInfo struct with replace handles for non-hashable fields.
  * @param cache      Cannot be NULL.
  * @param createInfo A pointer to a Vk*CreateInfo struct, cannot be NULL.
- * @param handles    Cannot be NULL if numHandles > 0.
+ * @param handles    Must match the non-hashable field count of createInfo.
  * @return Non-zero on success.
  *
  * This function is reentrant!
@@ -290,7 +290,7 @@ int _gfx_cache_flush(_GFXCache* cache);
  */
 int _gfx_cache_warmup(_GFXCache* cache,
                       const VkStructureType* createInfo,
-                      size_t numHandles, const void** handles);
+                      const void** handles);
 
 /**
  * Retrieves an element from the cache.
@@ -303,7 +303,7 @@ int _gfx_cache_warmup(_GFXCache* cache,
  */
 _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
                               const VkStructureType* createInfo,
-                              size_t numHandles, const void** handles);
+                              const void** handles);
 
 
 #endif

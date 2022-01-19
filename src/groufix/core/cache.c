@@ -8,6 +8,7 @@
 
 #include "groufix/core/mem.h"
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined (GFX_WIN32)
@@ -116,6 +117,40 @@ static uint64_t _gfx_cache_murmur3(const void* key)
 	return h;
 }
 
+/****************************
+ * Allocates & builds a hashable key value from a Vk*CreateInfo struct
+ * with given replace handles for non-hashable fields.
+ * @return Key value, must call free() on success (NULL on failure).
+ */
+static _GFXCacheKey* _gfx_cache_build_key(const VkStructureType* createInfo,
+                                          const void** handles)
+{
+	assert(createInfo != NULL);
+
+	// TODO: Implement.
+
+	return NULL;
+}
+
+/****************************
+ * Creates a new Vulkan object using the given Vk*CreateInfo struct and
+ * outputs to the given _GFXCacheElem struct.
+ * @return Non-zero on success.
+ */
+static int _gfx_cache_build_elem(const VkStructureType* createInfo,
+                                 _GFXCacheElem* elem)
+{
+	assert(createInfo != NULL);
+	assert(elem != NULL);
+
+	// Firstly, set type.
+	elem->type = *createInfo;
+
+	// TODO: Implement.
+
+	return 0;
+}
+
 /****************************/
 int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
 {
@@ -169,33 +204,72 @@ int _gfx_cache_flush(_GFXCache* cache)
 {
 	assert(cache != NULL);
 
-	// TODO: Implement.
-
-	return 0;
+	// No need to lock anything, we just merge the tables.
+	return gfx_map_merge(&cache->immutable, &cache->mutable);
 }
 
 /****************************/
 int _gfx_cache_warmup(_GFXCache* cache,
                       const VkStructureType* createInfo,
-                      size_t numHandles, const void** handles)
+                      const void** handles)
 {
 	assert(cache != NULL);
 	assert(createInfo != NULL);
-	assert(numHandles == 0 || handles != NULL);
 
-	// TODO: Implement.
+	// Firstly we create a key value & hash it.
+	_GFXCacheKey* key = _gfx_cache_build_key(createInfo, handles);
+	if (key == NULL) return 0;
 
-	return 0;
+	const uint64_t hash = cache->immutable.hash(key);
+
+	// Here we do need to lock the immutable cache, as we want the function
+	// to be reentrant. However we have no dedicated lock.
+	// Luckily this function _does not_ need to be able to run concurrently
+	// with _gfx_cache_get, so we abuse the lookup lock :)
+	_gfx_mutex_lock(&cache->lookupLock);
+
+	// Try to find a matching element first.
+	_GFXCacheElem* elem = gfx_map_hsearch(&cache->immutable, key, hash);
+	if (elem != NULL)
+		// Found one, done, we do not care if it is built yet.
+		_gfx_mutex_unlock(&cache->lookupLock);
+	else
+	{
+		// If not found, insert a new element.
+		// Then immediately unlock so other warmups can be performed.
+		elem = gfx_map_hinsert(&cache->immutable, NULL,
+			sizeof(_GFXCacheKey) + sizeof(char) * key->len, key, hash);
+
+		_gfx_mutex_unlock(&cache->lookupLock);
+
+		// THEN build it :)
+		if (elem == NULL || !_gfx_cache_build_elem(createInfo, elem))
+		{
+			// Failed.. I suppose we erase the element.
+			if (elem != NULL)
+			{
+				_gfx_mutex_lock(&cache->lookupLock);
+				gfx_map_erase(&cache->immutable, elem);
+				_gfx_mutex_unlock(&cache->lookupLock);
+			}
+
+			free(key);
+			return 0;
+		}
+	}
+
+	// Free data & return.
+	free(key);
+	return 1;
 }
 
 /****************************/
 _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
                               const VkStructureType* createInfo,
-                              size_t numHandles, const void** handles)
+                              const void** handles)
 {
 	assert(cache != NULL);
 	assert(createInfo != NULL);
-	assert(numHandles == 0 || handles != NULL);
 
 	// TODO: Implement.
 
