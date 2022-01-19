@@ -535,14 +535,22 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
 _GFXContext* _gfx_device_init_context(_GFXDevice* device);
 
 /**
- * Picks a queue from the queue set supporting the given abilities.
+ * Picks a queue set (i.e. Vulkan family) supporting the given abilities.
  * @param context Cannot be NULL.
- * @param queue   Outputs the handle to the picked queue, cannot be NULL.
+ * @param family  Outputs the Vulkan family index, cannot be NULL.
  * @return The queue set it was picked from, NULL if none found.
  *
  * When only the presentation bit is set OR it is not and only one of the
  * VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_TRANSFER_BIT or VK_QUEUE_COMPUTE_BIT
  * flags are set, this function is guaranteed to succeed.
+ */
+_GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
+                               VkQueueFlags flags, int present);
+
+/**
+ * Picks a queue from the queue set supporting the given abilities.
+ * @param queue Outputs the handle to the picked queue, cannot be NULL.
+ * @see _gfx_pick_family.
  */
 _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
                               VkQueueFlags flags, int present);

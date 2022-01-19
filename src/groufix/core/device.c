@@ -1075,11 +1075,11 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device)
 }
 
 /****************************/
-_GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
-                              VkQueueFlags flags, int present)
+_GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
+                               VkQueueFlags flags, int present)
 {
 	assert(context != NULL);
-	assert(queue != NULL);
+	assert(family != NULL);
 	assert(flags != 0 || present != 0);
 
 	// The queue sets only report the flags they were specifically
@@ -1095,6 +1095,28 @@ _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
 		if ((set->flags & flags) != flags || (present && !set->present))
 			continue;
 
+		// Return it.
+		*family = set->family;
+		return set;
+	}
+
+	return NULL;
+}
+
+/****************************/
+_GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
+                              VkQueueFlags flags, int present)
+{
+	assert(context != NULL);
+	assert(queue != NULL);
+	assert(flags != 0 || present != 0);
+
+	// Ok so we can abuse _gfx_pick_family and just take its data.
+	uint32_t family;
+	_GFXQueueSet* set = _gfx_pick_family(context, &family, flags, present);
+
+	if (set != NULL)
+	{
 		// Pick a queue from the set.
 		// This is done according to the order defined by
 		// _gfx_vk_queue_priorities, every entry is checked for existence.
@@ -1125,11 +1147,11 @@ _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
 			index = (uint32_t)set->count - 1;
 
 		// Get queue & return it.
-		queue->family = set->family;
+		queue->family = family;
 		queue->lock = &set->locks[index];
 
 		context->vk.GetDeviceQueue(
-			context->vk.device, set->family, index, &queue->vk.queue);
+			context->vk.device, family, index, &queue->vk.queue);
 
 		return set;
 	}

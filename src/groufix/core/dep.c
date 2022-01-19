@@ -422,14 +422,9 @@ GFX_API GFXDependency* gfx_create_dep(GFXDevice* device)
 	if (!_gfx_mutex_init(&dep->lock))
 		goto clean;
 
-	_GFXQueue graphics, compute, transfer;
-	_gfx_pick_queue(dep->context, &graphics, VK_QUEUE_GRAPHICS_BIT, 0);
-	_gfx_pick_queue(dep->context, &compute, VK_QUEUE_COMPUTE_BIT, 0);
-	_gfx_pick_queue(dep->context, &transfer, VK_QUEUE_TRANSFER_BIT, 0);
-
-	dep->graphics = graphics.family;
-	dep->compute = compute.family;
-	dep->transfer = transfer.family;
+	_gfx_pick_family(dep->context, &dep->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
+	_gfx_pick_family(dep->context, &dep->compute, VK_QUEUE_COMPUTE_BIT, 0);
+	_gfx_pick_family(dep->context, &dep->transfer, VK_QUEUE_TRANSFER_BIT, 0);
 
 	gfx_vec_init(&dep->syncs, sizeof(_GFXSync));
 
