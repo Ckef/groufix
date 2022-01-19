@@ -340,7 +340,7 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
 	// Loop over all known formats of the device.
 	for (size_t f = 0; f < device->formats.size; ++f)
 	{
-		_GFXFormatElem* elem = gfx_vec_at(&device->formats, f);
+		const _GFXFormatElem* elem = gfx_vec_at(&device->formats, f);
 
 		// Match against the given format & minimal properties.
 		if (
@@ -357,7 +357,8 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
 		}
 
 		// Get 'closest' match.
-		unsigned int d = _GFX_GET_DISTANCE(elem->gfx, *fmt);
+		const unsigned int d = _GFX_GET_DISTANCE(elem->gfx, *fmt);
+
 		if (d < dist)
 		{
 			vkFmt = elem->vk;
@@ -383,7 +384,7 @@ GFX_API GFXFormatFeatures gfx_format_support(GFXFormat fmt,
 	// Loop over all known formats of the device.
 	for (size_t f = 0; f < dev->formats.size; ++f)
 	{
-		_GFXFormatElem* elem = gfx_vec_at(&dev->formats, f);
+		const _GFXFormatElem* elem = gfx_vec_at(&dev->formats, f);
 
 		// Match against the given format.
 		if (!GFX_FORMAT_IS_CONTAINED(elem->gfx, fmt))
@@ -411,7 +412,7 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 	// Loop over all known formats of the device.
 	for (size_t f = 0; f < dev->formats.size; ++f)
 	{
-		_GFXFormatElem* elem = gfx_vec_at(&dev->formats, f);
+		const _GFXFormatElem* elem = gfx_vec_at(&dev->formats, f);
 
 		// Match against the given format type/order and minimal features.
 		// Note this is not the same as GFX_FORMAT_IS_CONTAINED(elem->gfx, fmt)!
@@ -445,8 +446,8 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 
 		// Get 'closest' match.
 		// We always prefer contained formats.
-		int cont = GFX_FORMAT_IS_CONTAINED(elem->gfx, fmt);
-		unsigned int d = _GFX_GET_DISTANCE(elem->gfx, fmt);
+		const int cont = GFX_FORMAT_IS_CONTAINED(elem->gfx, fmt);
+		const unsigned int d = _GFX_GET_DISTANCE(elem->gfx, fmt);
 
 		if (contained ? (cont && d < dist) : (cont || d < dist))
 		{
