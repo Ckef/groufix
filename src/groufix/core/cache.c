@@ -31,7 +31,7 @@
 // Pushes a field to a map key being built.
 #define _GFX_KEY_PUSH(field) \
 	do { \
-		if (!gfx_vec_push(&out, sizeof(field)/sizeof(char), &(field))) \
+		if (!gfx_vec_push(&out, sizeof(field), &(field))) \
 			goto clean; \
 	} while (0)
 
@@ -138,9 +138,9 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 	// We have no idea how large the key is gonna be,
 	// so we build it into a vector container, and claim its memory afterwards.
 	GFXVec out;
-	gfx_vec_init(&out, sizeof(char));
+	gfx_vec_init(&out, 1);
 
-	if (!gfx_vec_push(&out, sizeof(_GFXCacheKey)/sizeof(char), NULL))
+	if (!gfx_vec_push(&out, sizeof(_GFXCacheKey), NULL))
 		goto clean;
 
 	// Based on type, push all the to-be-hashed data.
@@ -177,7 +177,8 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 	}
 
 	// Claim data, set length & return.
-	size_t len = out.size - sizeof(_GFXCacheKey)/sizeof(char);
+	// If sizeof(char) is not 1 (!?), data would be truncated...
+	size_t len = (out.size - sizeof(_GFXCacheKey)) / sizeof(char);
 
 	_GFXCacheKey* key = gfx_vec_claim(&out); // Implicitly clears.
 	key->len = len;
