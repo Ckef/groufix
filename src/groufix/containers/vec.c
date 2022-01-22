@@ -117,6 +117,20 @@ GFX_API void gfx_vec_release(GFXVec* vec)
 }
 
 /****************************/
+GFX_API void* gfx_vec_claim(GFXVec* vec)
+{
+	assert(vec != NULL);
+
+	void* ret = vec->data;
+
+	vec->size = 0;
+	vec->capacity = 0;
+	vec->data = NULL;
+
+	return ret;
+}
+
+/****************************/
 GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
 {
 	assert(vec != NULL);

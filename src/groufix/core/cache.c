@@ -28,6 +28,14 @@
 #endif
 
 
+// Pushes a field to a map key being built.
+#define _GFX_KEY_PUSH(field) \
+	do { \
+		if (!gfx_vec_push(&out, sizeof(field)/sizeof(char), &(field))) \
+			goto clean; \
+	} while (0)
+
+
 /****************************
  * Cache hashtable key definition.
  */
@@ -127,7 +135,60 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 {
 	assert(createInfo != NULL);
 
-	// TODO: Implement.
+	// We have no idea how large the key is gonna be,
+	// so we build it into a vector container, and claim its memory afterwards.
+	GFXVec out;
+	gfx_vec_init(&out, sizeof(char));
+
+	if (!gfx_vec_push(&out, sizeof(_GFXCacheKey)/sizeof(char), NULL))
+		goto clean;
+
+	// Based on type, push all the to-be-hashed data.
+	// Here we try to minimize the data actually necessary to specify
+	// a unique cache object, so everything will be packed tightly.
+	// Plus we insert the given handles for fields we cannot hash.
+	size_t currHandle = 0;
+
+	// TODO: Continue implementing.
+	switch (*createInfo)
+	{
+	case VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO:
+		_GFX_KEY_PUSH(*createInfo);
+		break;
+
+	case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO:
+		_GFX_KEY_PUSH(*createInfo);
+		break;
+
+	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
+		_GFX_KEY_PUSH(*createInfo);
+		break;
+
+	case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO:
+		_GFX_KEY_PUSH(*createInfo);
+		break;
+
+	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
+		_GFX_KEY_PUSH(*createInfo);
+		break;
+
+	default:
+		break;
+	}
+
+	// Claim data, set length & return.
+	size_t len = out.size - sizeof(_GFXCacheKey)/sizeof(char);
+
+	_GFXCacheKey* key = gfx_vec_claim(&out); // Implicitly clears.
+	key->len = len;
+
+	return key;
+
+
+	// Cleanup on failure.
+clean:
+	gfx_vec_clear(&out);
+	gfx_log_error("Could not allocate key for cached Vulkan object.");
 
 	return NULL;
 }
