@@ -144,11 +144,66 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 	assert(elem != NULL);
 	assert(createInfo != NULL);
 
+	_GFXContext* context = cache->context;
+
 	// Firstly, set type.
 	elem->type = *createInfo;
 
-	// TODO: Implement.
+	// Then call the appropriate create function.
+	switch (elem->type)
+	{
+	case VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO:
+		_GFX_VK_CHECK(
+			context->vk.CreateDescriptorSetLayout(context->vk.device,
+				(const VkDescriptorSetLayoutCreateInfo*)createInfo, NULL,
+				&elem->setLayout),
+			goto error);
+		break;
 
+	case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO:
+		_GFX_VK_CHECK(
+			context->vk.CreatePipelineLayout(context->vk.device,
+				(const VkPipelineLayoutCreateInfo*)createInfo, NULL,
+				&elem->layout),
+			goto error);
+		break;
+
+	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
+		_GFX_VK_CHECK(
+			context->vk.CreateGraphicsPipelines(context->vk.device,
+				cache->vk.cache, 1,
+				(const VkGraphicsPipelineCreateInfo*)createInfo, NULL,
+				&elem->pipeline),
+			goto error);
+		break;
+
+	case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO:
+		_GFX_VK_CHECK(
+			context->vk.CreateComputePipelines(context->vk.device,
+				cache->vk.cache, 1,
+				(const VkComputePipelineCreateInfo*)createInfo, NULL,
+				&elem->pipeline),
+			goto error);
+		break;
+
+	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
+		_GFX_VK_CHECK(
+			context->vk.CreateSampler(context->vk.device,
+				(const VkSamplerCreateInfo*)createInfo, NULL,
+				&elem->sampler),
+			goto error);
+		break;
+
+	default:
+		goto error;
+	}
+
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Could not create cached Vulkan object.");
 	return 0;
 }
 
@@ -160,7 +215,35 @@ static void _gfx_cache_destroy_elem(_GFXCache* cache, _GFXCacheElem* elem)
 	assert(cache != NULL);
 	assert(elem != NULL);
 
-	// TODO: Implement.
+	_GFXContext* context = cache->context;
+
+	// Call the appropriate destroy function from type.
+	switch (elem->type)
+	{
+	case VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO:
+		context->vk.DestroyDescriptorSetLayout(
+			context->vk.device, elem->setLayout, NULL);
+		break;
+
+	case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO:
+		context->vk.DestroyPipelineLayout(
+			context->vk.device, elem->layout, NULL);
+		break;
+
+	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
+	case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO:
+		context->vk.DestroyPipeline(
+			context->vk.device, elem->pipeline, NULL);
+		break;
+
+	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
+		context->vk.DestroySampler(
+			context->vk.device, elem->sampler, NULL);
+		break;
+
+	default:
+		break;
+	}
 }
 
 /****************************/

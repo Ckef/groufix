@@ -219,8 +219,8 @@ typedef struct _GFXCacheElem
 	union
 	{
 		VkDescriptorSetLayout setLayout;
-		VkPipeline            pipeline;
 		VkPipelineLayout      layout;
+		VkPipeline            pipeline;
 		VkSampler             sampler;
 	};
 
@@ -250,6 +250,8 @@ typedef struct _GFXCache
 
 } _GFXCache;
 
+
+// TODO: Add functions to load/store/merge the Vulkan pipeline cache.
 
 /**
  * Initializes a cache.
