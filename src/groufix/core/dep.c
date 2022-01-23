@@ -23,7 +23,7 @@
 					"Dependency injection failed, " \
 					"could not allocate metadata output."); \
 				action; \
-			} else {\
+			} else { \
 				elems = _gfx_inj_ptr; \
 				elems[(num)++] = insert; \
 			} \

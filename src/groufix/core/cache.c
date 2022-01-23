@@ -6,6 +6,7 @@
  * www     : <www.vuzzel.nl>
  */
 
+#include "groufix/containers/vec.h"
 #include "groufix/core/mem.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -32,6 +33,13 @@
 #define _GFX_KEY_PUSH(field) \
 	do { \
 		if (!gfx_vec_push(&out, sizeof(field), &(field))) \
+			goto clean; \
+	} while (0)
+
+// Pushes a handle into a map key being built.
+#define _GFX_KEY_PUSH_HANDLE() \
+	do { \
+		if (!gfx_vec_push(&out, sizeof(void*), &handles[currHandle++])) \
 			goto clean; \
 	} while (0)
 
@@ -146,34 +154,147 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 	// Based on type, push all the to-be-hashed data.
 	// Here we try to minimize the data actually necessary to specify
 	// a unique cache object, so everything will be packed tightly.
+	// Note we do not push any structure types except for the global one.
 	// Plus we insert the given handles for fields we cannot hash.
 	size_t currHandle = 0;
 
-	// TODO: Continue implementing.
 	switch (*createInfo)
 	{
 	case VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO:
+
 		_GFX_KEY_PUSH(*createInfo);
+		const VkDescriptorSetLayoutCreateInfo* dslci =
+			(const VkDescriptorSetLayoutCreateInfo*)createInfo;
+
+		// Ignore the pNext field.
+		_GFX_KEY_PUSH(dslci->flags);
+		_GFX_KEY_PUSH(dslci->bindingCount);
+
+		for (size_t i = 0; i < dslci->bindingCount; ++i)
+		{
+			const VkDescriptorSetLayoutBinding* dslb = dslci->pBindings + i;
+			_GFX_KEY_PUSH(dslb->binding);
+			_GFX_KEY_PUSH(dslb->descriptorType);
+			_GFX_KEY_PUSH(dslb->descriptorCount);
+			_GFX_KEY_PUSH(dslb->stageFlags);
+
+			if (dslb->pImmutableSamplers != NULL)
+				for (size_t s = 0; s < dslb->descriptorCount; ++s)
+					_GFX_KEY_PUSH_HANDLE();
+		}
 		break;
 
 	case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO:
+
 		_GFX_KEY_PUSH(*createInfo);
+		const VkPipelineLayoutCreateInfo* plci =
+			(const VkPipelineLayoutCreateInfo*)createInfo;
+
+		// Ignore the pNext field.
+		// Ignore pipeline layout flags.
+		_GFX_KEY_PUSH(plci->setLayoutCount);
+
+		for (size_t i = 0; i < plci->setLayoutCount; ++i)
+			_GFX_KEY_PUSH_HANDLE();
+
+		_GFX_KEY_PUSH(plci->pushConstantRangeCount);
+
+		for (size_t i = 0; i < plci->pushConstantRangeCount; ++i)
+		{
+			const VkPushConstantRange* pcr = plci->pPushConstantRanges + i;
+			_GFX_KEY_PUSH(pcr->stageFlags);
+			_GFX_KEY_PUSH(pcr->offset);
+			_GFX_KEY_PUSH(pcr->size);
+		}
 		break;
 
 	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
+
 		_GFX_KEY_PUSH(*createInfo);
+		const VkGraphicsPipelineCreateInfo* gpci =
+			(const VkGraphicsPipelineCreateInfo*)createInfo;
+
+		// Ignore the pNext field.
+		_GFX_KEY_PUSH(gpci->flags);
+		_GFX_KEY_PUSH(gpci->stageCount);
+
+		for (size_t i = 0; i < gpci->stageCount; ++i)
+		{
+			const VkPipelineShaderStageCreateInfo* pssci = gpci->pStages + i;
+			// Ignore the pNext field.
+			_GFX_KEY_PUSH(pssci->flags);
+			_GFX_KEY_PUSH(pssci->stage);
+			_GFX_KEY_PUSH_HANDLE();
+			// Ignore the entry point name.
+
+			if (pssci->pSpecializationInfo != NULL)
+			{
+				const VkSpecializationInfo* si = pssci->pSpecializationInfo;
+				_GFX_KEY_PUSH(si->mapEntryCount);
+
+				for (size_t e = 0; e < si->mapEntryCount; ++e)
+				{
+					_GFX_KEY_PUSH(si->pMapEntries[i].constantID);
+					_GFX_KEY_PUSH(si->pMapEntries[i].offset);
+					_GFX_KEY_PUSH(si->pMapEntries[i].size);
+				}
+
+				_GFX_KEY_PUSH(si->dataSize);
+
+				if (!gfx_vec_push(&out, si->dataSize, si->pData))
+					goto clean;
+			}
+		}
+
+		const VkPipelineVertexInputStateCreateInfo* pvisci = gpci->pVertexInputState;
+		// Ignore the pNext field.
+		_GFX_KEY_PUSH(pvisci->flags);
+		_GFX_KEY_PUSH(pvisci->vertexBindingDescriptionCount);
+
+		for (size_t i = 0; i < pvisci->vertexBindingDescriptionCount; ++i)
+		{
+			const VkVertexInputBindingDescription* vibd =
+				pvisci->pVertexBindingDescriptions + i;
+
+			_GFX_KEY_PUSH(vibd->binding);
+			_GFX_KEY_PUSH(vibd->stride);
+			_GFX_KEY_PUSH(vibd->inputRate);
+		}
+
+		_GFX_KEY_PUSH(pvisci->vertexAttributeDescriptionCount);
+
+		for (size_t i = 0; i < pvisci->vertexAttributeDescriptionCount; ++i)
+		{
+			const VkVertexInputAttributeDescription* viad =
+				pvisci->pVertexAttributeDescriptions + i;
+
+			_GFX_KEY_PUSH(viad->location);
+			_GFX_KEY_PUSH(viad->binding);
+			_GFX_KEY_PUSH(viad->format);
+			_GFX_KEY_PUSH(viad->offset);
+		}
+
+		const VkPipelineInputAssemblyStateCreateInfo* piasci = gpci->pInputAssemblyState;
+		// Ignore the pNext field.
+		_GFX_KEY_PUSH(piasci->flags);
+		_GFX_KEY_PUSH(piasci->topology);
+		_GFX_KEY_PUSH(piasci->primitiveRestartEnable);
+
+		// TODO: Continue implementing.
 		break;
 
 	case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO:
+
 		_GFX_KEY_PUSH(*createInfo);
 		break;
 
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
+
 		_GFX_KEY_PUSH(*createInfo);
 		break;
 
 	default:
-		break;
+		goto clean;
 	}
 
 	// Claim data, set length & return.
