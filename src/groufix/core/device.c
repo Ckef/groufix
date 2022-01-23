@@ -763,8 +763,11 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CmdDrawIndexed);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdEndRenderPass);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdPipelineBarrier);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdSetViewport);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdSetScissor);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateComputePipelines);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateDescriptorPool);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateDescriptorSetLayout);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateFence);

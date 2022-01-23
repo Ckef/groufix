@@ -73,6 +73,14 @@ GFX_API int gfx_vec_reserve(GFXVec* vec, size_t numElems);
 GFX_API void gfx_vec_release(GFXVec* vec);
 
 /**
+ * Claims ownership over the data of a vector.
+ * The vector itself will act as if gfx_vec_clear() has been called.
+ * @param vec Cannot be NULL.
+ * @return Data previously owned by vec, must call free() if not NULL.
+ */
+GFX_API void* gfx_vec_claim(GFXVec* vec);
+
+/**
  * Pushes elements to the end of a vector.
  * @param vec      Cannot be NULL.
  * @param numElems Must be > 0.

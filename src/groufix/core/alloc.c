@@ -615,7 +615,7 @@ try_search:
 	{
 		// We want to preserve memory to the right,
 		// so just update the node's key in the free tree.
-		VkDeviceSize rKey[2] = { rSize, rOffset };
+		const VkDeviceSize rKey[2] = { rSize, rOffset };
 		gfx_tree_update(&block->nodes.free, node, rKey);
 	}
 

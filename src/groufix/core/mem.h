@@ -11,9 +11,14 @@
 #define _GFX_CORE_MEM_H
 
 #include "groufix/containers/list.h"
+#include "groufix/containers/map.h"
 #include "groufix/containers/tree.h"
 #include "groufix/core.h"
 
+
+/****************************
+ * Vulkan memory management.
+ ****************************/
 
 /**
  * Memory block (i.e. Vulkan memory object to be subdivided).
@@ -117,10 +122,6 @@ typedef struct _GFXAllocator
 } _GFXAllocator;
 
 
-/****************************
- * Vulkan memory management.
- ****************************/
-
 /**
  * Initializes an allocator.
  * @param alloc  Cannot be NULL.
@@ -199,6 +200,134 @@ void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem);
  * This function is reentrant!
  */
 void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem);
+
+
+/****************************
+ * Vulkan object cache.
+ ****************************/
+
+/**
+ * Cached element (i.e. cachable Vulkan object).
+ */
+typedef struct _GFXCacheElem
+{
+	// Input structure type.
+	VkStructureType type;
+
+
+	// Output Vulkan object.
+	union
+	{
+		VkDescriptorSetLayout setLayout;
+		VkPipelineLayout      layout;
+		VkPipeline            pipeline;
+		VkSampler             sampler;
+	};
+
+} _GFXCacheElem;
+
+
+/**
+ * Vulkan object cache definition.
+ */
+typedef struct _GFXCache
+{
+	_GFXContext* context;
+
+	GFXMap immutable; // Stores { size_t, char[] } : _GFXCacheElem.
+	GFXMap mutable;   // Stores { size_t, char[] } : _GFXCacheElem.
+
+	_GFXMutex lookupLock;
+	_GFXMutex createLock;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkPipelineCache cache;
+
+	} vk;
+
+} _GFXCache;
+
+
+// TODO: Add functions to load/store/merge the Vulkan pipeline cache.
+
+/**
+ * Initializes a cache.
+ * @param cache  Cannot be NULL.
+ * @param device Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * _gfx_device_init_context must have returned successfully at least once
+ * for the given device.
+ */
+int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device);
+
+/**
+ * Clears a cache, destroying all objects.
+ * @param cache Cannot be NULL.
+ */
+void _gfx_cache_clear(_GFXCache* cache);
+
+/**
+ * Flushes all elements in the mutable cache to the immutable cache.
+ * @param cache Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * Not thread-safe at all.
+ */
+int _gfx_cache_flush(_GFXCache* cache);
+
+/**
+ * Warms up the immutable cache (i.e. inserts an element in it).
+ * Input is a Vk*CreateInfo struct with replace handles for non-hashable fields.
+ * @param cache      Cannot be NULL.
+ * @param createInfo A pointer to a Vk*CreateInfo struct, cannot be NULL.
+ * @param handles    Must match the non-hashable field count of createInfo.
+ * @return Non-zero on success.
+ *
+ * This function is reentrant!
+ * However, cannot run concurrently with _gfx_cache_get (or other calls).
+ *
+ * The following Vk*CreateInfo structs can be passed,
+ * fields ignored by Vulkan must still be passed in for proper caching!
+ * Listed is the required number of handles to be passed, in order:
+ *
+ *  VkDescriptorSetLayoutCreateInfo:
+ *   1 for each immutable sampler.
+ *
+ *  VkPipelineLayoutCreateInfo:
+ *   1 for each descriptor set layout.
+ *
+ *  VkGraphicsPipelineCreateInfo:
+ *   1 for each shader module.
+ *   1 for the pipeline layout.
+ *   1 for the compatible render pass (compatibility is not resolved!).
+ *
+ *  VkComputePipelineCreateInfo:
+ *   1 for the shader module.
+ *   1 for the pipeline layout.
+ *
+ *  VkSamplerCreateInfo:
+ *   None.
+ */
+int _gfx_cache_warmup(_GFXCache* cache,
+                      const VkStructureType* createInfo,
+                      const void** handles);
+
+/**
+ * Retrieves an element from the cache.
+ * If none found, inserts a new element in the mutable cache.
+ * @see _gfx_cache_warmup.
+ * @return NULL on failure.
+ *
+ * This function is reentrant!
+ * However, cannot run concurrently with _gfx_cache_warmup (or other calls).
+ */
+_GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
+                              const VkStructureType* createInfo,
+                              const void** handles);
 
 
 #endif
