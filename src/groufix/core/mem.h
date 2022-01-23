@@ -291,7 +291,8 @@ int _gfx_cache_flush(_GFXCache* cache);
  * However, cannot run concurrently with _gfx_cache_get (or other calls).
  *
  * The following Vk*CreateInfo structs can be passed,
- * including the required number of handles to be passed, in order:
+ * fields ignored by Vulkan must still be passed in for proper caching!
+ * Listed is the required number of handles to be passed, in order:
  *
  *  VkDescriptorSetLayoutCreateInfo:
  *   1 for each immutable sampler.

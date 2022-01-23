@@ -68,9 +68,7 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 	// TODO: They do not all have to depend on the render pass, to optimize..
 	if (flags & (_GFX_REFORMAT | _GFX_RESIZE))
 	{
-		context->vk.DestroyPipeline(
-			context->vk.device, pass->vk.pipeline, NULL);
-
+		// Pipelines are cached, so we can just forget the last one.
 		pass->vk.pipeline = VK_NULL_HANDLE;
 	}
 }
@@ -230,7 +228,6 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 	}
 
 	// Create descriptor set layout.
-	// TODO: Will be cached.
 	// TODO: Do NOT use combined image samplers, share samplers between images.
 	if (pass->vk.setLayout == VK_NULL_HANDLE)
 	{
@@ -257,8 +254,11 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			}
 		};
 
-		_GFX_VK_CHECK(context->vk.CreateDescriptorSetLayout(
-			context->vk.device, &dslci, NULL, &pass->vk.setLayout), goto error);
+		_GFXCacheElem* elem =
+			_gfx_cache_get(&rend->cache, &dslci.sType, NULL);
+
+		if (elem == NULL) goto error;
+		pass->vk.setLayout = elem->setLayout;
 	}
 
 	// Create descriptor pool.
@@ -287,7 +287,6 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 	}
 
 	// Create sampler.
-	// TODO: Somehow get this from renderables, cached?.
 	if (pass->vk.sampler == VK_NULL_HANDLE)
 	{
 		VkSamplerCreateInfo sci = {
@@ -313,8 +312,11 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.unnormalizedCoordinates = VK_FALSE
 		};
 
-		_GFX_VK_CHECK(context->vk.CreateSampler(
-			context->vk.device, &sci, NULL, &pass->vk.sampler), goto error);
+		_GFXCacheElem* elem =
+			_gfx_cache_get(&rend->cache, &sci.sType, NULL);
+
+		if (elem == NULL) goto error;
+		pass->vk.sampler = elem->sampler;
 	}
 
 	// Create image view.
@@ -425,7 +427,6 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 	}
 
 	// Create pipeline layout.
-	// TODO: Will be cached.
 	if (pass->vk.pipeLayout == VK_NULL_HANDLE)
 	{
 		VkPipelineLayoutCreateInfo plci = {
@@ -439,12 +440,17 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.pPushConstantRanges    = NULL
 		};
 
-		_GFX_VK_CHECK(context->vk.CreatePipelineLayout(
-			context->vk.device, &plci, NULL, &pass->vk.pipeLayout), goto error);
+		_GFXCacheElem* elem = _gfx_cache_get(
+			&rend->cache, &plci.sType, (const void*[]){
+				// TODO: Should be the _GFXCacheElem*.
+				&pass->vk.setLayout
+			});
+
+		if (elem == NULL) goto error;
+		pass->vk.pipeLayout = elem->layout;
 	}
 
 	// Create pipeline.
-	// TODO: Will be cached.
 	if (pass->vk.pipeline == VK_NULL_HANDLE)
 	{
 		// Pipeline shader stages.
@@ -511,32 +517,15 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 		};
 
 		// Pipeline viewport state.
-		VkViewport viewport = {
-			.x        = 0.0f,
-			.y        = 0.0f,
-			.width    = (float)at->window.window->frame.width,
-			.height   = (float)at->window.window->frame.height,
-			.minDepth = 0.0f,
-			.maxDepth = 1.0f
-		};
-
-		VkRect2D scissor = {
-			.offset = { 0, 0 },
-			.extent = {
-				at->window.window->frame.width,
-				at->window.window->frame.height
-			}
-		};
-
 		VkPipelineViewportStateCreateInfo pvsci = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
 
 			.pNext         = NULL,
 			.flags         = 0,
 			.viewportCount = 1,
-			.pViewports    = &viewport,
+			.pViewports    = NULL,
 			.scissorCount  = 1,
-			.pScissors     = &scissor
+			.pScissors     = NULL
 		};
 
 		// Pipeline rasterization state.
@@ -599,6 +588,21 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.blendConstants  = { 0.0f, 0.0f, 0.0f, 0.0f }
 		};
 
+		// Pipeline dynamic state.
+		VkDynamicState dStates[] = {
+			VK_DYNAMIC_STATE_VIEWPORT,
+			VK_DYNAMIC_STATE_SCISSOR
+		};
+
+		VkPipelineDynamicStateCreateInfo pdsci = {
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+
+			.pNext             = NULL,
+			.flags             = 0,
+			.dynamicStateCount = 2,
+			.pDynamicStates    = dStates
+		};
+
 		// Finally create graphics pipeline.
 		VkGraphicsPipelineCreateInfo gpci = {
 			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -615,7 +619,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.pMultisampleState   = &pmsci,
 			.pDepthStencilState  = NULL,
 			.pColorBlendState    = &pcbsci,
-			.pDynamicState       = NULL,
+			.pDynamicState       = &pdsci,
 			.layout              = pass->vk.pipeLayout,
 			.renderPass          = pass->vk.pass,
 			.subpass             = 0,
@@ -623,12 +627,17 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.basePipelineIndex   = 0
 		};
 
-		_GFX_VK_CHECK(
-			context->vk.CreateGraphicsPipelines(
-				context->vk.device,
-				VK_NULL_HANDLE,
-				1, &gpci, NULL, &pass->vk.pipeline),
-			goto error);
+		_GFXCacheElem* elem = _gfx_cache_get(
+			&rend->cache, &gpci.sType, (const void*[]){
+				pass->build.vertex,
+				pass->build.fragment,
+				// TODO: Should be the _GFXCacheElem*.
+				&pass->vk.pipeLayout,
+				&pass->vk.pass
+			});
+
+		if (elem == NULL) goto error;
+		pass->vk.pipeline = elem->pipeline;
 	}
 
 	return 1;
@@ -805,20 +814,11 @@ void _gfx_pass_destruct(GFXPass* pass)
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
 
 	// Destroy all non-partial things too.
-	context->vk.DestroyDescriptorSetLayout(
-		context->vk.device, pass->vk.setLayout, NULL);
-
 	context->vk.DestroyDescriptorPool(
 		context->vk.device, pass->vk.pool, NULL);
 
-	context->vk.DestroySampler(
-		context->vk.device, pass->vk.sampler, NULL);
-
 	context->vk.DestroyImageView(
 		context->vk.device, pass->vk.view, NULL);
-
-	context->vk.DestroyPipelineLayout(
-		context->vk.device, pass->vk.pipeLayout, NULL);
 
 	pass->vk.setLayout = VK_NULL_HANDLE;
 	pass->vk.pool = VK_NULL_HANDLE;

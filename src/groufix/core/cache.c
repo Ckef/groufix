@@ -296,23 +296,25 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			// Ignore viewport state flags.
 			_GFX_KEY_PUSH(pvsci->viewportCount);
 
-			for (size_t v = 0; v < pvsci->viewportCount; ++v)
-			{
-				_GFX_KEY_PUSH(pvsci->pViewports[v].x);
-				_GFX_KEY_PUSH(pvsci->pViewports[v].y);
-				_GFX_KEY_PUSH(pvsci->pViewports[v].width);
-				_GFX_KEY_PUSH(pvsci->pViewports[v].height);
-				_GFX_KEY_PUSH(pvsci->pViewports[v].minDepth);
-				_GFX_KEY_PUSH(pvsci->pViewports[v].maxDepth);
-			}
+			if (pvsci->pViewports != NULL)
+				for (size_t v = 0; v < pvsci->viewportCount; ++v)
+				{
+					_GFX_KEY_PUSH(pvsci->pViewports[v].x);
+					_GFX_KEY_PUSH(pvsci->pViewports[v].y);
+					_GFX_KEY_PUSH(pvsci->pViewports[v].width);
+					_GFX_KEY_PUSH(pvsci->pViewports[v].height);
+					_GFX_KEY_PUSH(pvsci->pViewports[v].minDepth);
+					_GFX_KEY_PUSH(pvsci->pViewports[v].maxDepth);
+				}
 
 			_GFX_KEY_PUSH(pvsci->scissorCount);
 
-			for (size_t s = 0; s < pvsci->scissorCount; ++s)
-			{
-				_GFX_KEY_PUSH(pvsci->pScissors[s].offset);
-				_GFX_KEY_PUSH(pvsci->pScissors[s].extent);
-			}
+			if (pvsci->pScissors != NULL)
+				for (size_t s = 0; s < pvsci->scissorCount; ++s)
+				{
+					_GFX_KEY_PUSH(pvsci->pScissors[s].offset);
+					_GFX_KEY_PUSH(pvsci->pScissors[s].extent);
+				}
 		}
 
 		const VkPipelineRasterizationStateCreateInfo* prsci = gpci->pRasterizationState;
@@ -456,6 +458,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		_GFX_KEY_PUSH(sci->anisotropyEnable);
 		_GFX_KEY_PUSH(sci->maxAnisotropy);
 		_GFX_KEY_PUSH(sci->compareEnable);
+		_GFX_KEY_PUSH(sci->compareOp);
 		_GFX_KEY_PUSH(sci->minLod);
 		_GFX_KEY_PUSH(sci->maxLod);
 		_GFX_KEY_PUSH(sci->borderColor);

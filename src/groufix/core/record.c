@@ -50,6 +50,23 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	// Gather all necessary render pass info to record.
 	// This assumes the buffer is already in the recording state!
 	// TODO: Define public GFXRenderArea with a GFXSizeClass?
+	VkViewport viewport = {
+		.x        = 0.0f,
+		.y        = 0.0f,
+		.width    = (float)sync->window->frame.width,
+		.height   = (float)sync->window->frame.height,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
+
+	VkRect2D scissor = {
+		.offset = { 0, 0 },
+		.extent = {
+			sync->window->frame.width,
+			sync->window->frame.height
+		}
+	};
+
 	VkClearValue clear = {
 		.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
 	};
@@ -62,14 +79,12 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 		.framebuffer     = framebuffer,
 		.clearValueCount = 1,
 		.pClearValues    = &clear,
-		.renderArea      = {
-			.offset = { 0, 0 },
-			.extent = {
-				sync->window->frame.width,
-				sync->window->frame.height
-			}
-		}
+		.renderArea      = scissor
 	};
+
+	// Set viewport & scissor.
+	context->vk.CmdSetViewport(frame->vk.cmd, 0, 1, &viewport);
+	context->vk.CmdSetScissor(frame->vk.cmd, 0, 1, &scissor);
 
 	// Begin render pass, bind pipeline & descriptor sets.
 	context->vk.CmdBeginRenderPass(
