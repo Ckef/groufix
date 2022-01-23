@@ -154,7 +154,9 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 	// Based on type, push all the to-be-hashed data.
 	// Here we try to minimize the data actually necessary to specify
 	// a unique cache object, so everything will be packed tightly.
-	// Note we do not push any structure types except for the global one.
+	// The elements of the Vk*CreateInfo struct will be pushed linearly,
+	// such as the specs say, to avoid confusion.
+	// Note we do not push any VkStructureType fields except for the main one.
 	// Plus we insert the given handles for fields we cannot hash.
 	size_t currHandle = 0;
 
@@ -170,9 +172,9 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		_GFX_KEY_PUSH(dslci->flags);
 		_GFX_KEY_PUSH(dslci->bindingCount);
 
-		for (size_t i = 0; i < dslci->bindingCount; ++i)
+		for (size_t b = 0; b < dslci->bindingCount; ++b)
 		{
-			const VkDescriptorSetLayoutBinding* dslb = dslci->pBindings + i;
+			const VkDescriptorSetLayoutBinding* dslb = dslci->pBindings + b;
 			_GFX_KEY_PUSH(dslb->binding);
 			_GFX_KEY_PUSH(dslb->descriptorType);
 			_GFX_KEY_PUSH(dslb->descriptorCount);
@@ -194,17 +196,16 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		// Ignore pipeline layout flags.
 		_GFX_KEY_PUSH(plci->setLayoutCount);
 
-		for (size_t i = 0; i < plci->setLayoutCount; ++i)
+		for (size_t s = 0; s < plci->setLayoutCount; ++s)
 			_GFX_KEY_PUSH_HANDLE();
 
 		_GFX_KEY_PUSH(plci->pushConstantRangeCount);
 
-		for (size_t i = 0; i < plci->pushConstantRangeCount; ++i)
+		for (size_t p = 0; p < plci->pushConstantRangeCount; ++p)
 		{
-			const VkPushConstantRange* pcr = plci->pPushConstantRanges + i;
-			_GFX_KEY_PUSH(pcr->stageFlags);
-			_GFX_KEY_PUSH(pcr->offset);
-			_GFX_KEY_PUSH(pcr->size);
+			_GFX_KEY_PUSH(plci->pPushConstantRanges[p].stageFlags);
+			_GFX_KEY_PUSH(plci->pPushConstantRanges[p].offset);
+			_GFX_KEY_PUSH(plci->pPushConstantRanges[p].size);
 		}
 		break;
 
@@ -218,11 +219,11 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		_GFX_KEY_PUSH(gpci->flags);
 		_GFX_KEY_PUSH(gpci->stageCount);
 
-		for (size_t i = 0; i < gpci->stageCount; ++i)
+		for (size_t s = 0; s < gpci->stageCount; ++s)
 		{
-			const VkPipelineShaderStageCreateInfo* pssci = gpci->pStages + i;
+			const VkPipelineShaderStageCreateInfo* pssci = gpci->pStages + s;
 			// Ignore the pNext field.
-			_GFX_KEY_PUSH(pssci->flags);
+			// Ignore shader stage flags.
 			_GFX_KEY_PUSH(pssci->stage);
 			_GFX_KEY_PUSH_HANDLE();
 			// Ignore the entry point name.
@@ -234,9 +235,9 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 				for (size_t e = 0; e < si->mapEntryCount; ++e)
 				{
-					_GFX_KEY_PUSH(si->pMapEntries[i].constantID);
-					_GFX_KEY_PUSH(si->pMapEntries[i].offset);
-					_GFX_KEY_PUSH(si->pMapEntries[i].size);
+					_GFX_KEY_PUSH(si->pMapEntries[e].constantID);
+					_GFX_KEY_PUSH(si->pMapEntries[e].offset);
+					_GFX_KEY_PUSH(si->pMapEntries[e].size);
 				}
 
 				_GFX_KEY_PUSH(si->dataSize);
@@ -248,13 +249,13 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 		const VkPipelineVertexInputStateCreateInfo* pvisci = gpci->pVertexInputState;
 		// Ignore the pNext field.
-		_GFX_KEY_PUSH(pvisci->flags);
+		// Ignore vertex input state flags.
 		_GFX_KEY_PUSH(pvisci->vertexBindingDescriptionCount);
 
-		for (size_t i = 0; i < pvisci->vertexBindingDescriptionCount; ++i)
+		for (size_t b = 0; b < pvisci->vertexBindingDescriptionCount; ++b)
 		{
 			const VkVertexInputBindingDescription* vibd =
-				pvisci->pVertexBindingDescriptions + i;
+				pvisci->pVertexBindingDescriptions + b;
 
 			_GFX_KEY_PUSH(vibd->binding);
 			_GFX_KEY_PUSH(vibd->stride);
@@ -263,10 +264,10 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 		_GFX_KEY_PUSH(pvisci->vertexAttributeDescriptionCount);
 
-		for (size_t i = 0; i < pvisci->vertexAttributeDescriptionCount; ++i)
+		for (size_t a = 0; a < pvisci->vertexAttributeDescriptionCount; ++a)
 		{
 			const VkVertexInputAttributeDescription* viad =
-				pvisci->pVertexAttributeDescriptions + i;
+				pvisci->pVertexAttributeDescriptions + a;
 
 			_GFX_KEY_PUSH(viad->location);
 			_GFX_KEY_PUSH(viad->binding);
@@ -276,21 +277,189 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 		const VkPipelineInputAssemblyStateCreateInfo* piasci = gpci->pInputAssemblyState;
 		// Ignore the pNext field.
-		_GFX_KEY_PUSH(piasci->flags);
+		// Ignore input assembly state flags.
 		_GFX_KEY_PUSH(piasci->topology);
 		_GFX_KEY_PUSH(piasci->primitiveRestartEnable);
 
-		// TODO: Continue implementing.
+		if (gpci->pTessellationState != NULL)
+		{
+			const VkPipelineTessellationStateCreateInfo* ptsci = gpci->pTessellationState;
+			// Ignore the pNext field.
+			// Ignore tessellation state flags.
+			_GFX_KEY_PUSH(ptsci->patchControlPoints);
+		}
+
+		if (gpci->pViewportState != NULL)
+		{
+			const VkPipelineViewportStateCreateInfo* pvsci = gpci->pViewportState;
+			// Ignore the pNext field.
+			// Ignore viewport state flags.
+			_GFX_KEY_PUSH(pvsci->viewportCount);
+
+			for (size_t v = 0; v < pvsci->viewportCount; ++v)
+			{
+				_GFX_KEY_PUSH(pvsci->pViewports[v].x);
+				_GFX_KEY_PUSH(pvsci->pViewports[v].y);
+				_GFX_KEY_PUSH(pvsci->pViewports[v].width);
+				_GFX_KEY_PUSH(pvsci->pViewports[v].height);
+				_GFX_KEY_PUSH(pvsci->pViewports[v].minDepth);
+				_GFX_KEY_PUSH(pvsci->pViewports[v].maxDepth);
+			}
+
+			_GFX_KEY_PUSH(pvsci->scissorCount);
+
+			for (size_t s = 0; s < pvsci->scissorCount; ++s)
+			{
+				_GFX_KEY_PUSH(pvsci->pScissors[s].offset);
+				_GFX_KEY_PUSH(pvsci->pScissors[s].extent);
+			}
+		}
+
+		const VkPipelineRasterizationStateCreateInfo* prsci = gpci->pRasterizationState;
+		// Ignore the pNext field.
+		// Ignore rasterization state flags.
+		_GFX_KEY_PUSH(prsci->depthClampEnable);
+		_GFX_KEY_PUSH(prsci->rasterizerDiscardEnable);
+		_GFX_KEY_PUSH(prsci->polygonMode);
+		_GFX_KEY_PUSH(prsci->cullMode);
+		_GFX_KEY_PUSH(prsci->frontFace);
+		_GFX_KEY_PUSH(prsci->depthBiasEnable);
+		_GFX_KEY_PUSH(prsci->depthBiasConstantFactor);
+		_GFX_KEY_PUSH(prsci->depthBiasClamp);
+		_GFX_KEY_PUSH(prsci->depthBiasSlopeFactor);
+		_GFX_KEY_PUSH(prsci->lineWidth);
+
+		if (gpci->pMultisampleState != NULL)
+		{
+			const VkPipelineMultisampleStateCreateInfo* pmsci = gpci->pMultisampleState;
+			// Ignore the pNext field.
+			// Ignore multisample state flags.
+			_GFX_KEY_PUSH(pmsci->rasterizationSamples);
+			_GFX_KEY_PUSH(pmsci->sampleShadingEnable);
+			_GFX_KEY_PUSH(pmsci->minSampleShading);
+			// Ignore sample masks.
+			_GFX_KEY_PUSH(pmsci->alphaToCoverageEnable);
+			_GFX_KEY_PUSH(pmsci->alphaToOneEnable);
+		}
+
+		if (gpci->pDepthStencilState != NULL)
+		{
+			const VkPipelineDepthStencilStateCreateInfo* pdssci = gpci->pDepthStencilState;
+			// Ignore the pNext field.
+			// Ignore depth stencil state flags.
+			_GFX_KEY_PUSH(pdssci->depthTestEnable);
+			_GFX_KEY_PUSH(pdssci->depthWriteEnable);
+			_GFX_KEY_PUSH(pdssci->depthCompareOp);
+			_GFX_KEY_PUSH(pdssci->depthBoundsTestEnable);
+			_GFX_KEY_PUSH(pdssci->stencilTestEnable);
+			_GFX_KEY_PUSH(pdssci->front);
+			_GFX_KEY_PUSH(pdssci->back);
+			_GFX_KEY_PUSH(pdssci->minDepthBounds);
+			_GFX_KEY_PUSH(pdssci->maxDepthBounds);
+		}
+
+		if (gpci->pColorBlendState != NULL)
+		{
+			const VkPipelineColorBlendStateCreateInfo* pcbsci = gpci->pColorBlendState;
+			// Ignore the pNext field.
+			// Ignore color blend state flags.
+			_GFX_KEY_PUSH(pcbsci->logicOpEnable);
+			_GFX_KEY_PUSH(pcbsci->logicOp);
+			_GFX_KEY_PUSH(pcbsci->attachmentCount);
+
+			for (size_t a = 0; a < pcbsci->attachmentCount; ++a)
+			{
+				_GFX_KEY_PUSH(pcbsci->pAttachments[a].blendEnable);
+				_GFX_KEY_PUSH(pcbsci->pAttachments[a].srcColorBlendFactor);
+				_GFX_KEY_PUSH(pcbsci->pAttachments[a].dstColorBlendFactor);
+				_GFX_KEY_PUSH(pcbsci->pAttachments[a].colorBlendOp);
+				_GFX_KEY_PUSH(pcbsci->pAttachments[a].srcAlphaBlendFactor);
+				_GFX_KEY_PUSH(pcbsci->pAttachments[a].dstAlphaBlendFactor);
+				_GFX_KEY_PUSH(pcbsci->pAttachments[a].alphaBlendOp);
+				_GFX_KEY_PUSH(pcbsci->pAttachments[a].colorWriteMask);
+			}
+
+			if (!gfx_vec_push(&out, sizeof(pcbsci->blendConstants), pcbsci->blendConstants))
+				goto clean;
+		}
+
+		if (gpci->pDynamicState != NULL)
+		{
+			const VkPipelineDynamicStateCreateInfo* pdsci = gpci->pDynamicState;
+			// Ignore the pNext field.
+			// Ignore dynamic state flags.
+			_GFX_KEY_PUSH(pdsci->dynamicStateCount);
+
+			for (size_t d = 0; d < pdsci->dynamicStateCount; ++d)
+				_GFX_KEY_PUSH(pdsci->pDynamicStates[d]);
+		}
+
+		_GFX_KEY_PUSH_HANDLE();
+		_GFX_KEY_PUSH_HANDLE();
+		_GFX_KEY_PUSH(gpci->subpass);
+		// Ignore base pipeline.
+		// Ignore pipeline index.
 		break;
 
 	case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO:
 
 		_GFX_KEY_PUSH(*createInfo);
+		const VkComputePipelineCreateInfo* cpci =
+			(const VkComputePipelineCreateInfo*)createInfo;
+
+		// Ignore the pNext field.
+		_GFX_KEY_PUSH(cpci->flags);
+		// Ignore the pNext field.
+		// Ignore shader stage flags.
+		_GFX_KEY_PUSH(cpci->stage.stage);
+		_GFX_KEY_PUSH_HANDLE();
+		// Ignore the entry point name.
+
+		if (cpci->stage.pSpecializationInfo != NULL)
+		{
+			const VkSpecializationInfo* si = cpci->stage.pSpecializationInfo;
+			_GFX_KEY_PUSH(si->mapEntryCount);
+
+			for (size_t e = 0; e < si->mapEntryCount; ++e)
+			{
+				_GFX_KEY_PUSH(si->pMapEntries[e].constantID);
+				_GFX_KEY_PUSH(si->pMapEntries[e].offset);
+				_GFX_KEY_PUSH(si->pMapEntries[e].size);
+			}
+
+			_GFX_KEY_PUSH(si->dataSize);
+
+			if (!gfx_vec_push(&out, si->dataSize, si->pData))
+				goto clean;
+		}
+
+		_GFX_KEY_PUSH_HANDLE();
+		// Ignore base pipeline.
+		// Ignore pipeline index.
 		break;
 
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
 
 		_GFX_KEY_PUSH(*createInfo);
+		const VkSamplerCreateInfo* sci =
+			(const VkSamplerCreateInfo*)createInfo;
+
+		// Ignore the pNext field.
+		// Ignore sampler flags.
+		_GFX_KEY_PUSH(sci->magFilter);
+		_GFX_KEY_PUSH(sci->minFilter);
+		_GFX_KEY_PUSH(sci->mipmapMode);
+		_GFX_KEY_PUSH(sci->addressModeU);
+		_GFX_KEY_PUSH(sci->addressModeV);
+		_GFX_KEY_PUSH(sci->addressModeW);
+		_GFX_KEY_PUSH(sci->mipLodBias);
+		_GFX_KEY_PUSH(sci->anisotropyEnable);
+		_GFX_KEY_PUSH(sci->maxAnisotropy);
+		_GFX_KEY_PUSH(sci->compareEnable);
+		_GFX_KEY_PUSH(sci->minLod);
+		_GFX_KEY_PUSH(sci->maxLod);
+		_GFX_KEY_PUSH(sci->borderColor);
+		_GFX_KEY_PUSH(sci->unnormalizedCoordinates);
 		break;
 
 	default:

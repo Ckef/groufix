@@ -291,22 +291,25 @@ int _gfx_cache_flush(_GFXCache* cache);
  * However, cannot run concurrently with _gfx_cache_get (or other calls).
  *
  * The following Vk*CreateInfo structs can be passed,
- * including the required number of handles to be passed:
+ * including the required number of handles to be passed, in order:
  *
- * VkDescriptorSetLayoutCreateInfo:
- *  1 for each immutable sampler.
+ *  VkDescriptorSetLayoutCreateInfo:
+ *   1 for each immutable sampler.
  *
- * VkPipelineLayoutCreateInfo:
- *  1 for each descriptor set layout.
+ *  VkPipelineLayoutCreateInfo:
+ *   1 for each descriptor set layout.
  *
- * VkGraphicsPipelineCreateInfo:
- *  1 for each shader module.
+ *  VkGraphicsPipelineCreateInfo:
+ *   1 for each shader module.
+ *   1 for the pipeline layout.
+ *   1 for the compatible render pass (compatibility is not resolved!).
  *
- * VkComputePipelineCreateInfo:
- *  None.
+ *  VkComputePipelineCreateInfo:
+ *   1 for the shader module.
+ *   1 for the pipeline layout.
  *
- * VkSamplerCreateInfo:
- *  None.
+ *  VkSamplerCreateInfo:
+ *   None.
  */
 int _gfx_cache_warmup(_GFXCache* cache,
                       const VkStructureType* createInfo,
