@@ -170,7 +170,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 		// Ignore the pNext field.
 		_GFX_KEY_PUSH(dslci->flags);
-		_GFX_KEY_PUSH(dslci->bindingCount);
+		// Ignore binding count.
 
 		for (size_t b = 0; b < dslci->bindingCount; ++b)
 		{
@@ -194,12 +194,12 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 		// Ignore the pNext field.
 		// Ignore pipeline layout flags.
-		_GFX_KEY_PUSH(plci->setLayoutCount);
+		// Ignore set layout count.
 
 		for (size_t s = 0; s < plci->setLayoutCount; ++s)
 			_GFX_KEY_PUSH_HANDLE();
 
-		_GFX_KEY_PUSH(plci->pushConstantRangeCount);
+		// Ignore push constant range count.
 
 		for (size_t p = 0; p < plci->pushConstantRangeCount; ++p)
 		{
@@ -217,7 +217,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 		// Ignore the pNext field.
 		_GFX_KEY_PUSH(gpci->flags);
-		_GFX_KEY_PUSH(gpci->stageCount);
+		// Ignore stage count.
 
 		for (size_t s = 0; s < gpci->stageCount; ++s)
 		{
@@ -231,7 +231,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			if (pssci->pSpecializationInfo != NULL)
 			{
 				const VkSpecializationInfo* si = pssci->pSpecializationInfo;
-				_GFX_KEY_PUSH(si->mapEntryCount);
+				// Ignore map entry count.
 
 				for (size_t e = 0; e < si->mapEntryCount; ++e)
 				{
@@ -240,7 +240,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 					_GFX_KEY_PUSH(si->pMapEntries[e].size);
 				}
 
-				_GFX_KEY_PUSH(si->dataSize);
+				// Ignore data size.
 
 				if (!gfx_vec_push(&out, si->dataSize, si->pData))
 					goto clean;
@@ -250,7 +250,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		const VkPipelineVertexInputStateCreateInfo* pvisci = gpci->pVertexInputState;
 		// Ignore the pNext field.
 		// Ignore vertex input state flags.
-		_GFX_KEY_PUSH(pvisci->vertexBindingDescriptionCount);
+		// Ignore vertex binding description count.
 
 		for (size_t b = 0; b < pvisci->vertexBindingDescriptionCount; ++b)
 		{
@@ -262,7 +262,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(vibd->inputRate);
 		}
 
-		_GFX_KEY_PUSH(pvisci->vertexAttributeDescriptionCount);
+		// Ignore vertex attribute description count.
 
 		for (size_t a = 0; a < pvisci->vertexAttributeDescriptionCount; ++a)
 		{
@@ -367,7 +367,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			// Ignore color blend state flags.
 			_GFX_KEY_PUSH(pcbsci->logicOpEnable);
 			_GFX_KEY_PUSH(pcbsci->logicOp);
-			_GFX_KEY_PUSH(pcbsci->attachmentCount);
+			// Ignore attachment count.
 
 			for (size_t a = 0; a < pcbsci->attachmentCount; ++a)
 			{
@@ -390,7 +390,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			const VkPipelineDynamicStateCreateInfo* pdsci = gpci->pDynamicState;
 			// Ignore the pNext field.
 			// Ignore dynamic state flags.
-			_GFX_KEY_PUSH(pdsci->dynamicStateCount);
+			// Ignore dynamic state count.
 
 			for (size_t d = 0; d < pdsci->dynamicStateCount; ++d)
 				_GFX_KEY_PUSH(pdsci->pDynamicStates[d]);
@@ -420,7 +420,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		if (cpci->stage.pSpecializationInfo != NULL)
 		{
 			const VkSpecializationInfo* si = cpci->stage.pSpecializationInfo;
-			_GFX_KEY_PUSH(si->mapEntryCount);
+			// Ignore map entry count.
 
 			for (size_t e = 0; e < si->mapEntryCount; ++e)
 			{
@@ -429,7 +429,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 				_GFX_KEY_PUSH(si->pMapEntries[e].size);
 			}
 
-			_GFX_KEY_PUSH(si->dataSize);
+			// Ignore data size.
 
 			if (!gfx_vec_push(&out, si->dataSize, si->pData))
 				goto clean;

@@ -61,14 +61,9 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 			context->vk.device, pass->vk.pass, NULL);
 
 		pass->vk.pass = VK_NULL_HANDLE;
-	}
 
-	// Lastly we recreate all things that depend on a size.
-	// They also depend on the render pass so we check for a reformat too.
-	// TODO: They do not all have to depend on the render pass, to optimize..
-	if (flags & (_GFX_REFORMAT | _GFX_RESIZE))
-	{
-		// Pipelines are cached, so we can just forget the last one.
+		// The pipeline must be compatible with the render pass,
+		// so forget about the current one.
 		pass->vk.pipeline = VK_NULL_HANDLE;
 	}
 }
