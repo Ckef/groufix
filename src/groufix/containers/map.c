@@ -124,7 +124,6 @@ GFX_API void gfx_map_init(GFXMap* map, size_t elemSize, size_t align,
                           int (*cmp)(const void*, const void*))
 {
 	assert(map != NULL);
-	assert(elemSize > 0);
 	assert(GFX_IS_POWER_OF_TWO(align));
 	assert(hash != NULL);
 	assert(cmp != NULL);
@@ -228,15 +227,6 @@ GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
 	assert(keySize > 0);
 	assert(key != NULL);
 
-	// First try to find it.
-	void* found = gfx_map_hsearch(map, key, hash);
-	if (found != NULL)
-	{
-		// When found, overwrite & return.
-		if (elem != NULL) memcpy(found, elem, map->elementSize);
-		return found;
-	}
-
 	// Allocate a new node.
 	// We allocate a _GFXMapNode appended with the element and key data,
 	// make sure to adhere to their alignment requirements!
@@ -259,7 +249,7 @@ GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
 	++map->size;
 
 	// Initialize element and key value.
-	if (elem != NULL)
+	if (map->elementSize > 0 && elem != NULL)
 		memcpy(_GFX_GET_ELEMENT(map, mNode), elem, map->elementSize);
 
 	memcpy(_GFX_GET_KEY(map, mNode), key, keySize);

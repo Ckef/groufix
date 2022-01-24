@@ -46,7 +46,7 @@ static inline const void* gfx_map_key(GFXMap* map, const void* node)
 /**
  * Initializes a map.
  * @param map      Cannot be NULL.
- * @param elemSize Must be > 0.
+ * @param elemSize Can be 0 for truly empty nodes.
  * @parma align    Must be a power of two, zero for scalar type alignment.
  * @param hash     Cannot be NULL.
  * @param cmp      Cannot be NULL.
@@ -89,8 +89,7 @@ GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes);
  *
  * All node pointers of src remain valid.
  * When any key in src is already present in the destination map,
- * _NO_ duplicate merging is performed, which means duplicates may exist
- * after this call!
+ * both nodes will be preserved, duplicates may exist after this call!
  */
 GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src);
 
@@ -103,8 +102,7 @@ GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src);
  * @return The inserted node (constant address), NULL when out of memory.
  *
  * The returned node pointer points to the modifiable element data.
- * When the key is already present in the map it is returned instead,
- * and if elem != NULL, its element value is overwritten.
+ * When the key is already present in the map, a duplicate is inserted!
  */
 GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
                              size_t keySize, const void* key);
@@ -122,6 +120,10 @@ GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
  * @param map Cannot be NULL.
  * @param key Cannot be NULL.
  * @return The found node, NULL if not found.
+ *
+ * When duplicates exist, the 'first' node is returned such that all
+ * duplicates can be found with calls to gfx_map_next, however they are not
+ * guaranteed to be returned without other nodes inbetween.
  */
 GFX_API void* gfx_map_search(GFXMap* map, const void* key);
 
