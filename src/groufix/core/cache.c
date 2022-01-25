@@ -159,6 +159,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 	// Note we do not push any VkStructureType fields except for the main one.
 	// Plus we insert the given handles for fields we cannot hash.
 	size_t currHandle = 0;
+	char temp;
 
 	switch (*createInfo)
 	{
@@ -179,6 +180,13 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(dslb->descriptorType);
 			_GFX_KEY_PUSH(dslb->descriptorCount);
 			_GFX_KEY_PUSH(dslb->stageFlags);
+
+			// Insert bool 'has immutable samplers'.
+			temp =
+				dslb->descriptorCount > 0 &&
+				dslb->pImmutableSamplers != NULL;
+
+			_GFX_KEY_PUSH(temp);
 
 			if (dslb->pImmutableSamplers != NULL)
 				for (size_t s = 0; s < dslb->descriptorCount; ++s)
@@ -255,12 +263,23 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 				_GFX_KEY_PUSH(sd->pColorAttachments[c].layout);
 			}
 
+			// Insert bool 'has resolve attachments'.
+			temp =
+				sd->colorAttachmentCount > 0 &&
+				sd->pResolveAttachments != NULL;
+
+			_GFX_KEY_PUSH(temp);
+
 			if (sd->pResolveAttachments != NULL)
 				for (size_t r = 0; r < sd->colorAttachmentCount; ++r)
 				{
 					_GFX_KEY_PUSH(sd->pResolveAttachments[r].attachment);
 					_GFX_KEY_PUSH(sd->pResolveAttachments[r].layout);
 				}
+
+			// Insert bool 'has depth stencil attachment'
+			temp = sd->pDepthStencilAttachment != NULL;
+			_GFX_KEY_PUSH(temp);
 
 			if (sd->pDepthStencilAttachment != NULL)
 			{
@@ -332,6 +351,10 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH_HANDLE();
 			// Ignore the entry point name.
 
+			// Insert bool 'has specialization info'.
+			temp = pssci->pSpecializationInfo != NULL;
+			_GFX_KEY_PUSH(temp);
+
 			if (pssci->pSpecializationInfo != NULL)
 			{
 				const VkSpecializationInfo* si = pssci->pSpecializationInfo;
@@ -346,8 +369,9 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 				_GFX_KEY_PUSH(si->dataSize);
 
-				if (!gfx_vec_push(&out, si->dataSize, si->pData))
-					goto clean;
+				if (si->dataSize > 0)
+					if (!gfx_vec_push(&out, si->dataSize, si->pData))
+						goto clean;
 			}
 		}
 
@@ -385,6 +409,10 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		_GFX_KEY_PUSH(piasci->topology);
 		_GFX_KEY_PUSH(piasci->primitiveRestartEnable);
 
+		// Insert bool 'has tessellation state'.
+		temp = gpci->pTessellationState != NULL;
+		_GFX_KEY_PUSH(temp);
+
 		if (gpci->pTessellationState != NULL)
 		{
 			const VkPipelineTessellationStateCreateInfo* ptsci = gpci->pTessellationState;
@@ -393,12 +421,23 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(ptsci->patchControlPoints);
 		}
 
+		// Insert bool 'has viewport state'.
+		temp = gpci->pViewportState != NULL;
+		_GFX_KEY_PUSH(temp);
+
 		if (gpci->pViewportState != NULL)
 		{
 			const VkPipelineViewportStateCreateInfo* pvsci = gpci->pViewportState;
 			// Ignore the pNext field.
 			// Ignore viewport state flags.
 			_GFX_KEY_PUSH(pvsci->viewportCount);
+
+			// Insert bool 'has viewports'.
+			temp =
+				pvsci->viewportCount > 0 &&
+				pvsci->pViewports != NULL;
+
+			_GFX_KEY_PUSH(temp);
 
 			if (pvsci->pViewports != NULL)
 				for (size_t v = 0; v < pvsci->viewportCount; ++v)
@@ -412,6 +451,13 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 				}
 
 			_GFX_KEY_PUSH(pvsci->scissorCount);
+
+			// Insert bool 'has scissors'.
+			temp =
+				pvsci->scissorCount > 0 &&
+				pvsci->pScissors != NULL;
+
+			_GFX_KEY_PUSH(temp);
 
 			if (pvsci->pScissors != NULL)
 				for (size_t s = 0; s < pvsci->scissorCount; ++s)
@@ -435,6 +481,10 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		_GFX_KEY_PUSH(prsci->depthBiasSlopeFactor);
 		_GFX_KEY_PUSH(prsci->lineWidth);
 
+		// Insert bool 'has multisample state'.
+		temp = gpci->pMultisampleState != NULL;
+		_GFX_KEY_PUSH(temp);
+
 		if (gpci->pMultisampleState != NULL)
 		{
 			const VkPipelineMultisampleStateCreateInfo* pmsci = gpci->pMultisampleState;
@@ -447,6 +497,10 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(pmsci->alphaToCoverageEnable);
 			_GFX_KEY_PUSH(pmsci->alphaToOneEnable);
 		}
+
+		// Insert bool 'has depth stencil state'.
+		temp = gpci->pDepthStencilState != NULL;
+		_GFX_KEY_PUSH(temp);
 
 		if (gpci->pDepthStencilState != NULL)
 		{
@@ -463,6 +517,10 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(pdssci->minDepthBounds);
 			_GFX_KEY_PUSH(pdssci->maxDepthBounds);
 		}
+
+		// Insert bool 'has color blend state'.
+		temp = gpci->pColorBlendState != NULL;
+		_GFX_KEY_PUSH(temp);
 
 		if (gpci->pColorBlendState != NULL)
 		{
@@ -488,6 +546,10 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			if (!gfx_vec_push(&out, sizeof(pcbsci->blendConstants), pcbsci->blendConstants))
 				goto clean;
 		}
+
+		// Insert bool 'has dynamic state'.
+		temp = gpci->pDynamicState != NULL;
+		_GFX_KEY_PUSH(temp);
 
 		if (gpci->pDynamicState != NULL)
 		{
@@ -521,6 +583,10 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		_GFX_KEY_PUSH_HANDLE();
 		// Ignore the entry point name.
 
+		// Insert bool 'has specialization info'.
+		temp = cpci->stage.pSpecializationInfo != NULL;
+		_GFX_KEY_PUSH(temp);
+
 		if (cpci->stage.pSpecializationInfo != NULL)
 		{
 			const VkSpecializationInfo* si = cpci->stage.pSpecializationInfo;
@@ -535,8 +601,9 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 			_GFX_KEY_PUSH(si->dataSize);
 
-			if (!gfx_vec_push(&out, si->dataSize, si->pData))
-				goto clean;
+			if (si->dataSize > 0)
+				if (!gfx_vec_push(&out, si->dataSize, si->pData))
+					goto clean;
 		}
 
 		_GFX_KEY_PUSH_HANDLE();
