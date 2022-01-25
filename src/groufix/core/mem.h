@@ -220,8 +220,9 @@ typedef struct _GFXCacheElem
 	{
 		VkDescriptorSetLayout setLayout;
 		VkPipelineLayout      layout;
-		VkPipeline            pipeline;
+		VkRenderPass          pass;
 		VkSampler             sampler;
+		VkPipeline            pipeline;
 	};
 
 } _GFXCacheElem;
@@ -300,6 +301,12 @@ int _gfx_cache_flush(_GFXCache* cache);
  *  VkPipelineLayoutCreateInfo:
  *   1 for each descriptor set layout.
  *
+ *  VkRenderPassCreateInfo:
+ *   None.
+ *
+ *  VkSamplerCreateInfo:
+ *   None.
+ *
  *  VkGraphicsPipelineCreateInfo:
  *   1 for each shader module.
  *   1 for the pipeline layout.
@@ -308,9 +315,6 @@ int _gfx_cache_flush(_GFXCache* cache);
  *  VkComputePipelineCreateInfo:
  *   1 for the shader module.
  *   1 for the pipeline layout.
- *
- *  VkSamplerCreateInfo:
- *   None.
  */
 int _gfx_cache_warmup(_GFXCache* cache,
                       const VkStructureType* createInfo,

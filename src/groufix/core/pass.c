@@ -53,17 +53,12 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 		gfx_vec_release(&pass->vk.framebuffers);
 	}
 
-	// Second, we check if the render pass needs to be destroyed.
+	// Second, we check if the render pass needs to be reconstructed.
+	// All these objects are cached, so no need to destroy anything.
 	// This is only the case when the format has changed.
 	if (flags & _GFX_REFORMAT)
 	{
-		context->vk.DestroyRenderPass(
-			context->vk.device, pass->vk.pass, NULL);
-
 		pass->vk.pass = VK_NULL_HANDLE;
-
-		// The pipeline must be compatible with the render pass,
-		// so forget about the current one.
 		pass->vk.pipeline = VK_NULL_HANDLE;
 	}
 }
@@ -187,8 +182,11 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.pDependencies   = NULL
 		};
 
-		_GFX_VK_CHECK(context->vk.CreateRenderPass(
-			context->vk.device, &rpci, NULL, &pass->vk.pass), goto error);
+		_GFXCacheElem* elem =
+			_gfx_cache_get(&rend->cache, &rpci.sType, NULL);
+
+		if (elem == NULL) goto error;
+		pass->vk.pass = elem->pass;
 	}
 
 	// Create framebuffers.

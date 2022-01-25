@@ -170,7 +170,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 		// Ignore the pNext field.
 		_GFX_KEY_PUSH(dslci->flags);
-		// Ignore binding count.
+		_GFX_KEY_PUSH(dslci->bindingCount);
 
 		for (size_t b = 0; b < dslci->bindingCount; ++b)
 		{
@@ -194,12 +194,12 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 		// Ignore the pNext field.
 		// Ignore pipeline layout flags.
-		// Ignore set layout count.
+		_GFX_KEY_PUSH(plci->setLayoutCount);
 
 		for (size_t s = 0; s < plci->setLayoutCount; ++s)
 			_GFX_KEY_PUSH_HANDLE();
 
-		// Ignore push constant range count.
+		_GFX_KEY_PUSH(plci->pushConstantRangeCount);
 
 		for (size_t p = 0; p < plci->pushConstantRangeCount; ++p)
 		{
@@ -207,6 +207,110 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(plci->pPushConstantRanges[p].offset);
 			_GFX_KEY_PUSH(plci->pPushConstantRanges[p].size);
 		}
+		break;
+
+	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:
+
+		_GFX_KEY_PUSH(*createInfo);
+		const VkRenderPassCreateInfo* rpci =
+			(const VkRenderPassCreateInfo*)createInfo;
+
+		// Ignore the pNext field.
+		// Ignore render pass flags.
+		_GFX_KEY_PUSH(rpci->attachmentCount);
+
+		for (size_t a = 0; a < rpci->attachmentCount; ++a)
+		{
+			_GFX_KEY_PUSH(rpci->pAttachments[a].flags);
+			_GFX_KEY_PUSH(rpci->pAttachments[a].format);
+			_GFX_KEY_PUSH(rpci->pAttachments[a].samples);
+			_GFX_KEY_PUSH(rpci->pAttachments[a].loadOp);
+			_GFX_KEY_PUSH(rpci->pAttachments[a].storeOp);
+			_GFX_KEY_PUSH(rpci->pAttachments[a].stencilLoadOp);
+			_GFX_KEY_PUSH(rpci->pAttachments[a].stencilStoreOp);
+			_GFX_KEY_PUSH(rpci->pAttachments[a].initialLayout);
+			_GFX_KEY_PUSH(rpci->pAttachments[a].finalLayout);
+		}
+
+		_GFX_KEY_PUSH(rpci->subpassCount);
+
+		for (size_t s = 0; s < rpci->subpassCount; ++s)
+		{
+			const VkSubpassDescription* sd = rpci->pSubpasses + s;
+			// Ignore subpass flags.
+			_GFX_KEY_PUSH(sd->pipelineBindPoint);
+			_GFX_KEY_PUSH(sd->inputAttachmentCount);
+
+			for (size_t i = 0; i < sd->inputAttachmentCount; ++i)
+			{
+				_GFX_KEY_PUSH(sd->pInputAttachments[i].attachment);
+				_GFX_KEY_PUSH(sd->pInputAttachments[i].layout);
+			}
+
+			_GFX_KEY_PUSH(sd->colorAttachmentCount);
+
+			for (size_t c = 0; c < sd->colorAttachmentCount; ++c)
+			{
+				_GFX_KEY_PUSH(sd->pColorAttachments[c].attachment);
+				_GFX_KEY_PUSH(sd->pColorAttachments[c].layout);
+			}
+
+			if (sd->pResolveAttachments != NULL)
+				for (size_t r = 0; r < sd->colorAttachmentCount; ++r)
+				{
+					_GFX_KEY_PUSH(sd->pResolveAttachments[r].attachment);
+					_GFX_KEY_PUSH(sd->pResolveAttachments[r].layout);
+				}
+
+			if (sd->pDepthStencilAttachment != NULL)
+			{
+				_GFX_KEY_PUSH(sd->pDepthStencilAttachment->attachment);
+				_GFX_KEY_PUSH(sd->pDepthStencilAttachment->layout);
+			}
+
+			_GFX_KEY_PUSH(sd->preserveAttachmentCount);
+
+			for (size_t p = 0; p < sd->preserveAttachmentCount; ++p)
+				_GFX_KEY_PUSH(sd->pPreserveAttachments[p]);
+		}
+
+		_GFX_KEY_PUSH(rpci->dependencyCount);
+
+		for (size_t d = 0; d < rpci->dependencyCount; ++d)
+		{
+			_GFX_KEY_PUSH(rpci->pDependencies[d].srcSubpass);
+			_GFX_KEY_PUSH(rpci->pDependencies[d].dstSubpass);
+			_GFX_KEY_PUSH(rpci->pDependencies[d].srcStageMask);
+			_GFX_KEY_PUSH(rpci->pDependencies[d].dstStageMask);
+			_GFX_KEY_PUSH(rpci->pDependencies[d].srcAccessMask);
+			_GFX_KEY_PUSH(rpci->pDependencies[d].dstAccessMask);
+			_GFX_KEY_PUSH(rpci->pDependencies[d].dependencyFlags);
+		}
+		break;
+
+	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
+
+		_GFX_KEY_PUSH(*createInfo);
+		const VkSamplerCreateInfo* sci =
+			(const VkSamplerCreateInfo*)createInfo;
+
+		// Ignore the pNext field.
+		// Ignore sampler flags.
+		_GFX_KEY_PUSH(sci->magFilter);
+		_GFX_KEY_PUSH(sci->minFilter);
+		_GFX_KEY_PUSH(sci->mipmapMode);
+		_GFX_KEY_PUSH(sci->addressModeU);
+		_GFX_KEY_PUSH(sci->addressModeV);
+		_GFX_KEY_PUSH(sci->addressModeW);
+		_GFX_KEY_PUSH(sci->mipLodBias);
+		_GFX_KEY_PUSH(sci->anisotropyEnable);
+		_GFX_KEY_PUSH(sci->maxAnisotropy);
+		_GFX_KEY_PUSH(sci->compareEnable);
+		_GFX_KEY_PUSH(sci->compareOp);
+		_GFX_KEY_PUSH(sci->minLod);
+		_GFX_KEY_PUSH(sci->maxLod);
+		_GFX_KEY_PUSH(sci->borderColor);
+		_GFX_KEY_PUSH(sci->unnormalizedCoordinates);
 		break;
 
 	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
@@ -217,7 +321,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 
 		// Ignore the pNext field.
 		_GFX_KEY_PUSH(gpci->flags);
-		// Ignore stage count.
+		_GFX_KEY_PUSH(gpci->stageCount);
 
 		for (size_t s = 0; s < gpci->stageCount; ++s)
 		{
@@ -231,7 +335,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			if (pssci->pSpecializationInfo != NULL)
 			{
 				const VkSpecializationInfo* si = pssci->pSpecializationInfo;
-				// Ignore map entry count.
+				_GFX_KEY_PUSH(si->mapEntryCount);
 
 				for (size_t e = 0; e < si->mapEntryCount; ++e)
 				{
@@ -240,7 +344,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 					_GFX_KEY_PUSH(si->pMapEntries[e].size);
 				}
 
-				// Ignore data size.
+				_GFX_KEY_PUSH(si->dataSize);
 
 				if (!gfx_vec_push(&out, si->dataSize, si->pData))
 					goto clean;
@@ -250,7 +354,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		const VkPipelineVertexInputStateCreateInfo* pvisci = gpci->pVertexInputState;
 		// Ignore the pNext field.
 		// Ignore vertex input state flags.
-		// Ignore vertex binding description count.
+		_GFX_KEY_PUSH(pvisci->vertexBindingDescriptionCount);
 
 		for (size_t b = 0; b < pvisci->vertexBindingDescriptionCount; ++b)
 		{
@@ -262,7 +366,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(vibd->inputRate);
 		}
 
-		// Ignore vertex attribute description count.
+		_GFX_KEY_PUSH(pvisci->vertexAttributeDescriptionCount);
 
 		for (size_t a = 0; a < pvisci->vertexAttributeDescriptionCount; ++a)
 		{
@@ -367,7 +471,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			// Ignore color blend state flags.
 			_GFX_KEY_PUSH(pcbsci->logicOpEnable);
 			_GFX_KEY_PUSH(pcbsci->logicOp);
-			// Ignore attachment count.
+			_GFX_KEY_PUSH(pcbsci->attachmentCount);
 
 			for (size_t a = 0; a < pcbsci->attachmentCount; ++a)
 			{
@@ -390,7 +494,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			const VkPipelineDynamicStateCreateInfo* pdsci = gpci->pDynamicState;
 			// Ignore the pNext field.
 			// Ignore dynamic state flags.
-			// Ignore dynamic state count.
+			_GFX_KEY_PUSH(pdsci->dynamicStateCount);
 
 			for (size_t d = 0; d < pdsci->dynamicStateCount; ++d)
 				_GFX_KEY_PUSH(pdsci->pDynamicStates[d]);
@@ -420,7 +524,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		if (cpci->stage.pSpecializationInfo != NULL)
 		{
 			const VkSpecializationInfo* si = cpci->stage.pSpecializationInfo;
-			// Ignore map entry count.
+			_GFX_KEY_PUSH(si->mapEntryCount);
 
 			for (size_t e = 0; e < si->mapEntryCount; ++e)
 			{
@@ -429,7 +533,7 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 				_GFX_KEY_PUSH(si->pMapEntries[e].size);
 			}
 
-			// Ignore data size.
+			_GFX_KEY_PUSH(si->dataSize);
 
 			if (!gfx_vec_push(&out, si->dataSize, si->pData))
 				goto clean;
@@ -438,31 +542,6 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		_GFX_KEY_PUSH_HANDLE();
 		// Ignore base pipeline.
 		// Ignore pipeline index.
-		break;
-
-	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
-
-		_GFX_KEY_PUSH(*createInfo);
-		const VkSamplerCreateInfo* sci =
-			(const VkSamplerCreateInfo*)createInfo;
-
-		// Ignore the pNext field.
-		// Ignore sampler flags.
-		_GFX_KEY_PUSH(sci->magFilter);
-		_GFX_KEY_PUSH(sci->minFilter);
-		_GFX_KEY_PUSH(sci->mipmapMode);
-		_GFX_KEY_PUSH(sci->addressModeU);
-		_GFX_KEY_PUSH(sci->addressModeV);
-		_GFX_KEY_PUSH(sci->addressModeW);
-		_GFX_KEY_PUSH(sci->mipLodBias);
-		_GFX_KEY_PUSH(sci->anisotropyEnable);
-		_GFX_KEY_PUSH(sci->maxAnisotropy);
-		_GFX_KEY_PUSH(sci->compareEnable);
-		_GFX_KEY_PUSH(sci->compareOp);
-		_GFX_KEY_PUSH(sci->minLod);
-		_GFX_KEY_PUSH(sci->maxLod);
-		_GFX_KEY_PUSH(sci->borderColor);
-		_GFX_KEY_PUSH(sci->unnormalizedCoordinates);
 		break;
 
 	default:
@@ -523,6 +602,22 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 			goto error);
 		break;
 
+	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:
+		_GFX_VK_CHECK(
+			context->vk.CreateRenderPass(context->vk.device,
+				(const VkRenderPassCreateInfo*)createInfo, NULL,
+				&elem->pass),
+			goto error);
+		break;
+
+	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
+		_GFX_VK_CHECK(
+			context->vk.CreateSampler(context->vk.device,
+				(const VkSamplerCreateInfo*)createInfo, NULL,
+				&elem->sampler),
+			goto error);
+		break;
+
 	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
 		_GFX_VK_CHECK(
 			context->vk.CreateGraphicsPipelines(context->vk.device,
@@ -538,14 +633,6 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 				cache->vk.cache, 1,
 				(const VkComputePipelineCreateInfo*)createInfo, NULL,
 				&elem->pipeline),
-			goto error);
-		break;
-
-	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
-		_GFX_VK_CHECK(
-			context->vk.CreateSampler(context->vk.device,
-				(const VkSamplerCreateInfo*)createInfo, NULL,
-				&elem->sampler),
 			goto error);
 		break;
 
@@ -585,15 +672,20 @@ static void _gfx_cache_destroy_elem(_GFXCache* cache, _GFXCacheElem* elem)
 			context->vk.device, elem->layout, NULL);
 		break;
 
-	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
-	case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO:
-		context->vk.DestroyPipeline(
-			context->vk.device, elem->pipeline, NULL);
+	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:
+		context->vk.DestroyRenderPass(
+			context->vk.device, elem->pass, NULL);
 		break;
 
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
 		context->vk.DestroySampler(
 			context->vk.device, elem->sampler, NULL);
+		break;
+
+	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
+	case VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO:
+		context->vk.DestroyPipeline(
+			context->vk.device, elem->pipeline, NULL);
 		break;
 
 	default:
