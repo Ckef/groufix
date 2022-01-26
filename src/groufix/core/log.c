@@ -40,7 +40,7 @@ static const char* _gfx_log_colors[] = {
 /****************************
  * Logs a new line to a writer stream.
  */
-static void _gfx_log(const GFXWriter* out, unsigned long thread,
+static void _gfx_log(const GFXWriter* out, uintmax_t thread,
                      GFXLogLevel level, double timeMs,
                      const char* file, unsigned int line,
                      const char* fmt, va_list args)
@@ -56,7 +56,7 @@ static void _gfx_log(const GFXWriter* out, unsigned long thread,
 		const char* C = _gfx_log_colors[level-1];
 
 		gfx_io_writef(out,
-			"%.2ems %s%-5s \x1b[90mthread-%lu: %s:%u: \x1b[0m",
+			"%.2ems %s%-5s \x1b[90mthread-%"PRIuMAX": %s:%u: \x1b[0m",
 			timeMs, C, L, thread, file, line);
 	}
 	else
@@ -64,7 +64,7 @@ static void _gfx_log(const GFXWriter* out, unsigned long thread,
 #endif
 		// If not, or not on unix at all, output regularly.
 		gfx_io_writef(out,
-			"%.2ems %-5s thread-%lu: %s:%u: ",
+			"%.2ems %-5s thread-%"PRIuMAX": %s:%u: ",
 			timeMs, L, thread, file, line);
 
 #if defined (GFX_UNIX)
@@ -98,7 +98,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	{
 		// Default to stderr with default log level.
 		const GFXWriter* out = GFX_IO_STDERR;
-		unsigned long thread = 0;
+		uintmax_t thread = 0;
 		GFXLogLevel logLevel = _groufix.logDef;
 
 		// If there is thread local state, use its params.

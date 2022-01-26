@@ -333,8 +333,7 @@ typedef struct _GFXTransferPool
 {
 	GFXDeque  transfers; // Stores _GFXTransfer.
 	_GFXMutex lock;
-
-	unsigned int blocking; // #blocking threads.
+	uintmax_t blocking; // #blocking threads.
 
 
 	// Vulkan fields.
@@ -846,7 +845,7 @@ typedef struct _GFXSync
 {
 	_GFXUnpackRef ref;
 	GFXRange      range; // Unpacked, i.e. normalized offset & non-zero size.
-	unsigned long tag;   // So we can recycle, 0 = yet untagged.
+	uintmax_t     tag;   // So we can recycle, 0 = yet untagged.
 
 	// Claimed by (injections can be async), may be NULL.
 	const _GFXInjection* inj;
