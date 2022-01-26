@@ -684,14 +684,13 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		warnings > 0 ? "\n" : "",
 		warnings > 0 ? shaderc_result_get_error_message(result) : "");
 
-
 	// Then, stream out the resulting SPIR-V bytecode.
 	if (out != NULL && gfx_io_write(out, bytes, size) > 0)
 		gfx_log_info(
 			"Written SPIR-V to stream (%"GFX_PRIs" bytes).",
 			size);
 
-	// Then, attempt to build the shader module.
+	// Lastly, attempt to build the shader module.
 	if (!_gfx_shader_build(shader, wordSize, (const uint32_t*)bytes))
 	{
 		gfx_log_error(

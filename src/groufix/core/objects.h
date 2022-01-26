@@ -500,9 +500,8 @@ typedef struct _GFXImageAttach
 	// Vulkan fields.
 	struct
 	{
-		VkFormat    format;
-		VkImage     image;
-		VkImageView view;
+		VkFormat format;
+		VkImage  image;
 
 	} vk;
 

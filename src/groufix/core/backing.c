@@ -376,8 +376,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 			.base = attachment,
 			.vk = {
 				.format = vkFmt,
-				.image  = VK_NULL_HANDLE,
-				.view   = VK_NULL_HANDLE
+				.image  = VK_NULL_HANDLE
 			}
 		}
 	};

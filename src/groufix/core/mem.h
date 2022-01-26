@@ -220,8 +220,8 @@ typedef struct _GFXCacheElem
 	{
 		VkDescriptorSetLayout setLayout;
 		VkPipelineLayout      layout;
-		VkRenderPass          pass;
 		VkSampler             sampler;
+		VkRenderPass          pass;
 		VkPipeline            pipeline;
 	};
 
@@ -301,10 +301,10 @@ int _gfx_cache_flush(_GFXCache* cache);
  *  VkPipelineLayoutCreateInfo:
  *   1 for each descriptor set layout.
  *
- *  VkRenderPassCreateInfo:
+ *  VkSamplerCreateInfo:
  *   None.
  *
- *  VkSamplerCreateInfo:
+ *  VkRenderPassCreateInfo:
  *   None.
  *
  *  VkGraphicsPipelineCreateInfo:

@@ -39,7 +39,7 @@
 // Pushes a handle into a map key being built.
 #define _GFX_KEY_PUSH_HANDLE() \
 	do { \
-		if (!gfx_vec_push(&out, sizeof(void*), &handles[currHandle++])) \
+		if (!gfx_vec_push(&out, sizeof(*handles), &handles[currHandle++])) \
 			goto clean; \
 	} while (0)
 
@@ -217,11 +217,39 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		}
 		break;
 
+	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
+
+		_GFX_KEY_PUSH(*createInfo);
+		const VkSamplerCreateInfo* sci =
+			(const VkSamplerCreateInfo*)createInfo;
+
+		// Ignore the pNext field.
+		// Ignore sampler flags.
+		_GFX_KEY_PUSH(sci->magFilter);
+		_GFX_KEY_PUSH(sci->minFilter);
+		_GFX_KEY_PUSH(sci->mipmapMode);
+		_GFX_KEY_PUSH(sci->addressModeU);
+		_GFX_KEY_PUSH(sci->addressModeV);
+		_GFX_KEY_PUSH(sci->addressModeW);
+		_GFX_KEY_PUSH(sci->mipLodBias);
+		_GFX_KEY_PUSH(sci->anisotropyEnable);
+		_GFX_KEY_PUSH(sci->maxAnisotropy);
+		_GFX_KEY_PUSH(sci->compareEnable);
+		_GFX_KEY_PUSH(sci->compareOp);
+		_GFX_KEY_PUSH(sci->minLod);
+		_GFX_KEY_PUSH(sci->maxLod);
+		_GFX_KEY_PUSH(sci->borderColor);
+		_GFX_KEY_PUSH(sci->unnormalizedCoordinates);
+		break;
+
 	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:
 
 		_GFX_KEY_PUSH(*createInfo);
 		const VkRenderPassCreateInfo* rpci =
 			(const VkRenderPassCreateInfo*)createInfo;
+
+		// TODO: Push compatibility info first (with a prepended byte length),
+		// so when building pipeline keys we can insert that info?
 
 		// Ignore the pNext field.
 		// Ignore render pass flags.
@@ -305,31 +333,6 @@ static _GFXCacheKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(rpci->pDependencies[d].dstAccessMask);
 			_GFX_KEY_PUSH(rpci->pDependencies[d].dependencyFlags);
 		}
-		break;
-
-	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
-
-		_GFX_KEY_PUSH(*createInfo);
-		const VkSamplerCreateInfo* sci =
-			(const VkSamplerCreateInfo*)createInfo;
-
-		// Ignore the pNext field.
-		// Ignore sampler flags.
-		_GFX_KEY_PUSH(sci->magFilter);
-		_GFX_KEY_PUSH(sci->minFilter);
-		_GFX_KEY_PUSH(sci->mipmapMode);
-		_GFX_KEY_PUSH(sci->addressModeU);
-		_GFX_KEY_PUSH(sci->addressModeV);
-		_GFX_KEY_PUSH(sci->addressModeW);
-		_GFX_KEY_PUSH(sci->mipLodBias);
-		_GFX_KEY_PUSH(sci->anisotropyEnable);
-		_GFX_KEY_PUSH(sci->maxAnisotropy);
-		_GFX_KEY_PUSH(sci->compareEnable);
-		_GFX_KEY_PUSH(sci->compareOp);
-		_GFX_KEY_PUSH(sci->minLod);
-		_GFX_KEY_PUSH(sci->maxLod);
-		_GFX_KEY_PUSH(sci->borderColor);
-		_GFX_KEY_PUSH(sci->unnormalizedCoordinates);
 		break;
 
 	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
@@ -669,19 +672,19 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 			goto error);
 		break;
 
-	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:
-		_GFX_VK_CHECK(
-			context->vk.CreateRenderPass(context->vk.device,
-				(const VkRenderPassCreateInfo*)createInfo, NULL,
-				&elem->pass),
-			goto error);
-		break;
-
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
 		_GFX_VK_CHECK(
 			context->vk.CreateSampler(context->vk.device,
 				(const VkSamplerCreateInfo*)createInfo, NULL,
 				&elem->sampler),
+			goto error);
+		break;
+
+	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:
+		_GFX_VK_CHECK(
+			context->vk.CreateRenderPass(context->vk.device,
+				(const VkRenderPassCreateInfo*)createInfo, NULL,
+				&elem->pass),
 			goto error);
 		break;
 
@@ -739,14 +742,14 @@ static void _gfx_cache_destroy_elem(_GFXCache* cache, _GFXCacheElem* elem)
 			context->vk.device, elem->layout, NULL);
 		break;
 
-	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:
-		context->vk.DestroyRenderPass(
-			context->vk.device, elem->pass, NULL);
-		break;
-
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
 		context->vk.DestroySampler(
 			context->vk.device, elem->sampler, NULL);
+		break;
+
+	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:
+		context->vk.DestroyRenderPass(
+			context->vk.device, elem->pass, NULL);
 		break;
 
 	case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO:
