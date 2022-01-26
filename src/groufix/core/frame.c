@@ -487,6 +487,12 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 		}
 	}
 
+	// When all is submitted, spend some time flushing the object cache.
+	if (!_gfx_cache_flush(&renderer->cache))
+		gfx_log_warn(
+			"Failed to flush the Vulkan object cache "
+			"during virtual frame submission.");
+
 	// Lastly, make all commands visible for future operations.
 	_gfx_deps_finish(numDeps, deps, &injection);
 
