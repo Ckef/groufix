@@ -587,6 +587,7 @@ struct GFXFrame
 	// Vulkan fields.
 	struct
 	{
+		VkCommandPool   pool;
 		VkCommandBuffer cmd;
 		VkSemaphore     rendered;
 		VkFence         done; // For resource access.
@@ -631,15 +632,6 @@ struct GFXRenderer
 		int valid;
 
 	} graph;
-
-
-	// Vulkan fields.
-	struct
-	{
-		// TODO: Multiple for threaded recording? Store in frame?
-		VkCommandPool pool;
-
-	} vk;
 };
 
 

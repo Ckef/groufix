@@ -134,6 +134,7 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
 	gfx_vec_init(&frame->refs, sizeof(size_t));
 	gfx_vec_init(&frame->syncs, sizeof(_GFXFrameSync));
 
+	frame->vk.pool = VK_NULL_HANDLE;
 	frame->vk.rendered = VK_NULL_HANDLE;
 	frame->vk.done = VK_NULL_HANDLE;
 
@@ -161,12 +162,28 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
 			context->vk.device, &fci, NULL, &frame->vk.done),
 		goto clean);
 
+	// Create command pool.
+	// These buffers will be reset and re-recorded every frame.
+	// TODO: Want to create more for threaded rendering.
+	VkCommandPoolCreateInfo cpci = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+
+		.pNext            = NULL,
+		.queueFamilyIndex = renderer->graphics.family,
+		.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.CreateCommandPool(
+			context->vk.device, &cpci, NULL, &frame->vk.pool),
+		goto clean);
+
 	// Lastly, allocate the command buffer for this frame.
 	VkCommandBufferAllocateInfo cbai = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 
 		.pNext              = NULL,
-		.commandPool        = renderer->vk.pool,
+		.commandPool        = frame->vk.pool,
 		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = 1
 	};
@@ -183,6 +200,8 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
 clean:
 	gfx_log_error("Could not create virtual frame.");
 
+	context->vk.DestroyCommandPool(
+		context->vk.device, frame->vk.pool, NULL);
 	context->vk.DestroyFence(
 		context->vk.device, frame->vk.done, NULL);
 	context->vk.DestroySemaphore(
@@ -207,12 +226,12 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 		context->vk.device, 1, &frame->vk.done, VK_TRUE, UINT64_MAX), {});
 
 	// Then destroy.
+	context->vk.DestroyCommandPool(
+		context->vk.device, frame->vk.pool, NULL);
 	context->vk.DestroyFence(
 		context->vk.device, frame->vk.done, NULL);
 	context->vk.DestroySemaphore(
 		context->vk.device, frame->vk.rendered, NULL);
-	context->vk.FreeCommandBuffers(
-		context->vk.device, renderer->vk.pool, 1, &frame->vk.cmd);
 
 	_gfx_free_syncs(renderer, frame, frame->syncs.size);
 	gfx_vec_clear(&frame->refs);
@@ -240,6 +259,12 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 	_GFX_VK_CHECK(
 		context->vk.ResetFences(
 			context->vk.device, 1, &frame->vk.done),
+		goto error);
+
+	// Immediately reset the relevant command pools, release the memory!
+	_GFX_VK_CHECK(
+		context->vk.ResetCommandPool(
+			context->vk.device, frame->vk.pool, 0),
 		goto error);
 
 	// TODO: Split the function here? Move everything below to record/submit?
@@ -349,7 +374,6 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 
 	// Go and record all passes in submission order.
 	// We wrap a loop over all passes inbetween a begin and end command.
-	// The begin command will reset the command buffer as well :)
 	VkCommandBufferBeginInfo cbbi = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 
