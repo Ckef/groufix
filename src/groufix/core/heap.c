@@ -807,16 +807,17 @@ GFX_API void gfx_free_image(GFXImage* image)
 /****************************/
 GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      GFXMemoryFlags flags, GFXBufferUsage usage,
-                                     GFXTopology topology, GFXBufferRef index,
-                                     uint32_t numVertices,
+                                     GFXTopology topology,
                                      uint32_t numIndices, char indexSize,
+                                     uint32_t numVertices,
+                                     GFXBufferRef index,
                                      size_t numAttribs, const GFXAttribute* attribs)
 {
 	_Static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
 
 	assert(heap != NULL);
-	assert(numVertices > 0);
 	assert(numIndices == 0 || indexSize == sizeof(uint16_t) || indexSize == sizeof(uint32_t));
+	assert(numVertices > 0);
 	assert(numAttribs > 0);
 	assert(attribs != NULL);
 
@@ -840,14 +841,12 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 
 	// Initialize attributes, vertex input bindings & resolve formats.
 	// Meaning we 'merge' attribute buffers into primitive buffers.
-	// While we're at it, compute the size of the buffers to allocate.
+	// While we're at it, compute the size of the vertex buffer to allocate.
 	prim->numAttribs = numAttribs;
 	prim->numBindings = 0;
 	prim->bindings = (_GFXPrimBuffer*)((char*)prim + structSize);
 
 	uint64_t verSize = 0;
-	uint64_t indSize = GFX_REF_IS_NULL(index) ?
-		(uint64_t)numIndices * (uint64_t)indexSize : 0;
 
 	for (size_t a = 0; a < numAttribs; ++a)
 	{
@@ -878,9 +877,9 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		if (GFX_REF_IS_NULL(attrib->base.buffer))
 		{
 			// No reference found.
-			attrib->base.buffer = gfx_ref_buffer(&prim->buffer, indSize);
+			attrib->base.buffer = gfx_ref_buffer(&prim->buffer, 0);
 			pBuff.buffer = &prim->buffer;
-			pBuff.offset = indSize;
+			pBuff.offset = 0;
 
 			verSize = GFX_MAX(verSize,
 				attrib->base.offset +
@@ -948,7 +947,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		uint64_t pOffset = pBuff->offset;
 		uint64_t aOffset = (pBuff->buffer == &prim->buffer) ?
 			// To avoid an unpack warning.
-			indSize : _gfx_ref_unpack(attrib->base.buffer).value;
+			0 : _gfx_ref_unpack(attrib->base.buffer).value;
 
 		if (pOffset < aOffset)
 			attrib->offset += (uint32_t)(aOffset - pOffset);
@@ -961,9 +960,16 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	}
 
 	// Also resolve (!) the index reference real quick.
+	// We append the index buffer to the vertex buffer, so we need to align it!
+	// We use this aligned offset for size calculation later on...
+	uint64_t indSize =
+		GFX_REF_IS_NULL(index) ? numIndices * (uint64_t)indexSize : 0;
+	uint64_t indOffset =
+		indSize > 0 ? GFX_ALIGN_UP(verSize, (uint64_t)indexSize) : verSize;
+
 	if (GFX_REF_IS_NULL(index))
 		prim->index = indSize > 0 ?
-			gfx_ref_buffer(&prim->buffer, 0) : GFX_REF_NULL;
+			gfx_ref_buffer(&prim->buffer, indOffset) : GFX_REF_NULL;
 	else
 	{
 		// Resolve & validate reference type and its context.
@@ -991,7 +997,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 
 	// Init all meta fields now that we know what to allocate.
 	prim->buffer.heap = heap;
-	prim->buffer.base.size = indSize + verSize;
+	prim->buffer.base.size = indOffset + indSize;
 	prim->buffer.base.flags = flags;
 	prim->buffer.base.usage = usage |
 		(verSize > 0 ? GFX_BUFFER_VERTEX : 0) |
@@ -1167,6 +1173,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 					goto clean;
 				}
 
+				// TODO: Incorporate alignment?
 				refPtr[r] = gfx_ref_buffer(&group->buffer, size);
 				size += bind->elementSize * bind->numElements;
 				continue;

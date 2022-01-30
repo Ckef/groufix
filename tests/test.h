@@ -324,8 +324,8 @@ static void _test_init(void)
 	_test_base.primitive = gfx_alloc_prim(_test_base.heap,
 		GFX_MEMORY_WRITE, 0,
 		GFX_TOPO_TRIANGLE_STRIP,
+		4, sizeof(uint16_t), 4,
 		GFX_REF_NULL,
-		4, 4, sizeof(uint16_t),
 		3, (GFXAttribute[]){
 			{
 				.format = GFX_FORMAT_R32G32B32_SFLOAT,

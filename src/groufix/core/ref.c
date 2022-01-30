@@ -198,9 +198,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_PRIMITIVE_VERTICES:
 		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
-		unp.value = ref.offset +
-			// Augment offset into index/vertex buffer.
-			_GFX_ATTRIBUTE->base.buffer.offset;
+		unp.value = ref.offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
@@ -210,7 +208,9 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 
 	case GFX_REF_PRIMITIVE_INDICES:
 		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
-		unp.value = ref.offset;
+		unp.value = ref.offset +
+			// Augment offset into vertex/index buffer.
+			_GFX_PRIMITIVE->index.offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,

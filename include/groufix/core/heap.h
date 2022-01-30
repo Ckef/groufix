@@ -294,10 +294,10 @@ GFX_API void gfx_free_image(GFXImage* image);
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Added usage for any newly allocated buffer.
- * @param index       Index buffer to use, GFX_REF_NULL to allocate new.
- * @param numVertices Number of vertices to claim, must be > 0.
  * @param numIndices  Number of indices to claim.
  * @param indexSize   Index size, must be 0 or sizeof(uint16_t | uint32_t).
+ * @param numVertices Number of vertices to claim, must be > 0.
+ * @param index       Index buffer to use, GFX_REF_NULL to allocate new.
  * @param numAttribs  Number of vertex attributes, must be > 0.
  * @param attribs     Array of numAttribs GFXAttribute structs, cannot be NULL.
  * @return NULL on failure.
@@ -306,9 +306,10 @@ GFX_API void gfx_free_image(GFXImage* image);
  */
 GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      GFXMemoryFlags flags, GFXBufferUsage usage,
-                                     GFXTopology topology, GFXBufferRef index,
-                                     uint32_t numVertices,
+                                     GFXTopology topology,
                                      uint32_t numIndices, char indexSize,
+                                     uint32_t numVertices,
+                                     GFXBufferRef index,
                                      size_t numAttribs, const GFXAttribute* attribs);
 
 /**

@@ -799,7 +799,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 					_GFX_GET_VK_IMAGE_LAYOUT(injs[i].mask, fmt);
 
 			// TODO: Somehow get source access/stage/layout from wait
-			// commands if there are no operation references to get it from.
+			// commands if there are no operation references to get it from?
 			// TODO: Except for attachments, we need to know the last layout they
 			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
 			// Do we need final access/stage flags for attachments?
