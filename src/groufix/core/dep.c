@@ -116,18 +116,18 @@ static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
 			rangeb->offset < (rangea->offset + rangea->size);
 
 	// Check if mipmaps overlap.
-	int mipA = rangea->mipmap < (rangeb->mipmap + rangeb->numMipmaps);
-	int mipB = rangeb->mipmap < (rangea->mipmap + rangea->numMipmaps);
-	int mips =
+	const int mipA = rangea->mipmap < (rangeb->mipmap + rangeb->numMipmaps);
+	const int mipB = rangeb->mipmap < (rangea->mipmap + rangea->numMipmaps);
+	const int mips =
 		(rangea->numMipmaps == 0 && rangeb->numMipmaps == 0) ||
 		(rangea->numMipmaps == 0 && mipA) ||
 		(rangeb->numMipmaps == 0 && mipB) ||
 		(mipA && mipB);
 
 	// Check if layers overlap.
-	int layA = rangea->layer < (rangeb->layer + rangeb->numLayers);
-	int layB = rangeb->layer < (rangea->layer + rangea->numLayers);
-	int lays =
+	const int layA = rangea->layer < (rangeb->layer + rangeb->numLayers);
+	const int layB = rangeb->layer < (rangea->layer + rangea->numLayers);
+	const int lays =
 		(rangea->numLayers == 0 && rangeb->numLayers == 0) ||
 		(rangea->numLayers == 0 && layA) ||
 		(rangeb->numLayers == 0 && layB) ||
@@ -839,8 +839,8 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 				// If releasing ownership, zero out destination access mask.
 				// Also zero out source mask for the acquire operation.
 				// And nullify destination stage if discarding & transfering.
-				VkAccessFlags dstAccess = sync->vk.dstAccess;
-				VkPipelineStageFlags dstStage = sync->vk.dstStage;
+				const VkAccessFlags dstAccess = sync->vk.dstAccess;
+				const VkPipelineStageFlags dstStage = sync->vk.dstStage;
 
 				if (ownership)
 					sync->vk.dstAccess = 0;
@@ -857,7 +857,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 			}
 
 			// Always set queue families back to actual families,
-			// this so we can match queues & check semaphore usage.
+			// this so we can check for an ownership transfer.
 			sync->vk.srcFamily = injection->inp.family;
 			sync->vk.dstFamily = family;
 		}

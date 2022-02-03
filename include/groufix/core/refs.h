@@ -95,7 +95,15 @@ typedef GFXReference GFXImageRef;
  * Functions that take an attachment reference as argument
  * are _NOT_ thread-safe with respect to the attachment!
  */
-#define gfx_ref_buffer(buffer, offset_) \
+#define gfx_ref_buffer(buffer) \
+	(GFXBufferRef){ \
+		.type = GFX_REF_BUFFER, \
+		.obj = buffer, \
+		.offset = 0, \
+		.values = { 0, 0 } \
+	}
+
+#define gfx_ref_buffer_at(buffer, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_BUFFER, \
 		.obj = buffer, \
@@ -111,7 +119,15 @@ typedef GFXReference GFXImageRef;
 		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_prim_vertices(primitive, attribute_, offset_) \
+#define gfx_ref_prim_vertices(primitive, attribute_) \
+	(GFXBufferRef){ \
+		.type = GFX_REF_PRIMITIVE_VERTICES, \
+		.obj = primitive, \
+		.offset = 0, \
+		.values = { attribute_, 0 } \
+	}
+
+#define gfx_ref_prim_vertices_at(primitive, attribute_, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_VERTICES, \
 		.obj = primitive, \
@@ -119,7 +135,15 @@ typedef GFXReference GFXImageRef;
 		.values = { attribute_, 0 } \
 	}
 
-#define gfx_ref_prim_indices(primitive, offset_) \
+#define gfx_ref_prim_indices(primitive) \
+	(GFXBufferRef){ \
+		.type = GFX_REF_PRIMITIVE_INDICES, \
+		.obj = primitive, \
+		.offset = 0, \
+		.values = { 0, 0 } \
+	}
+
+#define gfx_ref_prim_indices_at(primitive, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_INDICES, \
 		.obj = primitive, \
@@ -127,7 +151,15 @@ typedef GFXReference GFXImageRef;
 		.values = { 0, 0 } \
 	}
 
-#define gfx_ref_group_buffer(group, binding_, index_, offset_) \
+#define gfx_ref_group_buffer(group, binding_, index_) \
+	(GFXBufferRef){ \
+		.type = GFX_REF_GROUP_BUFFER, \
+		.obj = group, \
+		.offset = 0, \
+		.values = { binding_, index_ } \
+	}
+
+#define gfx_ref_group_buffer_at(group, binding_, index_, offset_) \
 	(GFXBufferRef){ \
 		.type = GFX_REF_GROUP_BUFFER, \
 		.obj = group, \

@@ -348,8 +348,8 @@ static void _test_init(void)
 	if (_test_base.primitive == NULL)
 		TEST_FAIL();
 
-	GFXBufferRef vert = gfx_ref_prim_vertices(_test_base.primitive, 0, 0);
-	GFXBufferRef ind = gfx_ref_prim_indices(_test_base.primitive, 0);
+	GFXBufferRef vert = gfx_ref_prim_vertices(_test_base.primitive, 0);
+	GFXBufferRef ind = gfx_ref_prim_indices(_test_base.primitive);
 
 	if (!gfx_write(vertexData, vert, GFX_TRANSFER_ASYNC, 1, 1,
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(vertexData) }},
@@ -414,7 +414,7 @@ static void _test_init(void)
 	if (_test_base.group == NULL)
 		TEST_FAIL();
 
-	GFXBufferRef ubo = gfx_ref_group_buffer(_test_base.group, 0, 0, 0);
+	GFXBufferRef ubo = gfx_ref_group_buffer(_test_base.group, 0, 0);
 	GFXImageRef img = gfx_ref_group_image(_test_base.group, 1, 0);
 
 	if (!gfx_write(uboData, ubo, GFX_TRANSFER_ASYNC, 1, 1,

@@ -100,8 +100,8 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	// Bind index buffer.
 	if (prim->base.numIndices > 0)
 	{
-		_GFXUnpackRef index = _gfx_ref_unpack(
-			gfx_ref_prim_indices(&prim->base, 0));
+		_GFXUnpackRef index =
+			_gfx_ref_unpack(gfx_ref_prim_indices(&prim->base));
 
 		context->vk.CmdBindIndexBuffer(
 			frame->vk.cmd,

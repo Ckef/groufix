@@ -374,7 +374,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 		// TODO: Renderable objects should define what range of a group to
 		// take as their data, from which descriptor set shite can be derived.
 		_GFXUnpackRef ubo = _gfx_ref_unpack(
-			gfx_ref_group_buffer(&group->base, 0, 0, 0));
+			gfx_ref_group_buffer(&group->base, 0, 0));
 
 		if (ubo.obj.buffer == NULL)
 			goto error;

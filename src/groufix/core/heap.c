@@ -877,7 +877,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		if (GFX_REF_IS_NULL(attrib->base.buffer))
 		{
 			// No reference found.
-			attrib->base.buffer = gfx_ref_buffer(&prim->buffer, 0);
+			attrib->base.buffer = gfx_ref_buffer(&prim->buffer);
 			pBuff.buffer = &prim->buffer;
 			pBuff.offset = 0;
 
@@ -944,8 +944,8 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	{
 		_GFXAttribute* attrib = &prim->attribs[a];
 		_GFXPrimBuffer* pBuff = &prim->bindings[attrib->binding];
-		uint64_t pOffset = pBuff->offset;
-		uint64_t aOffset = (pBuff->buffer == &prim->buffer) ?
+		const uint64_t pOffset = pBuff->offset;
+		const uint64_t aOffset = (pBuff->buffer == &prim->buffer) ?
 			// To avoid an unpack warning.
 			0 : _gfx_ref_unpack(attrib->base.buffer).value;
 
@@ -962,14 +962,14 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	// Also resolve (!) the index reference real quick.
 	// We append the index buffer to the vertex buffer, so we need to align it!
 	// We use this aligned offset for size calculation later on...
-	uint64_t indSize =
+	const uint64_t indSize =
 		GFX_REF_IS_NULL(index) ? numIndices * (uint64_t)indexSize : 0;
-	uint64_t indOffset =
+	const uint64_t indOffset =
 		indSize > 0 ? GFX_ALIGN_UP(verSize, (uint64_t)indexSize) : verSize;
 
 	if (GFX_REF_IS_NULL(index))
 		prim->index = indSize > 0 ?
-			gfx_ref_buffer(&prim->buffer, indOffset) : GFX_REF_NULL;
+			gfx_ref_buffer_at(&prim->buffer, indOffset) : GFX_REF_NULL;
 	else
 	{
 		// Resolve & validate reference type and its context.
@@ -1174,7 +1174,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 				}
 
 				// TODO: Incorporate alignment?
-				refPtr[r] = gfx_ref_buffer(&group->buffer, size);
+				refPtr[r] = gfx_ref_buffer_at(&group->buffer, size);
 				size += bind->elementSize * bind->numElements;
 				continue;
 			}
