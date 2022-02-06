@@ -183,7 +183,7 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem);
  * Maps some Vulkan memory to a host virtual address pointer, this can be
  * called multiple times, the actual memory object is reference counted.
  * @param alloc Cannot be NULL.
- * @param mem   Cannot be NULL.
+ * @param mem   Cannot be NULL, must be allocated from alloc.
  * @return NULL on failure.
  *
  * This function is reentrant!
@@ -195,7 +195,7 @@ void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem);
  * Unmaps Vulkan memory, invalidating a mapped pointer.
  * Must be called exactly once for every successful call to _gfx_map.
  * @param alloc Cannot be NULL.
- * @param mem   Cannot be NULL.
+ * @param mem   Cannot be NULL, must be allocated from alloc.
  *
  * This function is reentrant!
  */
@@ -332,6 +332,79 @@ int _gfx_cache_warmup(_GFXCache* cache,
 _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
                               const VkStructureType* createInfo,
                               const void** handles);
+
+
+/****************************
+ * Vulkan descriptor management.
+ ****************************/
+
+/**
+ * Pool descriptor block (i.e. Vulkan descriptor pool).
+ */
+typedef struct _GFXPoolBlock
+{
+	GFXListNode list; // Base-type.
+	uint32_t    sets; // #allocated sets.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkDescriptorPool pool;
+
+	} vk;
+
+} _GFXPoolBlock;
+
+
+/**
+ * Pool subordinate (i.e. thread handle).
+ */
+typedef struct _GFXPoolSub
+{
+	GFXListNode    list; // Base-type.
+	GFXMap         mutable;
+	_GFXPoolBlock* block; // Currently used descriptor block.
+
+} _GFXPoolSub;
+
+
+/**
+ * Vulkan descriptor allocator definition.
+ */
+typedef struct _GFXPool
+{
+	_GFXContext* context;
+
+	GFXList free;   // References _GFXPoolBlock.
+	GFXList allocd; // References _GFXPoolBlock.
+	GFXList subs;   // References _GFXPoolSub.
+
+	GFXMap immutable;
+	GFXMap recycled;
+
+	_GFXMutex subLock; // For claiming blocks.
+	_GFXMutex recLock; // For recycling.
+
+} _GFXPool;
+
+
+/**
+ * Initializes a pool.
+ * @param pool   Cannot be NULL.
+ * @param device Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * _gfx_device_init_context must have returned successfully at least once
+ * for the given device.
+ */
+int _gfx_pool_init(_GFXPool* pool, _GFXDevice* device);
+
+/**
+ * Clears a pool, freeing all blocks and descriptors.
+ * @param pool Cannot be NULL.
+ */
+void _gfx_pool_clear(_GFXPool* pool);
 
 
 #endif
