@@ -413,7 +413,7 @@ _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
 typedef struct _GFXPoolBlock
 {
 	GFXListNode list; // Base-type.
-	uint32_t    sets; // #allocated sets.
+	uint32_t    sets; // #in-use sets.
 
 
 	// Vulkan fields.
@@ -427,13 +427,32 @@ typedef struct _GFXPoolBlock
 
 
 /**
+ * Pooled element (i.e. Vulkan descriptor set).
+ */
+typedef struct _GFXPoolElem
+{
+	_GFXPoolBlock* block;
+	unsigned int   unused; // #flushes unused.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkDescriptorSet set;
+
+	} vk;
+
+} _GFXPoolElem;
+
+
+/**
  * Pool subordinate (i.e. thread handle).
  */
 typedef struct _GFXPoolSub
 {
-	GFXListNode    list; // Base-type.
-	GFXMap         mutable;
-	_GFXPoolBlock* block; // Currently used descriptor block.
+	GFXListNode    list;    // Base-type.
+	GFXMap         mutable; // Stores _GFXHashKey : _GFXPoolElem.
+	_GFXPoolBlock* block;   // Currently used descriptor block.
 
 } _GFXPoolSub;
 
@@ -449,8 +468,8 @@ typedef struct _GFXPool
 	GFXList allocd; // References _GFXPoolBlock.
 	GFXList subs;   // References _GFXPoolSub.
 
-	GFXMap immutable;
-	GFXMap recycled;
+	GFXMap immutable; // Stores _GFXHashKey : _GFXPoolElem.
+	GFXMap recycled;  // Stores _GFXHashKey : _GFXPoolElem.
 
 	_GFXMutex subLock; // For claiming blocks.
 	_GFXMutex recLock; // For recycling.
