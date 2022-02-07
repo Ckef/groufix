@@ -75,7 +75,7 @@
 
 
 /****************************
- * Search tree key comparison function, key is of type VkDeviceSize[2].
+ * Search tree key comparison function, l and r are of type VkDeviceSize[2].
  * First element is the size, second is the offset.
  * Orders on size first, then strictest alignment (i.e. LSB of offset).
  */

@@ -256,7 +256,7 @@ typedef struct GFXRegion
 
 			uint32_t mipmap;
 			uint32_t layer;
-			uint32_t numLayers;
+			uint32_t numLayers; // Cannot be 0 (as opposed to GFXRange).
 
 			uint32_t x;
 			uint32_t y;

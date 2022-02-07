@@ -13,7 +13,76 @@
 #include "groufix/containers/list.h"
 #include "groufix/containers/map.h"
 #include "groufix/containers/tree.h"
+#include "groufix/containers/vec.h"
 #include "groufix/core.h"
+
+
+/****************************
+ * Hashable key building & hashing.
+ ****************************/
+
+/**
+ * Hashable key definition.
+ */
+typedef struct _GFXHashKey
+{
+	size_t len;
+	char bytes[];
+
+} _GFXHashKey;
+
+
+/**
+ * Hashable key builder.
+ */
+typedef struct _GFXHashBuilder
+{
+	GFXVec out;
+
+} _GFXHashBuilder;
+
+
+/**
+ * Returns the size of a hash key in bytes.
+ */
+#define _GFX_HASH_KEY_SIZE(key) \
+	(sizeof(_GFXHashKey) + sizeof(char) * (key)->len)
+
+/**
+ * Pushes data on top of a hash key builder, extending its key.
+ * @return Non-zero on success.
+ */
+#define _GFX_HASH_BUILDER_PUSH(builder, size, data) \
+	gfx_vec_push(&(builder)->out, size, data)
+
+
+/**
+ * Initializes a hash key builder.
+ * Needs to eventually be 'cleared' with a call to _gfx_hash_builder_get().
+ * @param builder Cannot be NULL.
+ * @return Non-zero on success.
+ */
+int _gfx_hash_builder(_GFXHashBuilder* builder);
+
+/**
+ * Claims ownership over the memory allocated by a hash key builder.
+ * The hash key builder itself is invalidated.
+ * @param builder Cannot be NULL.
+ * @return Allocated key data, must call free().
+ */
+_GFXHashKey* _gfx_hash_builder_get(_GFXHashBuilder* builder);
+
+/**
+ * GFXMap key comparison function,
+ * l and r are of type _GFXHashKey*, assumes packed data.
+ */
+int _gfx_hash_cmp(const void* l, const void* r);
+
+/**
+ * MurmurHash3 (32 bits) implementation as GFXMap hash function,
+ * key is of type _GFXHashKey*.
+ */
+uint64_t _gfx_hash_murmur3(const void* key);
 
 
 /****************************
@@ -235,8 +304,8 @@ typedef struct _GFXCache
 {
 	_GFXContext* context;
 
-	GFXMap immutable; // Stores { size_t, char[] } : _GFXCacheElem.
-	GFXMap mutable;   // Stores { size_t, char[] } : _GFXCacheElem.
+	GFXMap immutable; // Stores _GFXHashKey : _GFXCacheElem.
+	GFXMap mutable;   // Stores _GFXHashKey : _GFXCacheElem.
 
 	_GFXMutex lookupLock;
 	_GFXMutex createLock;
