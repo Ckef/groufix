@@ -284,7 +284,7 @@ typedef struct _GFXCacheElem
 	VkStructureType type;
 
 
-	// Output Vulkan object.
+	// Vulkan field (isa union!).
 	union
 	{
 		VkDescriptorSetLayout setLayout;
@@ -292,7 +292,8 @@ typedef struct _GFXCacheElem
 		VkSampler             sampler;
 		VkRenderPass          pass;
 		VkPipeline            pipeline;
-	};
+
+	} vk;
 
 } _GFXCacheElem;
 
