@@ -186,7 +186,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			_gfx_cache_get(&rend->cache, &rpci.sType, NULL);
 
 		if (elem == NULL) goto error;
-		pass->vk.pass = elem->pass;
+		pass->vk.pass = elem->vk.pass;
 	}
 
 	// Create framebuffers.
@@ -251,7 +251,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			_gfx_cache_get(&rend->cache, &dslci.sType, NULL);
 
 		if (elem == NULL) goto error;
-		pass->vk.setLayout = elem->setLayout;
+		pass->vk.setLayout = elem->vk.setLayout;
 	}
 
 	// Create descriptor pool.
@@ -309,7 +309,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			_gfx_cache_get(&rend->cache, &sci.sType, NULL);
 
 		if (elem == NULL) goto error;
-		pass->vk.sampler = elem->sampler;
+		pass->vk.sampler = elem->vk.sampler;
 	}
 
 	// Create image view.
@@ -440,7 +440,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			});
 
 		if (elem == NULL) goto error;
-		pass->vk.pipeLayout = elem->layout;
+		pass->vk.pipeLayout = elem->vk.layout;
 	}
 
 	// Create pipeline.
@@ -630,7 +630,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			});
 
 		if (elem == NULL) goto error;
-		pass->vk.pipeline = elem->pipeline;
+		pass->vk.pipeline = elem->vk.pipeline;
 	}
 
 	return 1;
