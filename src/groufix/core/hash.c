@@ -28,39 +28,6 @@
 
 
 /****************************/
-int _gfx_hash_builder(_GFXHashBuilder* builder)
-{
-	assert(builder != NULL);
-
-	// We have no idea how large the key is gonna be,
-	// so we build it in a vector and claim its memory afterwards.
-	// Initialize with a _GFXHashKey as header.
-	gfx_vec_init(&builder->out, 1);
-
-	if (gfx_vec_push(&builder->out, sizeof(_GFXHashKey), NULL))
-		return 1;
-
-	gfx_vec_clear(&builder->out);
-	return 0;
-}
-
-/****************************/
-_GFXHashKey* _gfx_hash_builder_get(_GFXHashBuilder* builder)
-{
-	assert(builder != NULL);
-
-	// Claim data, set length & return.
-	// If sizeof(char) is not 1 (!?), data would be truncated...
-	const size_t len =
-		(builder->out.size - sizeof(_GFXHashKey)) / sizeof(char);
-
-	_GFXHashKey* key = gfx_vec_claim(&builder->out); // Implicitly clears.
-	key->len = len;
-
-	return key;
-}
-
-/****************************/
 int _gfx_hash_cmp(const void* l, const void* r)
 {
 	const _GFXHashKey* kL = l;
@@ -130,4 +97,37 @@ uint64_t _gfx_hash_murmur3(const void* key)
 	h ^= h >> 16;
 
 	return h;
+}
+
+/****************************/
+int _gfx_hash_builder(_GFXHashBuilder* builder)
+{
+	assert(builder != NULL);
+
+	// We have no idea how large the key is gonna be,
+	// so we build it in a vector and claim its memory afterwards.
+	// Initialize with a _GFXHashKey as header.
+	gfx_vec_init(&builder->out, 1);
+
+	if (gfx_vec_push(&builder->out, sizeof(_GFXHashKey), NULL))
+		return 1;
+
+	gfx_vec_clear(&builder->out);
+	return 0;
+}
+
+/****************************/
+_GFXHashKey* _gfx_hash_builder_get(_GFXHashBuilder* builder)
+{
+	assert(builder != NULL);
+
+	// Claim data, set length & return.
+	// If sizeof(char) is not 1 (!?), data would be truncated...
+	const size_t len =
+		(builder->out.size - sizeof(_GFXHashKey)) / sizeof(char);
+
+	_GFXHashKey* key = gfx_vec_claim(&builder->out); // Implicitly clears.
+	key->len = len;
+
+	return key;
 }

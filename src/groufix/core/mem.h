@@ -45,16 +45,31 @@ typedef struct _GFXHashBuilder
 /**
  * Returns the size of a hash key in bytes.
  */
-#define _GFX_HASH_KEY_SIZE(key) \
-	(sizeof(_GFXHashKey) + sizeof(char) * (key)->len)
+static inline size_t _gfx_hash_size(_GFXHashKey* key)
+{
+	return sizeof(_GFXHashKey) + sizeof(char) * key->len;
+}
 
 /**
  * Pushes data on top of a hash key builder, extending its key.
  * @return Non-zero on success.
  */
-#define _GFX_HASH_BUILDER_PUSH(builder, size, data) \
-	gfx_vec_push(&(builder)->out, size, data)
+static inline int _gfx_hash_builder_push(_GFXHashBuilder* b, size_t s, const void* d)
+{
+	return gfx_vec_push(&b->out, s, d);
+}
 
+/**
+ * GFXMap key comparison function,
+ * l and r are of type _GFXHashKey*, assumes packed data.
+ */
+int _gfx_hash_cmp(const void* l, const void* r);
+
+/**
+ * MurmurHash3 (32 bits) implementation as GFXMap hash function,
+ * key is of type _GFXHashKey*.
+ */
+uint64_t _gfx_hash_murmur3(const void* key);
 
 /**
  * Initializes a hash key builder.
@@ -71,18 +86,6 @@ int _gfx_hash_builder(_GFXHashBuilder* builder);
  * @return Allocated key data, must call free().
  */
 _GFXHashKey* _gfx_hash_builder_get(_GFXHashBuilder* builder);
-
-/**
- * GFXMap key comparison function,
- * l and r are of type _GFXHashKey*, assumes packed data.
- */
-int _gfx_hash_cmp(const void* l, const void* r);
-
-/**
- * MurmurHash3 (32 bits) implementation as GFXMap hash function,
- * key is of type _GFXHashKey*.
- */
-uint64_t _gfx_hash_murmur3(const void* key);
 
 
 /****************************
