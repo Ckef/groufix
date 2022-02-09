@@ -806,8 +806,10 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(GetDeviceQueue);
 	_GFX_GET_DEVICE_PROC_ADDR(GetFenceStatus);
 	_GFX_GET_DEVICE_PROC_ADDR(GetImageMemoryRequirements2);
+	_GFX_GET_DEVICE_PROC_ADDR(GetPipelineCacheData);
 	_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
 	_GFX_GET_DEVICE_PROC_ADDR(MapMemory);
+	_GFX_GET_DEVICE_PROC_ADDR(MergePipelineCaches);
 	_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
 	_GFX_GET_DEVICE_PROC_ADDR(QueueSubmit);
 	_GFX_GET_DEVICE_PROC_ADDR(ResetCommandPool);

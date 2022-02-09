@@ -279,8 +279,10 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(GetDeviceQueue);
 		_GFX_VK_PFN(GetFenceStatus);
 		_GFX_VK_PFN(GetImageMemoryRequirements2);
+		_GFX_VK_PFN(GetPipelineCacheData);
 		_GFX_VK_PFN(GetSwapchainImagesKHR);
 		_GFX_VK_PFN(MapMemory);
+		_GFX_VK_PFN(MergePipelineCaches);
 		_GFX_VK_PFN(QueuePresentKHR);
 		_GFX_VK_PFN(QueueSubmit);
 		_GFX_VK_PFN(ResetCommandPool);

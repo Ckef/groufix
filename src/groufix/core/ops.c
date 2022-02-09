@@ -66,8 +66,6 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
                                    const GFXRegion* refRegions,
                                    _GFXStageRegion* stage)
 {
-	_Static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
-
 	assert(ref != NULL);
 	assert(numRegions > 0);
 	assert(ptrRegions != NULL);
