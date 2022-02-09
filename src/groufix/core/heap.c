@@ -486,8 +486,8 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	// Initialize operation things.
 	gfx_deque_init(&heap->ops.graphics.transfers, sizeof(_GFXTransfer));
 	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(_GFXTransfer));
-	heap->ops.graphics.blocking = 0;
-	heap->ops.transfer.blocking = 0;
+	atomic_store(&heap->ops.graphics.blocking, 0);
+	atomic_store(&heap->ops.transfer.blocking, 0);
 
 	return heap;
 
@@ -597,7 +597,7 @@ purge:
 	// until one is not done yet, it's a round-robin.
 	// Note we check if the host is blocking for any operations,
 	// if so, we cannot destroy the fences, so skip purging...
-	while (pool->blocking == 0 && pool->transfers.size > 0)
+	while (atomic_load(&pool->blocking) == 0 && pool->transfers.size > 0)
 	{
 		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, 0);
 

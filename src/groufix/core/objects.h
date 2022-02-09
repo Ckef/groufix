@@ -333,7 +333,9 @@ typedef struct _GFXTransferPool
 {
 	GFXDeque  transfers; // Stores _GFXTransfer.
 	_GFXMutex lock;
-	uintmax_t blocking; // #blocking threads.
+
+	// #blocking threads.
+	atomic_uintmax_t blocking;
 
 
 	// Vulkan fields.

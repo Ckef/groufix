@@ -14,14 +14,14 @@
 // Pushes a field to a hash key being built.
 #define _GFX_KEY_PUSH(field) \
 	do { \
-		if (!_GFX_HASH_BUILDER_PUSH(&builder, sizeof(field), &(field))) \
+		if (!_gfx_hash_builder_push(&builder, sizeof(field), &(field))) \
 			goto clean; \
 	} while (0)
 
 // Pushes a handle into a hash key being built.
 #define _GFX_KEY_PUSH_HANDLE() \
 	do { \
-		if (!_GFX_HASH_BUILDER_PUSH(&builder, sizeof(*handles), &handles[currHandle++])) \
+		if (!_gfx_hash_builder_push(&builder, sizeof(*handles), &handles[currHandle++])) \
 			goto clean; \
 	} while (0)
 
@@ -262,7 +262,7 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 				_GFX_KEY_PUSH(si->dataSize);
 
 				if (si->dataSize > 0)
-					if (!_GFX_HASH_BUILDER_PUSH(&builder, si->dataSize, si->pData))
+					if (!_gfx_hash_builder_push(&builder, si->dataSize, si->pData))
 						goto clean;
 			}
 		}
@@ -435,7 +435,7 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 				_GFX_KEY_PUSH(pcbsci->pAttachments[a].colorWriteMask);
 			}
 
-			if (!_GFX_HASH_BUILDER_PUSH(&builder, sizeof(pcbsci->blendConstants), pcbsci->blendConstants))
+			if (!_gfx_hash_builder_push(&builder, sizeof(pcbsci->blendConstants), pcbsci->blendConstants))
 				goto clean;
 		}
 
@@ -494,7 +494,7 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(si->dataSize);
 
 			if (si->dataSize > 0)
-				if (!_GFX_HASH_BUILDER_PUSH(&builder, si->dataSize, si->pData))
+				if (!_gfx_hash_builder_push(&builder, si->dataSize, si->pData))
 					goto clean;
 		}
 
@@ -751,7 +751,7 @@ int _gfx_cache_warmup(_GFXCache* cache,
 		// If not found, insert a new element.
 		// Then immediately unlock so other warmups can be performed.
 		elem = gfx_map_hinsert(
-			&cache->immutable, NULL, _GFX_HASH_KEY_SIZE(key), key, hash);
+			&cache->immutable, NULL, _gfx_hash_size(key), key, hash);
 
 		_gfx_mutex_unlock(&cache->lookupLock);
 
@@ -842,7 +842,7 @@ _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
 	_gfx_mutex_lock(&cache->lookupLock);
 
 	elem = gfx_map_hinsert(
-		&cache->mutable, &newElem, _GFX_HASH_KEY_SIZE(key), key, hash);
+		&cache->mutable, &newElem, _gfx_hash_size(key), key, hash);
 
 	_gfx_mutex_unlock(&cache->lookupLock);
 	_gfx_mutex_unlock(&cache->createLock);

@@ -16,6 +16,14 @@
 
 
 /**
+ * Assertion for atomics support.
+ */
+#if defined (__STDC_NO_ATOMICS__)
+	#error "Host platform does not support atomics."
+#endif
+
+
+/**
  * Identification of the host platform.
  */
 #if defined (__unix) || defined (__unix__)
