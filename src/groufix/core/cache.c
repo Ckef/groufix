@@ -44,7 +44,7 @@ typedef struct _GFXPipelineCacheHeader
 {
 	uint32_t magic; // Equal to _GFX_HEADER_MAGIC.
 
-	// Data size & hash from including this header (with hash set to 0).
+	// Data size & hash including this header (with hash set to 0).
 	uint32_t dataSize;
 	uint64_t dataHash;
 
@@ -999,7 +999,7 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 	head += sizeof(header.driverVersion);
 	memcpy(&header.driverABI, head, sizeof(header.driverABI));
 	head += sizeof(header.driverABI);
-	memcpy(&header.uuid, head, sizeof(header.uuid));
+	memcpy(header.uuid, head, sizeof(header.uuid));
 	head += sizeof(header.uuid);
 
 	// Validate the received data.
@@ -1028,12 +1028,14 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 	}
 
 	// Create a temporary Vulkan pipeline cache.
+	const size_t size = (size_t)len - (size_t)(head - key->bytes);
+
 	VkPipelineCacheCreateInfo pcci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
 
 		.pNext           = NULL,
 		.flags           = 0,
-		.initialDataSize = (size_t)len - (size_t)(head - key->bytes),
+		.initialDataSize = size,
 		.pInitialData    = head
 	};
 
@@ -1042,6 +1044,8 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 		context->vk.CreatePipelineCache(
 			context->vk.device, &pcci, NULL, &vkCache),
 		{
+			gfx_log_error("Failed to load pipeline cache.");
+
 			free(key);
 			return 0;
 		});
@@ -1054,10 +1058,22 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 	_GFX_VK_CHECK(
 		context->vk.MergePipelineCaches(
 			context->vk.device, cache->vk.cache, 1, &vkCache),
-		success = 0);
+		{
+			gfx_log_error("Failed to merge pipeline cache.");
+			success = 0;
+		});
 
 	context->vk.DestroyPipelineCache(
 		context->vk.device, vkCache, NULL);
+
+	// Some victory logs c:
+#if !defined (NDEBUG)
+	if (success)
+		gfx_log_debug(
+			"Successfully loaded pipeline cache:\n"
+			"    Input size: %"GFX_PRIs" bytes.\n",
+			size);
+#endif
 
 	return success;
 }
