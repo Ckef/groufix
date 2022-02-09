@@ -93,7 +93,8 @@ typedef struct _GFXState
 {
 	atomic_bool initialized;
 
-	GFXLogLevel logDef; // Only pre-initialized field besides `initialized`.
+	// Only pre-initialized field besides `initialized`.
+	GFXLogLevel logDef;
 
 	GFXVec  devices;  // Stores _GFXDevice (never changes, so not dynamic).
 	GFXList contexts; // References _GFXContext.
