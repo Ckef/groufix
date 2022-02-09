@@ -13,27 +13,11 @@
 
 /****************************
  * Retrieves whether the GLFW recreate signal was set (and resets the signal).
- * @param window Cannot be NULL.
  * @return Non-zero if the recreate signal was set.
- *
- * Completely thread-safe.
  */
 static inline int _gfx_swapchain_sig(_GFXWindow* window)
 {
-	assert(window != NULL);
-
-	int recreate = 0;
-
-#if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_lock(&window->frame.lock);
-	recreate = window->frame.recreate;
-	window->frame.recreate = 0;
-	_gfx_mutex_unlock(&window->frame.lock);
-#else
-	recreate = atomic_exchange(&window->frame.recreate, 0);
-#endif
-
-	return recreate;
+	return atomic_exchange(&window->frame.recreate, 0);
 }
 
 /****************************
@@ -68,7 +52,7 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 	// correct inputs at this point.
 	_gfx_mutex_lock(&window->frame.lock);
 
-	window->frame.recreate = 0;
+	atomic_store(&window->frame.recreate, 0);
 
 	const uint32_t width = window->frame.rWidth;
 	const uint32_t height = window->frame.rHeight;
@@ -297,39 +281,6 @@ clean:
 	*flags = 0;
 
 	return 0;
-}
-
-/****************************/
-int _gfx_swapchain_try_lock(_GFXWindow* window)
-{
-	assert(window != NULL);
-
-	int locked = 0;
-
-#if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_lock(&window->swapLock);
-	locked = window->swap;
-	window->swap = 1;
-	_gfx_mutex_unlock(&window->swapLock);
-#else
-	locked = atomic_exchange(&window->swap, 1);
-#endif
-
-	return !locked;
-}
-
-/****************************/
-void _gfx_swapchain_unlock(_GFXWindow* window)
-{
-	assert(window != NULL);
-
-#if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_lock(&window->swapLock);
-	window->swap = 0;
-	_gfx_mutex_unlock(&window->swapLock);
-#else
-	window->swap = 0;
-#endif
 }
 
 /****************************/

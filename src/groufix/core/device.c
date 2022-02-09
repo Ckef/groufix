@@ -577,6 +577,8 @@ static void _gfx_destroy_context(_GFXContext* context)
 		free(set);
 	}
 
+	gfx_list_clear(&context->sets);
+
 	// We wait for all queues of the device to complete, then we can destroy.
 	// We check if the functions were loaded properly,
 	// they may not be if something failed during context creation.
@@ -584,9 +586,6 @@ static void _gfx_destroy_context(_GFXContext* context)
 		context->vk.DeviceWaitIdle(context->vk.device);
 	if (context->vk.DestroyDevice != NULL)
 		context->vk.DestroyDevice(context->vk.device, NULL);
-
-	_gfx_mutex_clear(&context->allocLock);
-	gfx_list_clear(&context->sets);
 
 	free(context);
 }
@@ -636,13 +635,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
 		context->maxAllocs = pdp.limits.maxMemoryAllocationCount;
-		context->allocs = 0;
-
-		if (!_gfx_mutex_init(&context->allocLock))
-		{
-			free(context);
-			goto error;
-		}
+		atomic_store(&context->allocs, 0);
 
 		// Insert itself in the context list.
 		gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);

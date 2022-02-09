@@ -31,16 +31,11 @@ int _gfx_init(void)
 	if (!_gfx_mutex_init(&_groufix.thread.ioLock))
 		goto clean_key;
 
-#if defined (__STDC_NO_ATOMICS__)
-	if (!_gfx_mutex_init(&_groufix.thread.idLock))
-		goto clean_io;
-#endif
-
-	_groufix.thread.id = 0;
+	atomic_store(&_groufix.thread.id, 0);
 
 	// Initialize other things...
 	if (!_gfx_mutex_init(&_groufix.contextLock))
-		goto clean_local;
+		goto clean_io;
 
 	gfx_vec_init(&_groufix.devices, sizeof(_GFXDevice));
 	gfx_list_init(&_groufix.contexts);
@@ -56,11 +51,7 @@ int _gfx_init(void)
 
 
 	// Cleanup on failure.
-clean_local:
-#if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_clear(&_groufix.thread.idLock);
 clean_io:
-#endif
 	_gfx_mutex_clear(&_groufix.thread.ioLock);
 clean_key:
 	_gfx_thread_key_clear(_groufix.thread.key);
@@ -79,9 +70,6 @@ void _gfx_terminate(void)
 
 	_gfx_thread_key_clear(_groufix.thread.key);
 	_gfx_mutex_clear(&_groufix.thread.ioLock);
-#if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_clear(&_groufix.thread.idLock);
-#endif
 	_gfx_mutex_clear(&_groufix.contextLock);
 
 	// Signal that termination is done.
@@ -105,13 +93,7 @@ int _gfx_create_local(void)
 	}
 
 	// Give it a unique id.
-#if defined (__STDC_NO_ATOMICS__)
-	_gfx_mutex_lock(&_groufix.thread.idLock);
-	state->id = _groufix.thread.id++;
-	_gfx_mutex_unlock(&_groufix.thread.idLock);
-#else
-	state->id = _groufix.thread.id++;
-#endif
+	state->id = atomic_fetch_add(&_groufix.thread.id, 1);
 
 	// Initialize the logging stuff.
 	state->log.level = _groufix.logDef;

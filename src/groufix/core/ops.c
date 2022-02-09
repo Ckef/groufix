@@ -233,7 +233,7 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, GFXTransferFlags flags,
 	// This way we end up with round-robin like behaviour :)
 	// Note we check if the host is blocking for any transfers,
 	// if so, we cannot reset the fence, so skip recycling...
-	if ((*pool)->blocking == 0 && (*pool)->transfers.size > 0)
+	if (atomic_load(&(*pool)->blocking) == 0 && (*pool)->transfers.size > 0)
 	{
 		_GFXTransfer* transfer = gfx_deque_at(&(*pool)->transfers, 0);
 
@@ -728,7 +728,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	// Also note: this means we cannot free the transfer object,
 	// as it might not be the last one pushed anymore.
 	VkFence done = transfer->vk.done;
-	if (flags & GFX_TRANSFER_BLOCK) ++pool->blocking;
+	if (flags & GFX_TRANSFER_BLOCK) atomic_fetch_add(&pool->blocking, 1);
 
 	_gfx_mutex_unlock(&pool->lock);
 
@@ -742,10 +742,8 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 			gfx_log_fatal("Transfer operation failed to block.");
 		});
 
-		// Lock access to count..
-		_gfx_mutex_lock(&pool->lock);
-		--pool->blocking;
-		_gfx_mutex_unlock(&pool->lock);
+		// No need to lock :)
+		atomic_fetch_sub(&pool->blocking, 1);
 	}
 
 	// And lastly, make all commands visible for future operations.

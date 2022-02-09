@@ -15,10 +15,7 @@
 #include "groufix/containers/vec.h"
 #include "groufix/core/threads.h"
 #include "groufix.h"
-
-#if !defined (__STDC_NO_ATOMICS__)
-	#include <stdatomic.h>
-#endif
+#include <stdatomic.h>
 
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
@@ -111,14 +108,11 @@ typedef struct _GFXState
 	// Thread local data access.
 	struct
 	{
-#if defined (__STDC_NO_ATOMICS__)
-		uintmax_t id;
-		_GFXMutex idLock;
-#else
-		atomic_uintmax_t id;
-#endif
 		_GFXThreadKey key; // Stores _GFXThreadState*.
 		_GFXMutex     ioLock;
+
+		// Next thread id.
+		atomic_uintmax_t id;
 
 	} thread;
 
@@ -209,9 +203,8 @@ typedef struct _GFXContext
 	GFXList     sets; // References _GFXQueueSet.
 
 	// Memory allocation limit, queried once.
-	uint32_t  maxAllocs;
-	uint32_t  allocs;
-	_GFXMutex allocLock;
+	uint32_t              maxAllocs;
+	atomic_uint_least32_t allocs;
 
 
 	// Vulkan fields.
@@ -358,13 +351,8 @@ typedef struct _GFXWindow
 	_GFXContext* context;
 	uint32_t     access[2]; // All Vulkan families with image access (UINT32_MAX for empty).
 
-	// Swapchain lock (window can only be used by one renderer).
-#if defined (__STDC_NO_ATOMICS__)
-	int        swap;
-	_GFXMutex  swapLock;
-#else
-	atomic_int swap;
-#endif
+	// Swapchain 'lock' (window can only be used by one renderer).
+	atomic_bool swap;
 
 
 	// Frame (i.e Vulkan surface + swapchain) properties.
@@ -375,12 +363,10 @@ typedef struct _GFXWindow
 		uint32_t width;
 		uint32_t height;
 
+		// Recreate signal.
+		atomic_bool recreate;
+
 		// All new 'recreate' values are protected by a mutex.
-#if defined (__STDC_NO_ATOMICS__)
-		int            recreate;
-#else
-		atomic_int     recreate;
-#endif
 		uint32_t       rWidth;  // Future width.
 		uint32_t       rHeight; // Future height.
 		GFXWindowFlags flags;   // Determines number of images.
@@ -579,19 +565,23 @@ typedef enum _GFXRecreateFlags
 
 
 /**
- * Attempt to 'claim' (i.e. lock) the swapchain by atomically reading if
- * window->swap is already set to one and subsequentally setting it to 1.
+ * Attempt to 'claim' (i.e. lock) the swapchain.
  * This is used to ensure no two objects try to use the swapchain.
- * @param window Cannot be NULL.
  * @return Non-zero if swapchain was not yet claimed.
  */
-int _gfx_swapchain_try_lock(_GFXWindow* window);
+static inline int _gfx_swapchain_try_lock(_GFXWindow* window)
+{
+	return !atomic_exchange(&window->swap, 1);
+}
 
 /**
- * Atomically 'unclaims' the swapchain by setting window->swap back to 0.
- * @param window Cannot be NULL.
+ * Atomically 'unclaims' the swapchain.
+ * Used to allow other objects to claim the swapchain again.
  */
-void _gfx_swapchain_unlock(_GFXWindow* window);
+static inline void _gfx_swapchain_unlock(_GFXWindow* window)
+{
+	atomic_store(&window->swap, 0);
+}
 
 /**
  * Acquires the next available image from the swapchain of a window.
