@@ -204,8 +204,9 @@ typedef struct _GFXContext
 
 	// Memory allocation limit, queried once.
 	uint32_t  maxAllocs;
-	uint32_t  allocs;
 	_GFXMutex allocLock;
+
+	atomic_uint_fast32_t allocs;
 
 
 	// Vulkan fields.

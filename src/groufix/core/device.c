@@ -636,7 +636,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
 		context->maxAllocs = pdp.limits.maxMemoryAllocationCount;
-		context->allocs = 0;
+		atomic_store(&context->allocs, 0);
 
 		if (!_gfx_mutex_init(&context->allocLock))
 		{
