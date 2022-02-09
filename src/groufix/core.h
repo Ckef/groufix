@@ -204,8 +204,9 @@ typedef struct _GFXContext
 	GFXList     sets; // References _GFXQueueSet.
 
 	// Memory allocation limit, queried once.
-	uint32_t              maxAllocs;
-	atomic_uint_least32_t allocs;
+	uint32_t  maxAllocs;
+	uint32_t  allocs;
+	_GFXMutex allocLock;
 
 
 	// Vulkan fields.
