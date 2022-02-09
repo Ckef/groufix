@@ -436,7 +436,9 @@ typedef struct _GFXPoolBlock
 typedef struct _GFXPoolElem
 {
 	_GFXPoolBlock* block;
-	unsigned int   unused; // #flushes unused.
+
+	// #flushes unused (+1).
+	atomic_int unused;
 
 
 	// Vulkan fields.
