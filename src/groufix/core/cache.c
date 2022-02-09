@@ -654,8 +654,8 @@ int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
 	assert(device != NULL);
 	assert(device->context != NULL);
 
-	cache->context = device->context;
-	cache->vk.cache = VK_NULL_HANDLE;
+	_GFXContext* context = device->context;
+	cache->context = context;
 
 	// Initialize the locks.
 	if (!_gfx_mutex_init(&cache->lookupLock))
@@ -666,6 +666,19 @@ int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
 		_gfx_mutex_clear(&cache->lookupLock);
 		return 0;
 	}
+
+	// Create an empty pipeline cache.
+	VkPipelineCacheCreateInfo pcci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
+
+		.pNext           = NULL,
+		.flags           = 0,
+		.initialDataSize = 0,
+		.pInitialData    = NULL
+	};
+
+	_GFX_VK_CHECK(context->vk.CreatePipelineCache(
+		context->vk.device, &pcci, NULL, &cache->vk.cache), goto clean);
 
 	// Initialize the hashtables.
 	// Take the largest alignment of the key and element types.
@@ -679,12 +692,22 @@ int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
 		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
 
 	return 1;
+
+
+	// Clean on failure.
+clean:
+	_gfx_mutex_clear(&cache->lookupLock);
+	_gfx_mutex_clear(&cache->createLock);
+
+	return 0;
 }
 
 /****************************/
 void _gfx_cache_clear(_GFXCache* cache)
 {
 	assert(cache != NULL);
+
+	_GFXContext* context = cache->context;
 
 	// Destroy all objects in the mutable cache.
 	for (
@@ -703,6 +726,10 @@ void _gfx_cache_clear(_GFXCache* cache)
 	{
 		_gfx_cache_destroy_elem(cache, elem);
 	}
+
+	// Destroy the pipeline cache.
+	context->vk.DestroyPipelineCache(
+		context->vk.device, cache->vk.cache, NULL);
 
 	// Clear all other things.
 	gfx_map_clear(&cache->immutable);

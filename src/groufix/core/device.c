@@ -775,6 +775,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CreateGraphicsPipelines);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateImage);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateImageView);
+	_GFX_GET_DEVICE_PROC_ADDR(CreatePipelineCache);
 	_GFX_GET_DEVICE_PROC_ADDR(CreatePipelineLayout);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateRenderPass);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateSampler);
@@ -790,6 +791,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyImage);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyImageView);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipeline);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipelineCache);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipelineLayout);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyRenderPass);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroySampler);
