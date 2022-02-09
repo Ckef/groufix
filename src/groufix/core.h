@@ -91,7 +91,7 @@ typedef struct _GFXThreadState
  */
 typedef struct _GFXState
 {
-	int initialized;
+	atomic_bool initialized;
 
 	GFXLogLevel logDef; // Only pre-initialized field besides `initialized`.
 

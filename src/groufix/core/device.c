@@ -1159,7 +1159,7 @@ _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
 /****************************/
 GFX_API size_t gfx_get_num_devices(void)
 {
-	assert(_groufix.initialized);
+	assert(atomic_load(&_groufix.initialized));
 
 	return _groufix.devices.size;
 }
@@ -1167,7 +1167,7 @@ GFX_API size_t gfx_get_num_devices(void)
 /****************************/
 GFX_API GFXDevice* gfx_get_device(size_t index)
 {
-	assert(_groufix.initialized);
+	assert(atomic_load(&_groufix.initialized));
 	assert(_groufix.devices.size > 0);
 	assert(index < _groufix.devices.size);
 
@@ -1177,7 +1177,7 @@ GFX_API GFXDevice* gfx_get_device(size_t index)
 /****************************/
 GFX_API GFXDevice* gfx_get_primary_device(void)
 {
-	assert(_groufix.initialized);
+	assert(atomic_load(&_groufix.initialized));
 	assert(_groufix.devices.size > 0);
 
 	return gfx_vec_at(&_groufix.devices, 0);

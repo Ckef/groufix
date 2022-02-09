@@ -94,7 +94,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	const double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
 
 	// If groufix is initialized..
-	if (_groufix.initialized)
+	if (atomic_load(&_groufix.initialized))
 	{
 		// Default to stderr with default log level.
 		const GFXWriter* out = GFX_IO_STDERR;
@@ -140,7 +140,7 @@ GFX_API int gfx_log_set_level(GFXLogLevel level)
 	assert(level >= GFX_LOG_NONE && level <= GFX_LOG_ALL);
 
 	// Adjust the only pre-gfx_init() initialized setting.
-	if (!_groufix.initialized)
+	if (!atomic_load(&_groufix.initialized))
 	{
 		_groufix.logDef = level;
 		return 1;
@@ -160,7 +160,7 @@ GFX_API int gfx_log_set_level(GFXLogLevel level)
 GFX_API int gfx_log_set(const GFXWriter* out)
 {
 	// Again, logging is special.
-	if (!_groufix.initialized)
+	if (!atomic_load(&_groufix.initialized))
 		return 0;
 
 	_GFXThreadState* state = _gfx_get_local();
