@@ -205,8 +205,9 @@ typedef struct _GFXContext
 
 	// Memory allocation limit, queried once.
 	uint32_t  maxAllocs;
-	uint32_t  allocs;
 	_GFXMutex allocLock;
+
+	atomic_uint_fast32_t allocs;
 
 
 	// Vulkan fields.
@@ -246,6 +247,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CreateGraphicsPipelines);
 		_GFX_VK_PFN(CreateImage);
 		_GFX_VK_PFN(CreateImageView);
+		_GFX_VK_PFN(CreatePipelineCache);
 		_GFX_VK_PFN(CreatePipelineLayout);
 		_GFX_VK_PFN(CreateRenderPass);
 		_GFX_VK_PFN(CreateSampler);
@@ -262,6 +264,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(DestroyImage);
 		_GFX_VK_PFN(DestroyImageView);
 		_GFX_VK_PFN(DestroyPipeline);
+		_GFX_VK_PFN(DestroyPipelineCache);
 		_GFX_VK_PFN(DestroyPipelineLayout);
 		_GFX_VK_PFN(DestroyRenderPass);
 		_GFX_VK_PFN(DestroySampler);
@@ -277,8 +280,10 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(GetDeviceQueue);
 		_GFX_VK_PFN(GetFenceStatus);
 		_GFX_VK_PFN(GetImageMemoryRequirements2);
+		_GFX_VK_PFN(GetPipelineCacheData);
 		_GFX_VK_PFN(GetSwapchainImagesKHR);
 		_GFX_VK_PFN(MapMemory);
+		_GFX_VK_PFN(MergePipelineCaches);
 		_GFX_VK_PFN(QueuePresentKHR);
 		_GFX_VK_PFN(QueueSubmit);
 		_GFX_VK_PFN(ResetCommandPool);

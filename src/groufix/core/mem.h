@@ -10,6 +10,7 @@
 #ifndef _GFX_CORE_MEM_H
 #define _GFX_CORE_MEM_H
 
+#include "groufix/containers/io.h"
 #include "groufix/containers/list.h"
 #include "groufix/containers/map.h"
 #include "groufix/containers/tree.h"
@@ -52,11 +53,12 @@ static inline size_t _gfx_hash_size(_GFXHashKey* key)
 
 /**
  * Pushes data on top of a hash key builder, extending its key.
- * @return Non-zero on success.
+ * @return A pointer to the pushed data, NULL on failure.
  */
-static inline int _gfx_hash_builder_push(_GFXHashBuilder* b, size_t s, const void* d)
+static inline void* _gfx_hash_builder_push(_GFXHashBuilder* b, size_t s, const void* d)
 {
-	return gfx_vec_push(&b->out, s, d);
+	if (!gfx_vec_push(&b->out, s, d)) return NULL;
+	return gfx_vec_at(&b->out, b->out.size - s);
 }
 
 /**
@@ -318,14 +320,13 @@ typedef struct _GFXCache
 	// Vulkan fields.
 	struct
 	{
-		VkPipelineCache cache;
+		VkPhysicalDevice device; // For pipeline cache validation.
+		VkPipelineCache  cache;
 
 	} vk;
 
 } _GFXCache;
 
-
-// TODO: Add functions to load/store/merge the Vulkan pipeline cache.
 
 /**
  * Initializes a cache.
@@ -405,6 +406,26 @@ int _gfx_cache_warmup(_GFXCache* cache,
 _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
                               const VkStructureType* createInfo,
                               const void** handles);
+
+/**
+ * Loads groufix pipeline cache data, merging it into the current cache.
+ * @param cache Cannot be NULL.
+ * @param src   Source stream, cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * Not thread-safe at all.
+ */
+int _gfx_cache_load(_GFXCache* cache, const GFXReader* src);
+
+/**
+ * Stores the current groufix pipeline cache data.
+ * @param cache Cannot be NULL.
+ * @param dst   Destination stream, cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * Not thread-safe at all.
+ */
+int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst);
 
 
 /****************************

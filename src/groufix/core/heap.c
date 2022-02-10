@@ -813,8 +813,6 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      GFXBufferRef index,
                                      size_t numAttribs, const GFXAttribute* attribs)
 {
-	_Static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
-
 	assert(heap != NULL);
 	assert(numIndices == 0 || indexSize == sizeof(uint16_t) || indexSize == sizeof(uint32_t));
 	assert(numVertices > 0);

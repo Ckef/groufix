@@ -122,10 +122,7 @@ _GFXHashKey* _gfx_hash_builder_get(_GFXHashBuilder* builder)
 	assert(builder != NULL);
 
 	// Claim data, set length & return.
-	// If sizeof(char) is not 1 (!?), data would be truncated...
-	const size_t len =
-		(builder->out.size - sizeof(_GFXHashKey)) / sizeof(char);
-
+	const size_t len = builder->out.size - sizeof(_GFXHashKey);
 	_GFXHashKey* key = gfx_vec_claim(&builder->out); // Implicitly clears.
 	key->len = len;
 
