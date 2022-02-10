@@ -471,7 +471,7 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			}
 
 			if (_gfx_hash_builder_push(
-					&builder, sizeof(pcbsci->blendConstants), pcbsci->blendConstants) == NULL)
+				&builder, sizeof(pcbsci->blendConstants), pcbsci->blendConstants) == NULL)
 			{
 				goto clean;
 			}
@@ -988,7 +988,7 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 	memcpy(&header.dataSize, head, sizeof(header.dataSize));
 	head += sizeof(header.dataSize);
 	memcpy(&header.dataHash, head, sizeof(header.dataHash));
-	// Set dataHash to 0 in the received data so we can hash it :)
+	// Set dataHash to 0 in the received data so we can hash & compare it :)
 	memcpy(head, &emptyHash, sizeof(header.dataHash));
 	head += sizeof(header.dataHash);
 	memcpy(&header.vendorID, head, sizeof(header.vendorID));
@@ -1028,18 +1028,18 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 	}
 
 	// Create a temporary Vulkan pipeline cache.
-	const size_t size = (size_t)len - (size_t)(head - key->bytes);
+	const size_t vkSize = (size_t)len - (size_t)(head - key->bytes);
+	VkPipelineCache vkCache;
 
 	VkPipelineCacheCreateInfo pcci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
 
 		.pNext           = NULL,
 		.flags           = 0,
-		.initialDataSize = size,
+		.initialDataSize = vkSize,
 		.pInitialData    = head
 	};
 
-	VkPipelineCache vkCache;
 	_GFX_VK_CHECK(
 		context->vk.CreatePipelineCache(
 			context->vk.device, &pcci, NULL, &vkCache),
@@ -1070,9 +1070,9 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 #if !defined (NDEBUG)
 	if (success)
 		gfx_log_debug(
-			"Successfully loaded pipeline cache:\n"
+			"Successfully loaded groufix pipeline cache:\n"
 			"    Input size: %"GFX_PRIs" bytes.\n",
-			size);
+			(size_t)len);
 #endif
 
 	return success;
@@ -1084,7 +1084,90 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
 	assert(cache != NULL);
 	assert(dst != NULL);
 
-	// TODO: Implement.
+	_GFXContext* context = cache->context;
 
+	// Again with the hash key builder c:
+	_GFXHashBuilder builder;
+	if (!_gfx_hash_builder(&builder)) return 0;
+
+	// Create & push a groufix header, needs to be packed!
+	// Given this function follows the same makeup as _gfx_cache_alloc_key,
+	// we are very much going to abuse the _GFX_KEY_PUSH macro.
+	const uint32_t magic = _GFX_HEADER_MAGIC;
+	const uint32_t emptySize = 0;
+	const uint64_t emptyHash = 0;
+	const uint32_t driverABI = sizeof(void*);
+
+	_GFX_KEY_PUSH(magic);
+	_GFX_KEY_PUSH(emptySize);
+	_GFX_KEY_PUSH(emptyHash);
+
+	{
+		// Get allocation limit in a scope so pdp gets freed :)
+		VkPhysicalDeviceProperties pdp;
+		_groufix.vk.GetPhysicalDeviceProperties(cache->vk.device, &pdp);
+
+		_GFX_KEY_PUSH(pdp.vendorID);
+		_GFX_KEY_PUSH(pdp.deviceID);
+		_GFX_KEY_PUSH(pdp.driverVersion);
+		_GFX_KEY_PUSH(driverABI);
+
+		if (_gfx_hash_builder_push(
+			&builder, sizeof(pdp.pipelineCacheUUID), pdp.pipelineCacheUUID) == NULL)
+		{
+			goto clean;
+		}
+	}
+
+	// Get the size of the pipeline cache.
+	// Then push a big enough chunk for the cache data & get the data.
+	size_t vkSize;
+	_GFX_VK_CHECK(context->vk.GetPipelineCacheData(
+		context->vk.device, cache->vk.cache, &vkSize, NULL), goto clean);
+
+	void* bData = _gfx_hash_builder_push(&builder, vkSize, NULL);
+	if (bData == NULL) goto clean;
+
+	_GFX_VK_CHECK(context->vk.GetPipelineCacheData(
+		context->vk.device, cache->vk.cache, &vkSize, bData), goto clean);
+
+	// Claim builder data.
+	// Set its `dataSize` so we can hash.
+	_GFXHashKey* key = _gfx_hash_builder_get(&builder);
+	memcpy(
+		(uint32_t*)key->bytes + 1, // Right after `magic`.
+		&key->len,
+		sizeof(uint32_t));
+
+	// Then hash while `dataHash` is 0 and set it afterwards
+	const uint64_t hash = _gfx_hash_murmur3(key);
+	memcpy(
+		(uint32_t*)key->bytes + 2, // Right after `dataSize`.
+		&hash,
+		sizeof(uint64_t));
+
+	// Stream out the data.
+	if (gfx_io_write(dst, key->bytes, key->len) <= 0)
+	{
+		gfx_log_error("Could not write pipeline cache data to stream.");
+		free(key);
+		return 0;
+	}
+
+	// Yey we did it!
+	gfx_log_debug(
+		"Successfully stored groufix pipeline cache:\n"
+		"    Output size: %"GFX_PRIs" bytes.\n",
+		key->len);
+
+	free(key);
+	return 1;
+
+
+	// Cleanup on failure.
+clean:
+	gfx_log_error("Failed to store pipeline cache data.");
+
+	free(_gfx_hash_builder_get(&builder));
 	return 0;
 }
