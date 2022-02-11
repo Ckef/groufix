@@ -382,6 +382,7 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
 typedef enum GFXTransferFlags
 {
 	// TODO: Introduce GFX_TRANSFER_POOL, for pooling into 1 command buffer.
+	// TODO: We could reverse meaning and call it GFX_TRANSFER_FLUSH instead c:
 	GFX_TRANSFER_ASYNC = 0x0001,
 	GFX_TRANSFER_BLOCK = 0x0002
 
@@ -398,9 +399,10 @@ typedef enum GFXTransferFlags
  * @param deps       Cannot be NULL if numDeps > 0.
  * @return Non-zero on success.
  *
- * All memory operations are thread-safe with respect to any associated heap!
- * For any operation, at least one resource must be allocated from a heap.
- * Memory operations are also thread-safe with respect to each other!
+ * For any operation, at least one resource must be allocated from a heap!
+ * All memory operations are thread-safe with respect to any associated heap,
+ * which means operations can run in parallel as long as they operate on
+ * different resources (or non-overlapping regions thereof)!
  *
  * Undefined behaviour if size/width/height/depth of (src|dst)Regions do not match.
  *  One of a pair can have a size of zero and it will be ignored.
@@ -460,7 +462,8 @@ GFX_API void* gfx_map(GFXBufferRef ref);
  * Must be called exactly once for every successful call to gfx_map.
  * @param ref Cannot be GFX_REF_NULL.
  *
- * Any offset value is ignored, only the correct object should be referenced.
+ * This function is reentrant.
+ * Any offset value is ignored, only the correct object must be referenced.
  */
 GFX_API void gfx_unmap(GFXBufferRef ref);
 

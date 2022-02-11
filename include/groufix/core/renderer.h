@@ -193,29 +193,6 @@ GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer);
 GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
                                          size_t target);
 
-/**
- * Acquires the next virtual frame of a renderer, blocks until available!
- * Implicitly calls gfx_frame_submit if not yet done after the previous call.
- * @param renderer Cannot be NULL.
- * @return Always returns a valid frame.
- *
- * The renderer (or any of its passes) cannot be modified during or after
- * this call until gfx_frame_submit has returned.
- */
-GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
-
-/**
- * Submits the acquired virtual frame of a renderer.
- * Must be called exactly once for each call to gfx_renderer_acquire.
- * @param frame Cannot be NULL.
- * @param deps  Cannot be NULL if numDeps > 0.
- *
- * Failure during submission cannot be recovered from,
- * any such failure is appropriately logged.
- */
-GFX_API void gfx_frame_submit(GFXFrame* frame,
-                              size_t numDeps, const GFXInject* deps);
-
 
 /****************************
  * Pass handling.
@@ -265,6 +242,34 @@ GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
  */
 GFX_API void gfx_pass_use(GFXPass* pass,
                           GFXPrimitive* primitive, GFXGroup* group);
+
+
+/****************************
+ * Frame handling.
+ ****************************/
+
+/**
+ * Acquires the next virtual frame of a renderer, blocks until available!
+ * Implicitly calls gfx_frame_submit if not yet done after the previous call.
+ * @param renderer Cannot be NULL.
+ * @return Always returns a valid frame.
+ *
+ * The renderer (or any of its passes) cannot be modified during or after
+ * this call until gfx_frame_submit has returned.
+ */
+GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
+
+/**
+ * Submits the acquired virtual frame of a renderer.
+ * Must be called exactly once for each call to gfx_renderer_acquire.
+ * @param frame Cannot be NULL.
+ * @param deps  Cannot be NULL if numDeps > 0.
+ *
+ * Failure during submission cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_frame_submit(GFXFrame* frame,
+                              size_t numDeps, const GFXInject* deps);
 
 
 #endif

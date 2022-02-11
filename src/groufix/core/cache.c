@@ -1015,7 +1015,7 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 			header.vendorID != pdp.vendorID ||
 			header.deviceID != pdp.deviceID ||
 			header.driverVersion != pdp.driverVersion ||
-			header.driverABI != sizeof(void*) ||
+			header.driverABI != (uint32_t)sizeof(void*) ||
 			memcmp(header.uuid, pdp.pipelineCacheUUID, sizeof(header.uuid)) != 0)
 		{
 			gfx_log_error(
@@ -1096,7 +1096,7 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
 	const uint32_t magic = _GFX_HEADER_MAGIC;
 	const uint32_t emptySize = 0;
 	const uint64_t emptyHash = 0;
-	const uint32_t driverABI = sizeof(void*);
+	const uint32_t driverABI = (uint32_t)sizeof(void*);
 
 	_GFX_KEY_PUSH(magic);
 	_GFX_KEY_PUSH(emptySize);
