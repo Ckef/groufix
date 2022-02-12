@@ -94,6 +94,20 @@ GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes);
 GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src);
 
 /**
+ * Moves a node from one map to another/itself, optionally updating its key.
+ * @param map  Cannot be NULL.
+ * @param dst  Cannot be NULL, must have the same elemSize and align as map.
+ * @param node Must be a non-NULL value returned by gfx_map_(h)insert.
+ * @param key  New key data, must be of the same size, may be NULL.
+ * @return Zero on failure.
+ *
+ * The node pointer remains valid.
+ * When the (new) key is already present in dst, a duplicate is inserted!
+ */
+GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
+                         size_t keySize, const void* key);
+
+/**
  * Inserts a node into the map.
  * @param map     Cannot be NULL.
  * @param elem    Can be NULL to insert empty.

@@ -209,6 +209,68 @@ GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src)
 }
 
 /****************************/
+GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
+                         size_t keySize, const void* key)
+{
+	assert(map != NULL);
+	assert(dst != NULL);
+	assert(map->elementSize == dst->elementSize);
+	assert(map->align == dst->align);
+	assert(node != NULL);
+	assert(key == NULL || keySize > 0);
+	assert(map->capacity > 0);
+
+	_GFXMapNode* mNode = _GFX_GET_NODE(map, node);
+
+	// Again, need to grow the destination map (if a different map).
+	if (map != dst && !_gfx_map_grow(dst, dst->size + 1))
+		return 0;
+
+	// Use stored hash to get index to the bucket!
+	uint64_t hInd = mNode->hash % map->capacity;
+
+	// Remove it from the source map similarly to gfx_map_erase.
+	// By finding the node BEFORE the one to erase.
+	_GFXMapNode* bNode = map->buckets[hInd];
+	if (bNode == mNode)
+	{
+		map->buckets[hInd] = mNode->next;
+		--map->size, _gfx_map_shrink(map);
+	}
+
+	else for (
+		// Note: bNode cannot be NULL, as node must be valid!
+		_GFXMapNode* curr = bNode->next;
+		curr != NULL;
+		bNode = curr, curr = bNode->next)
+	{
+		if (curr == mNode)
+		{
+			bNode->next = mNode->next;
+			--map->size, _gfx_map_shrink(map);
+			break;
+		}
+	}
+
+	++dst->size;
+
+	// Stick it in destination.
+	// But first, initialize new key value.
+	// Also, we rehash if we use a different hash function!
+	if (key != NULL)
+		memcpy(_GFX_GET_KEY(dst, mNode), key, keySize);
+
+	if (key != NULL || map->hash != dst->hash)
+		mNode->hash = dst->hash(_GFX_GET_KEY(dst, mNode));
+
+	hInd = mNode->hash % dst->capacity;
+	mNode->next = dst->buckets[hInd];
+	dst->buckets[hInd] = mNode;
+
+	return 1;
+}
+
+/****************************/
 GFX_API void* gfx_map_insert(GFXMap* map, const void* elem,
                              size_t keySize, const void* key)
 {
