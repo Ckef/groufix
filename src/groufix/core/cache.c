@@ -978,7 +978,25 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 
 	// Claim builder data & unpack the groufix header.
 	_GFXHashKey* key = _gfx_hash_builder_get(&builder);
+	key->len = (size_t)len; // In case of shorter read.
+
 	_GFXPipelineCacheHeader header;
+	const size_t headerSize =
+		sizeof(header.magic) + sizeof(header.dataSize) +
+		sizeof(header.dataHash) + sizeof(header.vendorID) +
+		sizeof(header.deviceID) + sizeof(header.driverVersion) +
+		sizeof(header.driverABI) + sizeof(header.uuid);
+
+	// What's this, not even a header >:(
+	if (key->len < headerSize)
+	{
+		gfx_log_error(
+			"Could not load pipeline cache; "
+			"groufix header is incomplete.");
+
+		free(key);
+		return 0;
+	}
 
 	const uint64_t emptyHash = 0;
 	char* head = key->bytes;
@@ -1010,7 +1028,7 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 
 		if (
 			header.magic != _GFX_HEADER_MAGIC ||
-			header.dataSize != (uint32_t)len ||
+			header.dataSize != key->len ||
 			header.dataHash != _gfx_hash_murmur3(key) ||
 			header.vendorID != pdp.vendorID ||
 			header.deviceID != pdp.deviceID ||
@@ -1028,18 +1046,16 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 	}
 
 	// Create a temporary Vulkan pipeline cache.
-	const size_t vkSize = (size_t)len - (size_t)(head - key->bytes);
-	VkPipelineCache vkCache;
-
 	VkPipelineCacheCreateInfo pcci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
 
 		.pNext           = NULL,
 		.flags           = 0,
-		.initialDataSize = vkSize,
+		.initialDataSize = key->len - headerSize,
 		.pInitialData    = head
 	};
 
+	VkPipelineCache vkCache;
 	_GFX_VK_CHECK(
 		context->vk.CreatePipelineCache(
 			context->vk.device, &pcci, NULL, &vkCache),
@@ -1072,7 +1088,7 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 		gfx_log_debug(
 			"Successfully loaded groufix pipeline cache:\n"
 			"    Input size: %"GFX_PRIs" bytes.\n",
-			(size_t)len);
+			key->len);
 #endif
 
 	return success;
@@ -1081,6 +1097,7 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 /****************************/
 int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
 {
+	assert(_groufix.vk.instance != NULL);
 	assert(cache != NULL);
 	assert(dst != NULL);
 
