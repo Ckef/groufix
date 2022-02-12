@@ -260,6 +260,11 @@ GFX_API void gfx_pass_use(GFXPass* pass,
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 
 /**
+ * TODO: Make a call before submit that takes the deps, store those, then
+ * call _gfx_deps_catch, then let submit call _gfx_deps_prepare.
+ * That way we can put draw() (or whatever) calls inbetween that ALSO modify
+ * the dependency object :o !?
+ *
  * Submits the acquired virtual frame of a renderer.
  * Must be called exactly once for each call to gfx_renderer_acquire.
  * @param frame Cannot be NULL.
