@@ -289,14 +289,18 @@ typedef struct _GFXCacheElem
 	VkStructureType type;
 
 
-	// Vulkan field (isa union!).
-	union
+	// Vulkan fields.
+	struct
 	{
-		VkDescriptorSetLayout setLayout;
-		VkPipelineLayout      layout;
-		VkSampler             sampler;
-		VkRenderPass          pass;
-		VkPipeline            pipeline;
+		VkDescriptorUpdateTemplate template;
+
+		union {
+			VkDescriptorSetLayout setLayout;
+			VkPipelineLayout      layout;
+			VkSampler             sampler;
+			VkRenderPass          pass;
+			VkPipeline            pipeline;
+		};
 
 	} vk;
 
@@ -316,6 +320,8 @@ typedef struct _GFXCache
 	_GFXMutex lookupLock;
 	_GFXMutex createLock;
 
+	size_t templateStride;
+
 
 	// Vulkan fields.
 	struct
@@ -330,14 +336,15 @@ typedef struct _GFXCache
 
 /**
  * Initializes a cache.
- * @param cache  Cannot be NULL.
- * @param device Cannot be NULL.
+ * @param cache          Cannot be NULL.
+ * @param device         Cannot be NULL.
+ * @param templateStride Must be > 0.
  * @return Non-zero on success.
  *
  * _gfx_device_init_context must have returned successfully at least once
  * for the given device.
  */
-int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device);
+int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride);
 
 /**
  * Clears a cache, destroying all objects.
@@ -370,7 +377,7 @@ int _gfx_cache_flush(_GFXCache* cache);
  * Listed is the required number of handles to be passed, in order:
  *
  *  VkDescriptorSetLayoutCreateInfo:
- *   1 for each immutable sampler.
+ *   None.
  *
  *  VkPipelineLayoutCreateInfo:
  *   1 for each descriptor set layout.
@@ -440,6 +447,8 @@ typedef struct _GFXPoolBlock
 	GFXListNode list; // Base-type.
 	uint32_t    sets; // #in-use sets.
 
+	GFXList* elems; // References _GFXPoolElem.
+
 
 	// Vulkan fields.
 	struct
@@ -456,6 +465,7 @@ typedef struct _GFXPoolBlock
  */
 typedef struct _GFXPoolElem
 {
+	GFXListNode    list; // Base-type.
 	_GFXPoolBlock* block;
 
 	// #flushes unused (+1).

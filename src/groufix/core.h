@@ -242,6 +242,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CreateComputePipelines);
 		_GFX_VK_PFN(CreateDescriptorPool);
 		_GFX_VK_PFN(CreateDescriptorSetLayout);
+		_GFX_VK_PFN(CreateDescriptorUpdateTemplate);
 		_GFX_VK_PFN(CreateFence);
 		_GFX_VK_PFN(CreateFramebuffer);
 		_GFX_VK_PFN(CreateGraphicsPipelines);
@@ -258,6 +259,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(DestroyCommandPool);
 		_GFX_VK_PFN(DestroyDescriptorPool);
 		_GFX_VK_PFN(DestroyDescriptorSetLayout);
+		_GFX_VK_PFN(DestroyDescriptorUpdateTemplate);
 		_GFX_VK_PFN(DestroyDevice);
 		_GFX_VK_PFN(DestroyFence);
 		_GFX_VK_PFN(DestroyFramebuffer);
@@ -290,6 +292,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(ResetFences);
 		_GFX_VK_PFN(UnmapMemory);
 		_GFX_VK_PFN(UpdateDescriptorSets);
+		_GFX_VK_PFN(UpdateDescriptorSetWithTemplate);
 		_GFX_VK_PFN(WaitForFences);
 
 	} vk;

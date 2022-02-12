@@ -34,7 +34,8 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_gfx_pick_queue(context, &rend->present, 0, 1);
 
 	// Initialize the cache first.
-	if (!_gfx_cache_init(&rend->cache, rend->device))
+	// TODO: Obviously the correct templateStride should be passed.
+	if (!_gfx_cache_init(&rend->cache, rend->device, 512))
 		goto clean;
 
 	// Then initialize the allocator, render backing & graph.
