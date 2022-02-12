@@ -606,6 +606,7 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 			VkDescriptorUpdateTemplateCreateInfo dutci = {
 				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO,
 
+				.pNext                      = NULL,
 				.flags                      = 0,
 				.descriptorUpdateEntryCount = dslci->bindingCount,
 				.pDescriptorUpdateEntries   = entries,
