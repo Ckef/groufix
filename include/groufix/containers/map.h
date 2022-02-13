@@ -103,6 +103,9 @@ GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src);
  *
  * The node pointer remains valid.
  * When the (new) key is already present in dst, a duplicate is inserted!
+ *
+ * Note: if key is not NULL,
+ * keySize must be > 0 and <= the keySize node was originally inserted with.
  */
 GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
                          size_t keySize, const void* key);
