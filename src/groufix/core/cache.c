@@ -766,7 +766,7 @@ int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride)
 
 	// Initialize the hashtables.
 	// Take the largest alignment of the key and element types.
-	size_t align =
+	const size_t align =
 		GFX_MAX(_Alignof(_GFXHashKey), _Alignof(_GFXCacheElem));
 
 	gfx_map_init(&cache->immutable,
@@ -1207,15 +1207,14 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
 	// Stream out the data.
 	if (gfx_io_write(dst, key->bytes, key->len) <= 0)
 	{
-		gfx_log_error("Could not write pipeline cache data to stream.");
+		gfx_log_error("Could not write pipeline cache to stream.");
 		free(key);
 		return 0;
 	}
 
 	// Yey we did it!
-	gfx_log_debug(
-		"Successfully stored groufix pipeline cache:\n"
-		"    Output size: %"GFX_PRIs" bytes.\n",
+	gfx_log_info(
+		"Written groufix pipeline cache to stream (%"GFX_PRIs" bytes).",
 		key->len);
 
 	free(key);
@@ -1224,7 +1223,7 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
 
 	// Cleanup on failure.
 clean:
-	gfx_log_error("Failed to store pipeline cache data.");
+	gfx_log_error("Failed to store pipeline cache.");
 
 	free(_gfx_hash_builder_get(&builder));
 	return 0;

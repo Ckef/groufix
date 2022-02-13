@@ -44,7 +44,7 @@ typedef struct _GFXHashBuilder
 
 
 /**
- * Returns the size of a hash key in bytes.
+ * Returns the total size (including key header) of a hash key in bytes.
  */
 static inline size_t _gfx_hash_size(_GFXHashKey* key)
 {
@@ -445,7 +445,7 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst);
 typedef struct _GFXPoolBlock
 {
 	GFXListNode list; // Base-type.
-	uint32_t    sets; // #in-use sets.
+	uint32_t    sets; // #in-use descriptor sets.
 
 	GFXList* elems; // References _GFXPoolElem.
 
@@ -468,8 +468,8 @@ typedef struct _GFXPoolElem
 	GFXListNode    list; // Base-type.
 	_GFXPoolBlock* block;
 
-	// #flushes unused (+1).
-	atomic_int unused;
+	// Last used #flushes ago.
+	atomic_uint flushes;
 
 
 	// Vulkan fields.
@@ -511,25 +511,93 @@ typedef struct _GFXPool
 	_GFXMutex subLock; // For claiming blocks.
 	_GFXMutex recLock; // For recycling.
 
+	unsigned int flushes;
+
 } _GFXPool;
 
 
 /**
  * Initializes a pool.
- * @param pool   Cannot be NULL.
- * @param device Cannot be NULL.
+ * @param pool    Cannot be NULL.
+ * @param device  Cannot be NULL.
+ * @param flushes Number of flushes after which a descriptor set is recycled.
  * @return Non-zero on success.
  *
  * _gfx_device_init_context must have returned successfully at least once
  * for the given device.
  */
-int _gfx_pool_init(_GFXPool* pool, _GFXDevice* device);
+int _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes);
 
 /**
- * Clears a pool, freeing all blocks and descriptors.
+ * Clears a pool, destroying all resources.
  * @param pool Cannot be NULL.
  */
 void _gfx_pool_clear(_GFXPool* pool);
+
+/**
+ * Flushes all subordinate descriptor caches to the immutable pool cache,
+ * making them visible to all other subordinates.
+ * Then recycles descriptor sets that were updated #flushes ago.
+ * @param pool Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * Not thread-safe at all.
+ */
+int _gfx_pool_flush(_GFXPool* pool);
+
+/**
+ * Resets all descriptor pools, freeing all descriptor sets,
+ * WITHOUT releasing all memory!
+ * Useful for when used keys for a descriptor set have been invalidated,
+ * or many descriptors are recycled but never used again.
+ * @param pool Cannot be NULL.
+ *
+ * Not thread-safe at all.
+ */
+void _gfx_pool_reset(_GFXPool* pool);
+
+/**
+ * Initializes a new subordinate of the pool,
+ * any two subordinates can concurrently call _gfx_pool_get.
+ * @param pool Cannot be NULL.
+ * @return NULL on failure.
+ *
+ * Not thread-safe at all.
+ */
+_GFXPoolSub* _gfx_pool_sub(_GFXPool* pool);
+
+/**
+ * Clears ('undos') a subordinate, destroying all its resources.
+ * @param pool Cannot be NULL.
+ * @param sub  Cannot be NULL, invalidated after this call.
+ *
+ * Not thread-safe at all.
+ */
+void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub);
+
+/**
+ * Retrieves, allocates or recycles a Vulkan descriptor set from the pool.
+ * @param pool      Cannot be NULL.
+ * @param sub       Cannot be NULL.
+ * @param setLayout Must be a descriptor set layout returned by _gfx_cache_get.
+ * @param key       Must uniquely identify the given layout + descriptors.
+ * @param update    Template-formatted data to update the descriptors with.
+ * @return NULL on failure.
+ *
+ * Thread-safe with respect to other subordinates.
+ * However, can never run concurrently with other pool functions.
+ *
+ * key must at least contain setLayout, pushed as a _GFXCacheElem*.
+ * Naturally key must at least be of size sizeof(_GFXCacheElem*).
+ *
+ * update must point to the first VkDescriptorImageInfo, VkDescriptorBufferInfo
+ * or VkBufferView structure, with `templateStride` bytes inbetween consecutive
+ * structures, as defined by the GFXCache that setLayout was allocated from.
+ */
+_GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
+                            const _GFXCacheElem* setLayout,
+                            const _GFXHashKey* key,
+                            const void* update);
 
 
 #endif
