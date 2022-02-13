@@ -179,8 +179,8 @@ typedef struct _GFXAllocator
 {
 	_GFXContext* context;
 
-	GFXList free;   // References _GFXMemBlock.
-	GFXList allocd; // References _GFXMemBlock.
+	GFXList free; // References _GFXMemBlock.
+	GFXList full; // References _GFXMemBlock.
 
 	// Constant, queried once.
 	VkDeviceSize granularity;
@@ -445,9 +445,9 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst);
 typedef struct _GFXPoolBlock
 {
 	GFXListNode list; // Base-type.
-	uint32_t    sets; // #in-use descriptor sets.
+	uint32_t    sets; // #in-use descriptor sets (i.e. not-recycled).
 
-	GFXList* elems; // References _GFXPoolElem.
+	GFXList elems; // References _GFXPoolElem.
 
 
 	// Vulkan fields.
@@ -501,9 +501,9 @@ typedef struct _GFXPool
 {
 	_GFXContext* context;
 
-	GFXList free;   // References _GFXPoolBlock.
-	GFXList allocd; // References _GFXPoolBlock.
-	GFXList subs;   // References _GFXPoolSub.
+	GFXList free; // References _GFXPoolBlock.
+	GFXList full; // References _GFXPoolBlock.
+	GFXList subs; // References _GFXPoolSub.
 
 	GFXMap immutable; // Stores _GFXHashKey : _GFXPoolElem.
 	GFXMap recycled;  // Stores _GFXHashKey : _GFXPoolElem.
@@ -537,7 +537,7 @@ void _gfx_pool_clear(_GFXPool* pool);
 /**
  * Flushes all subordinate descriptor caches to the immutable pool cache,
  * making them visible to all other subordinates.
- * Then recycles descriptor sets that were updated #flushes ago.
+ * Then recycles descriptor sets that were last retrieved #flushes ago.
  * @param pool Cannot be NULL.
  * @return Non-zero on success.
  *
@@ -547,9 +547,9 @@ int _gfx_pool_flush(_GFXPool* pool);
 
 /**
  * Resets all descriptor pools, freeing all descriptor sets,
- * WITHOUT releasing all memory!
- * Useful for when used keys for a descriptor set have been invalidated,
- * or many descriptors are recycled but never used again.
+ * WITHOUT releasing pool memory!
+ * Useful for when used keys for descriptor sets have been invalidated,
+ * or many descriptor sets are recycled but never used again.
  * @param pool Cannot be NULL.
  *
  * Not thread-safe at all.
@@ -557,19 +557,20 @@ int _gfx_pool_flush(_GFXPool* pool);
 void _gfx_pool_reset(_GFXPool* pool);
 
 /**
- * Initializes a new subordinate of the pool,
- * any two subordinates can concurrently call _gfx_pool_get.
+ * Initializes a new subordinate of the pool.
+ * The object pointed to by sub cannot be moved or copied!
  * @param pool Cannot be NULL.
- * @return NULL on failure.
+ * @param sub  Cannot be NULL.
+ * @return Non-zero on success.
  *
  * Not thread-safe at all.
  */
-_GFXPoolSub* _gfx_pool_sub(_GFXPool* pool);
+int _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub);
 
 /**
  * Clears ('undos') a subordinate, destroying all its resources.
  * @param pool Cannot be NULL.
- * @param sub  Cannot be NULL, invalidated after this call.
+ * @param sub  Cannot be NULL, must be initialized from pool.
  *
  * Not thread-safe at all.
  */

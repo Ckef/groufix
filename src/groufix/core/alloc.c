@@ -267,10 +267,10 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		GFX_MAX(_Alignof(VkDeviceSize[2]), _Alignof(_GFXMemNode)),
 		_gfx_allocator_cmp);
 
-	// If an exact size, link the block into the allocd list.
+	// If an exact size, link the block into the full list.
 	// As there is no free root node, it will be regarded as full.
 	if (blockSize == minSize)
-		gfx_list_insert_after(&alloc->allocd, &block->list, NULL);
+		gfx_list_insert_after(&alloc->full, &block->list, NULL);
 	else
 	{
 		// If not an exact size however (!), insert a free root node.
@@ -348,7 +348,7 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 
 	// Unlink from the allocator and free all remaining block things.
 	gfx_list_erase(
-		(block->nodes.free.root == NULL) ? &alloc->allocd : &alloc->free,
+		(block->nodes.free.root == NULL) ? &alloc->full : &alloc->free,
 		&block->list);
 
 	gfx_list_clear(&block->nodes.list);
@@ -380,7 +380,7 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 
 	alloc->context = device->context;
 	gfx_list_init(&alloc->free);
-	gfx_list_init(&alloc->allocd);
+	gfx_list_init(&alloc->full);
 
 	VkPhysicalDeviceProperties pdp;
 	_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
@@ -401,12 +401,12 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 	while (alloc->free.head != NULL)
 		_gfx_free_mem_block(alloc, (_GFXMemBlock*)alloc->free.head);
 
-	while (alloc->allocd.head != NULL)
-		_gfx_free_mem_block(alloc, (_GFXMemBlock*)alloc->allocd.head);
+	while (alloc->full.head != NULL)
+		_gfx_free_mem_block(alloc, (_GFXMemBlock*)alloc->full.head);
 
 	// Kind of a no-op, but for consistency.
 	gfx_list_clear(&alloc->free);
-	gfx_list_clear(&alloc->allocd);
+	gfx_list_clear(&alloc->full);
 }
 
 /****************************/
@@ -603,11 +603,11 @@ try_search:
 		gfx_list_erase(&block->nodes.list, &node->list);
 		gfx_tree_erase(&block->nodes.free, node);
 
-		// Move block to allocd list if fully allocated now.
+		// Move block to full list if fully allocated now.
 		if (block->nodes.free.root == NULL)
 		{
 			gfx_list_erase(&alloc->free, &block->list);
-			gfx_list_insert_after(&alloc->allocd, &block->list, NULL);
+			gfx_list_insert_after(&alloc->full, &block->list, NULL);
 		}
 	}
 	else
@@ -783,7 +783,7 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 				// If the block was full, move it to the free list now :)
 				// Make sure we append it to the list to avoid swapping the
 				// same block over and over again.
-				gfx_list_erase(&alloc->allocd, &block->list);
+				gfx_list_erase(&alloc->full, &block->list);
 				gfx_list_insert_after(&alloc->free, &block->list, NULL);
 			}
 		}
