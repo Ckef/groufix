@@ -98,7 +98,7 @@ GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src);
  * @param map  Cannot be NULL.
  * @param dst  Cannot be NULL, must have the same elemSize and align as map.
  * @param node Must be a non-NULL value returned by gfx_map_(h)insert.
- * @param key  New key data, must be of the same size, may be NULL.
+ * @param key  New key data, may be NULL.
  * @return Zero on failure.
  *
  * The node pointer remains valid.
