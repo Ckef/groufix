@@ -489,7 +489,7 @@ typedef struct _GFXPoolSub
 {
 	GFXListNode    list;    // Base-type.
 	GFXMap         mutable; // Stores _GFXHashKey : _GFXPoolElem.
-	_GFXPoolBlock* block;   // Currently used descriptor block.
+	_GFXPoolBlock* block;   // Currently used for new allocations.
 
 } _GFXPoolSub;
 
@@ -529,7 +529,7 @@ typedef struct _GFXPool
 int _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes);
 
 /**
- * Clears a pool, destroying all resources.
+ * Clears a pool, also clearing all subordinates.
  * @param pool Cannot be NULL.
  */
 void _gfx_pool_clear(_GFXPool* pool);
@@ -539,7 +539,7 @@ void _gfx_pool_clear(_GFXPool* pool);
  * making them visible to all other subordinates.
  * Then recycles descriptor sets that were last retrieved #flushes ago.
  * @param pool Cannot be NULL.
- * @return Non-zero on success.
+ * @return Non-zero on success, can be partially flushed on failure.
  *
  * Not thread-safe at all.
  */
@@ -561,14 +561,13 @@ void _gfx_pool_reset(_GFXPool* pool);
  * The object pointed to by sub cannot be moved or copied!
  * @param pool Cannot be NULL.
  * @param sub  Cannot be NULL.
- * @return Non-zero on success.
  *
  * Not thread-safe at all.
  */
-int _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub);
+void _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub);
 
 /**
- * Clears ('undos') a subordinate, destroying all its resources.
+ * Clears ('undos') a subordinate.
  * @param pool Cannot be NULL.
  * @param sub  Cannot be NULL, must be initialized from pool.
  *
@@ -588,7 +587,7 @@ void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub);
  * Thread-safe with respect to other subordinates.
  * However, can never run concurrently with other pool functions.
  *
- * key must at least contain setLayout, pushed as a _GFXCacheElem*.
+ * The first bytes of key must be setLayout, pushed as a _GFXCacheElem*.
  * Naturally key must at least be of size sizeof(_GFXCacheElem*).
  *
  * update must point to the first VkDescriptorImageInfo, VkDescriptorBufferInfo
