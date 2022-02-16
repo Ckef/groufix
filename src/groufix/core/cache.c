@@ -1124,13 +1124,11 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 		context->vk.device, vkCache, NULL);
 
 	// Some victory logs c:
-#if !defined (NDEBUG)
 	if (success)
-		gfx_log_debug(
+		gfx_log_info(
 			"Successfully loaded groufix pipeline cache:\n"
 			"    Input size: %"GFX_PRIs" bytes.\n",
 			key->len);
-#endif
 
 	return success;
 }

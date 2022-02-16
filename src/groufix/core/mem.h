@@ -57,8 +57,7 @@ static inline size_t _gfx_hash_size(_GFXHashKey* key)
  */
 static inline void* _gfx_hash_builder_push(_GFXHashBuilder* b, size_t s, const void* d)
 {
-	if (!gfx_vec_push(&b->out, s, d)) return NULL;
-	return gfx_vec_at(&b->out, b->out.size - s);
+	return !gfx_vec_push(&b->out, s, d) ? NULL : gfx_vec_at(&b->out, b->out.size - s);
 }
 
 /**
@@ -599,6 +598,17 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
                             const _GFXCacheElem* setLayout,
                             const _GFXHashKey* key,
                             const void* update);
+
+/**
+ * Recycles all matching Vulkan descriptor sets.
+ * Useful for when specific keys have been invalidated.
+ * @see _gfx_pool_get.
+ *
+ * Not thread-safe at all, unlike _gfx_pool_get!
+ */
+void _gfx_pool_recycle(_GFXPool* pool,
+                       const _GFXCacheElem* setLayout,
+                       const _GFXHashKey* key);
 
 
 #endif

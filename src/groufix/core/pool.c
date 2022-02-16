@@ -24,6 +24,29 @@ typedef struct _GFXRecycleKey
 
 
 /****************************
+ * Helper to make all subordinates unclaim their allocating descriptor block,
+ * and let them link all blocks into the pool's free or full list again.
+ */
+static void _gfx_unclaim_pool_blocks(_GFXPool* pool)
+{
+	assert(pool != NULL);
+
+	for (
+		_GFXPoolSub* sub = (_GFXPoolSub*)pool->subs.head;
+		sub != NULL;
+		sub = (_GFXPoolSub*)sub->list.next)
+	{
+		// If the block was full, the subordinate should already have linked
+		// it in the full list, so here we link it into the free list.
+		if (sub->block != NULL)
+		{
+			gfx_list_insert_before(&pool->free, &sub->block->list, NULL);
+			sub->block = NULL;
+		}
+	}
+}
+
+/****************************
  * Allocates and initializes a new block (i.e. Vulkan descriptor pool).
  * @return NULL on failure.
  *
@@ -106,28 +129,69 @@ static void _gfx_free_pool_block(_GFXPool* pool, _GFXPoolBlock* block)
 }
 
 /****************************
- * Destroys & frees a fully recycled descriptor block.
- * _GFXPoolElem objects from this pool are required to be recycled,
- * such that all can be erased from the recycled hashtable!
- * Does not unlink self from pool, must first be manually removed from any list!
+ * Recycles a yet-unrecycled _GFXPoolElem object holding a descriptor set.
+ * No subordinate must hold an allocating block (see _gfx_unclaim_pool_blocks)!
+ * If its descriptor block is now fully recycled, it will be automatically
+ * destroyed & freed.
+ * @param map  Must be the hashtable elem is currently stored in.
+ * @param elem Element to recycle, will not be in map anymore after this call.
  */
-static void _gfx_destroy_pool_block(_GFXPool* pool, _GFXPoolBlock* block)
+static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
+                                  _GFXPoolElem* elem)
 {
 	assert(pool != NULL);
-	assert(block != NULL);
-	assert(block->sets == 0);
+	assert(elem != NULL);
+	assert(map != NULL);
+	assert(map != &pool->recycled);
 
-	// Loop over all elements and erase them from the recycled hashtable.
-	// We know they all must be in recycled as the number of in-use sets is 0.
-	while (block->elems.head != NULL)
+	_GFXPoolBlock* block = elem->block;
+	int recycled = 1;
+
+	// Build a new key, only containing the cache element storing the
+	// descriptor set layout, this way we do not search for specific
+	// descriptors anymore, but only for the layout.
+	// To get this, we know the first few bytes of a given key are required
+	// to hold this cache element :)
+	const _GFXHashKey* elemKey = gfx_map_key(map, elem);
+	_GFXRecycleKey key;
+
+	key.len = sizeof(key.bytes);
+	memcpy(key.bytes, elemKey->bytes, sizeof(key.bytes));
+
+	// Try to move the element to the recycled hashtable.
+	if (!gfx_map_move(
+		map, &pool->recycled, elem, sizeof(_GFXRecycleKey), &key))
 	{
-		_GFXPoolElem* elem = (_GFXPoolElem*)block->elems.head;
+		// If that failed, erase it entirely, it will never be used again.
 		gfx_list_erase(&block->elems, &elem->list);
-		gfx_map_erase(&pool->recycled, elem);
+		gfx_map_erase(map, elem);
+		recycled = 0;
 	}
 
-	// Then call the regular free.
-	_gfx_free_pool_block(pool, block);
+	// Decrease the set count of its descriptor block.
+	// If it hits zero, we can destroy the block.
+	if ((--block->sets) == 0)
+	{
+		// Loop over all elements and erase them from the recycled hashtable.
+		// We know they are all in recycled as the number of in-use sets is 0.
+		while (block->elems.head != NULL)
+		{
+			_GFXPoolElem* bElem = (_GFXPoolElem*)block->elems.head;
+			gfx_list_erase(&block->elems, &bElem->list);
+			gfx_map_erase(&pool->recycled, bElem);
+		}
+
+		// Unlink itself from the pool.
+		// We can do this because no subordinate must hold any block!
+		gfx_list_erase(
+			block->full ? &pool->full : &pool->free,
+			&block->list);
+
+		// Then call the regular free.
+		_gfx_free_pool_block(pool, block);
+	}
+
+	return recycled;
 }
 
 /****************************/
@@ -218,6 +282,11 @@ int _gfx_pool_flush(_GFXPool* pool)
 {
 	assert(pool != NULL);
 
+	// Firstly unclaim all subordinate blocks,
+	// in case any subordinate doesn't need to allocate anymore!
+	// Also allows us to recycle elements below :)
+	_gfx_unclaim_pool_blocks(pool);
+
 	// So we keep track of success.
 	// This so at least all the flush counts of all elements in the
 	// immutable hashtable are updated.
@@ -231,20 +300,9 @@ int _gfx_pool_flush(_GFXPool* pool)
 	{
 		success = success &&
 			gfx_map_merge(&pool->immutable, &sub->mutable);
-
-		// Reset the current allocating block in case this subordinate
-		// doesn't need to allocate anymore!
-		// If the block was full, the subordinate should already have linked
-		// it in the full list, so here we link it into the free list.
-		if (sub->block != NULL)
-		{
-			gfx_list_insert_before(&pool->free, &sub->block->list, NULL);
-			sub->block = NULL;
-		}
 	}
 
 	// Then recycle all descriptor sets that need to be.
-	// i.e. move them from the immutable to the recycled hashtable.
 	for (
 		_GFXPoolElem* elem = gfx_map_first(&pool->immutable);
 		elem != NULL;
@@ -252,42 +310,8 @@ int _gfx_pool_flush(_GFXPool* pool)
 	{
 		// Recycle it if it exceeds the max number of flushes.
 		if (atomic_fetch_add(&elem->flushes, 1) + 1 >= pool->flushes)
-		{
-			const _GFXHashKey* elemKey =
-				gfx_map_key(&pool->immutable, elem);
-
-			// Build a new key, only containing the cache element storing
-			// the descriptor set layout, this way we do not search for
-			// specific descriptors anymore.
-			// Luckily the first few bytes of a given key are required to
-			// hold this cache element :)
-			_GFXRecycleKey key;
-			key.len = sizeof(key.bytes);
-			memcpy(key.bytes, elemKey->bytes, sizeof(key.bytes));
-
-			if (gfx_map_move(
-				&pool->immutable, &pool->recycled,
-				elem, sizeof(_GFXRecycleKey), &key))
-			{
-				// Decrease the set count of its descriptor block.
-				// If it hits zero, we can destroy the block.
-				// Luckily because we flushed all subordinates, we know all
-				// blocks must be in either the pool's free or full list!
-				_GFXPoolBlock* block = elem->block;
-
-				if ((--block->sets) == 0)
-				{
-					gfx_list_erase(
-						block->full ? &pool->full : &pool->free,
-						&block->list);
-
-					_gfx_destroy_pool_block(pool, block);
-				}
-			}
-
-			// Woops.
-			else success = 0;
-		}
+			success = success &&
+				_gfx_recycle_pool_elem(pool, &pool->immutable, elem);
 	}
 
 	return success;
@@ -300,7 +324,10 @@ void _gfx_pool_reset(_GFXPool* pool)
 
 	_GFXContext* context = pool->context;
 
-	// Ok so first get rid of all the _GFXPoolElem objects in all hashtables.
+	// Firstly unclaim all subordinate blocks, just easier that way.
+	_gfx_unclaim_pool_blocks(pool);
+
+	// Ok so get rid of all the _GFXPoolElem objects in all hashtables.
 	// As they will soon store non-existent descriptor sets.
 	gfx_map_clear(&pool->immutable);
 	gfx_map_clear(&pool->recycled);
@@ -311,17 +338,9 @@ void _gfx_pool_reset(_GFXPool* pool)
 		sub = (_GFXPoolSub*)sub->list.next)
 	{
 		gfx_map_clear(&sub->mutable);
-
-		// Similarly to flushing, we reset the current allocating block.
-		// Just to make things easier. Again we can insert into the free list.
-		if (sub->block != NULL)
-		{
-			gfx_list_insert_before(&pool->free, &sub->block->list, NULL);
-			sub->block = NULL;
-		}
 	}
 
-	// Then reset all the Vulkan descriptor pools!
+	// Then reset all the blocks and their Vulkan descriptor pools!
 	for (
 		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->free.head;
 		block != NULL;
@@ -373,32 +392,36 @@ void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub)
 	assert(pool != NULL);
 	assert(sub != NULL);
 
-	// First flush this subordinate & clear the hashtable.
-	// If it did not want to merge, the descriptor sets are lost and cannot be
-	// recycled. But the pools themselves will be reset or destroyed so we
-	// do not need to destroy any descriptor sets.
+	// First unclaim all subordinate blocks,
+	// mostly so we can recycle on failure.
+	_gfx_unclaim_pool_blocks(pool);
+
+	// Flush this subordinate & clear the hashtable.
+	// If it did not want to merge, the descriptor sets are lost,
+	// instead we will try to recycle them!
 	if (!gfx_map_merge(&pool->immutable, &sub->mutable))
 	{
-		gfx_log_warn(
-			"Partial pool flush failed, lost %"GFX_PRIs" Vulkan descriptor "
-			"sets. Will remain unavailable until the next pool reset.",
-			sub->mutable.size);
+		size_t lost = 0;
 
-		// We do need to unlink the elements from their blocks tho...
+		// Try to recycle every element instead...
+		// We keep getting the first element, as the recycle call will empty
+		// the hashtable!
 		for (
 			_GFXPoolElem* elem = gfx_map_first(&sub->mutable);
 			elem != NULL;
-			elem = gfx_map_next(&sub->mutable, elem))
+			elem = gfx_map_first(&sub->mutable))
 		{
-			gfx_list_erase(&elem->block->elems, &elem->list);
+			if (!_gfx_recycle_pool_elem(pool, &sub->mutable, elem))
+				++lost;
 		}
+
+		if (lost > 0) gfx_log_warn(
+			"Partial pool flush failed, lost %"GFX_PRIs" Vulkan descriptor sets. "
+			"Will remain unavailable until block is reset or fully recycled.",
+			lost);
 	}
 
 	gfx_map_clear(&sub->mutable);
-
-	// Stick the descriptor block in the free list.
-	if (sub->block != NULL)
-		gfx_list_insert_before(&pool->free, &sub->block->list, NULL);
 
 	// Unlink subordinate from the pool.
 	gfx_list_erase(&pool->subs, &sub->list);
@@ -420,4 +443,56 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	// TODO: Implement.
 
 	return NULL;
+}
+
+/****************************/
+void _gfx_pool_recycle(_GFXPool* pool,
+                       const _GFXCacheElem* setLayout,
+                       const _GFXHashKey* key)
+{
+	assert(pool != NULL);
+	assert(setLayout != NULL);
+	assert(setLayout->type == VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
+	assert(key != NULL);
+
+	// First unclaim all subordinate blocks, so we can recycle elements.
+	_gfx_unclaim_pool_blocks(pool);
+
+	// Then find all matching elements in all hashtables and recycle them!
+	// Obviously we only check all subordinate hashtables & the immutable one.
+	// If any element gets recycled, it will be moved to the recycled table!
+	const uint64_t hash = pool->immutable.hash(key); // TODO: Implement _gfx_pool_hrecycle?
+	size_t lost = 0;
+
+	for (
+		_GFXPoolSub* sub = (_GFXPoolSub*)pool->subs.head;
+		sub != NULL;
+		sub = (_GFXPoolSub*)sub->list.next)
+	{
+		// We keep searching, as elements can be erased from the map
+		// we have to do a fresh search every time.
+		for (
+			_GFXPoolElem* elem = gfx_map_hsearch(&sub->mutable, key, hash);
+			elem != NULL;
+			elem = gfx_map_hsearch(&sub->mutable, key, hash))
+		{
+			if (!_gfx_recycle_pool_elem(pool, &sub->mutable, elem))
+				++lost;
+		}
+	}
+
+	// Same search structure as above.
+	for (
+		_GFXPoolElem* elem = gfx_map_hsearch(&pool->immutable, key, hash);
+		elem != NULL;
+		elem = gfx_map_hsearch(&pool->immutable, key, hash))
+	{
+		if (!_gfx_recycle_pool_elem(pool, &pool->immutable, elem))
+			++lost;
+	}
+
+	if (lost > 0) gfx_log_warn(
+		"Recycling a pool element failed, lost %"GFX_PRIs" Vulkan descriptor "
+		"sets. Will remain unavailable until block is reset or fully recycled.",
+		lost);
 }
