@@ -444,8 +444,9 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst);
  */
 typedef struct _GFXPoolBlock
 {
-	GFXListNode list; // Base-type.
+	GFXListNode list; // Base-type, undefined if claimed by subordinate.
 	uint32_t    sets; // #in-use descriptor sets (i.e. not-recycled).
+	int         full;
 
 	GFXList elems; // References _GFXPoolElem.
 
@@ -489,7 +490,7 @@ typedef struct _GFXPoolSub
 {
 	GFXListNode    list;    // Base-type.
 	GFXMap         mutable; // Stores _GFXHashKey : _GFXPoolElem.
-	_GFXPoolBlock* block;   // Currently used for new allocations.
+	_GFXPoolBlock* block;   // Currently claimed for new allocations.
 
 } _GFXPoolSub;
 
