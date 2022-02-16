@@ -218,6 +218,25 @@ GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
 	assert(map->align == dst->align);
 	assert(node != NULL);
 	assert(key == NULL || keySize > 0);
+
+	// Do the fast move and then shrink the source.
+	if (!gfx_map_fmove(map, dst, node, keySize, key))
+		return 0;
+
+	_gfx_map_shrink(map);
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
+                          size_t keySize, const void* key)
+{
+	assert(map != NULL);
+	assert(dst != NULL);
+	assert(map->elementSize == dst->elementSize);
+	assert(map->align == dst->align);
+	assert(node != NULL);
+	assert(key == NULL || keySize > 0);
 	assert(map->capacity > 0);
 
 	_GFXMapNode* mNode = _GFX_GET_NODE(map, node);
@@ -235,7 +254,7 @@ GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
 	if (bNode == mNode)
 	{
 		map->buckets[hInd] = mNode->next;
-		--map->size, _gfx_map_shrink(map);
+		--map->size;
 	}
 
 	else for (
@@ -247,7 +266,7 @@ GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
 		if (curr == mNode)
 		{
 			bNode->next = mNode->next;
-			--map->size, _gfx_map_shrink(map);
+			--map->size;
 			break;
 		}
 	}
@@ -266,6 +285,14 @@ GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
 	hInd = mNode->hash % dst->capacity;
 	mNode->next = dst->buckets[hInd];
 	dst->buckets[hInd] = mNode;
+
+	// We do actually deallocate the source if it's empty.
+	if (map->size == 0)
+	{
+		free(map->buckets);
+		map->capacity = 0;
+		map->buckets = NULL;
+	}
 
 	return 1;
 }
@@ -403,6 +430,17 @@ GFX_API void gfx_map_erase(GFXMap* map, const void* node)
 {
 	assert(map != NULL);
 	assert(node != NULL);
+
+	// Do the fast erase and then shrink the map.
+	gfx_map_ferase(map, node);
+	_gfx_map_shrink(map);
+}
+
+/****************************/
+GFX_API void gfx_map_ferase(GFXMap* map, const void* node)
+{
+	assert(map != NULL);
+	assert(node != NULL);
 	assert(map->capacity > 0);
 
 	_GFXMapNode* mNode = _GFX_GET_NODE(map, node);
@@ -419,7 +457,7 @@ GFX_API void gfx_map_erase(GFXMap* map, const void* node)
 		map->buckets[hInd] = mNode->next;
 		free(mNode);
 
-		--map->size, _gfx_map_shrink(map);
+		--map->size;
 		return;
 	}
 
@@ -436,7 +474,7 @@ GFX_API void gfx_map_erase(GFXMap* map, const void* node)
 			bNode->next = mNode->next;
 			free(mNode);
 
-			--map->size, _gfx_map_shrink(map);
+			--map->size;
 			return;
 		}
 	}

@@ -29,8 +29,6 @@ typedef struct _GFXRecycleKey
  */
 static void _gfx_unclaim_pool_blocks(_GFXPool* pool)
 {
-	assert(pool != NULL);
-
 	for (
 		_GFXPoolSub* sub = (_GFXPoolSub*)pool->subs.head;
 		sub != NULL;
@@ -159,12 +157,14 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	memcpy(key.bytes, elemKey->bytes, sizeof(key.bytes));
 
 	// Try to move the element to the recycled hashtable.
-	if (!gfx_map_move(
+	// Make sure to use the fast variants of map_(move|erase), so
+	// we can keep iterating outside this function!
+	if (!gfx_map_fmove(
 		map, &pool->recycled, elem, sizeof(_GFXRecycleKey), &key))
 	{
 		// If that failed, erase it entirely, it will never be used again.
 		gfx_list_erase(&block->elems, &elem->list);
-		gfx_map_erase(map, elem);
+		gfx_map_ferase(map, elem);
 		recycled = 0;
 	}
 
@@ -303,18 +303,32 @@ int _gfx_pool_flush(_GFXPool* pool)
 	}
 
 	// Then recycle all descriptor sets that need to be.
-	for (
-		_GFXPoolElem* elem = gfx_map_first(&pool->immutable);
-		elem != NULL;
-		elem = gfx_map_next(&pool->immutable, elem))
+	// We are moving nodes from immutable to recycled, but gfx_map_fmove
+	// guarantees the node order stays the same.
+	// We use this to loop 'over' the moved nodes.
+	size_t lost = 0;
+	_GFXPoolElem* elem = gfx_map_first(&pool->immutable);
+
+	while (elem != NULL)
 	{
+		_GFXPoolElem* next = gfx_map_next(&pool->immutable, elem);
+
 		// Recycle it if it exceeds the max number of flushes.
 		if (atomic_fetch_add(&elem->flushes, 1) + 1 >= pool->flushes)
-			success = success &&
-				_gfx_recycle_pool_elem(pool, &pool->immutable, elem);
+		{
+			if (!_gfx_recycle_pool_elem(pool, &pool->immutable, elem))
+				++lost;
+		}
+
+		elem = next;
 	}
 
-	return success;
+	if (lost > 0) gfx_log_warn(
+		"Pool flush failed, lost %"GFX_PRIs" Vulkan descriptor sets. "
+		"Will remain unavailable until blocks are reset or fully recycled.",
+		lost);
+
+	return success && (lost == 0);
 }
 
 /****************************/
@@ -417,7 +431,7 @@ void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub)
 
 		if (lost > 0) gfx_log_warn(
 			"Partial pool flush failed, lost %"GFX_PRIs" Vulkan descriptor sets. "
-			"Will remain unavailable until block is reset or fully recycled.",
+			"Will remain unavailable until blocks are reset or fully recycled.",
 			lost);
 	}
 
@@ -461,7 +475,7 @@ void _gfx_pool_recycle(_GFXPool* pool,
 	// Then find all matching elements in all hashtables and recycle them!
 	// Obviously we only check all subordinate hashtables & the immutable one.
 	// If any element gets recycled, it will be moved to the recycled table!
-	const uint64_t hash = pool->immutable.hash(key); // TODO: Implement _gfx_pool_hrecycle?
+	const uint64_t hash = pool->immutable.hash(key);
 	size_t lost = 0;
 
 	for (
@@ -492,7 +506,7 @@ void _gfx_pool_recycle(_GFXPool* pool,
 	}
 
 	if (lost > 0) gfx_log_warn(
-		"Recycling a pool element failed, lost %"GFX_PRIs" Vulkan descriptor "
-		"sets. Will remain unavailable until block is reset or fully recycled.",
+		"Pool recycling failed, lost %"GFX_PRIs" Vulkan descriptor sets. "
+		"Will remain unavailable until blocks are reset or fully recycled.",
 		lost);
 }

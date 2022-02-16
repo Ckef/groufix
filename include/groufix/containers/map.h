@@ -111,6 +111,14 @@ GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
                          size_t keySize, const void* key);
 
 /**
+ * Moves a node without decreasing the capacity of the source map.
+ * f stands for 'fast', as we can keep iterating over the map whilst moving.
+ * @see gfx_map_move.
+ */
+GFX_API int gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
+                          size_t keySize, const void* key);
+
+/**
  * Inserts a node into the map.
  * @param map     Cannot be NULL.
  * @param elem    Can be NULL to insert empty.
@@ -175,6 +183,13 @@ GFX_API void* gfx_map_next(GFXMap* map, const void* node);
  * Note: node is freed, cannot access its memory after this call!
  */
 GFX_API void gfx_map_erase(GFXMap* map, const void* node);
+
+/**
+ * Erases a node without decreasing the capacity of the map.
+ * f stands for 'fast', as we can keep iterating over the map whilst erasing.
+ * @see gfx_map_erase.
+ */
+GFX_API void gfx_map_ferase(GFXMap* map, const void* node);
 
 
 #endif
