@@ -91,9 +91,9 @@ static _GFXPoolBlock* _gfx_alloc_pool_block(_GFXPool* pool)
 		context->vk.device, &dpci, NULL, &block->vk.pool), goto clean);
 
 	// Init the rest & return.
-	block->sets = 0;
-	block->full = 0;
 	gfx_list_init(&block->elems);
+	block->full = 0;
+	atomic_store(&block->sets, 0);
 
 	return block;
 
@@ -152,8 +152,8 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	// To get this, we know the first few bytes of a given key are required
 	// to hold this cache element :)
 	const _GFXHashKey* elemKey = gfx_map_key(map, elem);
-	_GFXRecycleKey key;
 
+	_GFXRecycleKey key;
 	key.len = sizeof(key.bytes);
 	memcpy(key.bytes, elemKey->bytes, sizeof(key.bytes));
 
@@ -171,7 +171,9 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 
 	// Decrease the set count of its descriptor block.
 	// If it hits zero, we can destroy the block.
-	if ((--block->sets) == 0)
+	// Note it is an atomic variable, but this function does not need to be
+	// thread safe at all, so in this case any side effects don't matter.
+	if (atomic_fetch_sub(&block->sets, 1) - 1 == 0)
 	{
 		// Loop over all elements and erase them from the recycled hashtable.
 		// We know they are all in recycled as the number of in-use sets is 0.
@@ -364,11 +366,12 @@ void _gfx_pool_reset(_GFXPool* pool)
 		block != NULL;
 		block = (_GFXPoolBlock*)block->list.next)
 	{
-		block->sets = 0;
-		block->full = 0;
-
 		gfx_list_clear(&block->elems);
-		context->vk.ResetDescriptorPool(context->vk.device, block->vk.pool, 0);
+		block->full = 0;
+		atomic_store(&block->sets, 0);
+
+		context->vk.ResetDescriptorPool(
+			context->vk.device, block->vk.pool, 0);
 	}
 
 	for (
@@ -376,11 +379,12 @@ void _gfx_pool_reset(_GFXPool* pool)
 		block != NULL;
 		block = (_GFXPoolBlock*)block->list.next)
 	{
-		block->sets = 0;
-		block->full = 0;
-
 		gfx_list_clear(&block->elems);
-		context->vk.ResetDescriptorPool(context->vk.device, block->vk.pool, 0);
+		block->full = 0;
+		atomic_store(&block->sets, 0);
+
+		context->vk.ResetDescriptorPool(
+			context->vk.device, block->vk.pool, 0);
 	}
 }
 
@@ -449,13 +453,14 @@ void _gfx_pool_recycle(_GFXPool* pool, const _GFXHashKey* key)
 	assert(pool != NULL);
 	assert(key != NULL);
 
+	const uint64_t hash = pool->immutable.hash(key);
+
 	// First unclaim all subordinate blocks, so we can recycle elements.
 	_gfx_unclaim_pool_blocks(pool);
 
 	// Then find all matching elements in all hashtables and recycle them!
 	// Obviously we only check all subordinate hashtables & the immutable one.
 	// If any element gets recycled, it will be moved to the recycled table!
-	const uint64_t hash = pool->immutable.hash(key);
 	size_t lost = 0;
 
 	for (
@@ -506,6 +511,83 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	assert(setLayout->type == VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
 	assert(key != NULL);
 	assert(update != NULL);
+
+	const uint64_t hash = pool->immutable.hash(key);
+
+	// First we check the pool's immutable table.
+	// We check this first because elements will always be flushed to this,
+	// meaning our element will most likely be here after 1 frame.
+	// Given this function is only allowed to run concurrently with itself,
+	// we don't need any locks :)
+	_GFXPoolElem* elem = gfx_map_hsearch(&pool->immutable, key, hash);
+	if (elem != NULL) return elem;
+
+	// If not found, we check the subordinate's table.
+	elem = gfx_map_hsearch(&sub->mutable, key, hash);
+	if (elem != NULL) return elem;
+
+	// If still not found, go check the recycled table.
+	// When an element is found, we need to move it to the subordinate.
+	// Therefore the recycled table can change, and we need to lock it.
+	// First create a key real quick tho (from the first few bytes of `key`).
+	_GFXRecycleKey recKey;
+	recKey.len = sizeof(recKey.bytes);
+	memcpy(recKey.bytes, key->bytes, sizeof(recKey.bytes));
+
+	_gfx_mutex_lock(&pool->recLock);
+
+	elem = gfx_map_search(&pool->recycled, &recKey);
+	if (elem != NULL)
+	{
+		// If a compatible descriptor set layout is found,
+		// immediately increase the set count of its descriptor block +
+		// reset its flushes, so it starts counting again once it's back
+		// in the immutable hashtable.
+		// TODO: Move this some place down below?
+		atomic_fetch_add(&elem->block->sets, 1);
+		atomic_store(&elem->flushes, 0);
+
+		// Then move it to the subordinate so we can unlock.
+		// TODO: Precompute hash?
+		if (!gfx_map_move(
+			&pool->recycled, &sub->mutable, elem, _gfx_hash_size(key), key))
+		{
+			_gfx_mutex_unlock(&pool->recLock);
+			return NULL;
+		}
+	}
+
+	_gfx_mutex_unlock(&pool->recLock);
+
+	// If we STILL have no element, create one ourselves.
+	if (elem == NULL)
+	{
+		// To do this, we need a descriptor block.
+		// If we don't have one, go claim one from the free list.
+		// We need to lock for this again.
+		if (sub->block == NULL)
+		{
+			_gfx_mutex_lock(&pool->subLock);
+
+			sub->block = (_GFXPoolBlock*)pool->free.head;
+			if (sub->block != NULL)
+				gfx_list_erase(&pool->free, &sub->block->list);
+
+			_gfx_mutex_unlock(&pool->subLock);
+
+			// If we didn't manage to claim a block, make one ourselves...
+			if (sub->block == NULL)
+				if ((sub->block = _gfx_alloc_pool_block(pool)) == NULL)
+					// ...
+					return NULL;
+		}
+
+		// Now allocate a descriptor set from this block/pool.
+
+		// TODO: Implement.
+	}
+
+	// Now that we surely have an element, initialize it!
 
 	// TODO: Implement.
 

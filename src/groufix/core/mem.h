@@ -46,7 +46,7 @@ typedef struct _GFXHashBuilder
 /**
  * Returns the total size (including key header) of a hash key in bytes.
  */
-static inline size_t _gfx_hash_size(_GFXHashKey* key)
+static inline size_t _gfx_hash_size(const _GFXHashKey* key)
 {
 	return sizeof(_GFXHashKey) + sizeof(char) * key->len;
 }
@@ -443,11 +443,12 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst);
  */
 typedef struct _GFXPoolBlock
 {
-	GFXListNode list; // Base-type, undefined if claimed by subordinate.
-	uint32_t    sets; // #in-use descriptor sets (i.e. not-recycled).
+	GFXListNode list;  // Base-type, undefined if claimed by subordinate.
+	GFXList     elems; // References _GFXPoolElem.
 	int         full;
 
-	GFXList elems; // References _GFXPoolElem.
+	// #in-use descriptor sets (i.e. not-recycled).
+	atomic_uint_fast32_t sets;
 
 
 	// Vulkan fields.
@@ -598,7 +599,8 @@ void _gfx_pool_recycle(_GFXPool* pool, const _GFXHashKey* key);
  * However, can never run concurrently with other pool functions.
  *
  * The first bytes of key must be setLayout, pushed as a _GFXCacheElem*.
- * Naturally key must at least be of size sizeof(_GFXCacheElem*).
+ * Naturally key must at least be of size sizeof(_GFXCacheElem*), the total
+ * size must be fixed for a given descriptor set layout.
  *
  * update must point to the first VkDescriptorImageInfo, VkDescriptorBufferInfo
  * or VkBufferView structure, with `templateStride` bytes inbetween consecutive
