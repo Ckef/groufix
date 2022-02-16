@@ -576,6 +576,16 @@ void _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub);
 void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub);
 
 /**
+ * Recycles all matching Vulkan descriptor sets.
+ * Useful for when specific keys have been invalidated.
+ * @param pool Cannot be NULL.
+ * @param key  Matched against the keys passed in _gfx_pool_get.
+ *
+ * Not thread-safe at all, unlike _gfx_pool_get!
+ */
+void _gfx_pool_recycle(_GFXPool* pool, const _GFXHashKey* key);
+
+/**
  * Retrieves, allocates or recycles a Vulkan descriptor set from the pool.
  * @param pool      Cannot be NULL.
  * @param sub       Cannot be NULL.
@@ -598,17 +608,6 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
                             const _GFXCacheElem* setLayout,
                             const _GFXHashKey* key,
                             const void* update);
-
-/**
- * Recycles all matching Vulkan descriptor sets.
- * Useful for when specific keys have been invalidated.
- * @see _gfx_pool_get.
- *
- * Not thread-safe at all, unlike _gfx_pool_get!
- */
-void _gfx_pool_recycle(_GFXPool* pool,
-                       const _GFXCacheElem* setLayout,
-                       const _GFXHashKey* key);
 
 
 #endif

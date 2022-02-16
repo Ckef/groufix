@@ -169,6 +169,15 @@ GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes)
 }
 
 /****************************/
+GFX_API void gfx_map_shrink(GFXMap* map)
+{
+	assert(map != NULL);
+
+	// Keep in a separate function for symmetry.
+	_gfx_map_shrink(map);
+}
+
+/****************************/
 GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src)
 {
 	assert(map != NULL);
@@ -251,11 +260,9 @@ GFX_API int gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
 	// Remove it from the source map similarly to gfx_map_erase.
 	// By finding the node BEFORE the one to erase.
 	_GFXMapNode* bNode = map->buckets[hInd];
+
 	if (bNode == mNode)
-	{
 		map->buckets[hInd] = mNode->next;
-		--map->size;
-	}
 
 	else for (
 		// Note: bNode cannot be NULL, as node must be valid!
@@ -266,11 +273,11 @@ GFX_API int gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
 		if (curr == mNode)
 		{
 			bNode->next = mNode->next;
-			--map->size;
 			break;
 		}
 	}
 
+	--map->size;
 	++dst->size;
 
 	// Stick it in destination.
@@ -426,6 +433,33 @@ GFX_API void* gfx_map_next(GFXMap* map, const void* node)
 }
 
 /****************************/
+GFX_API void* gfx_map_next_equal(GFXMap* map, const void* node)
+{
+	assert(map != NULL);
+	assert(node != NULL);
+
+	_GFXMapNode* mNode = _GFX_GET_NODE(map, node);
+
+	// To compare equal, hash must be equal.
+	// Which means we only need to look in the same bucket.
+	for (
+		_GFXMapNode* curr = mNode->next;
+		curr != NULL;
+		curr = curr->next)
+	{
+		if (
+			// First compare raw hash for faster comparisons.
+			curr->hash == mNode->hash &&
+			map->cmp(_GFX_GET_KEY(map, curr), _GFX_GET_KEY(map, mNode)) == 0)
+		{
+			return _GFX_GET_ELEMENT(map, curr);
+		}
+	}
+
+	return NULL;
+}
+
+/****************************/
 GFX_API void gfx_map_erase(GFXMap* map, const void* node)
 {
 	assert(map != NULL);
@@ -458,12 +492,11 @@ GFX_API void gfx_map_ferase(GFXMap* map, const void* node)
 		free(mNode);
 
 		--map->size;
-		return;
 	}
 
 	// Otherwise, keep walking the chain to find it.
 	// Note: bNode cannot be NULL, as node (and therefore hInd) must be valid!
-	for (
+	else for (
 		_GFXMapNode* curr = bNode->next;
 		curr != NULL;
 		bNode = curr, curr = bNode->next)
@@ -475,7 +508,7 @@ GFX_API void gfx_map_ferase(GFXMap* map, const void* node)
 			free(mNode);
 
 			--map->size;
-			return;
+			break;
 		}
 	}
 }

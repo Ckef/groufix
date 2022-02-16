@@ -82,6 +82,13 @@ GFX_API void gfx_map_clear(GFXMap* map);
 GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes);
 
 /**
+ * Shrinks the capacity back down to fit the size.
+ * Useful in combination with gfx_map_fmove and gfx_map_ferase.
+ * @param map Cannot be NULL.
+ */
+GFX_API void gfx_map_shrink(GFXMap* map);
+
+/**
  * Merges two maps, emptying the source into the destination.
  * @param map Cannot be NULL.
  * @param src Cannot be NULL, must have the same elemSize and align as map.
@@ -111,8 +118,8 @@ GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
                          size_t keySize, const void* key);
 
 /**
- * Moves a node without decreasing the capacity of the source map.
- * f stands for 'fast', as we can keep iterating over the map whilst moving.
+ * Moves a node ('fast') without decreasing the capacity of the source map.
+ * The implicit order of nodes remains fixed to allow continued iteration.
  * @see gfx_map_move.
  */
 GFX_API int gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
@@ -176,6 +183,12 @@ GFX_API void* gfx_map_first(GFXMap* map);
 GFX_API void* gfx_map_next(GFXMap* map, const void* node);
 
 /**
+ * Retrieves the next duplicate node (in undefined order) in memory of the map.
+ * @see gfx_map_next.
+ */
+GFX_API void* gfx_map_next_equal(GFXMap* map, const void* node);
+
+/**
  * Erases a node from the map.
  * @param map  Cannot be NULL.
  * @param node Must be a non-NULL value returned by gfx_map_(h)insert.
@@ -185,8 +198,8 @@ GFX_API void* gfx_map_next(GFXMap* map, const void* node);
 GFX_API void gfx_map_erase(GFXMap* map, const void* node);
 
 /**
- * Erases a node without decreasing the capacity of the map.
- * f stands for 'fast', as we can keep iterating over the map whilst erasing.
+ * Erases a node ('fast') without decreasing the capacity of the map.
+ * The implicit order of nodes remains fixed to allow continued iteration.
  * @see gfx_map_erase.
  */
 GFX_API void gfx_map_ferase(GFXMap* map, const void* node);
