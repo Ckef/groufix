@@ -25,7 +25,7 @@ typedef struct _GFXRecycleKey
 
 /****************************
  * Helper to make all subordinates unclaim their allocating descriptor block,
- * and let them link all blocks into the pool's free or full list again.
+ * and let them link all blocks into the pool's free list again.
  */
 static void _gfx_unclaim_pool_blocks(_GFXPool* pool)
 {
@@ -36,6 +36,8 @@ static void _gfx_unclaim_pool_blocks(_GFXPool* pool)
 	{
 		// If the block was full, the subordinate should already have linked
 		// it in the full list, so here we link it into the free list.
+		// We keep inserting at the beginning so hot blocks keep being used.
+		// This way we don't instantly disperse over all available blocks.
 		if (sub->block != NULL)
 		{
 			gfx_list_insert_before(&pool->free, &sub->block->list, NULL);
@@ -631,7 +633,7 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 				return NULL;
 			});
 
-		// And initialize the element further.
+		// And link the element and block together.
 		elem->block = sub->block;
 		gfx_list_insert_after(&sub->block->elems, &elem->list, NULL);
 	}
