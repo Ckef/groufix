@@ -362,29 +362,23 @@ void _gfx_pool_reset(_GFXPool* pool)
 		gfx_map_clear(&sub->mutable);
 	}
 
-	// Then reset all the blocks and their Vulkan descriptor pools!
-	// First all the blocks with free space left.
-	for (
-		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->free.head;
-		block != NULL;
-		block = (_GFXPoolBlock*)block->list.next)
-	{
-		gfx_list_clear(&block->elems);
-		atomic_store(&block->sets, 0);
-
-		context->vk.ResetDescriptorPool(
-			context->vk.device, block->vk.pool, 0);
-	}
-
-	// Then the full ones, we need to move those to the free list!
+	// Then move all the full blocks to the free list.
 	while (pool->full.head != NULL)
 	{
 		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->full.head;
 		gfx_list_erase(&pool->full, &block->list);
 		gfx_list_insert_after(&pool->free, &block->list, NULL);
 
-		// Don't forget to reset the full flag!
+		// Reset the full flag.
 		block->full = 0;
+	}
+
+	// And reset all the blocks and their Vulkan descriptor pools.
+	for (
+		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->free.head;
+		block != NULL;
+		block = (_GFXPoolBlock*)block->list.next)
+	{
 		gfx_list_clear(&block->elems);
 		atomic_store(&block->sets, 0);
 
@@ -647,7 +641,6 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	// Ok now it's just a matter of updating the actual Vulkan descriptors!
 	context->vk.UpdateDescriptorSetWithTemplate(
 		context->vk.device, elem->vk.set, setLayout->vk.template, update);
-
 
 	// Reset #flushes of the element & return when found.
 found:
