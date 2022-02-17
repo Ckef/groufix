@@ -94,6 +94,8 @@ static int _gfx_device_map_format(_GFXDevice* device,
 /****************************/
 int _gfx_device_init_formats(_GFXDevice* device)
 {
+	_Static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
+
 	assert(device != NULL);
 
 	// Initialize the format 'dictionary'.

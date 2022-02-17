@@ -24,7 +24,7 @@ static void _gfx_glfw_error(int error, const char* description)
 GFX_API int gfx_init(void)
 {
 	// Already initialized, just do nothing.
-	if (_groufix.initialized)
+	if (atomic_load(&_groufix.initialized))
 		return 1;
 
 	// Initialize global state.
@@ -87,7 +87,7 @@ terminate:
 GFX_API void gfx_terminate(void)
 {
 	// Not yet initialized, just do nothing.
-	if (!_groufix.initialized)
+	if (!atomic_load(&_groufix.initialized))
 		return;
 
 	// Terminate the contents of the engine.
@@ -107,7 +107,7 @@ GFX_API void gfx_terminate(void)
 GFX_API int gfx_attach(void)
 {
 	// Not yet initialized, cannot attach.
-	if (!_groufix.initialized)
+	if (!atomic_load(&_groufix.initialized))
 		return 0;
 
 	// Already attached.
@@ -137,7 +137,7 @@ GFX_API int gfx_attach(void)
 GFX_API void gfx_detach(void)
 {
 	// Not yet initialized or attached.
-	if (!_groufix.initialized || !_gfx_get_local())
+	if (!atomic_load(&_groufix.initialized) || !_gfx_get_local())
 		return;
 
 	// Every thread may have one last say :)
@@ -150,7 +150,7 @@ GFX_API void gfx_detach(void)
 /****************************/
 GFX_API void gfx_poll_events(void)
 {
-	assert(_groufix.initialized);
+	assert(atomic_load(&_groufix.initialized));
 
 	glfwPollEvents();
 }
@@ -158,7 +158,7 @@ GFX_API void gfx_poll_events(void)
 /****************************/
 GFX_API void gfx_wait_events(void)
 {
-	assert(_groufix.initialized);
+	assert(atomic_load(&_groufix.initialized));
 
 	glfwWaitEvents();
 }
@@ -166,7 +166,7 @@ GFX_API void gfx_wait_events(void)
 /****************************/
 GFX_API void gfx_wake(void)
 {
-	assert(_groufix.initialized);
+	assert(atomic_load(&_groufix.initialized));
 
 	glfwPostEmptyEvent();
 }

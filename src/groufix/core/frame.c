@@ -34,10 +34,18 @@ static int _gfx_frame_rebuild(GFXRenderer* renderer, _GFXFrameSync* sync,
 {
 	if (flags & _GFX_RECREATE)
 	{
-		if (!*synced && !_gfx_sync_frames(renderer))
-			return 0;
+		if (!*synced)
+		{
+			// First try to synchronize all frames.
+			// Then reset the pool, no attachments may be referenced!
+			if (!_gfx_sync_frames(renderer))
+				return 0;
 
-		*synced = 1;
+			*synced = 1;
+			_gfx_pool_reset(&renderer->pool);
+		}
+
+		// Then rebuild & purge the swapchain stuff.
 		_gfx_render_backing_rebuild(renderer, sync->backing, flags);
 		_gfx_render_graph_rebuild(renderer, sync->backing, flags);
 		_gfx_swapchain_purge(sync->window);
@@ -511,11 +519,14 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 		}
 	}
 
-	// When all is submitted, spend some time flushing the object cache.
+	// When all is submitted, spend some time flushing the cache & pool.
 	if (!_gfx_cache_flush(&renderer->cache))
 		gfx_log_warn(
 			"Failed to flush the Vulkan object cache "
 			"during virtual frame submission.");
+
+	// This one actually has pretty decent logging already.
+	_gfx_pool_flush(&renderer->pool);
 
 	// Lastly, make all commands visible for future operations.
 	_gfx_deps_finish(numDeps, deps, &injection);

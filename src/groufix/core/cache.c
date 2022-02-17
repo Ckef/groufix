@@ -101,17 +101,7 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(dslb->descriptorType);
 			_GFX_KEY_PUSH(dslb->descriptorCount);
 			_GFX_KEY_PUSH(dslb->stageFlags);
-
-			// Insert bool 'has immutable samplers'.
-			temp =
-				dslb->descriptorCount > 0 &&
-				dslb->pImmutableSamplers != NULL;
-
-			_GFX_KEY_PUSH(temp);
-
-			if (dslb->pImmutableSamplers != NULL)
-				for (size_t s = 0; s < dslb->descriptorCount; ++s)
-					_GFX_KEY_PUSH_HANDLE();
+			// Ignore immutable samplers.
 		}
 		break;
 
@@ -587,6 +577,53 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 				(const VkDescriptorSetLayoutCreateInfo*)createInfo, NULL,
 				&elem->vk.setLayout),
 			goto error);
+
+		// Go ahead and just create an update template inline.
+		// This is as simple as creating an update entry for each binding.
+		// We always update descriptor sets as a whole.
+		{
+			const VkDescriptorSetLayoutCreateInfo* dslci =
+				(const VkDescriptorSetLayoutCreateInfo*)createInfo;
+
+			VkDescriptorUpdateTemplateEntry entries[dslci->bindingCount];
+			size_t offset = 0;
+
+			for (uint32_t e = 0; e < dslci->bindingCount; ++e)
+			{
+				entries[e] = (VkDescriptorUpdateTemplateEntry){
+					.dstBinding      = dslci->pBindings[e].binding,
+					.dstArrayElement = 0,
+					.descriptorCount = dslci->pBindings[e].descriptorCount,
+					.descriptorType  = dslci->pBindings[e].descriptorType,
+					.offset          = offset,
+					.stride          = cache->templateStride
+				};
+				offset +=
+					cache->templateStride *
+					entries[e].descriptorCount;
+			}
+
+			VkDescriptorUpdateTemplateCreateInfo dutci = {
+				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO,
+
+				.pNext                      = NULL,
+				.flags                      = 0,
+				.descriptorUpdateEntryCount = dslci->bindingCount,
+				.pDescriptorUpdateEntries   = entries,
+				.descriptorSetLayout        = elem->vk.setLayout,
+
+				.templateType = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET
+			};
+
+			_GFX_VK_CHECK(
+				context->vk.CreateDescriptorUpdateTemplate(
+					context->vk.device, &dutci, NULL, &elem->vk.template),
+				{
+					context->vk.DestroyDescriptorSetLayout(
+						context->vk.device, elem->vk.setLayout, NULL);
+					goto error;
+				});
+		}
 		break;
 
 	case VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO:
@@ -658,6 +695,8 @@ static void _gfx_cache_destroy_elem(_GFXCache* cache, _GFXCacheElem* elem)
 	switch (elem->type)
 	{
 	case VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO:
+		context->vk.DestroyDescriptorUpdateTemplate(
+			context->vk.device, elem->vk.template, NULL);
 		context->vk.DestroyDescriptorSetLayout(
 			context->vk.device, elem->vk.setLayout, NULL);
 		break;
@@ -689,15 +728,17 @@ static void _gfx_cache_destroy_elem(_GFXCache* cache, _GFXCacheElem* elem)
 }
 
 /****************************/
-int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
+int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride)
 {
 	assert(cache != NULL);
 	assert(device != NULL);
 	assert(device->context != NULL);
+	assert(templateStride > 0);
 
 	_GFXContext* context = device->context;
 
 	cache->context = context;
+	cache->templateStride = templateStride;
 	cache->vk.device = device->vk.device;
 
 	// Initialize the locks.
@@ -725,7 +766,7 @@ int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device)
 
 	// Initialize the hashtables.
 	// Take the largest alignment of the key and element types.
-	size_t align =
+	const size_t align =
 		GFX_MAX(_Alignof(_GFXHashKey), _Alignof(_GFXCacheElem));
 
 	gfx_map_init(&cache->immutable,
@@ -1083,13 +1124,11 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 		context->vk.device, vkCache, NULL);
 
 	// Some victory logs c:
-#if !defined (NDEBUG)
 	if (success)
-		gfx_log_debug(
+		gfx_log_info(
 			"Successfully loaded groufix pipeline cache:\n"
 			"    Input size: %"GFX_PRIs" bytes.\n",
 			key->len);
-#endif
 
 	return success;
 }
@@ -1166,15 +1205,14 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
 	// Stream out the data.
 	if (gfx_io_write(dst, key->bytes, key->len) <= 0)
 	{
-		gfx_log_error("Could not write pipeline cache data to stream.");
+		gfx_log_error("Could not write pipeline cache to stream.");
 		free(key);
 		return 0;
 	}
 
 	// Yey we did it!
-	gfx_log_debug(
-		"Successfully stored groufix pipeline cache:\n"
-		"    Output size: %"GFX_PRIs" bytes.\n",
+	gfx_log_info(
+		"Written groufix pipeline cache to stream (%"GFX_PRIs" bytes).",
 		key->len);
 
 	free(key);
@@ -1183,7 +1221,7 @@ int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
 
 	// Cleanup on failure.
 clean:
-	gfx_log_error("Failed to store pipeline cache data.");
+	gfx_log_error("Failed to store pipeline cache.");
 
 	free(_gfx_hash_builder_get(&builder));
 	return 0;

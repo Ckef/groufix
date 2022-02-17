@@ -285,7 +285,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
                                      GFXMonitor* monitor, GFXVideoMode mode,
                                      const char* title)
 {
-	assert(_groufix.initialized);
+	assert(atomic_load(&_groufix.initialized));
 	assert(_groufix.vk.instance != NULL);
 	assert(mode.width > 0);
 	assert(mode.height > 0);

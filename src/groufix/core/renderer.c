@@ -33,8 +33,14 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
 	_gfx_pick_queue(context, &rend->present, 0, 1);
 
-	// Initialize the cache first.
-	if (!_gfx_cache_init(&rend->cache, rend->device))
+	// Initialize the cache and pool first.
+	// TODO: Obviously the correct templateStride should be passed.
+	if (!_gfx_cache_init(&rend->cache, rend->device, 512))
+		goto clean;
+
+	// Keep descriptor sets twice the amount of frames we have.
+	// Offset by 1 to account for the first frame using it.
+	if (!_gfx_pool_init(&rend->pool, rend->device, (frames << 1) + 1))
 		goto clean;
 
 	// Then initialize the allocator, render backing & graph.
@@ -71,6 +77,7 @@ clean_renderer:
 	gfx_deque_clear(&rend->frames);
 	_gfx_render_graph_clear(rend);
 	_gfx_render_backing_clear(rend);
+	_gfx_pool_clear(&rend->pool);
 	_gfx_cache_clear(&rend->cache);
 	_gfx_allocator_clear(&rend->allocator);
 clean:
@@ -96,10 +103,11 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	gfx_deque_clear(&renderer->frames);
 
-	// Clear the allocator, cache, backing & graph in a sensible order,
+	// Clear the allocator, cache, pool, backing & graph in a sensible order,
 	// considering the graph depends on the backing :)
 	_gfx_render_graph_clear(renderer);
 	_gfx_render_backing_clear(renderer);
+	_gfx_pool_clear(&renderer->pool);
 	_gfx_cache_clear(&renderer->cache);
 	_gfx_allocator_clear(&renderer->allocator);
 
