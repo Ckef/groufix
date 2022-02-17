@@ -361,26 +361,29 @@ void _gfx_pool_reset(_GFXPool* pool)
 	}
 
 	// Then reset all the blocks and their Vulkan descriptor pools!
+	// First all the blocks with free space left.
 	for (
 		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->free.head;
 		block != NULL;
 		block = (_GFXPoolBlock*)block->list.next)
 	{
 		gfx_list_clear(&block->elems);
-		block->full = 0;
 		atomic_store(&block->sets, 0);
 
 		context->vk.ResetDescriptorPool(
 			context->vk.device, block->vk.pool, 0);
 	}
 
-	for (
-		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->full.head;
-		block != NULL;
-		block = (_GFXPoolBlock*)block->list.next)
+	// Then the full ones, we need to move those to the free list!
+	while (pool->full.head != NULL)
 	{
-		gfx_list_clear(&block->elems);
+		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->full.head;
+		gfx_list_erase(&pool->full, &block->list);
+		gfx_list_insert_after(&pool->free, &block->list, NULL);
+
+		// Don't forget to reset the full flag!
 		block->full = 0;
+		gfx_list_clear(&block->elems);
 		atomic_store(&block->sets, 0);
 
 		context->vk.ResetDescriptorPool(
@@ -512,6 +515,7 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	assert(key != NULL);
 	assert(update != NULL);
 
+	_GFXContext* context = pool->context;
 	const uint64_t hash = pool->immutable.hash(key);
 
 	// First we check the pool's immutable table.
@@ -520,11 +524,11 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	// Given this function is only allowed to run concurrently with itself,
 	// we don't need any locks :)
 	_GFXPoolElem* elem = gfx_map_hsearch(&pool->immutable, key, hash);
-	if (elem != NULL) return elem;
+	if (elem != NULL) goto found;
 
 	// If not found, we check the subordinate's table.
 	elem = gfx_map_hsearch(&sub->mutable, key, hash);
-	if (elem != NULL) return elem;
+	if (elem != NULL) goto found;
 
 	// If still not found, go check the recycled table.
 	// When an element is found, we need to move it to the subordinate.
@@ -538,16 +542,8 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 
 	elem = gfx_map_search(&pool->recycled, &recKey);
 	if (elem != NULL)
-	{
 		// If a compatible descriptor set layout is found,
-		// immediately increase the set count of its descriptor block +
-		// reset its flushes, so it starts counting again once it's back
-		// in the immutable hashtable.
-		// TODO: Move this some place down below?
-		atomic_fetch_add(&elem->block->sets, 1);
-		atomic_store(&elem->flushes, 0);
-
-		// Then move it to the subordinate so we can unlock.
+		// move it to the subordinate so we can unlock.
 		// TODO: Precompute hash?
 		if (!gfx_map_move(
 			&pool->recycled, &sub->mutable, elem, _gfx_hash_size(key), key))
@@ -555,13 +551,15 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 			_gfx_mutex_unlock(&pool->recLock);
 			return NULL;
 		}
-	}
 
 	_gfx_mutex_unlock(&pool->recLock);
 
-	// If we STILL have no element, create one ourselves.
+	// If we STILL have no element, allocate a new descriptor set.
 	if (elem == NULL)
 	{
+		// Goto here to try another descriptor block.
+	try_block:
+
 		// To do this, we need a descriptor block.
 		// If we don't have one, go claim one from the free list.
 		// We need to lock for this again.
@@ -582,14 +580,75 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 					return NULL;
 		}
 
-		// Now allocate a descriptor set from this block/pool.
+		// Quickly try to get a map element if we didn't already.
+		if (elem == NULL)
+		{
+			elem = gfx_map_hinsert(
+				&sub->mutable, NULL, _gfx_hash_size(key), key, hash);
 
-		// TODO: Implement.
+			if (elem == NULL) return NULL;
+		}
+
+		// Now allocate a descriptor set from this block/pool.
+		// Note that the descriptor block is now claimed by this subordinate,
+		// nothing else will access it but this subordinate.
+		// Except maybe the `sets` field by other recycling threads.
+		VkDescriptorSetAllocateInfo dsai = {
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+
+			.pNext              = NULL,
+			.descriptorPool     = sub->block->vk.pool,
+			.descriptorSetCount = 1,
+			.pSetLayouts        = &setLayout->vk.setLayout
+		};
+
+		VkResult result = context->vk.AllocateDescriptorSets(
+			context->vk.device, &dsai, &elem->vk.set);
+
+		// If the descriptor pool was out of memory,
+		// move the descriptor block to the full list and try again.
+		// We must lock for this again..
+		if (
+			result == VK_ERROR_FRAGMENTED_POOL ||
+			result == VK_ERROR_OUT_OF_POOL_MEMORY)
+		{
+			_gfx_mutex_lock(&pool->subLock);
+
+			// Don't forget to set the full flag!
+			sub->block->full = 1;
+			gfx_list_insert_after(&pool->full, &sub->block->list, NULL);
+
+			_gfx_mutex_unlock(&pool->subLock);
+
+			sub->block = NULL;
+			goto try_block;
+		}
+
+		// Success?
+		_GFX_VK_CHECK(result,
+			{
+				gfx_map_erase(&sub->mutable, elem);
+				return NULL;
+			});
+
+		// And initialize the element further.
+		elem->block = sub->block;
+		gfx_list_insert_after(&sub->block->elems, &elem->list, NULL);
 	}
 
 	// Now that we surely have an element, initialize it!
+	// Icrease the set count of its descriptor block.
+	// Note that it NEEDS to be atomic, any thread can access any block if
+	// they all happen to grab recycled sets.
+	atomic_fetch_add(&elem->block->sets, 1);
 
-	// TODO: Implement.
+	// Ok now it's just a matter of updating the actual Vulkan descriptors!
+	context->vk.UpdateDescriptorSetWithTemplate(
+		context->vk.device, elem->vk.set, setLayout->vk.template, update);
 
-	return NULL;
+
+	// Reset #flushes of the element & return when found.
+found:
+	atomic_store(&elem->flushes, 0);
+	return elem;
 }
