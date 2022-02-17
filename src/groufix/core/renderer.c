@@ -38,10 +38,13 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	if (!_gfx_cache_init(&rend->cache, rend->device, 512))
 		goto clean;
 
-	// Keep descriptor sets twice the amount of frames we have.
+	// Keep descriptor sets 4x the amount of frames we have.
 	// Offset by 1 to account for the first frame using it.
-	if (!_gfx_pool_init(&rend->pool, rend->device, (frames << 1) + 1))
+	if (!_gfx_pool_init(&rend->pool, rend->device, (frames << 2) + 1))
+	{
+		_gfx_cache_clear(&rend->cache);
 		goto clean;
+	}
 
 	// Then initialize the allocator, render backing & graph.
 	// Technically it doesn't matter, but let's do it in dependency order.
