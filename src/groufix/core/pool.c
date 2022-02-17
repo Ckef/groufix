@@ -540,9 +540,9 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	if (elem != NULL)
 		// If a compatible descriptor set layout is found,
 		// move it to the subordinate so we can unlock.
-		// TODO: Precompute hash?
-		if (!gfx_map_move(
-			&pool->recycled, &sub->mutable, elem, _gfx_hash_size(key), key))
+		if (!gfx_map_hmove(
+			&pool->recycled, &sub->mutable,
+			elem, _gfx_hash_size(key), key, hash))
 		{
 			_gfx_mutex_unlock(&pool->recLock);
 			return NULL;

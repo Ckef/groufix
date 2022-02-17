@@ -118,6 +118,81 @@ static void _gfx_map_shrink(GFXMap* map)
 	}
 }
 
+/****************************
+ * Stand-in function for all the gfx_map_*move variants, without shrinking.
+ * @param hash Pre-computed hash value, ignored if key is NULL, may be NULL.
+ * @see gfx_map_*move.
+ */
+static int _gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
+                         size_t keySize, const void* key, const uint64_t* hash)
+{
+	assert(map != NULL);
+	assert(dst != NULL);
+	assert(map->elementSize == dst->elementSize);
+	assert(map->align == dst->align);
+	assert(node != NULL);
+	assert(key == NULL || keySize > 0);
+	assert(map->capacity > 0);
+
+	_GFXMapNode* mNode = _GFX_GET_NODE(map, node);
+
+	// Again, need to grow the destination map (if a different map).
+	if (map != dst && !_gfx_map_grow(dst, dst->size + 1))
+		return 0;
+
+	// Use stored hash to get index to the bucket!
+	uint64_t hInd = mNode->hash % map->capacity;
+
+	// Remove it from the source map similarly to gfx_map_erase.
+	// By finding the node BEFORE the one to erase.
+	_GFXMapNode* bNode = map->buckets[hInd];
+
+	if (bNode == mNode)
+		map->buckets[hInd] = mNode->next;
+
+	else for (
+		// Note: bNode cannot be NULL, as node must be valid!
+		_GFXMapNode* curr = bNode->next;
+		curr != NULL;
+		bNode = curr, curr = bNode->next)
+	{
+		if (curr == mNode)
+		{
+			bNode->next = mNode->next;
+			break;
+		}
+	}
+
+	--map->size;
+	++dst->size;
+
+	// Stick it in destination.
+	// But first, initialize new key value.
+	// Also, we rehash if we use a different hash function!
+	if (key != NULL)
+		memcpy(_GFX_GET_KEY(dst, mNode), key, keySize),
+		mNode->hash = hash ? *hash : dst->hash(_GFX_GET_KEY(dst, mNode));
+
+	else if (map->hash != dst->hash)
+		// In the case when we have a different hasher, but no given key,
+		// API does not allow passing a hash, but meh.
+		mNode->hash = dst->hash(_GFX_GET_KEY(dst, mNode));
+
+	hInd = mNode->hash % dst->capacity;
+	mNode->next = dst->buckets[hInd];
+	dst->buckets[hInd] = mNode;
+
+	// We do actually deallocate the source if it's empty.
+	if (map->size == 0)
+	{
+		free(map->buckets);
+		map->capacity = 0;
+		map->buckets = NULL;
+	}
+
+	return 1;
+}
+
 /****************************/
 GFX_API void gfx_map_init(GFXMap* map, size_t elemSize, size_t align,
                           uint64_t (*hash)(const void*),
@@ -221,15 +296,24 @@ GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src)
 GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
                          size_t keySize, const void* key)
 {
-	assert(map != NULL);
-	assert(dst != NULL);
-	assert(map->elementSize == dst->elementSize);
-	assert(map->align == dst->align);
-	assert(node != NULL);
-	assert(key == NULL || keySize > 0);
+	// Relies on stand-in function for asserts.
 
-	// Do the fast move and then shrink the source.
-	if (!gfx_map_fmove(map, dst, node, keySize, key))
+	// Do the move then shrink the source.
+	if (!_gfx_map_move(map, dst, node, keySize, key, NULL))
+		return 0;
+
+	_gfx_map_shrink(map);
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_map_hmove(GFXMap* map, GFXMap* dst, const void* node,
+                          size_t keySize, const void* key, uint64_t hash)
+{
+	// Relies on stand-in function for asserts.
+
+	// Same as gfx_map_move, but with hash.
+	if (!_gfx_map_move(map, dst, node, keySize, key, &hash))
 		return 0;
 
 	_gfx_map_shrink(map);
@@ -240,68 +324,18 @@ GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
 GFX_API int gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
                           size_t keySize, const void* key)
 {
-	assert(map != NULL);
-	assert(dst != NULL);
-	assert(map->elementSize == dst->elementSize);
-	assert(map->align == dst->align);
-	assert(node != NULL);
-	assert(key == NULL || keySize > 0);
-	assert(map->capacity > 0);
+	// Relies on stand-in function for asserts.
 
-	_GFXMapNode* mNode = _GFX_GET_NODE(map, node);
+	return _gfx_map_move(map, dst, node, keySize, key, NULL);
+}
 
-	// Again, need to grow the destination map (if a different map).
-	if (map != dst && !_gfx_map_grow(dst, dst->size + 1))
-		return 0;
+/****************************/
+GFX_API int gfx_map_fhmove(GFXMap* map, GFXMap* dst, const void* node,
+                           size_t keySize, const void* key, uint64_t hash)
+{
+	// Relies on stand-in function for asserts.
 
-	// Use stored hash to get index to the bucket!
-	uint64_t hInd = mNode->hash % map->capacity;
-
-	// Remove it from the source map similarly to gfx_map_erase.
-	// By finding the node BEFORE the one to erase.
-	_GFXMapNode* bNode = map->buckets[hInd];
-
-	if (bNode == mNode)
-		map->buckets[hInd] = mNode->next;
-
-	else for (
-		// Note: bNode cannot be NULL, as node must be valid!
-		_GFXMapNode* curr = bNode->next;
-		curr != NULL;
-		bNode = curr, curr = bNode->next)
-	{
-		if (curr == mNode)
-		{
-			bNode->next = mNode->next;
-			break;
-		}
-	}
-
-	--map->size;
-	++dst->size;
-
-	// Stick it in destination.
-	// But first, initialize new key value.
-	// Also, we rehash if we use a different hash function!
-	if (key != NULL)
-		memcpy(_GFX_GET_KEY(dst, mNode), key, keySize);
-
-	if (key != NULL || map->hash != dst->hash)
-		mNode->hash = dst->hash(_GFX_GET_KEY(dst, mNode));
-
-	hInd = mNode->hash % dst->capacity;
-	mNode->next = dst->buckets[hInd];
-	dst->buckets[hInd] = mNode;
-
-	// We do actually deallocate the source if it's empty.
-	if (map->size == 0)
-	{
-		free(map->buckets);
-		map->capacity = 0;
-		map->buckets = NULL;
-	}
-
-	return 1;
+	return _gfx_map_move(map, dst, node, keySize, key, &hash);
 }
 
 /****************************/
