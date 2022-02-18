@@ -83,7 +83,7 @@ GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes);
 
 /**
  * Shrinks the capacity back down to fit the size.
- * Useful in combination with gfx_map_fmove and gfx_map_ferase.
+ * Useful in combination with gfx_map_f(h)move and gfx_map_ferase.
  * @param map Cannot be NULL.
  */
 GFX_API void gfx_map_shrink(GFXMap* map);

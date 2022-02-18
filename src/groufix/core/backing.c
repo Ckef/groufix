@@ -245,7 +245,7 @@ void _gfx_render_backing_init(GFXRenderer* renderer)
 	gfx_vec_init(&renderer->backing.attachs, sizeof(_GFXAttach));
 
 	// No backing is a valid backing.
-	renderer->backing.built = 1;
+	renderer->backing.state = _GFX_BACKING_BUILT;
 }
 
 /****************************/
@@ -267,7 +267,7 @@ int _gfx_render_backing_build(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Already done.
-	if (renderer->backing.built)
+	if (renderer->backing.state == _GFX_BACKING_BUILT)
 		return 1;
 
 	// Build all attachments.
@@ -296,7 +296,7 @@ int _gfx_render_backing_build(GFXRenderer* renderer)
 	}
 
 	// Yey built.
-	renderer->backing.built = 1;
+	renderer->backing.state = _GFX_BACKING_BUILT;
 
 	return 1;
 }
@@ -316,7 +316,7 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
 	if (!_gfx_build_attachment(renderer, index))
 	{
 		gfx_log_warn("Renderer's backing rebuild failed.");
-		renderer->backing.built = 0;
+		renderer->backing.state = _GFX_BACKING_INVALID;
 	}
 }
 
@@ -382,7 +382,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	};
 
 	// New attachment is not yet built.
-	renderer->backing.built = 0;
+	renderer->backing.state = _GFX_BACKING_INVALID;
 
 	return 1;
 }
@@ -454,7 +454,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 	gfx_vec_init(&attach->window.vk.views, sizeof(VkImageView));
 
 	// New attachment is not yet built.
-	renderer->backing.built = 0;
+	renderer->backing.state = _GFX_BACKING_INVALID;
 
 	return 1;
 }

@@ -19,8 +19,7 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 	gfx_vec_init(&renderer->graph.passes, sizeof(GFXPass*));
 
 	// No graph is a valid graph.
-	renderer->graph.built = 1;
-	renderer->graph.valid = 1;
+	renderer->graph.state = _GFX_GRAPH_BUILT;
 }
 
 /****************************/
@@ -47,13 +46,13 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Already done.
-	if (renderer->graph.built && renderer->graph.valid)
+	if (renderer->graph.state == _GFX_GRAPH_BUILT)
 		return 1;
 
 	// When the graph is not valid (either its not built yet or explicitly
 	// invalidated), it needs to be entirely rebuilt. Optimizations such as
 	// merging passes may change, we want to capture these changes.
-	if (!renderer->graph.valid)
+	if (renderer->graph.state == _GFX_GRAPH_INVALID)
 	{
 		// So we destruct all the things before building.
 		// But for that we need to wait until all pending rendering is done.
@@ -84,8 +83,7 @@ int _gfx_render_graph_build(GFXRenderer* renderer)
 	}
 
 	// Yep it's built.
-	renderer->graph.built = 1;
-	renderer->graph.valid = 1;
+	renderer->graph.state = _GFX_GRAPH_BUILT;
 
 	return 1;
 }
@@ -113,7 +111,9 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 			if (!_gfx_pass_build(pass, flags))
 			{
 				gfx_log_warn("Renderer's graph rebuild failed.");
-				renderer->graph.built = 0;
+
+				if (renderer->graph.state == _GFX_GRAPH_BUILT)
+					renderer->graph.state = _GFX_GRAPH_VALIDATED;
 			}
 		}
 	}
@@ -136,7 +136,9 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index)
 		if (pass->build.backing == index)
 		{
 			_gfx_pass_destruct(pass);
-			renderer->graph.built = 0;
+
+			if (renderer->graph.state == _GFX_GRAPH_BUILT)
+				renderer->graph.state = _GFX_GRAPH_VALIDATED;
 		}
 	}
 }
@@ -148,7 +150,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer)
 
 	// Just set the flag, it is used to destruct everything at the start of
 	// the next build call. This way we can re-analyze it.
-	renderer->graph.valid = 0;
+	renderer->graph.state = _GFX_GRAPH_INVALID;
 }
 
 /****************************/
@@ -209,8 +211,7 @@ GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
 
 	// We added a pass, clearly we need to rebuild.
 	// Plus we need to re-analyze because we may have new parent/child links.
-	renderer->graph.built = 0;
-	renderer->graph.valid = 0;
+	renderer->graph.state = _GFX_GRAPH_INVALID;
 
 	return pass;
 

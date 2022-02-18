@@ -620,7 +620,14 @@ struct GFXRenderer
 	{
 		GFXVec attachs; // Stores _GFXAttach.
 
-		int built;
+
+		// Backing state.
+		enum
+		{
+			_GFX_BACKING_INVALID,
+			_GFX_BACKING_BUILT
+
+		} state;
 
 	} backing;
 
@@ -631,8 +638,15 @@ struct GFXRenderer
 		GFXVec targets; // Stores GFXPass* (target passes, tree roots).
 		GFXVec passes;  // Stores GFXPass* (in submission order).
 
-		int built;
-		int valid;
+
+		// Graph state.
+		enum
+		{
+			_GFX_GRAPH_INVALID,
+			_GFX_GRAPH_VALIDATED,
+			_GFX_GRAPH_BUILT
+
+		} state;
 
 	} graph;
 };
