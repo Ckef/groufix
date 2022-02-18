@@ -275,8 +275,7 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
  *
  * Submits the acquired virtual frame of a renderer.
  * Must be called exactly once for each call to gfx_renderer_acquire.
- * After this call, frame may not be accessed until it is acquired again.
- * @param frame Cannot be NULL.
+ * @param frame Cannot be NULL, invalidated after this call!
  * @param deps  Cannot be NULL if numDeps > 0.
  *
  * All resources used to render a frame cannot be destroyed until the next

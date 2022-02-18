@@ -275,6 +275,19 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 		return 0;
 	}
 
+	// And a renderer check.
+	if (
+		injRef->obj.renderer != NULL &&
+		injection->inp.renderer != NULL &&
+		injection->inp.renderer != injRef->obj.renderer)
+	{
+		gfx_log_warn(
+			"Dependency injection command ignored, renderer attachment "
+			"reference cannot be used within another renderer.");
+
+		return 0;
+	}
+
 	// If the injection command AND the injection metadata specify references,
 	// filter the command against that, ignore it on a mismatch.
 	// Keep track of the reference's index in the injection metadata,
@@ -482,6 +495,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	injection->out.stages = NULL;
 
 	// Context validation of all dependency objects.
+	// Only do this here as all other functions must be called with equal args.
 	for (size_t i = 0; i < numInjs; ++i)
 		if (injs[i].dep->context != context)
 		{
@@ -538,8 +552,16 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
 		{
 			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
-			if (sync->stage != _GFX_SYNC_PENDING)
+			if (
+				sync->stage != _GFX_SYNC_PENDING ||
+
+				// Also silently filter out mismatching renderers!
+				(sync->ref.obj.renderer != NULL &&
+				injection->inp.renderer != NULL &&
+				injection->inp.renderer != sync->ref.obj.renderer))
+			{
 				continue;
+			}
 
 			// Then filter on queue family, underlying resources and
 			// whether it overlaps those resource.
