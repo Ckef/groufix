@@ -260,6 +260,14 @@ GFX_API void gfx_pass_use(GFXPass* pass,
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 
 /**
+ * Retrieves the index of a virtual frame, used to identify the frame.
+ * All frame indices are in the range [0, #frames of the renderer].
+ * They will be acquired in order, starting at 0.
+ * @param frame Cannot be NULL.
+ */
+GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
+
+/**
  * TODO: Make a call before submit that takes the deps, store those, then
  * call _gfx_deps_catch, then let submit call _gfx_deps_prepare.
  * That way we can put draw() (or whatever) calls inbetween that ALSO modify
@@ -267,8 +275,12 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
  *
  * Submits the acquired virtual frame of a renderer.
  * Must be called exactly once for each call to gfx_renderer_acquire.
+ * After this call, frame may not be accessed until it is acquired again.
  * @param frame Cannot be NULL.
  * @param deps  Cannot be NULL if numDeps > 0.
+ *
+ * All resources used to render a frame cannot be destroyed until the next
+ * time this frame is acquired. The frames can be identified by their index.
  *
  * Failure during submission cannot be recovered from,
  * any such failure is appropriately logged.

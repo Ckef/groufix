@@ -582,6 +582,8 @@ typedef struct _GFXFrameSync
  */
 struct GFXFrame
 {
+	unsigned int index;
+
 	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
 	GFXVec syncs; // Stores _GFXFrameSync.
 
@@ -1015,9 +1017,10 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
  * Initializes a virtual frame of a renderer.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
+ * @param index    Index of the virtual frame.
  * @return Zero on failure.
  */
-int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame);
+int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index);
 
 /**
  * Clears a virtual frame of a renderer.

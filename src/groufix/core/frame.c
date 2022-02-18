@@ -131,7 +131,7 @@ clean:
 }
 
 /****************************/
-int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
+int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 {
 	assert(renderer != NULL);
 	assert(frame != NULL);
@@ -139,6 +139,8 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame)
 	_GFXContext* context = renderer->allocator.context;
 
 	// Initialize things.
+	frame->index = index;
+
 	gfx_vec_init(&frame->refs, sizeof(size_t));
 	gfx_vec_init(&frame->syncs, sizeof(_GFXFrameSync));
 

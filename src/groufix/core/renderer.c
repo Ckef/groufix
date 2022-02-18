@@ -63,8 +63,9 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 
 	gfx_deque_push(&rend->frames, frames, NULL);
 
-	for (size_t f = 0; f < frames; ++f)
-		if (!_gfx_frame_init(rend, gfx_deque_at(&rend->frames, f)))
+	// Set increasing indices.
+	for (unsigned int f = 0; f < frames; ++f)
+		if (!_gfx_frame_init(rend, gfx_deque_at(&rend->frames, f), f))
 		{
 			while (f > 0) _gfx_frame_clear(rend,
 				gfx_deque_at(&rend->frames, --f));
@@ -137,6 +138,14 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	_gfx_frame_acquire(renderer, &renderer->pFrame);
 
 	return &renderer->pFrame;
+}
+
+/****************************/
+GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame)
+{
+	assert(frame != NULL);
+
+	return frame->index;
 }
 
 /****************************/
