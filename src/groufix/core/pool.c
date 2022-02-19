@@ -374,6 +374,7 @@ void _gfx_pool_reset(_GFXPool* pool)
 	}
 
 	// And reset all the blocks and their Vulkan descriptor pools.
+	// TODO: Free pools based on how many recycled descriptors there were.
 	for (
 		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->free.head;
 		block != NULL;

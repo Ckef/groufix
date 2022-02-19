@@ -213,7 +213,7 @@ static int _gfx_image_alloc(_GFXImage* image)
 	VkImageCreateFlags createFlags =
 		(image->base.type == GFX_IMAGE_3D_SLICED) ?
 			VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT :
-		(image->base.type == GFX_IMAGE_CUBEMAP) ?
+		(image->base.type == GFX_IMAGE_CUBE) ?
 			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
 
 	VkImageUsageFlags usage =

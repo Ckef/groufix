@@ -67,7 +67,7 @@
 	((type) == GFX_IMAGE_2D) ? VK_IMAGE_TYPE_2D : \
 	((type) == GFX_IMAGE_3D) ? VK_IMAGE_TYPE_3D : \
 	((type) == GFX_IMAGE_3D_SLICED) ? VK_IMAGE_TYPE_3D : \
-	((type) == GFX_IMAGE_CUBEMAP) ? VK_IMAGE_TYPE_2D : \
+	((type) == GFX_IMAGE_CUBE) ? VK_IMAGE_TYPE_2D : \
 	VK_IMAGE_TYPE_2D)
 
 #define _GFX_GET_VK_IMAGE_ASPECT(aspect) \
@@ -226,6 +226,8 @@ typedef struct _GFXShaderResource
 
 	// Array size (increasing location for vert/frag io), 0 = unsized.
 	size_t count;
+
+	// TODO: Store if cube/arrayed/multisampled sampler (to help view generation)?
 
 
 	// Resource type.
@@ -662,7 +664,7 @@ struct GFXPass
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
 
-	GFXVec consumes; // Stores { size_t, GFXAccessMask, GFXShaderStage, GFXRange }.
+	GFXVec consumes; // Stores { GFXView, GFXAccessMask, GFXShaderStage }.
 
 
 	// Building output (can be invalidated).

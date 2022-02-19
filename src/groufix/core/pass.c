@@ -17,10 +17,9 @@
  */
 typedef struct _GFXConsumeElem
 {
-	size_t         index;
+	GFXView        view;
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
-	GFXRange       range;
 
 } _GFXConsumeElem;
 
@@ -86,17 +85,17 @@ static size_t _gfx_pass_pick_backing(GFXPass* pass)
 		// that the attachment exists and is a window.
 		if (
 			con->mask != GFX_ACCESS_ATTACHMENT_WRITE ||
-			con->index >= rend->backing.attachs.size ||
+			con->view.index >= rend->backing.attachs.size ||
 			((_GFXAttach*)gfx_vec_at(
 				&rend->backing.attachs,
-				con->index))->type != _GFX_ATTACH_WINDOW)
+				con->view.index))->type != _GFX_ATTACH_WINDOW)
 		{
 			continue;
 		}
 
 		// If it is, check if we already had a backing window.
 		if (backing == SIZE_MAX)
-			backing = con->index;
+			backing = con->view.index;
 		else
 		{
 			// If so, well we cannot, throw a warning.
@@ -825,41 +824,24 @@ void _gfx_pass_destruct(GFXPass* pass)
 }
 
 /****************************/
-GFX_API int gfx_pass_consume(GFXPass* pass, size_t index,
-                             GFXAccessMask mask, GFXShaderStage stage)
-{
-	// Just call gfx_pass_consumea with the entire resource.
-	return gfx_pass_consumea(pass, index, mask, stage,
-		(GFXRange){
-			// Specify all aspect flags, will be filtered later on.
-			.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
-			.mipmap = 0,
-			.numMipmaps = 0,
-			.layer = 0,
-			.numLayers = 0
-		});
-}
-
-/****************************/
-GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
-                              GFXAccessMask mask, GFXShaderStage stage,
-                              GFXRange range)
+GFX_API int gfx_pass_consume(GFXPass* pass,
+                             GFXAccessMask mask, GFXShaderStage stage,
+                             GFXView view)
 {
 	assert(pass != NULL);
 	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
 	_GFXConsumeElem elem = {
-		.index = index,
+		.view = view,
 		.mask = mask,
-		.stage = stage,
-		.range = range
+		.stage = stage
 	};
 
 	// Try to find it first.
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
-		if (con->index == index)
+		if (con->view.index == view.index)
 		{
 			*con = elem;
 			return 1;
@@ -884,7 +866,7 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 
 	// FInd and erase.
 	for (size_t i = pass->consumes.size; i > 0; --i)
-		if (((_GFXConsumeElem*)gfx_vec_at(&pass->consumes, i))->index == index)
+		if (((_GFXConsumeElem*)gfx_vec_at(&pass->consumes, i))->view.index == index)
 			gfx_vec_erase(&pass->consumes, 1, i-1);
 
 	// Changed a pass, the graph is invalidated.

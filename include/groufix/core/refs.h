@@ -175,12 +175,12 @@ typedef GFXReference GFXImageRef;
 		.values = { binding_, index_ } \
 	}
 
-#define gfx_ref_attach(renderer, index_) \
+#define gfx_ref_attach(renderer, attachment_) \
 	(GFXImageRef){ \
 		.type = GFX_REF_ATTACHMENT, \
 		.obj = renderer, \
 		.offset = 0, \
-		.values = { index_, 0 } \
+		.values = { attachment_, 0 } \
 	}
 
 

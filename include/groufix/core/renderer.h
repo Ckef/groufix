@@ -64,6 +64,35 @@ typedef struct GFXAttachment
 
 
 /**
+ * View type (interpreted dimensionality).
+ */
+typedef enum GFXViewType
+{
+	GFX_VIEW_1D,
+	GFX_VIEW_1D_ARRAY,
+	GFX_VIEW_2D,
+	GFX_VIEW_2D_ARRAY,
+	GFX_VIEW_CUBE,
+	GFX_VIEW_CUBE_ARRAY,
+	GFX_VIEW_3D
+
+} GFXViewType;
+
+
+/**
+ * Image view description.
+ */
+typedef struct GFXView
+{
+	size_t index; // Attachment or binding index.
+
+	GFXViewType type;
+	GFXRange    range;
+
+} GFXView;
+
+
+/**
  * Renderer definition.
  */
 typedef struct GFXRenderer GFXRenderer;
@@ -204,22 +233,17 @@ GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
  * @param pass  Cannot be NULL.
  * @param mask  Access mask to consume the attachment with.
  * @param stage Shader stages with access to the attachment.
+ * @param view Specifies all properties (and attachment index) to consume with.
  * @return Zero on failure.
  */
-GFX_API int gfx_pass_consume(GFXPass* pass, size_t index,
-                             GFXAccessMask mask, GFXShaderStage stage);
-
-/**
- * Consumes a range (area) of an attachment of a renderer.
- * @see _gfx_pass_consume.
- */
-GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
-                              GFXAccessMask mask, GFXShaderStage stage,
-                              GFXRange range);
+GFX_API int gfx_pass_consume(GFXPass* pass,
+                             GFXAccessMask mask, GFXShaderStage stage,
+                             GFXView view);
 
 /**
  * Release any consumption of an attachment of the renderer.
- * @param pass Cannot be NULL.
+ * @param pass  Cannot be NULL.
+ * @param index Attachment index to release.
  */
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
 

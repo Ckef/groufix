@@ -453,8 +453,19 @@ static void _test_init(void)
 	if (pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_consume(pass, 0, GFX_ACCESS_ATTACHMENT_WRITE, 0))
+	if (!gfx_pass_consume(pass, GFX_ACCESS_ATTACHMENT_WRITE, 0,
+		(GFXView){
+			.index = 0,
+			.type = GFX_VIEW_2D,
+			.range = {
+				.aspect = GFX_IMAGE_COLOR,
+				.mipmap = 0, .numMipmaps = 1,
+				.layer = 0, .numLayers = 1
+			}
+		}))
+	{
 		TEST_FAIL();
+	}
 
 	// Make it render the thing.
 	gfx_pass_use(pass, _test_base.primitive, _test_base.group);
