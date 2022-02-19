@@ -56,6 +56,7 @@ typedef enum GFXTopology
  */
 typedef enum GFXMemoryFlags
 {
+	// TODO: Add GFX_MEMORY_ASYNC to make them concurrent instead of exclusive?
 	GFX_MEMORY_HOST_VISIBLE = 0x0001, // i.e. mappable.
 	GFX_MEMORY_DEVICE_LOCAL = 0x0002, // Implied if GFX_MEMORY_HOST_VISIBLE is _not_ set.
 	GFX_MEMORY_READ         = 0x0004,

@@ -493,6 +493,13 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	// _gfx_deps_catch will store the actual handle to such a resource in the
 	// _GFXInjection object, with both the reference and handle so we can find it.
 	// This way both the operation and _gfx_deps_prepare can find the correct handles.
+	//
+	// TODO: I think for now, meh @ implementing a history, we just make it a
+	// requirement that attachments need to be waited upon in the next submit!
+	// Maybe not make _gfx_deps_catch store the handle, but simply check if
+	// the attachment was changed since the signal command, and throw a
+	// "dangling dependency signal command" error/warning.
+	// We could do this check by adding a `generation` to each attachment.
 
 	// Get resources and metadata to copy.
 	// Note that there can only be one single attachment,
@@ -503,25 +510,25 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	const _GFXUnpackRef* dst = (staging != NULL) ?
 		&injection->inp.refs[0] : &injection->inp.refs[1];
 
-	_GFXImageAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
+	const _GFXImageAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
 		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
 
-	VkBuffer srcBuffer =
+	const VkBuffer srcBuffer =
 		(staging != NULL) ? staging->vk.buffer :
 		(src->obj.buffer != NULL) ? src->obj.buffer->vk.buffer :
 		VK_NULL_HANDLE;
 
-	VkBuffer dstBuffer =
+	const VkBuffer dstBuffer =
 		(dst->obj.buffer != NULL) ? dst->obj.buffer->vk.buffer :
 		VK_NULL_HANDLE;
 
-	VkImage srcImage =
+	const VkImage srcImage =
 		(staging != NULL) ? VK_NULL_HANDLE :
 		(src->obj.image != NULL) ? src->obj.image->vk.image :
 		(src->obj.renderer != NULL) ? attach->vk.image :
 		VK_NULL_HANDLE;
 
-	VkImage dstImage =
+	const VkImage dstImage =
 		(dst->obj.image != NULL) ? dst->obj.image->vk.image :
 		(dst->obj.renderer != NULL) ? attach->vk.image :
 		VK_NULL_HANDLE;
