@@ -523,6 +523,7 @@ typedef struct _GFXWindowAttach
 	// Vulkan fields.
 	struct
 	{
+		// TODO: Move to pass, or someplace else.
 		GFXVec views; // Stores VkImageView, on-swapchain recreate.
 
 	} vk;
@@ -664,7 +665,7 @@ struct GFXPass
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
 
-	GFXVec consumes; // Stores { GFXView, GFXAccessMask, GFXShaderStage }.
+	GFXVec consumes; // Stores { int, GFXAccessMask, GFXShaderStage, GFXView }.
 
 
 	// Building output (can be invalidated).

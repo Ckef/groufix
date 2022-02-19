@@ -34,19 +34,8 @@ TEST_DESCRIBE(windows, _t)
 	if (pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_consume(pass, GFX_ACCESS_ATTACHMENT_WRITE, 0,
-		(GFXView){
-			.index = 1,
-			.type = GFX_VIEW_2D,
-			.range = {
-				.aspect = GFX_IMAGE_COLOR,
-				.mipmap = 0, .numMipmaps = 1,
-				.layer = 0, .numLayers = 1
-			}
-		}))
-	{
+	if (!gfx_pass_consume(pass, 1, GFX_ACCESS_ATTACHMENT_WRITE, 0))
 		TEST_FAIL();
-	}
 
 	// Make it render the thing.
 	gfx_pass_use(pass, _t->primitive, _t->group);

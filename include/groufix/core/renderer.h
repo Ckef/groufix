@@ -233,12 +233,27 @@ GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
  * @param pass  Cannot be NULL.
  * @param mask  Access mask to consume the attachment with.
  * @param stage Shader stages with access to the attachment.
- * @param view Specifies all properties (and attachment index) to consume with.
  * @return Zero on failure.
  */
-GFX_API int gfx_pass_consume(GFXPass* pass,
-                             GFXAccessMask mask, GFXShaderStage stage,
-                             GFXView view);
+GFX_API int gfx_pass_consume(GFXPass* pass, size_t index,
+                             GFXAccessMask mask, GFXShaderStage stage);
+
+/**
+ * Consumes a range (area) of an attachment of a renderer.
+ * @see gfx_pass_consume.
+ */
+GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
+                              GFXAccessMask mask, GFXShaderStage stage,
+                              GFXRange range);
+
+/**
+ * Consumes an attachment of a renderer with a specific view.
+ * @param view Specifies all properties (and attachment index) to consume with.
+ * @see gfx_pass_consume.
+ */
+GFX_API int gfx_pass_consumev(GFXPass* pass,
+                              GFXAccessMask mask, GFXShaderStage stage,
+                              GFXView view);
 
 /**
  * Release any consumption of an attachment of the renderer.

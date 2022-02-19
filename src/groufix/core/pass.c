@@ -17,9 +17,10 @@
  */
 typedef struct _GFXConsumeElem
 {
-	GFXView        view;
+	int            viewed; // Zero to ignore view.type.
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
+	GFXView        view;
 
 } _GFXConsumeElem;
 
@@ -824,17 +825,73 @@ void _gfx_pass_destruct(GFXPass* pass)
 }
 
 /****************************/
-GFX_API int gfx_pass_consume(GFXPass* pass,
-                             GFXAccessMask mask, GFXShaderStage stage,
-                             GFXView view)
+GFX_API int gfx_pass_consume(GFXPass* pass, size_t index,
+                             GFXAccessMask mask, GFXShaderStage stage)
+{
+	// Just call gfx_pass_consumea with the entire resource.
+	return gfx_pass_consumea(pass, index, mask, stage,
+		(GFXRange){
+			// Specify all aspect flags, will be filtered later on.
+			.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
+			.mipmap = 0,
+			.numMipmaps = 0,
+			.layer = 0,
+			.numLayers = 0
+		});
+}
+
+/****************************/
+GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
+                              GFXAccessMask mask, GFXShaderStage stage,
+                              GFXRange range)
 {
 	assert(pass != NULL);
 	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
 	_GFXConsumeElem elem = {
-		.view = view,
+		.viewed = 0,
 		.mask = mask,
-		.stage = stage
+		.stage = stage,
+		.view = {
+			.index = index,
+			.range = range
+		}
+	};
+
+	// Try to find it first.
+	for (size_t i = 0; i < pass->consumes.size; ++i)
+	{
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		if (con->view.index == index)
+		{
+			*con = elem;
+			return 1;
+		}
+	}
+
+	// Insert anew.
+	if (!gfx_vec_push(&pass->consumes, 1, &elem))
+		return 0;
+
+	// Changed a pass, the graph is invalidated.
+	_gfx_render_graph_invalidate(pass->renderer);
+
+	return 1;
+}
+
+/****************************/
+GFX_API int gfx_pass_consumev(GFXPass* pass,
+                              GFXAccessMask mask, GFXShaderStage stage,
+                              GFXView view)
+{
+	assert(pass != NULL);
+	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+
+	_GFXConsumeElem elem = {
+		.viewed = 1,
+		.mask = mask,
+		.stage = stage,
+		.view = view
 	};
 
 	// Try to find it first.
