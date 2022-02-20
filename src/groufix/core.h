@@ -292,7 +292,6 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(ResetDescriptorPool);
 		_GFX_VK_PFN(ResetFences);
 		_GFX_VK_PFN(UnmapMemory);
-		_GFX_VK_PFN(UpdateDescriptorSets);
 		_GFX_VK_PFN(UpdateDescriptorSetWithTemplate);
 		_GFX_VK_PFN(WaitForFences);
 

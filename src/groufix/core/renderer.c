@@ -35,7 +35,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 
 	// Initialize the cache and pool first.
 	// TODO: Obviously the correct templateStride should be passed.
-	if (!_gfx_cache_init(&rend->cache, rend->device, 512))
+	if (!_gfx_cache_init(&rend->cache, rend->device, sizeof(VkDescriptorBufferInfo)))
 		goto clean;
 
 	// Keep descriptor sets 4x the amount of frames we have.

@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <stdlib.h>
 
 
 /****************************/
@@ -19,13 +20,14 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->allocator.context;
 	_GFXPrimitive* prim = pass->build.primitive;
+	_GFXGroup* group = pass->build.group;
+	VkDescriptorSet set = VK_NULL_HANDLE;
 
 	// Can't be recording if resources are missing.
 	// Window could be minimized or smth.
 	if (
 		pass->vk.pass == VK_NULL_HANDLE ||
 		pass->vk.framebuffers.size == 0 ||
-		pass->vk.set == VK_NULL_HANDLE ||
 		pass->vk.pipeLayout == VK_NULL_HANDLE ||
 		pass->vk.pipeline == VK_NULL_HANDLE)
 	{
@@ -93,9 +95,56 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	context->vk.CmdBindPipeline(
 		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->vk.pipeline);
 
+	// Get descriptor set from cache.
+	// TODO: Obviously temporary.
+	{
+		// Cheat a little by always using the same key.
+		_GFXHashBuilder builder;
+		_GFXHashKey* key;
+		if (!_gfx_hash_builder(&builder)) goto error;
+		_gfx_hash_builder_push(&builder, sizeof(_GFXCacheElem*), &pass->build.setLayout);
+		key = _gfx_hash_builder_get(&builder);
+
+		// Write the first array element of the first binding of the group lol.
+		// TODO: binding.numElements > 0 means dynamic.
+		// TODO: Renderable objects should define what range of a group to
+		// take as their data, from which descriptor set shite can be derived.
+		_GFXUnpackRef ubo = _gfx_ref_unpack(
+			gfx_ref_group_buffer(&group->base, 0, 0));
+
+		// Cheat some more with the update structure.
+		char update[sizeof(VkDescriptorBufferInfo) + sizeof(VkDescriptorImageInfo)];
+		*(VkDescriptorBufferInfo*)update =
+			(VkDescriptorBufferInfo){
+				.buffer = ubo.obj.buffer->vk.buffer,
+				.offset = ubo.value,
+				.range  = group->bindings[0].elementSize
+			};
+		*(VkDescriptorImageInfo*)((VkDescriptorBufferInfo*)update + 1) =
+			(VkDescriptorImageInfo){
+				.sampler     = pass->vk.sampler,
+				.imageView   = pass->vk.view,
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			};
+
+		_GFXPoolElem* elem = _gfx_pool_get(
+			&rend->pool, &pass->build.sub, pass->build.setLayout, key, update);
+
+		free(key);
+		if (elem == NULL) goto error;
+		set = elem->vk.set;
+		goto skip_error;
+
+		// Error on failure.
+	error:
+		gfx_log_fatal("Recording of pass failed.");
+	skip_error:
+		{};
+	}
+
 	context->vk.CmdBindDescriptorSets(
 		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-		pass->vk.pipeLayout, 0, 1, &pass->vk.set, 0, NULL);
+		pass->vk.pipeLayout, 0, 1, &set, 0, NULL);
 
 	// Bind index buffer.
 	if (prim->base.numIndices > 0)

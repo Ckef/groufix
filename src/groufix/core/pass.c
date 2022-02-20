@@ -221,7 +221,6 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 	}
 
 	// Create descriptor set layout.
-	// TODO: Do NOT use combined image samplers, share samplers between images.
 	if (pass->vk.setLayout == VK_NULL_HANDLE)
 	{
 		VkDescriptorSetLayoutCreateInfo dslci = {
@@ -251,32 +250,8 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			_gfx_cache_get(&rend->cache, &dslci.sType, NULL);
 
 		if (elem == NULL) goto error;
+		pass->build.setLayout = elem;
 		pass->vk.setLayout = elem->vk.setLayout;
-	}
-
-	// Create descriptor pool.
-	if (pass->vk.pool == VK_NULL_HANDLE)
-	{
-		VkDescriptorPoolCreateInfo dpci = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-
-			.pNext         = NULL,
-			.flags         = 0,
-			.maxSets       = 1,
-			.poolSizeCount = 2,
-			.pPoolSizes = (VkDescriptorPoolSize[]){
-				{
-					.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-					.descriptorCount = 1
-				}, {
-					.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-					.descriptorCount = 1
-				}
-			}
-		};
-
-		_GFX_VK_CHECK(context->vk.CreateDescriptorPool(
-			context->vk.device, &dpci, NULL, &pass->vk.pool), goto error);
 	}
 
 	// Create sampler.
@@ -351,72 +326,6 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 
 		_GFX_VK_CHECK(context->vk.CreateImageView(
 			context->vk.device, &ivci, NULL, &pass->vk.view), goto error);
-	}
-
-	// Allocate descriptor set.
-	// TODO: Will be cached.
-	if (pass->vk.set == VK_NULL_HANDLE)
-	{
-		VkDescriptorSetAllocateInfo dsai = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-
-			.pNext              = NULL,
-			.descriptorPool     = pass->vk.pool,
-			.descriptorSetCount = 1,
-			.pSetLayouts        = &pass->vk.setLayout
-		};
-
-		_GFX_VK_CHECK(context->vk.AllocateDescriptorSets(
-			context->vk.device, &dsai, &pass->vk.set), goto error);
-
-		// Write the first array element of the first binding of the group lol.
-		// TODO: binding.numElements > 0 means dynamic.
-		// TODO: Renderable objects should define what range of a group to
-		// take as their data, from which descriptor set shite can be derived.
-		_GFXUnpackRef ubo = _gfx_ref_unpack(
-			gfx_ref_group_buffer(&group->base, 0, 0));
-
-		if (ubo.obj.buffer == NULL)
-			goto error;
-
-		VkDescriptorBufferInfo dbi = {
-			.buffer = ubo.obj.buffer->vk.buffer,
-			.offset = ubo.value,
-			.range  = group->bindings[0].elementSize
-		};
-
-		VkDescriptorImageInfo dii = {
-			.sampler     = pass->vk.sampler,
-			.imageView   = pass->vk.view,
-			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-		};
-
-		VkWriteDescriptorSet wds[] = {
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-
-				.pNext           = NULL,
-				.dstSet          = pass->vk.set,
-				.dstBinding      = 0,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				.pBufferInfo     = &dbi
-			}, {
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-
-				.pNext           = NULL,
-				.dstSet          = pass->vk.set,
-				.dstBinding      = 1,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo      = &dii
-			}
-		};
-
-		context->vk.UpdateDescriptorSets(
-			context->vk.device, 2, wds, 0, NULL);
 	}
 
 	// Create pipeline layout.
@@ -687,10 +596,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	pass->vk.pass = VK_NULL_HANDLE;
 	pass->vk.setLayout = VK_NULL_HANDLE;
-	pass->vk.pool = VK_NULL_HANDLE;
 	pass->vk.sampler = VK_NULL_HANDLE;
 	pass->vk.view = VK_NULL_HANDLE;
-	pass->vk.set = VK_NULL_HANDLE;
 	pass->vk.pipeLayout = VK_NULL_HANDLE;
 	pass->vk.pipeline = VK_NULL_HANDLE;
 
@@ -699,6 +606,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 
 	// TODO: Super temporary!!
+	_gfx_pool_sub(&renderer->pool, &pass->build.sub);
+	pass->build.setLayout = NULL;
 	pass->build.primitive = NULL;
 	pass->build.group = NULL;
 	pass->build.vertex = gfx_create_shader(GFX_STAGE_VERTEX, NULL);
@@ -753,6 +662,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 
 
 	// TODO: Super temporary!!
+	_gfx_pool_unsub(&pass->renderer->pool, &pass->build.sub);
 	gfx_destroy_shader(pass->build.vertex);
 	gfx_destroy_shader(pass->build.fragment);
 
@@ -807,17 +717,13 @@ void _gfx_pass_destruct(GFXPass* pass)
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
 
 	// Destroy all non-partial things too.
-	context->vk.DestroyDescriptorPool(
-		context->vk.device, pass->vk.pool, NULL);
-
 	context->vk.DestroyImageView(
 		context->vk.device, pass->vk.view, NULL);
 
+	pass->build.setLayout = NULL;
 	pass->vk.setLayout = VK_NULL_HANDLE;
-	pass->vk.pool = VK_NULL_HANDLE;
 	pass->vk.sampler = VK_NULL_HANDLE;
 	pass->vk.view = VK_NULL_HANDLE;
-	pass->vk.set = VK_NULL_HANDLE;
 	pass->vk.pipeLayout = VK_NULL_HANDLE;
 
 	// Clear memory.

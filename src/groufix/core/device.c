@@ -818,7 +818,6 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(ResetDescriptorPool);
 	_GFX_GET_DEVICE_PROC_ADDR(ResetFences);
 	_GFX_GET_DEVICE_PROC_ADDR(UnmapMemory);
-	_GFX_GET_DEVICE_PROC_ADDR(UpdateDescriptorSets);
 	_GFX_GET_DEVICE_PROC_ADDR(UpdateDescriptorSetWithTemplate);
 	_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);
 

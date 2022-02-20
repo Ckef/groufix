@@ -675,6 +675,8 @@ struct GFXPass
 		size_t backing; // Window attachment index (or SIZE_MAX).
 
 		// TODO: Super temporary!!
+		_GFXPoolSub sub;
+		_GFXCacheElem* setLayout;
 		_GFXPrimitive* primitive;
 		_GFXGroup* group;
 		GFXShader* vertex;
@@ -690,10 +692,8 @@ struct GFXPass
 		VkRenderPass          pass;
 		GFXVec                framebuffers; // Stores VkFramebuffer.
 		VkDescriptorSetLayout setLayout;
-		VkDescriptorPool      pool;
 		VkSampler             sampler;
 		VkImageView           view;
-		VkDescriptorSet       set;
 		VkPipelineLayout      pipeLayout;
 		VkPipeline            pipeline;
 
