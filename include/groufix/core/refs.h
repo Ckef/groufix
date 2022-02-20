@@ -13,6 +13,96 @@
 #include "groufix/def.h"
 
 
+/****************************
+ * Resource reference metadata.
+ ****************************/
+
+/**
+ * Image aspect (i.e. interpreted sub-image).
+ */
+typedef enum GFXImageAspect
+{
+	GFX_IMAGE_COLOR   = 0x0001,
+	GFX_IMAGE_DEPTH   = 0x0002,
+	GFX_IMAGE_STENCIL = 0x0004
+
+} GFXImageAspect;
+
+
+/**
+ * Unified memory range (i.e. sub-resource).
+ * Meaningless without an accompanied memory resource.
+ */
+typedef struct GFXRange
+{
+	union {
+		// Buffer offset/size.
+		struct
+		{
+			uint64_t offset;
+			uint64_t size; // 0 for all bytes after `offset`.
+		};
+
+
+		// Image aspect/mips/layers.
+		struct
+		{
+			GFXImageAspect aspect;
+
+			uint32_t mipmap;
+			uint32_t numMipmaps; // 0 for all mipmaps after `mipmap`.
+			uint32_t layer;
+			uint32_t numLayers; // 0 for all layers after `layer`.
+		};
+	};
+
+} GFXRange;
+
+
+/**
+ * Unified memory region (i.e. part of a sub-resource).
+ * Meaningless without an accompanied memory resource.
+ */
+typedef struct GFXRegion
+{
+	union {
+		// Buffer (or host pointer) offset/size.
+		struct
+		{
+			uint64_t offset;
+			uint64_t size;
+
+			// Buffer packing for image operations (0 = tightly packed).
+			uint32_t rowSize; // In texels.
+			uint32_t numRows; // In texels.
+		};
+
+
+		// Image aspect/mip/layers/offset/extent.
+		struct
+		{
+			GFXImageAspect aspect; // Cannot contain both color and depth/stencil!
+
+			uint32_t mipmap;
+			uint32_t layer;
+			uint32_t numLayers; // Cannot be 0 (as opposed to GFXRange).
+
+			uint32_t x;
+			uint32_t y;
+			uint32_t z;
+			uint32_t width;
+			uint32_t height;
+			uint32_t depth;
+		};
+	};
+
+} GFXRegion;
+
+
+/****************************
+ * Resource reference definition.
+ ****************************/
+
 /**
  * Unified memory resource reference.
  */
@@ -182,92 +272,6 @@ typedef GFXReference GFXImageRef;
 		.offset = 0, \
 		.values = { attachment_, 0 } \
 	}
-
-
-/****************************
- * Resource reference metadata.
- ****************************/
-
-/**
- * Image aspect (i.e. interpreted sub-image).
- */
-typedef enum GFXImageAspect
-{
-	GFX_IMAGE_COLOR   = 0x0001,
-	GFX_IMAGE_DEPTH   = 0x0002,
-	GFX_IMAGE_STENCIL = 0x0004
-
-} GFXImageAspect;
-
-
-/**
- * Unified memory range (i.e. sub-resource).
- * Meaningless without an accompanied memory resource.
- */
-typedef struct GFXRange
-{
-	union {
-		// Buffer offset/size.
-		struct
-		{
-			uint64_t offset;
-			uint64_t size; // 0 for all bytes after `offset`.
-		};
-
-
-		// Image aspect/mips/layers.
-		struct
-		{
-			GFXImageAspect aspect;
-
-			uint32_t mipmap;
-			uint32_t numMipmaps; // 0 for all mipmaps after `mipmap`.
-			uint32_t layer;
-			uint32_t numLayers; // 0 for all layers after `layer`.
-		};
-	};
-
-} GFXRange;
-
-
-/**
- * Unified memory region (i.e. part of a sub-resource).
- * Meaningless without an accompanied memory resource.
- */
-typedef struct GFXRegion
-{
-	union {
-		// Buffer (or host pointer) offset/size.
-		struct
-		{
-			uint64_t offset;
-			uint64_t size;
-
-			// Buffer packing for image operations (0 = tightly packed).
-			uint32_t rowSize; // In texels.
-			uint32_t numRows; // In texels.
-		};
-
-
-		// Image aspect/mip/layers/offset/extent.
-		struct
-		{
-			GFXImageAspect aspect; // Cannot contain both color and depth/stencil!
-
-			uint32_t mipmap;
-			uint32_t layer;
-			uint32_t numLayers; // Cannot be 0 (as opposed to GFXRange).
-
-			uint32_t x;
-			uint32_t y;
-			uint32_t z;
-			uint32_t width;
-			uint32_t height;
-			uint32_t depth;
-		};
-	};
-
-} GFXRegion;
 
 
 #endif

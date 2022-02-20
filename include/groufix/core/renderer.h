@@ -14,6 +14,7 @@
 #include "groufix/core/device.h"
 #include "groufix/core/formats.h"
 #include "groufix/core/heap.h"
+#include "groufix/core/refs.h"
 #include "groufix/core/window.h"
 #include "groufix/def.h"
 
