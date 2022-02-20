@@ -227,7 +227,7 @@ typedef struct _GFXShaderResource
 	// Array size (increasing location for vert/frag io), 0 = unsized.
 	size_t count;
 
-	// Ignored if not an image/sampler.
+	// Undefined if not an image.
 	GFXViewType viewType;
 
 

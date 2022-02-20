@@ -252,7 +252,7 @@ typedef struct GFXRegion
 		// Image aspect/mip/layers/offset/extent.
 		struct
 		{
-			GFXImageAspect aspect; // Only 1 aspect can be set.
+			GFXImageAspect aspect; // Cannot contain both color and depth/stencil!
 
 			uint32_t mipmap;
 			uint32_t layer;

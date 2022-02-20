@@ -14,11 +14,13 @@
 
 // Modify texel block size according to image aspect.
 #define _GFX_MOD_BLOCK_SIZE(blockSize, fmt, aspect) \
-	(((aspect) & GFX_IMAGE_DEPTH) ? \
-		(!GFX_FORMAT_HAS_DEPTH(fmt) ? blockSize : \
-		(GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize & ~(uint32_t)1 : blockSize)) : \
-	((aspect) & GFX_IMAGE_STENCIL) ? \
-		(!GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize : 1) : \
+	((aspect) & (GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL) ? \
+		(!((aspect) & GFX_IMAGE_STENCIL) ? \
+			(!GFX_FORMAT_HAS_DEPTH(fmt) ? blockSize : \
+			(GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize & ~(uint32_t)1 : blockSize)) : \
+		!((aspect) & GFX_IMAGE_DEPTH) ? \
+			(!GFX_FORMAT_HAS_STENCIL(fmt) ? blockSize : 1) : \
+			blockSize) : \
 		blockSize)
 
 
