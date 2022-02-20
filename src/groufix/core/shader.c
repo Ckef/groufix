@@ -54,6 +54,7 @@
 		shaderc_compute_shader : \
 		shaderc_glsl_infer_from_source)
 
+
 #define _GFX_GET_RESOURCES(type, list, size) \
 	do { \
 		result = spvc_resources_get_resource_list_for_type( \
@@ -129,18 +130,47 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 	for (unsigned int d = 1; d < numDims; ++d)
 		out->count *= spvc_type_get_array_dimension(hType, d);
 
-	// And lastly, deduce the type of the shader resource.
+	// And lastly, deduce the (view)type of the shader resource.
 	// For this we need information about the base type.
 	const spvc_type hBaseType =
 		spvc_compiler_get_type_handle(compiler, in->base_type_id);
 	const spvc_basetype baseType =
 		spvc_type_get_basetype(hBaseType);
 
-	const SpvDim imageDim =
+	int isImage =
 		baseType == SPVC_BASETYPE_IMAGE ||
-		baseType == SPVC_BASETYPE_SAMPLED_IMAGE ?
-			spvc_type_get_image_dimension(hBaseType) : 0;
+		baseType == SPVC_BASETYPE_SAMPLED_IMAGE;
 
+	const SpvDim imageDim = isImage ?
+		spvc_type_get_image_dimension(hBaseType) : 0;
+	const spvc_bool array = isImage ?
+		spvc_type_get_image_arrayed(hBaseType) : SPVC_FALSE;
+
+	// View type.
+	switch (imageDim)
+	{
+	case SpvDim1D:
+		out->viewType = array ? GFX_VIEW_1D_ARRAY : GFX_VIEW_1D;
+		break;
+
+	case SpvDim2D:
+	case SpvDimRect:
+		out->viewType = array ? GFX_VIEW_2D_ARRAY : GFX_VIEW_2D;
+		break;
+
+	case SpvDimCube:
+		out->viewType = array ? GFX_VIEW_CUBE_ARRAY : GFX_VIEW_CUBE;
+		break;
+
+	case SpvDim3D:
+		out->viewType = GFX_VIEW_3D;
+		break;
+
+	default:
+		break;
+	}
+
+	// Resource type.
 	switch (type)
 	{
 	case SPVC_RESOURCE_TYPE_STAGE_INPUT:
