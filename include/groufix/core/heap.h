@@ -100,6 +100,7 @@ typedef enum GFXImageUsage
 typedef enum GFXBindingType
 {
 	GFX_BINDING_BUFFER,
+	GFX_BINDING_BUFFER_TEXEL,
 	GFX_BINDING_IMAGE
 
 } GFXBindingType;
@@ -129,8 +130,12 @@ typedef struct GFXBinding
 	size_t         count; // Number of bound buffers/images (i.e. shader array size).
 
 	// Buffer format (ignored for images)
-	uint64_t elementSize; // In bytes (i.e. shader buffer size).
-	uint32_t numElements; // Elements to claim from each buffer.
+	uint32_t numElements; // Elements/texels to claim from each buffer.
+
+	union {
+		GFXFormat format;      // For texel buffers.
+		uint64_t  elementSize; // In bytes (i.e. shader buffer size).
+	};
 
 
 	// Bound data (input only).

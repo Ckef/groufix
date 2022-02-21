@@ -7,6 +7,7 @@
  */
 
 #include "groufix/core/objects.h"
+#include <limits.h>
 
 
 #define _GFX_BUFFER ((_GFXBuffer*)ref.obj)
@@ -63,8 +64,11 @@ uint64_t _gfx_ref_size(GFXReference ref)
 			_GFX_PRIMITIVE->base.numIndices) - ref.offset;
 
 	case GFX_REF_GROUP_BUFFER:
-		return ((uint64_t)_GFX_BINDING->elementSize *
-			_GFX_BINDING->numElements) - ref.offset;
+		return _GFX_BINDING->numElements *
+			(uint64_t)(_GFX_BINDING->type == GFX_BINDING_BUFFER ?
+				_GFX_BINDING->elementSize :
+				GFX_FORMAT_BLOCK_SIZE(_GFX_BINDING->format) / CHAR_BIT) -
+			ref.offset;
 
 	default:
 		// All others are not a buffer.
@@ -115,7 +119,8 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 			"Referencing a non-existent group buffer!");
 
 		_GFX_CHECK_RESOLVE(
-			_GFX_BINDING->type == GFX_BINDING_BUFFER,
+			_GFX_BINDING->type == GFX_BINDING_BUFFER ||
+			_GFX_BINDING->type == GFX_BINDING_BUFFER_TEXEL,
 			"Group buffer reference not a buffer!");
 
 		rec = _GFX_BINDING->buffers[_GFX_VINDEX(ref)]; // Must be a buffer.

@@ -1128,14 +1128,16 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	{
 		// Set values for each binding.
 		GFXBinding* bind = &group->bindings[b];
-		const GFXReference* srcPtr = NULL;
-
 		*bind = bindings[b];
 
 		// If no buffers/images or buffers of no size, just no.
+		// We do not resolve the format yet, not enough information.
 		if (
-			bind->count == 0 || (bind->type == GFX_BINDING_BUFFER &&
-			(bind->elementSize == 0 || bind->numElements == 0)))
+			bind->count == 0 ||
+			(bind->type == GFX_BINDING_BUFFER &&
+				(bind->elementSize == 0 || bind->numElements == 0)) ||
+			(bind->type == GFX_BINDING_BUFFER_TEXEL &&
+				(GFX_FORMAT_IS_EMPTY(bind->format) || bind->numElements == 0)))
 		{
 			gfx_log_error(
 				"A resource group binding description cannot be empty.");
@@ -1143,9 +1145,13 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			goto clean;
 		}
 
+		// Now we check all references.
+		const GFXReference* srcPtr = NULL;
+
 		switch (bind->type)
 		{
 		case GFX_BINDING_BUFFER:
+		case GFX_BINDING_BUFFER_TEXEL:
 			srcPtr = bind->buffers, bind->buffers = refPtr; break;
 		case GFX_BINDING_IMAGE:
 			srcPtr = bind->images, bind->images = refPtr; break;
@@ -1171,9 +1177,17 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 					goto clean;
 				}
 
-				// TODO: Incorporate alignment?
+				// No alignment is necessary, from the spec on std140:
+				// "The members of a toplevel uniform block are laid out in
+				// buffer storage by treating the uniform block as a
+				// structure with a base offset of zero".
 				refPtr[r] = gfx_ref_buffer_at(&group->buffer, size);
-				size += bind->elementSize * bind->numElements;
+
+				size += bind->numElements *
+					(uint64_t)(bind->type == GFX_BINDING_BUFFER ?
+						bind->elementSize :
+						GFX_FORMAT_BLOCK_SIZE(bind->format) / CHAR_BIT);
+
 				continue;
 			}
 
@@ -1182,8 +1196,11 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			_GFXUnpackRef unp = _gfx_ref_unpack(refPtr[r]);
 
 			if (
-				(bind->type == GFX_BINDING_BUFFER && !GFX_REF_IS_BUFFER(srcPtr[r])) ||
-				(bind->type == GFX_BINDING_IMAGE && !GFX_REF_IS_IMAGE(srcPtr[r])))
+				(!GFX_REF_IS_BUFFER(srcPtr[r]) &&
+					(bind->type == GFX_BINDING_BUFFER ||
+					bind->type == GFX_BINDING_BUFFER_TEXEL)) ||
+				(!GFX_REF_IS_IMAGE(srcPtr[r]) &&
+					bind->type == GFX_BINDING_IMAGE))
 			{
 				gfx_log_error(
 					"A resource group binding description must only "
@@ -1294,6 +1311,7 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 	switch (bind.type)
 	{
 	case GFX_BINDING_BUFFER:
+	case GFX_BINDING_BUFFER_TEXEL:
 		bind.buffers = NULL; break;
 	case GFX_BINDING_IMAGE:
 		bind.images = NULL; break;

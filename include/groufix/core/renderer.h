@@ -85,12 +85,30 @@ typedef enum GFXViewType
  */
 typedef struct GFXView
 {
-	size_t index; // Attachment or binding index.
+	size_t binding; // Ignored for pass consumptions.
+	size_t index;   // Attachment or binding array index.
 
-	GFXViewType type;
-	GFXRange    range;
+	union {
+		GFXFormat   format; // For texel buffers.
+		GFXViewType type;   // For images.
+	};
+
+	GFXRange range;
 
 } GFXView;
+
+
+/**
+ * Sampler description.
+ */
+typedef struct GFXSampler
+{
+	size_t binding;
+	size_t index; // Binding array index.
+
+	// TODO: Define.
+
+} GFXSampler;
 
 
 /**
