@@ -81,7 +81,7 @@ typedef enum GFXViewType
 
 
 /**
- * Image view description.
+ * Resource view description.
  */
 typedef struct GFXView
 {
@@ -115,6 +115,18 @@ typedef struct GFXSampler
  * Renderer definition.
  */
 typedef struct GFXRenderer GFXRenderer;
+
+
+/**
+ * Technique (i.e. shader pipeline) definition.
+ */
+typedef struct GFXTechnique GFXTechnique;
+
+
+/**
+ * Set (i.e. render/descriptor set) definition.
+ */
+typedef struct GFXSet GFXSet;
 
 
 /**
@@ -175,17 +187,6 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
                                        size_t index, GFXWindow* window);
 
 /**
- * Detaches an attachment at a given index of a renderer.
- * Undescribed if not a window, detached if a window.
- * @param renderer Cannot be NULL.
- * @param index    Must be < largest attachment index of renderer.
- *
- * If anything is detached, this will block until rendering is done!
- */
-GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
-                                 size_t index);
-
-/**
  * Retrieves the properties of an image attachment of a renderer.
  * @param renderer Cannot be NULL.
  * @param index    Must be < largest attachment index of renderer.
@@ -207,6 +208,22 @@ GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
                                            size_t index);
 
 /**
+ * Detaches an attachment at a given index of a renderer.
+ * Undescribed if not a window, detached if a window.
+ * @param renderer Cannot be NULL.
+ * @param index    Must be < largest attachment index of renderer.
+ *
+ * If anything is detached, this will block until rendering is done!
+ */
+GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
+                                 size_t index);
+
+
+/****************************
+ * Pass handling.
+ ****************************/
+
+/**
  * Adds a new (target) pass to the renderer given a set of parent.
  * A pass will be after all its parents in submission order.
  * Each element in parents must be associated with the same renderer.
@@ -218,8 +235,8 @@ GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
  * The renderer shares resources with all passes, it cannot concurrently
  * operate with any pass and passes cannot concurrently operate among themselves.
  */
-GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
-                                  size_t numParents, GFXPass** parents);
+GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
+                                       size_t numParents, GFXPass** parents);
 
 /**
  * Retrieves the number of target passes of a renderer.
@@ -240,11 +257,6 @@ GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer);
  */
 GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
                                          size_t target);
-
-
-/****************************
- * Pass handling.
- ****************************/
 
 /**
  * TODO: shader location == in add-order?

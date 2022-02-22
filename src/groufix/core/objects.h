@@ -659,6 +659,29 @@ struct GFXRenderer
 
 
 /**
+ * Internal technique (i.e. shader pipeline) definition.
+ */
+struct GFXTechnique
+{
+	GFXRenderer* renderer;
+
+	// TODO: Define.
+};
+
+
+/**
+ * Internal set (i.e. render/descriptor set) definition.
+ */
+struct GFXSet
+{
+	GFXTechnique*  technique;
+	GFXShaderStage stage;
+
+	// TODO: Define.
+};
+
+
+/**
  * Internal pass (i.e. render/compute pass).
  */
 struct GFXPass

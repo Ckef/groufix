@@ -449,7 +449,7 @@ static void _test_init(void)
 	}
 
 	// Add a single pass that writes to the window.
-	GFXPass* pass = gfx_renderer_add(_test_base.renderer, 0, NULL);
+	GFXPass* pass = gfx_renderer_add_pass(_test_base.renderer, 0, NULL);
 	if (pass == NULL)
 		TEST_FAIL();
 

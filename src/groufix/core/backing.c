@@ -460,18 +460,6 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
 }
 
 /****************************/
-GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
-                                 size_t index)
-{
-	assert(renderer != NULL);
-	assert(renderer->pFrame.vk.done == VK_NULL_HANDLE);
-	assert(index < renderer->backing.attachs.size);
-
-	// Yeah well, detach :)
-	_gfx_detach_attachment(renderer, index);
-}
-
-/****************************/
 GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer,
                                               size_t index)
 {
@@ -508,4 +496,16 @@ GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
 		return (GFXWindow*)attach->window.window;
 
 	return NULL;
+}
+
+/****************************/
+GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
+                                 size_t index)
+{
+	assert(renderer != NULL);
+	assert(renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(index < renderer->backing.attachs.size);
+
+	// Yeah well, detach :)
+	_gfx_detach_attachment(renderer, index);
 }

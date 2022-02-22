@@ -30,7 +30,7 @@ TEST_DESCRIBE(windows, _t)
 		TEST_FAIL();
 
 	// And create a pass writing to it.
-	GFXPass* pass = gfx_renderer_add(_t->renderer, 0, NULL);
+	GFXPass* pass = gfx_renderer_add_pass(_t->renderer, 0, NULL);
 	if (pass == NULL)
 		TEST_FAIL();
 

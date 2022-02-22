@@ -154,8 +154,8 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API GFXPass* gfx_renderer_add(GFXRenderer* renderer,
-                                  size_t numParents, GFXPass** parents)
+GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
+                                       size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
 	assert(renderer->pFrame.vk.done == VK_NULL_HANDLE);
