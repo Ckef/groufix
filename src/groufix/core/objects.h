@@ -616,6 +616,9 @@ struct GFXRenderer
 	_GFXQueue     graphics;
 	_GFXQueue     present;
 
+	GFXList techniques; // References _GFXTechnique.
+	GFXList sets;       // References _GFXSet.
+
 	// Render frame (i.e. collection of virtual frames).
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
@@ -663,6 +666,7 @@ struct GFXRenderer
  */
 struct GFXTechnique
 {
+	GFXList*     list; // Base-type.
 	GFXRenderer* renderer;
 
 	// TODO: Define.
@@ -674,6 +678,7 @@ struct GFXTechnique
  */
 struct GFXSet
 {
+	GFXList*       list; // Base-type.
 	GFXTechnique*  technique;
 	GFXShaderStage stage;
 

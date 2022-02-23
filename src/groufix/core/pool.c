@@ -573,8 +573,11 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 			// If we didn't manage to claim a block, make one ourselves...
 			if (sub->block == NULL)
 				if ((sub->block = _gfx_alloc_pool_block(pool)) == NULL)
+				{
 					// ...
+					if (elem != NULL) gfx_map_erase(&sub->mutable, elem);
 					return NULL;
+				}
 		}
 
 		// Quickly try to get a map element if we didn't already.
