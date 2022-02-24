@@ -130,7 +130,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	pdf->largePoints                             = VK_FALSE;
 	pdf->alphaToOne                              = VK_FALSE;
 	pdf->multiViewport                           = VK_FALSE;
-	pdf->samplerAnisotropy                       = VK_FALSE;
 	pdf->occlusionQueryPrecise                   = VK_FALSE;
 	pdf->pipelineStatisticsQuery                 = VK_FALSE;
 	pdf->vertexPipelineStoresAndAtomics          = VK_FALSE;
@@ -177,7 +176,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 
 	if (pdv12f)
 	{
-		pdv12f->samplerMirrorClampToEdge                           = VK_FALSE;
 		pdv12f->drawIndirectCount                                  = VK_FALSE;
 		pdv12f->storageBuffer8BitAccess                            = VK_FALSE;
 		pdv12f->uniformAndStorageBuffer8BitAccess                  = VK_FALSE;
@@ -922,34 +920,42 @@ int _gfx_devices_init(void)
 				.available = dev.api >= _GFX_VK_API_VERSION,
 
 				.features = {
-					.indexUint32        = (char)pdf.fullDrawIndexUint32,
-					.cubemapArray       = (char)pdf.imageCubeArray,
-					.geometryShader     = (char)pdf.geometryShader,
-					.tessellationShader = (char)pdf.tessellationShader,
-					.compressionBC      = (char)pdf.textureCompressionBC,
-					.compressionETC2    = (char)pdf.textureCompressionETC2,
-					.compressionASTC    = (char)pdf.textureCompressionASTC_LDR,
-					.shaderClipDistance = (char)pdf.shaderClipDistance,
-					.shaderCullDistance = (char)pdf.shaderCullDistance,
-					.shaderInt8         = (char)(vk12 ? pdv12f.shaderInt8 : 0),
-					.shaderInt16        = (char)pdf.shaderInt16,
-					.shaderInt64        = (char)pdf.shaderInt64,
-					.shaderFloat16      = (char)(vk12 ? pdv12f.shaderFloat16 : 0),
-					.shaderFloat64      = (char)pdf.shaderFloat64,
-					.samplerMinmax      = (char)(vk12 ? pdv12f.samplerFilterMinmax : 0)
+					.indexUint32              = (char)pdf.fullDrawIndexUint32,
+					.cubeArray                = (char)pdf.imageCubeArray,
+					.geometryShader           = (char)pdf.geometryShader,
+					.tessellationShader       = (char)pdf.tessellationShader,
+					.compressionBC            = (char)pdf.textureCompressionBC,
+					.compressionETC2          = (char)pdf.textureCompressionETC2,
+					.compressionASTC          = (char)pdf.textureCompressionASTC_LDR,
+					.shaderClipDistance       = (char)pdf.shaderClipDistance,
+					.shaderCullDistance       = (char)pdf.shaderCullDistance,
+					.shaderInt8               = (char)(vk12 ? pdv12f.shaderInt8 : 0),
+					.shaderInt16              = (char)pdf.shaderInt16,
+					.shaderInt64              = (char)pdf.shaderInt64,
+					.shaderFloat16            = (char)(vk12 ? pdv12f.shaderFloat16 : 0),
+					.shaderFloat64            = (char)pdf.shaderFloat64,
+					.samplerAnisotropy        = (char)pdf.samplerAnisotropy,
+					.samplerClampToEdgeMirror = (char)(vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
+					.samplerMinmax            = (char)(vk12 ? pdv12f.samplerFilterMinmax : 0)
 				},
 
 				.limits = {
-					.maxIndexUint32      = pdp.limits.maxDrawIndexedIndexValue,
-					.maxImageSize1D      = pdp.limits.maxImageDimension1D,
-					.maxImageSize2D      = pdp.limits.maxImageDimension2D,
-					.maxImageSize3D      = pdp.limits.maxImageDimension3D,
-					.maxImageSizeCubemap = pdp.limits.maxImageDimensionCube,
-					.maxImageLayers      = pdp.limits.maxImageArrayLayers,
-					.maxAttributes       = pdp.limits.maxVertexInputAttributes,
-					.maxAttributeOffset  = pdp.limits.maxVertexInputAttributeOffset,
-					.maxAttributeStride  = pdp.limits.maxVertexInputBindingStride,
-					.maxPrimitiveBuffers = pdp.limits.maxVertexInputBindings,
+					.maxIndexUint32        = pdp.limits.maxDrawIndexedIndexValue,
+					.maxImageSize1D        = pdp.limits.maxImageDimension1D,
+					.maxImageSize2D        = pdp.limits.maxImageDimension2D,
+					.maxImageSize3D        = pdp.limits.maxImageDimension3D,
+					.maxImageSizeCube      = pdp.limits.maxImageDimensionCube,
+					.maxImageLayers        = pdp.limits.maxImageArrayLayers,
+					.maxBufferTexels       = pdp.limits.maxTexelBufferElements,
+					.maxUniformBufferRange = pdp.limits.maxUniformBufferRange,
+					.maxStorageBufferRange = pdp.limits.maxStorageBufferRange,
+					.maxAttributes         = pdp.limits.maxVertexInputAttributes,
+					.maxAttributeOffset    = pdp.limits.maxVertexInputAttributeOffset,
+					.maxAttributeStride    = pdp.limits.maxVertexInputBindingStride,
+					.maxPrimitiveBuffers   = pdp.limits.maxVertexInputBindings,
+
+					.maxMipLodBias = pdp.limits.maxSamplerLodBias,
+					.maxAnisotropy = pdp.limits.maxSamplerAnisotropy,
 
 					.imageTransferGranularity = {
 						.x = props[transfer].minImageTransferGranularity.width,

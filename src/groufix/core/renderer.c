@@ -73,6 +73,10 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 			goto clean_renderer;
 		}
 
+	// And uh some remaining stuff.
+	gfx_list_init(&rend->techniques);
+	gfx_list_init(&rend->sets);
+
 	return rend;
 
 
@@ -114,6 +118,9 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	_gfx_pool_clear(&renderer->pool);
 	_gfx_cache_clear(&renderer->cache);
 	_gfx_allocator_clear(&renderer->allocator);
+
+	gfx_list_clear(&renderer->techniques);
+	gfx_list_clear(&renderer->sets);
 
 	free(renderer);
 }

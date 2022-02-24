@@ -65,7 +65,7 @@ typedef struct GFXAttachment
 
 
 /**
- * View type (interpreted dimensionality).
+ * Image view type (interpreted dimensionality).
  */
 typedef enum GFXViewType
 {
@@ -78,6 +78,62 @@ typedef enum GFXViewType
 	GFX_VIEW_3D
 
 } GFXViewType;
+
+
+/**
+ * Sampler parameter flags.
+ */
+typedef enum GFXSamplerFlags
+{
+	GFX_SAMPLER_ANISOTROPY   = 0x0001,
+	GFX_SAMPLER_COMPARE      = 0x0002,
+	GFX_SAMPLER_UNNORMALIZED = 0x0004
+
+} GFXSamplerFlags;
+
+
+/**
+ * Texture lookup filtering.
+ */
+typedef enum GFXFilter
+{
+	GFX_FILTER_NEAREST,
+	GFX_FILTER_LINEAR,
+	GFX_FILTER_MIN,
+	GFX_FILTER_MAX
+
+} GFXFilter;
+
+
+/**
+ * Texture lookup wrapping.
+ */
+typedef enum GFXWrapping
+{
+	GFX_WRAP_REPEAT,
+	GFX_WRAP_REPEAT_MIRROR,
+	GFX_WRAP_CLAMP_TO_EDGE,
+	GFX_WRAP_CLAMP_TO_EDGE_MIRROR,
+	GFX_WRAP_CLAMP_TO_BORDER
+
+} GFXWrapping;
+
+
+/**
+ * Depth/stencil comparison operation.
+ */
+typedef enum GFXCompareOp
+{
+	GFX_CMP_NEVER,
+	GFX_CMP_LESS,
+	GFX_CMP_LESS_EQUAL,
+	GFX_CMP_GREATER,
+	GFX_CMP_GREATER_EQUAL,
+	GFX_CMP_EQUAL,
+	GFX_CMP_NOT_EQUAL,
+	GFX_CMP_ALWAYS
+
+} GFXCompareOp;
 
 
 /**
@@ -106,7 +162,22 @@ typedef struct GFXSampler
 	size_t binding;
 	size_t index; // Binding array index.
 
-	// TODO: Define.
+	GFXSamplerFlags flags;
+
+	GFXFilter minFilter;
+	GFXFilter magFilter;
+	GFXFilter mipFilter;
+
+	GFXWrapping wrapU;
+	GFXWrapping wrapV;
+	GFXWrapping wrapW;
+
+	float mipLodBias;
+	float minLod;
+	float maxLod;
+	float maxAnisotropy;
+
+	GFXCompareOp cmp;
 
 } GFXSampler;
 
@@ -324,8 +395,8 @@ GFX_API void gfx_pass_use(GFXPass* pass,
  * @param renderer Cannot be NULL.
  * @return Always returns a valid frame.
  *
- * The renderer (or any of its passes) cannot be modified during or after
- * this call until gfx_frame_submit has returned.
+ * The renderer (including its attachments, passes and sets) cannot be
+ * modified during or after this call until gfx_frame_submit has returned.
  */
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 

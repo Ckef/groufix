@@ -1177,12 +1177,10 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 					goto clean;
 				}
 
-				// No alignment is necessary, from the spec on std140:
-				// "The members of a toplevel uniform block are laid out in
-				// buffer storage by treating the uniform block as a
-				// structure with a base offset of zero".
 				refPtr[r] = gfx_ref_buffer_at(&group->buffer, size);
 
+				// TODO: Get alignment from
+				// VkPhysicalDeviceLimits::min(Texel|Uniform|Storage)BufferOffsetAlignment.
 				size += bind->numElements *
 					(uint64_t)(bind->type == GFX_BINDING_BUFFER ?
 						bind->elementSize :

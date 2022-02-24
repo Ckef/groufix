@@ -44,7 +44,7 @@ typedef struct GFXDevice
 	struct
 	{
 		char indexUint32;
-		char cubemapArray;
+		char cubeArray;
 		char geometryShader;
 		char tessellationShader;
 		char compressionBC;
@@ -57,6 +57,8 @@ typedef struct GFXDevice
 		char shaderInt64;
 		char shaderFloat16;
 		char shaderFloat64;
+		char samplerAnisotropy;
+		char samplerClampToEdgeMirror;
 		char samplerMinmax;
 
 	} features;
@@ -65,15 +67,21 @@ typedef struct GFXDevice
 	struct
 	{
 		uint32_t maxIndexUint32;
-		uint32_t maxImageSize1D;      // For { width }.
-		uint32_t maxImageSize2D;      // For { width, height }.
-		uint32_t maxImageSize3D;      // For { width, height, depth }.
-		uint32_t maxImageSizeCubemap; // For { width, height }.
+		uint32_t maxImageSize1D;   // For { width }.
+		uint32_t maxImageSize2D;   // For { width, height }.
+		uint32_t maxImageSize3D;   // For { width, height, depth }.
+		uint32_t maxImageSizeCube; // For { width, height }.
 		uint32_t maxImageLayers;
+		uint32_t maxBufferTexels;
+		uint32_t maxUniformBufferRange;
+		uint32_t maxStorageBufferRange;
 		uint32_t maxAttributes;
 		uint32_t maxAttributeOffset;
 		uint32_t maxAttributeStride;
 		uint32_t maxPrimitiveBuffers;
+
+		float maxMipLodBias;
+		float maxAnisotropy;
 
 		// Async-transfer image granularity (0,0,0 = only whole mip levels).
 		struct { uint32_t x, y, z; } imageTransferGranularity;

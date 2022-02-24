@@ -376,7 +376,7 @@ int _gfx_cache_flush(_GFXCache* cache);
  * Listed is the required number of handles to be passed, in order:
  *
  *  VkDescriptorSetLayoutCreateInfo:
- *   None.
+ *   1 for each immutable sampler.
  *
  *  VkPipelineLayoutCreateInfo:
  *   1 for each descriptor set layout.

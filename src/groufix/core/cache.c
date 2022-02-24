@@ -101,7 +101,17 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(dslb->descriptorType);
 			_GFX_KEY_PUSH(dslb->descriptorCount);
 			_GFX_KEY_PUSH(dslb->stageFlags);
-			// Ignore immutable samplers.
+
+			// Insert bool 'has immutable samplers'.
+			temp =
+				dslb->descriptorCount > 0 &&
+				dslb->pImmutableSamplers != NULL;
+
+			_GFX_KEY_PUSH(temp);
+
+			if (dslb->pImmutableSamplers != NULL)
+				for (size_t s = 0; s < dslb->descriptorCount; ++s)
+					_GFX_KEY_PUSH_HANDLE();
 		}
 		break;
 
@@ -133,6 +143,8 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		_GFX_KEY_PUSH(*createInfo);
 		const VkSamplerCreateInfo* sci =
 			(const VkSamplerCreateInfo*)createInfo;
+
+		// TODO: Insert VkSamplerReductionModeCreateInfo in pNext.
 
 		// Ignore the pNext field.
 		// Ignore sampler flags.
@@ -635,6 +647,7 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 		break;
 
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
+		// TODO: Account for VkPhysicalDeviceLimits::maxSamplerAllocationCount.
 		_GFX_VK_CHECK(
 			context->vk.CreateSampler(context->vk.device,
 				(const VkSamplerCreateInfo*)createInfo, NULL,

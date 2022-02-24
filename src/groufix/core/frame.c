@@ -284,6 +284,8 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 	// But then we do want to rebuild the backing/graph. And the next
 	// acquisition might want a rebuild, in which case we need to record all
 	// over again :(
+	// TODO: Another case is that we want to poll input just after acquire?
+	// For as much up to date input as possible.
 
 	// Count the number of sync objects necessary (i.e. #windows).
 	size_t numSyncs = 0;
