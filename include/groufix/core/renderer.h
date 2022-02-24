@@ -98,11 +98,21 @@ typedef enum GFXSamplerFlags
 typedef enum GFXFilter
 {
 	GFX_FILTER_NEAREST,
-	GFX_FILTER_LINEAR,
-	GFX_FILTER_MIN,
-	GFX_FILTER_MAX
+	GFX_FILTER_LINEAR
 
 } GFXFilter;
+
+
+/**
+ * Texture lookup filter ('reduction') mode.
+ */
+typedef enum GFXFilterMode
+{
+	GFX_FILTER_MODE_AVERAGE,
+	GFX_FILTER_MODE_MIN,
+	GFX_FILTER_MODE_MAX
+
+} GFXFilterMode;
 
 
 /**
@@ -163,6 +173,7 @@ typedef struct GFXSampler
 	size_t index; // Binding array index.
 
 	GFXSamplerFlags flags;
+	GFXFilterMode   mode;
 
 	GFXFilter minFilter;
 	GFXFilter magFilter;
