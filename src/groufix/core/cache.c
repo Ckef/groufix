@@ -667,12 +667,37 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 		break;
 
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
-		// TODO: Account for VkPhysicalDeviceLimits::maxSamplerAllocationCount.
+		// For samplers we have to check against Vulkan's allocation limit.
+		// We have to lock such that two concurrent allocations both fail
+		// properly if the limit only allows one more sampler.
+		_gfx_mutex_lock(&context->limits.samplerLock);
+
+		if (atomic_load(&context->limits.samplers) >= context->limits.maxSamplers)
+		{
+			gfx_log_error(
+				"Cannot allocate sampler because physical device limit "
+				"of %"PRIu32" sampler allocations has been reached.",
+				context->limits.maxSamplers);
+
+			_gfx_mutex_unlock(&context->limits.samplerLock);
+			goto error;
+		}
+
+		// Increase the count & unlock.
+		// Just unlock early, just like with memory allocations.
+		atomic_fetch_add(&context->limits.samplers, 1);
+
+		_gfx_mutex_unlock(&context->limits.samplerLock);
+
 		_GFX_VK_CHECK(
 			context->vk.CreateSampler(context->vk.device,
 				(const VkSamplerCreateInfo*)createInfo, NULL,
 				&elem->vk.sampler),
-			goto error);
+			{
+				// Undo...
+				atomic_fetch_sub(&context->limits.samplers, 1);
+				goto error;
+			});
 		break;
 
 	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:
@@ -740,6 +765,9 @@ static void _gfx_cache_destroy_elem(_GFXCache* cache, _GFXCacheElem* elem)
 		break;
 
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
+		// We actually do decrease the sampler allocation count.
+		atomic_fetch_sub(&context->limits.samplers, 1);
+
 		context->vk.DestroySampler(
 			context->vk.device, elem->vk.sampler, NULL);
 		break;

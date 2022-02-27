@@ -583,7 +583,8 @@ static void _gfx_destroy_context(_GFXContext* context)
 	if (context->vk.DestroyDevice != NULL)
 		context->vk.DestroyDevice(context->vk.device, NULL);
 
-	_gfx_mutex_clear(&context->allocLock);
+	_gfx_mutex_clear(&context->limits.samplerLock);
+	_gfx_mutex_clear(&context->limits.allocLock);
 	gfx_list_clear(&context->sets);
 
 	free(context);
@@ -633,11 +634,21 @@ static void _gfx_create_context(_GFXDevice* device)
 		VkPhysicalDeviceProperties pdp;
 		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
-		context->maxAllocs = pdp.limits.maxMemoryAllocationCount;
-		atomic_store(&context->allocs, 0);
+		context->limits.maxAllocs = pdp.limits.maxMemoryAllocationCount;
+		atomic_store(&context->limits.allocs, 0);
 
-		if (!_gfx_mutex_init(&context->allocLock))
+		context->limits.maxSamplers = pdp.limits.maxSamplerAllocationCount;
+		atomic_store(&context->limits.samplers, 0);
+
+		if (!_gfx_mutex_init(&context->limits.allocLock))
 		{
+			free(context);
+			goto error;
+		}
+
+		if (!_gfx_mutex_init(&context->limits.samplerLock))
+		{
+			_gfx_mutex_clear(&context->limits.allocLock);
 			free(context);
 			goto error;
 		}

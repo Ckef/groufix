@@ -203,11 +203,23 @@ typedef struct _GFXContext
 	GFXListNode list; // Base-type.
 	GFXList     sets; // References _GFXQueueSet.
 
-	// Memory allocation limit, queried once.
-	uint32_t  maxAllocs;
-	_GFXMutex allocLock;
 
-	atomic_uint_fast32_t allocs;
+	// Allocation limits (queried once).
+	struct
+	{
+		// Memory limit.
+		uint32_t  maxAllocs;
+		_GFXMutex allocLock;
+
+		atomic_uint_fast32_t allocs;
+
+		// Sampler limit.
+		uint32_t  maxSamplers;
+		_GFXMutex samplerLock;
+
+		atomic_uint_fast32_t samplers;
+
+	} limits;
 
 
 	// Vulkan fields.
