@@ -366,9 +366,9 @@ int _gfx_cache_flush(_GFXCache* cache);
  * @param cache      Cannot be NULL.
  * @param createInfo A pointer to a Vk*CreateInfo struct, cannot be NULL.
  * @param handles    Must match the non-hashable field count of createInfo.
- * @return Non-zero on success.
+ * @return NULL on failure.
  *
- * This function is reentrant!
+ * This function is reentrant & can run concurrently with _gfx_cache_warmup_unsafe!
  * However, cannot run concurrently with _gfx_cache_get (or other calls).
  *
  * The following Vk*CreateInfo structs can be passed,
@@ -396,9 +396,27 @@ int _gfx_cache_flush(_GFXCache* cache);
  *   1 for the shader module.
  *   1 for the pipeline layout.
  */
-int _gfx_cache_warmup(_GFXCache* cache,
-                      const VkStructureType* createInfo,
-                      const void** handles);
+_GFXCacheElem* _gfx_cache_warmup(_GFXCache* cache,
+                                 const VkStructureType* createInfo,
+                                 const void** handles);
+
+/**
+ * Warms up the immutable cache, unlocking before creation,
+ * increasing warmup throughput when calling from multiple threads.
+ * @see _gfx_cache_warmup.
+ * @return Non-zero on success.
+ *
+ * This function is reentrant & can run concurrently with _gfx_cache_warmup!
+ * However, cannot run concurrently with _gfx_cache_get (or other calls).
+ *
+ * While this function is running, it is unsafe to call _gfx_cache_warmup
+ * with arguments that resolve to the same cache element (!).
+ * The return value of the call to _gfx_cache_warmup might be freed by
+ * _gfx_cache_warmup_unsafe and become undefined.
+ */
+int _gfx_cache_warmup_unsafe(_GFXCache* cache,
+                             const VkStructureType* createInfo,
+                             const void** handles);
 
 /**
  * Retrieves an element from the cache.
@@ -407,7 +425,7 @@ int _gfx_cache_warmup(_GFXCache* cache,
  * @return NULL on failure.
  *
  * This function is reentrant!
- * However, cannot run concurrently with _gfx_cache_warmup (or other calls).
+ * However, cannot run concurrently with _gfx_cache_warmup* (or other calls).
  */
 _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
                               const VkStructureType* createInfo,

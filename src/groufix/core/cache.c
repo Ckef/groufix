@@ -894,16 +894,16 @@ int _gfx_cache_flush(_GFXCache* cache)
 }
 
 /****************************/
-int _gfx_cache_warmup(_GFXCache* cache,
-                      const VkStructureType* createInfo,
-                      const void** handles)
+_GFXCacheElem* _gfx_cache_warmup(_GFXCache* cache,
+                                 const VkStructureType* createInfo,
+                                 const void** handles)
 {
 	assert(cache != NULL);
 	assert(createInfo != NULL);
 
 	// Firstly we create a key value & hash it.
 	_GFXHashKey* key = _gfx_cache_alloc_key(createInfo, handles);
-	if (key == NULL) return 0;
+	if (key == NULL) return NULL;
 
 	const uint64_t hash = cache->immutable.hash(key);
 
@@ -911,6 +911,48 @@ int _gfx_cache_warmup(_GFXCache* cache,
 	// to be reentrant. However we have no dedicated lock.
 	// Luckily this function _does not_ need to be able to run concurrently
 	// with _gfx_cache_get, so we abuse the lookup lock :)
+	_gfx_mutex_lock(&cache->lookupLock);
+
+	// Try to find a matching element first.
+	_GFXCacheElem* elem = gfx_map_hsearch(&cache->immutable, key, hash);
+	if (elem == NULL)
+	{
+		// If not found, create and insert a new element.
+		elem = gfx_map_hinsert(
+			&cache->immutable, NULL, _gfx_hash_size(key), key, hash);
+
+		if (elem != NULL && !_gfx_cache_create_elem(cache, elem, createInfo))
+		{
+			// On failure, erase & set return to NULL.
+			gfx_map_erase(&cache->immutable, elem);
+			elem = NULL;
+		}
+	}
+
+	// Unlock, free data & return.
+	_gfx_mutex_unlock(&cache->lookupLock);
+	free(key);
+	return elem;
+}
+
+/****************************/
+int _gfx_cache_warmup_unsafe(_GFXCache* cache,
+                             const VkStructureType* createInfo,
+                             const void** handles)
+{
+	assert(cache != NULL);
+	assert(createInfo != NULL);
+
+	// Create a key value & hash it.
+	_GFXHashKey* key = _gfx_cache_alloc_key(createInfo, handles);
+	if (key == NULL) return 0;
+
+	const uint64_t hash = cache->immutable.hash(key);
+
+	// Just like _gfx_cache_warup, we will abuse the lookup lock, making this
+	// function able to run concurrently with it!
+	// Unlike _gfx_cache_warup, we unlock when the key is inserted,
+	// allowing threads to create objects concurrently.
 	_gfx_mutex_lock(&cache->lookupLock);
 
 	// Try to find a matching element first.
