@@ -1122,6 +1122,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 		(GFXReference*)((char*)group + structSize);
 
 	group->numBindings = numBindings;
+	const uint64_t align = heap->allocator.context->limits.align;
 	uint64_t size = 0;
 
 	for (size_t b = 0; b < numBindings; ++b)
@@ -1177,10 +1178,10 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 					goto clean;
 				}
 
+				// First align up for any buffer usage!
+				size = GFX_ALIGN_UP(size, align);
 				refPtr[r] = gfx_ref_buffer_at(&group->buffer, size);
 
-				// TODO: Get alignment from
-				// VkPhysicalDeviceLimits::min(Texel|Uniform|Storage)BufferOffsetAlignment.
 				size += bind->numElements *
 					(uint64_t)(bind->type == GFX_BINDING_BUFFER ?
 						bind->elementSize :

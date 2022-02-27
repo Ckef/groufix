@@ -80,6 +80,10 @@ typedef struct GFXDevice
 		uint32_t maxAttributeStride;
 		uint32_t maxPrimitiveBuffers;
 
+		uint64_t minTexelBufferAlign;
+		uint64_t minUniformBufferAlign;
+		uint64_t minStorageBufferAlign;
+
 		float maxMipLodBias;
 		float maxAnisotropy;
 

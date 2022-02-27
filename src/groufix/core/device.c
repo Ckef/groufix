@@ -630,21 +630,31 @@ static void _gfx_create_context(_GFXDevice* device)
 		goto error;
 
 	{
-		// Get allocation limit in a scope so pdp gets freed :)
+		// Get allocation limits in a scope so pdp gets freed :)
 		VkPhysicalDeviceProperties pdp;
 		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
+		// Memory alignment.
+		context->limits.align = GFX_MAX(
+			pdp.limits.minTexelBufferOffsetAlignment,
+			pdp.limits.minUniformBufferOffsetAlignment);
+		context->limits.align = GFX_MAX(
+			context->limits.align,
+			pdp.limits.minStorageBufferOffsetAlignment);
+
+		// Memory allocation limit.
 		context->limits.maxAllocs = pdp.limits.maxMemoryAllocationCount;
 		atomic_store(&context->limits.allocs, 0);
-
-		context->limits.maxSamplers = pdp.limits.maxSamplerAllocationCount;
-		atomic_store(&context->limits.samplers, 0);
 
 		if (!_gfx_mutex_init(&context->limits.allocLock))
 		{
 			free(context);
 			goto error;
 		}
+
+		// Sampler allocation limit.
+		context->limits.maxSamplers = pdp.limits.maxSamplerAllocationCount;
+		atomic_store(&context->limits.samplers, 0);
 
 		if (!_gfx_mutex_init(&context->limits.samplerLock))
 		{
@@ -964,6 +974,10 @@ int _gfx_devices_init(void)
 					.maxAttributeOffset    = pdp.limits.maxVertexInputAttributeOffset,
 					.maxAttributeStride    = pdp.limits.maxVertexInputBindingStride,
 					.maxPrimitiveBuffers   = pdp.limits.maxVertexInputBindings,
+
+					.minTexelBufferAlign   = pdp.limits.minTexelBufferOffsetAlignment,
+					.minUniformBufferAlign = pdp.limits.minUniformBufferOffsetAlignment,
+					.minStorageBufferAlign = pdp.limits.minStorageBufferOffsetAlignment,
 
 					.maxMipLodBias = pdp.limits.maxSamplerLodBias,
 					.maxAnisotropy = pdp.limits.maxSamplerAnisotropy,

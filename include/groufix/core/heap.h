@@ -341,8 +341,8 @@ GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
 
 /**
  * Allocates a resource group from a heap.
- * All newly allocated buffers within the same binding are contiguously
- * allocated and in the same order (and can be read/write like that).
+ * All newly allocated buffers are aligned such that they can all be used as
+ * any combination of a texel, uniform or storage buffer.
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Usage for any newly allocated buffer.
