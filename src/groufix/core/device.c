@@ -291,7 +291,7 @@ static int _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
  * @return Index into props, UINT32_MAX if none found.
  */
 static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
-                                       VkQueueFamilyProperties* props,
+                                       const VkQueueFamilyProperties* props,
                                        VkQueueFlags flags, int present)
 {
 	assert(device != NULL);
@@ -428,15 +428,20 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	uint32_t compute = UINT32_MAX;
 	uint32_t transfer = UINT32_MAX;
 
-	// Start with finding a graphics family, hopefully with presentation.
-	// Oh and find a (hopefully better) compute & transfer family.
-	// TODO: Try to find a graphics queue that supports compute?
+	// Start with finding a graphics family,
+	// hopefully with presentation + compute.
+	// Oh and find async (hopefully better) compute & transfer families.
 	graphics = _gfx_find_queue_family(
-		device, families, props, VK_QUEUE_GRAPHICS_BIT, 1);
+		device, families, props, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 1);
 	compute = _gfx_find_queue_family(
 		device, families, props, VK_QUEUE_COMPUTE_BIT, 0);
 	transfer = _gfx_find_queue_family(
 		device, families, props, VK_QUEUE_TRANSFER_BIT, 0);
+
+	// Fallback to a graphics family with only presentation.
+	if (graphics == UINT32_MAX)
+		graphics = _gfx_find_queue_family(
+			device, families, props, VK_QUEUE_GRAPHICS_BIT, 1);
 
 	if (graphics != UINT32_MAX)
 		present = graphics;
@@ -893,6 +898,7 @@ int _gfx_devices_init(void)
 
 		GFXDeviceType type = GFX_DEVICE_UNKNOWN;
 		uint32_t ver = 0;
+		int foundPrim = 0;
 
 		// We keep moving around all the devices to sort the primary one to
 		// the front, so we leave its mutex and name pointer blank.
@@ -923,6 +929,7 @@ int _gfx_devices_init(void)
 			// Sadly we need to get get queue family properties and find
 			// ourselves the transfer queue as well, this so we can report
 			// the transfer's queue image granularity.
+			// While we're at it, check if we have graphics, compute & transfer.
 			uint32_t families;
 			_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
 				devices[i], &families, NULL);
@@ -931,8 +938,18 @@ int _gfx_devices_init(void)
 			_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
 				devices[i], &families, props);
 
+			const uint32_t graphics = _gfx_find_queue_family(
+				&dev, families, props, VK_QUEUE_GRAPHICS_BIT, 0);
+			const uint32_t compute = _gfx_find_queue_family(
+				&dev, families, props, VK_QUEUE_COMPUTE_BIT, 0);
 			const uint32_t transfer = _gfx_find_queue_family(
 				&dev, families, props, VK_QUEUE_TRANSFER_BIT, 0);
+
+			const int available =
+				dev.api >= _GFX_VK_API_VERSION &&
+				graphics != UINT32_MAX &&
+				compute != UINT32_MAX &&
+				transfer != UINT32_MAX;
 
 			// Then define the features and limits part of the new device :)
 			dev.base = (GFXDevice){
@@ -983,9 +1000,9 @@ int _gfx_devices_init(void)
 					.maxAnisotropy = pdp.limits.maxSamplerAnisotropy,
 
 					.imageTransferGranularity = {
-						.x = props[transfer].minImageTransferGranularity.width,
-						.y = props[transfer].minImageTransferGranularity.height,
-						.z = props[transfer].minImageTransferGranularity.depth
+						.x = available ? props[transfer].minImageTransferGranularity.width : 0,
+						.y = available ? props[transfer].minImageTransferGranularity.height : 0,
+						.z = available ? props[transfer].minImageTransferGranularity.depth : 0
 					}
 				}
 			};
@@ -993,9 +1010,9 @@ int _gfx_devices_init(void)
 			// Check if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.
 			// If the type is equal, pick the greater Vulkan version.
-			const int isPrim = (i == 0) ||
+			const int isPrim = available && (!foundPrim ||
 				dev.base.type < type ||
-				(dev.base.type == type && pdp.apiVersion > ver);
+				(dev.base.type == type && pdp.apiVersion > ver));
 
 			if (!isPrim)
 				gfx_vec_push(&_groufix.devices, 1, &dev);
@@ -1005,6 +1022,7 @@ int _gfx_devices_init(void)
 				gfx_vec_insert(&_groufix.devices, 1, &dev, 0);
 				type = dev.base.type;
 				ver = pdp.apiVersion;
+				foundPrim = 1;
 			}
 		}
 
