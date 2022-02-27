@@ -144,9 +144,16 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		const VkSamplerCreateInfo* sci =
 			(const VkSamplerCreateInfo*)createInfo;
 
-		// TODO: Insert VkSamplerReductionModeCreateInfo in pNext.
+		// Assume pNext is a VkSamplerReductionModeCreateInfo*.
+		if (sci->pNext != NULL)
+		{
+			const VkSamplerReductionModeCreateInfo* srmci =
+				(const VkSamplerReductionModeCreateInfo*)sci->pNext;
 
-		// Ignore the pNext field.
+			// Ignore the pNext field.
+			_GFX_KEY_PUSH(srmci->reductionMode);
+		}
+
 		// Ignore sampler flags.
 		_GFX_KEY_PUSH(sci->magFilter);
 		_GFX_KEY_PUSH(sci->minFilter);
@@ -598,15 +605,28 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 				(const VkDescriptorSetLayoutCreateInfo*)createInfo;
 
 			VkDescriptorUpdateTemplateEntry entries[dslci->bindingCount];
+			uint32_t count = dslci->bindingCount;
 			size_t offset = 0;
 
-			for (uint32_t e = 0; e < dslci->bindingCount; ++e)
+			for (uint32_t b = 0; b < dslci->bindingCount; ++b)
 			{
+				if (
+					dslci->pBindings[b].pImmutableSamplers != NULL &&
+					dslci->pBindings[b].descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER)
+				{
+					// Skip immutable sampler bindings.
+					--count;
+					continue;
+				}
+
+				// Entry index.
+				uint32_t e = b - (dslci->bindingCount - count);
+
 				entries[e] = (VkDescriptorUpdateTemplateEntry){
-					.dstBinding      = dslci->pBindings[e].binding,
+					.dstBinding      = dslci->pBindings[b].binding,
 					.dstArrayElement = 0,
-					.descriptorCount = dslci->pBindings[e].descriptorCount,
-					.descriptorType  = dslci->pBindings[e].descriptorType,
+					.descriptorCount = dslci->pBindings[b].descriptorCount,
+					.descriptorType  = dslci->pBindings[b].descriptorType,
 					.offset          = offset,
 					.stride          = cache->templateStride
 				};
@@ -620,7 +640,7 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 
 				.pNext                      = NULL,
 				.flags                      = 0,
-				.descriptorUpdateEntryCount = dslci->bindingCount,
+				.descriptorUpdateEntryCount = count,
 				.pDescriptorUpdateEntries   = entries,
 				.descriptorSetLayout        = elem->vk.setLayout,
 
