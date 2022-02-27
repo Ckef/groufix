@@ -334,7 +334,6 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 	attachment.flags |= GFX_MEMORY_DEVICE_LOCAL;
 
 	// Firstly, resolve attachment's format.
-	// TODO: Add VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT ?
 	VkFormat vkFmt;
 	_GFX_RESOLVE_FORMAT(attachment.format, vkFmt, renderer->device,
 		((VkFormatProperties){

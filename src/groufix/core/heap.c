@@ -724,8 +724,9 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 	assert(height > 0);
 	assert(depth > 0);
 
-	// Ignore the host-visibility flag.
+	// Ignore the host-visibility flag & the image-blend usage.
 	flags &= ~(GFXMemoryFlags)GFX_MEMORY_HOST_VISIBLE;
+	usage &= ~(GFXImageUsage)GFX_IMAGE_BLEND;
 
 	// Firstly, resolve the given format.
 	VkFormat vkFmt;

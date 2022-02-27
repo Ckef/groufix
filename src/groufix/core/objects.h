@@ -104,7 +104,9 @@
 	((usage) & GFX_IMAGE_SAMPLED_MINMAX ? \
 		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT : (VkFormatFeatureFlags)0) | \
 	((usage) & GFX_IMAGE_STORAGE ? \
-		VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT : (VkFormatFeatureFlags)0))
+		VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT : (VkFormatFeatureFlags)0) | \
+	((usage) & GFX_IMAGE_BLEND ? \
+		VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT : (VkFormatFeatureFlags)0))
 
 #define _GFX_GET_VK_ACCESS_FLAGS(mask, fmt) \
 	(((mask) & GFX_ACCESS_VERTEX_READ ? \
