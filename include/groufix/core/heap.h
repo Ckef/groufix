@@ -56,11 +56,12 @@ typedef enum GFXTopology
  */
 typedef enum GFXMemoryFlags
 {
-	// TODO: Add GFX_MEMORY_ASYNC_(COMPUTE|TRANSFER) to make them concurrent instead of exclusive?
 	GFX_MEMORY_HOST_VISIBLE = 0x0001, // i.e. mappable.
 	GFX_MEMORY_DEVICE_LOCAL = 0x0002, // Implied if GFX_MEMORY_HOST_VISIBLE is _not_ set.
 	GFX_MEMORY_READ         = 0x0004,
 	GFX_MEMORY_WRITE        = 0x0008
+
+	// TODO: Add GFX_MEMORY_ASYNC_(COMPUTE|TRANSFER) to make them concurrent instead of exclusive?
 
 } GFXMemoryFlags;
 
@@ -73,8 +74,8 @@ typedef enum GFXBufferUsage
 	GFX_BUFFER_VERTEX        = 0x0001,
 	GFX_BUFFER_INDEX         = 0x0002,
 	GFX_BUFFER_UNIFORM       = 0x0004,
-	GFX_BUFFER_INDIRECT      = 0x0008,
-	GFX_BUFFER_STORAGE       = 0x0010,
+	GFX_BUFFER_STORAGE       = 0x0008,
+	GFX_BUFFER_INDIRECT      = 0x0010,
 	GFX_BUFFER_UNIFORM_TEXEL = 0x0020,
 	GFX_BUFFER_STORAGE_TEXEL = 0x0040
 
@@ -90,7 +91,8 @@ typedef enum GFXImageUsage
 	GFX_IMAGE_SAMPLED_LINEAR = 0x0002,
 	GFX_IMAGE_SAMPLED_MINMAX = 0x0004,
 	GFX_IMAGE_STORAGE        = 0x0008,
-	GFX_IMAGE_BLEND          = 0x0010 // For attachments.
+	GFX_IMAGE_INPUT          = 0x0010, // For attachments.
+	GFX_IMAGE_BLEND          = 0x0020  // For attachments.
 
 } GFXImageUsage;
 

@@ -53,10 +53,10 @@
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT : (VkBufferUsageFlags)0) | \
 	((usage) & GFX_BUFFER_UNIFORM ? \
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : (VkBufferUsageFlags)0) | \
-	((usage) & GFX_BUFFER_INDIRECT ? \
-		VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT : (VkBufferUsageFlags)0) | \
 	((usage) & GFX_BUFFER_STORAGE ? \
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : (VkBufferUsageFlags)0) | \
+	((usage) & GFX_BUFFER_INDIRECT ? \
+		VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT : (VkBufferUsageFlags)0) | \
 	((usage) & GFX_BUFFER_UNIFORM_TEXEL ? \
 		VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT : (VkBufferUsageFlags)0) | \
 	((usage) & GFX_BUFFER_STORAGE_TEXEL ? \
@@ -90,7 +90,9 @@
 	((usage) & GFX_IMAGE_SAMPLED_MINMAX ? \
 		VK_IMAGE_USAGE_SAMPLED_BIT : (VkImageUsageFlags)0) | \
 	((usage) & GFX_IMAGE_STORAGE ? \
-		VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlags)0))
+		VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlags)0) | \
+	((usage) & GFX_IMAGE_INPUT ? \
+		VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT : (VkImageUsageFlags)0))
 
 #define _GFX_GET_VK_FORMAT_FEATURES(flags, usage) \
 	(((flags) & GFX_MEMORY_READ ? \

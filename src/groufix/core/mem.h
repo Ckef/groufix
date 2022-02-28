@@ -622,7 +622,7 @@ void _gfx_pool_recycle(_GFXPool* pool, const _GFXHashKey* key);
  *
  * update must point to the first VkDescriptorImageInfo, VkDescriptorBufferInfo
  * or VkBufferView structure, with `templateStride` bytes inbetween consecutive
- * structures, as defined by the GFXCache that setLayout was allocated from.
+ * structures, as defined by the _GFXCache that setLayout was allocated from.
  */
 _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
                             const _GFXCacheElem* setLayout,
