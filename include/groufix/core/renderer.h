@@ -15,6 +15,7 @@
 #include "groufix/core/formats.h"
 #include "groufix/core/heap.h"
 #include "groufix/core/refs.h"
+#include "groufix/core/shader.h"
 #include "groufix/core/window.h"
 #include "groufix/def.h"
 
@@ -232,6 +233,11 @@ typedef struct GFXFrame GFXFrame;
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @param frames Number of virtual frames, must be > 0 (preferably > 1).
  * @return NULL on failure.
+ *
+ * All descendants of the renderer (techniques, sets, passes and frames) share
+ * resources from the renderer and not the renderer, nor its descendants can be
+ * operated on concurrently.
+ * TODO: Except for the recording of frames!
  */
 GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames);
 
@@ -277,8 +283,7 @@ GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
  * An empty attachment has 0'd out values and
  * undefined `type`, `flags`, `usage` and `ref` fields.
  */
-GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer,
-                                              size_t index);
+GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer, size_t index);
 
 /**
  * Retrieves a window at an attachment index of a renderer.
@@ -286,8 +291,7 @@ GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer,
  * @param index    Must be < largest attachment index of renderer.
  * @return NULL if no window is attached.
  */
-GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
-                                           size_t index);
+GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer, size_t index);
 
 /**
  * Detaches an attachment at a given index of a renderer.
@@ -297,8 +301,55 @@ GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
  *
  * If anything is detached, this will block until rendering is done!
  */
-GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
-                                 size_t index);
+GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
+
+
+/****************************
+ * Technique & set handling.
+ ****************************/
+
+/**
+ * Adds a new technique to the renderer.
+ * @param renderer   Cannot be NULL.
+ * @param numShaders Must be > 0.
+ * @param shaders    Cannot be NULL, all must store valid SPIR-V bytecode.
+ * @return NULL on failure.
+ */
+GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
+                                            size_t numShaders, GFXShader* shaders);
+
+/**
+ * Erases a technique from the renderer.
+ * @param renderer  Cannot be NULL.
+ * @param technique Cannot be NULL, must be of renderer.
+ */
+GFX_API void gfx_renderer_erase_tech(GFXRenderer* renderer, GFXTechnique* technique);
+
+/**
+ * Sets immutable samplers of the technique.
+ * @param technique   Cannot be NULL.
+ * @param set         Descriptor set number.
+ * @param numSamplers Must be > 0.
+ * @param samplers    Cannot be NULL.
+ *
+ * No-op if the technique was already used to render and/or create sets.
+ * Samplers that do not match the shader input type are ignored.
+ */
+GFX_API void gfx_tech_set_samplers(GFXTechnique* technique, size_t set,
+                                   size_t numSamplers, const GFXSampler* samplers);
+
+/**
+ * Sets buffer bindings of the technique to be dynamic.
+ * @param technique Cannot be NULL.
+ * @param set       Descriptor set number.
+ * @param binding   Descriptor binding number.
+ * @return Non-zero if the binding can be made dynamic.
+ *
+ * No-op if the technique was already used to render and/or create sets.
+ * Ignored if the shader input type is not a uniform or storage buffer.
+ */
+GFX_API void gfx_tech_set_dynamic(GFXTechnique* technique, size_t set,
+                                  size_t binding);
 
 
 /****************************
@@ -313,9 +364,6 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
  * @param numParents Number of parents, 0 for none.
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
- *
- * The renderer shares resources with all passes, it cannot concurrently
- * operate with any pass and passes cannot concurrently operate among themselves.
  */
 GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
                                        size_t numParents, GFXPass** parents);
@@ -331,14 +379,13 @@ GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer);
 
 /**
  * Retrieves a target pass of a renderer.
- * @param renderer Can not be NULL.
+ * @param renderer Cannot be NULL.
  * @param target   Target index, must be < gfx_renderer_get_num(renderer).
  *
  * The index of each target may change when a new pass is added,
  * however their order remains fixed during the lifetime of the renderer.
  */
-GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
-                                         size_t target);
+GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer, size_t target);
 
 /**
  * TODO: shader location == in add-order?

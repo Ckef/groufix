@@ -666,7 +666,7 @@ struct GFXRenderer
 
 
 /**
- * Internal technique (i.e. shader pipeline) definition.
+ * Internal technique (i.e. shader pipeline).
  */
 struct GFXTechnique
 {
@@ -678,12 +678,11 @@ struct GFXTechnique
 
 
 /**
- * Internal set (i.e. render/descriptor set) definition.
+ * Internal set (i.e. render/descriptor set).
  */
 struct GFXSet
 {
 	GFXList*       list; // Base-type.
-	GFXTechnique*  technique;
 	GFXShaderStage stage;
 
 	// TODO: Define.

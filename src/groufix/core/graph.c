@@ -234,8 +234,7 @@ GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer,
-                                         size_t target)
+GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer, size_t target)
 {
 	assert(renderer != NULL);
 	assert(target < renderer->graph.targets.size);
