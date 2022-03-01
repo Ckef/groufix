@@ -226,8 +226,13 @@ static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 		_gfx_destruct_attachment(renderer, index);
 	}
 
-	// Then if it is a window, unlock the window.
-	if (attach->type == _GFX_ATTACH_WINDOW)
+	// Then, if it is an image, reset the pool,
+	// this image attachment may not be referenced anymore!
+	if (attach->type == _GFX_ATTACH_IMAGE)
+		_gfx_pool_reset(&renderer->pool);
+
+	// Finally, if it is a window, unlock the window.
+	else if (attach->type == _GFX_ATTACH_WINDOW)
 	{
 		_gfx_swapchain_unlock(attach->window.window);
 		attach->window.window = NULL;
