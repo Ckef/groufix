@@ -502,6 +502,8 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	// the attachment was changed since the signal command, and throw a
 	// "dangling dependency signal command" error/warning.
 	// We could do this check by adding a `generation` to each attachment.
+	//
+	// TODO: What if the attachment isn't built yet?
 
 	// Get resources and metadata to copy.
 	// Note that there can only be one single attachment,

@@ -183,7 +183,7 @@ typedef GFXReference GFXImageRef;
  * If any of these constraints are not met, behaviour is undefined.
  *
  * Functions that take an attachment reference as argument
- * are _NOT_ thread-safe with respect to the attachment!
+ * are _NOT_ thread-safe with respect to the renderer!
  */
 #define gfx_ref_buffer(buffer) \
 	(GFXBufferRef){ \

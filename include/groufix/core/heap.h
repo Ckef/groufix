@@ -61,7 +61,7 @@ typedef enum GFXMemoryFlags
 	GFX_MEMORY_READ         = 0x0004,
 	GFX_MEMORY_WRITE        = 0x0008
 
-	// TODO: Add GFX_MEMORY_ASYNC_(COMPUTE|TRANSFER) to make them concurrent instead of exclusive?
+	// TODO: Add GFX_MEMORY_CONCURRENT_(COMPUTE|TRANSFER) to make them concurrent instead of exclusive?
 
 } GFXMemoryFlags;
 

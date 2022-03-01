@@ -49,6 +49,7 @@ typedef struct GFXShader GFXShader;
 
 /**
  * Creates a shader.
+ * @param stage  Shader stage, only 1 stage can be set.
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @return NULL on failure.
  */
@@ -60,7 +61,6 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device);
 GFX_API void gfx_destroy_shader(GFXShader* shader);
 
 /**
- * TODO: Allow recompilation (and reload), cause modules can be destroyed?
  * Compiles a shader from GLSL/HLSL source into SPIR-V bytecode for use.
  * @param shader   Cannot be NULL.
  * @param optimize Non-zero to enable platform-specific compiler options.

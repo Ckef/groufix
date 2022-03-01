@@ -8,20 +8,13 @@
 
 #define TEST_ENABLE_THREADS
 #include "test.h"
-
-#if !defined (__STDC_NO_ATOMICS__)
-	#include <stdatomic.h>
-#endif
+#include <stdatomic.h>
 
 
 /****************************
  * Terminate signal for threads.
  */
-#if !defined (__STDC_NO_ATOMICS__)
-	static atomic_int termSig = 0;
-#else
-	static int termSig = 0; // Uh yeah whatever..
-#endif
+static atomic_int termSig = 0;
 
 
 /****************************
@@ -30,7 +23,7 @@
 TEST_DESCRIBE(render_loop, _t)
 {
 	// Like the other loop, but submit the renderer :)
-	while (!termSig)
+	while (!atomic_load(&termSig))
 	{
 		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
 		gfx_frame_submit(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
@@ -57,7 +50,7 @@ TEST_DESCRIBE(threaded, _t)
 		gfx_wait_events();
 
 	// Join the render thread.
-	termSig = 1;
+	atomic_store(&termSig, 1);
 	TEST_JOIN(render_loop);
 }
 
