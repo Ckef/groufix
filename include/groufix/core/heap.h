@@ -374,7 +374,7 @@ GFX_API size_t gfx_group_get_num_bindings(GFXGroup* group);
 /**
  * Retrieves a binding description from a resource group.
  * @param group   Cannot be NULL.
- * @param binding Binding index, must be < gfx_group_get_num_bindings(group);
+ * @param binding Binding number, must be < gfx_group_get_num_bindings(group);
  *
  * The `buffers` or `images` field of the returned binding will be NULL.
  */

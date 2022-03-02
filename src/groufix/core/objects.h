@@ -494,7 +494,7 @@ typedef struct _GFXGroup
 
 
 /****************************
- * Internal renderer objects.
+ * Rendering objects.
  ****************************/
 
 /**
@@ -580,10 +580,6 @@ typedef struct _GFXFrameSync
 
 } _GFXFrameSync;
 
-
-/****************************
- * User visible renderer objects.
- ****************************/
 
 /**
  * Internal virtual frame.
@@ -673,7 +669,16 @@ struct GFXTechnique
 	GFXList*     list; // Base-type.
 	GFXRenderer* renderer;
 
-	// TODO: Define.
+	size_t          numSets;
+	_GFXCacheElem** setLayouts; // Set layouts (sorted), may contain NULL.
+	_GFXCacheElem*  layout;     // Pipeline layout, may be NULL.
+	uint32_t        pushSize;
+	GFXShaderStage  pushStages;
+
+	GFXVec samplers; // Stores { size_t, GFXSampler }.
+	GFXVec dynamics; // Stores { size_t, size_t }.
+
+	GFXShader* shaders[]; // Fixed number, may contain NULL.
 };
 
 
@@ -682,8 +687,12 @@ struct GFXTechnique
  */
 struct GFXSet
 {
-	GFXList*       list; // Base-type.
-	GFXShaderStage stage;
+	GFXList*     list; // Base-type.
+	GFXRenderer* renderer;
+
+	size_t         set; // Descriptor set number.
+	_GFXCacheElem* setLayout;
+	_GFXHashKey*   key;
 
 	// TODO: Define.
 };

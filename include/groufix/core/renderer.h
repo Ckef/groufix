@@ -314,16 +314,18 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
  * @param numShaders Must be > 0.
  * @param shaders    Cannot be NULL, all must store valid SPIR-V bytecode.
  * @return NULL on failure.
+ *
+ * For each shader stage, the last element in shaders will be taken.
+ * Compute shaders cannot be passed in combination with other stages.
  */
 GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
-                                            size_t numShaders, GFXShader* shaders);
+                                            size_t numShaders, GFXShader** shaders);
 
 /**
- * Erases a technique from the renderer.
- * @param renderer  Cannot be NULL.
- * @param technique Cannot be NULL, must be of renderer.
+ * Erases (destroys) a technique, removing it from its renderer.
+ * @param technique Cannot be NULL.
  */
-GFX_API void gfx_renderer_erase_tech(GFXRenderer* renderer, GFXTechnique* technique);
+GFX_API void gfx_erase_tech(GFXTechnique* technique);
 
 /**
  * Sets immutable samplers of the technique.
@@ -339,7 +341,7 @@ GFX_API void gfx_tech_set_samplers(GFXTechnique* technique, size_t set,
                                    size_t numSamplers, const GFXSampler* samplers);
 
 /**
- * Sets buffer bindings of the technique to be dynamic.
+ * Sets a buffer binding of the technique to be dynamic.
  * @param technique Cannot be NULL.
  * @param set       Descriptor set number.
  * @param binding   Descriptor binding number.

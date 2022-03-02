@@ -253,6 +253,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/renderer.o \
  $(OUT)$(SUB)/groufix/core/shader.o \
  $(OUT)$(SUB)/groufix/core/swap.o \
+ $(OUT)$(SUB)/groufix/core/technique.o \
  $(OUT)$(SUB)/groufix/core/vulkan.o \
  $(OUT)$(SUB)/groufix/core/window.o \
  $(OUT)$(SUB)/groufix.o
