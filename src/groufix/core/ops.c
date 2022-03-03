@@ -484,27 +484,6 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	if (!_gfx_deps_catch(context, transfer->vk.cmd, numDeps, deps, injection))
 		goto clean_deps;
 
-	// TODO: Get the resources from _gfx_deps_catch, it takes all references
-	// and matches them against pending signal cmds and such.
-	// If one happens to be an attachment, it might be of and old image and get
-	// "invalidated", i.e. one that has been resized and remembered because we
-	// issued a signal command on it (NOTE: yes, the renderer should remember
-	// that an attachment will be used outside of itself and keep a "history",
-	// it can "reclaim" and destroy that old image when it waits on it as a
-	// dependency again).
-	// _gfx_deps_catch will store the actual handle to such a resource in the
-	// _GFXInjection object, with both the reference and handle so we can find it.
-	// This way both the operation and _gfx_deps_prepare can find the correct handles.
-	//
-	// TODO: I think for now, meh @ implementing a history, we just make it a
-	// requirement that attachments need to be waited upon in the next submit!
-	// Maybe not make _gfx_deps_catch store the handle, but simply check if
-	// the attachment was changed since the signal command, and throw a
-	// "dangling dependency signal command" error/warning.
-	// We could do this check by adding a `generation` to each attachment.
-	//
-	// TODO: What if the attachment isn't built yet?
-
 	// Get resources and metadata to copy.
 	// Note that there can only be one single attachment,
 	// because there must be at least one heap involved!
@@ -514,6 +493,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	const _GFXUnpackRef* dst = (staging != NULL) ?
 		&injection->inp.refs[0] : &injection->inp.refs[1];
 
+	// TODO: What if the attachment isn't built yet?
 	const _GFXImageAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
 		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
 

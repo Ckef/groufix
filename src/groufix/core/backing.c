@@ -226,7 +226,7 @@ static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 		_gfx_destruct_attachment(renderer, index);
 	}
 
-	// Then, if it is an image, reset the pool,
+	// Then, if it is an image, reset the descriptor pools,
 	// this image attachment may not be referenced anymore!
 	if (attach->type == _GFX_ATTACH_IMAGE)
 		_gfx_pool_reset(&renderer->pool);

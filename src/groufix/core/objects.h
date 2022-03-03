@@ -688,6 +688,8 @@ struct GFXTechnique
  */
 typedef struct _GFXSetEntry
 {
+	// TODO: Need the reference metadata to build the hash key.
+	// TODO: Keep track of current attachment `generation` to limit updates?
 	// Referenced attachment, SIZE_MAX if none.
 	size_t attach;
 
@@ -924,10 +926,6 @@ typedef struct _GFXInjection
 		// Wait stages, of the same size as waits.
 		VkPipelineStageFlags* stages;
 
-		// TODO: Add invalidated reference's actual image/buffer handles,
-		// e.g. for resized attachments (so we can save/use/destroy its history).
-		// OR some other identifier if we can't use the handle for comparison.
-
 	} out;
 
 } _GFXInjection;
@@ -941,6 +939,8 @@ typedef struct _GFXSync
 	_GFXUnpackRef ref;
 	GFXRange      range; // Unpacked, i.e. normalized offset & non-zero size.
 	uintmax_t     tag;   // So we can recycle, 0 = yet untagged.
+
+	// TODO: Keep track of used attachment `generation`?
 
 	// Claimed by (injections can be async), may be NULL.
 	const _GFXInjection* inj;
@@ -984,8 +984,6 @@ typedef struct _GFXSync
 		VkPipelineStageFlags dstStage;
 
 		// Unpacked for locality.
-		// TODO: Can't use to check if an attachment changed because Vulkan
-		// handles can't be compared... need some 'history' identifier.
 		VkBuffer buffer;
 		VkImage  image;
 

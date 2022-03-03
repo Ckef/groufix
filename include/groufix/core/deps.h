@@ -138,7 +138,8 @@ typedef struct GFXInject
  *
  * Injections that reference attachments are _NOT_ thread-safe with respect
  * to the renderer it belongs to, not even if referenced implicitly.
- * TODO: Explain that attachments must be catched by the next submit-like-func?
+ * TODO: Explain that attachments must be operated on before the next acquire
+ * and catched by the next submit-like-func?
  *
  * Functions that take injections as an argument are _always_ thread-safe with
  * respect to the dependency objects being referenced!

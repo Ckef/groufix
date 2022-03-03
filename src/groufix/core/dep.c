@@ -601,6 +601,14 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			if (mismatch || (numRefs > 0 && r >= numRefs))
 				continue;
 
+			// TODO: For attachments: check if it was changed since the
+			// signal command (i.e. resized or smth) and throw a
+			// "dangling dependency singal command" error/warning.
+			// We could do this by adding a `generation` to each attachment,
+			// if it is only 1 generation old, do smth special?
+			// Maybe let the renderer keep allocations 1 generation old
+			// around if they were signaled for use outside the render loop?
+
 			// We have a matching synchronization object, in other words,
 			// we are going to catch a signal command with this wait command.
 			// First put the object in the catch stage.
@@ -609,7 +617,6 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 			// Insert barrier to acquire ownership if necessary.
 			// TODO: Maybe do something special with host read/write flags?
-			// TODO: For attachments: check if the VkImage has changed!
 			if (
 				!(sync->flags & _GFX_SYNC_DISCARD) &&
 				sync->vk.srcFamily != sync->vk.dstFamily)
@@ -820,13 +827,12 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 					VK_IMAGE_LAYOUT_UNDEFINED :
 					_GFX_GET_VK_IMAGE_LAYOUT(injs[i].mask, fmt);
 
-			// TODO: Somehow get source access/stage/layout from wait
-			// commands if there are no operation references to get it from?
+			// TODO: Make special signal commands that give the source
+			// access/stage/layout if there are no operation references to
+			// get it from.
 			// TODO: Except for attachments, we need to know the last layout they
 			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
 			// Do we need final access/stage flags for attachments?
-			// TODO: What if we have a normal image resource without matching
-			// wait command, how to get source layout?
 
 			// Get source access/stage flags from operation.
 			sync->vk.srcAccess = flags[r];
