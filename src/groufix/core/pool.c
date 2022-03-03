@@ -643,8 +643,10 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	atomic_fetch_add(&elem->block->sets, 1);
 
 	// Ok now it's just a matter of updating the actual Vulkan descriptors!
-	context->vk.UpdateDescriptorSetWithTemplate(
-		context->vk.device, elem->vk.set, setLayout->vk.template, update);
+	// Note that it can be an empty set, check template existence.
+	if (setLayout->vk.template != VK_NULL_HANDLE)
+		context->vk.UpdateDescriptorSetWithTemplate(
+			context->vk.device, elem->vk.set, setLayout->vk.template, update);
 
 	// Reset #flushes of the element & return when found.
 found:

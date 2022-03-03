@@ -616,8 +616,8 @@ struct GFXRenderer
 	_GFXQueue     graphics;
 	_GFXQueue     present;
 
-	GFXList techniques; // References _GFXTechnique.
-	GFXList sets;       // References _GFXSet.
+	GFXList techniques; // References GFXTechnique.
+	GFXList sets;       // References GFXSet.
 
 	// Render frame (i.e. collection of virtual frames).
 	GFXDeque frames; // Stores GFXFrame.
@@ -675,11 +675,47 @@ struct GFXTechnique
 	uint32_t        pushSize;
 	GFXShaderStage  pushStages;
 
-	GFXVec samplers; // Stores { size_t, GFXSampler }.
-	GFXVec dynamics; // Stores { size_t, size_t }.
+	GFXVec samplers;  // Stores { size_t set, GFXSampler }, temporary!
+	GFXVec immutable; // Stores { size_t set, size_t binding }.
+	GFXVec dynamic;   // Stores { size_t set, size_t binding }.
 
 	GFXShader* shaders[]; // Fixed number, may contain NULL.
 };
+
+
+/**
+ * Set update entry (i.e. descriptor info).
+ */
+typedef struct _GFXSetEntry
+{
+	// Referenced attachment, SIZE_MAX if none.
+	size_t attach;
+
+
+	// Vulkan field (isa union).
+	union
+	{
+		VkDescriptorBufferInfo buffer;
+		VkDescriptorImageInfo  image;
+		VkBufferView           view;
+
+	} vk;
+
+} _GFXSetEntry;
+
+
+/**
+ * Set binding (i.e. descriptor binding info).
+ */
+typedef struct _GFXSetBinding
+{
+	VkDescriptorType type;
+	GFXViewType      viewType; // Undefined if not an image.
+
+	size_t        count;   // 0 = empty binding.
+	_GFXSetEntry* entries; // May be NULL.
+
+} _GFXSetBinding;
 
 
 /**
@@ -694,7 +730,9 @@ struct GFXSet
 	_GFXCacheElem* setLayout;
 	_GFXHashKey*   key;
 
-	// TODO: Define.
+	size_t         numAttachs; // #referenced attachments.
+	size_t         numBindings;
+	_GFXSetBinding bindings[]; // Sorted, no gaps.
 };
 
 

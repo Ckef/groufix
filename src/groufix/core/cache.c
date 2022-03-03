@@ -611,10 +611,11 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 			for (uint32_t b = 0; b < dslci->bindingCount; ++b)
 			{
 				if (
-					dslci->pBindings[b].pImmutableSamplers != NULL &&
-					dslci->pBindings[b].descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER)
+					dslci->pBindings[b].descriptorCount == 0 ||
+					(dslci->pBindings[b].pImmutableSamplers != NULL &&
+					dslci->pBindings[b].descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER))
 				{
-					// Skip immutable sampler bindings.
+					// Skip empty bindings or immutable samplers.
 					--count;
 					continue;
 				}
@@ -633,6 +634,13 @@ static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
 				offset +=
 					cache->templateStride *
 					entries[e].descriptorCount;
+			}
+
+			// If no bindings remain, do not create an update template!
+			if (count == 0)
+			{
+				elem->vk.template = VK_NULL_HANDLE;
+				break;
 			}
 
 			VkDescriptorUpdateTemplateCreateInfo dutci = {

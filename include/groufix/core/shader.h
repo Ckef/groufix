@@ -49,7 +49,7 @@ typedef struct GFXShader GFXShader;
 
 /**
  * Creates a shader.
- * @param stage  Shader stage, only 1 stage can be set.
+ * @param stage  Shader stage, exactly 1 stage must be set.
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @return NULL on failure.
  */
