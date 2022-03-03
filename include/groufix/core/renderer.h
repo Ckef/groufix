@@ -248,6 +248,22 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
+ * Loads groufix pipeline cache data, merging it into the current cache.
+ * @param renderer Cannot be NULL.
+ * @param src      Source stream, cannot be NULL.
+ * @return Zero on failure.
+ */
+GFX_API int gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src);
+
+/**
+ * Stores the current groufix pipeline cache data.
+ * @param renderer Cannot be NULL.
+ * @param dst      Destination stream, cannot be NULL.
+ * @return Zero on failure.
+ */
+GFX_API int gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* dst);
+
+/**
  * Describes the properties of an image attachment of a renderer.
  * If the attachment already exists, it will be overwritten.
  * @param renderer Cannot be NULL.
@@ -305,7 +321,7 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
 
 
 /****************************
- * Technique & set handling.
+ * Technique handling.
  ****************************/
 
 /**
@@ -334,7 +350,7 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique);
  * @param numSamplers Must be > 0.
  * @param samplers    Cannot be NULL.
  *
- * No-op if the technique was already used to render and/or create sets.
+ * No-op if the technique is already locked.
  * Samplers that do not match the shader input type are ignored.
  */
 GFX_API void gfx_tech_set_samplers(GFXTechnique* technique, size_t set,
@@ -347,11 +363,19 @@ GFX_API void gfx_tech_set_samplers(GFXTechnique* technique, size_t set,
  * @param binding   Descriptor binding number.
  * @return Non-zero if the binding can be made dynamic.
  *
- * No-op if the technique was already used to render and/or create sets.
+ * No-op if the technique is already locked.
  * Ignored if the shader input type is not a uniform or storage buffer.
  */
 GFX_API void gfx_tech_set_dynamic(GFXTechnique* technique, size_t set,
                                   size_t binding);
+
+/**
+ * Locks the technique, preparing it for rendering & making it immutable.
+ * Creating sets from a technique automatically locks the technique.
+ * @param technique Cannot be NULL.
+ * @return Non-zero on success.
+ */
+GFX_API int gfx_tech_lock(GFXTechnique* technique);
 
 
 /****************************

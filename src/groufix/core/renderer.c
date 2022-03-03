@@ -126,6 +126,24 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 }
 
 /****************************/
+GFX_API int gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src)
+{
+	assert(renderer != NULL);
+	assert(src != NULL);
+
+	return _gfx_cache_load(&renderer->cache, src);
+}
+
+/****************************/
+GFX_API int gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* dst)
+{
+	assert(renderer != NULL);
+	assert(dst != NULL);
+
+	return _gfx_cache_store(&renderer->cache, dst);
+}
+
+/****************************/
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);

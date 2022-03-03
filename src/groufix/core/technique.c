@@ -36,14 +36,14 @@ typedef struct _GFXSamplerElem
 
 
 /****************************
- * Technique dynamic element definition.
+ * Technique binding element (immutable/dynamic) definition.
  */
-typedef struct _GFXDynamicElem
+typedef struct _GFXBindingElem
 {
 	size_t set;
 	size_t binding;
 
-} _GFXDynamicElem;
+} _GFXBindingElem;
 
 
 /****************************/
@@ -78,7 +78,7 @@ GFX_API void gfx_tech_set_samplers(GFXTechnique* technique, size_t set,
 	assert(numSamplers > 0);
 	assert(samplers != NULL);
 
-	// Skip if already built.
+	// Skip if already locked.
 	if (technique->layout != NULL)
 		return;
 
@@ -92,9 +92,23 @@ GFX_API void gfx_tech_set_dynamic(GFXTechnique* technique, size_t set,
 	assert(technique != NULL);
 	assert(technique->renderer->pFrame.vk.done == VK_NULL_HANDLE);
 
-	// Skip if already built.
+	// Skip if already locked.
 	if (technique->layout != NULL)
 		return;
 
 	// TODO: Implement.
+}
+
+/****************************/
+GFX_API int gfx_tech_lock(GFXTechnique* technique)
+{
+	assert(technique != NULL);
+
+	// Already locked.
+	if (technique->layout != NULL)
+		return 1;
+
+	// TODO: Implement.
+
+	return 0;
 }

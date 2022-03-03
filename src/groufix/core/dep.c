@@ -189,6 +189,7 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 	}
 
 	// Resolve whole aspect from format.
+	// TODO: What if the attachment isn't built yet?
 	GFXFormat fmt = (ref->obj.image != NULL) ?
 		ref->obj.image->base.format :
 		_GFX_UNPACK_REF_ATTACH(*ref)->base.format;
@@ -812,6 +813,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 				(discard ? _GFX_SYNC_DISCARD : 0);
 
 			// Manually unpack the destination access/stage/layout.
+			// TODO: What if the attachment isn't built yet?
 			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(refs[r]);
 			GFXFormat fmt = (refs[r].obj.image != NULL) ?
 				refs[r].obj.image->base.format :

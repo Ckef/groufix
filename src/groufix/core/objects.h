@@ -684,22 +684,30 @@ struct GFXTechnique
 
 
 /**
- * Set update entry (i.e. descriptor info).
+ * Set view/update entry (i.e. descriptor info).
  */
 typedef struct _GFXSetEntry
 {
-	// TODO: Need the reference metadata to build the hash key.
+	GFXReference   ref;
+	GFXRange       range;
+	_GFXCacheElem* sampler;
+
 	// TODO: Keep track of current attachment `generation` to limit updates?
-	// Referenced attachment, SIZE_MAX if none.
-	size_t attach;
 
 
-	// Vulkan field (isa union).
-	union
+	// Vulkan fields.
+	struct
 	{
-		VkDescriptorBufferInfo buffer;
-		VkDescriptorImageInfo  image;
-		VkBufferView           view;
+		VkFormat format; // For texel buffers.
+
+		// Named for addressability.
+		union
+		{
+			VkDescriptorBufferInfo buffer;
+			VkDescriptorImageInfo  image;
+			VkBufferView           view;
+
+		} update;
 
 	} vk;
 
@@ -714,8 +722,9 @@ typedef struct _GFXSetBinding
 	VkDescriptorType type;
 	GFXViewType      viewType; // Undefined if not an image.
 
-	size_t        count;   // 0 = empty binding.
-	_GFXSetEntry* entries; // May be NULL.
+	size_t        keyIndex; // Of the first entry into the set's key, in bytes.
+	size_t        count;    // 0 = empty binding.
+	_GFXSetEntry* entries;  // May be NULL.
 
 } _GFXSetBinding;
 

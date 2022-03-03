@@ -510,7 +510,6 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	assert(setLayout != NULL);
 	assert(setLayout->type == VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
 	assert(key != NULL);
-	assert(update != NULL);
 
 	_GFXContext* context = pool->context;
 	const uint64_t hash = pool->immutable.hash(key);

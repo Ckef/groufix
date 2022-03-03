@@ -61,6 +61,14 @@ static inline void* _gfx_hash_builder_push(_GFXHashBuilder* b, size_t s, const v
 }
 
 /**
+ * Returns the byte offset of new data to be pushed (i.e. current size).
+ */
+static inline size_t _gfx_hash_builder_index(_GFXHashBuilder* b)
+{
+	return b->out.size;
+}
+
+/**
  * GFXMap key comparison function,
  * l and r are of type _GFXHashKey*, assumes packed data.
  */
