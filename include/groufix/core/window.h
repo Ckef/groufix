@@ -118,7 +118,7 @@ typedef struct GFXWindow
  * zero if the monitor is disconnected, non-zero if it is connected.
  * @param event NULL to disable the event callback.
  */
-GFX_API void gfx_set_monitor_event(void (*event)(GFXMonitor*, int));
+GFX_API void gfx_monitor_event_set(void (*event)(GFXMonitor*, int));
 
 /**
  * Retrieves the number of currently connected monitors.

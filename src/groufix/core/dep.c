@@ -866,21 +866,20 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 				!ownership || !discard ||
 				sync->vk.oldLayout != sync->vk.newLayout)
 			{
-				// If releasing ownership, zero out destination access mask.
-				// Also zero out source mask for the acquire operation.
-				// And nullify destination stage if discarding & transfering.
+				// If releasing ownership, zero out destination access/stage.
+				// Also zero out source access/stage for the acquire operation.
 				const VkAccessFlags dstAccess = sync->vk.dstAccess;
 				const VkPipelineStageFlags dstStage = sync->vk.dstStage;
 
 				if (ownership)
-					sync->vk.dstAccess = 0;
-				if (ownership && discard)
+					sync->vk.dstAccess = 0,
 					sync->vk.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
 				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 
 				if (ownership)
-					sync->vk.srcAccess = 0;
+					sync->vk.srcAccess = 0,
+					sync->vk.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
 				sync->vk.dstAccess = dstAccess;
 				sync->vk.dstStage = dstStage;

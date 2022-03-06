@@ -245,6 +245,10 @@ static int _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
 
 	VkPhysicalDeviceGroupProperties groups[cnt];
 
+	for (uint32_t g = 0; g < cnt; ++g)
+		groups[g].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES,
+		groups[g].pNext = NULL;
+
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDeviceGroups(
 		_groufix.vk.instance, &cnt, groups), return 0);
 

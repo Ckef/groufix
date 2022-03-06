@@ -610,8 +610,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->build.setLayout = NULL;
 	pass->build.primitive = NULL;
 	pass->build.group = NULL;
-	pass->build.vertex = gfx_create_shader(GFX_STAGE_VERTEX, NULL);
-	pass->build.fragment = gfx_create_shader(GFX_STAGE_FRAGMENT, NULL);
+	pass->build.vertex = gfx_create_shader(GFX_STAGE_VERTEX, &renderer->device->base);
+	pass->build.fragment = gfx_create_shader(GFX_STAGE_FRAGMENT, &renderer->device->base);
 
 	GFXStringReader str;
 

@@ -127,6 +127,7 @@
  */
 typedef struct
 {
+	GFXDevice*     device;
 	GFXWindow*     window;
 	GFXHeap*       heap;
 	GFXDependency* dep;
@@ -163,6 +164,7 @@ typedef struct
  */
 static TestBase _test_base =
 {
+	.device = NULL,
 	.window = NULL,
 	.heap = NULL,
 	.dep = NULL,
@@ -281,7 +283,8 @@ static void _test_init(void)
 	// Create a window.
 	_test_base.window = gfx_create_window(
 		GFX_WINDOW_RESIZABLE | GFX_WINDOW_DOUBLE_BUFFER,
-		NULL, NULL, (GFXVideoMode){ .width = 600, .height = 400 }, "groufix");
+		_test_base.device, NULL,
+		(GFXVideoMode){ .width = 600, .height = 400 }, "groufix");
 
 	if (_test_base.window == NULL)
 		TEST_FAIL();
@@ -292,16 +295,16 @@ static void _test_init(void)
 #endif
 
 	// Create a heap & dependency.
-	_test_base.heap = gfx_create_heap(NULL);
+	_test_base.heap = gfx_create_heap(_test_base.device);
 	if (_test_base.heap == NULL)
 		TEST_FAIL();
 
-	_test_base.dep = gfx_create_dep(NULL);
+	_test_base.dep = gfx_create_dep(_test_base.device);
 	if (_test_base.dep == NULL)
 		TEST_FAIL();
 
 	// Create a renderer and attach the window at index 0.
-	_test_base.renderer = gfx_create_renderer(NULL, 2);
+	_test_base.renderer = gfx_create_renderer(_test_base.device, 2);
 	if (_test_base.renderer == NULL)
 		TEST_FAIL();
 

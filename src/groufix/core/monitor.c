@@ -185,7 +185,7 @@ void _gfx_monitors_terminate(void)
 }
 
 /****************************/
-GFX_API void gfx_set_monitor_event(void (*event)(GFXMonitor*, int))
+GFX_API void gfx_monitor_event_set(void (*event)(GFXMonitor*, int))
 {
 	assert(atomic_load(&_groufix.initialized));
 

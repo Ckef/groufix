@@ -773,11 +773,11 @@ static void _gfx_cache_destroy_elem(_GFXCache* cache, _GFXCacheElem* elem)
 		break;
 
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
-		// We actually do decrease the sampler allocation count.
-		atomic_fetch_sub(&context->limits.samplers, 1);
-
+		// We actually do decrease the sampler allocation count afterwards.
 		context->vk.DestroySampler(
 			context->vk.device, elem->vk.sampler, NULL);
+
+		atomic_fetch_sub(&context->limits.samplers, 1);
 		break;
 
 	case VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO:

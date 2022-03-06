@@ -175,7 +175,7 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	// If it hits zero, we can destroy the block.
 	// Note it is an atomic variable, but this function does not need to be
 	// thread safe at all, so in this case any side effects don't matter.
-	if (atomic_fetch_sub(&block->sets, 1) - 1 == 0)
+	if (atomic_fetch_sub(&block->sets, 1) == 1)
 	{
 		// Loop over all elements and erase them from the recycled hashtable.
 		// We know they are all in recycled as the number of in-use sets is 0.

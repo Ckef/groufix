@@ -684,13 +684,13 @@ struct GFXTechnique
 
 
 /**
- * Set view/update entry (i.e. descriptor info).
+ * Set update entry (i.e. descriptor info).
  */
 typedef struct _GFXSetEntry
 {
 	GFXReference   ref;
 	GFXRange       range;
-	_GFXCacheElem* sampler;
+	_GFXCacheElem* sampler; // NULL if immutable.
 
 	// TODO: Keep track of current attachment `generation` to limit updates?
 
@@ -724,7 +724,7 @@ typedef struct _GFXSetBinding
 
 	size_t        keyIndex; // Of the first entry into the set's key, in bytes.
 	size_t        count;    // 0 = empty binding.
-	_GFXSetEntry* entries;  // May be NULL.
+	_GFXSetEntry* entries;  // NULL if empty or immutable samplers only.
 
 } _GFXSetBinding;
 
