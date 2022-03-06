@@ -482,17 +482,6 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 		return 0;
 	}
 
-	// If transfer family is not a lone transfer family, don't use it.
-	// The separation is only useful when it is a dedicated transfer family.
-	// Note that this does not mess with the reported image transfer granularity,
-	// as a queue with graphics/compute capabilities must report (1,1,1) anyway.
-	if (_GFX_QUEUE_FLAGS_COUNT(
-		_GFX_QUEUE_FLAGS_ALL(props[transfer].queueFlags)) > 1)
-	{
-		// Instead use the graphics family like a pleb :(
-		transfer = graphics;
-	}
-
 	// Ok so we found all queues, we should now allocate the queue sets and
 	// info structures for Vulkan.
 	// Allocate the maximum number of infostructures.
