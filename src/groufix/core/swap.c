@@ -119,6 +119,8 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			wFlags & GFX_WINDOW_DOUBLE_BUFFER ? 2 : 1;
 
 		imageCount =
+			sc.maxImageCount == 0 ?
+			GFX_MAX(imageCount, sc.minImageCount) :
 			GFX_CLAMP(imageCount, sc.minImageCount, sc.maxImageCount);
 
 		// Decide on the presentation mode.
@@ -141,8 +143,9 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 
 		// Decide on the image format + color space to use.
 		// At this moment we just take the first one...
-		// TODO: Find a better way, prolly want to parse Vulkan formats
-		// so we can do actual calculations and comparisons on them.
+		// TODO: Prolly want to parse the Vulkan formats,
+		// the colorSpace will be SRGB_NONLINEAR, so the format needs
+		// to be SRGB so values will be converted from linear to srgb!
 		VkSurfaceFormatKHR format = formats[0];
 
 		if (window->frame.format != format.format)
