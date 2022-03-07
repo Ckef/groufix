@@ -375,6 +375,23 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
 }
 
 /****************************/
+GFXFormat _gfx_parse_format(_GFXDevice* device, VkFormat fmt)
+{
+	assert(device != NULL);
+
+	// Loop over all known formats of the device.
+	for (size_t f = 0; f < device->formats.size; ++f)
+	{
+		const _GFXFormatElem* elem = gfx_vec_at(&device->formats, f);
+
+		// Simply return when found.
+		if (elem->vk == fmt) return elem->gfx;
+	}
+
+	return GFX_FORMAT_EMPTY;
+}
+
+/****************************/
 GFX_API GFXFormatFeatures gfx_format_support(GFXFormat fmt,
                                              GFXDevice* device)
 {

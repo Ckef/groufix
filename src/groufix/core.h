@@ -537,6 +537,14 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
                              GFXFormat* fmt, const VkFormatProperties* props);
 
 /**
+ * Parses a Vulkan format, returning a supported groufix format.
+ * @param device Cannot be NULL.
+ * @param fmt    Vulkan format, can be any.
+ * @return GFX_FORMAT_EMPTY if not supported.
+ */
+GFXFormat _gfx_parse_format(_GFXDevice* device, VkFormat fmt);
+
+/**
  * Initializes the Vulkan context, no-op if it already exists
  * The device will share its context with all devices in its device group.
  * @param device Cannot be NULL.

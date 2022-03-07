@@ -142,11 +142,20 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			mode = VK_PRESENT_MODE_FIFO_KHR;
 
 		// Decide on the image format + color space to use.
-		// At this moment we just take the first one...
-		// TODO: Prolly want to parse the Vulkan formats,
-		// the colorSpace will be SRGB_NONLINEAR, so the format needs
-		// to be SRGB so values will be converted from linear to srgb!
-		VkSurfaceFormatKHR format = formats[0];
+		// We simply pick the first sRGB format + color space.
+		// This means any writes to this image are converted linear -> sRGB!
+		VkSurfaceFormatKHR format = { .format = VK_FORMAT_UNDEFINED };
+
+		for (uint32_t f = 0; f < fCount; ++f)
+		{
+			if (
+				formats[f].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
+				_gfx_parse_format(device, formats[f].format).type == GFX_SRGB)
+			{
+				format = formats[f];
+				break;
+			}
+		}
 
 		if (window->frame.format != format.format)
 		{
