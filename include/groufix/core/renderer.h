@@ -152,8 +152,9 @@ typedef enum GFXCompareOp
  */
 typedef struct GFXView
 {
-	size_t binding; // Ignored for pass consumptions.
-	size_t index;   // Attachment or binding array index.
+	// Both ignored for pass consumptions.
+	size_t binding;
+	size_t index; // Binding array index.
 
 	union {
 		GFXFormat   format; // For texel buffers.
@@ -429,6 +430,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique);
  *
  * If any descriptor binding is assigned multiple resources or samplers,
  * the last matching element in their respective input arrays will be taken.
+ * Individual set resources will always overwrite group bindings.
  * All views MUST match the shader input type!
  *
  * The returned set will not reference the technique anymore,
@@ -561,7 +563,7 @@ GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
  * @param view Specifies all properties (and attachment index) to consume with.
  * @see gfx_pass_consume.
  */
-GFX_API int gfx_pass_consumev(GFXPass* pass,
+GFX_API int gfx_pass_consumev(GFXPass* pass, size_t index,
                               GFXAccessMask mask, GFXShaderStage stage,
                               GFXView view);
 

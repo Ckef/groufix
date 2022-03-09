@@ -20,7 +20,7 @@ typedef struct _GFXConsumeElem
 	int            viewed; // Zero to ignore view.type.
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
-	GFXView        view;
+	GFXView        view; // index used as attachment index.
 
 } _GFXConsumeElem;
 
@@ -288,11 +288,9 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 	}
 
 	// Create image view.
-	// TODO: Somehow get this from renderables, cached?.
 	if (pass->vk.view == VK_NULL_HANDLE)
 	{
 		// Use the second binding of the group as image lol.
-		// TODO: Renderables should define what parts of a group to use.
 		_GFXUnpackRef img = _gfx_ref_unpack(
 			gfx_ref_group_image(&group->base, 1, 0));
 
@@ -786,12 +784,14 @@ GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API int gfx_pass_consumev(GFXPass* pass,
+GFX_API int gfx_pass_consumev(GFXPass* pass, size_t index,
                               GFXAccessMask mask, GFXShaderStage stage,
                               GFXView view)
 {
 	assert(pass != NULL);
 	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+
+	view.index = index; // Purely for function call consistency.
 
 	_GFXConsumeElem elem = {
 		.viewed = 1,
