@@ -623,6 +623,9 @@ struct GFXRenderer
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
 
+	// TODO: Add a GFXDeque for stale (to be destroyed) image/buffer views.
+	// TODO: Add a 'cache' storing {technique,primitive,pass} -> pipeline.
+
 
 	// Render backing (i.e. attachments).
 	struct
@@ -737,7 +740,6 @@ struct GFXSet
 	GFXList*     list; // Base-type.
 	GFXRenderer* renderer;
 
-	size_t         set; // Descriptor set number.
 	_GFXCacheElem* setLayout;
 	_GFXHashKey*   key;
 

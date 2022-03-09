@@ -70,33 +70,47 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique)
 }
 
 /****************************/
-GFX_API void gfx_tech_set_samplers(GFXTechnique* technique, size_t set,
-                                   size_t numSamplers, const GFXSampler* samplers)
+GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique)
+{
+	assert(technique != NULL);
+
+	return technique->numSets;
+}
+
+/****************************/
+GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
+                              size_t numSamplers, const GFXSampler* samplers)
 {
 	assert(technique != NULL);
 	assert(technique->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(set < technique->numSets);
 	assert(numSamplers > 0);
 	assert(samplers != NULL);
 
 	// Skip if already locked.
 	if (technique->layout != NULL)
-		return;
+		return 0;
 
 	// TODO: Implement.
+
+	return 0;
 }
 
 /****************************/
-GFX_API void gfx_tech_set_dynamic(GFXTechnique* technique, size_t set,
-                                  size_t binding)
+GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
+                             size_t binding)
 {
 	assert(technique != NULL);
 	assert(technique->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(set < technique->numSets);
 
 	// Skip if already locked.
 	if (technique->layout != NULL)
-		return;
+		return 0;
 
 	// TODO: Implement.
+
+	return 0;
 }
 
 /****************************/

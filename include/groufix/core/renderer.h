@@ -195,6 +195,33 @@ typedef struct GFXSampler
 
 
 /**
+ * Set resource description.
+ */
+typedef struct GFXSetResource
+{
+	size_t binding;
+	size_t index; // Binding array index.
+
+	GFXReference ref;
+
+} GFXSetResource;
+
+
+/**
+ * Set group (i.e. multiple resources) description.
+ */
+typedef struct GFXSetGroup
+{
+	size_t binding;
+	size_t offset;      // Binding offset in the group.
+	size_t numBindings; // 0 for all remaining bindings.
+
+	GFXGroup* group;
+
+} GFXSetGroup;
+
+
+/**
  * Renderer definition.
  */
 typedef struct GFXRenderer GFXRenderer;
@@ -344,30 +371,37 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 GFX_API void gfx_erase_tech(GFXTechnique* technique);
 
 /**
+ * Retrieves the number of descriptor sets of a technique.
+ * @param technique Cannot be NULL.
+ */
+GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
+
+/**
  * Sets immutable samplers of the technique.
  * @param technique   Cannot be NULL.
- * @param set         Descriptor set number.
+ * @param set         Must be < gfx_tech_get_num_sets(technique).
  * @param numSamplers Must be > 0.
  * @param samplers    Cannot be NULL.
+ * @return Non-zero on success.
  *
- * No-op if the technique is already locked.
+ * Fails if the technique is already locked.
  * Samplers that do not match the shader input type are ignored.
  */
-GFX_API void gfx_tech_set_samplers(GFXTechnique* technique, size_t set,
-                                   size_t numSamplers, const GFXSampler* samplers);
+GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
+                             size_t numSamplers, const GFXSampler* samplers);
 
 /**
  * Sets a buffer binding of the technique to be dynamic.
  * @param technique Cannot be NULL.
- * @param set       Descriptor set number.
+ * @param set       Must be < gfx_tech_get_num_sets(technique).
  * @param binding   Descriptor binding number.
  * @return Non-zero if the binding can be made dynamic.
  *
- * No-op if the technique is already locked.
+ * Fails if the technique is already locked.
  * Ignored if the shader input type is not a uniform or storage buffer.
  */
-GFX_API void gfx_tech_set_dynamic(GFXTechnique* technique, size_t set,
-                                  size_t binding);
+GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
+                             size_t binding);
 
 /**
  * Locks the technique, preparing it for rendering & making it immutable.
@@ -376,6 +410,96 @@ GFX_API void gfx_tech_set_dynamic(GFXTechnique* technique, size_t set,
  * @return Non-zero on success.
  */
 GFX_API int gfx_tech_lock(GFXTechnique* technique);
+
+
+/****************************
+ * Set handling.
+ ****************************/
+
+/**
+ * Adds a new set to the renderer, locking the used technique.
+ * @param renderer  Cannot be NULL.
+ * @param technique Cannot be NULL, must be from renderer.
+ * @param set       Must be < gfx_tech_get_num_sets(technique).
+ * @param resources Cannot be NULL if numResources > 0.
+ * @param groups    Cannot be NULL if numGroups > 0.
+ * @param views     Cannot be NULL if numViews > 0.
+ * @param samplers  Cannot be NULL if numSamplers > 0.
+ * @return NULL on failure.
+ *
+ * If any descriptor binding is assigned multiple resources or samplers,
+ * the last matching element in their respective input arrays will be taken.
+ * All views MUST match the shader input type!
+ *
+ * The returned set will not reference the technique anymore,
+ * meaning the technique can be erased while the set still exists!
+ */
+GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
+                                     GFXTechnique* technique, size_t set,
+                                     size_t numResources, size_t numGroups,
+                                     size_t numViews, size_t numSamplers,
+                                     const GFXSetResource* resources,
+                                     const GFXSetGroup* groups,
+                                     const GFXView* views,
+                                     const GFXSampler* samplers);
+
+/**
+ * Erases (destroys) a set, removing it from its renderer.
+ * @param set Cannot be NULL.
+ */
+GFX_API void gfx_erase_set(GFXSet* set);
+
+/**
+ * Sets descriptor binding resources of the set.
+ * @param set          Cannot be NULL.
+ * @param numResources Must be > 0.
+ * @param resources    Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * If any descriptor binding is assigned multiple times, the last is taken.
+ * Resources that do not match the shader input type are ignored.
+ */
+GFX_API int gfx_set_resources(GFXSet* set,
+                              size_t numResources, const GFXSetResource* resources);
+
+/**
+ * Sets descriptor binding resources of the set from groups.
+ * @param set       Cannot be NULL.
+ * @param numGroups Must be > 0.
+ * @param groups    Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * If any descriptor binding is assigned multiple times, the last is taken.
+ * Resources that do not match the shader input type are ingored.
+ */
+GFX_API int gfx_set_groups(GFXSet* set,
+                           size_t numGroups, const GFXSetGroup* groups);
+
+/**
+ * Sets resource views of the set.
+ * @param set      Cannot be NULL.
+ * @param numViews Must be > 0.
+ * @param views    Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * If any descriptor binding is assigned multiple views, the last is taken.
+ * All views MUST match the shader input type!
+ */
+GFX_API int gfx_set_views(GFXSet* set,
+                          size_t numViews, const GFXView* views);
+
+/**
+ * Sets immutable samplers of the set.
+ * @param set         Cannot be NULL.
+ * @param numSamplers Must be > 0.
+ * @param samplers    Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * If any descriptor binding is assigned multiple samplers, the last is taken.
+ * Samplers that do not match the shader input type are ignored.
+ */
+GFX_API int gfx_set_samplers(GFXSet* set,
+                             size_t numSamplers, const GFXSampler* samplers);
 
 
 /****************************
