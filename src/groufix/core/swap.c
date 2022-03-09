@@ -157,6 +157,16 @@ static int _gfx_swapchain_recreate(_GFXWindow* window,
 			}
 		}
 
+		// No sRGB format available :(
+		if (format.format == VK_FORMAT_UNDEFINED)
+		{
+			gfx_log_warn(
+				"[ %s ] could not select an sRGB image format for a "
+				"swapchain, using the driver default instead.");
+
+			format = formats[0];
+		}
+
 		if (window->frame.format != format.format)
 		{
 			*flags |= _GFX_REFORMAT;
