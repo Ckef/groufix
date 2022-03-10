@@ -601,12 +601,9 @@ GFX_API void gfx_pass_use(GFXPass* pass,
 
 /**
  * Acquires the next virtual frame of a renderer, blocks until available!
- * Implicitly calls gfx_frame_submit if not yet done after the previous call.
+ * Implicitly starts and/or submits if not yet done after the previous call.
  * @param renderer Cannot be NULL.
  * @return Always returns a valid frame.
- *
- * The renderer (including its attachments, passes and sets) cannot be
- * modified during or after this call until gfx_frame_submit has returned.
  */
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 
@@ -619,13 +616,26 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
 
 /**
- * TODO: Make a call before submit that takes the deps, store those, then
- * call _gfx_deps_catch, then let submit call _gfx_deps_prepare.
+ * Prepares the acquired virtual frame to start recording,
+ * becomes a no-op if already started.
+ * @param frame Cannot be NULL.
+ *
+ * The renderer (including its attachments, passes and sets) cannot be
+ * modified after this call until gfx_frame_submit has returned!
+ *
+ * Failure during starting cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_frame_start(GFXFrame* frame);
+
+/**
+ * TODO: Make gfx_frame_start takes the deps, store those, then call
+ * _gfx_deps_catch, then let submit call _gfx_deps_prepare.
  * That way we can put draw() (or whatever) calls inbetween that ALSO modify
  * the dependency object :o !?
  *
  * Submits the acquired virtual frame of a renderer.
- * Must be called exactly once for each call to gfx_renderer_acquire.
+ * Implicitly starts if not yet done so.
  * @param frame Cannot be NULL, invalidated after this call!
  * @param deps  Cannot be NULL if numDeps > 0.
  *

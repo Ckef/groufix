@@ -249,15 +249,14 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 }
 
 /****************************/
-int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
+int _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 {
 	assert(frame != NULL);
 	assert(renderer != NULL);
 
 	_GFXContext* context = renderer->allocator.context;
-	GFXVec* attachs = &renderer->backing.attachs;
 
-	// First we wait for the frame to be done, so all its resource are
+	// We wait for the frame to be done, so all its resource are
 	// available for use (including its synchronization objects).
 	// Also immediately reset it, luckily the renderer does not sync this
 	// frame whenever we call _gfx_sync_frames so it's fine.
@@ -277,15 +276,23 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 			context->vk.device, frame->vk.pool, 0),
 		goto error);
 
-	// TODO: Split the function here? Move everything below to record/submit?
-	// Imagine double buffering, the frame is done rendering and now no images
-	// of the swapchain are available, yet we can already start recording the
-	// next frame. So we do not want to acquire yet...
-	// But then we do want to rebuild the backing/graph. And the next
-	// acquisition might want a rebuild, in which case we need to record all
-	// over again :(
-	// TODO: Another case is that we want to poll input just after acquire?
-	// For as much up to date input as possible.
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_fatal("Synchronization of virtual frame failed.");
+
+	return 0;
+}
+
+/****************************/
+int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
+{
+	assert(frame != NULL);
+	assert(renderer != NULL);
+
+	GFXVec* attachs = &renderer->backing.attachs;
 
 	// Count the number of sync objects necessary (i.e. #windows).
 	size_t numSyncs = 0;
@@ -331,7 +338,7 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 			goto error;
 
 		// Acquire the swapchain image for the sync object.
-		// We also do this in this loop, before touching the render graph,
+		// We also do this in this loop, before building the render graph,
 		// because otherwise we'd be synchronizing on _gfx_swapchain_acquire
 		// at the most random times.
 		_GFXRecreateFlags flags;

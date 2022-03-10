@@ -158,7 +158,7 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
                                        size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
-	assert(renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!renderer->recording);
 	assert(numParents == 0 || parents != NULL);
 
 	// Create a new pass.

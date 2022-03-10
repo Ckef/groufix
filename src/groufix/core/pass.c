@@ -750,7 +750,7 @@ GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
                               GFXRange range)
 {
 	assert(pass != NULL);
-	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!pass->renderer->recording);
 
 	_GFXConsumeElem elem = {
 		.viewed = 0,
@@ -789,7 +789,7 @@ GFX_API int gfx_pass_consumev(GFXPass* pass, size_t index,
                               GFXView view)
 {
 	assert(pass != NULL);
-	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!pass->renderer->recording);
 
 	view.index = index; // Purely for function call consistency.
 
@@ -825,7 +825,7 @@ GFX_API int gfx_pass_consumev(GFXPass* pass, size_t index,
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 {
 	assert(pass != NULL);
-	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!pass->renderer->recording);
 
 	// FInd and erase.
 	for (size_t i = pass->consumes.size; i > 0; --i)
@@ -858,7 +858,7 @@ GFX_API void gfx_pass_use(GFXPass* pass,
                           GFXPrimitive* primitive, GFXGroup* group)
 {
 	assert(pass != NULL);
-	assert(pass->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!pass->renderer->recording);
 	assert(primitive != NULL);
 	assert(group != NULL);
 

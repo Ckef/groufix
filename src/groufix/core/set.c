@@ -21,7 +21,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
                                      const GFXSampler* samplers)
 {
 	assert(renderer != NULL);
-	assert(renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!renderer->recording);
 	assert(technique != NULL);
 	assert(technique->renderer == renderer);
 	assert(set < technique->numSets);
@@ -39,7 +39,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 GFX_API void gfx_erase_set(GFXSet* set)
 {
 	assert(set != NULL);
-	assert(set->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!set->renderer->recording);
 
 	// TODO: Implement.
 }
@@ -49,7 +49,7 @@ GFX_API int gfx_set_resources(GFXSet* set,
                               size_t numResources, const GFXSetResource* resources)
 {
 	assert(set != NULL);
-	assert(set->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!set->renderer->recording);
 	assert(numResources > 0);
 	assert(resources != NULL);
 
@@ -63,7 +63,7 @@ GFX_API int gfx_set_groups(GFXSet* set,
                            size_t numGroups, const GFXSetGroup* groups)
 {
 	assert(set != NULL);
-	assert(set->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!set->renderer->recording);
 	assert(numGroups > 0);
 	assert(groups != NULL);
 
@@ -77,7 +77,7 @@ GFX_API int gfx_set_views(GFXSet* set,
                           size_t numViews, const GFXView* views)
 {
 	assert(set != NULL);
-	assert(set->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!set->renderer->recording);
 	assert(numViews > 0);
 	assert(views != NULL);
 
@@ -91,7 +91,7 @@ GFX_API int gfx_set_samplers(GFXSet* set,
                              size_t numSamplers, const GFXSampler* samplers)
 {
 	assert(set != NULL);
-	assert(set->renderer->pFrame.vk.done == VK_NULL_HANDLE);
+	assert(!set->renderer->recording);
 	assert(numSamplers > 0);
 	assert(samplers != NULL);
 

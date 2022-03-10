@@ -620,6 +620,8 @@ struct GFXRenderer
 	GFXList sets;       // References GFXSet.
 
 	// Render frame (i.e. collection of virtual frames).
+	int recording;
+
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
 
@@ -1125,15 +1127,24 @@ int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index);
 void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
- * Acquires all relevant resources for a virtual frame to be recorded.
+ * Blocks until all pending submissions of a virtual frame are done.
+ * @param renderer Cannot be NULL.
+ * @param frame    Cannot be NULL.
+ * @return Non-zero if successfully synchronized.
+ *
  * Cannot be called again until a call to _gfx_frame_submit has been made.
- * This will block until pending submissions of the frame are done rendering,
- * where possible it will reuse its resources afterwards.
+ * Failure is considered fatal, frame cannot be used.
+ */
+int _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame);
+
+/**
+ * Acquires all relevant resources for a virtual frame to be recorded.
+ * this may call _gfx_sync_frames internally on-swapchain recreate.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL, may not be in renderer->frames!
  * @return Zero if the frame (or renderer) could not be built.
  *
- * This may call _gfx_sync_frames internally on-swapchain recreate.
+ * Cannot be called again until a call to _gfx_frame_submit has been made.
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
 int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
@@ -1155,6 +1166,9 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
  * Blocks until all virtual frames of a renderer are done.
  * @param renderer Cannot be NULL.
  * @return Non-zero if successfully synchronized.
+ *
+ * Note: once a frame is synced/acquired, it cannot be synchronized until it is
+ * submitted and it must not be in the renderer's frame deque when calling this!
  */
 int _gfx_sync_frames(GFXRenderer* renderer);
 

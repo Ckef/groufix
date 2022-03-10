@@ -74,6 +74,8 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 		}
 
 	// And uh some remaining stuff.
+	rend->recording = 0;
+
 	gfx_list_init(&rend->techniques);
 	gfx_list_init(&rend->sets);
 
@@ -101,9 +103,14 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	if (renderer == NULL)
 		return;
 
-	// Force submission if public frame is dangling.
+	// Force start/submit if public frame is dangling.
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
+	{
+		if (!renderer->recording)
+			gfx_frame_start(&renderer->pFrame);
+
 		gfx_frame_submit(&renderer->pFrame, 0, NULL);
+	}
 
 	// Clear all frames, will block until rendering is done.
 	for (size_t f = 0; f < renderer->frames.size; ++f)
@@ -148,9 +155,14 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	// If not submitted yet, force-submit.
+	// If not submitted yet, force start and/or submit.
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
+	{
+		if (!renderer->recording)
+			gfx_frame_start(&renderer->pFrame);
+
 		gfx_frame_submit(&renderer->pFrame, 0, NULL);
+	}
 
 	// Pop a frame from the frames deque, this is effectively the oldest frame,
 	// i.e. the one that was submitted the first of all existing frames.
@@ -159,8 +171,8 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	renderer->pFrame = *(GFXFrame*)gfx_deque_at(&renderer->frames, 0);
 	gfx_deque_pop_front(&renderer->frames, 1);
 
-	// Acquire the frame :)
-	_gfx_frame_acquire(renderer, &renderer->pFrame);
+	// Synchronize the frame :)
+	_gfx_frame_sync(renderer, &renderer->pFrame);
 
 	return &renderer->pFrame;
 }
@@ -174,6 +186,25 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame)
 }
 
 /****************************/
+GFX_API void gfx_frame_start(GFXFrame* frame)
+{
+	assert(frame != NULL);
+
+	// frame == &renderer->pFrame.
+	GFXRenderer* renderer = _GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
+
+	// Skip if already started.
+	if (!renderer->recording)
+	{
+		// Acquire the frame's swapchain etc :)
+		_gfx_frame_acquire(renderer, frame);
+
+		// Signal that we are recording.
+		renderer->recording = 1;
+	}
+}
+
+/****************************/
 GFX_API void gfx_frame_submit(GFXFrame* frame,
                               size_t numDeps, const GFXInject* deps)
 {
@@ -182,6 +213,9 @@ GFX_API void gfx_frame_submit(GFXFrame* frame,
 
 	// frame == &renderer->pFrame.
 	GFXRenderer* renderer = _GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
+
+	// If not started yet, force start.
+	if (!renderer->recording) gfx_frame_start(frame);
 
 	// Submit the frame :)
 	_gfx_frame_submit(renderer, frame, numDeps, deps);
@@ -193,6 +227,9 @@ GFX_API void gfx_frame_submit(GFXFrame* frame,
 		gfx_log_fatal("Virtual frame lost during submission...");
 		_gfx_frame_clear(renderer, frame);
 	}
+
+	// Signal that we are done recording.
+	renderer->recording = 0;
 
 	// Make public frame absent again.
 	renderer->pFrame.vk.done = VK_NULL_HANDLE;
