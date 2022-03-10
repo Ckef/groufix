@@ -309,8 +309,8 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Now set all references to sync objects & init the objects themselves.
 	// This will definitely come across all sync objects again!
-	// In this upcoming loop we can do all the rebuilding and acquire all
-	// the swapchain images too!
+	// In this upcoming loop we can acquire all the swapchain images and
+	// do all the rebuilding too!
 	gfx_vec_release(&frame->refs);
 	gfx_vec_push(&frame->refs, attachs->size, NULL);
 
@@ -326,16 +326,10 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 		if (sRef == SIZE_MAX)
 			continue;
 
-		// Just before acquiring images, we may need to rebuild
-		// swapchain-dependent resources because the previous submission
-		// postponed this to now.
+		// Init sync object.
 		_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, sRef);
 		sync->window = at->window.window;
 		sync->backing = i;
-		sync->image = UINT32_MAX;
-
-		if (!_gfx_frame_rebuild(renderer, sync, at->window.flags, &synced))
-			goto error;
 
 		// Acquire the swapchain image for the sync object.
 		// We also do this in this loop, before building the render graph,
@@ -346,6 +340,10 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 			sync->window,
 			sync->vk.available,
 			&flags);
+
+		// Also add in the flags from the previous submission,
+		// that could have postponed a rebuild to now.
+		flags |= at->window.flags;
 
 		if (!_gfx_frame_rebuild(renderer, sync, flags, &synced))
 			goto error;
