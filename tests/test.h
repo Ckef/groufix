@@ -64,54 +64,63 @@
 #endif
 
 
+// Failure & success printing.
+#define _TEST_PRINT_FAIL(name) \
+	fprintf(stderr, "\n** %s test failed\n\n", name)
+
+#define _TEST_PRINT_SUCCESS(name) \
+	fprintf(stderr, "\n** %s test successful\n\n", name)
+
+
 // Describes a test function that can be called.
-#define TEST_DESCRIBE(name, base) \
-	static TestState _test_state_##name = { .state = TEST_IDLE }; \
-	void _test_func_##name(TestBase* base)
+#define TEST_DESCRIBE(tName, base) \
+	static TestState _test_state_##tName = { .state = TEST_IDLE, .name = #tName }; \
+	void _test_func_##tName(TestBase* base, TestState* _test_state)
 
 // Forces the test to fail.
 #define TEST_FAIL() \
-	_test_fail()
+	_test_fail(_test_state)
 
 // Runs a test function from within another test function.
-#define TEST_RUN(name) \
+#define TEST_RUN(tName) \
 	do { \
-		if (_test_state_##name.state == TEST_IDLE) { \
-			_test_state_##name.state = TEST_RUNNING; \
-			_test_func_##name(&_test_base) \
-			_test_state_##name.state = TEST_IDLE; \
+		if (_test_state_##tName.state == TEST_IDLE) { \
+			_test_state_##tName.state = TEST_RUNNING; \
+			_test_func_##tName(&_test_base, &_test_state_##name); \
+			_TEST_PRINT_SUCCESS(#tName); \
+			_test_state_##tName.state = TEST_IDLE; \
 		} \
 	} while (0)
 
 // Runs a test in a new thread.
-#define TEST_RUN_THREAD(name) \
+#define TEST_RUN_THREAD(tName) \
 	do { \
-		if (_test_state_##name.state == TEST_IDLE) { \
-			_test_state_##name.state = TEST_RUNNING_THRD; \
-			_test_state_##name.f = _test_func_##name; \
-			if (pthread_create(&_test_state_##name.thrd, NULL, _test_thrd, &_test_state_##name)) \
+		if (_test_state_##tName.state == TEST_IDLE) { \
+			_test_state_##tName.state = TEST_RUNNING_THRD; \
+			_test_state_##tName.f = _test_func_##tName; \
+			if (pthread_create(&_test_state_##tName.thrd, NULL, _test_thrd, &_test_state_##tName)) \
 				TEST_FAIL(); \
 		} \
 	} while (0)
 
 // Joins a threaded test function.
-#define TEST_JOIN(name) \
+#define TEST_JOIN(tName) \
 	do { \
-		if (_test_state_##name.state == TEST_RUNNING_THRD) { \
+		if (_test_state_##tName.state == TEST_RUNNING_THRD) { \
 			void* _test_ret; \
-			pthread_join(_test_state_##name.thrd, &_test_ret); \
-			_test_state_##name.state = TEST_IDLE; \
+			pthread_join(_test_state_##tName.thrd, &_test_ret); \
+			_test_state_##tName.state = TEST_IDLE; \
 		} \
 	} while(0)
 
 // Main entry point for a test program, runs the given test name.
-#define TEST_MAIN(name) \
+#define TEST_MAIN(tName) \
 	int main(void) { \
-		_test_init(); \
-		_test_state_##name.state = TEST_RUNNING; \
-		_test_func_##name(&_test_base); \
-		_test_state_##name.state = TEST_IDLE; \
-		_test_end(); \
+		_test_init(&_test_state_##tName); \
+		_test_state_##tName.state = TEST_RUNNING; \
+		_test_func_##tName(&_test_base, &_test_state_##tName); \
+		_test_state_##tName.state = TEST_IDLE; \
+		_test_end(&_test_state_##tName); \
 	} \
 	int _test_unused_for_semicolon
 
@@ -125,7 +134,7 @@
 /**
  * Base testing state, modify at your leisure :)
  */
-typedef struct
+typedef struct TestBase
 {
 	GFXDevice*     device;
 	GFXWindow*     window;
@@ -141,10 +150,9 @@ typedef struct
 /**
  * Thread handle.
  */
-typedef struct
+typedef struct TestState
 {
-	enum
-	{
+	enum {
 		TEST_IDLE,
 		TEST_RUNNING,
 		TEST_RUNNING_THRD
@@ -152,9 +160,11 @@ typedef struct
 	} state;
 
 #if defined (TEST_ENABLE_THREADS)
-	void (*f)(TestBase*);
+	void (*f)(struct TestBase*, struct TestState*);
 	pthread_t thrd;
 #endif
+
+	const char* name;
 
 } TestState;
 
@@ -177,6 +187,65 @@ static TestBase _test_base =
 /****************************
  * All internal testing functions.
  ****************************/
+
+/**
+ * Clears the base test state.
+ */
+static void _test_clear(void)
+{
+	gfx_destroy_renderer(_test_base.renderer);
+	gfx_destroy_heap(_test_base.heap);
+	gfx_destroy_dep(_test_base.dep);
+	gfx_destroy_window(_test_base.window);
+	gfx_terminate();
+
+	// Don't bother resetting _test_base as we will exit() anyway.
+}
+
+/**
+ * Forces the test to fail and exits the program.
+ */
+static void _test_fail(TestState* test)
+{
+	_test_clear();
+
+	_TEST_PRINT_FAIL(test->name);
+	exit(EXIT_FAILURE);
+}
+
+/**
+ * End (i.e. exit) the test program.
+ */
+static void _test_end(TestState* test)
+{
+	_test_clear();
+
+	_TEST_PRINT_SUCCESS(test->name);
+	exit(EXIT_SUCCESS);
+}
+
+
+#if defined (TEST_ENABLE_THREADS)
+
+/**
+ * Thread entry point for a test.
+ */
+static void* _test_thrd(void* arg)
+{
+	TestState* test = arg;
+
+	if (!gfx_attach())
+		_test_fail(test);
+
+	test->f(&_test_base, test);
+	gfx_detach();
+	_TEST_PRINT_SUCCESS(test->name);
+
+	return NULL;
+}
+
+#endif
+
 
 /**
  * Default key release event handler.
@@ -214,67 +283,9 @@ static void _test_key_release(GFXWindow* window,
 }
 
 /**
- * Clears the base test state.
- */
-static void _test_clear(void)
-{
-	gfx_destroy_renderer(_test_base.renderer);
-	gfx_destroy_heap(_test_base.heap);
-	gfx_destroy_dep(_test_base.dep);
-	gfx_destroy_window(_test_base.window);
-	gfx_terminate();
-
-	// Don't bother resetting _test_base as we will exit() anyway.
-}
-
-/**
- * Forces the test to fail and exits the program.
- */
-static void _test_fail(void)
-{
-	_test_clear();
-
-	fputs("\n* TEST FAILED\n", stderr);
-	exit(EXIT_FAILURE);
-}
-
-/**
- * End (i.e. exit) the test program.
- */
-static void _test_end(void)
-{
-	_test_clear();
-
-	fputs("\n* TEST SUCCESSFUL\n", stderr);
-	exit(EXIT_SUCCESS);
-}
-
-
-#if defined (TEST_ENABLE_THREADS)
-
-/**
- * Thread entry point for a test.
- */
-static void* _test_thrd(void* arg)
-{
-	TestState* test = arg;
-
-	if (!gfx_attach())
-		TEST_FAIL();
-
-	test->f(&_test_base);
-	gfx_detach();
-
-	return NULL;
-}
-
-#endif
-
-
-/**
  * Initializes the test base program.
  */
-static void _test_init(void)
+static void _test_init(TestState* _test_state)
 {
 	// Initialize.
 	if (!gfx_init())

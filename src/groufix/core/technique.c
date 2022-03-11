@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <stdlib.h>
 
 
 // #shaders a technique can hold.
@@ -66,7 +67,15 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique)
 	assert(technique != NULL);
 	assert(!technique->renderer->recording);
 
-	// TODO: Implement.
+	// Unlink itself from the renderer.
+	gfx_list_erase(&technique->renderer->techniques, &technique->list);
+
+	// Destroy itself.
+	gfx_vec_clear(&technique->samplers);
+	gfx_vec_clear(&technique->immutable);
+	gfx_vec_clear(&technique->dynamic);
+
+	free(technique);
 }
 
 /****************************/

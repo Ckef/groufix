@@ -671,7 +671,7 @@ struct GFXRenderer
  */
 struct GFXTechnique
 {
-	GFXList*     list; // Base-type.
+	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
 
 	size_t          numSets;
@@ -739,7 +739,7 @@ typedef struct _GFXSetBinding
  */
 struct GFXSet
 {
-	GFXList*     list; // Base-type.
+	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
 
 	_GFXCacheElem* setLayout;
