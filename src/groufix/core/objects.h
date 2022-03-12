@@ -360,7 +360,7 @@ typedef struct _GFXTransferPool
  */
 struct GFXHeap
 {
-	_GFXDevice*   device;    // For format operations.
+	_GFXDevice*   device;    // For format operations & alignment.
 	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
 	_GFXMutex     lock;      // For allocation.
 	_GFXQueue     graphics;

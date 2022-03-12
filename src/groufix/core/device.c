@@ -632,14 +632,6 @@ static void _gfx_create_context(_GFXDevice* device)
 		VkPhysicalDeviceProperties pdp;
 		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
-		// Memory alignment.
-		context->limits.align = GFX_MAX(
-			pdp.limits.minTexelBufferOffsetAlignment,
-			pdp.limits.minUniformBufferOffsetAlignment);
-		context->limits.align = GFX_MAX(
-			context->limits.align,
-			pdp.limits.minStorageBufferOffsetAlignment);
-
 		// Memory allocation limit.
 		context->limits.maxAllocs = pdp.limits.maxMemoryAllocationCount;
 		atomic_store(&context->limits.allocs, 0);

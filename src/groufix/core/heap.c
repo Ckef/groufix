@@ -1119,12 +1119,21 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 
 	// Initialize bindings & copy references.
 	// While we're at it, compute the size of the buffers to allocate.
+	// Also get the alignment for newly allocated buffers, based on the usage.
+	group->numBindings = numBindings;
+	uint64_t size = 0;
+
+	const uint64_t align =
+		GFX_MAX(GFX_MAX(
+			usage & (GFX_BUFFER_UNIFORM_TEXEL | GFX_BUFFER_STORAGE_TEXEL) ?
+				heap->device->base.limits.minTexelBufferAlign : 0,
+			usage & GFX_BUFFER_UNIFORM ?
+				heap->device->base.limits.minUniformBufferAlign : 0),
+			usage & GFX_BUFFER_STORAGE ?
+				heap->device->base.limits.minStorageBufferAlign : 0);
+
 	GFXReference* refPtr =
 		(GFXReference*)((char*)group + structSize);
-
-	group->numBindings = numBindings;
-	const uint64_t align = heap->allocator.context->limits.align;
-	uint64_t size = 0;
 
 	for (size_t b = 0; b < numBindings; ++b)
 	{
@@ -1179,7 +1188,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 					goto clean;
 				}
 
-				// First align up for any buffer usage!
+				// First align up according to the buffer usage!
 				size = GFX_ALIGN_UP(size, align);
 				refPtr[r] = gfx_ref_buffer_at(&group->buffer, size);
 

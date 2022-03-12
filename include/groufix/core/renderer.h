@@ -293,7 +293,7 @@ GFX_API int gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* dst
 
 /**
  * Describes the properties of an image attachment of a renderer.
- * If the attachment already exists, it will be overwritten.
+ * If the attachment already exists, it will be detached and overwritten.
  * @param renderer Cannot be NULL.
  * @return Zero on failure.
  *
@@ -305,7 +305,7 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 
 /**
  * Attaches a window to an attachment index of a renderer.
- * If the attachment already exists, it will be overwritten.
+ * If the attachment already exists, it will be detached and overwritten.
  * @param renderer Cannot be NULL.
  * @param window   Cannot be NULL.
  * @return Zero on failure.

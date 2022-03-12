@@ -207,8 +207,6 @@ typedef struct _GFXContext
 	// Allocation limits (queried once).
 	struct
 	{
-		uint64_t align; // For any texel/uniform/storage buffer.
-
 		// Memory limit.
 		uint32_t  maxAllocs;
 		_GFXMutex allocLock;
