@@ -377,6 +377,7 @@ struct GFXHeap
 	{
 		_GFXTransferPool graphics;
 		_GFXTransferPool transfer;
+		uint32_t         compute; // Family index only.
 
 	} ops;
 };
