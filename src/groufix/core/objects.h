@@ -975,7 +975,7 @@ typedef struct _GFXSync
 	enum
 	{
 		_GFX_SYNC_SEMAPHORE = 0x0001, // If `vk.signaled` is used.
-		_GFX_SYNC_DISCARD   = 0x0002
+		_GFX_SYNC_ACQUIRE   = 0x0002
 
 	} flags;
 

@@ -766,13 +766,24 @@ GFX_API int gfx_read(GFXReference src, void* dst,
 	_GFXUnpackRef unp = _gfx_ref_unpack(src);
 
 #if !defined (NDEBUG)
+	GFXMemoryFlags mFlags = _GFX_UNPACK_REF_FLAGS(unp);
+
 	// Validate memory flags.
-	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ) &
-		_GFX_UNPACK_REF_FLAGS(unp)))
+	if (!(mFlags & (GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ)))
 	{
 		gfx_log_warn(
-			"Cannot read from a memory resource that was not "
+			"Not allowed to read from a memory resource that was not "
 			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_READ.");
+	}
+
+	// Validate async flag.
+	if ((flags & GFX_TRANSFER_ASYNC) &&
+		(mFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
+		!(mFlags & GFX_MEMORY_TRANSFER_CONCURRENT))
+	{
+		gfx_log_warn(
+			"Not allowed to perform asynchronous read from a memory resource "
+			"with concurrent memory flags excluding transfer operations.");
 	}
 #endif
 
@@ -888,13 +899,24 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
 	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
 
 #if !defined (NDEBUG)
+	GFXMemoryFlags mFlags = _GFX_UNPACK_REF_FLAGS(unp);
+
 	// Validate memory flags.
-	if (!((GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE) &
-		_GFX_UNPACK_REF_FLAGS(unp)))
+	if (!(mFlags & (GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE)))
 	{
 		gfx_log_warn(
-			"Cannot write to a memory resource that was not "
+			"Not allowed to write to a memory resource that was not "
 			"created with GFX_MEMORY_HOST_VISIBLE or GFX_MEMORY_WRITE.");
+	}
+
+	// Validate async flag.
+	if ((flags & GFX_TRANSFER_ASYNC) &&
+		(mFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
+		!(mFlags & GFX_MEMORY_TRANSFER_CONCURRENT))
+	{
+		gfx_log_warn(
+			"Not allowed to perform asynchronous write to a memory resource "
+			"with concurrent memory flags excluding transfer operations.");
 	}
 #endif
 
@@ -1053,14 +1075,27 @@ GFX_API int gfx_copy(GFXReference src, GFXReference dst,
 	}
 
 #if !defined (NDEBUG)
+	GFXMemoryFlags srcFlags = _GFX_UNPACK_REF_FLAGS(*srcUnp);
+	GFXMemoryFlags dstFlags = _GFX_UNPACK_REF_FLAGS(*dstUnp);
+
 	// Validate memory flags.
-	if (
-		!(GFX_MEMORY_READ & _GFX_UNPACK_REF_FLAGS(*srcUnp)) ||
-		!(GFX_MEMORY_WRITE & _GFX_UNPACK_REF_FLAGS(*dstUnp)))
+	if (!(srcFlags & GFX_MEMORY_READ) || !(dstFlags & GFX_MEMORY_WRITE))
 	{
 		gfx_log_warn(
-			"Cannot copy from one memory resource to another if they were "
+			"Not allowed to copy from one memory resource to another if they were "
 			"not created with GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
+	}
+
+	// Validate async flag.
+	if ((flags & GFX_TRANSFER_ASYNC) && (
+		((srcFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
+		!(srcFlags & GFX_MEMORY_TRANSFER_CONCURRENT)) ||
+		((dstFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
+		!(dstFlags & GFX_MEMORY_TRANSFER_CONCURRENT))))
+	{
+		gfx_log_warn(
+			"Not allowed to perform asynchronous copy between memory resources "
+			"with concurrent memory flags excluding transfer operations.");
 	}
 #endif
 
@@ -1094,8 +1129,8 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	// Validate host visibility.
 	if (!(GFX_MEMORY_HOST_VISIBLE & _GFX_UNPACK_REF_FLAGS(unp)))
 		gfx_log_warn(
-			"Cannot map a memory resource that was not "
-			"created with GFX_MEMORY_HOST_VISIBLE.");
+			"Not allowed to map a memory resource that was "
+			"not created with GFX_MEMORY_HOST_VISIBLE.");
 #endif
 
 	// Map the buffer.

@@ -591,9 +591,9 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 					else if (race) gfx_log_warn(
 						"Dependency wait command matched with a signal "
-						"command, but has mismatching VkAccessFlagBits "
-						"or VkPipelineStageFlagBits; potential race "
-						"condition on the GPU.");
+						"command, but has incompatible GFXAccessMask or "
+						"GFXShaderStage flags; potential race condition "
+						"on the GPU.");
 
 					break;
 				}
@@ -616,14 +616,10 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			sync->stage = _GFX_SYNC_CATCH;
 			sync->inj = injection;
 
-			// Insert barrier to acquire ownership if necessary.
 			// TODO: Maybe do something special with host read/write flags?
-			if (
-				!(sync->flags & _GFX_SYNC_DISCARD) &&
-				sync->vk.srcFamily != sync->vk.dstFamily)
-			{
+			// Insert barrier to acquire ownership if necessary.
+			if (sync->flags & _GFX_SYNC_ACQUIRE)
 				_gfx_inject_barrier(cmd, sync, context);
-			}
 
 			// Output the wait semaphore and stage if necessary.
 			if (sync->flags & _GFX_SYNC_SEMAPHORE)
@@ -806,11 +802,8 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 			sync->range = ranges[r];
 			sync->tag = 0;
 			sync->inj = injection;
-
 			sync->stage = _GFX_SYNC_PREPARE;
-			sync->flags =
-				(semaphore ? _GFX_SYNC_SEMAPHORE : 0) |
-				(discard ? _GFX_SYNC_DISCARD : 0);
+			sync->flags = semaphore ? _GFX_SYNC_SEMAPHORE : 0;
 
 			// Manually unpack the destination access/stage/layout.
 			// TODO: What if the attachment isn't built yet?
@@ -847,10 +840,26 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 				VK_IMAGE_LAYOUT_UNDEFINED : layouts[r];
 
 			// Get families, explicitly ignore if we want to discard.
-			sync->vk.srcFamily = discard ?
+			// Also, if the resource is concurrent instead of exclusive,
+			// we do not want to transition!
+			// Meaning we can figure out if we want an acquire operation.
+			const GFXMemoryFlags mFlags =
+				refs[0].obj.buffer != NULL ? refs[0].obj.buffer->base.flags :
+				refs[0].obj.image != NULL ? refs[0].obj.image->base.flags :
+				refs[0].obj.renderer != NULL ? attach->base.flags : 0;
+
+			const int concurrent = mFlags &
+				(GFX_MEMORY_COMPUTE_CONCURRENT |
+				GFX_MEMORY_TRANSFER_CONCURRENT);
+
+			sync->flags |=
+				!discard && !concurrent && ownership ?
+				_GFX_SYNC_ACQUIRE : 0;
+
+			sync->vk.srcFamily = discard || concurrent ?
 				VK_QUEUE_FAMILY_IGNORED : injection->inp.family;
 
-			sync->vk.dstFamily = discard ?
+			sync->vk.dstFamily = discard || concurrent ?
 				VK_QUEUE_FAMILY_IGNORED : family;
 
 			// Unpack VkBuffer & VkImage handles.
@@ -861,13 +870,16 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 				refs[r].obj.image->vk.image :
 				(attach != NULL ? attach->vk.image : VK_NULL_HANDLE);
 
-			// Insert barrier if necessary.
+			// Insert barrier if necessary:
+			// - Equal queues, need to insert dependency.
+			// - Not discarding & not concurrent, need ownership transfer.
+			// - Inequal layouts, need layout transition.
 			if (
-				!ownership || !discard ||
+				!ownership || (!discard && !concurrent) ||
 				sync->vk.oldLayout != sync->vk.newLayout)
 			{
-				// If releasing ownership, zero out destination access/stage.
-				// Also zero out source access/stage for the acquire operation.
+				// If different queue, zero out destination access/stage.
+				// Also zero out source access/stage for potential acquire.
 				const VkAccessFlags dstAccess = sync->vk.dstAccess;
 				const VkPipelineStageFlags dstStage = sync->vk.dstStage;
 
@@ -885,9 +897,8 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 				sync->vk.dstStage = dstStage;
 			}
 
-			// Always set queue families back to actual families,
-			// this so we can check for an ownership transfer.
-			sync->vk.srcFamily = injection->inp.family;
+			// Always set destination queue family,
+			// so we can match families when catching.
 			sync->vk.dstFamily = family;
 		}
 

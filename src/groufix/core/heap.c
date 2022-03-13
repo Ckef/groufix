@@ -34,8 +34,8 @@
 // Modifies flags (lvalue) according to resulting Vulkan memory flags.
 #define _GFX_MOD_MEMORY_FLAGS(flags, vFlags) \
 	flags = \
-		(flags & \
-			(GFX_MEMORY_READ | GFX_MEMORY_WRITE)) | \
+		(flags & ~(GFXMemoryFlags)( \
+			GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_DEVICE_LOCAL)) | \
 		((vFlags) & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ? \
 			GFX_MEMORY_HOST_VISIBLE : (GFXMemoryFlags)0) | \
 		((vFlags) & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT ? \
