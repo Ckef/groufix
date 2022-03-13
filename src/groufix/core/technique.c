@@ -56,7 +56,101 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	assert(numShaders > 0);
 	assert(shaders != NULL);
 
-	// TODO: Implement.
+	// TODO: Validate shader contexts.
+	// TODO: Validate shader input.
+	// TODO: Compute a compacted array of shaders to use below.
+
+	// Count the number of descriptor set layouts to store.
+	// Do this by looping over the resources of all shaders in lockstep.
+	size_t numSets = 0;
+	uint32_t curSet = UINT32_MAX;
+	size_t curBind[numShaders > 0 ? numShaders : 1];
+
+	for (size_t s = 0; s < numShaders; ++s)
+		curBind[s] = 0,
+		// Make sure the first set is counted.
+		numSets |= shaders[s]->reflect.bindings > 0 ? 1 : 0,
+		// Get lowest first set.
+		curSet = shaders[s]->reflect.bindings > 0 ? GFX_MIN(curSet,
+			shaders[s]->reflect.resources[
+				shaders[s]->reflect.locations].set) : curSet;
+
+	while (1)
+	{
+		// For the current set, for each shader:
+		// loop over its resources until we hit current set + 1.
+		// Take the lowest next set as next to explore.
+		int loop = 0;
+		uint32_t nextSet = UINT32_MAX;
+
+		for (size_t s = 0; s < numShaders; ++s)
+		{
+			size_t ind = shaders[s]->reflect.locations + curBind[s];
+			while (
+				curBind[s] < shaders[s]->reflect.bindings &&
+				shaders[s]->reflect.resources[ind].set <= curSet)
+			{
+				++ind;
+				++curBind[s];
+			}
+
+			if (curBind[s] < shaders[s]->reflect.bindings)
+				loop = 1,
+				nextSet = GFX_MIN(nextSet,
+					shaders[s]->reflect.resources[ind].set);
+		}
+
+		if (!loop) break;
+
+		// Loop to next set to explore.
+		curSet = nextSet;
+		++numSets;
+	}
+
+	// Ok we know how many set layouts to create.
+	// Allocate a new technique.
+	// We allocate set layouts at the tail of the technique,
+	// make sure to adhere to its alignment requirements!
+	const size_t structSize = GFX_ALIGN_UP(
+		sizeof(GFXTechnique) + sizeof(GFXShader*) * _GFX_NUM_SHADER_STAGES,
+		_Alignof(_GFXCacheElem*));
+
+	GFXTechnique* tech = malloc(
+		structSize +
+		sizeof(_GFXCacheElem*) * numSets);
+
+	if (tech == NULL)
+		goto clean;
+
+	// Initialize the technique.
+	tech->renderer = renderer;
+	tech->numSets = numSets;
+	tech->setLayouts = (_GFXCacheElem**)((char*)tech + structSize);
+	tech->layout = NULL;
+
+	for (size_t l = 0; l < numSets; ++l)
+		tech->setLayouts[l] = NULL;
+
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		tech->shaders[s] = NULL;
+
+	gfx_vec_init(&tech->samplers, sizeof(_GFXSamplerElem));
+	gfx_vec_init(&tech->immutable, sizeof(_GFXBindingElem));
+	gfx_vec_init(&tech->dynamic, sizeof(_GFXBindingElem));
+
+	// TODO: Get pushSize/pushStages.
+	// TODO: Fill the shaders array.
+
+	// Link the technique into the renderer.
+	gfx_list_insert_after(&renderer->techniques, &tech->list, NULL);
+
+	return tech;
+
+
+	// Cleanup on failure.
+clean:
+	gfx_log_error("Could not add a new technique to a renderer.");
+	free(tech);
 
 	return NULL;
 }

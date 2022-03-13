@@ -103,14 +103,10 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	if (renderer == NULL)
 		return;
 
-	// Force start/submit if public frame is dangling.
+	// Force submit if public frame is dangling.
+	// gfx_frame_submit will also start for us :)
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-	{
-		if (!renderer->recording)
-			gfx_frame_start(&renderer->pFrame);
-
 		gfx_frame_submit(&renderer->pFrame, 0, NULL);
-	}
 
 	// Clear all frames, will block until rendering is done.
 	for (size_t f = 0; f < renderer->frames.size; ++f)
@@ -162,14 +158,10 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	// If not submitted yet, force start and/or submit.
+	// If not submitted yet, force submit.
+	// gfx_frame_submit will also start for us :)
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-	{
-		if (!renderer->recording)
-			gfx_frame_start(&renderer->pFrame);
-
 		gfx_frame_submit(&renderer->pFrame, 0, NULL);
-	}
 
 	// Pop a frame from the frames deque, this is effectively the oldest frame,
 	// i.e. the one that was submitted the first of all existing frames.
