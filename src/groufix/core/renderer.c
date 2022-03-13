@@ -118,18 +118,23 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	gfx_deque_clear(&renderer->frames);
 
-	// TODO: Erase all techniques and sets.
+	// Erase all techniques and sets.
+	while (renderer->techniques.head != NULL)
+		gfx_erase_tech((GFXTechnique*)renderer->techniques.head);
+
+	while (renderer->sets.head != NULL)
+		gfx_erase_set((GFXSet*)renderer->sets.head);
+
+	gfx_list_clear(&renderer->techniques);
+	gfx_list_clear(&renderer->sets);
 
 	// Clear the allocator, cache, pool, backing & graph in a sensible order,
-	// considering the graph depends on the backing :)
+	// considering the graph depends on the backing 'n stuff :)
 	_gfx_render_graph_clear(renderer);
 	_gfx_render_backing_clear(renderer);
 	_gfx_pool_clear(&renderer->pool);
 	_gfx_cache_clear(&renderer->cache);
 	_gfx_allocator_clear(&renderer->allocator);
-
-	gfx_list_clear(&renderer->techniques);
-	gfx_list_clear(&renderer->sets);
 
 	free(renderer);
 }

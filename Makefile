@@ -251,6 +251,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/record.o \
  $(OUT)$(SUB)/groufix/core/ref.o \
  $(OUT)$(SUB)/groufix/core/renderer.o \
+ $(OUT)$(SUB)/groufix/core/set.o \
  $(OUT)$(SUB)/groufix/core/shader.o \
  $(OUT)$(SUB)/groufix/core/swap.o \
  $(OUT)$(SUB)/groufix/core/technique.o \
