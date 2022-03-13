@@ -196,11 +196,9 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 }
 
 /****************************
- * Pushes a new transfer operation object.
- * Also outputs the queue and command pool mutex to use.
- * @param heap     Cannot be NULL.
- * @param queue    Cannot be NULL.
- * @param pool     Cannot be NULL, outputs on failure as well.
+ * Pushes a new transfer operation object and returns the transfer pool to use.
+ * @param heap Cannot be NULL.
+ * @param pool Cannot be NULL, outputs on failure as well.
  * @return NULL on failure.
  *
  * Note: leaves the `(*pool)->lock` mutex locked, even on failure!
@@ -208,19 +206,14 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
  * call _gfx_pop_transfer.
  */
 static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, GFXTransferFlags flags,
-                                        _GFXQueue** queue,
                                         _GFXTransferPool** pool)
 {
 	assert(heap != NULL);
-	assert(queue != NULL);
 	assert(pool != NULL);
 
 	_GFXContext* context = heap->allocator.context;
 
-	// Pick queue & pool from the heap.
-	*queue = (flags & GFX_TRANSFER_ASYNC) ?
-		&heap->transfer : &heap->graphics;
-
+	// Pick transfer pool from the heap.
 	*pool = (flags & GFX_TRANSFER_ASYNC) ?
 		&heap->ops.transfer : &heap->ops.graphics;
 
@@ -445,12 +438,11 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 
 	_GFXContext* context = heap->allocator.context;
 
-	// First get us a queue & transfer operation resources.
-	// Note that this will lock `pool->lock` for us, we use this lock for
-	// recording as well!
-	_GFXQueue* queue;
+	// First get us transfer operation resources.
+	// Note that this will lock `pool->lock` for us,
+	// we use this lock for recording as well!
 	_GFXTransferPool* pool;
-	_GFXTransfer* transfer = _gfx_push_transfer(heap, flags, &queue, &pool);
+	_GFXTransfer* transfer = _gfx_push_transfer(heap, flags, &pool);
 
 	if (transfer == NULL)
 	{
@@ -459,7 +451,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	}
 
 	// Fill in injection metadata family queue.
-	injection->inp.family = queue->family;
+	injection->inp.family = pool->queue.family;
 
 	// Set the staging buffer if not blocking, so it gets freed at some point.
 	if (staging != NULL && !(flags & GFX_TRANSFER_BLOCK))
@@ -618,6 +610,11 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	// Buffer -> image or image -> buffer copy.
 	else
 	{
+		const GFXRegion* bufRegions =
+			(srcBuffer != VK_NULL_HANDLE) ? srcRegions : dstRegions;
+		const GFXRegion* imgRegions =
+			(srcImage != VK_NULL_HANDLE) ? srcRegions : dstRegions;
+
 		// Note that rev is only allowed to be non-zero when staging is set.
 		// Meaning if rev is set, it is always an image -> buffer copy.
 		VkBufferImageCopy cRegions[numRegions];
@@ -631,11 +628,6 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 					dst->value + dstRegions[r].offset;
 
 			// Rest must be given by respective regions.
-			const GFXRegion* bufRegions =
-				(srcBuffer != VK_NULL_HANDLE) ? srcRegions : dstRegions;
-			const GFXRegion* imgRegions =
-				(srcImage != VK_NULL_HANDLE) ? srcRegions : dstRegions;
-
 			cRegions[r].bufferRowLength = bufRegions[r].rowSize;
 			cRegions[r].bufferImageHeight = bufRegions[r].numRows;
 
@@ -698,17 +690,17 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 		.pSignalSemaphores    = injection->out.sigs
 	};
 
-	_gfx_mutex_lock(queue->lock);
+	_gfx_mutex_lock(pool->queue.lock);
 
 	_GFX_VK_CHECK(
 		context->vk.QueueSubmit(
-			queue->vk.queue, 1, &si, transfer->vk.done),
+			pool->queue.vk.queue, 1, &si, transfer->vk.done),
 		{
-			_gfx_mutex_unlock(queue->lock);
+			_gfx_mutex_unlock(pool->queue.lock);
 			goto clean_deps;
 		});
 
-	_gfx_mutex_unlock(queue->lock);
+	_gfx_mutex_unlock(pool->queue.lock);
 
 	// Manually unlock the lock left locked by _gfx_push_transfer!
 	// Make sure to remember the fence in case we want to block AND

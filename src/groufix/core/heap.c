@@ -447,8 +447,8 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	_GFX_GET_CONTEXT(context, device, goto clean_transfer_lock);
 
 	// Pick the graphics and transfer queues.
-	_gfx_pick_queue(context, &heap->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
-	_gfx_pick_queue(context, &heap->transfer, VK_QUEUE_TRANSFER_BIT, 0);
+	_gfx_pick_queue(context, &heap->ops.graphics.queue, VK_QUEUE_GRAPHICS_BIT, 0);
+	_gfx_pick_queue(context, &heap->ops.transfer.queue, VK_QUEUE_TRANSFER_BIT, 0);
 
 	// Create command pools (one for each queue).
 	// They are used for all memory resource operations.
@@ -464,13 +464,13 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 			VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
 	};
 
-	cpci.queueFamilyIndex = heap->graphics.family;
+	cpci.queueFamilyIndex = heap->ops.graphics.queue.family;
 	_GFX_VK_CHECK(
 		context->vk.CreateCommandPool(
 			context->vk.device, &cpci, NULL, &heap->ops.graphics.vk.pool),
 		goto clean_pools);
 
-	cpci.queueFamilyIndex = heap->transfer.family;
+	cpci.queueFamilyIndex = heap->ops.transfer.queue.family;
 	_GFX_VK_CHECK(
 		context->vk.CreateCommandPool(
 			context->vk.device, &cpci, NULL, &heap->ops.transfer.vk.pool),

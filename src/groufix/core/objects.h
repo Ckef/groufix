@@ -339,6 +339,7 @@ typedef struct _GFXTransfer
 typedef struct _GFXTransferPool
 {
 	GFXDeque  transfers; // Stores _GFXTransfer.
+	_GFXQueue queue;
 	_GFXMutex lock;
 
 	// #blocking threads.
@@ -363,8 +364,6 @@ struct GFXHeap
 	_GFXDevice*   device;    // For format operations & alignment.
 	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
 	_GFXMutex     lock;      // For allocation.
-	_GFXQueue     graphics;
-	_GFXQueue     transfer;
 
 	GFXList buffers;    // References _GFXBuffer.
 	GFXList images;     // References _GFXImage.
