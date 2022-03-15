@@ -9,6 +9,7 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 // #shaders a technique can hold.
@@ -56,58 +57,65 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	assert(numShaders > 0);
 	assert(shaders != NULL);
 
-	// TODO: Validate shader contexts.
-	// TODO: Validate shader input.
-	// TODO: Compute a compacted array of shaders to use below.
+	// Get the array of shaders to use.
+	// Use the last shader of each stage.
+	GFXShader* shads[_GFX_NUM_SHADER_STAGES];
+	int compute = 0;
 
-	// Count the number of descriptor set layouts to store.
-	// Do this by looping over the resources of all shaders in lockstep.
-	size_t numSets = 0;
-	uint32_t curSet = UINT32_MAX;
-	size_t curBind[numShaders > 0 ? numShaders : 1];
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		shads[s] = NULL; // Init all to empty.
 
 	for (size_t s = 0; s < numShaders; ++s)
-		curBind[s] = 0,
-		// Make sure the first set is counted.
-		numSets |= shaders[s]->reflect.bindings > 0 ? 1 : 0,
-		// Get lowest first set.
-		curSet = shaders[s]->reflect.bindings > 0 ? GFX_MIN(curSet,
-			shaders[s]->reflect.resources[
-				shaders[s]->reflect.locations].set) : curSet;
-
-	while (1)
 	{
-		// For the current set, for each shader:
-		// loop over its resources until we hit current set + 1.
-		// Take the lowest next set as next to explore.
-		int loop = 0;
-		uint32_t nextSet = UINT32_MAX;
-
-		for (size_t s = 0; s < numShaders; ++s)
+		// Validate context while we're at it.
+		if (shaders[s]->context != renderer->allocator.context)
 		{
-			size_t ind = shaders[s]->reflect.locations + curBind[s];
-			while (
-				curBind[s] < shaders[s]->reflect.bindings &&
-				shaders[s]->reflect.resources[ind].set <= curSet)
-			{
-				++ind;
-				++curBind[s];
-			}
+			gfx_log_error(
+				"All shaders of a technique must be built on the same "
+				"logical Vulkan device as its renderer.");
 
-			if (curBind[s] < shaders[s]->reflect.bindings)
-				loop = 1,
-				nextSet = GFX_MIN(nextSet,
-					shaders[s]->reflect.resources[ind].set);
+			return NULL;
 		}
 
-		if (!loop) break;
-
-		// Loop to next set to explore.
-		curSet = nextSet;
-		++numSets;
+		// Must yield a valid index for all shaders (!).
+		shads[_GFX_GET_SHADER_STAGE_INDEX(shaders[s]->stage)] = shaders[s];
+		if (shaders[s]->stage == GFX_STAGE_COMPUTE) compute = 1;
 	}
 
-	// Ok we know how many set layouts to create.
+	// No compute or only compute.
+	if (compute) for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		if (
+			s != _GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE) &&
+			shads[s] != NULL)
+		{
+			gfx_log_error(
+				"A technique cannot have a compute shader in combination "
+				"with shaders of a different stage.");
+
+			return NULL;
+		}
+
+	// We need the number of descriptor set layouts to store.
+	// Luckily we actually need to create empty sets for missing set numbers.
+	// Plus shader resources are sorted, so we just get the maximum of all :)
+	// Also get the push constant size/stages while we're at it.
+	uint32_t maxSet = 0;
+	uint32_t pushSize = 0;
+	GFXShaderStage pushStages = 0;
+
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		if (shads[s] != NULL)
+		{
+			if (shads[s]->reflect.bindings > 0)
+				maxSet = GFX_MAX(maxSet, shads[s]->reflect.resources[
+					shads[s]->reflect.locations +
+					shads[s]->reflect.bindings - 1].set);
+
+			if (shads[s]->reflect.push > 0)
+				pushSize = GFX_MAX(pushSize, shads[s]->reflect.push),
+				pushStages |= shads[s]->stage;
+		}
+
 	// Allocate a new technique.
 	// We allocate set layouts at the tail of the technique,
 	// make sure to adhere to its alignment requirements!
@@ -117,29 +125,26 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 
 	GFXTechnique* tech = malloc(
 		structSize +
-		sizeof(_GFXCacheElem*) * numSets);
+		sizeof(_GFXCacheElem*) * maxSet);
 
 	if (tech == NULL)
 		goto clean;
 
 	// Initialize the technique.
 	tech->renderer = renderer;
-	tech->numSets = numSets;
+	tech->numSets = (size_t)maxSet;
 	tech->setLayouts = (_GFXCacheElem**)((char*)tech + structSize);
 	tech->layout = NULL;
+	tech->pushSize = pushSize;
+	tech->pushStages = pushStages;
+	memcpy(tech->shaders, shads, sizeof(shads));
 
-	for (size_t l = 0; l < numSets; ++l)
+	for (size_t l = 0; l < tech->numSets; ++l)
 		tech->setLayouts[l] = NULL;
-
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
-		tech->shaders[s] = NULL;
 
 	gfx_vec_init(&tech->samplers, sizeof(_GFXSamplerElem));
 	gfx_vec_init(&tech->immutable, sizeof(_GFXBindingElem));
 	gfx_vec_init(&tech->dynamic, sizeof(_GFXBindingElem));
-
-	// TODO: Get pushSize/pushStages.
-	// TODO: Fill the shaders array.
 
 	// Link the technique into the renderer.
 	gfx_list_insert_after(&renderer->techniques, &tech->list, NULL);

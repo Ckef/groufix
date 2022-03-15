@@ -361,7 +361,7 @@ static int _gfx_shader_reflect(GFXShader* shader,
 	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
 	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
 
-	// Count number of descriptor sets (which should be sorted!).
+	// Count number of used descriptor sets (which should be sorted!).
 	uint32_t curSet = UINT32_MAX;
 	for (size_t b = 0; b < shader->reflect.bindings; ++b)
 	{
