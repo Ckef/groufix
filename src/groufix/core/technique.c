@@ -166,7 +166,71 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 			return NULL;
 		}
 
-	// TODO: Now validate the shaders don't have conflicting resources.
+	// Now that we know the shaders we are going to use,
+	// validate all shaders that they are compatible with each other,
+	// i.e. all bindings must be equal in all shaders.
+	// This is super specific code, but we really want to ALWAYS do this check,
+	// if we did not check here, sets would have to check, and we essentially
+	// have a stale lingering technique that cannot be used...
+	size_t valPos[_GFX_NUM_SHADER_STAGES];
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s) valPos[s] = 0;
+
+	while (1)
+	{
+		_GFXShaderResource* res = NULL;
+
+		// Get resource with lowest set/binding at this iteration.
+		for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+			if (shads[s] != NULL && valPos[s] < shads[s]->reflect.bindings)
+			{
+				_GFXShaderResource* shRes =
+					shads[s]->reflect.resources +
+					shads[s]->reflect.locations + valPos[s];
+
+				if (
+					res == NULL || shRes->set < res->set ||
+					(shRes->set == res->set && shRes->binding < res->binding))
+				{
+					res = shRes;
+				}
+			}
+
+		// Done, valid!
+		if (res == NULL) break;
+
+		// Check if all other matching resources of the iteration
+		// are compatible (and go to the next resource within that shader).
+		for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+			if (shads[s] != NULL && valPos[s] < shads[s]->reflect.bindings)
+			{
+				_GFXShaderResource* shRes =
+					shads[s]->reflect.resources +
+					shads[s]->reflect.locations + valPos[s];
+
+				if (shRes->set != res->set || shRes->binding != res->binding)
+					continue;
+
+				if (
+					shRes->count != res->count ||
+					shRes->type != res->type ||
+					((shRes->type == _GFX_SHADER_IMAGE_AND_SAMPLER ||
+					shRes->type == _GFX_SHADER_IMAGE_SAMPLED ||
+					shRes->type == _GFX_SHADER_IMAGE_STORAGE) &&
+						shRes->viewType != res->viewType))
+				{
+					gfx_log_error(
+						"Shaders have incompatible descriptor resource "
+						"(set=%"PRIu32", binding=%"PRIu32"), could not "
+						"add a new technique to a renderer.",
+						shRes->set, shRes->binding);
+
+					return NULL;
+				}
+
+				// If matched, go to next.
+				++valPos[s];
+			}
+	}
 
 	// We need the number of descriptor set layouts to store.
 	// Luckily we need to create empty set layouts for missing set numbers.
@@ -201,7 +265,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 		sizeof(_GFXCacheElem*) * (maxSet + 1));
 
 	if (tech == NULL)
-		goto clean;
+		goto error;
 
 	// Initialize the technique.
 	tech->renderer = renderer;
@@ -225,11 +289,9 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	return tech;
 
 
-	// Cleanup on failure.
-clean:
+	// Error on failure.
+error:
 	gfx_log_error("Could not add a new technique to a renderer.");
-	free(tech);
-
 	return NULL;
 }
 
@@ -289,7 +351,7 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 			// Skip it if not.
 			gfx_log_warn(
 				"Could not set sampler of descriptor resource "
-				"(set %"GFX_PRIs", binding %"GFX_PRIs") of a shader, "
+				"(set=%"GFX_PRIs", binding=%"GFX_PRIs") of a technique, "
 				"not a sampler.",
 				set, samplers[s].binding);
 
@@ -380,7 +442,7 @@ GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
 		// Nop.
 		gfx_log_warn(
 			"Could not set a dynamic descriptor resource "
-			"(set %"GFX_PRIs", binding %"GFX_PRIs") of a shader, "
+			"(set=%"GFX_PRIs", binding=%"GFX_PRIs") of a technique, "
 			"not a uniform or storage buffer.",
 			set, binding);
 
