@@ -48,6 +48,42 @@ typedef struct _GFXBindingElem
 } _GFXBindingElem;
 
 
+/****************************
+ * Inserts a new _GFXBindingElem in a vector if it did not exist yet,
+ * at its correct sorted position.
+ * @param vec Assumed to be sorted and store _GFXBindingElem.
+ */
+static int _gfx_insert_binding_elem(GFXVec* vec, size_t set, size_t binding)
+{
+	// Binary search to its position.
+	size_t l = 0;
+	size_t r = vec->size;
+
+	while (l < r)
+	{
+		const size_t p = (l + r) >> 1;
+		_GFXBindingElem* e = gfx_vec_at(vec, p);
+
+		const int lesser = e->set < set ||
+			(e->set == set && e->binding < binding);
+		const int greater = e->set > set ||
+			(e->set == set && e->binding > binding);
+
+		if (lesser) l = p + 1;
+		else if (greater) r = p;
+		else l = p, r = p;
+	}
+
+	// Found it.
+	_GFXBindingElem* f = gfx_vec_at(vec, l);
+	if (l < vec->size && f->set == set && f->binding == binding)
+		return 1;
+
+	// Insert anew.
+	_GFXBindingElem elem = { .set = set, .binding = binding };
+	return gfx_vec_insert(vec, 1, &elem, l);
+}
+
 /****************************/
 GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
                                             size_t numShaders, GFXShader** shaders)
@@ -96,7 +132,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 		}
 
 	// We need the number of descriptor set layouts to store.
-	// Luckily we actually need to create empty sets for missing set numbers.
+	// Luckily we need to create empty set layouts for missing set numbers.
 	// Plus shader resources are sorted, so we just get the maximum of all :)
 	// Also get the push constant size/stages while we're at it.
 	uint32_t maxSet = 0;
@@ -125,14 +161,14 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 
 	GFXTechnique* tech = malloc(
 		structSize +
-		sizeof(_GFXCacheElem*) * maxSet);
+		sizeof(_GFXCacheElem*) * (maxSet + 1));
 
 	if (tech == NULL)
 		goto clean;
 
 	// Initialize the technique.
 	tech->renderer = renderer;
-	tech->numSets = (size_t)maxSet;
+	tech->numSets = (size_t)(maxSet + 1);
 	tech->setLayouts = (_GFXCacheElem**)((char*)tech + structSize);
 	tech->layout = NULL;
 	tech->pushSize = pushSize;
@@ -199,9 +235,72 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 	if (technique->layout != NULL)
 		return 0;
 
-	// TODO: Implement.
+	// Keep track of success, not gonna bother removing
+	// previous samplers if one failed to insert.
+	int success = 1;
 
-	return 0;
+	for (size_t s = 0; s < numSamplers; ++s)
+	{
+		// TODO: Check if it's even a sampler.
+
+		// Binary search to the samplers position.
+		size_t l = 0;
+		size_t r = technique->samplers.size;
+
+		while (l < r)
+		{
+			const size_t p = (l + r) >> 1;
+			_GFXSamplerElem* e = gfx_vec_at(&technique->samplers, p);
+
+			const int lesser = e->set < set ||
+				(e->set == set &&
+				(e->sampler.binding < samplers[s].binding ||
+					(e->sampler.binding == samplers[s].binding &&
+					e->sampler.index < samplers[s].index)));
+			const int greater = e->set > set ||
+				(e->set == set &&
+				(e->sampler.binding > samplers[s].binding ||
+					(e->sampler.binding == samplers[s].binding &&
+					e->sampler.index > samplers[s].index)));
+
+			if (lesser) l = p + 1;
+			else if (greater) r = p;
+			else l = p, r = p;
+		}
+
+		// Insert anew if not found.
+		_GFXSamplerElem elem = { .set = set, .sampler = samplers[s] };
+		_GFXSamplerElem* f = gfx_vec_at(&technique->samplers, l);
+
+		if (
+			l >= technique->samplers.size ||
+			f->set != set ||
+			f->sampler.binding != samplers[s].binding ||
+			f->sampler.index != samplers[s].index)
+		{
+			if (!gfx_vec_insert(&technique->samplers, 1, &elem, l))
+			{
+				// Just continue to the next on failure.
+				success = 0;
+				continue;
+			}
+
+			// And insert a binding element to make it immutable.
+			if (!_gfx_insert_binding_elem(
+				&technique->immutable, set, samplers[s].binding))
+			{
+				// Erase the sampler altogether on failure.
+				gfx_vec_erase(&technique->samplers, 1, l);
+				success = 0;
+				continue;
+			}
+		}
+
+		// Overwrite if found.
+		else *f = elem;
+	}
+
+	return success;
 }
 
 /****************************/
@@ -216,9 +315,10 @@ GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
 	if (technique->layout != NULL)
 		return 0;
 
-	// TODO: Implement.
+	// TODO: Check if it can be made dynamic.
 
-	return 0;
+	// Insert the binding element.
+	return _gfx_insert_binding_elem(&technique->dynamic, set, binding);
 }
 
 /****************************/

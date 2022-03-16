@@ -675,11 +675,12 @@ struct GFXTechnique
 	GFXRenderer* renderer;
 
 	size_t          numSets;
-	_GFXCacheElem** setLayouts; // Set layouts (sorted), may contain NULL.
+	_GFXCacheElem** setLayouts; // Set layouts (sorted), may be all NULL.
 	_GFXCacheElem*  layout;     // Pipeline layout, may be NULL.
 	uint32_t        pushSize;
 	GFXShaderStage  pushStages;
 
+	// All sorted on { set, binding, index }.
 	GFXVec samplers;  // Stores { size_t set, GFXSampler }, temporary!
 	GFXVec immutable; // Stores { size_t set, size_t binding }.
 	GFXVec dynamic;   // Stores { size_t set, size_t binding }.

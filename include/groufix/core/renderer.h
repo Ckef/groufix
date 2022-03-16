@@ -383,7 +383,7 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
  * @param set         Must be < gfx_tech_get_num_sets(technique).
  * @param numSamplers Must be > 0.
  * @param samplers    Cannot be NULL.
- * @return Non-zero on success.
+ * @return Zero if failed to set one or more samplers.
  *
  * Fails if the technique is already locked.
  * Samplers that do not match the shader input type are ignored.
