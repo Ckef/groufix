@@ -675,8 +675,8 @@ struct GFXTechnique
 	GFXRenderer* renderer;
 
 	size_t          numSets;
-	_GFXCacheElem** setLayouts; // Set layouts (sorted), may be all NULL.
-	_GFXCacheElem*  layout;     // Pipeline layout, may be NULL.
+	_GFXCacheElem** setLayouts; // Set layouts (sorted), all NULL until locked.
+	_GFXCacheElem*  layout;     // Pipeline layout, NULL until locked.
 	uint32_t        pushSize;
 	GFXShaderStage  pushStages;
 

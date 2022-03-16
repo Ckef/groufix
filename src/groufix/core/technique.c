@@ -36,7 +36,6 @@ typedef struct _GFXSamplerElem
 } _GFXSamplerElem;
 
 
-
 /****************************
  * Technique binding element (immutable/dynamic) definition.
  */
@@ -47,6 +46,42 @@ typedef struct _GFXBindingElem
 
 } _GFXBindingElem;
 
+
+/****************************
+ * Retrieves a shader resource from a technique by set/binding number.
+ * Technique is assumed to be validated, unknown what shader will be referenced.
+ * @return NULL if not present.
+ */
+static _GFXShaderResource* _gfx_tech_get_resource(GFXTechnique* technique,
+                                                  size_t set, size_t binding)
+{
+	// Loop over all shaders in order (for locality).
+	// Then do a binary search for the resource with the given set/binding.
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		if (technique->shaders[s] != NULL)
+		{
+			GFXShader* shader = technique->shaders[s];
+			size_t l = shader->reflect.locations;
+			size_t r = shader->reflect.locations + shader->reflect.bindings;
+
+			while (l < r)
+			{
+				const size_t p = (l + r) >> 1;
+				_GFXShaderResource* res = shader->reflect.resources + p;
+
+				const int lesser = res->set < set ||
+					(res->set == set && res->binding < binding);
+				const int greater = res->set > set ||
+					(res->set == set && res->binding > binding);
+
+				if (lesser) l = p + 1;
+				else if (greater) r = p;
+				else return shader->reflect.resources + p;
+			}
+		}
+
+	return NULL;
+}
 
 /****************************
  * Inserts a new _GFXBindingElem in a vector if it did not exist yet,
@@ -130,6 +165,8 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 
 			return NULL;
 		}
+
+	// TODO: Now validate the shaders don't have conflicting resources.
 
 	// We need the number of descriptor set layouts to store.
 	// Luckily we need to create empty set layouts for missing set numbers.
@@ -241,7 +278,24 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 
 	for (size_t s = 0; s < numSamplers; ++s)
 	{
-		// TODO: Check if it's even a sampler.
+		// Check if we can set a sampler to this resource.
+		_GFXShaderResource* res =
+			_gfx_tech_get_resource(technique, set, samplers[s].binding);
+
+		if (res == NULL ||
+			(res->type != _GFX_SHADER_IMAGE_AND_SAMPLER &&
+			res->type != _GFX_SHADER_SAMPLER))
+		{
+			// Skip it if not.
+			gfx_log_warn(
+				"Could not set sampler of descriptor resource "
+				"(set %"GFX_PRIs", binding %"GFX_PRIs") of a shader, "
+				"not a sampler.",
+				set, samplers[s].binding);
+
+			success = 0;
+			continue;
+		}
 
 		// Binary search to the samplers position.
 		size_t l = 0;
@@ -315,7 +369,23 @@ GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
 	if (technique->layout != NULL)
 		return 0;
 
-	// TODO: Check if it can be made dynamic.
+	// Check if we can make this resource dynamic.
+	_GFXShaderResource* res =
+		_gfx_tech_get_resource(technique, set, binding);
+
+	if (res == NULL ||
+		(res->type != _GFX_SHADER_BUFFER_UNIFORM &&
+		res->type != _GFX_SHADER_BUFFER_STORAGE))
+	{
+		// Nop.
+		gfx_log_warn(
+			"Could not set a dynamic descriptor resource "
+			"(set %"GFX_PRIs", binding %"GFX_PRIs") of a shader, "
+			"not a uniform or storage buffer.",
+			set, binding);
+
+		return 0;
+	}
 
 	// Insert the binding element.
 	return _gfx_insert_binding_elem(&technique->dynamic, set, binding);
