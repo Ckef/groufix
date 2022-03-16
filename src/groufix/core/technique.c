@@ -48,39 +48,22 @@ typedef struct _GFXBindingElem
 
 
 /****************************
- * Retrieves a shader resource from a technique by set/binding number.
- * Technique is assumed to be validated, unknown what shader will be referenced.
- * @return NULL if not present.
+ * Compares two shader resources, ignoring the location and/or set and binding.
+ * @return Non-zero if equal.
  */
-static _GFXShaderResource* _gfx_tech_get_resource(GFXTechnique* technique,
-                                                  size_t set, size_t binding)
+static inline int _gfx_cmp_resources(const _GFXShaderResource* l,
+                                     const _GFXShaderResource* r)
 {
-	// Loop over all shaders in order (for locality).
-	// Then do a binary search for the resource with the given set/binding.
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
-		if (technique->shaders[s] != NULL)
-		{
-			GFXShader* shader = technique->shaders[s];
-			size_t l = shader->reflect.locations;
-			size_t r = shader->reflect.locations + shader->reflect.bindings;
+	// Do not count attachment inputs.
+	const int isImage =
+		l->type == _GFX_SHADER_IMAGE_AND_SAMPLER ||
+		l->type == _GFX_SHADER_IMAGE_SAMPLED ||
+		l->type == _GFX_SHADER_IMAGE_STORAGE;
 
-			while (l < r)
-			{
-				const size_t p = (l + r) >> 1;
-				_GFXShaderResource* res = shader->reflect.resources + p;
-
-				const int lesser = res->set < set ||
-					(res->set == set && res->binding < binding);
-				const int greater = res->set > set ||
-					(res->set == set && res->binding > binding);
-
-				if (lesser) l = p + 1;
-				else if (greater) r = p;
-				else return shader->reflect.resources + p;
-			}
-		}
-
-	return NULL;
+	return
+		l->count == r->count &&
+		l->type == r->type &&
+		(!isImage || l->viewType == r->viewType);
 }
 
 /****************************
@@ -117,6 +100,42 @@ static int _gfx_insert_binding_elem(GFXVec* vec, size_t set, size_t binding)
 	// Insert anew.
 	_GFXBindingElem elem = { .set = set, .binding = binding };
 	return gfx_vec_insert(vec, 1, &elem, l);
+}
+
+/****************************
+ * Retrieves a shader resource from a technique by set/binding number.
+ * Unknown what shader will be referenced, technique is assumed to be validated.
+ * @return NULL if not present.
+ */
+static _GFXShaderResource* _gfx_tech_get_resource(GFXTechnique* technique,
+                                                  size_t set, size_t binding)
+{
+	// Loop over all shaders in order (for locality).
+	// Then do a binary search for the resource with the given set/binding.
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		if (technique->shaders[s] != NULL)
+		{
+			GFXShader* shader = technique->shaders[s];
+			size_t l = shader->reflect.locations;
+			size_t r = shader->reflect.locations + shader->reflect.bindings;
+
+			while (l < r)
+			{
+				const size_t p = (l + r) >> 1;
+				_GFXShaderResource* res = shader->reflect.resources + p;
+
+				const int lesser = res->set < set ||
+					(res->set == set && res->binding < binding);
+				const int greater = res->set > set ||
+					(res->set == set && res->binding > binding);
+
+				if (lesser) l = p + 1;
+				else if (greater) r = p;
+				else return shader->reflect.resources + p;
+			}
+		}
+
+	return NULL;
 }
 
 /****************************/
@@ -210,13 +229,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 				if (shRes->set != res->set || shRes->binding != res->binding)
 					continue;
 
-				if (
-					shRes->count != res->count ||
-					shRes->type != res->type ||
-					((shRes->type == _GFX_SHADER_IMAGE_AND_SAMPLER ||
-					shRes->type == _GFX_SHADER_IMAGE_SAMPLED ||
-					shRes->type == _GFX_SHADER_IMAGE_STORAGE) &&
-						shRes->viewType != res->viewType))
+				if (!_gfx_cmp_resources(shRes, res))
 				{
 					gfx_log_error(
 						"Shaders have incompatible descriptor resource "

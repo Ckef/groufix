@@ -14,7 +14,8 @@
  * Compares two user defined attachment descriptions.
  * @return Non-zero if equal.
  */
-static inline int _gfx_cmp_attachments(GFXAttachment* l, GFXAttachment* r)
+static inline int _gfx_cmp_attachments(const GFXAttachment* l,
+                                       const GFXAttachment* r)
 {
 	// Cannot use memcmp because of padding.
 	const int abs =
