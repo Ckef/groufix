@@ -67,11 +67,13 @@ static inline int _gfx_cmp_resources(const _GFXShaderResource* l,
 }
 
 /****************************
- * Inserts a new _GFXBindingElem in a vector if it did not exist yet,
- * at its correct sorted position.
- * @param vec Assumed to be sorted and store _GFXBindingElem.
+ * Finds a _GFXBindingElem in a vector,
+ * optionally inserts at its correct sorted position.
+ * @param vec    Assumed to be sorted and store _GFXBindingElem.
+ * @return Index of the (new) element, SIZE_MAX if none.
  */
-static int _gfx_insert_binding_elem(GFXVec* vec, size_t set, size_t binding)
+static size_t _gfx_find_binding_elem(GFXVec* vec, size_t set, size_t binding,
+                                     int insert)
 {
 	// Binary search to its position.
 	size_t l = 0;
@@ -89,12 +91,17 @@ static int _gfx_insert_binding_elem(GFXVec* vec, size_t set, size_t binding)
 
 		if (lesser) l = p + 1;
 		else if (greater) r = p;
-		else return 1;
+		else return p;
 	}
 
-	// Insert anew.
-	_GFXBindingElem elem = { .set = set, .binding = binding };
-	return gfx_vec_insert(vec, 1, &elem, l);
+	if (insert)
+	{
+		// Insert anew.
+		_GFXBindingElem elem = { .set = set, .binding = binding };
+		if (gfx_vec_insert(vec, 1, &elem, l)) return l;
+	}
+
+	return SIZE_MAX;
 }
 
 /****************************
@@ -131,6 +138,34 @@ static _GFXShaderResource* _gfx_tech_get_resource(GFXTechnique* technique,
 		}
 
 	return NULL;
+}
+
+/****************************/
+void _gfx_tech_get_set_size(GFXTechnique* technique,
+                            size_t set, size_t* numBindings, size_t* numEntries)
+{
+	assert(technique != NULL);
+	assert(set < technique->numSets);
+	assert(numBindings != NULL);
+	assert(numEntries != NULL);
+
+	*numBindings = 0;
+	*numEntries = 0;
+
+	// TODO: Implement.
+}
+
+/****************************/
+int _gfx_tech_get_set_binding(GFXTechnique* technique,
+                              size_t set, size_t binding, _GFXSetBinding* out)
+{
+	assert(technique != NULL);
+	assert(set < technique->numSets);
+	assert(out != NULL);
+
+	// TODO: Implement.
+
+	return 0;
 }
 
 /****************************/
@@ -418,8 +453,9 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 			}
 
 			// And insert a binding element to make it immutable.
-			if (!_gfx_insert_binding_elem(
-				&technique->immutable, set, samplers[s].binding))
+			if (_gfx_find_binding_elem(
+				&technique->immutable,
+				set, samplers[s].binding, 1) == SIZE_MAX)
 			{
 				// Erase the sampler altogether on failure.
 				gfx_vec_erase(&technique->samplers, 1, l);
@@ -463,7 +499,8 @@ GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
 	}
 
 	// Insert the binding element.
-	return _gfx_insert_binding_elem(&technique->dynamic, set, binding);
+	return _gfx_find_binding_elem(
+		&technique->dynamic, set, binding, 1) != SIZE_MAX;
 }
 
 /****************************/

@@ -1258,6 +1258,33 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
 
 
 /****************************
+ * Technique and set.
+ ****************************/
+
+/**
+ * Computes the size of a specific descriptor set layout within a technique.
+ * @param technique   Cannot be NULL.
+ * @param set         Must be < technique->numSets.
+ * @param numBindings Outputs the number of _GFXSetBinding's necessary.
+ * @param numEntries  Outputs the number of _GFXSetEntry's necessary.
+ */
+void _gfx_tech_get_set_size(GFXTechnique* technique,
+                            size_t set, size_t* numBindings, size_t* numEntries);
+
+/**
+ * Retrieves a descriptor set binding from a technique and populates the
+ * `type`, `viewType` and `count` fields of a _GFXSetBinding struct.
+ * @param technique Cannot be NULL.
+ * @param set       Must be < technique->numSets.
+ * @param binding   Descriptor binding number.
+ * @param out       Output _GFXSetBinding to populate.
+ * @return Zero if this binding DOES NOT occupy any _GFXSetEntry's!
+ */
+int _gfx_tech_get_set_binding(GFXTechnique* technique,
+                              size_t set, size_t binding, _GFXSetBinding* out);
+
+
+/****************************
  * Pass (nodes in the render graph).
  ****************************/
 
