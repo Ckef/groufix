@@ -337,39 +337,43 @@ static int _gfx_shader_reflect(GFXShader* shader,
 	shader->reflect.bindings = numSubs + numUbos + numSbos +
 		numImgs + numSimgs + numSepimgs + numSamps;
 
-	_GFXShaderResource* rList = malloc(
-		sizeof(_GFXShaderResource) *
-		(shader->reflect.locations + shader->reflect.bindings));
-
-	if (rList == NULL)
-		goto clean;
-
-	// We keep track of the position to insert at.
-	// _gfx_reflect_resource will insertion-sort them into place.
-	shader->reflect.resources = rList;
-	size_t rInd = 0;
-
-	// Make sure to reflect vert/frag io resources first!
-	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
-	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
-
-	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
-	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
-	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
-	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
-	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
-	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
-	_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
-
-	// Count number of used descriptor sets (which should be sorted!).
-	uint32_t curSet = UINT32_MAX;
-	for (size_t b = 0; b < shader->reflect.bindings; ++b)
+	// If there are no locations or bindings, don't allocate any memory.
+	if (shader->reflect.locations > 0 || shader->reflect.bindings > 0)
 	{
-		_GFXShaderResource* res = rList + shader->reflect.locations + b;
-		if (curSet == UINT32_MAX || res->set > curSet)
+		_GFXShaderResource* rList = malloc(
+			sizeof(_GFXShaderResource) *
+			(shader->reflect.locations + shader->reflect.bindings));
+
+		if (rList == NULL)
+			goto clean;
+
+		// We keep track of the position to insert at.
+		// _gfx_reflect_resource will insertion-sort them into place.
+		shader->reflect.resources = rList;
+		size_t rInd = 0;
+
+		// Make sure to reflect vert/frag io resources first!
+		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
+		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
+
+		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
+		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
+		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
+		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
+		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
+		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
+		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
+
+		// Count number of used descriptor sets (which should be sorted!).
+		uint32_t curSet = UINT32_MAX;
+		for (size_t b = 0; b < shader->reflect.bindings; ++b)
 		{
-			++shader->reflect.sets;
-			curSet = res->set;
+			_GFXShaderResource* res = rList + shader->reflect.locations + b;
+			if (curSet == UINT32_MAX || res->set > curSet)
+			{
+				++shader->reflect.sets;
+				curSet = res->set;
+			}
 		}
 	}
 
