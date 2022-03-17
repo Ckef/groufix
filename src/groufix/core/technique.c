@@ -89,13 +89,8 @@ static int _gfx_insert_binding_elem(GFXVec* vec, size_t set, size_t binding)
 
 		if (lesser) l = p + 1;
 		else if (greater) r = p;
-		else l = p, r = p;
+		else return 1;
 	}
-
-	// Found it.
-	_GFXBindingElem* f = gfx_vec_at(vec, l);
-	if (l < vec->size && f->set == set && f->binding == binding)
-		return 1;
 
 	// Insert anew.
 	_GFXBindingElem elem = { .set = set, .binding = binding };
@@ -373,6 +368,7 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 		}
 
 		// Binary search to the samplers position.
+		_GFXSamplerElem elem = { .set = set, .sampler = samplers[s] };
 		size_t l = 0;
 		size_t r = technique->samplers.size;
 
@@ -394,18 +390,15 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 
 			if (lesser) l = p + 1;
 			else if (greater) r = p;
-			else l = p, r = p;
+			else {
+				// Overwrite if found.
+				*e = elem;
+				break;
+			}
 		}
 
 		// Insert anew if not found.
-		_GFXSamplerElem elem = { .set = set, .sampler = samplers[s] };
-		_GFXSamplerElem* f = gfx_vec_at(&technique->samplers, l);
-
-		if (
-			l >= technique->samplers.size ||
-			f->set != set ||
-			f->sampler.binding != samplers[s].binding ||
-			f->sampler.index != samplers[s].index)
+		if (l == r)
 		{
 			if (!gfx_vec_insert(&technique->samplers, 1, &elem, l))
 			{
@@ -424,9 +417,6 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 				continue;
 			}
 		}
-
-		// Overwrite if found.
-		else *f = elem;
 	}
 
 	return success;
