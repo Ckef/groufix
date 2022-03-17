@@ -162,6 +162,16 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 			return NULL;
 		}
 
+		// And if they contain a valid SPIR-V module.
+		if (shaders[s]->vk.module == VK_NULL_HANDLE)
+		{
+			gfx_log_error(
+				"All shaders of a technique must contain "
+				"valid SPIR-V bytecode.");
+
+			return NULL;
+		}
+
 		// Must yield a valid index for all shaders (!).
 		shads[_GFX_GET_SHADER_STAGE_INDEX(shaders[s]->stage)] = shaders[s];
 		if (shaders[s]->stage == GFX_STAGE_COMPUTE) compute = 1;
@@ -191,46 +201,46 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 
 	while (1)
 	{
-		_GFXShaderResource* res = NULL;
+		_GFXShaderResource* cur = NULL;
 
 		// Get resource with lowest set/binding at this iteration.
 		for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
 			if (shads[s] != NULL && valPos[s] < shads[s]->reflect.bindings)
 			{
-				_GFXShaderResource* shRes =
+				_GFXShaderResource* res =
 					shads[s]->reflect.resources +
 					shads[s]->reflect.locations + valPos[s];
 
 				if (
-					res == NULL || shRes->set < res->set ||
-					(shRes->set == res->set && shRes->binding < res->binding))
+					cur == NULL || res->set < cur->set ||
+					(res->set == cur->set && res->binding < cur->binding))
 				{
-					res = shRes;
+					cur = res;
 				}
 			}
 
 		// Done, valid!
-		if (res == NULL) break;
+		if (cur == NULL) break;
 
 		// Check if all other matching resources of the iteration
 		// are compatible (and go to the next resource within that shader).
 		for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
 			if (shads[s] != NULL && valPos[s] < shads[s]->reflect.bindings)
 			{
-				_GFXShaderResource* shRes =
+				_GFXShaderResource* res =
 					shads[s]->reflect.resources +
 					shads[s]->reflect.locations + valPos[s];
 
-				if (shRes->set != res->set || shRes->binding != res->binding)
+				if (res->set != cur->set || res->binding != cur->binding)
 					continue;
 
-				if (!_gfx_cmp_resources(shRes, res))
+				if (!_gfx_cmp_resources(res, cur))
 				{
 					gfx_log_error(
-						"Shaders have incompatible descriptor resource "
+						"Shaders have incompatible descriptor resources "
 						"(set=%"PRIu32", binding=%"PRIu32"), could not "
 						"add a new technique to a renderer.",
-						shRes->set, shRes->binding);
+						res->set, res->binding);
 
 					return NULL;
 				}
