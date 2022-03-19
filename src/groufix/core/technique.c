@@ -638,11 +638,52 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 	assert(technique != NULL);
 	assert(!technique->renderer->recording);
 
+	GFXRenderer* renderer = technique->renderer;
+
 	// Already locked.
 	if (technique->layout != NULL)
 		return 1;
 
-	// TODO: Implement.
+	// Create all descriptor set layouts.
+	for (size_t s = 0; s < technique->numSets; ++s)
+	{
+		// TODO: Continue implementing.
+	}
 
-	return 0;
+	// Create pipeline layout.
+	size_t vlaSets = technique->numSets > 0 ? technique->numSets : 1;
+	VkDescriptorSetLayout sets[vlaSets];
+	const void* handles[vlaSets]; // Idk for clarity.
+
+	for (size_t s = 0; s < technique->numSets; ++s)
+		sets[s] = technique->setLayouts[s]->vk.setLayout,
+		handles[s] = technique->setLayouts[s];
+
+	VkPushConstantRange pcr = {
+		.stageFlags = _GFX_GET_VK_SHADER_STAGE(technique->pushStages),
+		.offset     = 0,
+		.size       = technique->pushSize
+	};
+
+	VkPipelineLayoutCreateInfo plci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+
+		.pNext                  = NULL,
+		.flags                  = 0,
+		.setLayoutCount         = (uint32_t)technique->numSets,
+		.pSetLayouts            = sets,
+		.pushConstantRangeCount = technique->pushSize > 0 ? 1 : 0,
+		.pPushConstantRanges    = technique->pushSize > 0 ? &pcr : NULL
+	};
+
+	technique->layout =
+		_gfx_cache_warmup(&renderer->cache, &plci.sType, handles);
+
+	// TODO: Continue implementing.
+
+	// And finally, get rid of the samplers, once we're locked we already
+	// created and used all samplers and cannot unlock.
+	gfx_vec_clear(&technique->samplers);
+
+	return 1;
 }

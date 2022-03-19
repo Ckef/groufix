@@ -211,6 +211,20 @@
 	((mask) & GFX_ACCESS_HOST_WRITE ? \
 		VK_PIPELINE_STAGE_HOST_BIT : (VkPipelineStageFlags)0))
 
+#define _GFX_GET_VK_SHADER_STAGE(stage) \
+	(((stage) == GFX_STAGE_VERTEX ? \
+		VK_SHADER_STAGE_VERTEX_BIT : (VkShaderStageFlagBits)0) | \
+	((stage) == GFX_STAGE_TESS_CONTROL ? \
+		VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT : (VkShaderStageFlagBits)0) | \
+	((stage) == GFX_STAGE_TESS_EVALUATION ? \
+		VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT : (VkShaderStageFlagBits)0) | \
+	((stage) == GFX_STAGE_GEOMETRY ? \
+		VK_SHADER_STAGE_GEOMETRY_BIT : (VkShaderStageFlagBits)0) | \
+	((stage) == GFX_STAGE_FRAGMENT ? \
+		VK_SHADER_STAGE_FRAGMENT_BIT : (VkShaderStageFlagBits)0) | \
+	((stage) == GFX_STAGE_COMPUTE ? \
+		VK_SHADER_STAGE_COMPUTE_BIT : (VkShaderStageFlagBits)0))
+
 
 /****************************
  * Shading objects.
