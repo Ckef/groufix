@@ -17,12 +17,36 @@
 
 // Get index from shader stage.
 #define _GFX_GET_SHADER_STAGE_INDEX(stage) \
-	(((stage) == GFX_STAGE_VERTEX) ? 0 : \
-	((stage) == GFX_STAGE_TESS_CONTROL) ? 1 : \
-	((stage) == GFX_STAGE_TESS_EVALUATION) ? 2 : \
-	((stage) == GFX_STAGE_GEOMETRY) ? 3 : \
-	((stage) == GFX_STAGE_FRAGMENT) ? 4 : \
-	((stage) == GFX_STAGE_COMPUTE) ? 5 : _GFX_NUM_SHADER_STAGES)
+	((stage) == GFX_STAGE_VERTEX ? 0 : \
+	(stage) == GFX_STAGE_TESS_CONTROL ? 1 : \
+	(stage) == GFX_STAGE_TESS_EVALUATION ? 2 : \
+	(stage) == GFX_STAGE_GEOMETRY ? 3 : \
+	(stage) == GFX_STAGE_FRAGMENT ? 4 : \
+	(stage) == GFX_STAGE_COMPUTE ? 5 : _GFX_NUM_SHADER_STAGES)
+
+// Get Vulkan descriptor type.
+#define _GFX_GET_VK_DESCRIPTOR_TYPE(type, dynamic) \
+	((type) == _GFX_SHADER_BUFFER_UNIFORM ? (dynamic ? \
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : \
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) : \
+	(type) == _GFX_SHADER_BUFFER_STORAGE ? (dynamic ? \
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC : \
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) : \
+	(type) == _GFX_SHADER_BUFFER_UNIFORM_TEXEL ? \
+		VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER : \
+	(type) == _GFX_SHADER_BUFFER_STORAGE_TEXEL ? \
+		VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER : \
+	(type) == _GFX_SHADER_IMAGE_AND_SAMPLER ? \
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER : \
+	(type) == _GFX_SHADER_IMAGE_SAMPLED ? \
+		VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : \
+	(type) == _GFX_SHADER_IMAGE_STORAGE ? \
+		VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : \
+	(type) == _GFX_SHADER_SAMPLER ? \
+		VK_DESCRIPTOR_TYPE_SAMPLER : \
+	(type) == _GFX_SHADER_ATTACHMENT_INPUT ? \
+		VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT : \
+		0) /* Should not happen. */
 
 
 /****************************
@@ -64,6 +88,56 @@ static inline int _gfx_cmp_resources(const _GFXShaderResource* l,
 		l->count == r->count &&
 		l->type == r->type &&
 		(!isImage || l->viewType == r->viewType);
+}
+
+/****************************
+ * Finds a _GFXSamplerElem in a vector, optionally inserts it at
+ * its correct sorted position.
+ * @param vec Assumed to be sorted and store _GFXSamplerElem.
+ * @return Index of the (new) element, SIZE_MAX on failure.
+ */
+static size_t _gfx_find_sampler_elem(GFXVec* vec,
+                                     size_t set, size_t binding, size_t index,
+                                     int insert)
+{
+	// Binary search to its position.
+	size_t l = 0;
+	size_t r = vec->size;
+
+	while (l < r)
+	{
+		const size_t p = (l + r) >> 1;
+		_GFXSamplerElem* e = gfx_vec_at(vec, p);
+
+		const int lesser = e->set < set ||
+			(e->set == set &&
+			(e->sampler.binding < binding ||
+				(e->sampler.binding == binding &&
+				e->sampler.index < index)));
+
+		const int greater = e->set > set ||
+			(e->set == set &&
+			(e->sampler.binding > binding ||
+				(e->sampler.binding == binding &&
+				e->sampler.index > index)));
+
+		if (lesser) l = p + 1;
+		else if (greater) r = p;
+		else return p;
+	}
+
+	if (insert)
+	{
+		// Insert anew.
+		_GFXSamplerElem elem = {
+			.set = set,
+			.sampler = { .binding = binding, .index = index }
+		};
+
+		return gfx_vec_insert(vec, 1, &elem, l) ? l : SIZE_MAX;
+	}
+
+	return SIZE_MAX;
 }
 
 /****************************
@@ -196,7 +270,7 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 	// An entry being an actual descriptor within a binding.
 	// For this we loop over all shaders again, then loop from the right-most
 	// resource to the left and check if we've already counted it.
-	// If not, check if is immutable, if not, add its descriptor count.
+	// If not, check if it is immutable, if not, add its descriptor count.
 	unsigned char counted[*numBindings > 0 ? *numBindings : 1];
 	memset(counted, 0, *numBindings);
 
@@ -246,53 +320,7 @@ int _gfx_tech_get_set_binding(GFXTechnique* technique,
 	int isDynamic =
 		_gfx_find_binding_elem(&technique->dynamic, set, binding, 0);
 
-	switch (res->type)
-	{
-	case _GFX_SHADER_BUFFER_UNIFORM:
-		out->type = isDynamic ?
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC :
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		break;
-
-	case _GFX_SHADER_BUFFER_STORAGE:
-		out->type = isDynamic ?
-			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC :
-			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		break;
-
-	case _GFX_SHADER_BUFFER_UNIFORM_TEXEL:
-		out->type = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
-		break;
-
-	case _GFX_SHADER_BUFFER_STORAGE_TEXEL:
-		out->type = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
-		break;
-
-	case _GFX_SHADER_IMAGE_AND_SAMPLER:
-		out->type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		break;
-
-	case _GFX_SHADER_IMAGE_SAMPLED:
-		out->type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		break;
-
-	case _GFX_SHADER_IMAGE_STORAGE:
-		out->type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		break;
-
-	case _GFX_SHADER_SAMPLER:
-		out->type = VK_DESCRIPTOR_TYPE_SAMPLER;
-		break;
-
-	case _GFX_SHADER_ATTACHMENT_INPUT:
-		out->type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-		break;
-
-	default:
-		// Can never be vert/frag io.
-		break;
-	}
-
+	out->type = _GFX_GET_VK_DESCRIPTOR_TYPE(res->type, isDynamic);
 	out->viewType = res->viewType;
 	out->count = res->count;
 
@@ -530,68 +558,45 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 
 		if (res == NULL ||
 			(res->type != _GFX_SHADER_IMAGE_AND_SAMPLER &&
-			res->type != _GFX_SHADER_SAMPLER))
+			res->type != _GFX_SHADER_SAMPLER) ||
+			// Check if the index exists while we're at it :)
+			samplers[s].index >= res->count)
 		{
 			// Skip it if not.
 			gfx_log_warn(
 				"Could not set sampler of descriptor resource "
-				"(set=%"GFX_PRIs", binding=%"GFX_PRIs") of a technique, "
-				"not a sampler.",
-				set, samplers[s].binding);
+				"(set=%"GFX_PRIs", binding=%"GFX_PRIs", index=%"GFX_PRIs") "
+				"of a technique, not a sampler.",
+				set, samplers[s].binding, samplers[s].index);
 
 			success = 0;
 			continue;
 		}
 
-		// Binary search to the samplers position.
-		_GFXSamplerElem elem = { .set = set, .sampler = samplers[s] };
-		size_t l = 0;
-		size_t r = technique->samplers.size;
+		// Insert the sampler element.
+		size_t ind = _gfx_find_sampler_elem(
+			&technique->samplers,
+			set, samplers[s].binding, samplers[s].index, 1);
 
-		while (l < r)
+		if (ind == SIZE_MAX)
 		{
-			const size_t p = (l + r) >> 1;
-			_GFXSamplerElem* e = gfx_vec_at(&technique->samplers, p);
-
-			const int lesser = e->set < set ||
-				(e->set == set &&
-				(e->sampler.binding < samplers[s].binding ||
-					(e->sampler.binding == samplers[s].binding &&
-					e->sampler.index < samplers[s].index)));
-			const int greater = e->set > set ||
-				(e->set == set &&
-				(e->sampler.binding > samplers[s].binding ||
-					(e->sampler.binding == samplers[s].binding &&
-					e->sampler.index > samplers[s].index)));
-
-			if (lesser) l = p + 1;
-			else if (greater) r = p;
-			else {
-				// Overwrite if found.
-				*e = elem;
-				break;
-			}
+			// Just continue to the next on failure.
+			success = 0;
+			continue;
 		}
 
-		// Insert anew if not found.
-		if (l == r)
-		{
-			if (!gfx_vec_insert(&technique->samplers, 1, &elem, l))
-			{
-				// Just continue to the next on failure.
-				success = 0;
-				continue;
-			}
+		// Set sampler values.
+		_GFXSamplerElem* elem = gfx_vec_at(&technique->samplers, ind);
+		elem->sampler = samplers[s];
 
-			// And insert a binding element to make it immutable.
-			if (!_gfx_find_binding_elem(
-				&technique->immutable, set, samplers[s].binding, 1))
-			{
-				// Erase the sampler altogether on failure.
-				gfx_vec_erase(&technique->samplers, 1, l);
-				success = 0;
-				continue;
-			}
+		// And insert a binding element to make it immutable.
+		if (!_gfx_find_binding_elem(
+			&technique->immutable, set, samplers[s].binding, 1))
+		{
+			// Erase the sampler altogether on failure.
+			gfx_vec_erase(&technique->samplers, 1, ind);
+			success = 0;
+			continue;
 		}
 	}
 
@@ -639,51 +644,275 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 	assert(!technique->renderer->recording);
 
 	GFXRenderer* renderer = technique->renderer;
+	const char samplerMinmax = renderer->device->base.features.samplerMinmax;
 
 	// Already locked.
 	if (technique->layout != NULL)
 		return 1;
 
 	// Create all descriptor set layouts.
-	for (size_t s = 0; s < technique->numSets; ++s)
+	// We do this by looping over all descriptor set layouts we know we must
+	// create, while simultaneously looping over all resources in all shaders.
+	// We kinda have to do it this difficult way,
+	// we need to know which shaders want access to each resource.
+	size_t resPos[_GFX_NUM_SHADER_STAGES];
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s) resPos[s] = 0;
+
+	// Use a vector for all bindings, samplers & handles of each set,
+	// otherwise this gets complicated...
+	GFXVec bindings;
+	GFXVec samplers;
+	GFXVec samplerHandles;
+	gfx_vec_init(&bindings, sizeof(VkDescriptorSetLayoutBinding));
+	gfx_vec_init(&samplers, sizeof(VkSampler));
+	gfx_vec_init(&samplerHandles, sizeof(void*));
+
+	// Loop over all sets.
+	for (size_t set = 0; set < technique->numSets; ++set)
 	{
-		// TODO: Continue implementing.
+		// Loop over all bindings of this set.
+		// NOTE: _Always_ true!
+		for (size_t binding = 0; 1; ++binding)
+		{
+			_GFXShaderResource* cur = NULL;
+			GFXShaderStage stages = 0;
+			int loop = 0;
+
+			// Within all shaders, 'loop' to the relevant resource.
+			for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+				if (technique->shaders[s] != NULL)
+				{
+					GFXShader* shader = technique->shaders[s];
+					if (resPos[s] >= shader->reflect.bindings) continue;
+
+					_GFXShaderResource* res =
+						shader->reflect.resources +
+						shader->reflect.locations + resPos[s];
+
+					if (res->set < set ||
+						(res->set == set && res->binding < binding))
+					{
+						++resPos[s];
+						++res;
+					}
+
+					if (
+						resPos[s] < shader->reflect.bindings &&
+						res->set == set)
+					{
+						loop = 1; // Still resources of this set left!
+						if (res->binding == binding)
+							cur = res,
+							stages |= shader->stage;
+					}
+				}
+
+			// Seen all resources, done for this set!
+			if (!loop) break;
+
+			// If an empty resource, skip it.
+			// TODO: Account for unsized resources?
+			if (cur == NULL || cur->count == 0) continue;
+
+			// Push the resource as a binding.
+			int isDynamic =
+				_gfx_find_binding_elem(&technique->dynamic, set, binding, 0);
+
+			VkDescriptorSetLayoutBinding dslb = {
+				.binding            = (uint32_t)binding,
+				.descriptorType     = _GFX_GET_VK_DESCRIPTOR_TYPE(cur->type, isDynamic),
+				.descriptorCount    = (uint32_t)cur->count,
+				.stageFlags         = _GFX_GET_VK_SHADER_STAGE(stages),
+				.pImmutableSamplers = NULL
+			};
+
+			if (!gfx_vec_push(&bindings, 1, &dslb))
+				goto reset;
+		}
+
+		// Loop over all bindings again to create immutable samplers.
+		size_t vlaBinds = bindings.size > 0 ? bindings.size : 1;
+		size_t samOffs[vlaBinds];
+		unsigned char immutable[vlaBinds];
+
+		for (size_t b = 0; b < bindings.size; ++b)
+		{
+			VkDescriptorSetLayoutBinding* dslb = gfx_vec_at(&bindings, b);
+			samOffs[b] = samplers.size;
+			immutable[b] = (unsigned char)_gfx_find_binding_elem(
+				&technique->immutable, set, dslb->binding, 0);
+
+			if (!immutable[b]) continue;
+
+			// Welp, create 'm.
+			for (size_t i = 0; i < dslb->descriptorCount; ++i)
+			{
+				// Define some defaults.
+				VkSamplerReductionModeCreateInfo srmci = {
+					.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO,
+					.pNext = NULL,
+					.reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE
+				};
+
+				VkSamplerCreateInfo sci = {
+					.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+
+					.pNext            = samplerMinmax ? &srmci : NULL,
+					.flags            = 0,
+					.magFilter        = VK_FILTER_NEAREST,
+					.minFilter        = VK_FILTER_NEAREST,
+					.mipmapMode       = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+					.addressModeU     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+					.addressModeV     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+					.addressModeW     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+					.mipLodBias       = 0.0f,
+					.anisotropyEnable = VK_FALSE,
+					.maxAnisotropy    = 1.0f,
+					.compareEnable    = VK_FALSE,
+					.compareOp        = VK_COMPARE_OP_ALWAYS,
+					.minLod           = 0.0f,
+					.maxLod           = 1.0f,
+					.borderColor      = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+
+					.unnormalizedCoordinates = VK_FALSE
+				};
+
+				// Get sampler element.
+				size_t samplerInd = _gfx_find_sampler_elem(
+					&technique->samplers, set, dslb->binding, i, 0);
+
+				if (samplerInd != SIZE_MAX)
+				{
+					// Set given sampler values.
+					GFXSampler* e = &((_GFXSamplerElem*)gfx_vec_at(
+						&technique->samplers, samplerInd))->sampler;
+
+					srmci.reductionMode = _GFX_GET_VK_REDUCTION_MODE(e->mode);
+
+					sci.magFilter     = _GFX_GET_VK_FILTER(e->magFilter);
+					sci.minFilter     = _GFX_GET_VK_FILTER(e->minFilter);
+					sci.mipmapMode    = _GFX_GET_VK_MIPMAP_MODE(e->mipFilter);
+					sci.addressModeU  = _GFX_GET_VK_ADDRESS_MODE(e->wrapU);
+					sci.addressModeV  = _GFX_GET_VK_ADDRESS_MODE(e->wrapV);
+					sci.addressModeW  = _GFX_GET_VK_ADDRESS_MODE(e->wrapW);
+					sci.mipLodBias    = e->mipLodBias;
+					sci.maxAnisotropy = e->maxAnisotropy;
+					sci.compareOp     = _GFX_GET_VK_COMPARE_OP(e->cmp);
+					sci.minLod        = e->minLod;
+					sci.maxLod        = e->maxLod;
+
+					sci.anisotropyEnable =
+						(e->flags & GFX_SAMPLER_ANISOTROPY) ? VK_TRUE : VK_FALSE;
+					sci.compareEnable =
+						(e->flags & GFX_SAMPLER_COMPARE) ? VK_TRUE : VK_FALSE;
+					sci.unnormalizedCoordinates =
+						(e->flags & GFX_SAMPLER_UNNORMALIZED) ? VK_TRUE : VK_FALSE;
+				}
+
+				// Create an actual sampler object.
+				_GFXCacheElem* sampler =
+					_gfx_cache_warmup(&renderer->cache, &sci.sType, NULL);
+
+				const void* handle = sampler;
+				if (
+					sampler == NULL ||
+					!gfx_vec_push(&samplers, 1, &sampler->vk.sampler) ||
+					!gfx_vec_push(&samplerHandles, 1, &handle))
+				{
+					goto reset;
+				}
+			}
+		}
+
+		// And loop AGAIN to set the immutable samplers pointers!
+		for (size_t b = 0; b < bindings.size; ++b)
+			if (immutable[b])
+			{
+				VkDescriptorSetLayoutBinding* dslb = gfx_vec_at(&bindings, b);
+				dslb->pImmutableSamplers = gfx_vec_at(&samplers, samOffs[b]);
+			}
+
+		// Create the actual descriptor set layout.
+		VkDescriptorSetLayoutCreateInfo dslci = {
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+
+			.pNext        = NULL,
+			.flags        = 0,
+			.bindingCount = (uint32_t)bindings.size,
+			.pBindings    = gfx_vec_at(&bindings, 0)
+		};
+
+		const void** handles = gfx_vec_at(&samplerHandles, 0);
+		technique->setLayouts[set] =
+			_gfx_cache_warmup(&renderer->cache, &dslci.sType, handles);
+
+		if (technique->setLayouts[set] == NULL)
+			goto reset;
+
+		// Keep memory for next set!
+		gfx_vec_release(&bindings);
+		gfx_vec_release(&samplers);
+		gfx_vec_release(&samplerHandles);
 	}
 
+	// Clean temporary set memory!
+	gfx_vec_clear(&bindings);
+	gfx_vec_clear(&samplers);
+	gfx_vec_clear(&samplerHandles);
+
 	// Create pipeline layout.
-	size_t vlaSets = technique->numSets > 0 ? technique->numSets : 1;
-	VkDescriptorSetLayout sets[vlaSets];
-	const void* handles[vlaSets]; // Idk for clarity.
+	// We use a scope here so the gotos above are allowed.
+	{
+		size_t vlaSets = technique->numSets > 0 ? technique->numSets : 1;
+		VkDescriptorSetLayout sets[vlaSets];
+		const void* handles[vlaSets]; // Idk for clarity.
 
-	for (size_t s = 0; s < technique->numSets; ++s)
-		sets[s] = technique->setLayouts[s]->vk.setLayout,
-		handles[s] = technique->setLayouts[s];
+		for (size_t s = 0; s < technique->numSets; ++s)
+			sets[s] = technique->setLayouts[s]->vk.setLayout,
+			handles[s] = technique->setLayouts[s];
 
-	VkPushConstantRange pcr = {
-		.stageFlags = _GFX_GET_VK_SHADER_STAGE(technique->pushStages),
-		.offset     = 0,
-		.size       = technique->pushSize
-	};
+		VkPushConstantRange pcr = {
+			.stageFlags = _GFX_GET_VK_SHADER_STAGE(technique->pushStages),
+			.offset     = 0,
+			.size       = technique->pushSize
+		};
 
-	VkPipelineLayoutCreateInfo plci = {
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		VkPipelineLayoutCreateInfo plci = {
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 
-		.pNext                  = NULL,
-		.flags                  = 0,
-		.setLayoutCount         = (uint32_t)technique->numSets,
-		.pSetLayouts            = sets,
-		.pushConstantRangeCount = technique->pushSize > 0 ? 1 : 0,
-		.pPushConstantRanges    = technique->pushSize > 0 ? &pcr : NULL
-	};
+			.pNext                  = NULL,
+			.flags                  = 0,
+			.setLayoutCount         = (uint32_t)technique->numSets,
+			.pSetLayouts            = sets,
+			.pushConstantRangeCount = technique->pushSize > 0 ? 1 : 0,
+			.pPushConstantRanges    = technique->pushSize > 0 ? &pcr : NULL
+		};
 
-	technique->layout =
-		_gfx_cache_warmup(&renderer->cache, &plci.sType, handles);
+		technique->layout =
+			_gfx_cache_warmup(&renderer->cache, &plci.sType, handles);
 
-	// TODO: Continue implementing.
+		if (technique->layout == NULL)
+			goto reset;
+	}
 
-	// And finally, get rid of the samplers, once we're locked we already
-	// created and used all samplers and cannot unlock.
+	// And finally, get rid of the samplers, once we've successfully locked
+	// we already created and used all samplers and cannot unlock.
 	gfx_vec_clear(&technique->samplers);
 
 	return 1;
+
+
+	// Reset on failure.
+reset:
+	technique->layout = NULL;
+	gfx_vec_clear(&bindings);
+	gfx_vec_clear(&samplers);
+	gfx_vec_clear(&samplerHandles);
+
+	for (size_t s = 0; s < technique->numSets; ++s)
+		technique->setLayouts[s] = NULL;
+
+	gfx_log_error("Failed to lock technique.");
+
+	return 0;
 }

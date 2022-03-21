@@ -386,7 +386,7 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
  * @return Zero if failed to set one or more samplers.
  *
  * Fails if the technique is already locked.
- * Samplers that do not match the shader input type are ignored.
+ * Warns about samplers that do not match the shader input type.
  */
 GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
                              size_t numSamplers, const GFXSampler* samplers);
@@ -399,7 +399,7 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
  * @return Non-zero if the binding can be made dynamic.
  *
  * Fails if the technique is already locked.
- * Ignored if the shader input type is not a uniform or storage buffer.
+ * Warns if the shader input type is not a uniform or storage buffer.
  */
 GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
                              size_t binding);

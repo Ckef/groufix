@@ -15,42 +15,42 @@
 
 
 #define _GFX_GET_LANGUAGE_STRING(language) \
-	(((language) == GFX_GLSL) ? "glsl" : \
-	((language) == GFX_HLSL) ? "hlsl" : "*")
+	((language) == GFX_GLSL ? "glsl" : \
+	(language) == GFX_HLSL ? "hlsl" : "*")
 
 #define _GFX_GET_STAGE_STRING(stage) \
-	(((stage) == GFX_STAGE_VERTEX) ? \
+	((stage) == GFX_STAGE_VERTEX ? \
 		"vertex" : \
-	((stage) == GFX_STAGE_TESS_CONTROL) ? \
+	(stage) == GFX_STAGE_TESS_CONTROL ? \
 		"tessellation control" : \
-	((stage) == GFX_STAGE_TESS_EVALUATION) ? \
+	(stage) == GFX_STAGE_TESS_EVALUATION ? \
 		"tessellation evaluation" : \
-	((stage) == GFX_STAGE_GEOMETRY) ? \
+	(stage) == GFX_STAGE_GEOMETRY ? \
 		"geometry" : \
-	((stage) == GFX_STAGE_FRAGMENT) ? \
+	(stage) == GFX_STAGE_FRAGMENT ? \
 		"fragment" : \
-	((stage) == GFX_STAGE_COMPUTE) ? \
+	(stage) == GFX_STAGE_COMPUTE ? \
 		"compute" : "unknown")
 
 #define _GFX_GET_SHADERC_LANGUAGE(language) \
-	(((language) == GFX_GLSL) ? \
+	((language) == GFX_GLSL ? \
 		shaderc_source_language_glsl : \
-	((language) == GFX_HLSL) ? \
+	(language) == GFX_HLSL ? \
 		shaderc_source_language_hlsl : \
 		shaderc_source_language_glsl)
 
 #define _GFX_GET_SHADERC_KIND(stage) \
-	(((stage) == GFX_STAGE_VERTEX) ? \
+	((stage) == GFX_STAGE_VERTEX ? \
 		shaderc_vertex_shader : \
-	((stage) == GFX_STAGE_TESS_CONTROL) ? \
+	(stage) == GFX_STAGE_TESS_CONTROL ? \
 		shaderc_tess_control_shader : \
-	((stage) == GFX_STAGE_TESS_EVALUATION) ? \
+	(stage) == GFX_STAGE_TESS_EVALUATION ? \
 		shaderc_tess_evaluation_shader : \
-	((stage) == GFX_STAGE_GEOMETRY) ? \
+	(stage) == GFX_STAGE_GEOMETRY ? \
 		shaderc_geometry_shader : \
-	((stage) == GFX_STAGE_FRAGMENT) ? \
+	(stage) == GFX_STAGE_FRAGMENT ? \
 		shaderc_fragment_shader : \
-	((stage) == GFX_STAGE_COMPUTE) ? \
+	(stage) == GFX_STAGE_COMPUTE ? \
 		shaderc_compute_shader : \
 		shaderc_glsl_infer_from_source)
 

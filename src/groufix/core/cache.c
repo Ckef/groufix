@@ -144,6 +144,10 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		const VkSamplerCreateInfo* sci =
 			(const VkSamplerCreateInfo*)createInfo;
 
+		// Insert bool 'has pNext'.
+		temp = sci->pNext != NULL;
+		_GFX_KEY_PUSH(temp);
+
 		// Assume pNext is a VkSamplerReductionModeCreateInfo*.
 		if (sci->pNext != NULL)
 		{
