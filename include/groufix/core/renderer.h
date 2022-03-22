@@ -353,6 +353,7 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
  ****************************/
 
 /**
+ * TODO: Make thread-safe?
  * Adds a new technique to the renderer.
  * @param renderer   Cannot be NULL.
  * @param numShaders Must be > 0.
@@ -418,6 +419,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique);
  ****************************/
 
 /**
+ * TODO: Make thread-safe?
  * Adds a new set to the renderer, locking the used technique.
  * @param renderer  Cannot be NULL.
  * @param technique Cannot be NULL, must be from renderer.

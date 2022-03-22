@@ -126,15 +126,15 @@ static size_t _gfx_find_sampler_elem(GFXVec* vec,
 		else return p;
 	}
 
-	if (insert)
+	// Insert anew.
+	if (insert && gfx_vec_insert(vec, 1, NULL, l))
 	{
-		// Insert anew.
-		_GFXSamplerElem elem = {
-			.set = set,
-			.sampler = { .binding = binding, .index = index }
-		};
+		_GFXSamplerElem* e = gfx_vec_at(vec, l);
+		e->set = set;
+		e->sampler.binding = binding;
+		e->sampler.index = index;
 
-		return gfx_vec_insert(vec, 1, &elem, l) ? l : SIZE_MAX;
+		return l;
 	}
 
 	return SIZE_MAX;
@@ -643,12 +643,12 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 	assert(technique != NULL);
 	assert(!technique->renderer->recording);
 
-	GFXRenderer* renderer = technique->renderer;
-	const char samplerMinmax = renderer->device->base.features.samplerMinmax;
-
 	// Already locked.
 	if (technique->layout != NULL)
 		return 1;
+
+	GFXRenderer* renderer = technique->renderer;
+	const char samplerMinmax = renderer->device->base.features.samplerMinmax;
 
 	// Create all descriptor set layouts.
 	// We do this by looping over all descriptor set layouts we know we must
@@ -676,7 +676,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 		{
 			_GFXShaderResource* cur = NULL;
 			GFXShaderStage stages = 0;
-			int loop = 0;
+			int done = 1;
 
 			// Within all shaders, 'loop' to the relevant resource.
 			for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
@@ -700,7 +700,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 						resPos[s] < shader->reflect.bindings &&
 						res->set == set)
 					{
-						loop = 1; // Still resources of this set left!
+						done = 0; // Still resources of this set left!
 						if (res->binding == binding)
 							cur = res,
 							stages |= shader->stage;
@@ -708,7 +708,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 				}
 
 			// Seen all resources, done for this set!
-			if (!loop) break;
+			if (done) break;
 
 			// If an empty resource, skip it.
 			// TODO: Account for unsized resources?
@@ -748,6 +748,8 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 			for (size_t i = 0; i < dslb->descriptorCount; ++i)
 			{
 				// Define some defaults.
+				// TODO: Filter out anisotropy, compare and norm values
+				// when they're not enabled, extract to separate function?
 				VkSamplerReductionModeCreateInfo srmci = {
 					.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO,
 					.pNext = NULL,
@@ -824,7 +826,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 			}
 		}
 
-		// And loop AGAIN to set the immutable samplers pointers!
+		// And loop AGAIN to set the immutable sampler pointers!
 		for (size_t b = 0; b < bindings.size; ++b)
 			if (immutable[b])
 			{
@@ -839,7 +841,9 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 			.pNext        = NULL,
 			.flags        = 0,
 			.bindingCount = (uint32_t)bindings.size,
-			.pBindings    = gfx_vec_at(&bindings, 0)
+
+			.pBindings = bindings.size > 0 ?
+				gfx_vec_at(&bindings, 0) : NULL
 		};
 
 		const void** handles = gfx_vec_at(&samplerHandles, 0);

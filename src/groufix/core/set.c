@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <stdlib.h>
 
 
 /****************************/
@@ -30,8 +31,72 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	assert(numViews == 0 || views != NULL);
 	assert(numSamplers == 0 || samplers != NULL);
 
-	// TODO: Implement.
+	// First of all, make sure the technique is locked.
+	if (!gfx_tech_lock(technique))
+		goto error;
 
+	// Get the number of bindings & entries to allocate.
+	size_t numBindings;
+	size_t numEntries;
+	_gfx_tech_get_set_size(technique, set, &numBindings, &numEntries);
+
+	// Allocate a new set.
+	size_t structSize = GFX_ALIGN_UP(
+		sizeof(GFXSet) + sizeof(_GFXSetBinding) * numBindings,
+		_Alignof(_GFXSetEntry));
+
+	GFXSet* aset = malloc(
+		structSize +
+		sizeof(_GFXSetEntry) * numEntries);
+
+	if (aset == NULL)
+		goto error;
+
+	// Initialize the set.
+	aset->renderer = renderer;
+	aset->setLayout = technique->setLayouts[set];
+	aset->key = NULL;
+	aset->numAttachs = 0;
+	aset->numBindings = numBindings;
+
+	// Get all the bindings.
+	_GFXSetEntry* entryPtr =
+		(_GFXSetEntry*)((char*)aset + structSize);
+
+	for (size_t b = 0; b < numBindings; ++b)
+	{
+		_GFXSetBinding* binding = &aset->bindings[b];
+
+		size_t entries = 0;
+		if (_gfx_tech_get_set_binding(technique, set, b, binding))
+			entries = binding->count;
+
+		binding->keyIndex = 0;
+		binding->entries = entries > 0 ? entryPtr : NULL;
+		entryPtr += entries;
+
+		// Count attachment input bindings.
+		if (binding->type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT)
+			++aset->numAttachs;
+
+		// Initialize entries to empty.
+		for (size_t e = 0; e < entries; ++e)
+		{
+			_GFXSetEntry* entry = &binding->entries[e];
+			entry->ref = GFX_REF_NULL;
+			entry->sampler = NULL;
+		}
+	}
+
+	// Link the set into the renderer.
+	gfx_list_insert_after(&renderer->sets, &aset->list, NULL);
+
+	return aset;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Could not add a new set to a renderer.");
 	return NULL;
 }
 
@@ -41,7 +106,15 @@ GFX_API void gfx_erase_set(GFXSet* set)
 	assert(set != NULL);
 	assert(!set->renderer->recording);
 
-	// TODO: Implement.
+	// Unlink itself from the renderer.
+	gfx_list_erase(&set->renderer->sets, &set->list);
+
+	// Recycle all matching descriptor sets.
+	if (set->key != NULL)
+		_gfx_pool_recycle(&set->renderer->pool, set->key);
+
+	free(set->key);
+	free(set);
 }
 
 /****************************/

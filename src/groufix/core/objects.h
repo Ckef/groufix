@@ -751,9 +751,9 @@ struct GFXTechnique
  */
 typedef struct _GFXSetEntry
 {
-	GFXReference   ref;
+	GFXReference   ref; // GFX_REF_NULL if empty.
 	GFXRange       range;
-	_GFXCacheElem* sampler; // NULL if immutable.
+	_GFXCacheElem* sampler; // May be NULL.
 
 	// TODO: Keep track of current attachment `generation` to limit updates?
 
@@ -803,7 +803,7 @@ struct GFXSet
 	_GFXCacheElem* setLayout;
 	_GFXHashKey*   key;
 
-	size_t         numAttachs; // #referenced attachments.
+	size_t         numAttachs; // #attachment input bindings.
 	size_t         numBindings;
 	_GFXSetBinding bindings[]; // Sorted, no gaps.
 };
