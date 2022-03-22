@@ -643,12 +643,11 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 	assert(technique != NULL);
 	assert(!technique->renderer->recording);
 
+	GFXRenderer* renderer = technique->renderer;
+
 	// Already locked.
 	if (technique->layout != NULL)
 		return 1;
-
-	GFXRenderer* renderer = technique->renderer;
-	const char samplerMinmax = renderer->device->base.features.samplerMinmax;
 
 	// Create all descriptor set layouts.
 	// We do this by looping over all descriptor set layouts we know we must
@@ -747,74 +746,19 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 			// Welp, create 'm.
 			for (size_t i = 0; i < dslb->descriptorCount; ++i)
 			{
-				// Define some defaults.
-				// TODO: Filter out anisotropy, compare and norm values
-				// when they're not enabled, extract to separate function?
-				VkSamplerReductionModeCreateInfo srmci = {
-					.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO,
-					.pNext = NULL,
-					.reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE
-				};
-
-				VkSamplerCreateInfo sci = {
-					.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-
-					.pNext            = samplerMinmax ? &srmci : NULL,
-					.flags            = 0,
-					.magFilter        = VK_FILTER_NEAREST,
-					.minFilter        = VK_FILTER_NEAREST,
-					.mipmapMode       = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-					.addressModeU     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-					.addressModeV     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-					.addressModeW     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-					.mipLodBias       = 0.0f,
-					.anisotropyEnable = VK_FALSE,
-					.maxAnisotropy    = 1.0f,
-					.compareEnable    = VK_FALSE,
-					.compareOp        = VK_COMPARE_OP_ALWAYS,
-					.minLod           = 0.0f,
-					.maxLod           = 1.0f,
-					.borderColor      = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
-
-					.unnormalizedCoordinates = VK_FALSE
-				};
-
-				// Get sampler element.
-				size_t samplerInd = _gfx_find_sampler_elem(
+				const size_t samplerInd = _gfx_find_sampler_elem(
 					&technique->samplers, set, dslb->binding, i, 0);
 
-				if (samplerInd != SIZE_MAX)
-				{
-					// Set given sampler values.
-					GFXSampler* e = &((_GFXSamplerElem*)gfx_vec_at(
+				const GFXSampler* samplerInp =
+					(samplerInd == SIZE_MAX) ? NULL :
+					&((_GFXSamplerElem*)gfx_vec_at(
 						&technique->samplers, samplerInd))->sampler;
 
-					srmci.reductionMode = _GFX_GET_VK_REDUCTION_MODE(e->mode);
-
-					sci.magFilter     = _GFX_GET_VK_FILTER(e->magFilter);
-					sci.minFilter     = _GFX_GET_VK_FILTER(e->minFilter);
-					sci.mipmapMode    = _GFX_GET_VK_MIPMAP_MODE(e->mipFilter);
-					sci.addressModeU  = _GFX_GET_VK_ADDRESS_MODE(e->wrapU);
-					sci.addressModeV  = _GFX_GET_VK_ADDRESS_MODE(e->wrapV);
-					sci.addressModeW  = _GFX_GET_VK_ADDRESS_MODE(e->wrapW);
-					sci.mipLodBias    = e->mipLodBias;
-					sci.maxAnisotropy = e->maxAnisotropy;
-					sci.compareOp     = _GFX_GET_VK_COMPARE_OP(e->cmp);
-					sci.minLod        = e->minLod;
-					sci.maxLod        = e->maxLod;
-
-					sci.anisotropyEnable =
-						(e->flags & GFX_SAMPLER_ANISOTROPY) ? VK_TRUE : VK_FALSE;
-					sci.compareEnable =
-						(e->flags & GFX_SAMPLER_COMPARE) ? VK_TRUE : VK_FALSE;
-					sci.unnormalizedCoordinates =
-						(e->flags & GFX_SAMPLER_UNNORMALIZED) ? VK_TRUE : VK_FALSE;
-				}
-
-				// Create an actual sampler object.
+				// Use the sampler get func for defaults.
 				_GFXCacheElem* sampler =
-					_gfx_cache_warmup(&renderer->cache, &sci.sType, NULL);
+					_gfx_get_sampler(renderer, samplerInp);
 
+				// Push the sampler and a handle.
 				const void* handle = sampler;
 				if (
 					sampler == NULL ||

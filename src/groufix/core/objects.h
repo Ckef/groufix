@@ -1322,6 +1322,15 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  ****************************/
 
 /**
+ * Retrieves a sampler from the renderer's cache (implemented as warmup).
+ * @param renderer Cannot be NULL.
+ * @param sampler  Sampler values to use, NULL for the default sampler.
+ * @return NULL on failure.
+ */
+_GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
+                                const GFXSampler* sampler);
+
+/**
  * Computes the size of a specific descriptor set layout within a technique.
  * @param technique   Cannot be NULL, must be locked.
  * @param set         Must be < technique->numSets.
