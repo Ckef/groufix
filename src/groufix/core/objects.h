@@ -806,7 +806,7 @@ struct GFXSet
 	_GFXCacheElem* setLayout;
 	_GFXHashKey*   key;
 
-	size_t         numAttachs; // #attachment input bindings.
+	size_t         numAttachs; // #referenced attachments.
 	size_t         numBindings;
 	_GFXSetBinding bindings[]; // Sorted, no gaps.
 };

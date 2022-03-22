@@ -76,10 +76,6 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		binding->entries = entries > 0 ? entryPtr : NULL;
 		entryPtr += entries;
 
-		// Count attachment input bindings.
-		if (binding->type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT)
-			++aset->numAttachs;
-
 		// Initialize entries to empty.
 		for (size_t e = 0; e < entries; ++e)
 		{
