@@ -15,6 +15,129 @@
 	((GFXRenderer*)((char*)(frame) - offsetof(GFXRenderer, pFrame)))
 
 
+#define _GFX_GET_VK_FILTER(filter) \
+	(((filter) == GFX_FILTER_NEAREST) ? VK_FILTER_NEAREST : \
+	((filter) == GFX_FILTER_LINEAR) ? VK_FILTER_LINEAR : \
+	VK_FILTER_NEAREST)
+
+#define _GFX_GET_VK_MIPMAP_MODE(filter) \
+	(((filter) == GFX_FILTER_NEAREST) ? VK_SAMPLER_MIPMAP_MODE_NEAREST : \
+	((filter) == GFX_FILTER_LINEAR) ? VK_SAMPLER_MIPMAP_MODE_LINEAR : \
+	VK_SAMPLER_MIPMAP_MODE_NEAREST)
+
+#define _GFX_GET_VK_REDUCTION_MODE(mode) \
+	((mode) == GFX_FILTER_MODE_AVERAGE ? \
+		VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE : \
+	(mode) == GFX_FILTER_MODE_MIN ? \
+		VK_SAMPLER_REDUCTION_MODE_MIN : \
+	(mode) == GFX_FILTER_MODE_MAX ? \
+		VK_SAMPLER_REDUCTION_MODE_MAX : \
+		VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE)
+
+#define _GFX_GET_VK_ADDRESS_MODE(wrap) \
+	((wrap) == GFX_WRAP_REPEAT ? \
+		VK_SAMPLER_ADDRESS_MODE_REPEAT : \
+	(wrap) == GFX_WRAP_REPEAT_MIRROR ? \
+		VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT : \
+	(wrap) == GFX_WRAP_CLAMP_TO_EDGE ? \
+		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : \
+	(wrap) == GFX_WRAP_CLAMP_TO_EDGE_MIRROR ? \
+		VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE : \
+	(wrap) == GFX_WRAP_CLAMP_TO_BORDER ? \
+		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER : \
+		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+
+#define _GFX_GET_VK_COMPARE_OP(op) \
+	(((op) == GFX_CMP_NEVER) ?  VK_COMPARE_OP_NEVER : \
+	((op) == GFX_CMP_LESS) ? VK_COMPARE_OP_LESS : \
+	((op) == GFX_CMP_LESS_EQUAL) ? VK_COMPARE_OP_LESS_OR_EQUAL : \
+	((op) == GFX_CMP_GREATER) ? VK_COMPARE_OP_GREATER : \
+	((op) == GFX_CMP_GREATER_EQUAL) ? VK_COMPARE_OP_GREATER_OR_EQUAL : \
+	((op) == GFX_CMP_EQUAL) ? VK_COMPARE_OP_EQUAL : \
+	((op) == GFX_CMP_NOT_EQUAL) ? VK_COMPARE_OP_NOT_EQUAL : \
+	((op) == GFX_CMP_ALWAYS) ? VK_COMPARE_OP_ALWAYS : \
+	VK_COMPARE_OP_ALWAYS)
+
+
+/****************************/
+_GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
+                                const GFXSampler* sampler)
+{
+	assert(renderer != NULL);
+
+	// Define some defaults.
+	VkSamplerReductionModeCreateInfo srmci = {
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO,
+		.pNext = NULL,
+		.reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE
+	};
+
+	VkSamplerCreateInfo sci = {
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+
+		.pNext            = NULL,
+		.flags            = 0,
+		.magFilter        = VK_FILTER_NEAREST,
+		.minFilter        = VK_FILTER_NEAREST,
+		.mipmapMode       = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		.addressModeU     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeV     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeW     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.mipLodBias       = 0.0f,
+		.anisotropyEnable = VK_FALSE,
+		.maxAnisotropy    = 1.0f,
+		.compareEnable    = VK_FALSE,
+		.compareOp        = VK_COMPARE_OP_ALWAYS,
+		.minLod           = 0.0f,
+		.maxLod           = 1.0f,
+		.borderColor      = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+
+		.unnormalizedCoordinates = VK_FALSE
+	};
+
+	// Set given sampler values.
+	if (sampler != NULL)
+	{
+		// Filter out reduction mode, anisotropy, compare and unnormalized
+		// coordinates if they are not enabled.
+		// This makes it so when disabled, key values in the cache will be
+		// equivalent (!).
+		if (sampler->mode != GFX_FILTER_MODE_AVERAGE)
+		{
+			srmci.pNext = &srmci;
+			srmci.reductionMode = _GFX_GET_VK_REDUCTION_MODE(sampler->mode);
+		}
+
+		if (sampler->flags & GFX_SAMPLER_ANISOTROPY)
+		{
+			sci.anisotropyEnable = VK_TRUE;
+			sci.maxAnisotropy = sampler->maxAnisotropy;
+		}
+
+		if (sampler->flags & GFX_SAMPLER_COMPARE)
+		{
+			sci.compareEnable = VK_TRUE;
+			sci.compareOp = _GFX_GET_VK_COMPARE_OP(sampler->cmp);
+		}
+
+		if (sampler->flags & GFX_SAMPLER_UNNORMALIZED)
+			sci.unnormalizedCoordinates = VK_TRUE;
+
+		sci.magFilter    = _GFX_GET_VK_FILTER(sampler->magFilter);
+		sci.minFilter    = _GFX_GET_VK_FILTER(sampler->minFilter);
+		sci.mipmapMode   = _GFX_GET_VK_MIPMAP_MODE(sampler->mipFilter);
+		sci.addressModeU = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapU);
+		sci.addressModeV = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapV);
+		sci.addressModeW = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapW);
+		sci.mipLodBias   = sampler->mipLodBias;
+		sci.minLod       = sampler->minLod;
+		sci.maxLod       = sampler->maxLod;
+	}
+
+	// Create an actual sampler object.
+	return _gfx_cache_warmup(&renderer->cache, &sci.sType, NULL);
+}
+
 /****************************/
 GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 {
