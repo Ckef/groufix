@@ -58,6 +58,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	aset->key = NULL;
 	aset->numAttachs = 0;
 	aset->numBindings = numBindings;
+	atomic_store(&aset->used, 0);
 
 	// Get all the bindings.
 	_GFXSetEntry* entryPtr =
@@ -110,7 +111,7 @@ GFX_API void gfx_erase_set(GFXSet* set)
 	gfx_list_erase(&set->renderer->sets, &set->list);
 
 	// Recycle all matching descriptor sets.
-	if (set->key != NULL)
+	if (atomic_load(&set->used))
 		_gfx_pool_recycle(&set->renderer->pool, set->key);
 
 	free(set->key);

@@ -800,6 +800,9 @@ struct GFXSet
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
 
+	// If used since last modification.
+	atomic_bool used;
+
 	_GFXCacheElem* setLayout;
 	_GFXHashKey*   key;
 
