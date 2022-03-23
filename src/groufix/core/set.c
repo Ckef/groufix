@@ -11,6 +11,39 @@
 #include <stdlib.h>
 
 
+// Type checkers for Vulkan update info.
+#define _GFX_DESCRIPTOR_IS_BUFFER(type) \
+	((type) == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || \
+	(type) == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER || \
+	(type) == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC || \
+	(type) == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC)
+
+#define _GFX_DESCRIPTOR_IS_IMAGE(type) \
+	((type) == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || \
+	(type) == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE || \
+	(type) == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE || \
+	(type) == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT)
+
+#define _GFX_DESCRIPTOR_IS_SAMPLER(type) \
+	((type) == VK_DESCRIPTOR_TYPE_SAMPLER || \
+	(type) == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+
+#define _GFX_DESCRIPTOR_IS_VIEW(type) \
+	((type) == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER || \
+	(type) == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER)
+
+
+// Type checkers for groufix update info.
+#define _GFX_BINDING_IS_BUFFER(type) \
+	(_GFX_DESCRIPTOR_IS_BUFFER(type) || _GFX_DESCRIPTOR_IS_VIEW(type))
+
+#define _GFX_BINDING_IS_IMAGE(type) \
+	(_GFX_DESCRIPTOR_IS_IMAGE(type))
+
+#define _GFX_BINDING_IS_SAMPLER(type) \
+	(_GFX_DESCRIPTOR_IS_SAMPLER(type))
+
+
 /****************************/
 GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
                                      GFXTechnique* technique, size_t set,
@@ -83,6 +116,42 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 			entry->ref = GFX_REF_NULL;
 			entry->sampler = NULL;
 			entry->vk.format = VK_FORMAT_UNDEFINED;
+
+			// Set range, leave undefined if only a sampler.
+			if (_GFX_BINDING_IS_BUFFER(binding->type))
+				entry->range = (GFXRange){
+					.offset = 0,
+					.size = 0
+				};
+
+			else if (_GFX_BINDING_IS_IMAGE(binding->type))
+				entry->range = (GFXRange){
+					// Specify all aspect flags, will be filtered later on.
+					.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
+					.mipmap = 0,
+					.numMipmaps = 0,
+					.layer = 0,
+					.numLayers = 0
+				};
+
+			// Set update info.
+			if (_GFX_DESCRIPTOR_IS_BUFFER(binding->type))
+				entry->vk.update.buffer = (VkDescriptorBufferInfo){
+					.buffer = VK_NULL_HANDLE,
+					.offset = 0,
+					.range = 0
+				};
+
+			else if(_GFX_DESCRIPTOR_IS_VIEW(binding->type))
+				entry->vk.update.view = VK_NULL_HANDLE;
+
+			else
+				// Else it's an image and/or sampler.
+				entry->vk.update.image = (VkDescriptorImageInfo){
+					.sampler = VK_NULL_HANDLE,
+					.imageView = VK_NULL_HANDLE,
+					.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
+				};
 		}
 	}
 

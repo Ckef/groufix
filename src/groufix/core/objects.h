@@ -709,7 +709,7 @@ struct GFXTechnique
  */
 typedef struct _GFXSetEntry
 {
-	GFXReference   ref; // GFX_REF_NULL if empty.
+	GFXReference   ref; // GFX_REF_NULL if empty or sampler.
 	GFXRange       range;
 	_GFXCacheElem* sampler; // May be NULL.
 
