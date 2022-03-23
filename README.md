@@ -67,4 +67,14 @@ Similarly to initializing the engine, any thread that wants to make any _groufix
 
 * _All functions directly related to the window manager of the host platform are thread-affine_. These functions can __only__ be called from the main thread. These functions are `gfx_poll_events`, `gfx_wait_events` and all functions defined in `groufix/core/window.h` (these are the `gfx_*monitor*` and `gfx_*window*` function families). All other functions can be called from any thread.
 
-When an exception is made to any of the listed rules, this will always be noted alongside the relevant functions of the object in question.
+When an exception is made to any of the listed rules, this will always be noted alongside the relevant functions of the object in question. The following are a few of the most noteworthy exceptions:
+
+* _Device handling_. Any function that takes a `GFXDevice` is thread-safe with respect to that given device.
+
+* _Heap allocations_. To facilitate concurrent creation of resources, all `gfx_alloc_*` and `gfx_free_*` functions are thread-safe with respect to the `GFXHeap`.
+
+* _Memory resource operations_. To facilitate concurrent uploading of resources, operations performed on _different_ resources are thread-safe with respect to the `GFXHeap` that allocated them.
+
+* _Dependency objects_. To facilitate concurrent uploading of resources, the `gfx_dep_*` macro family is thread-safe with respect to the `GFXDependency`.
+
+* _Technique and set handling_. To facilitate concurrent creation of resources, the `gfx_*tech*` and `gfx_*set*` function families are thread-safe with respect to the `GFXRenderer`.

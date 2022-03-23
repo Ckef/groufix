@@ -109,15 +109,21 @@ GFX_API void gfx_erase_set(GFXSet* set)
 
 	GFXRenderer* renderer = set->renderer;
 
-	// Unlink itself from the renderer.
 	// Modifying the renderer, lock!
+	// We need to lock the recycle call too, this should be a rare path
+	// to go down, given dynamic offsets or alike are always prefered to
+	// updating sets.
+	// So aggressive locking is fine.
 	_gfx_mutex_lock(&renderer->lock);
+
+	// Unlink itself from the renderer.
 	gfx_list_erase(&renderer->sets, &set->list);
-	_gfx_mutex_unlock(&renderer->lock);
 
 	// Recycle all matching descriptor sets.
 	if (atomic_load(&set->used))
-		_gfx_pool_recycle(&set->renderer->pool, set->key);
+		_gfx_pool_recycle(&renderer->pool, set->key);
+
+	_gfx_mutex_unlock(&renderer->lock);
 
 	free(set->key);
 	free(set);
