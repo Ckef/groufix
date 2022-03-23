@@ -87,7 +87,10 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	}
 
 	// Link the set into the renderer.
+	// Modifying the renderer, lock!
+	_gfx_mutex_lock(&renderer->lock);
 	gfx_list_insert_after(&renderer->sets, &aset->list, NULL);
+	_gfx_mutex_unlock(&renderer->lock);
 
 	return aset;
 
@@ -104,8 +107,13 @@ GFX_API void gfx_erase_set(GFXSet* set)
 	assert(set != NULL);
 	assert(!set->renderer->recording);
 
+	GFXRenderer* renderer = set->renderer;
+
 	// Unlink itself from the renderer.
-	gfx_list_erase(&set->renderer->sets, &set->list);
+	// Modifying the renderer, lock!
+	_gfx_mutex_lock(&renderer->lock);
+	gfx_list_erase(&renderer->sets, &set->list);
+	_gfx_mutex_unlock(&renderer->lock);
 
 	// Recycle all matching descriptor sets.
 	if (atomic_load(&set->used))

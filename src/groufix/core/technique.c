@@ -496,7 +496,10 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	gfx_vec_init(&tech->dynamic, sizeof(_GFXBindingElem));
 
 	// Link the technique into the renderer.
+	// Modifying the renderer, lock!
+	_gfx_mutex_lock(&renderer->lock);
 	gfx_list_insert_after(&renderer->techniques, &tech->list, NULL);
+	_gfx_mutex_unlock(&renderer->lock);
 
 	return tech;
 
@@ -513,8 +516,13 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique)
 	assert(technique != NULL);
 	assert(!technique->renderer->recording);
 
+	GFXRenderer* renderer = technique->renderer;
+
 	// Unlink itself from the renderer.
-	gfx_list_erase(&technique->renderer->techniques, &technique->list);
+	// Modifying the renderer, lock!
+	_gfx_mutex_lock(&renderer->lock);
+	gfx_list_erase(&renderer->techniques, &technique->list);
+	_gfx_mutex_unlock(&renderer->lock);
 
 	// Destroy itself.
 	gfx_vec_clear(&technique->samplers);

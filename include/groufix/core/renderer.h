@@ -353,12 +353,14 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
  ****************************/
 
 /**
- * TODO: Make thread-safe?
  * Adds a new technique to the renderer.
  * @param renderer   Cannot be NULL.
  * @param numShaders Must be > 0.
  * @param shaders    Cannot be NULL, all must store valid SPIR-V bytecode.
  * @return NULL on failure.
+ *
+ * Thread-safe with respect to renderer,
+ * as are all other functions related to this technique.
  *
  * For each shader stage, the last element in shaders will be taken.
  * Compute shaders cannot be passed in combination with other stages.
@@ -419,7 +421,6 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique);
  ****************************/
 
 /**
- * TODO: Make thread-safe?
  * Adds a new set to the renderer, locking the used technique.
  * @param renderer  Cannot be NULL.
  * @param technique Cannot be NULL, must be from renderer.
@@ -429,6 +430,9 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique);
  * @param views     Cannot be NULL if numViews > 0.
  * @param samplers  Cannot be NULL if numSamplers > 0.
  * @return NULL on failure.
+ *
+ * Thread-safe with respect to renderer,
+ * as are all other functions related to this set.
  *
  * If any descriptor binding is assigned multiple resources or samplers,
  * the last matching element in their respective input arrays will be taken.

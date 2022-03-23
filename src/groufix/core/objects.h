@@ -630,8 +630,9 @@ struct GFXRenderer
 	_GFXQueue     graphics;
 	_GFXQueue     present;
 
-	GFXList techniques; // References GFXTechnique.
-	GFXList sets;       // References GFXSet.
+	GFXList   techniques; // References GFXTechnique.
+	GFXList   sets;       // References GFXSet.
+	_GFXMutex lock;       // For techniques & sets.
 
 	// Render frame (i.e. collection of virtual frames).
 	int recording;

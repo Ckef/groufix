@@ -156,17 +156,21 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
 	_gfx_pick_queue(context, &rend->present, 0, 1);
 
-	// Initialize the cache and pool first.
+	// Initialize the technique/set lock first.
+	if (!_gfx_mutex_init(&rend->lock))
+		goto clean;
+
+	// Initialize the cache and pool second.
 	// TODO: Obviously the correct templateStride should be passed.
 	if (!_gfx_cache_init(&rend->cache, rend->device, sizeof(VkDescriptorBufferInfo)))
-		goto clean;
+		goto clean_lock;
 
 	// Keep descriptor sets 4x the amount of frames we have.
 	// Offset by 1 to account for the first frame using it.
 	if (!_gfx_pool_init(&rend->pool, rend->device, (frames << 2) + 1))
 	{
 		_gfx_cache_clear(&rend->cache);
-		goto clean;
+		goto clean_lock;
 	}
 
 	// Then initialize the allocator, render backing & graph.
@@ -213,6 +217,8 @@ clean_renderer:
 	_gfx_pool_clear(&rend->pool);
 	_gfx_cache_clear(&rend->cache);
 	_gfx_allocator_clear(&rend->allocator);
+clean_lock:
+	_gfx_mutex_clear(&rend->lock);
 clean:
 	gfx_log_error("Could not create a new renderer.");
 	free(rend);
@@ -255,6 +261,7 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	_gfx_cache_clear(&renderer->cache);
 	_gfx_allocator_clear(&renderer->allocator);
 
+	_gfx_mutex_clear(&renderer->lock);
 	free(renderer);
 }
 
