@@ -69,12 +69,12 @@ Similarly to initializing the engine, any thread that wants to make any _groufix
 
 When an exception is made to any of the listed rules, this will always be noted alongside the relevant functions of the object in question. The following are a few of the most noteworthy exceptions:
 
-* __Device handling__. Any function that takes a `GFXDevice` is thread-safe with respect to that given device.
+* __Devices__. Any function that takes a `GFXDevice` is thread-safe with respect to that given device.
 
 * __Heap allocations__. To facilitate concurrent creation of resources, all `gfx_alloc_*` and `gfx_free_*` functions are thread-safe with respect to the `GFXHeap`.
 
-* __Memory resource operations__. To facilitate concurrent uploading of resources, operations performed on _different_ resources are thread-safe with respect to the `GFXHeap` that allocated them.
+* __Memory resource operations__. To facilitate concurrent modification of resources, operations performed on _different_ resources are thread-safe with respect to the `GFXHeap` that allocated them.
 
-* __Dependency objects__. To facilitate concurrent uploading of resources, the `gfx_dep_*` macro family is thread-safe with respect to the `GFXDependency`.
+* __Dependency objects__. To facilitate concurrent synchronization of resources, the `gfx_dep_*` macro family is thread-safe with respect to the `GFXDependency`.
 
-* __Technique and set handling__. To facilitate concurrent creation and modification of resources, the `gfx_*tech*` and `gfx_*set*` function families are thread-safe with respect to the `GFXRenderer`.
+* __Techniques and sets__. To facilitate concurrent creation and modification of resources, the `gfx_*tech*` and `gfx_*set*` function families are thread-safe with respect to the `GFXRenderer`.
