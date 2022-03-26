@@ -44,6 +44,17 @@
 	(_GFX_DESCRIPTOR_IS_SAMPLER(type))
 
 
+// Pushes an lvalue to a hash key being built.
+#define _GFX_KEY_PUSH(value) \
+	do { \
+		if (_gfx_hash_builder_push( \
+			&builder, sizeof(value), &(value)) == NULL) \
+		{ \
+			goto clean_builder; \
+		} \
+	} while (0)
+
+
 /****************************/
 GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
                                      GFXTechnique* technique, size_t set,
@@ -102,6 +113,8 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		_GFXSetBinding* binding = &aset->bindings[b];
 
 		size_t entries = 0;
+		// If this returns 0, we do not use any update entries,
+		// even though binding->count might be > 0!
 		if (_gfx_tech_get_set_binding(technique, set, b, binding))
 			entries = binding->count;
 
@@ -155,6 +168,65 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		}
 	}
 
+	// At this point we have a fully initialized set, except for its cache key.
+	// We first build a key with the empty values, meaning we just push NULL
+	// handles and alike a bunch of times.
+	// This at least means we're not accidentally hashing valid handles.
+	// Note that the key is entirely built in accordance with _gfx_pool_get.
+	_GFXHashBuilder builder;
+	if (!_gfx_hash_builder(&builder))
+		goto clean;
+
+	_GFX_KEY_PUSH(aset->setLayout);
+
+	for (size_t b = 0; b < numBindings; ++b)
+	{
+		_GFXSetBinding* binding = &aset->bindings[b];
+		if (binding->entries == NULL) continue;
+
+		// Firstly, set the key index :)
+		binding->keyIndex = _gfx_hash_builder_index(&builder);
+
+		// Then, push update info to the key.
+		// Note we just push null values (i.e. empty).
+		for (size_t e = 0; e < binding->count; ++e)
+		{
+			if (_GFX_DESCRIPTOR_IS_BUFFER(binding->type))
+			{
+				const _GFXBuffer* nullBuffer = NULL;
+				const VkDeviceSize nullSize = 0;
+				_GFX_KEY_PUSH(nullBuffer);
+				_GFX_KEY_PUSH(nullSize);
+				_GFX_KEY_PUSH(nullSize);
+			}
+
+			else if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
+			{
+				// TODO: Come up with key for buffer view.
+			}
+
+			else
+			{
+				// Else it's an image and/or sampler.
+				const _GFXCacheElem* nullSampler = NULL;
+				const VkImageLayout nullLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				_GFX_KEY_PUSH(nullSampler);
+				// TODO: Come up with key for image view.
+				_GFX_KEY_PUSH(nullLayout);
+			}
+		}
+	}
+
+	// Claim the key!
+	aset->key = _gfx_hash_builder_get(&builder);
+
+	// And finally, before finishing up, set all initial resources, groups,
+	// views and samplers. Let individual resources overwrite groups.
+	gfx_set_samplers(aset, numSamplers, samplers);
+	gfx_set_views(aset, numViews, views);
+	gfx_set_groups(aset, numGroups, groups);
+	gfx_set_resources(aset, numResources, resources);
+
 	// Link the set into the renderer.
 	// Modifying the renderer, lock!
 	_gfx_mutex_lock(&renderer->lock);
@@ -164,7 +236,11 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	return aset;
 
 
-	// Error on failure.
+	// Cleanup on failure.
+clean_builder:
+	free(_gfx_hash_builder_get(&builder));
+clean:
+	free(aset);
 error:
 	gfx_log_error("Could not add a new set to a renderer.");
 	return NULL;

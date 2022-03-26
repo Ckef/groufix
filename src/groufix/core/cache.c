@@ -16,11 +16,11 @@
 #define _GFX_HEADER_MAGIC ((uint32_t)0xff60af14)
 
 
-// Pushes a field to a hash key being built.
-#define _GFX_KEY_PUSH(field) \
+// Pushes an lvalue to a hash key being built.
+#define _GFX_KEY_PUSH(value) \
 	do { \
 		if (_gfx_hash_builder_push( \
-			&builder, sizeof(field), &(field)) == NULL) \
+			&builder, sizeof(value), &(value)) == NULL) \
 		{ \
 			goto clean; \
 		} \
