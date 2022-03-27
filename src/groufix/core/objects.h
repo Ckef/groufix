@@ -576,6 +576,25 @@ typedef struct _GFXAttach
 
 
 /**
+ * Stale resource (to be destroyed after acquisition).
+ */
+typedef struct _GFXStale
+{
+	unsigned int frame; // Index of last frame that used this resource.
+
+
+	// Vulkan fields (any may be VK_NULL_HANDLE).
+	struct
+	{
+		VkImageView imageView;
+		VkBufferView bufferView;
+
+	} vk;
+
+} _GFXStale;
+
+
+/**
  * Frame synchronization (swapchain acquisition) object.
  */
 typedef struct _GFXFrameSync
@@ -637,10 +656,10 @@ struct GFXRenderer
 	// Render frame (i.e. collection of virtual frames).
 	int recording;
 
+	GFXDeque stales; // Stores _GFXStale.
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
 
-	// TODO: Add a GFXDeque for stale (to be destroyed) image/buffer views.
 	// TODO: Add a 'cache' storing {technique,primitive,pass} -> pipeline.
 
 
@@ -1313,8 +1332,9 @@ int _gfx_tech_get_set_binding(GFXTechnique* technique,
  * @param sub Cannot be NULL, must be a subordinate of the set's renderer.
  * @return NULL on failure.
  *
- * Thread-safe with respect to other subordinates,
+ * Thread-safe with respect to the set and other subordinates,
  * essentially a wrapper for _gfx_pool_get.
+ * However, can never run concurrently with other set functions.
  */
 _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub);
 

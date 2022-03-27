@@ -106,7 +106,7 @@ _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
 		_Alignof(_GFXSetEntry));
 
 	const _GFXSetEntry* first =
-		(_GFXSetEntry*)((char*)set + structSize);
+		(const _GFXSetEntry*)((char*)set + structSize);
 
 	// Get the descriptor set.
 	_GFXPoolElem* elem = _gfx_pool_get(
@@ -265,7 +265,8 @@ GFX_API void gfx_erase_set(GFXSet* set)
 	gfx_list_erase(&renderer->sets, &set->list);
 	_gfx_mutex_unlock(&renderer->lock);
 
-	// And recycle all matching descriptor sets.
+	// And recycle all matching descriptor sets,
+	// none of the resources may be referenced anymore!
 	_gfx_set_recycle(set);
 
 	free(set);

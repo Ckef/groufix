@@ -153,6 +153,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_GFX_GET_CONTEXT(context, device, goto clean);
 
 	// Pick the graphics and presentation queues.
+	// Do this first so all other things know the families!
 	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
 	_gfx_pick_queue(context, &rend->present, 0, 1);
 
@@ -180,7 +181,6 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_gfx_render_graph_init(rend);
 
 	// And lastly initialize the virtual frames.
-	// We really do this last so the frames have access to all other things.
 	// Reserve the exact amount as this will never change.
 	gfx_deque_init(&rend->frames, sizeof(GFXFrame));
 	rend->pFrame.vk.done = VK_NULL_HANDLE; // To indicate it is absent.
@@ -205,6 +205,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 
 	gfx_list_init(&rend->techniques);
 	gfx_list_init(&rend->sets);
+	gfx_deque_init(&rend->stales, sizeof(_GFXStale));
 
 	return rend;
 
@@ -252,6 +253,10 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	gfx_list_clear(&renderer->techniques);
 	gfx_list_clear(&renderer->sets);
+
+	// TODO: Destroy all stale resources.
+
+	gfx_deque_clear(&renderer->stales);
 
 	// Clear the allocator, cache, pool, backing & graph in a sensible order,
 	// considering the graph depends on the backing 'n stuff :)
@@ -302,6 +307,8 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 
 	// Synchronize the frame :)
 	_gfx_frame_sync(renderer, &renderer->pFrame);
+
+	// TODO: Destroy all stale resources up until this frame.
 
 	return &renderer->pFrame;
 }

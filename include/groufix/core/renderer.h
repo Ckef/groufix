@@ -613,6 +613,8 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
  * All frame indices are in the range [0, #frames of the renderer].
  * They will be acquired in order, starting at 0.
  * @param frame Cannot be NULL.
+ *
+ * Can be called from any thread.
  */
 GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
 
