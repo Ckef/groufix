@@ -743,7 +743,6 @@ typedef struct _GFXSetBinding
 	VkDescriptorType type;
 	GFXViewType      viewType; // Undefined if not an image.
 
-	size_t        keyIndex; // Of the first entry into the set's key, in bytes.
 	size_t        count;    // 0 = empty binding.
 	_GFXSetEntry* entries;  // NULL if empty or immutable samplers only.
 
@@ -755,14 +754,12 @@ typedef struct _GFXSetBinding
  */
 struct GFXSet
 {
-	GFXListNode  list; // Base-type.
-	GFXRenderer* renderer;
+	GFXListNode    list; // Base-type.
+	GFXRenderer*   renderer;
+	_GFXCacheElem* setLayout;
 
 	// If used since last modification.
 	atomic_bool used;
-
-	_GFXCacheElem* setLayout;
-	_GFXHashKey*   key;
 
 	size_t         numAttachs; // #referenced attachments.
 	size_t         numBindings;
@@ -1276,7 +1273,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
 
 
 /****************************
- * Technique and set.
+ * Technique and set queries.
  ****************************/
 
 /**
@@ -1309,6 +1306,17 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
  */
 int _gfx_tech_get_set_binding(GFXTechnique* technique,
                               size_t set, size_t binding, _GFXSetBinding* out);
+
+/**
+ * Retrieves, allocates or recycles a Vulkan descriptor set of the given set.
+ * @param set Cannot be NULL.
+ * @param sub Cannot be NULL, must be a subordinate of the set's renderer.
+ * @return NULL on failure.
+ *
+ * Thread-safe with respect to other subordinates,
+ * essentially a wrapper for _gfx_pool_get.
+ */
+_GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub);
 
 
 /****************************

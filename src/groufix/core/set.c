@@ -9,6 +9,7 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 // Type checkers for Vulkan update info.
@@ -44,16 +45,78 @@
 	(_GFX_DESCRIPTOR_IS_SAMPLER(type))
 
 
-// Pushes an lvalue to a hash key being built.
-#define _GFX_KEY_PUSH(value) \
-	do { \
-		if (_gfx_hash_builder_push( \
-			&builder, sizeof(value), &(value)) == NULL) \
-		{ \
-			goto clean_builder; \
-		} \
-	} while (0)
+/****************************
+ * Mirrors _GFXHashKey, but containing one _GFXCacheElem* and one GFXSet*.
+ */
+typedef union _GFXSetKey
+{
+	_GFXHashKey hash;
 
+	struct {
+		size_t len;
+		char bytes[sizeof(_GFXCacheElem*) + sizeof(GFXSet*)];
+	};
+
+} _GFXSetKey;
+
+
+/****************************
+ * Recycles all possible matching descriptor sets that a set has queried
+ * from the renderer's pool. Thread-safe outside recording!
+ */
+static void _gfx_set_recycle(GFXSet* set)
+{
+	// Only recycle if the set has been used & reset used flag.
+	if (atomic_exchange(&set->used, 0))
+	{
+		GFXRenderer* renderer = set->renderer;
+
+		// Create a set key.
+		_GFXSetKey key;
+		key.len = sizeof(key.bytes);
+		memcpy(key.bytes, &set->setLayout, sizeof(_GFXCacheElem*));
+		memcpy(key.bytes + sizeof(_GFXCacheElem*), &set, sizeof(GFXSet*));
+
+		// Recycle all matching descriptor sets, this is explicitly NOT
+		// thread-safe, so we use the renderer's lock!
+		// This should be a rare path to go down, given dynamic offsets or
+		// alike are always prefered to updating sets.
+		// So aggressive locking is fine.
+		_gfx_mutex_lock(&renderer->lock);
+		_gfx_pool_recycle(&renderer->pool, &key.hash);
+		_gfx_mutex_unlock(&renderer->lock);
+	}
+}
+
+/****************************/
+_GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
+{
+	assert(set != NULL);
+	assert(sub != NULL);
+
+	// Create a set key.
+	_GFXSetKey key;
+	key.len = sizeof(key.bytes);
+	memcpy(key.bytes, &set->setLayout, sizeof(_GFXCacheElem*));
+	memcpy(key.bytes + sizeof(_GFXCacheElem*), &set, sizeof(GFXSet*));
+
+	// Get the first set entry.
+	const size_t structSize = GFX_ALIGN_UP(
+		sizeof(GFXSet) + sizeof(_GFXSetBinding) * set->numBindings,
+		_Alignof(_GFXSetEntry));
+
+	const _GFXSetEntry* first =
+		(_GFXSetEntry*)((char*)set + structSize);
+
+	// Get the descriptor set.
+	_GFXPoolElem* elem = _gfx_pool_get(
+		&set->renderer->pool, sub,
+		set->setLayout, &key.hash, &first->vk.update);
+
+	// Make sure to set the used flag on success.
+	if (elem != NULL) atomic_store(&set->used, 1);
+	return elem;
+}
 
 /****************************/
 GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
@@ -85,7 +148,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	_gfx_tech_get_set_size(technique, set, &numBindings, &numEntries);
 
 	// Allocate a new set.
-	size_t structSize = GFX_ALIGN_UP(
+	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(GFXSet) + sizeof(_GFXSetBinding) * numBindings,
 		_Alignof(_GFXSetEntry));
 
@@ -99,7 +162,6 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	// Initialize the set.
 	aset->renderer = renderer;
 	aset->setLayout = technique->setLayouts[set];
-	aset->key = NULL;
 	aset->numAttachs = 0;
 	aset->numBindings = numBindings;
 	atomic_store(&aset->used, 0);
@@ -118,7 +180,6 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		if (_gfx_tech_get_set_binding(technique, set, b, binding))
 			entries = binding->count;
 
-		binding->keyIndex = 0;
 		binding->entries = entries > 0 ? entryPtr : NULL;
 		entryPtr += entries;
 
@@ -168,58 +229,6 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		}
 	}
 
-	// At this point we have a fully initialized set, except for its cache key.
-	// We first build a key with the empty values, meaning we just push NULL
-	// handles and alike a bunch of times.
-	// This at least means we're not accidentally hashing valid handles.
-	// Note that the key is entirely built in accordance with _gfx_pool_get.
-	_GFXHashBuilder builder;
-	if (!_gfx_hash_builder(&builder))
-		goto clean;
-
-	_GFX_KEY_PUSH(aset->setLayout);
-
-	for (size_t b = 0; b < numBindings; ++b)
-	{
-		_GFXSetBinding* binding = &aset->bindings[b];
-		if (binding->entries == NULL) continue;
-
-		// Firstly, set the key index :)
-		binding->keyIndex = _gfx_hash_builder_index(&builder);
-
-		// Then, push update info to the key.
-		// Note we just push null values (i.e. empty).
-		for (size_t e = 0; e < binding->count; ++e)
-		{
-			if (_GFX_DESCRIPTOR_IS_BUFFER(binding->type))
-			{
-				const _GFXBuffer* nullBuffer = NULL;
-				const VkDeviceSize nullSize = 0;
-				_GFX_KEY_PUSH(nullBuffer);
-				_GFX_KEY_PUSH(nullSize);
-				_GFX_KEY_PUSH(nullSize);
-			}
-
-			else if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
-			{
-				// TODO: Come up with key for buffer view.
-			}
-
-			else
-			{
-				// Else it's an image and/or sampler.
-				const _GFXCacheElem* nullSampler = NULL;
-				const VkImageLayout nullLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				_GFX_KEY_PUSH(nullSampler);
-				// TODO: Come up with key for image view.
-				_GFX_KEY_PUSH(nullLayout);
-			}
-		}
-	}
-
-	// Claim the key!
-	aset->key = _gfx_hash_builder_get(&builder);
-
 	// And finally, before finishing up, set all initial resources, groups,
 	// views and samplers. Let individual resources overwrite groups.
 	gfx_set_samplers(aset, numSamplers, samplers);
@@ -236,11 +245,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	return aset;
 
 
-	// Cleanup on failure.
-clean_builder:
-	free(_gfx_hash_builder_get(&builder));
-clean:
-	free(aset);
+	// Error on failure.
 error:
 	gfx_log_error("Could not add a new set to a renderer.");
 	return NULL;
@@ -254,23 +259,15 @@ GFX_API void gfx_erase_set(GFXSet* set)
 
 	GFXRenderer* renderer = set->renderer;
 
-	// Modifying the renderer, lock!
-	// We need to lock the recycle call too, this should be a rare path
-	// to go down, given dynamic offsets or alike are always prefered to
-	// updating sets.
-	// So aggressive locking is fine.
-	_gfx_mutex_lock(&renderer->lock);
-
 	// Unlink itself from the renderer.
+	// Modifying the renderer, lock!
+	_gfx_mutex_lock(&renderer->lock);
 	gfx_list_erase(&renderer->sets, &set->list);
-
-	// Recycle all matching descriptor sets.
-	if (atomic_load(&set->used))
-		_gfx_pool_recycle(&renderer->pool, set->key);
-
 	_gfx_mutex_unlock(&renderer->lock);
 
-	free(set->key);
+	// And recycle all matching descriptor sets.
+	_gfx_set_recycle(set);
+
 	free(set);
 }
 

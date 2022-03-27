@@ -261,11 +261,6 @@ typedef struct GFXFrame GFXFrame;
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @param frames Number of virtual frames, must be > 0 (preferably > 1).
  * @return NULL on failure.
- *
- * All descendants of the renderer (techniques, sets, passes and frames) share
- * resources from the renderer and not the renderer, nor its descendants can be
- * operated on concurrently.
- * TODO: Except for the recording of frames!
  */
 GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames);
 
