@@ -187,8 +187,9 @@ void _gfx_push_stale(GFXRenderer* renderer,
 	// Try to push the stale resource otherwise.
 	else if (!gfx_deque_push(&renderer->stales, 1, &stale))
 	{
-		gfx_log_warn(
-			"Stale resources could not be pushed, destroyed instead...");
+		gfx_log_fatal(
+			"Stale resources could not be pushed, "
+			"prematurely destroyed instead...");
 
 		_gfx_destroy_stale(renderer, &stale);
 	}
