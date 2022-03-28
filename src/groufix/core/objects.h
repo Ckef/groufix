@@ -651,7 +651,7 @@ struct GFXRenderer
 
 	GFXList   techniques; // References GFXTechnique.
 	GFXList   sets;       // References GFXSet.
-	_GFXMutex lock;       // For techniques & sets.
+	_GFXMutex lock;       // For recorders, techniques & sets.
 
 	// Render frame (i.e. collection of virtual frames).
 	int recording;
@@ -1292,7 +1292,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
 
 
 /****************************
- * Technique and set queries.
+ * Technique and set.
  ****************************/
 
 /**
@@ -1329,7 +1329,7 @@ int _gfx_tech_get_set_binding(GFXTechnique* technique,
 /**
  * Retrieves, allocates or recycles a Vulkan descriptor set of the given set.
  * @param set Cannot be NULL.
- * @param sub Cannot be NULL, must be a subordinate of the set's renderer.
+ * @param sub Cannot be NULL, must be of the same renderer as set.
  * @return NULL on failure.
  *
  * Thread-safe with respect to the set and other subordinates,
@@ -1380,6 +1380,7 @@ int _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 void _gfx_pass_destruct(GFXPass* pass);
 
 /**
+ * TODO: Temporary probably.
  * Records the pass into the command buffers of a frame.
  * The frame's command buffers must be in the recording state (!).
  * @param pass  Cannot be NULL.

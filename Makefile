@@ -248,7 +248,6 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/ops.o \
  $(OUT)$(SUB)/groufix/core/pass.o \
  $(OUT)$(SUB)/groufix/core/pool.o \
- $(OUT)$(SUB)/groufix/core/record.o \
  $(OUT)$(SUB)/groufix/core/ref.o \
  $(OUT)$(SUB)/groufix/core/renderer.o \
  $(OUT)$(SUB)/groufix/core/set.o \
