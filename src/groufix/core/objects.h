@@ -1309,6 +1309,7 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
  * destroying it the next time the previous frame is acquired/synchronized.
  * @param renderer Cannot be NULL.
  *
+ * Not reentrant nor thread-safe with respect to the virtual frame deque.
  * Any Vulkan resource handle may be VK_NULL_HANDLE, as long as one is not.
  * All handles are invalidated after this call.
  */

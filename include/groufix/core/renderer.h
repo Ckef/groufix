@@ -428,6 +428,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique);
  *
  * Thread-safe with respect to renderer,
  * as are all other functions related to this set.
+ * However, none of them can run concurrently with gfx_renderer_acquire.
  *
  * If any descriptor binding is assigned multiple resources or samplers,
  * the last matching element in their respective input arrays will be taken.
