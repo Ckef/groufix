@@ -250,6 +250,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CmdSetViewport);
 		_GFX_VK_PFN(CmdSetScissor);
 		_GFX_VK_PFN(CreateBuffer);
+		_GFX_VK_PFN(CreateBufferView);
 		_GFX_VK_PFN(CreateCommandPool);
 		_GFX_VK_PFN(CreateComputePipelines);
 		_GFX_VK_PFN(CreateDescriptorPool);
@@ -268,6 +269,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CreateShaderModule);
 		_GFX_VK_PFN(CreateSwapchainKHR);
 		_GFX_VK_PFN(DestroyBuffer);
+		_GFX_VK_PFN(DestroyBufferView);
 		_GFX_VK_PFN(DestroyCommandPool);
 		_GFX_VK_PFN(DestroyDescriptorPool);
 		_GFX_VK_PFN(DestroyDescriptorSetLayout);

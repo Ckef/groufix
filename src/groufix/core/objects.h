@@ -1305,6 +1305,17 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
                                 const GFXSampler* sampler);
 
 /**
+ * Pushes stale resources to the renderer,
+ * destroying it the next time the previous frame is acquired/synchronized.
+ * @param renderer Cannot be NULL.
+ *
+ * Any Vulkan resource handle may be VK_NULL_HANDLE, as long as one is not.
+ * All handles are invalidated after this call.
+ */
+void _gfx_push_stale(GFXRenderer* renderer,
+                     VkImageView imageView, VkBufferView bufferView);
+
+/**
  * Computes the size of a specific descriptor set layout within a technique.
  * @param technique   Cannot be NULL, must be locked.
  * @param set         Must be < technique->numSets.

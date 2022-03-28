@@ -775,6 +775,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CmdSetViewport);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdSetScissor);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);
+	_GFX_GET_DEVICE_PROC_ADDR(CreateBufferView);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateComputePipelines);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateDescriptorPool);
@@ -793,6 +794,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CreateShaderModule);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyBuffer);
+	_GFX_GET_DEVICE_PROC_ADDR(DestroyBufferView);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyCommandPool);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyDescriptorPool);
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyDescriptorSetLayout);

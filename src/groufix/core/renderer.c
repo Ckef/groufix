@@ -138,6 +138,62 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
 	return _gfx_cache_warmup(&renderer->cache, &sci.sType, NULL);
 }
 
+/****************************
+ * Destroys all the resources stored in a stale resource object.
+ * @param renderer Cannot be NULL.
+ * @param stale    Cannot be NULL, not removed from renderer!
+ */
+static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
+{
+	assert(renderer != NULL);
+	assert(stale != NULL);
+
+	_GFXContext* context = renderer->allocator.context;
+
+	// Yep just destroy all resources.
+	context->vk.DestroyImageView(
+		context->vk.device, stale->vk.imageView, NULL);
+	context->vk.DestroyBufferView(
+		context->vk.device, stale->vk.bufferView, NULL);
+}
+
+/****************************/
+void _gfx_push_stale(GFXRenderer* renderer,
+                     VkImageView imageView, VkBufferView bufferView)
+{
+	assert(renderer != NULL);
+	assert(imageView != VK_NULL_HANDLE || bufferView != VK_NULL_HANDLE);
+
+	// Get the last submitted frame's index.
+	// If there are no frames, there must be a public frame.
+	const GFXFrame* frame =
+		renderer->frames.size == 0 ?
+		&renderer->pFrame :
+		gfx_deque_at(&renderer->frames, renderer->frames.size - 1);
+
+	_GFXStale stale = {
+		.frame = frame->index,
+		.vk = {
+			.imageView = imageView,
+			.bufferView = bufferView
+		}
+	};
+
+	// If no non-public frames, there are no frames still rendering,
+	// thus we can immediately destroy.
+	if (renderer->frames.size == 0)
+		_gfx_destroy_stale(renderer, &stale);
+
+	// Try to push the stale resource otherwise.
+	else if (!gfx_deque_push(&renderer->stales, 1, &stale))
+	{
+		gfx_log_warn(
+			"Stale resources could not be pushed, destroyed instead...");
+
+		_gfx_destroy_stale(renderer, &stale);
+	}
+}
+
 /****************************/
 GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 {
@@ -244,6 +300,12 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	gfx_deque_clear(&renderer->frames);
 
+	// Destroy all stale resources.
+	for (size_t s = 0; s < renderer->stales.size; ++s)
+		_gfx_destroy_stale(renderer, gfx_deque_at(&renderer->stales, s));
+
+	gfx_deque_clear(&renderer->stales);
+
 	// Erase all techniques and sets.
 	while (renderer->techniques.head != NULL)
 		gfx_erase_tech((GFXTechnique*)renderer->techniques.head);
@@ -253,10 +315,6 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	gfx_list_clear(&renderer->techniques);
 	gfx_list_clear(&renderer->sets);
-
-	// TODO: Destroy all stale resources.
-
-	gfx_deque_clear(&renderer->stales);
 
 	// Clear the allocator, cache, pool, backing & graph in a sensible order,
 	// considering the graph depends on the backing 'n stuff :)
@@ -308,7 +366,18 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	// Synchronize the frame :)
 	_gfx_frame_sync(renderer, &renderer->pFrame);
 
-	// TODO: Destroy all stale resources up until this frame.
+	// Destory all stale resources that were last used by this frame.
+	// All previous frames should have destroyed all indices before the ones
+	// with this frame's index.
+	// If they did not, it means a frame was lost, which is fatal anyway.
+	while (renderer->stales.size > 0)
+	{
+		_GFXStale* stale = gfx_deque_at(&renderer->stales, 0);
+		if (stale->frame != renderer->pFrame.index) break;
+
+		_gfx_destroy_stale(renderer, stale);
+		gfx_deque_pop_front(&renderer->stales, 1);
+	}
 
 	return &renderer->pFrame;
 }
