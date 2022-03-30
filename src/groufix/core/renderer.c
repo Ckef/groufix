@@ -370,7 +370,7 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	// Synchronize the frame :)
 	_gfx_frame_sync(renderer, &renderer->pFrame);
 
-	// Destory all stale resources that were last used by this frame.
+	// Destroy all stale resources that were last used by this frame.
 	// All previous frames should have destroyed all indices before the ones
 	// with this frame's index.
 	// If they did not, it means a frame was lost, which is fatal anyway.

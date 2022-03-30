@@ -281,9 +281,53 @@ GFX_API int gfx_set_resources(GFXSet* set,
 	assert(numResources > 0);
 	assert(resources != NULL);
 
-	// TODO: Implement.
+	// Keep track of success, much like the technique,
+	// we skip over failures.
+	int success = 1;
 
-	return 0;
+	for (size_t r = 0; r < numResources; ++r)
+	{
+		const GFXSetResource* res = &resources[r];
+
+		// Check if the resource exists.
+		if (
+			res->binding >= set->numBindings ||
+			res->index >= set->bindings[res->binding].count)
+		{
+			// Skip it if not.
+			gfx_log_warn(
+				"Could not set descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
+				"of a set, does not exist.",
+				res->binding, res->index);
+
+			success = 0;
+			continue;
+		}
+
+		_GFXSetBinding* binding = &set->bindings[res->binding];
+		_GFXSetEntry* entry = &binding->entries[res->index];
+
+		// Check if the types match.
+		if (
+			GFX_REF_IS_NULL(res->ref) ||
+			(GFX_REF_IS_BUFFER(res->ref) && !_GFX_BINDING_IS_BUFFER(binding->type)) ||
+			(GFX_REF_IS_IMAGE(res->ref) && !_GFX_BINDING_IS_IMAGE(binding->type)))
+		{
+			gfx_log_warn(
+				"Could not set descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
+				"of a set, incompatible resource type.",
+				res->binding, res->index);
+
+			success = 0;
+			continue;
+		}
+
+		// TODO: Continue implementing.
+	}
+
+	return success;
 }
 
 /****************************/

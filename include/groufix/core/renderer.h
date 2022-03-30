@@ -458,10 +458,10 @@ GFX_API void gfx_erase_set(GFXSet* set);
  * @param set          Cannot be NULL.
  * @param numResources Must be > 0.
  * @param resources    Cannot be NULL.
- * @return Non-zero on success.
+ * @return Zero if failed to set one or more resources.
  *
  * If any descriptor binding is assigned multiple times, the last is taken.
- * Resources that do not match the shader input type are ignored.
+ * Warns about resources that do not match the shader input type.
  */
 GFX_API int gfx_set_resources(GFXSet* set,
                               size_t numResources, const GFXSetResource* resources);
@@ -471,10 +471,10 @@ GFX_API int gfx_set_resources(GFXSet* set,
  * @param set       Cannot be NULL.
  * @param numGroups Must be > 0.
  * @param groups    Cannot be NULL.
- * @return Non-zero on success.
+ * @return Zero if failed to set one or more resources.
  *
  * If any descriptor binding is assigned multiple times, the last is taken.
- * Resources that do not match the shader input type are ingored.
+ * Warns about resources that do not match the shader input type.
  */
 GFX_API int gfx_set_groups(GFXSet* set,
                            size_t numGroups, const GFXSetGroup* groups);
@@ -484,7 +484,7 @@ GFX_API int gfx_set_groups(GFXSet* set,
  * @param set      Cannot be NULL.
  * @param numViews Must be > 0.
  * @param views    Cannot be NULL.
- * @return Non-zero on success.
+ * @return Zero if failed to set one or more views.
  *
  * If any descriptor binding is assigned multiple views, the last is taken.
  * All views MUST match the shader input type!
@@ -497,10 +497,10 @@ GFX_API int gfx_set_views(GFXSet* set,
  * @param set         Cannot be NULL.
  * @param numSamplers Must be > 0.
  * @param samplers    Cannot be NULL.
- * @return Non-zero on success.
+ * @return Zero if failed to set one or more samplers.
  *
  * If any descriptor binding is assigned multiple samplers, the last is taken.
- * Samplers that do not match the shader input type are ignored.
+ * Warns about samplers that do not match the shader input type.
  */
 GFX_API int gfx_set_samplers(GFXSet* set,
                              size_t numSamplers, const GFXSampler* samplers);
