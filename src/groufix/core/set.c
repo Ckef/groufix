@@ -61,6 +61,78 @@ typedef union _GFXSetKey
 
 
 /****************************
+ * Makes set resources stale, i.e. pushing them to the renderer for
+ * destruction when they are no longer used by any virtual frames.
+ */
+static void _gfx_make_stale(GFXSet* set,
+                            VkImageView imageView, VkBufferView bufferView)
+{
+	// _gfx_push_stale expects at least one resource!
+	if (imageView != VK_NULL_HANDLE || bufferView != VK_NULL_HANDLE)
+	{
+		// Explicitly not thread-safe, so we use the renderer's lock!
+		// This should be a rare path to go down, given dynamic offsets or
+		// alike are always prefered to updating sets.
+		// So aggressive locking is fine.
+		GFXRenderer* renderer = set->renderer;
+		_gfx_mutex_lock(&renderer->lock);
+		_gfx_push_stale(renderer, imageView, bufferView);
+		_gfx_mutex_unlock(&renderer->lock);
+	}
+}
+
+/****************************
+ * Overwrites the Vulkan update info with the current groufix update info.
+ * Assumes all relevant data is initialized and valid.
+ */
+static void _gfx_set_update(GFXSet* set,
+                            _GFXSetBinding* binding, _GFXSetEntry* entry)
+{
+	// Update buffer info.
+	if (_GFX_DESCRIPTOR_IS_BUFFER(binding->type))
+	{
+		_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
+		if (unp.obj.buffer != NULL)
+			entry->vk.update.buffer = (VkDescriptorBufferInfo){
+				.buffer = unp.obj.buffer->vk.buffer,
+				.offset = unp.value + entry->range.offset,
+				.range =
+					// Resolve zero buffer size.
+					(entry->range.size == 0) ?
+					_gfx_ref_size(entry->ref) - entry->range.offset :
+					entry->range.size
+			};
+	}
+
+	// Update image info.
+	if (_GFX_DESCRIPTOR_IS_IMAGE(binding->type))
+	{
+		// Make the previous image view stale.
+		_gfx_make_stale(set, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+		entry->vk.update.image.imageView = VK_NULL_HANDLE;
+
+		// TODO: Make new image view.
+	}
+
+	// Update sampler info.
+	if (_GFX_DESCRIPTOR_IS_SAMPLER(binding->type))
+	{
+		if (entry->sampler != NULL)
+			entry->vk.update.image.sampler = entry->sampler->vk.sampler;
+	}
+
+	// Update buffer view info.
+	if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
+	{
+		// Make the previous buffer view stale.
+		_gfx_make_stale(set, VK_NULL_HANDLE, entry->vk.update.view);
+		entry->vk.update.view = VK_NULL_HANDLE;
+
+		// TODO: Make new buffer view.
+	}
+}
+
+/****************************
  * Recycles all possible matching descriptor sets that a set has queried
  * from the renderer's pool. Thread-safe outside recording!
  */
@@ -79,9 +151,8 @@ static void _gfx_set_recycle(GFXSet* set)
 
 		// Recycle all matching descriptor sets, this is explicitly NOT
 		// thread-safe, so we use the renderer's lock!
-		// This should be a rare path to go down, given dynamic offsets or
-		// alike are always prefered to updating sets.
-		// So aggressive locking is fine.
+		// Just like making the views stale, this should be a rare path to
+		// go down to and aggressive locking is fine.
 		_gfx_mutex_lock(&renderer->lock);
 		_gfx_pool_recycle(&renderer->pool, &key.hash);
 		_gfx_mutex_unlock(&renderer->lock);
@@ -114,6 +185,7 @@ _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
 		set->setLayout, &key.hash, &first->vk.update);
 
 	// Make sure to set the used flag on success.
+	// This HAS to be atomic so multiple threads can record using this set!
 	if (elem != NULL) atomic_store(&set->used, 1);
 	return elem;
 }
@@ -230,6 +302,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		}
 	}
 
+	// TODO: Call intermediate function to not recreate views multiple times!
 	// And finally, before finishing up, set all initial resources, groups,
 	// views and samplers. Let individual resources and views overwrite groups.
 	gfx_set_groups(aset, numGroups, groups);
@@ -266,6 +339,21 @@ GFX_API void gfx_erase_set(GFXSet* set)
 	gfx_list_erase(&renderer->sets, &set->list);
 	_gfx_mutex_unlock(&renderer->lock);
 
+	// We have to loop over all descriptors and
+	// make the image and buffer views stale.
+	for (size_t b = 0; b < set->numBindings; ++b)
+	{
+		_GFXSetBinding* binding = &set->bindings[b];
+		if (binding->entries != NULL) for (size_t e = 0; e < binding->count; ++e)
+		{
+			_GFXSetEntry* entry = &binding->entries[e];
+			if (_GFX_DESCRIPTOR_IS_IMAGE(binding->type))
+				_gfx_make_stale(set, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+			else if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
+				_gfx_make_stale(set, VK_NULL_HANDLE, entry->vk.update.view);
+		}
+	}
+
 	// And recycle all matching descriptor sets,
 	// none of the resources may be referenced anymore!
 	_gfx_set_recycle(set);
@@ -285,6 +373,7 @@ GFX_API int gfx_set_resources(GFXSet* set,
 	// Keep track of success, much like the technique,
 	// we skip over failures.
 	int success = 1;
+	int recycle = 0;
 
 	for (size_t r = 0; r < numResources; ++r)
 	{
@@ -337,9 +426,14 @@ GFX_API int gfx_set_resources(GFXSet* set,
 
 		// Set the new reference & update.
 		entry->ref = res->ref;
-
-		// TODO: Update.
+		recycle = 1;
+		_gfx_set_update(set, binding, entry);
 	}
+
+	// If anything was updated, recycle the set,
+	// we're possibily referencing resources that may be freed or smth.
+	if (recycle)
+		_gfx_set_recycle(set);
 
 	return success;
 }

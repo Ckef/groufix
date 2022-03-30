@@ -760,7 +760,7 @@ typedef struct _GFXSetEntry
  */
 typedef struct _GFXSetBinding
 {
-	VkDescriptorType type;
+	VkDescriptorType type;     // Undefined if empty.
 	GFXViewType      viewType; // Undefined if not a non-attachment image.
 
 	size_t        count;    // 0 = empty binding.

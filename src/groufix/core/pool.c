@@ -148,6 +148,16 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	_GFXPoolBlock* block = elem->block;
 	int recycled = 1;
 
+	// TODO: Actually, if we call this from anywhere but the flush call,
+	// the descriptor set may still be in use in some frame.
+	// However by moving them to the recycled hashtable they can be
+	// overwritten the next recording... Somehow fix!!
+	// Possibly keep counting #flushes after recycling, and only reuse
+	// if it exceeds the flush count?
+	// OR flag elements as stale and skip over them on lookup, then
+	// recycle as normal?
+	// OR add a stale map to the pool and recycle that too on flushes?
+
 	// Build a new key, only containing the cache element storing the
 	// descriptor set layout, this way we do not search for specific
 	// descriptors anymore, but only for the layout.
@@ -170,6 +180,10 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 		gfx_map_ferase(map, elem);
 		recycled = 0;
 	}
+
+	// TODO: Actually we cannot free blocks here!?
+	// The block may contain descriptor sets still being used in frames!?
+	// Wait until all frames are done!
 
 	// Decrease the set count of its descriptor block.
 	// If it hits zero, we can destroy the block.
