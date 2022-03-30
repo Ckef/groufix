@@ -245,7 +245,7 @@ typedef struct _GFXShaderResource
 	// Array size (increasing location for vert/frag io), 0 = unsized.
 	size_t count;
 
-	// Undefined if not an image.
+	// Undefined if not a non-attachment image.
 	GFXViewType viewType;
 
 
@@ -730,7 +730,8 @@ typedef struct _GFXSetEntry
 {
 	GFXReference   ref; // GFX_REF_NULL if empty or sampler.
 	GFXRange       range;
-	_GFXCacheElem* sampler; // May be NULL.
+	GFXViewType    viewType; // For attachment inputs.
+	_GFXCacheElem* sampler;  // May be NULL.
 
 	// TODO: Keep track of current attachment `generation` to limit updates?
 
@@ -760,7 +761,7 @@ typedef struct _GFXSetEntry
 typedef struct _GFXSetBinding
 {
 	VkDescriptorType type;
-	GFXViewType      viewType; // Undefined if not an image.
+	GFXViewType      viewType; // Undefined if not a non-attachment image.
 
 	size_t        count;    // 0 = empty binding.
 	_GFXSetEntry* entries;  // NULL if empty or immutable samplers only.
@@ -845,7 +846,7 @@ struct GFXPass
 typedef struct _GFXUnpackRef
 {
 	// Unpacked reference value(s),
-	//  buffer offset | attachment index.
+	//  buffer offset | attachment index | 0.
 	uint64_t value;
 
 

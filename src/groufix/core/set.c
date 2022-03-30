@@ -188,6 +188,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		{
 			_GFXSetEntry* entry = &binding->entries[e];
 			entry->ref = GFX_REF_NULL;
+			entry->viewType = GFX_VIEW_2D;
 			entry->sampler = NULL;
 			entry->vk.format = VK_FORMAT_UNDEFINED;
 
@@ -230,11 +231,11 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	}
 
 	// And finally, before finishing up, set all initial resources, groups,
-	// views and samplers. Let individual resources overwrite groups.
-	gfx_set_samplers(aset, numSamplers, samplers);
-	gfx_set_views(aset, numViews, views);
+	// views and samplers. Let individual resources and views overwrite groups.
 	gfx_set_groups(aset, numGroups, groups);
 	gfx_set_resources(aset, numResources, resources);
+	gfx_set_samplers(aset, numSamplers, samplers);
+	gfx_set_views(aset, numViews, views);
 
 	// Link the set into the renderer.
 	// Modifying the renderer, lock!
@@ -324,7 +325,20 @@ GFX_API int gfx_set_resources(GFXSet* set,
 			continue;
 		}
 
-		// TODO: Continue implementing.
+		// Check if it is even a different reference.
+		// For this we want to unpack the reference, as we want to check the
+		// underlying resource, not the top-level reference.
+		_GFXUnpackRef cur = _gfx_ref_unpack(entry->ref);
+		_GFXUnpackRef new = _gfx_ref_unpack(res->ref);
+
+		// If equal (including offsets), just skip it, not a failure.
+		if (_GFX_UNPACK_REF_IS_EQUAL(cur, new) && cur.value == new.value)
+			continue;
+
+		// Set the new reference & update.
+		entry->ref = res->ref;
+
+		// TODO: Update.
 	}
 
 	return success;

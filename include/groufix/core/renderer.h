@@ -432,7 +432,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique);
  *
  * If any descriptor binding is assigned multiple resources or samplers,
  * the last matching element in their respective input arrays will be taken.
- * Individual set resources will always overwrite group bindings.
+ * Individual set resources and views will always overwrite group bindings.
  * All views MUST match the shader input type!
  *
  * The returned set will not reference the technique anymore,
