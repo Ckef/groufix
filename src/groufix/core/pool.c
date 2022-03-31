@@ -348,8 +348,8 @@ int _gfx_pool_flush(_GFXPool* pool)
 	{
 		_GFXPoolElem* next = gfx_map_next(&pool->immutable, elem);
 
-		// Recycle it if it exceeds the max number of flushes.
-		if (atomic_fetch_add(&elem->flushes, 1) + 1 >= pool->flushes)
+		// Recycle it if it has no more flushes to do (i.e. reaches 0).
+		if (atomic_fetch_sub(&elem->flushes, 1) == 1)
 			lost += !_gfx_recycle_pool_elem(pool, &pool->immutable, elem);
 
 		elem = next;
@@ -676,6 +676,6 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 
 	// Reset #flushes of the element & return when found.
 found:
-	atomic_store(&elem->flushes, 0);
+	atomic_store(&elem->flushes, pool->flushes);
 	return elem;
 }

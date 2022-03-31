@@ -487,7 +487,7 @@ typedef struct _GFXPoolElem
 	GFXListNode    list; // Base-type.
 	_GFXPoolBlock* block;
 
-	// Last used #flushes ago.
+	// #flushes left to recycle.
 	atomic_uint flushes;
 
 
