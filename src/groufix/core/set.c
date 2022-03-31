@@ -135,6 +135,7 @@ static void _gfx_set_update(GFXSet* set,
 /****************************
  * Recycles all possible matching descriptor sets that a set has queried
  * from the renderer's pool. Thread-safe outside recording!
+ * However, NOT thread-safe with respect to the virtual frame deque!
  */
 static void _gfx_set_recycle(GFXSet* set)
 {
@@ -149,12 +150,21 @@ static void _gfx_set_recycle(GFXSet* set)
 		memcpy(key.bytes, &set->setLayout, sizeof(_GFXCacheElem*));
 		memcpy(key.bytes + sizeof(_GFXCacheElem*), &set, sizeof(GFXSet*));
 
+		// Get #flushes after which the set can be truly recycled.
+		// We are allowed to overwrite it when all frames (N) have synced.
+		// Meaning after N-1 submits the last frame will be synced,
+		// at which point we can use the set again :)
+		const unsigned int flushes =
+			renderer->pFrame.vk.done != VK_NULL_HANDLE ?
+			(unsigned int)renderer->frames.size :
+			(unsigned int)renderer->frames.size - 1;
+
 		// Recycle all matching descriptor sets, this is explicitly NOT
 		// thread-safe, so we use the renderer's lock!
 		// Just like making the views stale, this should be a rare path to
 		// go down to and aggressive locking is fine.
 		_gfx_mutex_lock(&renderer->lock);
-		_gfx_pool_recycle(&renderer->pool, &key.hash);
+		_gfx_pool_recycle(&renderer->pool, &key.hash, flushes);
 		_gfx_mutex_unlock(&renderer->lock);
 	}
 }

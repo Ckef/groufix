@@ -148,29 +148,6 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	_GFXPoolBlock* block = elem->block;
 	int recycled = 1;
 
-	// TODO: Actually, if we call this from anywhere but the flush call,
-	// the descriptor set may still be in use in some frame.
-	// However by moving them to the recycled hashtable they can be
-	// overwritten the next recording... Somehow fix!!
-	// Possibly keep counting #flushes after recycling, and only reuse
-	// if it exceeds the flush count?
-	// OR flag elements as stale and skip over them on lookup, then
-	// recycle as normal?
-	// OR add a stale map to the pool and recycle that too on flushes?
-	//
-	// Plan: reverse the counting direction of elem.flushes, counting towards
-	// zero, then add a stale map to the pool such that we can use a different
-	// count from the normal many flushes.
-	// Then in _gfx_pool_recycle, pass the framecount, the elements get moved
-	// to the stale map with that count first, and when it hits 0 it gets
-	// moved to the recycled map.
-	// Unless it was already flushed that count many times, then immediately
-	// move it to the recycled map.
-	// This way it:
-	//  - doesn't get used the next frames.
-	//  - only gets reused when no frames are using it anymore!
-	//  - gets immediately reused when it wasn't being used anymore already!
-
 	// Build a new key, only containing the cache element storing the
 	// descriptor set layout, this way we do not search for specific
 	// descriptors anymore, but only for the layout.
@@ -193,10 +170,6 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 		gfx_map_ferase(map, elem);
 		recycled = 0;
 	}
-
-	// TODO: Actually we cannot free blocks here!?
-	// The block may contain descriptor sets still being used in frames!?
-	// Wait until all frames are done!
 
 	// Decrease the set count of its descriptor block.
 	// If it hits zero, we can destroy the block.
@@ -224,6 +197,46 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	}
 
 	return recycled;
+}
+
+/****************************
+ * Makes yet-unstale _GFXPoolElem objects holding a descriptor set stale,
+ * causing it to never be returned by _gfx_pool_get until truly recycled.
+ * Might recycle the element immediately!
+ * @see _gfx_recycle_pool_elem.
+ * @param flushes Gets truly recycled after #flushes.
+ */
+static int _gfx_make_pool_elem_stale(_GFXPool* pool, GFXMap* map,
+                                     _GFXPoolElem* elem, unsigned int flushes)
+{
+	assert(pool != NULL);
+	assert(elem != NULL);
+	assert(map != NULL);
+	assert(map != &pool->stale);
+
+	// First check if the element was already flushed enough times.
+	// If so, immediately recycle.
+	const unsigned int flushed =
+		pool->flushes - atomic_load(&elem->flushes);
+
+	if (flushed >= flushes)
+		return _gfx_recycle_pool_elem(pool, map, elem);
+
+	// Try to move the element to the stale hashtable.
+	// Make sure to use the fast variants of map_(move|erase), so
+	// we can keep iterating outside this function!
+	if (!gfx_map_fmove(
+		map, &pool->stale, elem, 0, NULL))
+	{
+		// If that failed, erase it entirely, it will never be used again.
+		gfx_list_erase(&elem->block->elems, &elem->list);
+		gfx_map_ferase(map, elem);
+		return 0;
+	}
+
+	// And set its new flush count on success.
+	atomic_store(&elem->flushes, flushes - flushed);
+	return 1;
 }
 
 /****************************/
@@ -256,6 +269,8 @@ int _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes)
 		GFX_MAX(_Alignof(_GFXHashKey), _Alignof(_GFXPoolElem));
 
 	gfx_map_init(&pool->immutable,
+		sizeof(_GFXPoolElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
+	gfx_map_init(&pool->stale,
 		sizeof(_GFXPoolElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
 	gfx_map_init(&pool->recycled,
 		sizeof(_GFXPoolElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
@@ -299,6 +314,7 @@ void _gfx_pool_clear(_GFXPool* pool)
 
 	// Clear all the things.
 	gfx_map_clear(&pool->immutable);
+	gfx_map_clear(&pool->stale);
 	gfx_map_clear(&pool->recycled);
 
 	gfx_list_clear(&pool->free);
@@ -342,21 +358,32 @@ int _gfx_pool_flush(_GFXPool* pool)
 	// guarantees the node order stays the same.
 	// We use this to loop 'over' the moved nodes.
 	size_t lost = 0;
-	_GFXPoolElem* elem = gfx_map_first(&pool->immutable);
+
+	// Start at the immutable table.
+	GFXMap* map = &pool->immutable;
+	_GFXPoolElem* elem = gfx_map_first(map);
 
 	while (elem != NULL)
 	{
-		_GFXPoolElem* next = gfx_map_next(&pool->immutable, elem);
+		_GFXPoolElem* next = gfx_map_next(map, elem);
 
 		// Recycle it if it has no more flushes to do (i.e. reaches 0).
 		if (atomic_fetch_sub(&elem->flushes, 1) == 1)
-			lost += !_gfx_recycle_pool_elem(pool, &pool->immutable, elem);
+			lost += !_gfx_recycle_pool_elem(pool, map, elem);
 
-		elem = next;
+		// Continue to the stale table.
+		if (next != NULL || map == &pool->stale)
+			elem = next;
+		else
+		{
+			map = &pool->stale;
+			elem = gfx_map_first(map);
+		}
 	}
 
-	// Shrink the immutable hashtable back down.
+	// Shrink the immutable & stale hashtables back down.
 	gfx_map_shrink(&pool->immutable);
+	gfx_map_shrink(&pool->stale);
 
 	if (lost > 0) gfx_log_warn(
 		"Pool flush failed, lost %"GFX_PRIs" Vulkan descriptor sets. "
@@ -379,6 +406,7 @@ void _gfx_pool_reset(_GFXPool* pool)
 	// Ok so get rid of all the _GFXPoolElem objects in all hashtables.
 	// As they will soon store non-existent descriptor sets.
 	gfx_map_clear(&pool->immutable);
+	gfx_map_clear(&pool->stale);
 	gfx_map_clear(&pool->recycled);
 
 	for (
@@ -449,7 +477,7 @@ void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub)
 	// If it did not want to merge, the descriptor sets are lost...
 	if (!gfx_map_merge(&pool->immutable, &sub->mutable))
 	{
-		// Try to recycle every element instead...
+		// Try to make every element stale instead...
 		// Same as in _gfx_pool_flush, we loop 'over' the moved nodes.
 		size_t lost = 0;
 		_GFXPoolElem* elem = gfx_map_first(&sub->mutable);
@@ -458,7 +486,11 @@ void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub)
 		{
 			_GFXPoolElem* next = gfx_map_next(&sub->mutable, elem);
 
-			lost += !_gfx_recycle_pool_elem(pool, &sub->mutable, elem);
+			// We don't actually know any #flushes to use for this,
+			// so just use the global #flushes of the pool.
+			lost += !_gfx_make_pool_elem_stale(
+				pool, &sub->mutable, elem, pool->flushes);
+
 			elem = next;
 		}
 
@@ -475,7 +507,8 @@ void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub)
 }
 
 /****************************/
-void _gfx_pool_recycle(_GFXPool* pool, const _GFXHashKey* key)
+void _gfx_pool_recycle(_GFXPool* pool,
+                       const _GFXHashKey* key, unsigned int flushes)
 {
 	assert(pool != NULL);
 	assert(key != NULL);
@@ -485,9 +518,8 @@ void _gfx_pool_recycle(_GFXPool* pool, const _GFXHashKey* key)
 	// First unclaim all subordinate blocks, so we can recycle elements.
 	_gfx_unclaim_pool_blocks(pool);
 
-	// Then find all matching elements in all hashtables and recycle them!
+	// Then find all matching elements in all tables and make them stale!
 	// Obviously we only check all subordinate hashtables & the immutable one.
-	// If any element gets recycled, it will be moved to the recycled table!
 	size_t lost = 0;
 
 	for (
@@ -502,7 +534,9 @@ void _gfx_pool_recycle(_GFXPool* pool, const _GFXHashKey* key)
 		{
 			_GFXPoolElem* next = gfx_map_next_equal(&sub->mutable, elem);
 
-			lost += !_gfx_recycle_pool_elem(pool, &sub->mutable, elem);
+			lost += !_gfx_make_pool_elem_stale(
+				pool, &sub->mutable, elem, flushes);
+
 			elem = next;
 		}
 	}
@@ -513,7 +547,9 @@ void _gfx_pool_recycle(_GFXPool* pool, const _GFXHashKey* key)
 	{
 		_GFXPoolElem* next = gfx_map_next_equal(&pool->immutable, elem);
 
-		lost += !_gfx_recycle_pool_elem(pool, &pool->immutable, elem);
+		lost += !_gfx_make_pool_elem_stale(
+			pool, &pool->immutable, elem, flushes);
+
 		elem = next;
 	}
 
