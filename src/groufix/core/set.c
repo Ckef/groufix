@@ -63,6 +63,7 @@ typedef union _GFXSetKey
 /****************************
  * Makes set resources stale, i.e. pushing them to the renderer for
  * destruction when they are no longer used by any virtual frames.
+ * NOT thread-safe with respect to the virtual frame deque!
  */
 static void _gfx_make_stale(GFXSet* set,
                             VkImageView imageView, VkBufferView bufferView)
@@ -84,6 +85,7 @@ static void _gfx_make_stale(GFXSet* set,
 /****************************
  * Overwrites the Vulkan update info with the current groufix update info.
  * Assumes all relevant data is initialized and valid.
+ * Will ignore valid empty values in the groufix update info.
  */
 static void _gfx_set_update(GFXSet* set,
                             _GFXSetBinding* binding, _GFXSetEntry* entry)
@@ -168,6 +170,146 @@ static void _gfx_set_recycle(GFXSet* set)
 		_gfx_pool_recycle(&renderer->pool, &key.hash, flushes);
 		_gfx_mutex_unlock(&renderer->lock);
 	}
+}
+
+/****************************
+ * Stand-in function for setting descriptor binding resources of the set.
+ * @see gfx_set_resources.
+ * @param update Non-zero to update on change.
+ */
+static int _gfx_set_resources(GFXSet* set, int update,
+                              size_t numResources, const GFXSetResource* resources)
+{
+	assert(set != NULL);
+	assert(!set->renderer->recording);
+	assert(numResources > 0);
+	assert(resources != NULL);
+
+	// Keep track of success, much like the technique,
+	// we skip over failures.
+	int success = 1;
+	int recycle = 0;
+
+	for (size_t r = 0; r < numResources; ++r)
+	{
+		const GFXSetResource* res = &resources[r];
+
+		// Check if the resource exists.
+		if (
+			res->binding >= set->numBindings ||
+			res->index >= set->bindings[res->binding].count)
+		{
+			// Skip it if not.
+			gfx_log_warn(
+				"Could not set descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
+				"of a set, does not exist.",
+				res->binding, res->index);
+
+			success = 0;
+			continue;
+		}
+
+		_GFXSetBinding* binding = &set->bindings[res->binding];
+		_GFXSetEntry* entry = &binding->entries[res->index];
+
+		// Check if the types match.
+		if (
+			GFX_REF_IS_NULL(res->ref) ||
+			(GFX_REF_IS_BUFFER(res->ref) && !_GFX_BINDING_IS_BUFFER(binding->type)) ||
+			(GFX_REF_IS_IMAGE(res->ref) && !_GFX_BINDING_IS_IMAGE(binding->type)))
+		{
+			gfx_log_warn(
+				"Could not set descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
+				"of a set, incompatible resource type.",
+				res->binding, res->index);
+
+			success = 0;
+			continue;
+		}
+
+		// Check if it is even a different reference.
+		// For this we want to unpack the reference, as we want to check the
+		// underlying resource, not the top-level reference.
+		_GFXUnpackRef cur = _gfx_ref_unpack(entry->ref);
+		_GFXUnpackRef new = _gfx_ref_unpack(res->ref);
+
+		// If equal (including offset & size), just skip it, not a failure.
+		if (
+			_GFX_UNPACK_REF_IS_EQUAL(cur, new) &&
+			cur.value == new.value &&
+			_gfx_ref_size(entry->ref) == _gfx_ref_size(res->ref))
+		{
+			continue;
+		}
+
+		// Set the new reference & update.
+		entry->ref = res->ref;
+		recycle = 1;
+
+		if (update) _gfx_set_update(set, binding, entry);
+	}
+
+	// If anything was updated, recycle the set,
+	// we're possibily referencing resources that may be freed or smth.
+	if (recycle) _gfx_set_recycle(set);
+
+	return success;
+}
+
+/****************************
+ * Stand-in function for setting descriptor binding resources from groups.
+ * @see gfx_set_groups.
+ * @param update Non-zero to update on change.
+ */
+static int _gfx_set_groups(GFXSet* set, int update,
+                           size_t numGroups, const GFXSetGroup* groups)
+{
+	assert(set != NULL);
+	assert(!set->renderer->recording);
+	assert(numGroups > 0);
+	assert(groups != NULL);
+
+	// TODO: Implement.
+
+	return 0;
+}
+
+/****************************
+ * Stand-in function for setting resource views of the set.
+ * @see gfx_set_views.
+ * @param update Non-zero to update on change.
+ */
+static int _gfx_set_views(GFXSet* set, int update,
+                          size_t numViews, const GFXView* views)
+{
+	assert(set != NULL);
+	assert(!set->renderer->recording);
+	assert(numViews > 0);
+	assert(views != NULL);
+
+	// TODO: Implement.
+
+	return 0;
+}
+
+/****************************
+ * Stand-in function for setting immutable samplers of the set.
+ * @see gfx_set_samplers.
+ * @param update Non-zero to update on change.
+ */
+static int _gfx_set_samplers(GFXSet* set, int update,
+                             size_t numSamplers, const GFXSampler* samplers)
+{
+	assert(set != NULL);
+	assert(!set->renderer->recording);
+	assert(numSamplers > 0);
+	assert(samplers != NULL);
+
+	// TODO: Implement.
+
+	return 0;
 }
 
 /****************************/
@@ -313,13 +455,20 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		}
 	}
 
-	// TODO: Call intermediate function to not recreate views multiple times!
 	// And finally, before finishing up, set all initial resources, groups,
 	// views and samplers. Let individual resources and views overwrite groups.
-	gfx_set_groups(aset, numGroups, groups);
-	gfx_set_resources(aset, numResources, resources);
-	gfx_set_samplers(aset, numSamplers, samplers);
-	gfx_set_views(aset, numViews, views);
+	_gfx_set_groups(aset, 0, numGroups, groups);
+	_gfx_set_resources(aset, 0, numResources, resources);
+	_gfx_set_samplers(aset, 0, numSamplers, samplers);
+	_gfx_set_views(aset, 0, numViews, views);
+
+	// And then loop over all things to manually update them.
+	for (size_t b = 0; b < numBindings; ++b)
+	{
+		_GFXSetBinding* binding = &aset->bindings[b];
+		if (binding->entries != NULL) for (size_t e = 0; e < binding->count; ++e)
+			_gfx_set_update(aset, binding, &binding->entries[e]);
+	}
 
 	// Link the set into the renderer.
 	// Modifying the renderer, lock!
@@ -376,118 +525,34 @@ GFX_API void gfx_erase_set(GFXSet* set)
 GFX_API int gfx_set_resources(GFXSet* set,
                               size_t numResources, const GFXSetResource* resources)
 {
-	assert(set != NULL);
-	assert(!set->renderer->recording);
-	assert(numResources > 0);
-	assert(resources != NULL);
+	// Relies on stand-in function for asserts.
 
-	// Keep track of success, much like the technique,
-	// we skip over failures.
-	int success = 1;
-	int recycle = 0;
-
-	for (size_t r = 0; r < numResources; ++r)
-	{
-		const GFXSetResource* res = &resources[r];
-
-		// Check if the resource exists.
-		if (
-			res->binding >= set->numBindings ||
-			res->index >= set->bindings[res->binding].count)
-		{
-			// Skip it if not.
-			gfx_log_warn(
-				"Could not set descriptor resource "
-				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
-				"of a set, does not exist.",
-				res->binding, res->index);
-
-			success = 0;
-			continue;
-		}
-
-		_GFXSetBinding* binding = &set->bindings[res->binding];
-		_GFXSetEntry* entry = &binding->entries[res->index];
-
-		// Check if the types match.
-		if (
-			GFX_REF_IS_NULL(res->ref) ||
-			(GFX_REF_IS_BUFFER(res->ref) && !_GFX_BINDING_IS_BUFFER(binding->type)) ||
-			(GFX_REF_IS_IMAGE(res->ref) && !_GFX_BINDING_IS_IMAGE(binding->type)))
-		{
-			gfx_log_warn(
-				"Could not set descriptor resource "
-				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
-				"of a set, incompatible resource type.",
-				res->binding, res->index);
-
-			success = 0;
-			continue;
-		}
-
-		// Check if it is even a different reference.
-		// For this we want to unpack the reference, as we want to check the
-		// underlying resource, not the top-level reference.
-		_GFXUnpackRef cur = _gfx_ref_unpack(entry->ref);
-		_GFXUnpackRef new = _gfx_ref_unpack(res->ref);
-
-		// TODO: Also check if _gfx_ref_size() changes?
-		// If equal (including offsets), just skip it, not a failure.
-		if (_GFX_UNPACK_REF_IS_EQUAL(cur, new) && cur.value == new.value)
-			continue;
-
-		// Set the new reference & update.
-		entry->ref = res->ref;
-		recycle = 1;
-		_gfx_set_update(set, binding, entry);
-	}
-
-	// If anything was updated, recycle the set,
-	// we're possibily referencing resources that may be freed or smth.
-	if (recycle)
-		_gfx_set_recycle(set);
-
-	return success;
+	return _gfx_set_resources(set, 1, numResources, resources);
 }
 
 /****************************/
 GFX_API int gfx_set_groups(GFXSet* set,
                            size_t numGroups, const GFXSetGroup* groups)
 {
-	assert(set != NULL);
-	assert(!set->renderer->recording);
-	assert(numGroups > 0);
-	assert(groups != NULL);
+	// Relies on stand-in function for asserts.
 
-	// TODO: Implement.
-
-	return 0;
+	return _gfx_set_groups(set, 1, numGroups, groups);
 }
 
 /****************************/
 GFX_API int gfx_set_views(GFXSet* set,
                           size_t numViews, const GFXView* views)
 {
-	assert(set != NULL);
-	assert(!set->renderer->recording);
-	assert(numViews > 0);
-	assert(views != NULL);
+	// Relies on stand-in function for asserts.
 
-	// TODO: Implement.
-
-	return 0;
+	return _gfx_set_views(set, 1, numViews, views);
 }
 
 /****************************/
 GFX_API int gfx_set_samplers(GFXSet* set,
                              size_t numSamplers, const GFXSampler* samplers)
 {
-	assert(set != NULL);
-	assert(!set->renderer->recording);
-	assert(numSamplers > 0);
-	assert(samplers != NULL);
+	// Relies on stand-in function for asserts.
 
-	// TODO: Implement.
-
-	return 0;
+	return _gfx_set_samplers(set, 1, numSamplers, samplers);
 }
