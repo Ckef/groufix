@@ -457,10 +457,14 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 
 	// And finally, before finishing up, set all initial resources, groups,
 	// views and samplers. Let individual resources and views overwrite groups.
-	_gfx_set_groups(aset, 0, numGroups, groups);
-	_gfx_set_resources(aset, 0, numResources, resources);
-	_gfx_set_samplers(aset, 0, numSamplers, samplers);
-	_gfx_set_views(aset, 0, numViews, views);
+	if (numGroups > 0)
+		_gfx_set_groups(aset, 0, numGroups, groups);
+	if (numResources > 0)
+		_gfx_set_resources(aset, 0, numResources, resources);
+	if (numSamplers > 0)
+		_gfx_set_samplers(aset, 0, numSamplers, samplers);
+	if (numViews > 0)
+		_gfx_set_views(aset, 0, numViews, views);
 
 	// And then loop over all things to manually update them.
 	for (size_t b = 0; b < numBindings; ++b)
