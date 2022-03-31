@@ -529,7 +529,7 @@ typedef struct _GFXPool
 	GFXMap recycled;  // Stores _GFXHashKey : _GFXPoolElem.
 
 	_GFXMutex subLock; // For claiming blocks.
-	_GFXMutex recLock; // For making stale & recycling.
+	_GFXMutex recLock; // For recycling.
 
 	unsigned int flushes;
 
