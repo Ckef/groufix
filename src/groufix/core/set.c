@@ -420,6 +420,7 @@ GFX_API int gfx_set_resources(GFXSet* set,
 		_GFXUnpackRef cur = _gfx_ref_unpack(entry->ref);
 		_GFXUnpackRef new = _gfx_ref_unpack(res->ref);
 
+		// TODO: Also check if _gfx_ref_size() changes?
 		// If equal (including offsets), just skip it, not a failure.
 		if (_GFX_UNPACK_REF_IS_EQUAL(cur, new) && cur.value == new.value)
 			continue;

@@ -157,6 +157,19 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	// OR flag elements as stale and skip over them on lookup, then
 	// recycle as normal?
 	// OR add a stale map to the pool and recycle that too on flushes?
+	//
+	// Plan: reverse the counting direction of elem.flushes, counting towards
+	// zero, then add a stale map to the pool such that we can use a different
+	// count from the normal many flushes.
+	// Then in _gfx_pool_recycle, pass the framecount, the elements get moved
+	// to the stale map with that count first, and when it hits 0 it gets
+	// moved to the recycled map.
+	// Unless it was already flushed that count many times, then immediately
+	// move it to the recycled map.
+	// This way it:
+	//  - doesn't get used the next frames.
+	//  - only gets reused when no frames are using it anymore!
+	//  - gets immediately reused when it wasn't being used anymore already!
 
 	// Build a new key, only containing the cache element storing the
 	// descriptor set layout, this way we do not search for specific
