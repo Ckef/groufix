@@ -603,6 +603,7 @@ void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub);
  * @param flushes Number of flushes after which the descriptor set is recycled.
  *
  * Not thread-safe at all, unlike _gfx_pool_get!
+ * Note: when a set is recycled, its associated block might be freed if empty!
  */
 void _gfx_pool_recycle(_GFXPool* pool,
                        const _GFXHashKey* key, unsigned int flushes);

@@ -151,13 +151,14 @@ static void _gfx_set_recycle(GFXSet* set)
 		memcpy(key.bytes + sizeof(_GFXCacheElem*), &set, sizeof(GFXSet*));
 
 		// Get #flushes after which the set can be truly recycled.
-		// We are allowed to overwrite it when all frames (N) have synced.
-		// Meaning after N-1 submits the last frame will be synced,
-		// at which point we can use the set again :)
+		// Note that the associated descriptor pool might be freed on
+		// recycling as well.
+		// Meaning: we are allowed to do this after all frames have synced.
+		// This means the set itself is recycled 1 frame late; acceptable.
 		const unsigned int flushes =
-			renderer->pFrame.vk.done != VK_NULL_HANDLE ?
+			renderer->pFrame.vk.done == VK_NULL_HANDLE ?
 			(unsigned int)renderer->frames.size :
-			(unsigned int)renderer->frames.size - 1;
+			(unsigned int)renderer->frames.size + 1;
 
 		// Recycle all matching descriptor sets, this is explicitly NOT
 		// thread-safe, so we use the renderer's lock!

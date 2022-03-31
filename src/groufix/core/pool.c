@@ -361,7 +361,10 @@ int _gfx_pool_flush(_GFXPool* pool)
 
 	// Start at the immutable table.
 	GFXMap* map = &pool->immutable;
-	_GFXPoolElem* elem = gfx_map_first(map);
+	_GFXPoolElem* elem;
+
+recycle:
+	elem = gfx_map_first(map);
 
 	while (elem != NULL)
 	{
@@ -371,14 +374,14 @@ int _gfx_pool_flush(_GFXPool* pool)
 		if (atomic_fetch_sub(&elem->flushes, 1) == 1)
 			lost += !_gfx_recycle_pool_elem(pool, map, elem);
 
-		// Continue to the stale table.
-		if (next != NULL || map == &pool->stale)
-			elem = next;
-		else
-		{
-			map = &pool->stale;
-			elem = gfx_map_first(map);
-		}
+		elem = next;
+	}
+
+	// Continue to the stale table.
+	if (map == &pool->immutable)
+	{
+		map = &pool->stale;
+		goto recycle;
 	}
 
 	// Shrink the immutable & stale hashtables back down.
