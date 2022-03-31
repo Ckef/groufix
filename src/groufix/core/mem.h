@@ -487,7 +487,7 @@ typedef struct _GFXPoolElem
 	GFXListNode    list; // Base-type.
 	_GFXPoolBlock* block;
 
-	// Last used #flushes ago.
+	// #flushes left to recycle.
 	atomic_uint flushes;
 
 
@@ -525,10 +525,11 @@ typedef struct _GFXPool
 	GFXList subs; // References _GFXPoolSub.
 
 	GFXMap immutable; // Stores _GFXHashKey : _GFXPoolElem.
+	GFXMap stale;     // Stores _GFXHashKey : _GFXPoolElem.
 	GFXMap recycled;  // Stores _GFXHashKey : _GFXPoolElem.
 
 	_GFXMutex subLock; // For claiming blocks.
-	_GFXMutex recLock; // For recycling.
+	_GFXMutex recLock; // For making stale & recycling.
 
 	unsigned int flushes;
 
@@ -595,14 +596,17 @@ void _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub);
 void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub);
 
 /**
- * Recycles all matching Vulkan descriptor sets.
+ * Forces recycling of all matching Vulkan descriptor sets.
  * Useful for when specific keys have been invalidated.
  * @param pool Cannot be NULL.
  * @param key  Matched against the keys passed in _gfx_pool_get.
+ * @param flushes Number of flushes after which the descriptor set is recycled.
  *
  * Not thread-safe at all, unlike _gfx_pool_get!
+ * Note: when a set is recycled, its associated block might be freed if empty!
  */
-void _gfx_pool_recycle(_GFXPool* pool, const _GFXHashKey* key);
+void _gfx_pool_recycle(_GFXPool* pool,
+                       const _GFXHashKey* key, unsigned int flushes);
 
 /**
  * Retrieves, allocates or recycles a Vulkan descriptor set from the pool.

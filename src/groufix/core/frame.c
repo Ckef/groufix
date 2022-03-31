@@ -536,6 +536,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 			"during virtual frame submission.");
 
 	// This one actually has pretty decent logging already.
+	// TODO: Maybe it makes sense to flush when syncing instead?
 	_gfx_pool_flush(&renderer->pool);
 
 	// Lastly, make all commands visible for future operations.

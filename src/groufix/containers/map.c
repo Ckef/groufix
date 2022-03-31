@@ -136,7 +136,7 @@ static int _gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
 
 	_GFXMapNode* mNode = _GFX_GET_NODE(map, node);
 
-	// Again, need to grow the destination map (if a different map).
+	// Need to grow the destination map (if a different map).
 	if (map != dst && !_gfx_map_grow(dst, dst->size + 1))
 		return 0;
 
