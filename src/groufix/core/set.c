@@ -175,7 +175,7 @@ static void _gfx_set_recycle(GFXSet* set)
 /****************************
  * Stand-in function for setting descriptor binding resources of the set.
  * @see gfx_set_resources.
- * @param update Non-zero to update on change.
+ * @param update Non-zero to update & recycle on change.
  */
 static int _gfx_set_resources(GFXSet* set, int update,
                               size_t numResources, const GFXSetResource* resources)
@@ -246,9 +246,10 @@ static int _gfx_set_resources(GFXSet* set, int update,
 
 		// Set the new reference & update.
 		entry->ref = res->ref;
-		recycle = 1;
 
-		if (update) _gfx_set_update(set, binding, entry);
+		if (update)
+			_gfx_set_update(set, binding, entry),
+			recycle = 1;
 	}
 
 	// If anything was updated, recycle the set,
@@ -467,6 +468,8 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		_gfx_set_views(aset, 0, numViews, views);
 
 	// And then loop over all things to manually update them.
+	// Because all current handles are VK_NULL_HANDLE, we do not push stales
+	// and we're thread-safe with respect to the virtual frame deque :)
 	for (size_t b = 0; b < numBindings; ++b)
 	{
 		_GFXSetBinding* binding = &aset->bindings[b];
