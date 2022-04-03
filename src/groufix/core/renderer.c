@@ -405,11 +405,11 @@ GFX_API void gfx_frame_start(GFXFrame* frame)
 	// Skip if already started.
 	if (!renderer->recording)
 	{
-		// Acquire the frame's swapchain etc :)
-		_gfx_frame_acquire(renderer, frame);
-
 		// Signal that we are recording.
 		renderer->recording = 1;
+
+		// Acquire the frame's swapchain etc :)
+		_gfx_frame_acquire(renderer, frame);
 	}
 }
 
@@ -437,9 +437,9 @@ GFX_API void gfx_frame_submit(GFXFrame* frame,
 		_gfx_frame_clear(renderer, frame);
 	}
 
-	// Signal that we are done recording.
-	renderer->recording = 0;
-
 	// Make public frame absent again.
 	renderer->pFrame.vk.done = VK_NULL_HANDLE;
+
+	// Signal that we are done recording.
+	renderer->recording = 0;
 }

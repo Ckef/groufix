@@ -407,6 +407,9 @@ GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
  * Creating sets from a technique automatically locks the technique.
  * @param technique Cannot be NULL.
  * @return Non-zero on success.
+ *
+ * After this call has succesfully returned it is thread-safe to
+ * call gfx_renderer_add_set with this technique.
  */
 GFX_API int gfx_tech_lock(GFXTechnique* technique);
 
@@ -428,7 +431,11 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique);
  *
  * Thread-safe with respect to renderer,
  * as are all other functions related to this set.
- * However, none of them can run concurrently with gfx_renderer_acquire.
+ * However, none of them can run concurrently with gfx_renderer_acquire or
+ * concurrently with and/or inbetween gfx_frame_start and gfx_frame_submit.
+ *
+ * Thread-safe with respect to technique ONLY IF gfx_tech_lock has
+ * succesfully returned (or one call to gfx_renderer_add_set has).
  *
  * If any descriptor binding is assigned multiple resources or samplers,
  * the last matching element in their respective input arrays will be taken.
