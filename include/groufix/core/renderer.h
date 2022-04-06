@@ -410,6 +410,8 @@ GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
  *
  * After this call has succesfully returned it is thread-safe to call
  * gfx_renderer_add_set from multiple threads with this technique.
+ *
+ * CANNOT run during or inbetween gfx_frame_start and gfx_frame_submit.
  */
 GFX_API int gfx_tech_lock(GFXTechnique* technique);
 
@@ -432,8 +434,9 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique);
  * Thread-safe with respect to renderer,
  * as are all other functions related to this set.
  *
- * However, all but this function CANNOT run during gfx_renderer_acquire
- * or during/inbetween gfx_frame_start and gfx_frame_submit.
+ * However, all but this function CANNOT run during gfx_renderer_acquire,
+ * furthermore, all of them CANNOT run during or inbetween
+ * gfx_frame_start and gfx_frame_submit.
  *
  * Thread-safe with respect to technique ONLY IF gfx_tech_lock has
  * succesfully returned (or one call to gfx_renderer_add_set has).
