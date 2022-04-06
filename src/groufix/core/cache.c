@@ -800,186 +800,6 @@ static void _gfx_cache_destroy_elem(_GFXCache* cache, _GFXCacheElem* elem)
 	}
 }
 
-/****************************/
-int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride)
-{
-	assert(cache != NULL);
-	assert(device != NULL);
-	assert(device->context != NULL);
-	assert(templateStride > 0);
-
-	_GFXContext* context = device->context;
-
-	cache->context = context;
-	cache->templateStride = templateStride;
-	cache->vk.device = device->vk.device;
-
-	// Initialize the locks.
-	if (!_gfx_mutex_init(&cache->simpleLock))
-		return 0;
-
-	if (!_gfx_mutex_init(&cache->lookupLock))
-		goto clean_simple;
-
-	if (!_gfx_mutex_init(&cache->createLock))
-		goto clean_lookup;
-
-	// Create an empty pipeline cache.
-	VkPipelineCacheCreateInfo pcci = {
-		.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
-
-		.pNext           = NULL,
-		.flags           = 0,
-		.initialDataSize = 0,
-		.pInitialData    = NULL
-	};
-
-	_GFX_VK_CHECK(context->vk.CreatePipelineCache(
-		context->vk.device, &pcci, NULL, &cache->vk.cache), goto clean);
-
-	// Initialize the hashtables.
-	// Take the largest alignment of the key and element types.
-	const size_t align =
-		GFX_MAX(_Alignof(_GFXHashKey), _Alignof(_GFXCacheElem));
-
-	gfx_map_init(&cache->simple,
-		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
-
-	gfx_map_init(&cache->immutable,
-		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
-
-	gfx_map_init(&cache->mutable,
-		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
-
-	return 1;
-
-
-	// Cleanup on failure.
-clean:
-	_gfx_mutex_clear(&cache->createLock);
-clean_lookup:
-	_gfx_mutex_clear(&cache->lookupLock);
-clean_simple:
-	_gfx_mutex_clear(&cache->simpleLock);
-
-	return 0;
-}
-
-/****************************/
-void _gfx_cache_clear(_GFXCache* cache)
-{
-	assert(cache != NULL);
-
-	_GFXContext* context = cache->context;
-
-	// Destroy all objects in the mutable cache.
-	for (
-		_GFXCacheElem* elem = gfx_map_first(&cache->mutable);
-		elem != NULL;
-		elem = gfx_map_next(&cache->mutable, elem))
-	{
-		_gfx_cache_destroy_elem(cache, elem);
-	}
-
-	// Destroy all objects in the immutable cache.
-	for (
-		_GFXCacheElem* elem = gfx_map_first(&cache->immutable);
-		elem != NULL;
-		elem = gfx_map_next(&cache->immutable, elem))
-	{
-		_gfx_cache_destroy_elem(cache, elem);
-	}
-
-	// Destroy all objects in the simple cache.
-	for (
-		_GFXCacheElem* elem = gfx_map_first(&cache->simple);
-		elem != NULL;
-		elem = gfx_map_next(&cache->simple, elem))
-	{
-		_gfx_cache_destroy_elem(cache, elem);
-	}
-
-	// Destroy the pipeline cache.
-	context->vk.DestroyPipelineCache(
-		context->vk.device, cache->vk.cache, NULL);
-
-	// Clear all other things.
-	gfx_map_clear(&cache->simple);
-	gfx_map_clear(&cache->immutable);
-	gfx_map_clear(&cache->mutable);
-
-	_gfx_mutex_clear(&cache->simpleLock);
-	_gfx_mutex_clear(&cache->lookupLock);
-	_gfx_mutex_clear(&cache->createLock);
-}
-
-/****************************/
-int _gfx_cache_flush(_GFXCache* cache)
-{
-	assert(cache != NULL);
-
-	// No need to lock anything, we just merge the tables.
-	return gfx_map_merge(&cache->immutable, &cache->mutable);
-}
-
-/****************************/
-int _gfx_cache_warmup(_GFXCache* cache,
-                      const VkStructureType* createInfo,
-                      const void** handles)
-{
-	assert(cache != NULL);
-	assert(createInfo != NULL);
-	assert(
-		*createInfo == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO ||
-		*createInfo == VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO);
-
-	// Create a key value & hash it.
-	_GFXHashKey* key = _gfx_cache_alloc_key(createInfo, handles);
-	if (key == NULL) return 0;
-
-	const uint64_t hash = cache->immutable.hash(key);
-
-	// Here we do need to lock the immutable cache, as we want the function
-	// to be reentrant. However we have no dedicated lock.
-	// Luckily this function _does not_ need to be able to run concurrently
-	// with _gfx_cache_get_pipeline, so we abuse the lookup lock :)
-	_gfx_mutex_lock(&cache->lookupLock);
-
-	// Try to find a matching element first.
-	_GFXCacheElem* elem = gfx_map_hsearch(&cache->immutable, key, hash);
-	if (elem != NULL)
-		// Found one, done, we do not care if it is completely built yet.
-		_gfx_mutex_unlock(&cache->lookupLock);
-	else
-	{
-		// If not found, insert a new element.
-		// Then immediately unlock so other warmups can be performed.
-		elem = gfx_map_hinsert(
-			&cache->immutable, NULL, _gfx_hash_size(key), key, hash);
-
-		_gfx_mutex_unlock(&cache->lookupLock);
-
-		// THEN create it :)
-		if (elem == NULL || !_gfx_cache_create_elem(cache, elem, createInfo))
-		{
-			// Failed.. I suppose we erase the element.
-			if (elem != NULL)
-			{
-				_gfx_mutex_lock(&cache->lookupLock);
-				gfx_map_erase(&cache->immutable, elem);
-				_gfx_mutex_unlock(&cache->lookupLock);
-			}
-
-			free(key);
-			return 0;
-		}
-	}
-
-	// Free data & return.
-	free(key);
-	return 1;
-}
-
 /****************************
  * Stand-in function for _gfx_cache_get when given anything other than
  * a Vk*PipelineCreateInfo struct, i.e. we use the simple cache.
@@ -1116,6 +936,128 @@ found:
 }
 
 /****************************/
+int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride)
+{
+	assert(cache != NULL);
+	assert(device != NULL);
+	assert(device->context != NULL);
+	assert(templateStride > 0);
+
+	_GFXContext* context = device->context;
+
+	cache->context = context;
+	cache->templateStride = templateStride;
+	cache->vk.device = device->vk.device;
+
+	// Initialize the locks.
+	if (!_gfx_mutex_init(&cache->simpleLock))
+		return 0;
+
+	if (!_gfx_mutex_init(&cache->lookupLock))
+		goto clean_simple;
+
+	if (!_gfx_mutex_init(&cache->createLock))
+		goto clean_lookup;
+
+	// Create an empty pipeline cache.
+	VkPipelineCacheCreateInfo pcci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
+
+		.pNext           = NULL,
+		.flags           = 0,
+		.initialDataSize = 0,
+		.pInitialData    = NULL
+	};
+
+	_GFX_VK_CHECK(context->vk.CreatePipelineCache(
+		context->vk.device, &pcci, NULL, &cache->vk.cache), goto clean);
+
+	// Initialize the hashtables.
+	// Take the largest alignment of the key and element types.
+	const size_t align =
+		GFX_MAX(_Alignof(_GFXHashKey), _Alignof(_GFXCacheElem));
+
+	gfx_map_init(&cache->simple,
+		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
+
+	gfx_map_init(&cache->immutable,
+		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
+
+	gfx_map_init(&cache->mutable,
+		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
+
+	return 1;
+
+
+	// Cleanup on failure.
+clean:
+	_gfx_mutex_clear(&cache->createLock);
+clean_lookup:
+	_gfx_mutex_clear(&cache->lookupLock);
+clean_simple:
+	_gfx_mutex_clear(&cache->simpleLock);
+
+	return 0;
+}
+
+/****************************/
+void _gfx_cache_clear(_GFXCache* cache)
+{
+	assert(cache != NULL);
+
+	_GFXContext* context = cache->context;
+
+	// Destroy all objects in the mutable cache.
+	for (
+		_GFXCacheElem* elem = gfx_map_first(&cache->mutable);
+		elem != NULL;
+		elem = gfx_map_next(&cache->mutable, elem))
+	{
+		_gfx_cache_destroy_elem(cache, elem);
+	}
+
+	// Destroy all objects in the immutable cache.
+	for (
+		_GFXCacheElem* elem = gfx_map_first(&cache->immutable);
+		elem != NULL;
+		elem = gfx_map_next(&cache->immutable, elem))
+	{
+		_gfx_cache_destroy_elem(cache, elem);
+	}
+
+	// Destroy all objects in the simple cache.
+	for (
+		_GFXCacheElem* elem = gfx_map_first(&cache->simple);
+		elem != NULL;
+		elem = gfx_map_next(&cache->simple, elem))
+	{
+		_gfx_cache_destroy_elem(cache, elem);
+	}
+
+	// Destroy the pipeline cache.
+	context->vk.DestroyPipelineCache(
+		context->vk.device, cache->vk.cache, NULL);
+
+	// Clear all other things.
+	gfx_map_clear(&cache->simple);
+	gfx_map_clear(&cache->immutable);
+	gfx_map_clear(&cache->mutable);
+
+	_gfx_mutex_clear(&cache->simpleLock);
+	_gfx_mutex_clear(&cache->lookupLock);
+	_gfx_mutex_clear(&cache->createLock);
+}
+
+/****************************/
+int _gfx_cache_flush(_GFXCache* cache)
+{
+	assert(cache != NULL);
+
+	// No need to lock anything, we just merge the tables.
+	return gfx_map_merge(&cache->immutable, &cache->mutable);
+}
+
+/****************************/
 _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
                               const VkStructureType* createInfo,
                               const void** handles)
@@ -1132,6 +1074,64 @@ _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
 		return _gfx_cache_get_pipeline(cache, createInfo, handles);
 	else
 		return _gfx_cache_get_simple(cache, createInfo, handles);
+}
+
+/****************************/
+int _gfx_cache_warmup(_GFXCache* cache,
+                      const VkStructureType* createInfo,
+                      const void** handles)
+{
+	assert(cache != NULL);
+	assert(createInfo != NULL);
+	assert(
+		*createInfo == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO ||
+		*createInfo == VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO);
+
+	// Create a key value & hash it.
+	_GFXHashKey* key = _gfx_cache_alloc_key(createInfo, handles);
+	if (key == NULL) return 0;
+
+	const uint64_t hash = cache->immutable.hash(key);
+
+	// Here we do need to lock the immutable cache, as we want the function
+	// to be reentrant. However we have no dedicated lock.
+	// Luckily this function _does not_ need to be able to run concurrently
+	// with _gfx_cache_get_pipeline, so we abuse the lookup lock :)
+	_gfx_mutex_lock(&cache->lookupLock);
+
+	// Try to find a matching element first.
+	_GFXCacheElem* elem = gfx_map_hsearch(&cache->immutable, key, hash);
+	if (elem != NULL)
+		// Found one, done, we do not care if it is completely built yet.
+		_gfx_mutex_unlock(&cache->lookupLock);
+	else
+	{
+		// If not found, insert a new element.
+		// Then immediately unlock so other warmups can be performed.
+		elem = gfx_map_hinsert(
+			&cache->immutable, NULL, _gfx_hash_size(key), key, hash);
+
+		_gfx_mutex_unlock(&cache->lookupLock);
+
+		// THEN create it :)
+		if (elem == NULL || !_gfx_cache_create_elem(cache, elem, createInfo))
+		{
+			// Failed.. I suppose we erase the element.
+			if (elem != NULL)
+			{
+				_gfx_mutex_lock(&cache->lookupLock);
+				gfx_map_erase(&cache->immutable, elem);
+				_gfx_mutex_unlock(&cache->lookupLock);
+			}
+
+			free(key);
+			return 0;
+		}
+	}
+
+	// Free data & return.
+	free(key);
+	return 1;
 }
 
 /****************************/

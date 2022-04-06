@@ -364,26 +364,8 @@ void _gfx_cache_clear(_GFXCache* cache);
 int _gfx_cache_flush(_GFXCache* cache);
 
 /**
- * Warms up the immutable cache (i.e. inserts a pipeline in it). Input is a
- * Vk*PipelineCreateInfo struct with replace handles for non-hashable fields.
- * @param cache      Cannot be NULL.
- * @param createInfo A pointer to a Vk*PipelineCreateInfo struct, cannot be NULL.
- * @param handles    Must match the non-hashable field count of createInfo.
- * @return Non-zero on success.
- *
- * This function is reentrant,
- * However, cannot run concurrently with other calls.
- * @see _gfx_cache_get for the only exception.
- * @see _gfx_cache_get for the handles that must be passed.
- */
-int _gfx_cache_warmup(_GFXCache* cache,
-                      const VkStructureType* createInfo,
-                      const void** handles);
-
-/**
- * Retrieves an element from the cache. Input is a
- * Vk*CreateInfo struct with replace handles for non-hashable fields.
- * Will insert in the mutable cache instead of the immutable.
+ * Retrieves an element from the cache.
+ * Input is a Vk*CreateInfo struct with replace handles for non-hashable fields.
  * @param cache      Cannot be NULL.
  * @param createInfo A pointer to a Vk*CreateInfo struct, cannot be NULL.
  * @param handles    Must match the non-hashable field count of createInfo.
@@ -423,6 +405,23 @@ int _gfx_cache_warmup(_GFXCache* cache,
 _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
                               const VkStructureType* createInfo,
                               const void** handles);
+
+/**
+ * Warms up the immutable cache (i.e. inserts a pipeline in it). Input is a
+ * Vk*PipelineCreateInfo struct with replace handles for non-hashable fields.
+ * @param cache      Cannot be NULL.
+ * @param createInfo A pointer to a Vk*PipelineCreateInfo struct, cannot be NULL.
+ * @param handles    Must match the non-hashable field count of createInfo.
+ * @return Non-zero on success.
+ *
+ * This function is reentrant,
+ * However, cannot run concurrently with other calls.
+ * @see _gfx_cache_get for the only exception.
+ * @see _gfx_cache_get for the handles that must be passed.
+ */
+int _gfx_cache_warmup(_GFXCache* cache,
+                      const VkStructureType* createInfo,
+                      const void** handles);
 
 /**
  * Loads groufix pipeline cache data, merging it into the current cache.
