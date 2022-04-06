@@ -212,27 +212,8 @@ static int _gfx_set_resources(GFXSet* set, int update,
 			continue;
 		}
 
-		// Unset the resource if given GFX_REF_NULL!
-		_GFXSetBinding* binding = &set->bindings[res->binding];
-		_GFXSetEntry* entry =
-			binding->entries != NULL ? &binding->entries[res->index] : NULL;
-
-		if (GFX_REF_IS_NULL(res->ref) && entry != NULL)
-		{
-			if (GFX_REF_IS_NULL(entry->ref)) continue;
-			entry->ref = GFX_REF_NULL;
-
-			// Update to make potential view stale,
-			// this so the resource it references can be freed!
-			// Recycle if we store a reference!
-			if (update)
-				_gfx_set_update(set, binding, entry),
-				recycle = 1;
-
-			continue;
-		}
-
 		// Check if the types match.
+		_GFXSetBinding* binding = &set->bindings[res->binding];
 		if (
 			GFX_REF_IS_NULL(res->ref) ||
 			(GFX_REF_IS_BUFFER(res->ref) && !_GFX_BINDING_IS_BUFFER(binding->type)) ||
@@ -251,6 +232,7 @@ static int _gfx_set_resources(GFXSet* set, int update,
 		// Check if it is even a different reference.
 		// For this we want to unpack the reference, as we want to check the
 		// underlying resource, not the top-level reference.
+		_GFXSetEntry* entry = &binding->entries[res->index];
 		_GFXUnpackRef cur = _gfx_ref_unpack(entry->ref);
 		_GFXUnpackRef new = _gfx_ref_unpack(res->ref);
 
