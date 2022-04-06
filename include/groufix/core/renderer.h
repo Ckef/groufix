@@ -470,6 +470,9 @@ GFX_API void gfx_erase_set(GFXSet* set);
  *
  * If any descriptor binding is assigned multiple times, the last is taken.
  * Warns about resources that do not match the shader input type.
+ *
+ * resources may contain GFX_REF_NULL to unset a resource so it can be freed.
+ * However a new resource must be set before the set is used again.
  */
 GFX_API int gfx_set_resources(GFXSet* set,
                               size_t numResources, const GFXSetResource* resources);

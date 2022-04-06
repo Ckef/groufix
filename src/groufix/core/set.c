@@ -121,6 +121,8 @@ static void _gfx_set_update(GFXSet* set,
 	{
 		if (entry->sampler != NULL)
 			entry->vk.update.image.sampler = entry->sampler->vk.sampler;
+
+		// TODO: Set default sampler?
 	}
 
 	// Update buffer view info.
@@ -210,8 +212,25 @@ static int _gfx_set_resources(GFXSet* set, int update,
 			continue;
 		}
 
+		// Unset the resource if given GFX_REF_NULL!
 		_GFXSetBinding* binding = &set->bindings[res->binding];
-		_GFXSetEntry* entry = &binding->entries[res->index];
+		_GFXSetEntry* entry =
+			binding->entries != NULL ? &binding->entries[res->index] : NULL;
+
+		if (GFX_REF_IS_NULL(res->ref) && entry != NULL)
+		{
+			if (GFX_REF_IS_NULL(entry->ref)) continue;
+			entry->ref = GFX_REF_NULL;
+
+			// Update to make potential view stale,
+			// this so the resource it references can be freed!
+			// Recycle if we store a reference!
+			if (update)
+				_gfx_set_update(set, binding, entry),
+				recycle = 1;
+
+			continue;
+		}
 
 		// Check if the types match.
 		if (
@@ -308,9 +327,78 @@ static int _gfx_set_samplers(GFXSet* set, int update,
 	assert(numSamplers > 0);
 	assert(samplers != NULL);
 
-	// TODO: Implement.
+	// Keep track of success.
+	int success = 1;
+	int recycle = 0;
 
-	return 0;
+	for (size_t s = 0; s < numSamplers; ++s)
+	{
+		const GFXSampler* samp = &samplers[s];
+
+		// Check if the sampler exists.
+		if (
+			samp->binding >= set->numBindings ||
+			samp->index >= set->bindings[samp->binding].count ||
+			!_GFX_BINDING_IS_SAMPLER(set->bindings[samp->binding].type))
+		{
+			// Skip it if not.
+			gfx_log_warn(
+				"Could not set sampler of descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
+				"of a set, does not exist.",
+				samp->binding, samp->index);
+
+			success = 0;
+			continue;
+		}
+
+		// Check if the sampler is not immutable.
+		// Note: It may still be immutable if it is a combined image/sampler,
+		// in this case Vulkan should ignore the sampler handle anyway...
+		_GFXSetBinding* binding = &set->bindings[samp->binding];
+		if (binding->entries == NULL)
+		{
+			gfx_log_warn(
+				"Could not set sampler of descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
+				"of a set, is immutable.",
+				samp->binding, samp->index);
+
+			success = 0;
+			continue;
+		}
+
+		// Create/get the sampler.
+		_GFXCacheElem* sampler = _gfx_get_sampler(set->renderer, samp);
+		if (sampler == NULL)
+		{
+			gfx_log_warn(
+				"Failed to create sampler for descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set",
+				samp->binding, samp->index);
+
+			success = 0;
+			continue;
+		}
+
+		// If equal just skip it, not a failure.
+		_GFXSetEntry* entry = &binding->entries[samp->index];
+		if (entry->sampler == sampler)
+			continue;
+
+		// Set the new sampler & update manually.
+		// We do it manually so we do not make any image view stale.
+		entry->sampler = sampler;
+
+		if (update)
+			entry->vk.update.image.sampler = sampler->vk.sampler,
+			recycle = 1;
+	}
+
+	// If anything was updated, recycle the set.
+	if (recycle) _gfx_set_recycle(set);
+
+	return success;
 }
 
 /****************************/

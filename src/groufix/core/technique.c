@@ -288,9 +288,11 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 				int isImmutable = _gfx_find_binding_elem(
 					&technique->immutable, set, res->binding, 0);
 
-				// Note that we do not need to check the actual resource
-				// itself, gfx_tech_samplers will do that for us.
-				if (!isImmutable) *numEntries += res->count;
+				// Note that we also check if the resource contains more
+				// than just an immutable sampler.
+				if (!isImmutable || res->type != _GFX_SHADER_SAMPLER)
+					*numEntries += res->count;
+
 				counted[res->binding] = 1;
 			}
 		}
@@ -324,7 +326,8 @@ int _gfx_tech_get_set_binding(GFXTechnique* technique,
 	out->viewType = res->viewType;
 	out->count = res->count;
 
-	return !isImmutable;
+	// Just as above, check if it contains more than an immutable sampler.
+	return !isImmutable || res->type != _GFX_SHADER_SAMPLER;
 }
 
 /****************************/
