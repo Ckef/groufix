@@ -135,7 +135,7 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
 	}
 
 	// Create an actual sampler object.
-	return _gfx_cache_warmup(&renderer->cache, &sci.sType, NULL);
+	return _gfx_cache_get(&renderer->cache, &sci.sType, NULL);
 }
 
 /****************************

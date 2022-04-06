@@ -803,7 +803,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 
 		const void** handles = gfx_vec_at(&samplerHandles, 0);
 		technique->setLayouts[set] =
-			_gfx_cache_warmup(&renderer->cache, &dslci.sType, handles);
+			_gfx_cache_get(&renderer->cache, &dslci.sType, handles);
 
 		if (technique->setLayouts[set] == NULL)
 			goto reset;
@@ -848,7 +848,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 		};
 
 		technique->layout =
-			_gfx_cache_warmup(&renderer->cache, &plci.sType, handles);
+			_gfx_cache_get(&renderer->cache, &plci.sType, handles);
 
 		if (technique->layout == NULL)
 			goto reset;

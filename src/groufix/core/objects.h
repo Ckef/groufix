@@ -1297,7 +1297,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  ****************************/
 
 /**
- * Retrieves a sampler from the renderer's cache (wrapper for _gfx_cache_warmup).
+ * Retrieves a sampler from the renderer's cache (wrapper for _gfx_cache_get).
  * @param renderer Cannot be NULL.
  * @param sampler  Sampler values to use, NULL for the default sampler.
  * @return NULL on failure.

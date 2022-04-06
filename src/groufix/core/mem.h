@@ -313,9 +313,11 @@ typedef struct _GFXCache
 {
 	_GFXContext* context;
 
+	GFXMap simple;    // Stores _GFXHashKey : _GFXCacheElem.
 	GFXMap immutable; // Stores _GFXHashKey : _GFXCacheElem.
 	GFXMap mutable;   // Stores _GFXHashKey : _GFXCacheElem.
 
+	_GFXMutex simpleLock;
 	_GFXMutex lookupLock;
 	_GFXMutex createLock;
 
@@ -357,23 +359,45 @@ void _gfx_cache_clear(_GFXCache* cache);
  * @return Non-zero on success.
  *
  * Not thread-safe at all.
+ * @see _gfx_cache_get for the only exception.
  */
 int _gfx_cache_flush(_GFXCache* cache);
 
 /**
- * Warms up the immutable cache (i.e. inserts an element in it).
- * Input is a Vk*CreateInfo struct with replace handles for non-hashable fields.
+ * Warms up the immutable cache (i.e. inserts a pipeline in it). Input is a
+ * Vk*PipelineCreateInfo struct with replace handles for non-hashable fields.
+ * @param cache      Cannot be NULL.
+ * @param createInfo A pointer to a Vk*PipelineCreateInfo struct, cannot be NULL.
+ * @param handles    Must match the non-hashable field count of createInfo.
+ * @return Non-zero on success.
+ *
+ * This function is reentrant,
+ * However, cannot run concurrently with other calls.
+ * @see _gfx_cache_get for the only exception.
+ * @see _gfx_cache_get for the handles that must be passed.
+ */
+int _gfx_cache_warmup(_GFXCache* cache,
+                      const VkStructureType* createInfo,
+                      const void** handles);
+
+/**
+ * Retrieves an element from the cache. Input is a
+ * Vk*CreateInfo struct with replace handles for non-hashable fields.
+ * Will insert in the mutable cache instead of the immutable.
  * @param cache      Cannot be NULL.
  * @param createInfo A pointer to a Vk*CreateInfo struct, cannot be NULL.
  * @param handles    Must match the non-hashable field count of createInfo.
  * @return NULL on failure.
  *
- * This function is reentrant & can run concurrently with _gfx_cache_warmup_unsafe!
- * However, cannot run concurrently with _gfx_cache_get (or other calls).
+ * This function is reentrant,
+ * However, cannot run concurrently with other calls.
  *
- * The following Vk*CreateInfo structs can be passed,
+ * Except when anything other than a Vk*PipelineCreateInfo struct is given,
+ * then it can run concurrently with _gfx_cache_flush and _gfx_cache_warmup.
+ *
+ * The following handles must be passed for each info struct,
  * fields ignored by Vulkan must still be set to 'empty' for proper caching!
- * Listed is the required number of handles to be passed, in order:
+ * Listed handles are given in order:
  *
  *  VkDescriptorSetLayoutCreateInfo:
  *   1 for each immutable sampler.
@@ -395,37 +419,6 @@ int _gfx_cache_flush(_GFXCache* cache);
  *  VkComputePipelineCreateInfo:
  *   1 for the shader module.
  *   1 for the pipeline layout.
- */
-_GFXCacheElem* _gfx_cache_warmup(_GFXCache* cache,
-                                 const VkStructureType* createInfo,
-                                 const void** handles);
-
-/**
- * Warms up the immutable cache, unlocking before creation,
- * increasing warmup throughput when calling from multiple threads.
- * @see _gfx_cache_warmup.
- * @return Non-zero on success.
- *
- * This function is reentrant & can run concurrently with _gfx_cache_warmup!
- * However, cannot run concurrently with _gfx_cache_get (or other calls).
- *
- * While this function is running, it is unsafe to call _gfx_cache_warmup
- * with arguments that resolve to the same cache element (!).
- * The return value of the call to _gfx_cache_warmup might be freed by
- * _gfx_cache_warmup_unsafe and become undefined.
- */
-int _gfx_cache_warmup_unsafe(_GFXCache* cache,
-                             const VkStructureType* createInfo,
-                             const void** handles);
-
-/**
- * Retrieves an element from the cache.
- * If none found, inserts a new element in the mutable cache.
- * @see _gfx_cache_warmup.
- * @return NULL on failure.
- *
- * This function is reentrant!
- * However, cannot run concurrently with _gfx_cache_warmup* (or other calls).
  */
 _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
                               const VkStructureType* createInfo,

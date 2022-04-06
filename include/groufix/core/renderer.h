@@ -275,6 +275,8 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @param src      Source stream, cannot be NULL.
  * @return Zero on failure.
+ *
+ * Cannot run concurrently with _ANY_ function of the renderer's descendants!
  */
 GFX_API int gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src);
 
@@ -283,6 +285,8 @@ GFX_API int gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src)
  * @param renderer Cannot be NULL.
  * @param dst      Destination stream, cannot be NULL.
  * @return Zero on failure.
+ *
+ * Cannot run concurrently with _ANY_ function of the renderer's descendants!
  */
 GFX_API int gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* dst);
 
@@ -354,7 +358,7 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
  * @param shaders    Cannot be NULL, all must store valid SPIR-V bytecode.
  * @return NULL on failure.
  *
- * Thread-safe with respect to renderer,
+ * Thread-safe with respect to renderer, except gfx_renderer_(load|store)_cache,
  * as are all other functions related to this technique.
  *
  * For each shader stage, the last element in shaders will be taken.
@@ -410,8 +414,6 @@ GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
  *
  * After this call has succesfully returned it is thread-safe to call
  * gfx_renderer_add_set from multiple threads with this technique.
- *
- * CANNOT run during or inbetween gfx_frame_start and gfx_frame_submit.
  */
 GFX_API int gfx_tech_lock(GFXTechnique* technique);
 
@@ -431,12 +433,11 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique);
  * @param samplers  Cannot be NULL if numSamplers > 0.
  * @return NULL on failure.
  *
- * Thread-safe with respect to renderer,
+ * Thread-safe with respect to renderer, except gfx_renderer_(load|store)_cache,
  * as are all other functions related to this set.
  *
- * However, all but this function CANNOT run during gfx_renderer_acquire,
- * furthermore, all of them CANNOT run during or inbetween
- * gfx_frame_start and gfx_frame_submit.
+ * However, all but this function CANNOT run during gfx_renderer_acquire or
+ * during or inbetween gfx_frame_start and gfx_frame_submit.
  *
  * Thread-safe with respect to technique ONLY IF gfx_tech_lock has
  * succesfully returned (or one call to gfx_renderer_add_set has).
