@@ -187,6 +187,8 @@ static int _gfx_set_resources(GFXSet* set, int update,
 	assert(numResources > 0);
 	assert(resources != NULL);
 
+	GFXRenderer* renderer = set->renderer;
+
 	// Keep track of success, much like the technique,
 	// we skip over failures.
 	int success = 1;
@@ -204,8 +206,8 @@ static int _gfx_set_resources(GFXSet* set, int update,
 			// Skip it if not.
 			gfx_log_warn(
 				"Could not set descriptor resource "
-				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
-				"of a set, does not exist.",
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set, "
+				"does not exist.",
 				res->binding, res->index);
 
 			success = 0;
@@ -221,8 +223,8 @@ static int _gfx_set_resources(GFXSet* set, int update,
 		{
 			gfx_log_warn(
 				"Could not set descriptor resource "
-				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
-				"of a set, incompatible resource type.",
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set, "
+				"incompatible resource type.",
 				res->binding, res->index);
 
 			success = 0;
@@ -235,6 +237,33 @@ static int _gfx_set_resources(GFXSet* set, int update,
 		_GFXSetEntry* entry = &binding->entries[res->index];
 		_GFXUnpackRef cur = _gfx_ref_unpack(entry->ref);
 		_GFXUnpackRef new = _gfx_ref_unpack(res->ref);
+
+		// Also a good place to do a quick context check.
+		if (_GFX_UNPACK_REF_CONTEXT(new) != renderer->allocator.context)
+		{
+			gfx_log_warn(
+				"Could not set descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set, "
+				"resource must be built on the same logical Vulkan device.",
+				res->binding, res->index);
+
+			success = 0;
+			continue;
+		}
+
+		// And a renderer check.
+		if (new.obj.renderer != NULL && new.obj.renderer != renderer)
+		{
+			gfx_log_warn(
+				"Could not set descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set, "
+				"renderer attachment reference cannot be used in another "
+				"renderer.",
+				res->binding, res->index);
+
+			success = 0;
+			continue;
+		}
 
 		// If equal (including offset & size), just skip it, not a failure.
 		if (
@@ -309,6 +338,8 @@ static int _gfx_set_samplers(GFXSet* set, int update,
 	assert(numSamplers > 0);
 	assert(samplers != NULL);
 
+	GFXRenderer* renderer = set->renderer;
+
 	// Keep track of success.
 	int success = 1;
 	int recycle = 0;
@@ -326,8 +357,8 @@ static int _gfx_set_samplers(GFXSet* set, int update,
 			// Skip it if not.
 			gfx_log_warn(
 				"Could not set sampler of descriptor resource "
-				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
-				"of a set, does not exist.",
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set, "
+				"does not exist.",
 				samp->binding, samp->index);
 
 			success = 0;
@@ -342,8 +373,8 @@ static int _gfx_set_samplers(GFXSet* set, int update,
 		{
 			gfx_log_warn(
 				"Could not set sampler of descriptor resource "
-				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") "
-				"of a set, is immutable.",
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set, "
+				"is immutable.",
 				samp->binding, samp->index);
 
 			success = 0;
@@ -351,12 +382,12 @@ static int _gfx_set_samplers(GFXSet* set, int update,
 		}
 
 		// Create/get the sampler.
-		_GFXCacheElem* sampler = _gfx_get_sampler(set->renderer, samp);
+		_GFXCacheElem* sampler = _gfx_get_sampler(renderer, samp);
 		if (sampler == NULL)
 		{
 			gfx_log_warn(
 				"Failed to create sampler for descriptor resource "
-				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set",
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set.",
 				samp->binding, samp->index);
 
 			success = 0;
