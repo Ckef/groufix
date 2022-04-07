@@ -207,11 +207,42 @@ static void _gfx_set_update(GFXSet* set,
 	// Update buffer view info.
 	if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
 	{
+		_GFXContext* context = set->renderer->allocator.context;
+
 		// Make the previous buffer view stale.
 		_gfx_make_stale(set, VK_NULL_HANDLE, entry->vk.update.view);
 		entry->vk.update.view = VK_NULL_HANDLE;
 
-		// TODO: Make new buffer view.
+		// Create a new buffer view.
+		_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
+		if (unp.obj.buffer != NULL)
+		{
+			VkBufferViewCreateInfo bvci = {
+				.sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
+
+				.pNext  = NULL,
+				.flags  = 0,
+				.buffer = unp.obj.buffer->vk.buffer,
+				.format = entry->vk.format,
+				.offset = unp.value + entry->range.offset,
+				.range =
+					// Resolve zero buffer size.
+					(entry->range.size == 0) ?
+					_gfx_ref_size(entry->ref) - entry->range.offset :
+					entry->range.size
+			};
+
+			VkBufferView view;
+			_GFX_VK_CHECK(
+				context->vk.CreateBufferView(
+					context->vk.device, &bvci, NULL, &view),
+				{
+					gfx_log_error("Could not create buffer view for a set.");
+					view = VK_NULL_HANDLE;
+				});
+
+			entry->vk.update.view = view;
+		}
 	}
 }
 
