@@ -87,39 +87,6 @@ static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 }
 
 /****************************
- * Retrieves the Vulkan queue family indices to share with.
- * @param families Must be an array of size 3.
- * @return The number of unique families returned.
- */
-static inline uint32_t _gfx_get_families(GFXMemoryFlags flags, GFXHeap* heap,
-                                         uint32_t* families)
-{
-	// Make sure to only pick unique indices.
-	const uint32_t graphics =
-		heap->ops.graphics.queue.family;
-
-	const uint32_t compute =
-		(flags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
-		heap->ops.compute != graphics ?
-		heap->ops.compute : UINT32_MAX;
-
-	const uint32_t transfer =
-		(flags & GFX_MEMORY_TRANSFER_CONCURRENT) &&
-		heap->ops.transfer.queue.family != graphics &&
-		heap->ops.transfer.queue.family != compute ?
-		heap->ops.transfer.queue.family : UINT32_MAX;
-
-	// And output them linearly, without missing families inbetween.
-	families[0] = graphics;
-	families[1] = compute != UINT32_MAX ? compute : transfer;
-	families[2] = compute != UINT32_MAX ? transfer : UINT32_MAX;
-
-	return
-		families[2] != UINT32_MAX ? 3 :
-		families[1] != UINT32_MAX ? 2 : 1;
-}
-
-/****************************
  * Populates the `vk.buffer` and `alloc` fields
  * of a _GFXBuffer object, allocating a new Vulkan buffer in the process.
  * @param buffer Cannot be NULL, base.flags is appropriately modified.
@@ -136,8 +103,14 @@ static int _gfx_buffer_alloc(_GFXBuffer* buffer)
 	_GFXContext* context = heap->allocator.context;
 
 	// Get queue families to share with.
-	uint32_t families[3];
-	uint32_t fCount = _gfx_get_families(buffer->base.flags, heap, families);
+	uint32_t families[3] = {
+		heap->ops.graphics.queue.family,
+		heap->ops.compute,
+		heap->ops.transfer.queue.family
+	};
+
+	uint32_t fCount =
+		_gfx_filter_families(buffer->base.flags, families);
 
 	// Create a new Vulkan buffer.
 	VkBufferUsageFlags usage =
@@ -249,8 +222,14 @@ static int _gfx_image_alloc(_GFXImage* image)
 	_GFXContext* context = heap->allocator.context;
 
 	// Get queue families to share with.
-	uint32_t families[3];
-	uint32_t fCount = _gfx_get_families(image->base.flags, heap, families);
+	uint32_t families[3] = {
+		heap->ops.graphics.queue.family,
+		heap->ops.compute,
+		heap->ops.transfer.queue.family
+	};
+
+	uint32_t fCount =
+		_gfx_filter_families(image->base.flags, families);
 
 	// Create a new Vulkan image.
 	VkImageCreateFlags createFlags =

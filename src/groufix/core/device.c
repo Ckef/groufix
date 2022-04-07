@@ -1207,6 +1207,39 @@ _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
 }
 
 /****************************/
+uint32_t _gfx_filter_families(GFXMemoryFlags flags, uint32_t* families)
+{
+	assert(families != NULL);
+
+	uint32_t graphics = families[0];
+	uint32_t compute = families[1];
+	uint32_t transfer = families[2];
+
+	// Make sure to only pick unique indices.
+	compute =
+		(flags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
+		compute != graphics ?
+		compute : UINT32_MAX;
+
+	transfer =
+		(flags & GFX_MEMORY_TRANSFER_CONCURRENT) &&
+		transfer != graphics &&
+		transfer != compute ?
+		transfer : UINT32_MAX;
+
+	// And output them linearly, without missing families inbetween.
+	// We always output the graphics family, as every resource is expected
+	// to function within a renderer.
+	families[0] = graphics;
+	families[1] = compute != UINT32_MAX ? compute : transfer;
+	families[2] = compute != UINT32_MAX ? transfer : UINT32_MAX;
+
+	return
+		families[2] != UINT32_MAX ? 3 :
+		families[1] != UINT32_MAX ? 2 : 1;
+}
+
+/****************************/
 GFX_API size_t gfx_get_num_devices(void)
 {
 	assert(atomic_load(&_groufix.initialized));

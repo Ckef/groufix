@@ -577,6 +577,17 @@ _GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
 _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
                               VkQueueFlags flags, int present);
 
+/**
+ * Retrieves the Vulkan queue family indices to share with,
+ * based on the memory flags used for a resource.
+ * @param families Input/output array storing { graphics, compute, transfer }.
+ * @return The number of unique families returned.
+ *
+ * families is overwritten with the Vulkan family indices to use.
+ * If less than 3 families are to be used, trailing UINT32_MAXs are inserted.
+ */
+uint32_t _gfx_filter_families(GFXMemoryFlags flags, uint32_t* families);
+
 
 /****************************
  * Window's swapchain.
