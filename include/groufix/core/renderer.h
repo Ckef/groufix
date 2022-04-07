@@ -158,7 +158,7 @@ typedef struct GFXView
 
 	union {
 		GFXFormat   format; // For texel buffers.
-		GFXViewType type;   // For images.
+		GFXViewType type;   // For attachments.
 	};
 
 	GFXRange range;

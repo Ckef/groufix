@@ -730,7 +730,7 @@ typedef struct _GFXSetEntry
 {
 	GFXReference   ref; // GFX_REF_NULL if empty or sampler.
 	GFXRange       range;
-	GFXViewType    viewType; // For attachment inputs.
+	GFXViewType    viewType; // For attachment inputs ONLY!.
 	_GFXCacheElem* sampler;  // May be NULL.
 
 	// TODO: Keep track of current attachment `generation` to limit updates?

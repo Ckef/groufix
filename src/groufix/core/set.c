@@ -281,6 +281,10 @@ static int _gfx_set_resources(GFXSet* set, int update,
 			continue;
 		}
 
+		// Update the `numAttachs` field of the set.
+		if (cur.obj.renderer != NULL) --set->numAttachs;
+		if (new.obj.renderer != NULL) ++set->numAttachs;
+
 		// Set the new reference & update.
 		entry->ref = res->ref;
 
@@ -327,9 +331,95 @@ static int _gfx_set_views(GFXSet* set, int update,
 	assert(numViews > 0);
 	assert(views != NULL);
 
-	// TODO: Implement.
+	GFXRenderer* renderer = set->renderer;
 
-	return 0;
+	// Keep track of success.
+	int success = 1;
+	int recycle = 0;
+
+	for (size_t v = 0; v < numViews; ++v)
+	{
+		const GFXView* view = &views[v];
+
+		// Check if the resource exists.
+		if (
+			view->binding >= set->numBindings ||
+			view->index >= set->bindings[view->binding].count)
+		{
+			// Skip it if not.
+			gfx_log_warn(
+				"Could not set view of descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set, "
+				"does not exist.",
+				view->binding, view->index);
+
+			success = 0;
+			continue;
+		}
+
+		// Check if is viewable (i.e. a buffer or image).
+		_GFXSetBinding* binding = &set->bindings[view->binding];
+		if (
+			!_GFX_BINDING_IS_BUFFER(binding->type) &&
+			!_GFX_BINDING_IS_IMAGE(binding->type))
+		{
+			gfx_log_warn(
+				"Could not set view of descriptor resource "
+				"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set, "
+				"not a buffer or image.",
+				view->binding, view->index);
+
+			success = 0;
+			continue;
+		}
+
+		// Resolve format here, as we do not store the groufix format.
+		// Do not modify the entry before succesfully resolved!
+		_GFXSetEntry* entry = &binding->entries[view->index];
+		if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
+		{
+			VkFormat vkFmt = VK_FORMAT_UNDEFINED;
+			GFXFormat gfxFmt = view->format;
+			_GFX_RESOLVE_FORMAT(gfxFmt, vkFmt, renderer->device,
+				((VkFormatProperties){
+					.linearTilingFeatures = 0,
+					.optimalTilingFeatures = 0,
+					.bufferFeatures =
+						// Can only be a uniform or storage buffer at this point.
+						binding->type == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER ?
+							VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT :
+							VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT
+				}), {}); // Manually do the check so we can continue.
+
+			if (vkFmt == VK_FORMAT_UNDEFINED)
+			{
+				gfx_log_warn(
+					"Could not set view of descriptor resource "
+					"(binding=%"GFX_PRIs", index=%"GFX_PRIs") of a set, "
+					"texel buffer format is not supported.",
+					view->binding, view->index);
+
+				success = 0;
+				continue;
+			}
+
+			// Set Vulkan format of entry :)
+			entry->vk.format = vkFmt;
+		}
+
+		// Set the new values & update.
+		entry->range = view->range;
+		entry->viewType = view->type;
+
+		if (update)
+			_gfx_set_update(set, binding, entry),
+			recycle = 1;
+	}
+
+	// If anything was updated, recycle the set.
+	if (recycle) _gfx_set_recycle(set);
+
+	return success;
 }
 
 /****************************
