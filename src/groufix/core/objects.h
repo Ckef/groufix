@@ -70,6 +70,16 @@
 	((type) == GFX_IMAGE_CUBE) ? VK_IMAGE_TYPE_2D : \
 	VK_IMAGE_TYPE_2D)
 
+#define _GFX_GET_VK_IMAGE_VIEW_TYPE(type) \
+	(((type) == GFX_VIEW_1D) ? VK_IMAGE_VIEW_TYPE_1D : \
+	((type) == GFX_VIEW_1D_ARRAY) ? VK_IMAGE_VIEW_TYPE_1D_ARRAY : \
+	((type) == GFX_VIEW_2D) ? VK_IMAGE_VIEW_TYPE_2D : \
+	((type) == GFX_VIEW_2D_ARRAY) ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : \
+	((type) == GFX_VIEW_CUBE) ? VK_IMAGE_VIEW_TYPE_CUBE : \
+	((type) == GFX_VIEW_CUBE_ARRAY) ? VK_IMAGE_VIEW_TYPE_CUBE_ARRAY : \
+	((type) == GFX_VIEW_3D) ? VK_IMAGE_VIEW_TYPE_3D : \
+	VK_IMAGE_VIEW_TYPE_2D)
+
 #define _GFX_GET_VK_IMAGE_ASPECT(aspect) \
 	(((aspect) & GFX_IMAGE_COLOR ? \
 		VK_IMAGE_ASPECT_COLOR_BIT : (VkImageAspectFlags)0) | \

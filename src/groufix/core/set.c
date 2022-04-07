@@ -109,11 +109,83 @@ static void _gfx_set_update(GFXSet* set,
 	// Update image info.
 	if (_GFX_DESCRIPTOR_IS_IMAGE(binding->type))
 	{
+		_GFXContext* context = set->renderer->allocator.context;
+
 		// Make the previous image view stale.
 		_gfx_make_stale(set, entry->vk.update.image.imageView, VK_NULL_HANDLE);
 		entry->vk.update.image.imageView = VK_NULL_HANDLE;
+		entry->vk.update.image.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-		// TODO: Make new image view.
+		// Create new image view.
+		// If referencing an attachment, leave empty values,
+		// to be updated when used!
+		_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
+		if (unp.obj.image != NULL)
+		{
+			const GFXFormat fmt =
+				unp.obj.image->base.format;
+
+			const GFXViewType viewType =
+				// Only read the given view type if an attachment input!
+				binding->type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT ?
+					entry->viewType : binding->viewType;
+
+			const GFXImageAspect aspect =
+				GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ?
+					(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
+					(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
+					GFX_IMAGE_COLOR;
+
+			const VkImageLayout layout =
+				// Guess the layout from the descriptor type.
+				// TODO: Make some input somewhere so we can force a general layout?
+				binding->type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ?
+					VK_IMAGE_LAYOUT_GENERAL :
+					GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ?
+						VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
+						VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			VkImageViewCreateInfo ivci = {
+				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+
+				.pNext    = NULL,
+				.flags    = 0,
+				.image    = unp.obj.image->vk.image,
+				.viewType = _GFX_GET_VK_IMAGE_VIEW_TYPE(viewType),
+				.format   = unp.obj.image->vk.format,
+
+				.components = {
+					.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.a = VK_COMPONENT_SWIZZLE_IDENTITY
+				},
+
+				.subresourceRange = {
+					// Fix aspect, cause we're nice :)
+					.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(entry->range.aspect & aspect),
+					.baseMipLevel   = entry->range.mipmap,
+					.baseArrayLayer = entry->range.layer,
+
+					.levelCount = entry->range.numMipmaps == 0 ?
+						VK_REMAINING_MIP_LEVELS : entry->range.numMipmaps,
+					.layerCount = entry->range.numLayers == 0 ?
+						VK_REMAINING_ARRAY_LAYERS : entry->range.numLayers
+				}
+			};
+
+			VkImageView view;
+			_GFX_VK_CHECK(
+				context->vk.CreateImageView(
+					context->vk.device, &ivci, NULL, &view),
+				{
+					gfx_log_error("Could not create image view for a set.");
+					view = VK_NULL_HANDLE;
+				});
+
+			entry->vk.update.image.imageView = view;
+			entry->vk.update.image.imageLayout = layout;
+		}
 	}
 
 	// Update sampler info.
@@ -301,24 +373,6 @@ static int _gfx_set_resources(GFXSet* set, int update,
 }
 
 /****************************
- * Stand-in function for setting descriptor binding resources from groups.
- * @see gfx_set_groups.
- * @param update Non-zero to update on change.
- */
-static int _gfx_set_groups(GFXSet* set, int update,
-                           size_t numGroups, const GFXSetGroup* groups)
-{
-	assert(set != NULL);
-	assert(!set->renderer->recording);
-	assert(numGroups > 0);
-	assert(groups != NULL);
-
-	// TODO: Implement.
-
-	return 0;
-}
-
-/****************************
  * Stand-in function for setting resource views of the set.
  * @see gfx_set_views.
  * @param update Non-zero to update on change.
@@ -423,6 +477,24 @@ static int _gfx_set_views(GFXSet* set, int update,
 }
 
 /****************************
+ * Stand-in function for setting descriptor binding resources from groups.
+ * @see gfx_set_groups.
+ * @param update Non-zero to update on change.
+ */
+static int _gfx_set_groups(GFXSet* set, int update,
+                           size_t numGroups, const GFXSetGroup* groups)
+{
+	assert(set != NULL);
+	assert(!set->renderer->recording);
+	assert(numGroups > 0);
+	assert(groups != NULL);
+
+	// TODO: Implement.
+
+	return 0;
+}
+
+/****************************
  * Stand-in function for setting immutable samplers of the set.
  * @see gfx_set_samplers.
  * @param update Non-zero to update on change.
@@ -516,6 +588,8 @@ _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
 {
 	assert(set != NULL);
 	assert(sub != NULL);
+
+	// TODO: Update referenced renderer attachments!
 
 	// Create a set key.
 	_GFXSetKey key;
@@ -660,10 +734,10 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		_gfx_set_groups(aset, 0, numGroups, groups);
 	if (numResources > 0)
 		_gfx_set_resources(aset, 0, numResources, resources);
-	if (numSamplers > 0)
-		_gfx_set_samplers(aset, 0, numSamplers, samplers);
 	if (numViews > 0)
 		_gfx_set_views(aset, 0, numViews, views);
+	if (numSamplers > 0)
+		_gfx_set_samplers(aset, 0, numSamplers, samplers);
 
 	// And then loop over all things to manually update them.
 	// Because all current handles are VK_NULL_HANDLE, we do not push stales

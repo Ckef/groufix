@@ -70,7 +70,7 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 			.dstQueueFamilyIndex = sync->vk.dstFamily,
 			.image               = sync->vk.image,
 			.subresourceRange = {
-				.aspectMask     = sync->range.aspect,
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(sync->range.aspect),
 				.baseMipLevel   = sync->range.mipmap,
 				.baseArrayLayer = sync->range.layer,
 
@@ -190,11 +190,11 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 
 	// Resolve whole aspect from format.
 	// TODO: What if the attachment isn't built yet?
-	GFXFormat fmt = (ref->obj.image != NULL) ?
+	const GFXFormat fmt = (ref->obj.image != NULL) ?
 		ref->obj.image->base.format :
 		_GFX_UNPACK_REF_ATTACH(*ref)->base.format;
 
-	GFXImageAspect aspect =
+	const GFXImageAspect aspect =
 		GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ?
 			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
 			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
@@ -677,7 +677,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				_GFX_UNPACK_REF_ATTACH(injection->inp.refs[i])->vk.image,
 
 			.subresourceRange = {
-				.aspectMask     = ranges[0].aspect,
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(ranges[0].aspect),
 				.baseMipLevel   = ranges[0].mipmap,
 				.baseArrayLayer = ranges[0].layer,
 

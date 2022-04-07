@@ -548,10 +548,10 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 	// Image -> image copy.
 	else if (srcImage != VK_NULL_HANDLE && dstImage != VK_NULL_HANDLE)
 	{
-		GFXFormat srcFormat = (src->obj.image != NULL) ?
+		const GFXFormat srcFormat = (src->obj.image != NULL) ?
 			src->obj.image->base.format : attach->base.format;
 
-		GFXFormat dstFormat = (dst->obj.image != NULL) ?
+		const GFXFormat dstFormat = (dst->obj.image != NULL) ?
 			dst->obj.image->base.format : attach->base.format;
 
 		// Note that rev is only allowed to be non-zero when staging is set.
