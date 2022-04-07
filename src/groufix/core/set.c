@@ -121,8 +121,15 @@ static void _gfx_set_update(GFXSet* set,
 	{
 		if (entry->sampler != NULL)
 			entry->vk.update.image.sampler = entry->sampler->vk.sampler;
-
-		// TODO: Set default sampler?
+		else
+		{
+			// Get the default sampler.
+			_GFXCacheElem* sampler = _gfx_get_sampler(set->renderer, NULL);
+			if (sampler != NULL)
+				entry->vk.update.image.sampler = sampler->vk.sampler;
+			else
+				gfx_log_error("Could not create default sampler for a set.");
+		}
 	}
 
 	// Update buffer view info.
