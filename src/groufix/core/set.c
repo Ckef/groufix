@@ -45,6 +45,16 @@
 	(_GFX_DESCRIPTOR_IS_SAMPLER(type))
 
 
+// Get view type from image type.
+#define _GFX_GET_VIEW_TYPE(type) \
+	(((type) == GFX_IMAGE_1D) ? GFX_VIEW_1D : \
+	((type) == GFX_IMAGE_2D) ? GFX_VIEW_2D : \
+	((type) == GFX_IMAGE_3D) ? GFX_VIEW_3D : \
+	((type) == GFX_IMAGE_3D_SLICED) ? GFX_VIEW_3D : \
+	((type) == GFX_IMAGE_CUBE) ? GFX_VIEW_CUBE : \
+	GFX_VIEW_2D)
+
+
 /****************************
  * Mirrors _GFXHashKey, but containing one _GFXCacheElem* and one GFXSet*.
  */
@@ -287,16 +297,19 @@ static void _gfx_set_recycle(GFXSet* set)
 /****************************
  * Stand-in function for setting descriptor binding resources of the set.
  * @see gfx_set_resources.
- * @param update Non-zero to update & recycle on change.
+ * @param update  Non-zero to update & recycle on change.
+ * @param changed Outputs whether update info was actually changed.
  */
-static int _gfx_set_resources(GFXSet* set, int update,
+static int _gfx_set_resources(GFXSet* set, int update, int* changed,
                               size_t numResources, const GFXSetResource* resources)
 {
 	assert(set != NULL);
 	assert(!set->renderer->recording);
+	assert(changed != NULL);
 	assert(numResources > 0);
 	assert(resources != NULL);
 
+	*changed = 0;
 	GFXRenderer* renderer = set->renderer;
 
 	// Keep track of success, much like the technique,
@@ -389,6 +402,7 @@ static int _gfx_set_resources(GFXSet* set, int update,
 		if (new.obj.renderer != NULL) ++set->numAttachs;
 
 		// Set the new reference & update.
+		*changed = 1;
 		entry->ref = res->ref;
 
 		if (update)
@@ -406,9 +420,10 @@ static int _gfx_set_resources(GFXSet* set, int update,
 /****************************
  * Stand-in function for setting resource views of the set.
  * @see gfx_set_views.
- * @param update Non-zero to update on change.
+ * @param update  Non-zero to update on change.
+ * @param changed Outputs whether update info was actually changed.
  */
-static int _gfx_set_views(GFXSet* set, int update,
+static int _gfx_set_views(GFXSet* set, int update, int* changed,
                           size_t numViews, const GFXView* views)
 {
 	assert(set != NULL);
@@ -416,6 +431,7 @@ static int _gfx_set_views(GFXSet* set, int update,
 	assert(numViews > 0);
 	assert(views != NULL);
 
+	*changed = 0;
 	GFXRenderer* renderer = set->renderer;
 
 	// Keep track of success.
@@ -470,7 +486,7 @@ static int _gfx_set_views(GFXSet* set, int update,
 					.linearTilingFeatures = 0,
 					.optimalTilingFeatures = 0,
 					.bufferFeatures =
-						// Can only be a uniform or storage buffer at this point.
+						// Can only be a texel buffer at this point.
 						binding->type == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER ?
 							VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT :
 							VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT
@@ -493,6 +509,7 @@ static int _gfx_set_views(GFXSet* set, int update,
 		}
 
 		// Set the new values & update.
+		*changed = 1;
 		entry->range = view->range;
 		entry->viewType = view->type;
 
@@ -520,9 +537,124 @@ static int _gfx_set_groups(GFXSet* set, int update,
 	assert(numGroups > 0);
 	assert(groups != NULL);
 
-	// TODO: Implement.
+	// Keep track of success.
+	int success = 1;
+	int recycle = 0;
 
-	return 0;
+	for (size_t g = 0; g < numGroups; ++g)
+	{
+		const GFXSetGroup* sGroup = &groups[g];
+		_GFXGroup* group = (_GFXGroup*)sGroup->group;
+
+		// Check if the resource exists (in both the set and group).
+		if (
+			sGroup->binding >= set->numBindings ||
+			sGroup->offset >= group->numBindings)
+		{
+			// Skip it if not.
+			gfx_log_warn(
+				"Could not set descriptor resources (binding=%"GFX_PRIs") "
+				"of a set from a resource group, does not exist.",
+				sGroup->binding);
+
+			success = 0;
+			continue;
+		}
+
+		// Calculate how many bindings we can set from this group.
+		size_t maxBindings =
+			sGroup->numBindings == 0 ? SIZE_MAX : sGroup->numBindings;
+		maxBindings =
+			GFX_MIN(GFX_MIN(
+				set->numBindings - sGroup->binding,
+				group->numBindings - sGroup->offset),
+				maxBindings);
+
+		for (size_t b = 0; b < maxBindings; ++b)
+		{
+			_GFXSetBinding* sBinding = &set->bindings[sGroup->binding + b];
+			GFXBinding* gBinding = &group->bindings[sGroup->offset + b];
+
+			// Calculate how many descriptors we can set.
+			size_t maxDescriptors =
+				GFX_MIN(sBinding->count, gBinding->count);
+
+			for (size_t i = 0; i < maxDescriptors; ++i)
+			{
+				// Try to set both the resource and the view.
+				// Copy values from the group's binding, and let
+				// _gfx_set_resources and _gfx_set_views validate it all.
+				// Not possible from API to start index at > 0, but meh.
+				GFXSetResource setRes = {
+					.binding = sGroup->binding + b,
+					.index = i,
+					// Take the ref so size calculations are correct!
+					.ref = gBinding->type == GFX_BINDING_IMAGE ?
+						gfx_ref_group_image(group, sGroup->offset + b, i) :
+						gfx_ref_group_buffer(group, sGroup->offset + b, i)
+				};
+
+				GFXView view = {
+					.binding = sGroup->binding + b,
+					.index = i,
+				};
+
+				// Always specify the entire resource.
+				switch (gBinding->type)
+				{
+				case GFX_BINDING_BUFFER:
+					view.format = GFX_FORMAT_EMPTY; // Just in case.
+					view.range = (GFXRange){ .offset = 0, .size = 0 };
+					break;
+
+				case GFX_BINDING_BUFFER_TEXEL:
+					view.format = gBinding->format;
+					view.range = (GFXRange){ .offset = 0, .size = 0 };
+					break;
+
+				case GFX_BINDING_IMAGE:
+					view.range = (GFXRange){
+						// Specify all aspect flags, will be filtered later on.
+						.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
+						.mipmap = 0,
+						.numMipmaps = 0,
+						.layer = 0,
+						.numLayers = 0
+					};
+
+					// And get the image/attachment to get a view type...
+					_GFXUnpackRef unp = _gfx_ref_unpack(setRes.ref);
+					_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+
+					view.type = _GFX_GET_VIEW_TYPE(
+						(unp.obj.image != NULL) ? unp.obj.image->base.type :
+						(attach != NULL) ? attach->base.type :
+						GFX_IMAGE_2D);
+					break;
+				}
+
+				// Now set the actual resource and view.
+				// But we do manually update and/or recycle, mostly
+				// to avoid unnecessary re-recreation of views.
+				// Also let views be set before resources :)
+				int vChanged, rChanged;
+
+				if (!_gfx_set_views(set, 0, &vChanged, 1, &view))
+					success = 0;
+				if (!_gfx_set_resources(set, 0, &rChanged, 1, &setRes))
+					success = 0;
+
+				if (vChanged || rChanged)
+					_gfx_set_update(set, sBinding, sBinding->entries + i),
+					recycle = 1;
+			}
+		}
+	}
+
+	// If anything was updated, recycle the set.
+	if (recycle) _gfx_set_recycle(set);
+
+	return success;
 }
 
 /****************************
@@ -761,12 +893,15 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 
 	// And finally, before finishing up, set all initial resources, groups,
 	// views and samplers. Let individual resources and views overwrite groups.
+	// Oh and let views be set before resources :)
+	int changed; // Placeholder.
+
 	if (numGroups > 0)
 		_gfx_set_groups(aset, 0, numGroups, groups);
-	if (numResources > 0)
-		_gfx_set_resources(aset, 0, numResources, resources);
 	if (numViews > 0)
-		_gfx_set_views(aset, 0, numViews, views);
+		_gfx_set_views(aset, 0, &changed, numViews, views);
+	if (numResources > 0)
+		_gfx_set_resources(aset, 0, &changed, numResources, resources);
 	if (numSamplers > 0)
 		_gfx_set_samplers(aset, 0, numSamplers, samplers);
 
@@ -837,7 +972,8 @@ GFX_API int gfx_set_resources(GFXSet* set,
 {
 	// Relies on stand-in function for asserts.
 
-	return _gfx_set_resources(set, 1, numResources, resources);
+	int changed; // Placeholder.
+	return _gfx_set_resources(set, 1, &changed, numResources, resources);
 }
 
 /****************************/
@@ -855,7 +991,8 @@ GFX_API int gfx_set_views(GFXSet* set,
 {
 	// Relies on stand-in function for asserts.
 
-	return _gfx_set_views(set, 1, numViews, views);
+	int changed; // Placeholder.
+	return _gfx_set_views(set, 1, &changed, numViews, views);
 }
 
 /****************************/
