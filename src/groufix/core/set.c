@@ -575,6 +575,24 @@ static int _gfx_set_groups(GFXSet* set, int update,
 			_GFXSetBinding* sBinding = &set->bindings[sGroup->binding + b];
 			GFXBinding* gBinding = &group->bindings[sGroup->offset + b];
 
+			// Check if the types match.
+			// Note that we only have images and not-images.
+			if (
+				(gBinding->type == GFX_BINDING_IMAGE &&
+					!_GFX_BINDING_IS_IMAGE(sBinding->type)) ||
+				(gBinding->type != GFX_BINDING_IMAGE &&
+					!_GFX_BINDING_IS_BUFFER(sBinding->type)))
+			{
+				gfx_log_warn(
+					"Could not set descriptor resources "
+					"(binding=%"GFX_PRIs") of a set from a resource group, "
+					"incompatible resource types.",
+					sGroup->binding + b);
+
+				success = 0;
+				continue;
+			}
+
 			// Calculate how many descriptors we can set.
 			size_t maxDescriptors =
 				GFX_MIN(sBinding->count, gBinding->count);
