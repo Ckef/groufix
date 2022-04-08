@@ -568,7 +568,6 @@ static int _gfx_set_groups(GFXSet* set, int update,
 			// Check if the types match.
 			// Note that we only have images and not-images.
 			if (
-				sBinding->entries == NULL ||
 				(gBinding->type == GFX_BINDING_IMAGE &&
 					!_GFX_BINDING_IS_IMAGE(sBinding->type)) ||
 				(gBinding->type != GFX_BINDING_IMAGE &&
