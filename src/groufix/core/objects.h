@@ -818,11 +818,9 @@ struct GFXPass
 
 		// TODO: Super temporary!!
 		_GFXPoolSub sub;
-		_GFXCacheElem* setLayout;
 		_GFXPrimitive* primitive;
-		_GFXGroup* group;
-		GFXShader* vertex;
-		GFXShader* fragment;
+		GFXTechnique* technique;
+		GFXSet* set;
 
 	} build;
 
@@ -830,14 +828,10 @@ struct GFXPass
 	// Vulkan fields.
 	struct
 	{
-		// TODO: Most of these are temporary..
-		VkRenderPass          pass;
-		GFXVec                framebuffers; // Stores VkFramebuffer.
-		VkDescriptorSetLayout setLayout;
-		VkSampler             sampler;
-		VkImageView           view;
-		VkPipelineLayout      pipeLayout;
-		VkPipeline            pipeline;
+		// TODO: Temporary!?
+		VkRenderPass pass;
+		GFXVec       framebuffers; // Stores VkFramebuffer.
+		VkPipeline   pipeline;
 
 	} vk;
 

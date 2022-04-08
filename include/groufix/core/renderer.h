@@ -606,7 +606,9 @@ GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
  * Makes the pass render the given things.
  */
 GFX_API void gfx_pass_use(GFXPass* pass,
-                          GFXPrimitive* primitive, GFXGroup* group);
+                          GFXPrimitive* primitive,
+                          GFXTechnique* technique,
+                          GFXSet* set);
 
 
 /****************************

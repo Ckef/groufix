@@ -39,7 +39,7 @@ TEST_DESCRIBE(windows, _t)
 		TEST_FAIL();
 
 	// Make it render the thing.
-	gfx_pass_use(pass, _t->primitive, _t->group);
+	gfx_pass_use(pass, _t->primitive, _t->technique, _t->set);
 
 	// Setup an event loop.
 	// We wait instead of poll, only update when an event was detected.

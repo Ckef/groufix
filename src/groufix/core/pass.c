@@ -119,13 +119,14 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 {
 	assert(pass != NULL);
 	assert(pass->build.primitive != NULL); // TODO: Obviously temporary.
-	assert(pass->build.group != NULL); // TODO: Uh oh, temporary.
+	assert(pass->build.technique != NULL); // TODO: Uh oh, temporary.
+	assert(pass->build.set != NULL); // TODO: Samesies, temporary.
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->allocator.context;
 	_GFXAttach* at = NULL;
 	_GFXPrimitive* prim = pass->build.primitive;
-	_GFXGroup* group = pass->build.group;
+	GFXTechnique* tech = pass->build.technique;
 
 	// Get the backing window attachment.
 	if (pass->build.backing != SIZE_MAX)
@@ -220,140 +221,12 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 		}
 	}
 
-	// Create descriptor set layout.
-	if (pass->vk.setLayout == VK_NULL_HANDLE)
-	{
-		VkDescriptorSetLayoutCreateInfo dslci = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-
-			.pNext        = NULL,
-			.flags        = 0,
-			.bindingCount = 2,
-			.pBindings = (VkDescriptorSetLayoutBinding[]){
-				{
-					.binding            = 0,
-					.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-					.descriptorCount    = 1,
-					.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
-					.pImmutableSamplers = NULL
-				}, {
-					.binding            = 1,
-					.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-					.descriptorCount    = 1,
-					.stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
-					.pImmutableSamplers = NULL
-				}
-			}
-		};
-
-		_GFXCacheElem* elem =
-			_gfx_cache_get(&rend->cache, &dslci.sType, NULL);
-
-		if (elem == NULL) goto error;
-		pass->build.setLayout = elem;
-		pass->vk.setLayout = elem->vk.setLayout;
-	}
-
-	// Create sampler.
-	if (pass->vk.sampler == VK_NULL_HANDLE)
-	{
-		VkSamplerCreateInfo sci = {
-			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-
-			.pNext            = NULL,
-			.flags            = 0,
-			.magFilter        = VK_FILTER_NEAREST,
-			.minFilter        = VK_FILTER_NEAREST,
-			.mipmapMode       = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-			.addressModeU     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			.addressModeV     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			.addressModeW     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			.mipLodBias       = 0.0f,
-			.anisotropyEnable = VK_FALSE,
-			.maxAnisotropy    = 1.0f,
-			.compareEnable    = VK_FALSE,
-			.compareOp        = VK_COMPARE_OP_ALWAYS,
-			.minLod           = 0.0f,
-			.maxLod           = 1.0f,
-			.borderColor      = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
-
-			.unnormalizedCoordinates = VK_FALSE
-		};
-
-		_GFXCacheElem* elem =
-			_gfx_cache_get(&rend->cache, &sci.sType, NULL);
-
-		if (elem == NULL) goto error;
-		pass->vk.sampler = elem->vk.sampler;
-	}
-
-	// Create image view.
-	if (pass->vk.view == VK_NULL_HANDLE)
-	{
-		// Use the second binding of the group as image lol.
-		_GFXUnpackRef img = _gfx_ref_unpack(
-			gfx_ref_group_image(&group->base, 1, 0));
-
-		if (img.obj.image == NULL)
-			goto error;
-
-		VkImageViewCreateInfo ivci = {
-			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-
-			.pNext    = NULL,
-			.flags    = 0,
-			.image    = img.obj.image->vk.image,
-			.viewType = VK_IMAGE_VIEW_TYPE_2D,
-			.format   = img.obj.image->vk.format,
-
-			.components = {
-				.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-				.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-				.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-				.a = VK_COMPONENT_SWIZZLE_IDENTITY
-			},
-
-			.subresourceRange = {
-				.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseMipLevel   = 0,
-				.levelCount     = 1,
-				.baseArrayLayer = 0,
-				.layerCount     = 1
-			}
-		};
-
-		_GFX_VK_CHECK(context->vk.CreateImageView(
-			context->vk.device, &ivci, NULL, &pass->vk.view), goto error);
-	}
-
-	// Create pipeline layout.
-	if (pass->vk.pipeLayout == VK_NULL_HANDLE)
-	{
-		VkPipelineLayoutCreateInfo plci = {
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-
-			.pNext                  = NULL,
-			.flags                  = 0,
-			.setLayoutCount         = 1,
-			.pSetLayouts            = &pass->vk.setLayout,
-			.pushConstantRangeCount = 0,
-			.pPushConstantRanges    = NULL
-		};
-
-		_GFXCacheElem* elem = _gfx_cache_get(
-			&rend->cache, &plci.sType, (const void*[]){
-				// TODO: Should be the _GFXCacheElem*.
-				&pass->vk.setLayout
-			});
-
-		if (elem == NULL) goto error;
-		pass->vk.pipeLayout = elem->vk.layout;
-	}
-
 	// Create pipeline.
 	if (pass->vk.pipeline == VK_NULL_HANDLE)
 	{
 		// Pipeline shader stages.
+		// TODO: We literally pick the vertex and fragment shader,
+		// this should obviously be dynamic.
 		VkPipelineShaderStageCreateInfo pstci[] = {
 			{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -361,7 +234,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 				.pNext               = NULL,
 				.flags               = 0,
 				.stage               = VK_SHADER_STAGE_VERTEX_BIT,
-				.module              = pass->build.vertex->vk.module,
+				.module              = tech->shaders[0]->vk.module,
 				.pName               = "main",
 				.pSpecializationInfo = NULL
 			}, {
@@ -370,7 +243,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 				.pNext               = NULL,
 				.flags               = 0,
 				.stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
-				.module              = pass->build.fragment->vk.module,
+				.module              = tech->shaders[4]->vk.module,
 				.pName               = "main",
 				.pSpecializationInfo = NULL
 			}
@@ -520,7 +393,7 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 			.pDepthStencilState  = NULL,
 			.pColorBlendState    = &pcbsci,
 			.pDynamicState       = &pdsci,
-			.layout              = pass->vk.pipeLayout,
+			.layout              = tech->layout->vk.layout,
 			.renderPass          = pass->vk.pass,
 			.subpass             = 0,
 			.basePipelineHandle  = VK_NULL_HANDLE,
@@ -529,10 +402,9 @@ static int _gfx_pass_build_objects(GFXPass* pass)
 
 		_GFXCacheElem* elem = _gfx_cache_get(
 			&rend->cache, &gpci.sType, (const void*[]){
-				pass->build.vertex,
-				pass->build.fragment,
-				// TODO: Should be the _GFXCacheElem*.
-				&pass->vk.pipeLayout,
+				tech->shaders[0],
+				tech->shaders[4],
+				tech->layout,
 				&pass->vk.pass
 			});
 
@@ -593,10 +465,6 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->build.backing = SIZE_MAX;
 
 	pass->vk.pass = VK_NULL_HANDLE;
-	pass->vk.setLayout = VK_NULL_HANDLE;
-	pass->vk.sampler = VK_NULL_HANDLE;
-	pass->vk.view = VK_NULL_HANDLE;
-	pass->vk.pipeLayout = VK_NULL_HANDLE;
 	pass->vk.pipeline = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
@@ -605,49 +473,9 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	// TODO: Super temporary!!
 	_gfx_pool_sub(&renderer->pool, &pass->build.sub);
-	pass->build.setLayout = NULL;
 	pass->build.primitive = NULL;
-	pass->build.group = NULL;
-	pass->build.vertex = gfx_create_shader(GFX_STAGE_VERTEX, &renderer->device->base);
-	pass->build.fragment = gfx_create_shader(GFX_STAGE_FRAGMENT, &renderer->device->base);
-
-	GFXStringReader str;
-
-	gfx_shader_compile(pass->build.vertex, GFX_GLSL, 1,
-		gfx_string_reader(&str,
-			"#version 450\n"
-			"#extension GL_ARB_separate_shader_objects : enable\n"
-			"layout(row_major, set = 0, binding = 0) uniform UBO {\n"
-			"  mat4 mvp;\n"
-			"};\n"
-			"layout(location = 0) in vec3 position;\n"
-			"layout(location = 1) in vec3 color;\n"
-			"layout(location = 2) in vec2 texCoord;\n"
-			"layout(location = 0) out vec3 fragColor;\n"
-			"layout(location = 1) out vec2 fragTexCoord;\n"
-			"out gl_PerVertex {\n"
-			"  vec4 gl_Position;\n"
-			"};\n"
-			"void main() {\n"
-			"  gl_Position = mvp * vec4(position, 1.0);\n"
-			"  fragColor = color;\n"
-			"  fragTexCoord = texCoord;\n"
-			"}\n"),
-		NULL, NULL);
-
-	gfx_shader_compile(pass->build.fragment, GFX_GLSL, 1,
-		gfx_string_reader(&str,
-			"#version 450\n"
-			"#extension GL_ARB_separate_shader_objects : enable\n"
-			"layout(set = 0, binding = 1) uniform sampler2D texSampler;\n"
-			"layout(location = 0) in vec3 fragColor;\n"
-			"layout(location = 1) in vec2 fragTexCoord;\n"
-			"layout(location = 0) out vec4 outColor;\n"
-			"void main() {\n"
-			"  float tex = texture(texSampler, fragTexCoord).r;\n"
-			"  outColor = vec4(fragColor, 1.0) * tex;\n"
-			"}\n"),
-		NULL, NULL);
+	pass->build.technique = NULL;
+	pass->build.set = NULL;
 
 
 	return pass;
@@ -661,8 +489,6 @@ void _gfx_destroy_pass(GFXPass* pass)
 
 	// TODO: Super temporary!!
 	_gfx_pool_unsub(&pass->renderer->pool, &pass->build.sub);
-	gfx_destroy_shader(pass->build.vertex);
-	gfx_destroy_shader(pass->build.fragment);
 
 
 	// Destroy Vulkan object structure.
@@ -706,23 +532,11 @@ void _gfx_pass_destruct(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	_GFXContext* context = pass->renderer->allocator.context;
-
 	// Remove reference to backing window.
 	pass->build.backing = SIZE_MAX;
 
-	// Destruct all partial things first.
+	// Destruct all partial things.
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
-
-	// Destroy all non-partial things too.
-	context->vk.DestroyImageView(
-		context->vk.device, pass->vk.view, NULL);
-
-	pass->build.setLayout = NULL;
-	pass->vk.setLayout = VK_NULL_HANDLE;
-	pass->vk.sampler = VK_NULL_HANDLE;
-	pass->vk.view = VK_NULL_HANDLE;
-	pass->vk.pipeLayout = VK_NULL_HANDLE;
 
 	// Clear memory.
 	gfx_vec_clear(&pass->vk.framebuffers);
@@ -737,15 +551,14 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->allocator.context;
 	_GFXPrimitive* prim = pass->build.primitive;
-	_GFXGroup* group = pass->build.group;
-	VkDescriptorSet set = VK_NULL_HANDLE;
+	GFXTechnique* tech = pass->build.technique;
+	GFXSet* set = pass->build.set;
 
 	// Can't be recording if resources are missing.
 	// Window could be minimized or smth.
 	if (
 		pass->vk.pass == VK_NULL_HANDLE ||
 		pass->vk.framebuffers.size == 0 ||
-		pass->vk.pipeLayout == VK_NULL_HANDLE ||
 		pass->vk.pipeline == VK_NULL_HANDLE)
 	{
 		return;
@@ -812,53 +625,12 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	context->vk.CmdBindPipeline(
 		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->vk.pipeline);
 
-	// Get descriptor set from cache.
-	// TODO: Obviously temporary.
-	{
-		// Cheat a little by always using the same key.
-		_GFXHashBuilder builder;
-		_GFXHashKey* key;
-		if (!_gfx_hash_builder(&builder)) goto error;
-		_gfx_hash_builder_push(&builder, sizeof(_GFXCacheElem*), &pass->build.setLayout);
-		key = _gfx_hash_builder_get(&builder);
-
-		// Write the first array element of the first binding of the group lol.
-		_GFXUnpackRef ubo = _gfx_ref_unpack(
-			gfx_ref_group_buffer(&group->base, 0, 0));
-
-		// Cheat some more with the update structure.
-		char update[sizeof(VkDescriptorBufferInfo) + sizeof(VkDescriptorImageInfo)];
-		*(VkDescriptorBufferInfo*)update =
-			(VkDescriptorBufferInfo){
-				.buffer = ubo.obj.buffer->vk.buffer,
-				.offset = ubo.value,
-				.range  = group->bindings[0].elementSize
-			};
-		*(VkDescriptorImageInfo*)((VkDescriptorBufferInfo*)update + 1) =
-			(VkDescriptorImageInfo){
-				.sampler     = pass->vk.sampler,
-				.imageView   = pass->vk.view,
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			};
-
-		_GFXPoolElem* elem = _gfx_pool_get(
-			&rend->pool, &pass->build.sub, pass->build.setLayout, key, update);
-
-		free(key);
-		if (elem == NULL) goto error;
-		set = elem->vk.set;
-		goto skip_error;
-
-		// Error on failure.
-	error:
-		gfx_log_fatal("Recording of pass failed.");
-	skip_error:
-		{};
-	}
-
-	context->vk.CmdBindDescriptorSets(
-		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-		pass->vk.pipeLayout, 0, 1, &set, 0, NULL);
+	// Get & bind a single descriptor set.
+	_GFXPoolElem* elem = _gfx_set_get(set, &pass->build.sub);
+	if (elem != NULL)
+		context->vk.CmdBindDescriptorSets(
+			frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			tech->layout->vk.layout, 0, 1, &elem->vk.set, 0, NULL);
 
 	// Bind index buffer.
 	if (prim->base.numIndices > 0)
@@ -1032,14 +804,18 @@ GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
 
 /****************************/
 GFX_API void gfx_pass_use(GFXPass* pass,
-                          GFXPrimitive* primitive, GFXGroup* group)
+                          GFXPrimitive* primitive,
+                          GFXTechnique* technique,
+                          GFXSet* set)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
 	assert(primitive != NULL);
-	assert(group != NULL);
+	assert(technique != NULL);
+	assert(set != NULL);
 
-	// TODO: Should eventually check if they are using the same context.
+	// TODO: Eventually check if they are using the same context & renderer.
 	pass->build.primitive = (_GFXPrimitive*)primitive;
-	pass->build.group = (_GFXGroup*)group;
+	pass->build.technique = technique;
+	pass->build.set = set;
 }

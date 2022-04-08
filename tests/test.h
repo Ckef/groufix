@@ -142,7 +142,10 @@ typedef struct TestBase
 	GFXDependency* dep;
 	GFXRenderer*   renderer; // Window is attached at index 0.
 	GFXPrimitive*  primitive;
-	GFXGroup*      group;
+	GFXShader*     vertex;
+	GFXShader*     fragment;
+	GFXTechnique*  technique;
+	GFXSet*        set;
 
 } TestBase;
 
@@ -180,8 +183,49 @@ static TestBase _test_base =
 	.dep = NULL,
 	.renderer = NULL,
 	.primitive = NULL,
-	.group = NULL
+	.vertex = NULL,
+	.fragment = NULL,
+	.technique = NULL,
+	.set = NULL
 };
+
+
+/****************************
+ * Some default shaders.
+ ****************************/
+
+static const char* _test_glsl_vertex =
+	"#version 450\n"
+	"#extension GL_ARB_separate_shader_objects : enable\n"
+	"layout(row_major, set = 0, binding = 0) uniform UBO {\n"
+	"  mat4 mvp;\n"
+	"};\n"
+	"layout(location = 0) in vec3 position;\n"
+	"layout(location = 1) in vec3 color;\n"
+	"layout(location = 2) in vec2 texCoord;\n"
+	"layout(location = 0) out vec3 fragColor;\n"
+	"layout(location = 1) out vec2 fragTexCoord;\n"
+	"out gl_PerVertex {\n"
+	"  vec4 gl_Position;\n"
+	"};\n"
+	"void main() {\n"
+	"  gl_Position = mvp * vec4(position, 1.0);\n"
+	"  fragColor = color;\n"
+	"  fragTexCoord = texCoord;\n"
+	"}\n";
+
+
+static const char* _test_glsl_fragment =
+	"#version 450\n"
+	"#extension GL_ARB_separate_shader_objects : enable\n"
+	"layout(set = 0, binding = 1) uniform sampler2D texSampler;\n"
+	"layout(location = 0) in vec3 fragColor;\n"
+	"layout(location = 1) in vec2 fragTexCoord;\n"
+	"layout(location = 0) out vec4 outColor;\n"
+	"void main() {\n"
+	"  float tex = texture(texSampler, fragTexCoord).r;\n"
+	"  outColor = vec4(fragColor, 1.0) * tex;\n"
+	"}\n";
 
 
 /****************************
@@ -194,6 +238,8 @@ static TestBase _test_base =
 static void _test_clear(void)
 {
 	gfx_destroy_renderer(_test_base.renderer);
+	gfx_destroy_shader(_test_base.vertex);
+	gfx_destroy_shader(_test_base.fragment);
 	gfx_destroy_heap(_test_base.heap);
 	gfx_destroy_dep(_test_base.dep);
 	gfx_destroy_window(_test_base.window);
@@ -408,7 +454,7 @@ static void _test_init(TestState* _test_state)
 	if (image == NULL)
 		TEST_FAIL();
 
-	_test_base.group = gfx_alloc_group(_test_base.heap,
+	GFXGroup* group = gfx_alloc_group(_test_base.heap,
 		GFX_MEMORY_WRITE,
 		GFX_BUFFER_UNIFORM,
 		2, (GFXBinding[]){
@@ -425,11 +471,11 @@ static void _test_init(TestState* _test_state)
 			}
 		});
 
-	if (_test_base.group == NULL)
+	if (group == NULL)
 		TEST_FAIL();
 
-	GFXBufferRef ubo = gfx_ref_group_buffer(_test_base.group, 0, 0);
-	GFXImageRef img = gfx_ref_group_image(_test_base.group, 1, 0);
+	GFXBufferRef ubo = gfx_ref_group_buffer(group, 0, 0);
+	GFXImageRef img = gfx_ref_group_image(group, 1, 0);
 
 	if (!gfx_write(uboData, ubo, GFX_TRANSFER_ASYNC, 1, 1,
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(uboData) }},
@@ -462,6 +508,56 @@ static void _test_init(TestState* _test_state)
 		TEST_FAIL();
 	}
 
+	// Create some shaders.
+	_test_base.vertex =
+		gfx_create_shader(GFX_STAGE_VERTEX, _test_base.device);
+	if (_test_base.vertex == NULL)
+		TEST_FAIL();
+
+	_test_base.fragment =
+		gfx_create_shader(GFX_STAGE_FRAGMENT, _test_base.device);
+	if (_test_base.fragment == NULL)
+		TEST_FAIL();
+
+	// Compile GLSL into the shaders.
+	GFXStringReader str;
+
+	if (!gfx_shader_compile(_test_base.vertex, GFX_GLSL, 1,
+		gfx_string_reader(&str, _test_glsl_vertex), NULL, NULL))
+	{
+		TEST_FAIL();
+	}
+
+	if (!gfx_shader_compile(_test_base.fragment, GFX_GLSL, 1,
+		gfx_string_reader(&str, _test_glsl_fragment), NULL, NULL))
+	{
+		TEST_FAIL();
+	}
+
+	// Add a single technique.
+	_test_base.technique = gfx_renderer_add_tech(_test_base.renderer, 2,
+		(GFXShader*[]){ _test_base.vertex, _test_base.fragment });
+
+	if (_test_base.technique == NULL)
+		TEST_FAIL();
+
+	// Add a single set.
+	_test_base.set = gfx_renderer_add_set(_test_base.renderer,
+		_test_base.technique, 0,
+		0, 1, 0, 0,
+		NULL,
+		(GFXSetGroup[]){{
+			.binding = 0,
+			.offset = 0,
+			.numBindings = 0,
+			.group = group
+		}},
+		NULL,
+		NULL);
+
+	if (_test_base.set == NULL)
+		TEST_FAIL();
+
 	// Add a single pass that writes to the window.
 	GFXPass* pass = gfx_renderer_add_pass(_test_base.renderer, 0, NULL);
 	if (pass == NULL)
@@ -471,7 +567,8 @@ static void _test_init(TestState* _test_state)
 		TEST_FAIL();
 
 	// Make it render the thing.
-	gfx_pass_use(pass, _test_base.primitive, _test_base.group);
+	gfx_pass_use(pass,
+		_test_base.primitive, _test_base.technique, _test_base.set);
 #endif
 }
 
