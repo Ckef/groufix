@@ -45,16 +45,6 @@
 	(_GFX_DESCRIPTOR_IS_SAMPLER(type))
 
 
-// Get view type from image type.
-#define _GFX_GET_VIEW_TYPE(type) \
-	(((type) == GFX_IMAGE_1D) ? GFX_VIEW_1D : \
-	((type) == GFX_IMAGE_2D) ? GFX_VIEW_2D : \
-	((type) == GFX_IMAGE_3D) ? GFX_VIEW_3D : \
-	((type) == GFX_IMAGE_3D_SLICED) ? GFX_VIEW_3D : \
-	((type) == GFX_IMAGE_CUBE) ? GFX_VIEW_CUBE : \
-	GFX_VIEW_2D)
-
-
 /****************************
  * Mirrors _GFXHashKey, but containing one _GFXCacheElem* and one GFXSet*.
  */
@@ -578,6 +568,7 @@ static int _gfx_set_groups(GFXSet* set, int update,
 			// Check if the types match.
 			// Note that we only have images and not-images.
 			if (
+				sBinding->entries == NULL ||
 				(gBinding->type == GFX_BINDING_IMAGE &&
 					!_GFX_BINDING_IS_IMAGE(sBinding->type)) ||
 				(gBinding->type != GFX_BINDING_IMAGE &&
@@ -599,10 +590,13 @@ static int _gfx_set_groups(GFXSet* set, int update,
 
 			for (size_t i = 0; i < maxDescriptors; ++i)
 			{
-				// Try to set both the resource and the view.
+				// Try to set the resource.
+				// And a view if we want to set a texel format!
 				// Copy values from the group's binding, and let
 				// _gfx_set_resources and _gfx_set_views validate it all.
 				// Not possible from API to start index at > 0, but meh.
+				_GFXSetEntry* entry = &sBinding->entries[i];
+
 				GFXSetResource setRes = {
 					.binding = sGroup->binding + b,
 					.index = i,
@@ -615,55 +609,24 @@ static int _gfx_set_groups(GFXSet* set, int update,
 				GFXView view = {
 					.binding = sGroup->binding + b,
 					.index = i,
+					.format = gBinding->format,
+					.range = entry->range // Don't modify the range!
 				};
 
-				// Always specify the entire resource.
-				switch (gBinding->type)
-				{
-				case GFX_BINDING_BUFFER:
-					view.format = GFX_FORMAT_EMPTY; // Just in case.
-					view.range = (GFXRange){ .offset = 0, .size = 0 };
-					break;
-
-				case GFX_BINDING_BUFFER_TEXEL:
-					view.format = gBinding->format;
-					view.range = (GFXRange){ .offset = 0, .size = 0 };
-					break;
-
-				case GFX_BINDING_IMAGE:
-					view.range = (GFXRange){
-						// Specify all aspect flags, will be filtered later on.
-						.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
-						.mipmap = 0,
-						.numMipmaps = 0,
-						.layer = 0,
-						.numLayers = 0
-					};
-
-					// And get the image/attachment to get a view type...
-					_GFXUnpackRef unp = _gfx_ref_unpack(setRes.ref);
-					_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
-
-					view.type = _GFX_GET_VIEW_TYPE(
-						(unp.obj.image != NULL) ? unp.obj.image->base.type :
-						(attach != NULL) ? attach->base.type :
-						GFX_IMAGE_2D);
-					break;
-				}
-
-				// Now set the actual resource and view.
-				// But we do manually update and/or recycle, mostly
-				// to avoid unnecessary re-recreation of views.
+				// We do manually update and/or recycle, mostly
+				// to avoid unnecessary re-recreation of Vulkan views.
 				// Also let views be set before resources :)
-				int vChanged, rChanged;
+				int vChanged = 0, rChanged = 0;
 
-				if (!_gfx_set_views(set, 0, &vChanged, 1, &view))
-					success = 0;
+				if (gBinding->type == GFX_BINDING_BUFFER_TEXEL)
+					if (!_gfx_set_views(set, 0, &vChanged, 1, &view))
+						success = 0;
+
 				if (!_gfx_set_resources(set, 0, &rChanged, 1, &setRes))
 					success = 0;
 
-				if (vChanged || rChanged)
-					_gfx_set_update(set, sBinding, sBinding->entries + i),
+				if (update && (vChanged || rChanged))
+					_gfx_set_update(set, sBinding, entry),
 					recycle = 1;
 			}
 		}
@@ -911,15 +874,14 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 
 	// And finally, before finishing up, set all initial resources, groups,
 	// views and samplers. Let individual resources and views overwrite groups.
-	// Oh and let views be set before resources :)
 	int changed; // Placeholder.
 
 	if (numGroups > 0)
 		_gfx_set_groups(aset, 0, numGroups, groups);
-	if (numViews > 0)
-		_gfx_set_views(aset, 0, &changed, numViews, views);
 	if (numResources > 0)
 		_gfx_set_resources(aset, 0, &changed, numResources, resources);
+	if (numViews > 0)
+		_gfx_set_views(aset, 0, &changed, numViews, views);
 	if (numSamplers > 0)
 		_gfx_set_samplers(aset, 0, numSamplers, samplers);
 
