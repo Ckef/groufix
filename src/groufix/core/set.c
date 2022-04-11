@@ -215,7 +215,7 @@ static void _gfx_set_update(GFXSet* set,
 
 		// Create a new buffer view.
 		_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
-		if (unp.obj.buffer != NULL)
+		if (unp.obj.buffer != NULL && entry->vk.format != VK_FORMAT_UNDEFINED)
 		{
 			VkBufferViewCreateInfo bvci = {
 				.sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
@@ -614,7 +614,6 @@ static int _gfx_set_groups(GFXSet* set, int update,
 
 				// We do manually update and/or recycle, mostly
 				// to avoid unnecessary re-recreation of Vulkan views.
-				// Also let views be set before resources :)
 				int vChanged = 0, rChanged = 0;
 
 				if (gBinding->type == GFX_BINDING_BUFFER_TEXEL)

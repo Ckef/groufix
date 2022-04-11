@@ -251,6 +251,7 @@ typedef struct _GFXShaderResource
 	union {
 		uint32_t location;
 		uint32_t set;
+		uint32_t id;
 	};
 
 	uint32_t binding;
@@ -276,6 +277,7 @@ typedef struct _GFXShaderResource
 		_GFX_SHADER_IMAGE_STORAGE,
 		_GFX_SHADER_SAMPLER,
 		_GFX_SHADER_ATTACHMENT_INPUT,
+		_GFX_SHADER_CONSTANT
 
 	} type;
 
@@ -300,10 +302,12 @@ struct GFXShader
 		size_t   locations;
 		size_t   sets;
 		size_t   bindings;
+		size_t   constants;
 
 		// Order:
 		//  inputs/outputs (sorted on location).
 		//  descriptor bindings (sorted on set, then binding).
+		//  constants (unsorted).
 		_GFXShaderResource* resources;
 
 	} reflect;

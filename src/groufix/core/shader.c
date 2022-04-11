@@ -262,6 +262,7 @@ static int _gfx_shader_reflect(GFXShader* shader,
 	assert(shader->reflect.locations == 0);
 	assert(shader->reflect.sets == 0);
 	assert(shader->reflect.bindings == 0);
+	assert(shader->reflect.constants == 0);
 	assert(shader->reflect.resources == NULL);
 
 	// Create SPIR-V context.
@@ -330,19 +331,35 @@ static int _gfx_shader_reflect(GFXShader* shader,
 	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
 	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
 
+	// Get specialization constants.
+	const spvc_specialization_constant* consts = NULL;
+	size_t numConsts = 0;
+
+	result = spvc_compiler_get_specialization_constants(
+		compiler, &consts, &numConsts);
+
+	if (result != SPVC_SUCCESS)
+		goto clean;
+
 	// Count the number of resources and allocate them.
 	// We allocate one big block for all of them, and insertion-sort them
 	// into place.
 	shader->reflect.locations = numInps + numOuts;
 	shader->reflect.bindings = numSubs + numUbos + numSbos +
 		numImgs + numSimgs + numSepimgs + numSamps;
+	shader->reflect.constants = numConsts;
 
-	// If there are no locations or bindings, don't allocate any memory.
-	if (shader->reflect.locations > 0 || shader->reflect.bindings > 0)
+	// If no locations, bindings or constants, don't allocate any memory.
+	if (
+		shader->reflect.locations > 0 ||
+		shader->reflect.bindings > 0 ||
+		shader->reflect.constants > 0)
 	{
 		_GFXShaderResource* rList = malloc(
 			sizeof(_GFXShaderResource) *
-			(shader->reflect.locations + shader->reflect.bindings));
+				(shader->reflect.locations +
+				shader->reflect.bindings +
+				shader->reflect.constants));
 
 		if (rList == NULL)
 			goto clean;
@@ -363,6 +380,15 @@ static int _gfx_shader_reflect(GFXShader* shader,
 		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
 		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
 		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
+
+		// And just stick in the specialization constants at the end.
+		for (size_t i = 0; i < numConsts; ++i)
+		{
+			_GFXShaderResource* out = rList + (rInd++);
+			out->id = consts[i].constant_id;
+			out->count = 1;
+			out->type = _GFX_SHADER_CONSTANT;
+		}
 
 		// Count number of used descriptor sets (which should be sorted!).
 		uint32_t curSet = UINT32_MAX;
@@ -459,13 +485,15 @@ static int _gfx_shader_build(GFXShader* shader,
 		"    Push constants size: %"PRIu32" bytes.\n"
 		"    #input/output locations: %"GFX_PRIs".\n"
 		"    #descriptor sets: %"GFX_PRIs".\n"
-		"    #descriptor bindings: %"GFX_PRIs".\n",
+		"    #descriptor bindings: %"GFX_PRIs".\n"
+		"    #specialization constants: %"GFX_PRIs".\n",
 		_GFX_GET_STAGE_STRING(shader->stage),
 		size / sizeof(uint32_t), size,
 		shader->reflect.push,
 		shader->reflect.locations,
 		shader->reflect.sets,
-		shader->reflect.bindings);
+		shader->reflect.bindings,
+		shader->reflect.constants);
 
 	return 1;
 
@@ -478,6 +506,7 @@ clean_reflect:
 	shader->reflect.locations = 0;
 	shader->reflect.sets = 0;
 	shader->reflect.bindings = 0;
+	shader->reflect.constants = 0;
 	shader->reflect.resources = NULL;
 
 	return 0;
@@ -505,6 +534,7 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 	shader->reflect.locations = 0;
 	shader->reflect.sets = 0;
 	shader->reflect.bindings = 0;
+	shader->reflect.constants = 0;
 	shader->reflect.resources = NULL;
 
 	return shader;
