@@ -49,7 +49,7 @@
  * The object pointed to by key cannot be moved or copied!
  * @return Non-zero on success.
  */
-static inline int _gfx_thread_key_init(_GFXThreadKey* key)
+static inline bool _gfx_thread_key_init(_GFXThreadKey* key)
 {
 #if defined (GFX_UNIX)
 	return !pthread_key_create(key, NULL);
@@ -79,7 +79,7 @@ static inline void _gfx_thread_key_clear(_GFXThreadKey key)
  * Associate a thread specific value with a local data key.
  * @return Non-zero on success.
  */
-static inline int _gfx_thread_key_set(_GFXThreadKey key, const void* value)
+static inline bool _gfx_thread_key_set(_GFXThreadKey key, const void* value)
 {
 #if defined (GFX_UNIX)
 	return !pthread_setspecific(key, value);
@@ -115,7 +115,7 @@ static inline void* _gfx_thread_key_get(_GFXThreadKey key)
  * The object pointed to by mutex cannot be moved or copied!
  * @return Non-zero on success.
  */
-static inline int _gfx_mutex_init(_GFXMutex* mutex)
+static inline bool _gfx_mutex_init(_GFXMutex* mutex)
 {
 #if defined (GFX_UNIX)
 	return !pthread_mutex_init(mutex, NULL);
@@ -161,13 +161,13 @@ static inline void _gfx_mutex_lock(_GFXMutex* mutex)
  * Try to get ownership of the mutex without blocking.
  * @return Non-zero if ownership was granted.
  */
-static inline int _gfx_mutex_try_lock(_GFXMutex* mutex)
+static inline bool _gfx_mutex_try_lock(_GFXMutex* mutex)
 {
 #if defined (GFX_UNIX)
 	return !pthread_mutex_trylock(mutex);
 
 #elif defined (GFX_WIN32)
-	return (int)TryEnterCriticalSection(mutex);
+	return TryEnterCriticalSection(mutex);
 
 #endif
 }

@@ -71,8 +71,8 @@ typedef struct _GFXFormatElem
  *
  * Skips insertion if the format is not supported at all (!).
  */
-static int _gfx_device_map_format(_GFXDevice* device,
-                                  GFXFormat fmt, VkFormat vkFmt)
+static bool _gfx_device_map_format(_GFXDevice* device,
+                                   GFXFormat fmt, VkFormat vkFmt)
 {
 	_GFXFormatElem elem = { .gfx = fmt, .vk = vkFmt };
 
@@ -92,9 +92,9 @@ static int _gfx_device_map_format(_GFXDevice* device,
 }
 
 /****************************/
-int _gfx_device_init_formats(_GFXDevice* device)
+bool _gfx_device_init_formats(_GFXDevice* device)
 {
-	_Static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
+	static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
 
 	assert(device != NULL);
 
@@ -425,7 +425,7 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 	_GFX_GET_DEVICE(dev, device);
 
 	GFXFormat retFmt = GFX_FORMAT_EMPTY;
-	int contained = 0;
+	bool contained = 0;
 	unsigned int dist = UINT_MAX;
 
 	// Loop over all known formats of the device.
@@ -465,7 +465,7 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 
 		// Get 'closest' match.
 		// We always prefer contained formats.
-		const int cont = GFX_FORMAT_IS_CONTAINED(elem->gfx, fmt);
+		const bool cont = GFX_FORMAT_IS_CONTAINED(elem->gfx, fmt);
 		const unsigned int d = _GFX_GET_DISTANCE(elem->gfx, fmt);
 
 		if (contained ? (cont && d < dist) : (cont || d < dist))

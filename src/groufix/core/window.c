@@ -240,7 +240,7 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
  * window->vk.surface must be initialized to a valid Vulkan surface.
  * This can only be called once for each window!
  */
-static int _gfx_window_pick_access(_GFXWindow* window)
+static bool _gfx_window_pick_access(_GFXWindow* window)
 {
 	assert(window != NULL);
 
@@ -676,7 +676,7 @@ GFX_API void gfx_window_set_title(GFXWindow* window, const char* title)
 }
 
 /****************************/
-GFX_API int gfx_window_should_close(GFXWindow* window)
+GFX_API bool gfx_window_should_close(GFXWindow* window)
 {
 	assert(window != NULL);
 
@@ -684,7 +684,7 @@ GFX_API int gfx_window_should_close(GFXWindow* window)
 }
 
 /****************************/
-GFX_API void gfx_window_set_close(GFXWindow* window, int close)
+GFX_API void gfx_window_set_close(GFXWindow* window, bool close)
 {
 	assert(window != NULL);
 

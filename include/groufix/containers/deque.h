@@ -70,7 +70,7 @@ GFX_API void gfx_deque_clear(GFXDeque* deque);
  * @param deque Cannot be NULL.
  * @return Zero when out of memory.
  */
-GFX_API int gfx_deque_reserve(GFXDeque* deque, size_t numElems);
+GFX_API bool gfx_deque_reserve(GFXDeque* deque, size_t numElems);
 
 /**
  * Releases the data, but not freeing it.
@@ -86,15 +86,15 @@ GFX_API void gfx_deque_release(GFXDeque* deque);
  * @param elems    Cannot be an element of deque, may be NULL to push empty.
  * @return Zero when out of memory.
  */
-GFX_API int gfx_deque_push(GFXDeque* deque, size_t numElems,
-                           const void* elems);
+GFX_API bool gfx_deque_push(GFXDeque* deque, size_t numElems,
+                            const void* elems);
 
 /**
  * Pushes elements to the front of a deque.
  * @see gfx_deque_push.
  */
-GFX_API int gfx_deque_push_front(GFXDeque* deque, size_t numElems,
-                                 const void* elems);
+GFX_API bool gfx_deque_push_front(GFXDeque* deque, size_t numElems,
+                                  const void* elems);
 
 /**
  * Pops elements from the end of a deque.

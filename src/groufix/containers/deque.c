@@ -16,7 +16,7 @@
  * Reallocates the data to a new given capacity and moves the data
  * around appropriately (size must already fit if shrinking!).
  */
-static int _gfx_deque_realloc(GFXDeque* deque, size_t capacity)
+static bool _gfx_deque_realloc(GFXDeque* deque, size_t capacity)
 {
 	size_t front = deque->front;
 	size_t move = GFX_MIN(deque->size, deque->capacity - front);
@@ -66,7 +66,7 @@ static int _gfx_deque_realloc(GFXDeque* deque, size_t capacity)
 /****************************
  * Increases the capacity such that it satisfies a minimum.
  */
-static int _gfx_deque_grow(GFXDeque* deque, size_t minCapacity)
+static bool _gfx_deque_grow(GFXDeque* deque, size_t minCapacity)
 {
 	if (deque->capacity >= minCapacity)
 		return 1;
@@ -131,7 +131,7 @@ GFX_API void gfx_deque_clear(GFXDeque* deque)
 }
 
 /****************************/
-GFX_API int gfx_deque_reserve(GFXDeque* deque, size_t numElems)
+GFX_API bool gfx_deque_reserve(GFXDeque* deque, size_t numElems)
 {
 	assert(deque != NULL);
 
@@ -156,8 +156,8 @@ GFX_API void gfx_deque_release(GFXDeque* deque)
 }
 
 /****************************/
-GFX_API int gfx_deque_push(GFXDeque* deque, size_t numElems,
-                           const void* elems)
+GFX_API bool gfx_deque_push(GFXDeque* deque, size_t numElems,
+                            const void* elems)
 {
 	assert(deque != NULL);
 	assert(numElems > 0);
@@ -191,8 +191,8 @@ GFX_API int gfx_deque_push(GFXDeque* deque, size_t numElems,
 }
 
 /****************************/
-GFX_API int gfx_deque_push_front(GFXDeque* deque, size_t numElems,
-                                 const void* elems)
+GFX_API bool gfx_deque_push_front(GFXDeque* deque, size_t numElems,
+                                  const void* elems)
 {
 	assert(deque != NULL);
 	assert(numElems > 0);

@@ -89,7 +89,7 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
  */
 static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 {
-	int conn = (event == GLFW_CONNECTED) ? 1 : 0;
+	const bool conn = (event == GLFW_CONNECTED);
 
 	// Get associated groufix monitor.
 	_GFXMonitor* monitor = glfwGetMonitorUserPointer(handle);
@@ -133,7 +133,7 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 }
 
 /****************************/
-int _gfx_monitors_init(void)
+bool _gfx_monitors_init(void)
 {
 	assert(_groufix.monitors.size == 0);
 
@@ -185,7 +185,7 @@ void _gfx_monitors_terminate(void)
 }
 
 /****************************/
-GFX_API void gfx_monitor_event_set(void (*event)(GFXMonitor*, int))
+GFX_API void gfx_monitor_event_set(void (*event)(GFXMonitor*, bool))
 {
 	assert(atomic_load(&_groufix.initialized));
 

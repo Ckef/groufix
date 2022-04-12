@@ -79,7 +79,7 @@ GFX_API void gfx_map_clear(GFXMap* map);
  * Only useful to avoid the map resizing itself a bunch of times during
  * multiple insertions, does not guarantee any insertion won't fail!
  */
-GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes);
+GFX_API bool gfx_map_reserve(GFXMap* map, size_t numNodes);
 
 /**
  * Shrinks the capacity back down to fit the size.
@@ -98,7 +98,7 @@ GFX_API void gfx_map_shrink(GFXMap* map);
  * When any key in src is already present in the destination map,
  * both nodes will be preserved, duplicates may exist after this call!
  */
-GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src);
+GFX_API bool gfx_map_merge(GFXMap* map, GFXMap* src);
 
 /**
  * Moves a node from one map to another/itself, optionally updating its key.
@@ -114,32 +114,32 @@ GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src);
  * Note: if key is not NULL,
  * keySize must be > 0 and <= the keySize node was originally inserted with.
  */
-GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
-                         size_t keySize, const void* key);
+GFX_API bool gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
+                          size_t keySize, const void* key);
 
 /**
  * Moves a node with a pre-computed hash.
  * @param hash If key is non-NULL, must be `map->hash(key)`.
  * @see gfx_map_move.
  */
-GFX_API int gfx_map_hmove(GFXMap* map, GFXMap* dst, const void* node,
-                          size_t keySize, const void* key, uint64_t hash);
+GFX_API bool gfx_map_hmove(GFXMap* map, GFXMap* dst, const void* node,
+                           size_t keySize, const void* key, uint64_t hash);
 
 /**
  * Moves a node ('fast') without decreasing the capacity of the source map.
  * The implicit order of nodes remains fixed to allow continued iteration.
  * @see gfx_map_move.
  */
-GFX_API int gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
-                          size_t keySize, const void* key);
+GFX_API bool gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
+                           size_t keySize, const void* key);
 
 /**
  * Moves a node ('fast') with a pre-computed hash.
  * @param hash If key is non-NULL, must be `map->hash(key)`.
  * @see gfx_map_fmove.
  */
-GFX_API int gfx_map_fhmove(GFXMap* map, GFXMap* dst, const void* node,
-                           size_t keySize, const void* key, uint64_t hash);
+GFX_API bool gfx_map_fhmove(GFXMap* map, GFXMap* dst, const void* node,
+                            size_t keySize, const void* key, uint64_t hash);
 
 /**
  * Inserts a node into the map.

@@ -147,7 +147,7 @@ GFX_API GFXReader* gfx_string_reader(GFXStringReader* str, const char* string);
  *
  * Note: a file can only be used as reader OR writer, never as both!
  */
-GFX_API int gfx_file_init(GFXFile* file, const char* name, const char* mode);
+GFX_API bool gfx_file_init(GFXFile* file, const char* name, const char* mode);
 
 /**
  * Clears a file stream (i.e. flushes & closes it).

@@ -14,17 +14,17 @@
  * Compares two user defined attachment descriptions.
  * @return Non-zero if equal.
  */
-static inline int _gfx_cmp_attachments(const GFXAttachment* l,
-                                       const GFXAttachment* r)
+static inline bool _gfx_cmp_attachments(const GFXAttachment* l,
+                                        const GFXAttachment* r)
 {
 	// Cannot use memcmp because of padding.
-	const int abs =
+	const bool abs =
 		(l->size == GFX_SIZE_ABSOLUTE) && (r->size == GFX_SIZE_ABSOLUTE) &&
 		(l->width == r->width) &&
 		(l->height == r->height) &&
 		(l->depth == r->depth);
 
-	const int rel =
+	const bool rel =
 		(l->size == GFX_SIZE_RELATIVE) && (r->size == GFX_SIZE_RELATIVE) &&
 		(l->ref == r->ref) &&
 		(l->xScale == r->xScale) &&
@@ -45,7 +45,7 @@ static inline int _gfx_cmp_attachments(const GFXAttachment* l,
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
  */
-static int _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
+static bool _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
 
@@ -117,7 +117,7 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
  * @param index    Must be < number of attachments.
  * @return Non-zero on success.
  */
-static int _gfx_build_attachment(GFXRenderer* renderer, size_t index)
+static bool _gfx_build_attachment(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
 	assert(index < renderer->backing.attachs.size);
@@ -268,7 +268,7 @@ void _gfx_render_backing_clear(GFXRenderer* renderer)
 }
 
 /****************************/
-int _gfx_render_backing_build(GFXRenderer* renderer)
+bool _gfx_render_backing_build(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
@@ -309,7 +309,7 @@ int _gfx_render_backing_build(GFXRenderer* renderer)
 
 /****************************/
 void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
-                               _GFXRecreateFlags flags)
+                                 _GFXRecreateFlags flags)
 {
 	assert(renderer != NULL);
 	assert(flags & _GFX_RECREATE);
@@ -327,8 +327,8 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
 }
 
 /****************************/
-GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
-                                size_t index, GFXAttachment attachment)
+GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
+                                 size_t index, GFXAttachment attachment)
 {
 	assert(renderer != NULL);
 	assert(!renderer->recording);
@@ -393,8 +393,8 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
 }
 
 /****************************/
-GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
-                                       size_t index, GFXWindow* window)
+GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
+                                        size_t index, GFXWindow* window)
 {
 	assert(renderer != NULL);
 	assert(!renderer->recording);

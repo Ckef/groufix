@@ -8,6 +8,7 @@
 
 #include "groufix/core/mem.h"
 #include <assert.h>
+#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -579,8 +580,8 @@ error:
  * outputs to the given _GFXCacheElem struct.
  * @return Non-zero on success.
  */
-static int _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
-                                  const VkStructureType* createInfo)
+static bool _gfx_cache_create_elem(_GFXCache* cache, _GFXCacheElem* elem,
+                                   const VkStructureType* createInfo)
 {
 	assert(cache != NULL);
 	assert(elem != NULL);
@@ -936,7 +937,7 @@ found:
 }
 
 /****************************/
-int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride)
+bool _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride)
 {
 	assert(cache != NULL);
 	assert(device != NULL);
@@ -975,7 +976,7 @@ int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride)
 	// Initialize the hashtables.
 	// Take the largest alignment of the key and element types.
 	const size_t align =
-		GFX_MAX(_Alignof(_GFXHashKey), _Alignof(_GFXCacheElem));
+		GFX_MAX(alignof(_GFXHashKey), alignof(_GFXCacheElem));
 
 	gfx_map_init(&cache->simple,
 		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
@@ -1049,7 +1050,7 @@ void _gfx_cache_clear(_GFXCache* cache)
 }
 
 /****************************/
-int _gfx_cache_flush(_GFXCache* cache)
+bool _gfx_cache_flush(_GFXCache* cache)
 {
 	assert(cache != NULL);
 
@@ -1066,7 +1067,7 @@ _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
 	assert(createInfo != NULL);
 
 	// Just route to the correct cache.
-	int isPipeline =
+	const bool isPipeline =
 		*createInfo == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO ||
 		*createInfo == VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 
@@ -1077,9 +1078,9 @@ _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
 }
 
 /****************************/
-int _gfx_cache_warmup(_GFXCache* cache,
-                      const VkStructureType* createInfo,
-                      const void** handles)
+bool _gfx_cache_warmup(_GFXCache* cache,
+                       const VkStructureType* createInfo,
+                       const void** handles)
 {
 	assert(cache != NULL);
 	assert(createInfo != NULL);
@@ -1135,7 +1136,7 @@ int _gfx_cache_warmup(_GFXCache* cache,
 }
 
 /****************************/
-int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
+bool _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 {
 	assert(_groufix.vk.instance != NULL);
 	assert(cache != NULL);
@@ -1272,7 +1273,7 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 	free(key);
 
 	// And finally, merge the temporary pipeline & destroy it.
-	int success = 1;
+	bool success = 1;
 
 	_GFX_VK_CHECK(
 		context->vk.MergePipelineCaches(
@@ -1296,7 +1297,7 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 }
 
 /****************************/
-int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
+bool _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
 {
 	assert(_groufix.vk.instance != NULL);
 	assert(cache != NULL);

@@ -671,7 +671,7 @@ struct GFXRenderer
 	_GFXMutex lock;       // For recorders, techniques & sets.
 
 	// Render frame (i.e. collection of virtual frames).
-	int recording;
+	bool recording;
 
 	GFXDeque stales; // Stores _GFXStale.
 	GFXDeque frames; // Stores GFXFrame.
@@ -812,7 +812,7 @@ struct GFXPass
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
 
-	GFXVec consumes; // Stores { int, GFXAccessMask, GFXShaderStage, GFXView }.
+	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.
 
 
 	// Building output (can be invalidated).
@@ -1087,9 +1087,9 @@ struct GFXDependency
  * All output arrays in injection may be externally realloc'd,
  * they will be properly freed when aborted or finished.
  */
-int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
-                    size_t numInjs, const GFXInject* injs,
-                    _GFXInjection* injection);
+bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
+                     size_t numInjs, const GFXInject* injs,
+                     _GFXInjection* injection);
 
 /**
  * Injects dependencies by preparing new signal commands.
@@ -1100,9 +1100,9 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
  * Must have succesfully returned from _gfx_deps_catch with injection as
  * argument before calling, as must all other inputs be the same.
  */
-int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
-                      size_t numInjs, const GFXInject* injs,
-                      _GFXInjection* injection);
+bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
+                       size_t numInjs, const GFXInject* injs,
+                       _GFXInjection* injection);
 
 /**
  * Aborts a dependency injection, freeing all data.
@@ -1162,7 +1162,7 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
  * @param index    Index of the virtual frame.
  * @return Zero on failure.
  */
-int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index);
+bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index);
 
 /**
  * Clears a virtual frame of a renderer.
@@ -1182,7 +1182,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame);
  * Cannot be called again until a call to _gfx_frame_submit has been made.
  * Failure is considered fatal, frame cannot be used.
  */
-int _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame);
+bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Acquires all relevant resources for a virtual frame to be recorded.
@@ -1194,7 +1194,7 @@ int _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame);
  * Cannot be called again until a call to _gfx_frame_submit has been made.
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
-int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
+bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Records & submits a virtual frame.
@@ -1206,8 +1206,8 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
  *
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
-int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
-                      size_t numDeps, const GFXInject* deps);
+bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
+                       size_t numDeps, const GFXInject* deps);
 
 /**
  * Blocks until all virtual frames of a renderer are done.
@@ -1217,7 +1217,7 @@ int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
  * Note: once a frame is synced/acquired, it cannot be synchronized until it is
  * submitted and it must not be in the renderer's frame deque when calling this!
  */
-int _gfx_sync_frames(GFXRenderer* renderer);
+bool _gfx_sync_frames(GFXRenderer* renderer);
 
 
 /****************************
@@ -1244,7 +1244,7 @@ void _gfx_render_backing_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero if the entire backing is in a built state.
  */
-int _gfx_render_backing_build(GFXRenderer* renderer);
+bool _gfx_render_backing_build(GFXRenderer* renderer);
 
 /**
  * (Re)builds render backing resources dependent on the given attachment index.
@@ -1275,7 +1275,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  *
  * This will call _gfx_sync_frames internally when the graph got invalidated!
  */
-int _gfx_render_graph_build(GFXRenderer* renderer);
+bool _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
  * (Re)builds render graph resources dependent on the given attachment index.
@@ -1347,8 +1347,8 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
  * @param out       Output _GFXSetBinding to populate.
  * @return Zero if this binding DOES NOT occupy any _GFXSetEntry's!
  */
-int _gfx_tech_get_set_binding(GFXTechnique* technique,
-                              size_t set, size_t binding, _GFXSetBinding* out);
+bool _gfx_tech_get_set_binding(GFXTechnique* technique,
+                               size_t set, size_t binding, _GFXSetBinding* out);
 
 /**
  * Retrieves, allocates or recycles a Vulkan descriptor set of the given set.
@@ -1393,7 +1393,7 @@ void _gfx_destroy_pass(GFXPass* pass);
  * @param flags What resources should be recreated (0 to recreate nothing).
  * @return Non-zero if valid and built.
  */
-int _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
+bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 
 /**
  * Destructs the Vulkan object structure, non-recursively.

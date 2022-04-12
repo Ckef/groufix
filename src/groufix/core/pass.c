@@ -17,7 +17,7 @@
  */
 typedef struct _GFXConsumeElem
 {
-	int            viewed; // Zero to ignore view.type.
+	bool           viewed; // Zero to ignore view.type.
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
 	GFXView        view; // index used as attachment index.
@@ -115,7 +115,7 @@ static size_t _gfx_pass_pick_backing(GFXPass* pass)
  * Builds all missing resources of the Vulkan object structure.
  * @return Non-zero on success.
  */
-static int _gfx_pass_build_objects(GFXPass* pass)
+static bool _gfx_pass_build_objects(GFXPass* pass)
 {
 	assert(pass != NULL);
 	assert(pass->build.primitive != NULL); // TODO: Obviously temporary.
@@ -501,7 +501,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 }
 
 /****************************/
-int _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
+bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 {
 	assert(pass != NULL);
 
@@ -678,8 +678,8 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 }
 
 /****************************/
-GFX_API int gfx_pass_consume(GFXPass* pass, size_t index,
-                             GFXAccessMask mask, GFXShaderStage stage)
+GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
+                              GFXAccessMask mask, GFXShaderStage stage)
 {
 	// Just call gfx_pass_consumea with the entire resource.
 	return gfx_pass_consumea(pass, index, mask, stage,
@@ -694,9 +694,9 @@ GFX_API int gfx_pass_consume(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
-                              GFXAccessMask mask, GFXShaderStage stage,
-                              GFXRange range)
+GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
+                               GFXAccessMask mask, GFXShaderStage stage,
+                               GFXRange range)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
@@ -733,9 +733,9 @@ GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API int gfx_pass_consumev(GFXPass* pass, size_t index,
-                              GFXAccessMask mask, GFXShaderStage stage,
-                              GFXView view)
+GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
+                               GFXAccessMask mask, GFXShaderStage stage,
+                               GFXView view)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);

@@ -8,6 +8,7 @@
 
 #include "groufix/core/mem.h"
 #include <assert.h>
+#include <stdalign.h>
 #include <stdlib.h>
 
 
@@ -197,7 +198,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		GFX_CLAMP(prefBlockSize, minSize, maxSize);
 
 	// Check whether we want to allocate Vulkan dedicated memory.
-	const int dedicated =
+	const bool dedicated =
 		(minSize == maxSize) &&
 		(buffer != VK_NULL_HANDLE || image != VK_NULL_HANDLE);
 
@@ -264,7 +265,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	gfx_list_init(&block->nodes.list);
 	gfx_tree_init(&block->nodes.free, sizeof(key),
 		// Take the largest alignment of the key and element types.
-		GFX_MAX(_Alignof(VkDeviceSize[2]), _Alignof(_GFXMemNode)),
+		GFX_MAX(alignof(VkDeviceSize[2]), alignof(_GFXMemNode)),
 		_gfx_allocator_cmp);
 
 	// If an exact size, link the block into the full list.
@@ -410,18 +411,15 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 }
 
 /****************************/
-int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
-               VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
-               VkMemoryRequirements reqs)
+bool _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, bool linear,
+                VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
+                VkMemoryRequirements reqs)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
 	assert(reqs.size > 0);
 	assert(GFX_IS_POWER_OF_TWO(reqs.alignment));
 	assert(reqs.memoryTypeBits != 0);
-
-	// Normalize linear to 0 or 1 for easy calculation.
-	linear = linear ? 1 : 0;
 
 	// Alignment of 0 means 1.
 	reqs.alignment = (reqs.alignment > 0) ? reqs.alignment : 1;
@@ -479,8 +477,8 @@ try_search:
 			_GFXMemAlloc* right = (_GFXMemAlloc*)node->list.next;
 
 			// If neighbors exist, they must be an allocation.
-			const int lGran = (left != NULL && left->linear != linear);
-			const int rGran = (right != NULL && right->linear != linear);
+			const bool lGran = (left != NULL && left->linear != linear);
+			const bool rGran = (right != NULL && right->linear != linear);
 
 			// Get the alignment we want, if left granularity applies,
 			// we use the largest of the asked alignment and the granularity.
@@ -622,10 +620,10 @@ try_search:
 }
 
 /****************************/
-int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-                VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
-                VkMemoryRequirements reqs,
-                VkBuffer buffer, VkImage image)
+bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+                 VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
+                 VkMemoryRequirements reqs,
+                 VkBuffer buffer, VkImage image)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
@@ -730,8 +728,8 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 
 	// Now modify the list and free tree to reflect the claimed space.
 	const VkDeviceSize key[2] = { rBound - lBound, lBound };
-	const int lFree = (left != NULL) && left->free;
-	const int rFree = (right != NULL) && right->free;
+	const bool lFree = (left != NULL) && left->free;
+	const bool rFree = (right != NULL) && right->free;
 
 	if (lFree || rFree)
 	{
@@ -756,7 +754,7 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	}
 	else
 	{
-		const int full = (block->nodes.free.root == NULL);
+		const bool full = (block->nodes.free.root == NULL);
 
 		// We know no free neighbour exists AND at least one neighbour exists,
 		// if no neighbour were to exist at all we exit early at the top.

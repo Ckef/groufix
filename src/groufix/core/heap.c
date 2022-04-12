@@ -9,6 +9,7 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <limits.h>
+#include <stdalign.h>
 #include <stdlib.h>
 
 
@@ -47,11 +48,11 @@
  * Extracts Vulkan memory flags (and implicitly memory type) from public flags.
  * @param dreqs Can be NULL to disallow a dedicated allocation.
  */
-static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-                                 int linear, GFXMemoryFlags flags,
-                                 const VkMemoryRequirements* reqs,
-                                 const VkMemoryDedicatedRequirements* dreqs,
-                                 VkBuffer buffer, VkImage image)
+static inline bool _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+                                  int linear, GFXMemoryFlags flags,
+                                  const VkMemoryRequirements* reqs,
+                                  const VkMemoryDedicatedRequirements* dreqs,
+                                  VkBuffer buffer, VkImage image)
 {
 	// Get appropriate memory flags & allocate.
 	// For now we always add coherency to host visible memory, this way we do
@@ -95,7 +96,7 @@ static inline int _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
  * The `base` and `heap` fields of buffer must be properly initialized,
  * these values are read for the allocation!
  */
-static int _gfx_buffer_alloc(_GFXBuffer* buffer)
+static bool _gfx_buffer_alloc(_GFXBuffer* buffer)
 {
 	assert(buffer != NULL);
 
@@ -214,7 +215,7 @@ static void _gfx_buffer_free(_GFXBuffer* buffer)
  * The `base`, `heap` and `vk.format` fields of image must be properly
  * initialized, these values are read for the allocation!
  */
-static int _gfx_image_alloc(_GFXImage* image)
+static bool _gfx_image_alloc(_GFXImage* image)
 {
 	assert(image != NULL);
 
@@ -854,7 +855,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	// Make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(_GFXPrimitive) + sizeof(_GFXAttribute) * numAttribs,
-		_Alignof(_GFXPrimBuffer));
+		alignof(_GFXPrimBuffer));
 
 	_GFXPrimitive* prim = malloc(
 		structSize +
@@ -1133,7 +1134,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	// make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(_GFXGroup) + sizeof(GFXBinding) * numBindings,
-		_Alignof(GFXReference));
+		alignof(GFXReference));
 
 	_GFXGroup* group = malloc(
 		structSize +

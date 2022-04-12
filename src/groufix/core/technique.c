@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -75,11 +76,11 @@ typedef struct _GFXBindingElem
  * Compares two shader resources, ignoring the location and/or set and binding.
  * @return Non-zero if equal.
  */
-static inline int _gfx_cmp_resources(const _GFXShaderResource* l,
-                                     const _GFXShaderResource* r)
+static inline bool _gfx_cmp_resources(const _GFXShaderResource* l,
+                                      const _GFXShaderResource* r)
 {
 	// Do not count attachment inputs.
-	const int isImage =
+	const bool isImage =
 		l->type == _GFX_SHADER_IMAGE_AND_SAMPLER ||
 		l->type == _GFX_SHADER_IMAGE_SAMPLED ||
 		l->type == _GFX_SHADER_IMAGE_STORAGE;
@@ -98,7 +99,7 @@ static inline int _gfx_cmp_resources(const _GFXShaderResource* l,
  */
 static size_t _gfx_find_sampler_elem(GFXVec* vec,
                                      size_t set, size_t binding, size_t index,
-                                     int insert)
+                                     bool insert)
 {
 	// Binary search to its position.
 	size_t l = 0;
@@ -109,13 +110,13 @@ static size_t _gfx_find_sampler_elem(GFXVec* vec,
 		const size_t p = (l + r) >> 1;
 		_GFXSamplerElem* e = gfx_vec_at(vec, p);
 
-		const int lesser = e->set < set ||
+		const bool lesser = e->set < set ||
 			(e->set == set &&
 			(e->sampler.binding < binding ||
 				(e->sampler.binding == binding &&
 				e->sampler.index < index)));
 
-		const int greater = e->set > set ||
+		const bool greater = e->set > set ||
 			(e->set == set &&
 			(e->sampler.binding > binding ||
 				(e->sampler.binding == binding &&
@@ -146,8 +147,8 @@ static size_t _gfx_find_sampler_elem(GFXVec* vec,
  * @param vec Assumed to be sorted and store _GFXBindingElem.
  * @return Non-zero if it contains the (new) element.
  */
-static int _gfx_find_binding_elem(GFXVec* vec, size_t set, size_t binding,
-                                  int insert)
+static bool _gfx_find_binding_elem(GFXVec* vec, size_t set, size_t binding,
+                                   bool insert)
 {
 	// Binary search to its position.
 	size_t l = 0;
@@ -158,9 +159,9 @@ static int _gfx_find_binding_elem(GFXVec* vec, size_t set, size_t binding,
 		const size_t p = (l + r) >> 1;
 		_GFXBindingElem* e = gfx_vec_at(vec, p);
 
-		const int lesser = e->set < set ||
+		const bool lesser = e->set < set ||
 			(e->set == set && e->binding < binding);
-		const int greater = e->set > set ||
+		const bool greater = e->set > set ||
 			(e->set == set && e->binding > binding);
 
 		if (lesser) l = p + 1;
@@ -200,9 +201,9 @@ static _GFXShaderResource* _gfx_tech_get_resource(GFXTechnique* technique,
 				const size_t p = (l + r) >> 1;
 				_GFXShaderResource* res = shader->reflect.resources + p;
 
-				const int lesser = res->set < set ||
+				const bool lesser = res->set < set ||
 					(res->set == set && res->binding < binding);
-				const int greater = res->set > set ||
+				const bool greater = res->set > set ||
 					(res->set == set && res->binding > binding);
 
 				if (lesser) l = p + 1;
@@ -285,7 +286,7 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 				if (res->set != set) break;
 				if (counted[res->binding]) continue;
 
-				int isImmutable = _gfx_find_binding_elem(
+				const bool isImmutable = _gfx_find_binding_elem(
 					&technique->immutable, set, res->binding, 0);
 
 				// Note that we also check if the resource contains more
@@ -299,8 +300,8 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 }
 
 /****************************/
-int _gfx_tech_get_set_binding(GFXTechnique* technique,
-                              size_t set, size_t binding, _GFXSetBinding* out)
+bool _gfx_tech_get_set_binding(GFXTechnique* technique,
+                               size_t set, size_t binding, _GFXSetBinding* out)
 {
 	assert(technique != NULL);
 	assert(technique->layout != NULL); // Must be locked.
@@ -317,9 +318,9 @@ int _gfx_tech_get_set_binding(GFXTechnique* technique,
 
 	// Note that gfx_tech_samplers and gfx_tech_dynamic already checked
 	// resource compatibility, we can assume they are correct.
-	int isImmutable =
+	const bool isImmutable =
 		_gfx_find_binding_elem(&technique->immutable, set, binding, 0);
-	int isDynamic =
+	const bool isDynamic =
 		_gfx_find_binding_elem(&technique->dynamic, set, binding, 0);
 
 	out->type = _GFX_GET_VK_DESCRIPTOR_TYPE(res->type, isDynamic);
@@ -342,7 +343,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	// Get the array of shaders to use.
 	// Use the last shader of each stage.
 	GFXShader* shads[_GFX_NUM_SHADER_STAGES];
-	int compute = 0;
+	bool compute = 0;
 
 	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
 		shads[s] = NULL; // Init all to empty.
@@ -473,7 +474,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	// make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(GFXTechnique) + sizeof(GFXShader*) * _GFX_NUM_SHADER_STAGES,
-		_Alignof(_GFXCacheElem*));
+		alignof(_GFXCacheElem*));
 
 	GFXTechnique* tech = malloc(
 		structSize +
@@ -544,8 +545,8 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique)
 }
 
 /****************************/
-GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
-                              size_t numSamplers, const GFXSampler* samplers)
+GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
+                               size_t numSamplers, const GFXSampler* samplers)
 {
 	assert(technique != NULL);
 	assert(!technique->renderer->recording);
@@ -559,7 +560,7 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 
 	// Keep track of success, not gonna bother removing
 	// previous samplers if one failed to insert.
-	int success = 1;
+	bool success = 1;
 
 	for (size_t s = 0; s < numSamplers; ++s)
 	{
@@ -615,8 +616,8 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
 }
 
 /****************************/
-GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
-                             size_t binding)
+GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
+                              size_t binding)
 {
 	assert(technique != NULL);
 	assert(!technique->renderer->recording);
@@ -649,7 +650,7 @@ GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
 }
 
 /****************************/
-GFX_API int gfx_tech_lock(GFXTechnique* technique)
+GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 {
 	assert(technique != NULL);
 	assert(!technique->renderer->recording);
@@ -686,7 +687,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 		{
 			_GFXShaderResource* cur = NULL;
 			GFXShaderStage stages = 0;
-			int done = 1;
+			bool done = 1;
 
 			// Within all shaders, 'loop' to the relevant resource.
 			for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
@@ -725,7 +726,7 @@ GFX_API int gfx_tech_lock(GFXTechnique* technique)
 			if (cur == NULL || cur->count == 0) continue;
 
 			// Push the resource as a binding.
-			int isDynamic =
+			const bool isDynamic =
 				_gfx_find_binding_elem(&technique->dynamic, set, binding, 0);
 
 			VkDescriptorSetLayoutBinding dslb = {

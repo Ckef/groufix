@@ -156,7 +156,7 @@ const char* _gfx_vulkan_result_string(VkResult result)
 }
 
 /****************************/
-int _gfx_vulkan_init(void)
+bool _gfx_vulkan_init(void)
 {
 	assert(_groufix.vk.instance == NULL);
 
@@ -259,7 +259,7 @@ int _gfx_vulkan_init(void)
 #endif
 		};
 
-		int res = 1;
+		bool res = 1;
 		_GFX_VK_CHECK(_groufix.vk.CreateInstance(
 			&ici, NULL, &_groufix.vk.instance), res = 0);
 

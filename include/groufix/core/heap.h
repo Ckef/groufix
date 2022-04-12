@@ -425,11 +425,11 @@ typedef enum GFXTransferFlags
  *  Fails if the resource was not created with
  *   GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
  */
-GFX_API int gfx_read(GFXReference src, void* dst,
-                     GFXTransferFlags flags,
-                     size_t numRegions, size_t numDeps,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                     const GFXInject* deps);
+GFX_API bool gfx_read(GFXReference src, void* dst,
+                      GFXTransferFlags flags,
+                      size_t numRegions, size_t numDeps,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                      const GFXInject* deps);
 
 /**
  * Writes data to a memory resource reference.
@@ -438,11 +438,11 @@ GFX_API int gfx_read(GFXReference src, void* dst,
  * Fails if the resource was not created with
  *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE.
  */
-GFX_API int gfx_write(const void* src, GFXReference dst,
-                      GFXTransferFlags flags,
-                      size_t numRegions, size_t numDeps,
-                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                      const GFXInject* deps);
+GFX_API bool gfx_write(const void* src, GFXReference dst,
+                       GFXTransferFlags flags,
+                       size_t numRegions, size_t numDeps,
+                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                       const GFXInject* deps);
 
 /**
  * Copies data from one memory resource reference to another.
@@ -451,11 +451,11 @@ GFX_API int gfx_write(const void* src, GFXReference dst,
  * Fails if the src was not created with GFX_MEMORY_READ.
  * Fails if the dst was not created with GFX_MEMORY_WRITE.
  */
-GFX_API int gfx_copy(GFXReference src, GFXReference dst,
-                     GFXTransferFlags flags,
-                     size_t numRegions, size_t numDeps,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                     const GFXInject* deps);
+GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
+                      GFXTransferFlags flags,
+                      size_t numRegions, size_t numDeps,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                      const GFXInject* deps);
 
 /**
  * Maps a buffer reference to a host virtual address pointer.

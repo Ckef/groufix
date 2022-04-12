@@ -37,29 +37,29 @@ typedef struct GFXDevice
 	GFXDeviceType type;
 	const char*   name;
 
-	int available; // Zero if it does not support the required Vulkan version.
+	bool available; // Zero if it does not support the required Vulkan version.
 
 
 	// Device features.
 	struct
 	{
-		char indexUint32;
-		char cubeArray;
-		char geometryShader;
-		char tessellationShader;
-		char compressionBC;
-		char compressionETC2; // Includes EAC compression.
-		char compressionASTC;
-		char shaderClipDistance;
-		char shaderCullDistance;
-		char shaderInt8;
-		char shaderInt16;
-		char shaderInt64;
-		char shaderFloat16;
-		char shaderFloat64;
-		char samplerAnisotropy;
-		char samplerClampToEdgeMirror;
-		char samplerMinmax;
+		bool indexUint32;
+		bool cubeArray;
+		bool geometryShader;
+		bool tessellationShader;
+		bool compressionBC;
+		bool compressionETC2; // Includes EAC compression.
+		bool compressionASTC;
+		bool shaderClipDistance;
+		bool shaderCullDistance;
+		bool shaderInt8;
+		bool shaderInt16;
+		bool shaderInt64;
+		bool shaderFloat16;
+		bool shaderFloat64;
+		bool samplerAnisotropy;
+		bool samplerClampToEdgeMirror;
+		bool samplerMinmax;
 
 	} features;
 

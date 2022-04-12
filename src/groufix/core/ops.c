@@ -372,7 +372,7 @@ static void _gfx_pop_transfer(GFXHeap* heap, GFXTransferFlags flags)
  * Either one of refRegions and stage must be set, the other must be NULL.
  * This allows use for either a mapped resource or a staging buffer.
  */
-static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
+static void _gfx_copy_host(void* ptr, void* ref, bool rev, size_t numRegions,
                            const GFXRegion* ptrRegions,
                            const GFXRegion* refRegions,
                            const _GFXStageRegion* stage)
@@ -416,7 +416,7 @@ static void _gfx_copy_host(void* ptr, void* ref, int rev, size_t numRegions,
  * This allows use of either a memory resource or a staging buffer.
  * If staging is _not_ set, rev must be 0.
  */
-static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
+static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
                             size_t numRegions, size_t numDeps,
                             _GFXStaging* staging,
                             const _GFXStageRegion* stage,
@@ -426,7 +426,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
                             _GFXInjection* injection)
 {
 	assert(heap != NULL);
-	assert(rev == 0 || staging != NULL);
+	assert(!rev || staging != NULL);
 	assert(numRegions > 0);
 	assert(staging == NULL || stage != NULL);
 	assert(srcRegions != NULL);
@@ -651,7 +651,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, int rev,
 			};
 		}
 
-		if (srcBuffer != VK_NULL_HANDLE && rev == 0)
+		if (srcBuffer != VK_NULL_HANDLE && !rev)
 			context->vk.CmdCopyBufferToImage(transfer->vk.cmd,
 				srcBuffer,
 				dstImage,
@@ -746,11 +746,11 @@ unlock:
 }
 
 /****************************/
-GFX_API int gfx_read(GFXReference src, void* dst,
-                     GFXTransferFlags flags,
-                     size_t numRegions, size_t numDeps,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                     const GFXInject* deps)
+GFX_API bool gfx_read(GFXReference src, void* dst,
+                      GFXTransferFlags flags,
+                      size_t numRegions, size_t numDeps,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                      const GFXInject* deps)
 {
 	assert(!GFX_REF_IS_NULL(src));
 	assert(dst != NULL);
@@ -882,11 +882,11 @@ error:
 }
 
 /****************************/
-GFX_API int gfx_write(const void* src, GFXReference dst,
-                      GFXTransferFlags flags,
-                      size_t numRegions, size_t numDeps,
-                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                      const GFXInject* deps)
+GFX_API bool gfx_write(const void* src, GFXReference dst,
+                       GFXTransferFlags flags,
+                       size_t numRegions, size_t numDeps,
+                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                       const GFXInject* deps)
 {
 	assert(src != NULL);
 	assert(!GFX_REF_IS_NULL(dst));
@@ -1015,11 +1015,11 @@ error:
 }
 
 /****************************/
-GFX_API int gfx_copy(GFXReference src, GFXReference dst,
-                     GFXTransferFlags flags,
-                     size_t numRegions, size_t numDeps,
-                     const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                     const GFXInject* deps)
+GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
+                      GFXTransferFlags flags,
+                      size_t numRegions, size_t numDeps,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                      const GFXInject* deps)
 {
 	assert(!GFX_REF_IS_NULL(src));
 	assert(!GFX_REF_IS_NULL(dst));

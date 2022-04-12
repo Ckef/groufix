@@ -135,7 +135,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 }
 
 /****************************/
-GFX_API int gfx_log_set_level(GFXLogLevel level)
+GFX_API bool gfx_log_set_level(GFXLogLevel level)
 {
 	assert(level >= GFX_LOG_NONE && level <= GFX_LOG_ALL);
 
@@ -157,7 +157,7 @@ GFX_API int gfx_log_set_level(GFXLogLevel level)
 }
 
 /****************************/
-GFX_API int gfx_log_set(const GFXWriter* out)
+GFX_API bool gfx_log_set(const GFXWriter* out)
 {
 	// Again, logging is special.
 	if (!atomic_load(&_groufix.initialized))

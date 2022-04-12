@@ -28,7 +28,7 @@
  * This call must be made before any groufix calls can be made.
  * @return Non-zero on success.
  */
-GFX_API int gfx_init(void);
+GFX_API bool gfx_init(void);
 
 /**
  * Terminates the engine, detaching the calling thread in the process.
@@ -42,7 +42,7 @@ GFX_API void gfx_terminate(void);
  * the main thread (the one that called gfx_init) is the only exception.
  * @return Non-zero on success.
  */
-GFX_API int gfx_attach(void);
+GFX_API bool gfx_attach(void);
 
 /**
  * Detaches the thread from groufix, cleaning up any thread-local data.

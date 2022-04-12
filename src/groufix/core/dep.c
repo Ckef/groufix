@@ -97,8 +97,8 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
  *
  * @see _gfx_dep_unpack and _gfx_dep_validate for retrieving 'unpacked' ranges.
  */
-static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
-                               const GFXRange* rangea, const GFXRange* rangeb)
+static bool _gfx_ranges_overlap(const _GFXUnpackRef* ref,
+                                const GFXRange* rangea, const GFXRange* rangeb)
 {
 	assert(ref != NULL);
 	assert(rangea != NULL);
@@ -116,18 +116,18 @@ static int _gfx_ranges_overlap(const _GFXUnpackRef* ref,
 			rangeb->offset < (rangea->offset + rangea->size);
 
 	// Check if mipmaps overlap.
-	const int mipA = rangea->mipmap < (rangeb->mipmap + rangeb->numMipmaps);
-	const int mipB = rangeb->mipmap < (rangea->mipmap + rangea->numMipmaps);
-	const int mips =
+	const bool mipA = rangea->mipmap < (rangeb->mipmap + rangeb->numMipmaps);
+	const bool mipB = rangeb->mipmap < (rangea->mipmap + rangea->numMipmaps);
+	const bool mips =
 		(rangea->numMipmaps == 0 && rangeb->numMipmaps == 0) ||
 		(rangea->numMipmaps == 0 && mipA) ||
 		(rangeb->numMipmaps == 0 && mipB) ||
 		(mipA && mipB);
 
 	// Check if layers overlap.
-	const int layA = rangea->layer < (rangeb->layer + rangeb->numLayers);
-	const int layB = rangeb->layer < (rangea->layer + rangea->numLayers);
-	const int lays =
+	const bool layA = rangea->layer < (rangeb->layer + rangeb->numLayers);
+	const bool layB = rangeb->layer < (rangea->layer + rangea->numLayers);
+	const bool lays =
 		(rangea->numLayers == 0 && rangeb->numLayers == 0) ||
 		(rangea->numLayers == 0 && layA) ||
 		(rangeb->numLayers == 0 && layB) ||
@@ -240,18 +240,18 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
  * @param flags   Output array of Vulkan access flags.
  * @param layouts Output array of Vulkan image layouts.
  * @param stages  Output array of Vulkan pipeline stage flags.
- * @param Zero if this command should be ignored.
+ * @return Zero if this command should be ignored.
  *
  * All output arrays must be at least of size injection->inp.numRefs.
  * Outputs index of SIZE_MAX if not an operation reference.
  */
-static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
-                             size_t* numRefs, const _GFXUnpackRef** refs,
-                             size_t* indices, GFXRange* ranges,
-                             VkAccessFlags* flags,
-                             VkImageLayout* layouts,
-                             VkPipelineStageFlags* stages,
-                             _GFXInjection* injection)
+static bool _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
+                              size_t* numRefs, const _GFXUnpackRef** refs,
+                              size_t* indices, GFXRange* ranges,
+                              VkAccessFlags* flags,
+                              VkImageLayout* layouts,
+                              VkPipelineStageFlags* stages,
+                              _GFXInjection* injection)
 {
 	assert(inj != NULL);
 	assert(injRef != NULL);
@@ -354,7 +354,7 @@ static int _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
  * @param semaphore Non-zero to indicate we need a VkSemaphore.
  * @return NULL on failure.
  */
-static _GFXSync* _gfx_dep_claim(GFXDependency* dep, int semaphore)
+static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore)
 {
 	assert(dep != NULL);
 
@@ -475,9 +475,9 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep)
 }
 
 /****************************/
-int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
-                    size_t numInjs, const GFXInject* injs,
-                    _GFXInjection* injection)
+bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
+                     size_t numInjs, const GFXInject* injs,
+                     _GFXInjection* injection)
 {
 	assert(context != NULL);
 	assert(cmd != VK_NULL_HANDLE);
@@ -567,7 +567,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			// Then filter on queue family, underlying resources and
 			// whether it overlaps those resource.
 			size_t r;
-			const int mismatch = (sync->vk.dstFamily != injection->inp.family);
+			const bool mismatch = (sync->vk.dstFamily != injection->inp.family);
 
 			for (r = 0; r < numRefs; ++r)
 				// Oh and layouts must equal, otherwise nothing can happen.
@@ -579,7 +579,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 					(layouts[r] == VK_IMAGE_LAYOUT_UNDEFINED ||
 					layouts[r] == sync->vk.newLayout))
 				{
-					const int race =
+					const bool race =
 						flags[r] != sync->vk.dstAccess ||
 						stages[r] != sync->vk.dstStage;
 
@@ -699,7 +699,7 @@ int _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 }
 
 /****************************/
-int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
+bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
                       size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection)
 {
@@ -767,9 +767,9 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 		// Flag whether we need an ownership transfer,
 		// whether we want to discard &
 		// whether we need a semaphore or not.
-		const int ownership = (family != injection->inp.family);
-		const int discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
-		const int semaphore = ownership && !blocking;
+		const bool ownership = (family != injection->inp.family);
+		const bool discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
+		const bool semaphore = ownership && !blocking;
 
 		// Aaaand the bit where we prepare all signals.
 		// We lock for each command individually.
@@ -848,7 +848,7 @@ int _gfx_deps_prepare(VkCommandBuffer cmd, int blocking,
 				refs[0].obj.image != NULL ? refs[0].obj.image->base.flags :
 				refs[0].obj.renderer != NULL ? attach->base.flags : 0;
 
-			const int concurrent = mFlags &
+			const bool concurrent = mFlags &
 				(GFX_MEMORY_COMPUTE_CONCURRENT |
 				GFX_MEMORY_TRANSFER_CONCURRENT);
 

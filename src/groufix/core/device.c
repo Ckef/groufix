@@ -229,8 +229,8 @@ static void _gfx_get_device_features(_GFXDevice* device,
  * @param index   Output device index into the group, cannot be NULL.
  * @return Zero on failure.
  */
-static int _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
-                                 size_t* index)
+static bool _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
+                                  size_t* index)
 {
 	assert(context != NULL);
 	assert(device != NULL);
@@ -296,12 +296,12 @@ static int _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
  */
 static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
                                        const VkQueueFamilyProperties* props,
-                                       VkQueueFlags flags, int present)
+                                       VkQueueFlags flags, bool present)
 {
 	assert(device != NULL);
 	assert(device->vk.device != NULL); // Only field to access!
 	assert(count == 0 || props != NULL);
-	assert(flags != 0 || present != 0);
+	assert(flags != 0 || present);
 
 	// Since we don't know anything about the order of the queues,
 	// we loop over all the things and keep track of the best fit.
@@ -346,10 +346,10 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
  * @param createInfo Queue create info output, cannot be NULL.
  * @return Non-zero on success.
  */
-static int _gfx_alloc_queue_set(_GFXContext* context,
-                                VkDeviceQueueCreateInfo* createInfo,
-                                uint32_t family, size_t count,
-                                int present, VkQueueFlags flags)
+static bool _gfx_alloc_queue_set(_GFXContext* context,
+                                 VkDeviceQueueCreateInfo* createInfo,
+                                 uint32_t family, size_t count,
+                                 bool present, VkQueueFlags flags)
 {
 	assert(context != NULL);
 	assert(createInfo != NULL);
@@ -491,7 +491,7 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 
 	// Allocate queue sets and count how many.
 	uint32_t sets = 0;
-	int success = 1;
+	bool success = 1;
 
 	// Allocate main (graphics) queue set.
 	{
@@ -682,7 +682,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	// Get desired device feature structs for the next chain.
 	// Similarly to the families, we assume that any device that uses the same
 	// context has equivalent features.
-	int vk11, vk12;
+	bool vk11, vk12;
 	VkPhysicalDeviceFeatures pdf;
 	VkPhysicalDeviceVulkan11Features pdv11f;
 	VkPhysicalDeviceVulkan12Features pdv12f;
@@ -853,7 +853,7 @@ error:
 }
 
 /****************************/
-int _gfx_devices_init(void)
+bool _gfx_devices_init(void)
 {
 	assert(_groufix.vk.instance != NULL);
 	assert(_groufix.devices.size == 0);
@@ -885,7 +885,7 @@ int _gfx_devices_init(void)
 
 		GFXDeviceType type = GFX_DEVICE_UNKNOWN;
 		uint32_t ver = 0;
-		int foundPrim = 0;
+		bool foundPrim = 0;
 
 		// We keep moving around all the devices to sort the primary one to
 		// the front, so we leave its mutex and name pointer blank.
@@ -907,7 +907,7 @@ int _gfx_devices_init(void)
 				VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
 
 			// Get all Vulkan device features as well.
-			int vk11, vk12;
+			bool vk11, vk12;
 			VkPhysicalDeviceFeatures pdf;
 			VkPhysicalDeviceVulkan11Features pdv11f;
 			VkPhysicalDeviceVulkan12Features pdv12f;
@@ -932,7 +932,7 @@ int _gfx_devices_init(void)
 			const uint32_t transfer = _gfx_find_queue_family(
 				&dev, families, props, VK_QUEUE_TRANSFER_BIT, 0);
 
-			const int available =
+			const bool available =
 				dev.api >= _GFX_VK_API_VERSION &&
 				graphics != UINT32_MAX &&
 				compute != UINT32_MAX &&
@@ -945,23 +945,23 @@ int _gfx_devices_init(void)
 				.available = dev.api >= _GFX_VK_API_VERSION,
 
 				.features = {
-					.indexUint32              = (char)pdf.fullDrawIndexUint32,
-					.cubeArray                = (char)pdf.imageCubeArray,
-					.geometryShader           = (char)pdf.geometryShader,
-					.tessellationShader       = (char)pdf.tessellationShader,
-					.compressionBC            = (char)pdf.textureCompressionBC,
-					.compressionETC2          = (char)pdf.textureCompressionETC2,
-					.compressionASTC          = (char)pdf.textureCompressionASTC_LDR,
-					.shaderClipDistance       = (char)pdf.shaderClipDistance,
-					.shaderCullDistance       = (char)pdf.shaderCullDistance,
-					.shaderInt8               = (char)(vk12 ? pdv12f.shaderInt8 : 0),
-					.shaderInt16              = (char)pdf.shaderInt16,
-					.shaderInt64              = (char)pdf.shaderInt64,
-					.shaderFloat16            = (char)(vk12 ? pdv12f.shaderFloat16 : 0),
-					.shaderFloat64            = (char)pdf.shaderFloat64,
-					.samplerAnisotropy        = (char)pdf.samplerAnisotropy,
-					.samplerClampToEdgeMirror = (char)(vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
-					.samplerMinmax            = (char)(vk12 ? pdv12f.samplerFilterMinmax : 0)
+					.indexUint32              = pdf.fullDrawIndexUint32,
+					.cubeArray                = pdf.imageCubeArray,
+					.geometryShader           = pdf.geometryShader,
+					.tessellationShader       = pdf.tessellationShader,
+					.compressionBC            = pdf.textureCompressionBC,
+					.compressionETC2          = pdf.textureCompressionETC2,
+					.compressionASTC          = pdf.textureCompressionASTC_LDR,
+					.shaderClipDistance       = pdf.shaderClipDistance,
+					.shaderCullDistance       = pdf.shaderCullDistance,
+					.shaderInt8               = (vk12 ? pdv12f.shaderInt8 : 0),
+					.shaderInt16              = pdf.shaderInt16,
+					.shaderInt64              = pdf.shaderInt64,
+					.shaderFloat16            = (vk12 ? pdv12f.shaderFloat16 : 0),
+					.shaderFloat64            = pdf.shaderFloat64,
+					.samplerAnisotropy        = pdf.samplerAnisotropy,
+					.samplerClampToEdgeMirror = (vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
+					.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0)
 				},
 
 				.limits = {
@@ -997,7 +997,7 @@ int _gfx_devices_init(void)
 			// Check if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.
 			// If the type is equal, pick the greater Vulkan version.
-			const int isPrim = available && (!foundPrim ||
+			const bool isPrim = available && (!foundPrim ||
 				dev.base.type < type ||
 				(dev.base.type == type && pdp.apiVersion > ver));
 
@@ -1123,11 +1123,11 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device)
 
 /****************************/
 _GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
-                               VkQueueFlags flags, int present)
+                               VkQueueFlags flags, bool present)
 {
 	assert(context != NULL);
 	assert(family != NULL);
-	assert(flags != 0 || present != 0);
+	assert(flags != 0 || present);
 
 	// The queue sets only report the flags they were specifically
 	// picked for, including the presentation flag.
@@ -1152,11 +1152,11 @@ _GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
 
 /****************************/
 _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
-                              VkQueueFlags flags, int present)
+                              VkQueueFlags flags, bool present)
 {
 	assert(context != NULL);
 	assert(queue != NULL);
-	assert(flags != 0 || present != 0);
+	assert(flags != 0 || present);
 
 	// Ok so we can abuse _gfx_pick_family and just take its data.
 	uint32_t family;

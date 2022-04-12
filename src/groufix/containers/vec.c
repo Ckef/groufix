@@ -15,7 +15,7 @@
 /****************************
  * Increases the capacity such that it satisfies a minimum.
  */
-static int _gfx_vec_grow(GFXVec* vec, size_t minCapacity)
+static bool _gfx_vec_grow(GFXVec* vec, size_t minCapacity)
 {
 	if (vec->capacity < minCapacity)
 	{
@@ -89,7 +89,7 @@ GFX_API void gfx_vec_clear(GFXVec* vec)
 }
 
 /****************************/
-GFX_API int gfx_vec_reserve(GFXVec* vec, size_t numElems)
+GFX_API bool gfx_vec_reserve(GFXVec* vec, size_t numElems)
 {
 	assert(vec != NULL);
 
@@ -131,7 +131,7 @@ GFX_API void* gfx_vec_claim(GFXVec* vec)
 }
 
 /****************************/
-GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
+GFX_API bool gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
 {
 	assert(vec != NULL);
 	assert(numElems > 0);
@@ -150,8 +150,8 @@ GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
 }
 
 /****************************/
-GFX_API int gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
-                           size_t index)
+GFX_API bool gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
+                            size_t index)
 {
 	assert(vec != NULL);
 	assert(numElems > 0);

@@ -118,7 +118,7 @@ typedef struct GFXWindow
  * zero if the monitor is disconnected, non-zero if it is connected.
  * @param event NULL to disable the event callback.
  */
-GFX_API void gfx_monitor_event_set(void (*event)(GFXMonitor*, int));
+GFX_API void gfx_monitor_event_set(void (*event)(GFXMonitor*, bool));
 
 /**
  * Retrieves the number of currently connected monitors.
@@ -248,14 +248,14 @@ GFX_API void gfx_window_set_title(GFXWindow* window, const char* title);
  * This flag is set by either the window manager or gfx_window_set_close.
  * @param window Cannot be NULL.
  */
-GFX_API int gfx_window_should_close(GFXWindow* window);
+GFX_API bool gfx_window_should_close(GFXWindow* window);
 
 /**
  * Explicitally set the close flag of a window.
  * This is the only way to tell a window to close from within a window event.
  * @param window Cannot be NULL.
  */
-GFX_API void gfx_window_set_close(GFXWindow* window, int close);
+GFX_API void gfx_window_set_close(GFXWindow* window, bool close);
 
 /**
  * Focusses the window, bringing it to the front and sets input focus.

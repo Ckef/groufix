@@ -196,7 +196,7 @@ GFX_API GFXReader* gfx_string_reader(GFXStringReader* str, const char* string)
 }
 
 /****************************/
-GFX_API int gfx_file_init(GFXFile* file, const char* name, const char* mode)
+GFX_API bool gfx_file_init(GFXFile* file, const char* name, const char* mode)
 {
 	assert(file != NULL);
 	assert(name != NULL);

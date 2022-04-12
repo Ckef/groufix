@@ -278,7 +278,8 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
  *
  * Cannot run concurrently with _ANY_ function of the renderer's descendants!
  */
-GFX_API int gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src);
+GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer,
+                                     const GFXReader* src);
 
 /**
  * Stores the current groufix pipeline cache data.
@@ -288,7 +289,8 @@ GFX_API int gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src)
  *
  * Cannot run concurrently with _ANY_ function of the renderer's descendants!
  */
-GFX_API int gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* dst);
+GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer,
+                                      const GFXWriter* dst);
 
 /**
  * Describes the properties of an image attachment of a renderer.
@@ -299,8 +301,8 @@ GFX_API int gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* dst
  * The GFX_MEMORY_HOST_VISIBLE flag is ignored, images cannot be mapped!
  * If anything needs to be detached, this will block until rendering is done!
  */
-GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
-                                size_t index, GFXAttachment attachment);
+GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
+                                 size_t index, GFXAttachment attachment);
 
 /**
  * Attaches a window to an attachment index of a renderer.
@@ -314,8 +316,8 @@ GFX_API int gfx_renderer_attach(GFXRenderer* renderer,
  * Fails if the window was already attached to a renderer or the window and
  * renderer do not share a compatible device.
  */
-GFX_API int gfx_renderer_attach_window(GFXRenderer* renderer,
-                                       size_t index, GFXWindow* window);
+GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
+                                        size_t index, GFXWindow* window);
 
 /**
  * Retrieves the properties of an image attachment of a renderer.
@@ -390,8 +392,8 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
  * Fails if the technique is already locked.
  * Warns about samplers that do not match the shader input type.
  */
-GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
-                             size_t numSamplers, const GFXSampler* samplers);
+GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
+                               size_t numSamplers, const GFXSampler* samplers);
 
 /**
  * Sets a buffer binding of the technique to be dynamic.
@@ -403,8 +405,8 @@ GFX_API int gfx_tech_samplers(GFXTechnique* technique, size_t set,
  * Fails if the technique is already locked.
  * Warns if the shader input type is not a uniform or storage buffer.
  */
-GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
-                             size_t binding);
+GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
+                              size_t binding);
 
 /**
  * Locks the technique, preparing it for rendering & making it immutable.
@@ -415,7 +417,7 @@ GFX_API int gfx_tech_dynamic(GFXTechnique* technique, size_t set,
  * After this call has succesfully returned it is thread-safe to call
  * gfx_renderer_add_set from multiple threads with this technique.
  */
-GFX_API int gfx_tech_lock(GFXTechnique* technique);
+GFX_API bool gfx_tech_lock(GFXTechnique* technique);
 
 
 /****************************
@@ -475,8 +477,8 @@ GFX_API void gfx_erase_set(GFXSet* set);
  * If any descriptor binding is assigned multiple times, the last is taken.
  * Warns about resources that do not match the shader input type.
  */
-GFX_API int gfx_set_resources(GFXSet* set,
-                              size_t numResources, const GFXSetResource* resources);
+GFX_API bool gfx_set_resources(GFXSet* set,
+                               size_t numResources, const GFXSetResource* resources);
 
 /**
  * Sets descriptor binding resources of the set from groups.
@@ -488,8 +490,8 @@ GFX_API int gfx_set_resources(GFXSet* set,
  * If any descriptor binding is assigned multiple times, the last is taken.
  * Warns about resources that do not match the shader input type.
  */
-GFX_API int gfx_set_groups(GFXSet* set,
-                           size_t numGroups, const GFXSetGroup* groups);
+GFX_API bool gfx_set_groups(GFXSet* set,
+                            size_t numGroups, const GFXSetGroup* groups);
 
 /**
  * Sets resource views of the set.
@@ -501,8 +503,8 @@ GFX_API int gfx_set_groups(GFXSet* set,
  * If any descriptor binding is assigned multiple views, the last is taken.
  * All views MUST match the shader input type!
  */
-GFX_API int gfx_set_views(GFXSet* set,
-                          size_t numViews, const GFXView* views);
+GFX_API bool gfx_set_views(GFXSet* set,
+                           size_t numViews, const GFXView* views);
 
 /**
  * Sets immutable samplers of the set.
@@ -514,8 +516,8 @@ GFX_API int gfx_set_views(GFXSet* set,
  * If any descriptor binding is assigned multiple samplers, the last is taken.
  * Warns about samplers that do not match the shader input type.
  */
-GFX_API int gfx_set_samplers(GFXSet* set,
-                             size_t numSamplers, const GFXSampler* samplers);
+GFX_API bool gfx_set_samplers(GFXSet* set,
+                              size_t numSamplers, const GFXSampler* samplers);
 
 
 /****************************
@@ -561,25 +563,25 @@ GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer, size_t target);
  * @param stage Shader stages with access to the attachment.
  * @return Zero on failure.
  */
-GFX_API int gfx_pass_consume(GFXPass* pass, size_t index,
-                             GFXAccessMask mask, GFXShaderStage stage);
+GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
+                              GFXAccessMask mask, GFXShaderStage stage);
 
 /**
  * Consumes a range (area) of an attachment of a renderer.
  * @see gfx_pass_consume.
  */
-GFX_API int gfx_pass_consumea(GFXPass* pass, size_t index,
-                              GFXAccessMask mask, GFXShaderStage stage,
-                              GFXRange range);
+GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
+                               GFXAccessMask mask, GFXShaderStage stage,
+                               GFXRange range);
 
 /**
  * Consumes an attachment of a renderer with a specific view.
  * @param view Specifies all properties (and attachment index) to consume with.
  * @see gfx_pass_consume.
  */
-GFX_API int gfx_pass_consumev(GFXPass* pass, size_t index,
-                              GFXAccessMask mask, GFXShaderStage stage,
-                              GFXView view);
+GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
+                               GFXAccessMask mask, GFXShaderStage stage,
+                               GFXView view);
 
 /**
  * Release any consumption of an attachment of the renderer.

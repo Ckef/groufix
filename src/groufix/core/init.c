@@ -20,7 +20,7 @@ _GFXState _groufix =
 
 
 /****************************/
-int _gfx_init(void)
+bool _gfx_init(void)
 {
 	assert(!atomic_load(&_groufix.initialized));
 
@@ -77,7 +77,7 @@ void _gfx_terminate(void)
 }
 
 /****************************/
-int _gfx_create_local(void)
+bool _gfx_create_local(void)
 {
 	assert(atomic_load(&_groufix.initialized));
 	assert(!_gfx_thread_key_get(_groufix.thread.key));

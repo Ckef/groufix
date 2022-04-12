@@ -8,6 +8,7 @@
 
 #include "groufix/containers/map.h"
 #include <assert.h>
+#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -45,7 +46,7 @@ typedef struct _GFXMapNode
  * Allocates a new block of memory with a given capacity and moves
  * the content of the entire map to this new block of memory.
  */
-static int _gfx_map_realloc(GFXMap* map, size_t capacity)
+static bool _gfx_map_realloc(GFXMap* map, size_t capacity)
 {
 	assert(capacity > 0);
 
@@ -79,7 +80,7 @@ static int _gfx_map_realloc(GFXMap* map, size_t capacity)
 /****************************
  * Increases the capacity such that it satisfies a minimum.
  */
-static int _gfx_map_grow(GFXMap* map, size_t minNodes)
+static bool _gfx_map_grow(GFXMap* map, size_t minNodes)
 {
 	// Calculate the maximum load we can bare and check against it...
 	if (minNodes <= ((double)map->capacity * _GFX_MAP_LOAD_FACTOR))
@@ -123,8 +124,8 @@ static void _gfx_map_shrink(GFXMap* map)
  * @param hash Pre-computed hash value, ignored if key is NULL, may be NULL.
  * @see gfx_map_*move.
  */
-static int _gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
-                         size_t keySize, const void* key, const uint64_t* hash)
+static bool _gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
+                          size_t keySize, const void* key, const uint64_t* hash)
 {
 	assert(map != NULL);
 	assert(dst != NULL);
@@ -206,7 +207,7 @@ GFX_API void gfx_map_init(GFXMap* map, size_t elemSize, size_t align,
 	map->size = 0;
 	map->capacity = 0;
 	map->elementSize = elemSize;
-	map->align = align == 0 ? _Alignof(max_align_t) : align;
+	map->align = align == 0 ? alignof(max_align_t) : align;
 	map->buckets = NULL;
 
 	map->hash = hash;
@@ -235,7 +236,7 @@ GFX_API void gfx_map_clear(GFXMap* map)
 }
 
 /****************************/
-GFX_API int gfx_map_reserve(GFXMap* map, size_t numNodes)
+GFX_API bool gfx_map_reserve(GFXMap* map, size_t numNodes)
 {
 	assert(map != NULL);
 
@@ -253,7 +254,7 @@ GFX_API void gfx_map_shrink(GFXMap* map)
 }
 
 /****************************/
-GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src)
+GFX_API bool gfx_map_merge(GFXMap* map, GFXMap* src)
 {
 	assert(map != NULL);
 	assert(src != NULL);
@@ -293,8 +294,8 @@ GFX_API int gfx_map_merge(GFXMap* map, GFXMap* src)
 }
 
 /****************************/
-GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
-                         size_t keySize, const void* key)
+GFX_API bool gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
+                          size_t keySize, const void* key)
 {
 	// Relies on stand-in function for asserts.
 
@@ -307,8 +308,8 @@ GFX_API int gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
 }
 
 /****************************/
-GFX_API int gfx_map_hmove(GFXMap* map, GFXMap* dst, const void* node,
-                          size_t keySize, const void* key, uint64_t hash)
+GFX_API bool gfx_map_hmove(GFXMap* map, GFXMap* dst, const void* node,
+                           size_t keySize, const void* key, uint64_t hash)
 {
 	// Relies on stand-in function for asserts.
 
@@ -321,8 +322,8 @@ GFX_API int gfx_map_hmove(GFXMap* map, GFXMap* dst, const void* node,
 }
 
 /****************************/
-GFX_API int gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
-                          size_t keySize, const void* key)
+GFX_API bool gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
+                           size_t keySize, const void* key)
 {
 	// Relies on stand-in function for asserts.
 
@@ -330,8 +331,8 @@ GFX_API int gfx_map_fmove(GFXMap* map, GFXMap* dst, const void* node,
 }
 
 /****************************/
-GFX_API int gfx_map_fhmove(GFXMap* map, GFXMap* dst, const void* node,
-                           size_t keySize, const void* key, uint64_t hash)
+GFX_API bool gfx_map_fhmove(GFXMap* map, GFXMap* dst, const void* node,
+                            size_t keySize, const void* key, uint64_t hash)
 {
 	// Relies on stand-in function for asserts.
 

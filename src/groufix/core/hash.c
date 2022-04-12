@@ -40,7 +40,7 @@ int _gfx_hash_cmp(const void* l, const void* r)
 /****************************/
 uint64_t _gfx_hash_murmur3(const void* key)
 {
-	_Static_assert(sizeof(uint32_t) == 4, "MurmurHash3 blocks must be 4 bytes.");
+	static_assert(sizeof(uint32_t) == 4, "MurmurHash3 blocks must be 4 bytes.");
 
 	const _GFXHashKey* cKey = key;
 	const size_t nblocks = cKey->len / sizeof(uint32_t);
@@ -100,7 +100,7 @@ uint64_t _gfx_hash_murmur3(const void* key)
 }
 
 /****************************/
-int _gfx_hash_builder(_GFXHashBuilder* builder)
+bool _gfx_hash_builder(_GFXHashBuilder* builder)
 {
 	assert(builder != NULL);
 

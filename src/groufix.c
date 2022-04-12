@@ -21,7 +21,7 @@ static void _gfx_glfw_error(int error, const char* description)
 }
 
 /****************************/
-GFX_API int gfx_init(void)
+GFX_API bool gfx_init(void)
 {
 	// Already initialized, just do nothing.
 	if (atomic_load(&_groufix.initialized))
@@ -104,7 +104,7 @@ GFX_API void gfx_terminate(void)
 }
 
 /****************************/
-GFX_API int gfx_attach(void)
+GFX_API bool gfx_attach(void)
 {
 	// Not yet initialized, cannot attach.
 	if (!atomic_load(&_groufix.initialized))

@@ -15,7 +15,7 @@
  * Retrieves whether the GLFW recreate signal was set (and resets the signal).
  * @return Non-zero if the recreate signal was set.
  */
-static inline int _gfx_swapchain_sig(_GFXWindow* window)
+static inline bool _gfx_swapchain_sig(_GFXWindow* window)
 {
 	return atomic_exchange(&window->frame.recreate, 0);
 }
@@ -31,8 +31,8 @@ static inline int _gfx_swapchain_sig(_GFXWindow* window)
  * The current contents of flags is taken in consideration for its new value,
  * only thrown out when overridden.
  */
-static int _gfx_swapchain_recreate(_GFXWindow* window,
-                                   _GFXRecreateFlags* flags)
+static bool _gfx_swapchain_recreate(_GFXWindow* window,
+                                    _GFXRecreateFlags* flags)
 {
 	assert(window != NULL);
 	assert(flags != NULL);
@@ -318,7 +318,7 @@ uint32_t _gfx_swapchain_acquire(_GFXWindow* window, VkSemaphore available,
 	// We check the recreate signal, just before acquiring a new image.
 	// If we acquired without recreating, the new image would be useless.
 	// If there is no swapchain, _gfx_swapchain_recreate will reset the signal.
-	int recreate =
+	bool recreate =
 		window->vk.swapchain == VK_NULL_HANDLE ||
 		_gfx_swapchain_sig(window);
 
@@ -424,7 +424,7 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 		flags[i] = 0; // Default flags to 0.
 
 		// Check if the recreate signal was set, makes sure it's reset also.
-		int recreate = _gfx_swapchain_sig(windows[i]);
+		bool recreate = _gfx_swapchain_sig(windows[i]);
 
 		switch (results[i])
 		{

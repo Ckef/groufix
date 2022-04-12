@@ -8,6 +8,7 @@
 
 #include "groufix/containers/tree.h"
 #include <assert.h>
+#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -125,7 +126,7 @@ static void _gfx_tree_insert(GFXTree* tree, _GFXTreeNode* tNode)
 	{
 		parent = *walk;
 
-		int cmp = tree->cmp(
+		const int cmp = tree->cmp(
 			_GFX_GET_KEY(tree, tNode), _GFX_GET_KEY(tree, parent));
 
 		if (cmp < 0)
@@ -378,7 +379,7 @@ GFX_API void gfx_tree_init(GFXTree* tree, size_t keySize, size_t align,
 	assert(cmp != NULL);
 
 	tree->keySize = keySize;
-	tree->align = align == 0 ? _Alignof(max_align_t) : align;
+	tree->align = align == 0 ? alignof(max_align_t) : align;
 	tree->root = NULL;
 	tree->cmp = cmp;
 }

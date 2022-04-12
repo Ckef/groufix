@@ -14,7 +14,7 @@
 /****************************
  * Terminate signal for threads.
  */
-static atomic_int termSig = 0;
+static atomic_bool termSig = 0;
 
 
 /****************************

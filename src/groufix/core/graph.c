@@ -41,7 +41,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 }
 
 /****************************/
-int _gfx_render_graph_build(GFXRenderer* renderer)
+bool _gfx_render_graph_build(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 

@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -290,8 +291,8 @@ static void _gfx_set_recycle(GFXSet* set)
  * @param update  Non-zero to update & recycle on change.
  * @param changed Outputs whether update info was actually changed.
  */
-static int _gfx_set_resources(GFXSet* set, int update, int* changed,
-                              size_t numResources, const GFXSetResource* resources)
+static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
+                               size_t numResources, const GFXSetResource* resources)
 {
 	assert(set != NULL);
 	assert(!set->renderer->recording);
@@ -304,8 +305,8 @@ static int _gfx_set_resources(GFXSet* set, int update, int* changed,
 
 	// Keep track of success, much like the technique,
 	// we skip over failures.
-	int success = 1;
-	int recycle = 0;
+	bool success = 1;
+	bool recycle = 0;
 
 	for (size_t r = 0; r < numResources; ++r)
 	{
@@ -413,8 +414,8 @@ static int _gfx_set_resources(GFXSet* set, int update, int* changed,
  * @param update  Non-zero to update on change.
  * @param changed Outputs whether update info was actually changed.
  */
-static int _gfx_set_views(GFXSet* set, int update, int* changed,
-                          size_t numViews, const GFXView* views)
+static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
+                           size_t numViews, const GFXView* views)
 {
 	assert(set != NULL);
 	assert(!set->renderer->recording);
@@ -425,8 +426,8 @@ static int _gfx_set_views(GFXSet* set, int update, int* changed,
 	GFXRenderer* renderer = set->renderer;
 
 	// Keep track of success.
-	int success = 1;
-	int recycle = 0;
+	bool success = 1;
+	bool recycle = 0;
 
 	for (size_t v = 0; v < numViews; ++v)
 	{
@@ -519,8 +520,8 @@ static int _gfx_set_views(GFXSet* set, int update, int* changed,
  * @see gfx_set_groups.
  * @param update Non-zero to update on change.
  */
-static int _gfx_set_groups(GFXSet* set, int update,
-                           size_t numGroups, const GFXSetGroup* groups)
+static bool _gfx_set_groups(GFXSet* set, bool update,
+                            size_t numGroups, const GFXSetGroup* groups)
 {
 	assert(set != NULL);
 	assert(!set->renderer->recording);
@@ -528,8 +529,8 @@ static int _gfx_set_groups(GFXSet* set, int update,
 	assert(groups != NULL);
 
 	// Keep track of success.
-	int success = 1;
-	int recycle = 0;
+	bool success = 1;
+	bool recycle = 0;
 
 	for (size_t g = 0; g < numGroups; ++g)
 	{
@@ -614,7 +615,7 @@ static int _gfx_set_groups(GFXSet* set, int update,
 
 				// We do manually update and/or recycle, mostly
 				// to avoid unnecessary re-recreation of Vulkan views.
-				int vChanged = 0, rChanged = 0;
+				bool vChanged = 0, rChanged = 0;
 
 				if (gBinding->type == GFX_BINDING_BUFFER_TEXEL)
 					if (!_gfx_set_views(set, 0, &vChanged, 1, &view))
@@ -641,8 +642,8 @@ static int _gfx_set_groups(GFXSet* set, int update,
  * @see gfx_set_samplers.
  * @param update Non-zero to update on change.
  */
-static int _gfx_set_samplers(GFXSet* set, int update,
-                             size_t numSamplers, const GFXSampler* samplers)
+static bool _gfx_set_samplers(GFXSet* set, bool update,
+                              size_t numSamplers, const GFXSampler* samplers)
 {
 	assert(set != NULL);
 	assert(!set->renderer->recording);
@@ -652,8 +653,8 @@ static int _gfx_set_samplers(GFXSet* set, int update,
 	GFXRenderer* renderer = set->renderer;
 
 	// Keep track of success.
-	int success = 1;
-	int recycle = 0;
+	bool success = 1;
+	bool recycle = 0;
 
 	for (size_t s = 0; s < numSamplers; ++s)
 	{
@@ -742,7 +743,7 @@ _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
 	// Get the first set entry.
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(GFXSet) + sizeof(_GFXSetBinding) * set->numBindings,
-		_Alignof(_GFXSetEntry));
+		alignof(_GFXSetEntry));
 
 	const _GFXSetEntry* first =
 		(const _GFXSetEntry*)((char*)set + structSize);
@@ -790,7 +791,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	// Allocate a new set.
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(GFXSet) + sizeof(_GFXSetBinding) * numBindings,
-		_Alignof(_GFXSetEntry));
+		alignof(_GFXSetEntry));
 
 	GFXSet* aset = malloc(
 		structSize +
@@ -872,7 +873,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 
 	// And finally, before finishing up, set all initial resources, groups,
 	// views and samplers. Let individual resources and views overwrite groups.
-	int changed; // Placeholder.
+	bool changed; // Placeholder.
 
 	if (numGroups > 0)
 		_gfx_set_groups(aset, 0, numGroups, groups);
@@ -945,18 +946,18 @@ GFX_API void gfx_erase_set(GFXSet* set)
 }
 
 /****************************/
-GFX_API int gfx_set_resources(GFXSet* set,
-                              size_t numResources, const GFXSetResource* resources)
+GFX_API bool gfx_set_resources(GFXSet* set,
+                               size_t numResources, const GFXSetResource* resources)
 {
 	// Relies on stand-in function for asserts.
 
-	int changed; // Placeholder.
+	bool changed; // Placeholder.
 	return _gfx_set_resources(set, 1, &changed, numResources, resources);
 }
 
 /****************************/
-GFX_API int gfx_set_groups(GFXSet* set,
-                           size_t numGroups, const GFXSetGroup* groups)
+GFX_API bool gfx_set_groups(GFXSet* set,
+                            size_t numGroups, const GFXSetGroup* groups)
 {
 	// Relies on stand-in function for asserts.
 
@@ -964,18 +965,18 @@ GFX_API int gfx_set_groups(GFXSet* set,
 }
 
 /****************************/
-GFX_API int gfx_set_views(GFXSet* set,
-                          size_t numViews, const GFXView* views)
+GFX_API bool gfx_set_views(GFXSet* set,
+                           size_t numViews, const GFXView* views)
 {
 	// Relies on stand-in function for asserts.
 
-	int changed; // Placeholder.
+	bool changed; // Placeholder.
 	return _gfx_set_views(set, 1, &changed, numViews, views);
 }
 
 /****************************/
-GFX_API int gfx_set_samplers(GFXSet* set,
-                             size_t numSamplers, const GFXSampler* samplers)
+GFX_API bool gfx_set_samplers(GFXSet* set,
+                              size_t numSamplers, const GFXSampler* samplers)
 {
 	// Relies on stand-in function for asserts.
 

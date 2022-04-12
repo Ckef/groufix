@@ -83,7 +83,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
  * will set a global log level, which is used to initialize every thread with
  * when the engine is initialized (including the main thread).
  */
-GFX_API int gfx_log_set_level(GFXLogLevel level);
+GFX_API bool gfx_log_set_level(GFXLogLevel level);
 
 /**
  * Sets the output writer stream for logging of the calling thread.
@@ -93,7 +93,7 @@ GFX_API int gfx_log_set_level(GFXLogLevel level);
  * All threads default to GFX_IO_STDERR if built with DEBUG=ON,
  * otherwise they all default to NULL.
  */
-GFX_API int gfx_log_set(const GFXWriter* out);
+GFX_API bool gfx_log_set(const GFXWriter* out);
 
 
 #endif

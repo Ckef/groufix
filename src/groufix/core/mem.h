@@ -78,7 +78,7 @@ uint64_t _gfx_hash_murmur3(const void* key);
  * @param builder Cannot be NULL.
  * @return Non-zero on success.
  */
-int _gfx_hash_builder(_GFXHashBuilder* builder);
+bool _gfx_hash_builder(_GFXHashBuilder* builder);
 
 /**
  * Claims ownership over the memory allocated by a hash key builder.
@@ -139,7 +139,7 @@ typedef struct _GFXMemNode
 {
 	GFXListNode list; // Base-type.
 
-	int free; // isa _GFXMemAlloc if zero, isa search tree node if non-zero.
+	bool free; // isa _GFXMemAlloc if zero, isa search tree node if non-zero.
 
 } _GFXMemNode;
 
@@ -158,7 +158,7 @@ typedef struct _GFXMemAlloc
 	VkMemoryPropertyFlags flags; // Actual used flags.
 
 	// For granularity constraints.
-	int linear;
+	bool linear;
 
 
 	// Vulkan fields.
@@ -224,9 +224,9 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
  *
  * Not thread-safe at all.
  */
-int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
-               VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
-               VkMemoryRequirements reqs);
+bool _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, bool linear,
+                VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
+                VkMemoryRequirements reqs);
 
 /**
  * Allocate some 'dedicated' Vulkan memory,
@@ -236,10 +236,10 @@ int _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, int linear,
  * To allocate Vulkan dedicated (for a Vulkan buffer or image) memory,
  * either a buffer _OR_ image can be passed.
  */
-int _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-                VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
-                VkMemoryRequirements reqs,
-                VkBuffer buffer, VkImage image);
+bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+                 VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
+                 VkMemoryRequirements reqs,
+                 VkBuffer buffer, VkImage image);
 
 /**
  * Free some Vulkan memory.
@@ -345,7 +345,7 @@ typedef struct _GFXCache
  * _gfx_device_init_context must have returned successfully at least once
  * for the given device.
  */
-int _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride);
+bool _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride);
 
 /**
  * Clears a cache, destroying all objects.
@@ -361,7 +361,7 @@ void _gfx_cache_clear(_GFXCache* cache);
  * Not thread-safe at all.
  * @see _gfx_cache_get for the only exception.
  */
-int _gfx_cache_flush(_GFXCache* cache);
+bool _gfx_cache_flush(_GFXCache* cache);
 
 /**
  * Retrieves an element from the cache.
@@ -419,9 +419,9 @@ _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
  * @see _gfx_cache_get for the only exception.
  * @see _gfx_cache_get for the handles that must be passed.
  */
-int _gfx_cache_warmup(_GFXCache* cache,
-                      const VkStructureType* createInfo,
-                      const void** handles);
+bool _gfx_cache_warmup(_GFXCache* cache,
+                       const VkStructureType* createInfo,
+                       const void** handles);
 
 /**
  * Loads groufix pipeline cache data, merging it into the current cache.
@@ -431,7 +431,7 @@ int _gfx_cache_warmup(_GFXCache* cache,
  *
  * Not thread-safe at all.
  */
-int _gfx_cache_load(_GFXCache* cache, const GFXReader* src);
+bool _gfx_cache_load(_GFXCache* cache, const GFXReader* src);
 
 /**
  * Stores the current groufix pipeline cache data.
@@ -441,7 +441,7 @@ int _gfx_cache_load(_GFXCache* cache, const GFXReader* src);
  *
  * Not thread-safe at all.
  */
-int _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst);
+bool _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst);
 
 
 /****************************
@@ -455,7 +455,7 @@ typedef struct _GFXPoolBlock
 {
 	GFXListNode list;  // Base-type, undefined if claimed by subordinate.
 	GFXList     elems; // References _GFXPoolElem.
-	int         full;
+	bool        full;
 
 	// #in-use descriptor sets (i.e. not-recycled).
 	atomic_uint_fast32_t sets;
@@ -538,7 +538,7 @@ typedef struct _GFXPool
  * _gfx_device_init_context must have returned successfully at least once
  * for the given device.
  */
-int _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes);
+bool _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes);
 
 /**
  * Clears a pool, also clearing all subordinates.
@@ -555,7 +555,7 @@ void _gfx_pool_clear(_GFXPool* pool);
  *
  * Not thread-safe at all.
  */
-int _gfx_pool_flush(_GFXPool* pool);
+bool _gfx_pool_flush(_GFXPool* pool);
 
 /**
  * Resets all descriptor pools, freeing all descriptor sets,

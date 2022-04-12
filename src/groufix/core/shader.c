@@ -96,7 +96,7 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
                                   const spvc_reflected_resource* in,
                                   _GFXShaderResource* out)
 {
-	int hasLocation =
+	const bool hasLocation =
 		type == SPVC_RESOURCE_TYPE_STAGE_INPUT ||
 		type == SPVC_RESOURCE_TYPE_STAGE_OUTPUT;
 
@@ -137,7 +137,7 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 	const spvc_basetype baseType =
 		spvc_type_get_basetype(hBaseType);
 
-	int isImage =
+	const bool isImage =
 		baseType == SPVC_BASETYPE_IMAGE ||
 		baseType == SPVC_BASETYPE_SAMPLED_IMAGE;
 
@@ -228,7 +228,7 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 		// Check if the previous position needs to go to the right.
 		// NOTE: We assume all vert/frag io resources are inserted before
 		// any others!!
-		int greater = hasLocation ?
+		const bool greater = hasLocation ?
 			// Compare locations if it is a vert/frag io.
 			bef->location > t.location :
 			// Check if it is not a vert/frag io AND compare set/binding.
@@ -254,8 +254,8 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
  *
  * Reflection data is not cleaned on failure!
  */
-static int _gfx_shader_reflect(GFXShader* shader,
-                               size_t size, const uint32_t* code)
+static bool _gfx_shader_reflect(GFXShader* shader,
+                                size_t size, const uint32_t* code)
 {
 	assert(shader != NULL);
 	assert(shader->reflect.push == 0);
@@ -444,10 +444,10 @@ error:
  * @param size   Must be a multiple of sizeof(uint32_t).
  * @return Zero on failure.
  */
-static int _gfx_shader_build(GFXShader* shader,
-                             size_t size, const uint32_t* code)
+static bool _gfx_shader_build(GFXShader* shader,
+                              size_t size, const uint32_t* code)
 {
-	_Static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
+	static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 
 	assert(shader != NULL);
 	assert(shader->vk.module == VK_NULL_HANDLE);
@@ -567,9 +567,9 @@ GFX_API void gfx_destroy_shader(GFXShader* shader)
 }
 
 /****************************/
-GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
-                               int optimize, const GFXReader* src,
-                               const GFXWriter* out, const GFXWriter* err)
+GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
+                                bool optimize, const GFXReader* src,
+                                const GFXWriter* out, const GFXWriter* err)
 {
 	assert(shader != NULL);
 	assert(src != NULL);
@@ -790,7 +790,7 @@ clean:
 }
 
 /****************************/
-GFX_API int gfx_shader_load(GFXShader* shader, const GFXReader* src)
+GFX_API bool gfx_shader_load(GFXShader* shader, const GFXReader* src)
 {
 	assert(shader != NULL);
 	assert(src != NULL);
@@ -837,12 +837,12 @@ GFX_API int gfx_shader_load(GFXShader* shader, const GFXReader* src)
 	const size_t wordSize =
 		((size_t)len / sizeof(uint32_t)) * sizeof(uint32_t);
 
-	int ret = _gfx_shader_build(shader, wordSize, source);
-	if (ret == 0)
+	bool built = _gfx_shader_build(shader, wordSize, source);
+	if (!built)
 		gfx_log_error(
 			"Failed to load %s shader.",
 			_GFX_GET_STAGE_STRING(shader->stage));
 
 	free(source);
-	return ret;
+	return built;
 }

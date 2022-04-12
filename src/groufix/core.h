@@ -103,7 +103,7 @@ typedef struct _GFXState
 	_GFXMutex contextLock;
 
 	// Monitor configuration change.
-	void (*monitorEvent)(GFXMonitor*, int);
+	void (*monitorEvent)(GFXMonitor*, bool);
 
 
 	// Thread local data access.
@@ -168,7 +168,7 @@ typedef struct _GFXQueueSet
 
 	uint32_t     family;  // Vulkan family index.
 	VkQueueFlags flags;   // Only contains flags it was chosen for.
-	int          present; // Non-zero if chosen for presentation.
+	bool         present; // Non-zero if chosen for presentation.
 
 	size_t       count;
 	_GFXMutex    locks[]; // Count mutexes, one for each queue.
@@ -429,7 +429,7 @@ extern _GFXState _groufix;
  *
  * This will initialize everything to an empty or non-active state.
  */
-int _gfx_init(void);
+bool _gfx_init(void);
 
 /**
  * Terminates global groufix state.
@@ -446,7 +446,7 @@ void _gfx_terminate(void);
  *
  * This will initialize everything to an empty or non-active state.
  */
-int _gfx_create_local(void);
+bool _gfx_create_local(void);
 
 /**
  * Frees thread local state of the calling thread.
@@ -479,7 +479,7 @@ const char* _gfx_vulkan_result_string(VkResult result);
  * Must be called by the same thread that called _gfx_state_init.
  * @return Non-zero on success.
  */
-int _gfx_vulkan_init(void);
+bool _gfx_vulkan_init(void);
 
 /**
  * Terminates Vulkan state.
@@ -493,7 +493,7 @@ void _gfx_vulkan_terminate(void);
  * Must be called by the same thread that called _gfx_vulkan_init.
  * @return Non-zero on success.
  */
-int _gfx_devices_init(void);
+bool _gfx_devices_init(void);
 
 /**
  * Terminates internal device configuration.
@@ -508,7 +508,7 @@ void _gfx_devices_terminate(void);
  * Must be called by the same thread that called _gfx_state_init.
  * @return Non-zero on success.
  */
-int _gfx_monitors_init(void);
+bool _gfx_monitors_init(void);
 
 /**
  * Terminates internal monitor configuration.
@@ -523,7 +523,7 @@ void _gfx_monitors_terminate(void);
  * @param device Cannot be NULL.
  * @return Non-zero on success.
  */
-int _gfx_device_init_formats(_GFXDevice* device);
+bool _gfx_device_init_formats(_GFXDevice* device);
 
 /**
  * Resolves a (potentially 'fuzzy') format to a supported Vulkan format.
@@ -567,7 +567,7 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device);
  * flags are set, this function is guaranteed to succeed.
  */
 _GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
-                               VkQueueFlags flags, int present);
+                               VkQueueFlags flags, bool present);
 
 /**
  * Picks a queue from the queue set supporting the given abilities.
@@ -575,7 +575,7 @@ _GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
  * @see _gfx_pick_family.
  */
 _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
-                              VkQueueFlags flags, int present);
+                              VkQueueFlags flags, bool present);
 
 /**
  * Retrieves the Vulkan queue family indices to share with,
@@ -612,7 +612,7 @@ typedef enum _GFXRecreateFlags
  * This is used to ensure no two objects try to use the swapchain.
  * @return Non-zero if swapchain was not yet claimed.
  */
-static inline int _gfx_swapchain_try_lock(_GFXWindow* window)
+static inline bool _gfx_swapchain_try_lock(_GFXWindow* window)
 {
 	return !atomic_exchange(&window->swap, 1);
 }

@@ -29,8 +29,8 @@
  * @param synced Input AND Output of whether we already synchronized all frames.
  * @return Zero on failure.
  */
-static int _gfx_frame_rebuild(GFXRenderer* renderer, _GFXFrameSync* sync,
-                              _GFXRecreateFlags flags, int* synced)
+static bool _gfx_frame_rebuild(GFXRenderer* renderer, _GFXFrameSync* sync,
+                               _GFXRecreateFlags flags, bool* synced)
 {
 	if (flags & _GFX_RECREATE)
 	{
@@ -87,7 +87,7 @@ static void _gfx_free_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
  * @param frame    Cannot be NULL.
  * @return Non-zero on success.
  */
-static int _gfx_alloc_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
+static bool _gfx_alloc_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
 {
 	assert(renderer != NULL);
 	assert(frame != NULL);
@@ -131,7 +131,7 @@ clean:
 }
 
 /****************************/
-int _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
+bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 {
 	assert(renderer != NULL);
 	assert(frame != NULL);
@@ -249,7 +249,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 }
 
 /****************************/
-int _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
+bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 {
 	assert(frame != NULL);
 	assert(renderer != NULL);
@@ -287,7 +287,7 @@ error:
 }
 
 /****************************/
-int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
+bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 {
 	assert(frame != NULL);
 	assert(renderer != NULL);
@@ -314,7 +314,7 @@ int _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 	gfx_vec_release(&frame->refs);
 	gfx_vec_push(&frame->refs, attachs->size, NULL);
 
-	int synced = 0; // Sadly we may have to sync all on rebuild.
+	bool synced = 0; // Sadly we may have to sync all on rebuild.
 
 	for (size_t i = 0, s = 0; i < attachs->size; ++i)
 	{
@@ -371,8 +371,8 @@ error:
 }
 
 /****************************/
-int _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
-                      size_t numDeps, const GFXInject* deps)
+bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
+                       size_t numDeps, const GFXInject* deps)
 {
 	assert(frame != NULL);
 	assert(renderer != NULL);
@@ -555,7 +555,7 @@ error:
 }
 
 /****************************/
-int _gfx_sync_frames(GFXRenderer* renderer)
+bool _gfx_sync_frames(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 

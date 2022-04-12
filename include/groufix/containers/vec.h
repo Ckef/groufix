@@ -63,7 +63,7 @@ GFX_API void gfx_vec_clear(GFXVec* vec);
  * @param vec Cannot be NULL.
  * @return Zero when out of memory.
  */
-GFX_API int gfx_vec_reserve(GFXVec* vec, size_t numElems);
+GFX_API bool gfx_vec_reserve(GFXVec* vec, size_t numElems);
 
 /**
  * Releases the data, but not freeing it.
@@ -87,7 +87,7 @@ GFX_API void* gfx_vec_claim(GFXVec* vec);
  * @param elems    Cannot be an element of vec, may be NULL to push empty.
  * @return Zero when out of memory.
  */
-GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems);
+GFX_API bool gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems);
 
 /**
  * Inserts elements in the vector at some index.
@@ -97,8 +97,8 @@ GFX_API int gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems);
  * @param index    Must be <= vec->size.
  * @return Zero when out of memory.
  */
-GFX_API int gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
-                           size_t index);
+GFX_API bool gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
+                            size_t index);
 
 /**
  * Pops elements from the end of a vector.

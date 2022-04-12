@@ -8,6 +8,7 @@
 
 #include "groufix/core/mem.h"
 #include <assert.h>
+#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -137,8 +138,8 @@ static void _gfx_free_pool_block(_GFXPool* pool, _GFXPoolBlock* block)
  * @param elem Element to recycle, will not be in map anymore after this call.
  * @return Non-zero if recycled, zero if erased.
  */
-static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
-                                  _GFXPoolElem* elem)
+static bool _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
+                                   _GFXPoolElem* elem)
 {
 	assert(pool != NULL);
 	assert(elem != NULL);
@@ -146,7 +147,7 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	assert(map != &pool->recycled);
 
 	_GFXPoolBlock* block = elem->block;
-	int recycled = 1;
+	bool recycled = 1;
 
 	// Build a new key, only containing the cache element storing the
 	// descriptor set layout, this way we do not search for specific
@@ -206,8 +207,8 @@ static int _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
  * @see _gfx_recycle_pool_elem.
  * @param flushes Gets truly recycled after #flushes.
  */
-static int _gfx_make_pool_elem_stale(_GFXPool* pool, GFXMap* map,
-                                     _GFXPoolElem* elem, unsigned int flushes)
+static bool _gfx_make_pool_elem_stale(_GFXPool* pool, GFXMap* map,
+                                      _GFXPoolElem* elem, unsigned int flushes)
 {
 	assert(pool != NULL);
 	assert(elem != NULL);
@@ -240,7 +241,7 @@ static int _gfx_make_pool_elem_stale(_GFXPool* pool, GFXMap* map,
 }
 
 /****************************/
-int _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes)
+bool _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes)
 {
 	assert(pool != NULL);
 	assert(device != NULL);
@@ -266,7 +267,7 @@ int _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes)
 
 	// Take the largest alignment of the key and element types.
 	const size_t align =
-		GFX_MAX(_Alignof(_GFXHashKey), _Alignof(_GFXPoolElem));
+		GFX_MAX(alignof(_GFXHashKey), alignof(_GFXPoolElem));
 
 	gfx_map_init(&pool->immutable,
 		sizeof(_GFXPoolElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
@@ -326,7 +327,7 @@ void _gfx_pool_clear(_GFXPool* pool)
 }
 
 /****************************/
-int _gfx_pool_flush(_GFXPool* pool)
+bool _gfx_pool_flush(_GFXPool* pool)
 {
 	assert(pool != NULL);
 
@@ -338,7 +339,7 @@ int _gfx_pool_flush(_GFXPool* pool)
 	// So we keep track of success.
 	// This so at least all the flush counts of all elements in the
 	// immutable hashtable are updated.
-	int success = 1;
+	bool success = 1;
 
 	// So we loop over all subordinates and flush them.
 	for (
@@ -455,7 +456,7 @@ void _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub)
 	// Initialize the subordinate.
 	// Same alignment as the pool's hashtables.
 	const size_t align =
-		GFX_MAX(_Alignof(_GFXHashKey), _Alignof(_GFXPoolElem));
+		GFX_MAX(alignof(_GFXHashKey), alignof(_GFXPoolElem));
 
 	gfx_map_init(&sub->mutable,
 		sizeof(_GFXPoolElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);

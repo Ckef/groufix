@@ -71,9 +71,9 @@ GFX_API void gfx_destroy_shader(GFXShader* shader);
  *
  * Output stream failure is ignored.
  */
-GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
-                               int optimize, const GFXReader* src,
-                               const GFXWriter* out, const GFXWriter* err);
+GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
+                                bool optimize, const GFXReader* src,
+                                const GFXWriter* out, const GFXWriter* err);
 
 /**
  * Loads SPIR-V bytecode for use.
@@ -81,7 +81,7 @@ GFX_API int gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
  * @param src    Source bytecode stream, cannot be NULL.
  * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
  */
-GFX_API int gfx_shader_load(GFXShader* shader, const GFXReader* src);
+GFX_API bool gfx_shader_load(GFXShader* shader, const GFXReader* src);
 
 
 #endif
