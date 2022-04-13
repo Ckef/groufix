@@ -18,10 +18,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// Get the number of virtual frames.
 	// This immediately makes it very thread-unsafe with respect to the
 	// virtual frame deque, luckily we're allowed to!
-	const size_t frames =
-		renderer->pFrame.vk.done == VK_NULL_HANDLE ?
-		renderer->frames.size :
-		renderer->frames.size + 1;
+	const size_t frames = _GFX_RENDERER_NUM_FRAMES(renderer);
 
 	// TODO: Implement.
 

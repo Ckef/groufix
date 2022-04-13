@@ -1171,6 +1171,16 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
  ****************************/
 
 /**
+ * Retrieves the number of virtual frames of a renderer.
+ * NOT thread-safe with respect to the virtual frame deque!
+ */
+#define _GFX_RENDERER_NUM_FRAMES(renderer) \
+	(renderer->pFrame.vk.done == VK_NULL_HANDLE ? \
+	renderer->frames.size : \
+	renderer->frames.size + 1);
+
+
+/**
  * Initializes a virtual frame of a renderer.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.

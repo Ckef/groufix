@@ -271,9 +271,7 @@ static void _gfx_set_recycle(GFXSet* set)
 		// Meaning: we are allowed to do this after all frames have synced.
 		// This means the set itself is recycled 1 frame late; acceptable.
 		const unsigned int flushes =
-			renderer->pFrame.vk.done == VK_NULL_HANDLE ?
-			(unsigned int)renderer->frames.size :
-			(unsigned int)renderer->frames.size + 1;
+			(unsigned int)_GFX_RENDERER_NUM_FRAMES(renderer);
 
 		// Recycle all matching descriptor sets, this is explicitly NOT
 		// thread-safe, so we use the renderer's lock!
