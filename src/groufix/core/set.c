@@ -78,7 +78,7 @@ static void _gfx_make_stale(GFXSet* set,
 		// So aggressive locking is fine.
 		GFXRenderer* renderer = set->renderer;
 		_gfx_mutex_lock(&renderer->lock);
-		_gfx_push_stale(renderer, imageView, bufferView);
+		_gfx_push_stale(renderer, imageView, bufferView, VK_NULL_HANDLE);
 		_gfx_mutex_unlock(&renderer->lock);
 	}
 }

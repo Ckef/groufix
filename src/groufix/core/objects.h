@@ -605,6 +605,7 @@ typedef struct _GFXStale
 	{
 		VkImageView imageView;
 		VkBufferView bufferView;
+		VkCommandPool commandPool;
 
 	} vk;
 
@@ -1402,7 +1403,9 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
  * All handles are invalidated after this call.
  */
 void _gfx_push_stale(GFXRenderer* renderer,
-                     VkImageView imageView, VkBufferView bufferView);
+                     VkImageView imageView,
+                     VkBufferView bufferView,
+                     VkCommandPool commandPool);
 
 /**
  * Computes the size of a specific descriptor set layout within a technique.

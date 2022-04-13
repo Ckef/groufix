@@ -155,14 +155,21 @@ static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
 		context->vk.device, stale->vk.imageView, NULL);
 	context->vk.DestroyBufferView(
 		context->vk.device, stale->vk.bufferView, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, stale->vk.commandPool, NULL);
 }
 
 /****************************/
 void _gfx_push_stale(GFXRenderer* renderer,
-                     VkImageView imageView, VkBufferView bufferView)
+                     VkImageView imageView,
+                     VkBufferView bufferView,
+                     VkCommandPool commandPool)
 {
 	assert(renderer != NULL);
-	assert(imageView != VK_NULL_HANDLE || bufferView != VK_NULL_HANDLE);
+	assert(
+		imageView != VK_NULL_HANDLE ||
+		bufferView != VK_NULL_HANDLE ||
+		commandPool != VK_NULL_HANDLE);
 
 	// Get the last submitted frame's index.
 	// If there are no frames, there must be a public frame.
@@ -176,7 +183,8 @@ void _gfx_push_stale(GFXRenderer* renderer,
 		.frame = frame->index,
 		.vk = {
 			.imageView = imageView,
-			.bufferView = bufferView
+			.bufferView = bufferView,
+			.commandPool = commandPool
 		}
 	};
 
