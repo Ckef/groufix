@@ -593,26 +593,6 @@ typedef struct _GFXAttach
 
 
 /**
- * Stale resource (to be destroyed after acquisition).
- */
-typedef struct _GFXStale
-{
-	unsigned int frame; // Index of last frame that used this resource.
-
-
-	// Vulkan fields (any may be VK_NULL_HANDLE).
-	struct
-	{
-		VkImageView imageView;
-		VkBufferView bufferView;
-		VkCommandPool commandPool;
-
-	} vk;
-
-} _GFXStale;
-
-
-/**
  * Frame synchronization (swapchain acquisition) object.
  */
 typedef struct _GFXFrameSync
@@ -689,7 +669,7 @@ struct GFXRenderer
 	// Render frame (i.e. collection of virtual frames).
 	bool recording;
 
-	GFXDeque stales; // Stores _GFXStale.
+	GFXDeque stales; // Stores { unsigned int, (Vk*)+ }.
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
 

@@ -59,6 +59,26 @@
 	VK_COMPARE_OP_ALWAYS)
 
 
+/****************************
+ * Stale resource (to be destroyed after acquisition).
+ */
+typedef struct _GFXStale
+{
+	unsigned int frame; // Index of last frame that used this resource.
+
+
+	// Vulkan fields (any may be VK_NULL_HANDLE).
+	struct
+	{
+		VkImageView imageView;
+		VkBufferView bufferView;
+		VkCommandPool commandPool;
+
+	} vk;
+
+} _GFXStale;
+
+
 /****************************/
 _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
                                 const GFXSampler* sampler)
