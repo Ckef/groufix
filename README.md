@@ -83,4 +83,4 @@ When an exception is made to any of the listed rules, this will always be noted 
 
 * __Recorders__. To facilitate concurrent initialization of threads and subsequent threaded recording, the `gfx_*recorder*` function family is thread-safe with respect to the `GFXRenderer`.
 
-    * _Except during frame acquisition or submission_, i.e. during `gfx_renderer_acquire` or `gfx_frame_submit`.
+    * _Except for creation and modification during frame operations_, much like modification of techniques and sets.

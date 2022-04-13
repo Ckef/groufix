@@ -630,7 +630,10 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
  *
  * Thread-safe with respect to renderer,
  * as are all other functions related to this recorder.
- * EXCEPT during gfx_renderer_acquire or gfx_frame_submit!
+ *
+ * However, all of them CANNOT run during gfx_renderer_acquire or
+ * during or inbetween gfx_frame_start and gfx_frame_submit.
+ * Except ofcourse for any recording command :)
  */
 GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
 

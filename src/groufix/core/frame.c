@@ -37,12 +37,15 @@ static bool _gfx_frame_rebuild(GFXRenderer* renderer, _GFXFrameSync* sync,
 		if (!*synced)
 		{
 			// First try to synchronize all frames.
-			// Then reset the pool, no attachments may be referenced!
 			if (!_gfx_sync_frames(renderer))
 				return 0;
 
 			*synced = 1;
-			_gfx_pool_reset(&renderer->pool);
+
+			// Then reset the pool, no attachments may be referenced!
+			// Only reset if resized however,
+			// attachments only depend on the size of the swapchain!
+			if (flags & _GFX_RESIZE) _gfx_pool_reset(&renderer->pool);
 		}
 
 		// Then rebuild & purge the swapchain stuff.
