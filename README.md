@@ -80,3 +80,7 @@ When an exception is made to any of the listed rules, this will always be noted 
 * __Techniques and sets__. To facilitate concurrent creation and modification of resources, the `gfx_*tech*` and `gfx_*set*` function families are thread-safe with respect to the `GFXRenderer`.
 
     * _Except for modification during frame operations_, i.e. during `gfx_renderer_acquire` or from the moment `gfx_frame_start` is called up until `gfx_frame_submit` returns.
+
+* __Recorders__. To facilitate concurrent initialization of threads and subsequent threaded recording, the `gfx_*recorder*` function family is thread-safe with respect to the `GFXRenderer`.
+
+    * _Except during frame acquisition or submission_, i.e. during `gfx_renderer_acquire` or `gfx_frame_submit`.

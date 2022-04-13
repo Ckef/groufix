@@ -655,6 +655,19 @@ struct GFXFrame
 
 
 /**
+ * Internal recorder.
+ */
+struct GFXRecorder
+{
+	GFXListNode  list; // Base-type.
+	GFXRenderer* renderer;
+
+	_GFXPoolSub   sub;     // For descriptor access.
+	VkCommandPool pools[]; // One for each virtual frame.
+};
+
+
+/**
  * Internal renderer.
  */
 struct GFXRenderer
@@ -666,6 +679,7 @@ struct GFXRenderer
 	_GFXQueue     graphics;
 	_GFXQueue     present;
 
+	GFXList   recorders;  // References GFXRecorder.
 	GFXList   techniques; // References GFXTechnique.
 	GFXList   sets;       // References GFXSet.
 	_GFXMutex lock;       // For recorders, techniques & sets.
@@ -714,6 +728,48 @@ struct GFXRenderer
 		} state;
 
 	} graph;
+};
+
+
+/**
+ * Internal pass (i.e. render/compute pass).
+ */
+struct GFXPass
+{
+	GFXRenderer* renderer;
+	unsigned int level; // Determines submission order.
+
+	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.
+
+
+	// Building output (can be invalidated).
+	struct
+	{
+		size_t backing; // Window attachment index (or SIZE_MAX).
+
+		// TODO: Super temporary!!
+		_GFXPoolSub sub;
+		_GFXPrimitive* primitive;
+		GFXTechnique* technique;
+		GFXSet* set;
+
+	} build;
+
+
+	// Vulkan fields.
+	struct
+	{
+		// TODO: Temporary!?
+		VkRenderPass pass;
+		GFXVec       framebuffers; // Stores VkFramebuffer.
+		VkPipeline   pipeline;
+
+	} vk;
+
+
+	// Parent passes.
+	size_t   numParents;
+	GFXPass* parents[];
 };
 
 
@@ -801,48 +857,6 @@ struct GFXSet
 	size_t         numAttachs; // #referenced attachments.
 	size_t         numBindings;
 	_GFXSetBinding bindings[]; // Sorted, no gaps.
-};
-
-
-/**
- * Internal pass (i.e. render/compute pass).
- */
-struct GFXPass
-{
-	GFXRenderer* renderer;
-	unsigned int level; // Determines submission order.
-
-	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.
-
-
-	// Building output (can be invalidated).
-	struct
-	{
-		size_t backing; // Window attachment index (or SIZE_MAX).
-
-		// TODO: Super temporary!!
-		_GFXPoolSub sub;
-		_GFXPrimitive* primitive;
-		GFXTechnique* technique;
-		GFXSet* set;
-
-	} build;
-
-
-	// Vulkan fields.
-	struct
-	{
-		// TODO: Temporary!?
-		VkRenderPass pass;
-		GFXVec       framebuffers; // Stores VkFramebuffer.
-		VkPipeline   pipeline;
-
-	} vk;
-
-
-	// Parent passes.
-	size_t   numParents;
-	GFXPass* parents[];
 };
 
 
@@ -1304,6 +1318,57 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
 
 
 /****************************
+ * Pass (nodes in the render graph).
+ ****************************/
+
+/**
+ * Creates a pass, referencing all parents.
+ * Each element in parents must be associated with the same renderer.
+ * @param renderer   Cannot be NULL.
+ * @param numParents Number of parents, 0 for none.
+ * @param parents    Parent passes, cannot be NULL if numParents > 0.
+ * @return NULL on failure.
+ */
+GFXPass* _gfx_create_pass(GFXRenderer* renderer,
+                          size_t numParents, GFXPass** parents);
+
+/**
+ * Destroys a pass, unreferencing all parents.
+ * Undefined behaviour if destroying a pass that is referenced by another.
+ * @param pass Cannot be NULL.
+ */
+void _gfx_destroy_pass(GFXPass* pass);
+
+/**
+ * TODO: Merge passes with the same resolution into subpasses.
+ * (Re)builds the Vulkan object structure.
+ * @param pass  Cannot be NULL.
+ * @param flags What resources should be recreated (0 to recreate nothing).
+ * @return Non-zero if valid and built.
+ */
+bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
+
+/**
+ * Destructs the Vulkan object structure, non-recursively.
+ * @param pass Cannot be NULL.
+ *
+ * Must be called before detaching any attachment it uses!
+ */
+void _gfx_pass_destruct(GFXPass* pass);
+
+/**
+ * TODO: Temporary probably.
+ * Records the pass into the command buffers of a frame.
+ * The frame's command buffers must be in the recording state (!).
+ * @param pass  Cannot be NULL.
+ * @param frame Cannot be NULL, must be of the same renderer as pass.
+ *
+ * No-op if the pass is not built.
+ */
+void _gfx_pass_record(GFXPass* pass, GFXFrame* frame);
+
+
+/****************************
  * Technique and set.
  ****************************/
 
@@ -1361,58 +1426,6 @@ bool _gfx_tech_get_set_binding(GFXTechnique* technique,
  * However, can never run concurrently with other set functions.
  */
 _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub);
-
-
-/****************************
- * Pass (nodes in the render graph).
- ****************************/
-
-/**
- * Creates a pass, referencing all parents.
- * Each element in parents must be associated with the same renderer.
- * @param renderer   Cannot be NULL.
- * @param numParents Number of parents, 0 for none.
- * @param parents    Parent passes, cannot be NULL if numParents > 0.
- * @return NULL on failure.
- */
-GFXPass* _gfx_create_pass(GFXRenderer* renderer,
-                          size_t numParents, GFXPass** parents);
-
-/**
- * Destroys a pass, unreferencing all parents.
- * Undefined behaviour if destroying a pass that is referenced by another.
- * @param pass Cannot be NULL.
- */
-void _gfx_destroy_pass(GFXPass* pass);
-
-/**
- * TODO: Currently it builds a lot, this will be offloaded to different objects.
- * TODO: Merge passes with the same resolution into subpasses.
- * (Re)builds the Vulkan object structure.
- * @param pass  Cannot be NULL.
- * @param flags What resources should be recreated (0 to recreate nothing).
- * @return Non-zero if valid and built.
- */
-bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
-
-/**
- * Destructs the Vulkan object structure, non-recursively.
- * @param pass Cannot be NULL.
- *
- * Must be called before detaching any attachment it uses!
- */
-void _gfx_pass_destruct(GFXPass* pass);
-
-/**
- * TODO: Temporary probably.
- * Records the pass into the command buffers of a frame.
- * The frame's command buffers must be in the recording state (!).
- * @param pass  Cannot be NULL.
- * @param frame Cannot be NULL, must be of the same renderer as pass.
- *
- * No-op if the pass is not built.
- */
-void _gfx_pass_record(GFXPass* pass, GFXFrame* frame);
 
 
 #endif

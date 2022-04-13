@@ -229,6 +229,12 @@ typedef struct GFXRenderer GFXRenderer;
 
 
 /**
+ * Pass (i.e. render/compute pass) definition.
+ */
+typedef struct GFXPass GFXPass;
+
+
+/**
  * Technique (i.e. shader pipeline) definition.
  */
 typedef struct GFXTechnique GFXTechnique;
@@ -241,9 +247,9 @@ typedef struct GFXSet GFXSet;
 
 
 /**
- * Pass (i.e. render/compute pass) definition.
+ * Recorder definition.
  */
-typedef struct GFXPass GFXPass;
+typedef struct GFXRecorder GFXRecorder;
 
 
 /**
@@ -350,177 +356,6 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
 
 
 /****************************
- * Technique creation.
- ****************************/
-
-/**
- * Adds a new technique to the renderer.
- * @param renderer   Cannot be NULL.
- * @param numShaders Must be > 0.
- * @param shaders    Cannot be NULL, all must store valid SPIR-V bytecode.
- * @return NULL on failure.
- *
- * Thread-safe with respect to renderer, except gfx_renderer_(load|store)_cache,
- * as are all other functions related to this technique.
- *
- * For each shader stage, the last element in shaders will be taken.
- * Compute shaders cannot be passed in combination with other stages.
- */
-GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
-                                            size_t numShaders, GFXShader** shaders);
-
-/**
- * Erases (destroys) a technique, removing it from its renderer.
- * @param technique Cannot be NULL.
- */
-GFX_API void gfx_erase_tech(GFXTechnique* technique);
-
-/**
- * Retrieves the number of descriptor sets of a technique.
- * @param technique Cannot be NULL.
- */
-GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
-
-/**
- * Sets immutable samplers of the technique.
- * @param technique   Cannot be NULL.
- * @param set         Must be < gfx_tech_get_num_sets(technique).
- * @param numSamplers Must be > 0.
- * @param samplers    Cannot be NULL.
- * @return Zero if failed to set one or more samplers.
- *
- * Fails if the technique is already locked.
- * Warns about samplers that do not match the shader input type.
- */
-GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
-                               size_t numSamplers, const GFXSampler* samplers);
-
-/**
- * Sets a buffer binding of the technique to be dynamic.
- * @param technique Cannot be NULL.
- * @param set       Must be < gfx_tech_get_num_sets(technique).
- * @param binding   Descriptor binding number.
- * @return Non-zero if the binding can be made dynamic.
- *
- * Fails if the technique is already locked.
- * Warns if the shader input type is not a uniform or storage buffer.
- */
-GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
-                              size_t binding);
-
-/**
- * Locks the technique, preparing it for rendering & making it immutable.
- * Creating sets from a technique automatically locks the technique.
- * @param technique Cannot be NULL.
- * @return Non-zero on success.
- *
- * After this call has succesfully returned it is thread-safe to call
- * gfx_renderer_add_set from multiple threads with this technique.
- */
-GFX_API bool gfx_tech_lock(GFXTechnique* technique);
-
-
-/****************************
- * Set creation and modification.
- ****************************/
-
-/**
- * Adds a new set to the renderer, locking the used technique.
- * @param renderer  Cannot be NULL.
- * @param technique Cannot be NULL, must be from renderer.
- * @param set       Must be < gfx_tech_get_num_sets(technique).
- * @param resources Cannot be NULL if numResources > 0.
- * @param groups    Cannot be NULL if numGroups > 0.
- * @param views     Cannot be NULL if numViews > 0.
- * @param samplers  Cannot be NULL if numSamplers > 0.
- * @return NULL on failure.
- *
- * Thread-safe with respect to renderer, except gfx_renderer_(load|store)_cache,
- * as are all other functions related to this set.
- *
- * However, all but this function CANNOT run during gfx_renderer_acquire or
- * during or inbetween gfx_frame_start and gfx_frame_submit.
- *
- * Thread-safe with respect to technique ONLY IF gfx_tech_lock has
- * succesfully returned (or one call to gfx_renderer_add_set has).
- *
- * If any descriptor binding is assigned multiple resources or samplers,
- * the last matching element in their respective input arrays will be taken.
- * Individual set resources and views will always overwrite group bindings.
- * All views MUST match the shader input type!
- *
- * The returned set will not reference the technique anymore,
- * meaning the technique can be erased while the set still exists!
- */
-GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
-                                     GFXTechnique* technique, size_t set,
-                                     size_t numResources, size_t numGroups,
-                                     size_t numViews, size_t numSamplers,
-                                     const GFXSetResource* resources,
-                                     const GFXSetGroup* groups,
-                                     const GFXView* views,
-                                     const GFXSampler* samplers);
-
-/**
- * Erases (destroys) a set, removing it from its renderer.
- * @param set Cannot be NULL.
- */
-GFX_API void gfx_erase_set(GFXSet* set);
-
-/**
- * Sets descriptor binding resources of the set.
- * @param set          Cannot be NULL.
- * @param numResources Must be > 0.
- * @param resources    Cannot be NULL.
- * @return Zero if failed to set one or more resources.
- *
- * If any descriptor binding is assigned multiple times, the last is taken.
- * Warns about resources that do not match the shader input type.
- */
-GFX_API bool gfx_set_resources(GFXSet* set,
-                               size_t numResources, const GFXSetResource* resources);
-
-/**
- * Sets descriptor binding resources of the set from groups.
- * @param set       Cannot be NULL.
- * @param numGroups Must be > 0.
- * @param groups    Cannot be NULL.
- * @return Zero if failed to set one or more resources.
- *
- * If any descriptor binding is assigned multiple times, the last is taken.
- * Warns about resources that do not match the shader input type.
- */
-GFX_API bool gfx_set_groups(GFXSet* set,
-                            size_t numGroups, const GFXSetGroup* groups);
-
-/**
- * Sets resource views of the set.
- * @param set      Cannot be NULL.
- * @param numViews Must be > 0.
- * @param views    Cannot be NULL.
- * @return Zero if failed to set one or more views.
- *
- * If any descriptor binding is assigned multiple views, the last is taken.
- * All views MUST match the shader input type!
- */
-GFX_API bool gfx_set_views(GFXSet* set,
-                           size_t numViews, const GFXView* views);
-
-/**
- * Sets immutable samplers of the set.
- * @param set         Cannot be NULL.
- * @param numSamplers Must be > 0.
- * @param samplers    Cannot be NULL.
- * @return Zero if failed to set one or more samplers.
- *
- * If any descriptor binding is assigned multiple samplers, the last is taken.
- * Warns about samplers that do not match the shader input type.
- */
-GFX_API bool gfx_set_samplers(GFXSet* set,
-                              size_t numSamplers, const GFXSampler* samplers);
-
-
-/****************************
  * Pass handling.
  ****************************/
 
@@ -611,6 +446,199 @@ GFX_API void gfx_pass_use(GFXPass* pass,
                           GFXPrimitive* primitive,
                           GFXTechnique* technique,
                           GFXSet* set);
+
+
+/****************************
+ * Technique creation.
+ ****************************/
+
+/**
+ * Adds a new technique to the renderer.
+ * @param renderer   Cannot be NULL.
+ * @param numShaders Must be > 0.
+ * @param shaders    Cannot be NULL, all must store valid SPIR-V bytecode.
+ * @return NULL on failure.
+ *
+ * Thread-safe with respect to renderer,
+ * as are all other functions related to this technique.
+ *
+ * For each shader stage, the last element in shaders will be taken.
+ * Compute shaders cannot be passed in combination with other stages.
+ */
+GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
+                                            size_t numShaders, GFXShader** shaders);
+
+/**
+ * Erases (destroys) a technique, removing it from its renderer.
+ * @param technique Cannot be NULL.
+ */
+GFX_API void gfx_erase_tech(GFXTechnique* technique);
+
+/**
+ * Retrieves the number of descriptor sets of a technique.
+ * @param technique Cannot be NULL.
+ */
+GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
+
+/**
+ * Sets immutable samplers of the technique.
+ * @param technique   Cannot be NULL.
+ * @param set         Must be < gfx_tech_get_num_sets(technique).
+ * @param numSamplers Must be > 0.
+ * @param samplers    Cannot be NULL.
+ * @return Zero if failed to set one or more samplers.
+ *
+ * Fails if the technique is already locked.
+ * Warns about samplers that do not match the shader input type.
+ */
+GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
+                               size_t numSamplers, const GFXSampler* samplers);
+
+/**
+ * Sets a buffer binding of the technique to be dynamic.
+ * @param technique Cannot be NULL.
+ * @param set       Must be < gfx_tech_get_num_sets(technique).
+ * @param binding   Descriptor binding number.
+ * @return Non-zero if the binding can be made dynamic.
+ *
+ * Fails if the technique is already locked.
+ * Warns if the shader input type is not a uniform or storage buffer.
+ */
+GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
+                              size_t binding);
+
+/**
+ * Locks the technique, preparing it for rendering & making it immutable.
+ * Creating sets from a technique automatically locks the technique.
+ * @param technique Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * After this call has succesfully returned it is thread-safe to call
+ * gfx_renderer_add_set from multiple threads with this technique.
+ */
+GFX_API bool gfx_tech_lock(GFXTechnique* technique);
+
+
+/****************************
+ * Set creation and modification.
+ ****************************/
+
+/**
+ * Adds a new set to the renderer, locking the used technique.
+ * @param renderer  Cannot be NULL.
+ * @param technique Cannot be NULL, must be from renderer.
+ * @param set       Must be < gfx_tech_get_num_sets(technique).
+ * @param resources Cannot be NULL if numResources > 0.
+ * @param groups    Cannot be NULL if numGroups > 0.
+ * @param views     Cannot be NULL if numViews > 0.
+ * @param samplers  Cannot be NULL if numSamplers > 0.
+ * @return NULL on failure.
+ *
+ * Thread-safe with respect to renderer,
+ * as are all other functions related to this set.
+ *
+ * However, all but this function CANNOT run during gfx_renderer_acquire or
+ * during or inbetween gfx_frame_start and gfx_frame_submit.
+ *
+ * Thread-safe with respect to technique ONLY IF gfx_tech_lock has
+ * succesfully returned (or one call to gfx_renderer_add_set has).
+ *
+ * If any descriptor binding is assigned multiple resources or samplers,
+ * the last matching element in their respective input arrays will be taken.
+ * Individual set resources and views will always overwrite group bindings.
+ * All views MUST match the shader input type!
+ *
+ * The returned set will not reference the technique anymore,
+ * meaning the technique can be erased while the set still exists!
+ */
+GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
+                                     GFXTechnique* technique, size_t set,
+                                     size_t numResources, size_t numGroups,
+                                     size_t numViews, size_t numSamplers,
+                                     const GFXSetResource* resources,
+                                     const GFXSetGroup* groups,
+                                     const GFXView* views,
+                                     const GFXSampler* samplers);
+
+/**
+ * Erases (destroys) a set, removing it from its renderer.
+ * @param set Cannot be NULL.
+ */
+GFX_API void gfx_erase_set(GFXSet* set);
+
+/**
+ * Sets descriptor binding resources of the set.
+ * @param set          Cannot be NULL.
+ * @param numResources Must be > 0.
+ * @param resources    Cannot be NULL.
+ * @return Zero if failed to set one or more resources.
+ *
+ * If any descriptor binding is assigned multiple times, the last is taken.
+ * Warns about resources that do not match the shader input type.
+ */
+GFX_API bool gfx_set_resources(GFXSet* set,
+                               size_t numResources, const GFXSetResource* resources);
+
+/**
+ * Sets descriptor binding resources of the set from groups.
+ * @param set       Cannot be NULL.
+ * @param numGroups Must be > 0.
+ * @param groups    Cannot be NULL.
+ * @return Zero if failed to set one or more resources.
+ *
+ * If any descriptor binding is assigned multiple times, the last is taken.
+ * Warns about resources that do not match the shader input type.
+ */
+GFX_API bool gfx_set_groups(GFXSet* set,
+                            size_t numGroups, const GFXSetGroup* groups);
+
+/**
+ * Sets resource views of the set.
+ * @param set      Cannot be NULL.
+ * @param numViews Must be > 0.
+ * @param views    Cannot be NULL.
+ * @return Zero if failed to set one or more views.
+ *
+ * If any descriptor binding is assigned multiple views, the last is taken.
+ * All views MUST match the shader input type!
+ */
+GFX_API bool gfx_set_views(GFXSet* set,
+                           size_t numViews, const GFXView* views);
+
+/**
+ * Sets immutable samplers of the set.
+ * @param set         Cannot be NULL.
+ * @param numSamplers Must be > 0.
+ * @param samplers    Cannot be NULL.
+ * @return Zero if failed to set one or more samplers.
+ *
+ * If any descriptor binding is assigned multiple samplers, the last is taken.
+ * Warns about samplers that do not match the shader input type.
+ */
+GFX_API bool gfx_set_samplers(GFXSet* set,
+                              size_t numSamplers, const GFXSampler* samplers);
+
+
+/****************************
+ * Recorder handling.
+ ****************************/
+
+/**
+ * Adds a new recorder to the renderer.
+ * @param renderer Cannot be NULL.
+ * @return NULL on failure.
+ *
+ * Thread-safe with respect to renderer,
+ * as are all other functions related to this recorder.
+ * EXCEPT during gfx_renderer_acquire or gfx_frame_submit!
+ */
+GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
+
+/**
+ * Erases (destroys) a recorder, removing it from its renderer.
+ * @param recorder Cannot be NULL.
+ */
+GFX_API void gfx_erase_recorder(GFXRecorder* recorder);
 
 
 /****************************

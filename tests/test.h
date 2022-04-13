@@ -57,7 +57,6 @@
 #include <groufix.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #if defined (TEST_ENABLE_THREADS)
 	#include <pthread.h>

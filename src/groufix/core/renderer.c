@@ -260,6 +260,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	// And uh some remaining stuff.
 	rend->recording = 0;
 
+	gfx_list_init(&rend->recorders);
 	gfx_list_init(&rend->techniques);
 	gfx_list_init(&rend->sets);
 	gfx_deque_init(&rend->stales, sizeof(_GFXStale));
@@ -301,6 +302,12 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	gfx_deque_clear(&renderer->frames);
 
+	// Erase all recorders.
+	while (renderer->recorders.head != NULL)
+		gfx_erase_recorder((GFXRecorder*)renderer->recorders.head);
+
+	gfx_list_clear(&renderer->recorders);
+
 	// Erase all techniques and sets.
 	while (renderer->techniques.head != NULL)
 		gfx_erase_tech((GFXTechnique*)renderer->techniques.head);
@@ -312,8 +319,6 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	gfx_list_clear(&renderer->sets);
 
 	// Destroy all stale resources.
-	// Note this has to be after erasing all sets,
-	// as they will push stale resources!
 	for (size_t s = 0; s < renderer->stales.size; ++s)
 		_gfx_destroy_stale(renderer, gfx_deque_at(&renderer->stales, s));
 
