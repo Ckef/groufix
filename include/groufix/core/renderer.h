@@ -277,6 +277,12 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
 
 /**
+ * Retrieves the number of virtual frames of a renderer.
+ * @param renderer Cannot be NULL.
+ */
+GFX_API unsigned int gfx_renderer_get_num_frames(GFXRenderer* renderer);
+
+/**
  * Loads groufix pipeline cache data, merging it into the current cache.
  * @param renderer Cannot be NULL.
  * @param src      Source stream, cannot be NULL.

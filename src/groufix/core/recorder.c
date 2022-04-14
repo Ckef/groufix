@@ -12,21 +12,39 @@
 
 
 /****************************/
+bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
+{
+	assert(recorder != NULL);
+	assert(frame < recorder->renderer->numFrames);
+
+	_GFXContext* context = recorder->renderer->allocator.context;
+
+	// No command buffers are in use anymore.
+	recorder->pools[frame].used = 0;
+
+	// Try to reset the command pool.
+	_GFX_VK_CHECK(
+		context->vk.ResetCommandPool(
+			context->vk.device, recorder->pools[frame].vk.pool, 0),
+		{
+			gfx_log_fatal("Resetting of recorder failed.");
+			return 0;
+		});
+
+	return 1;
+}
+
+/****************************/
 GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
 	_GFXContext* context = renderer->allocator.context;
 
-	// Get the number of virtual frames.
-	// This immediately makes it very thread-unsafe with respect to the
-	// virtual frame deque, luckily we're allowed to!
-	const size_t frames = _GFX_RENDERER_NUM_FRAMES(renderer);
-
 	// Allocate a new recorder.
 	GFXRecorder* rec = malloc(
 		sizeof(GFXRecorder) +
-		sizeof(_GFXRecorderPool) * frames);
+		sizeof(_GFXRecorderPool) * renderer->numFrames);
 
 	if (rec == NULL)
 		goto error;
@@ -40,7 +58,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 		.queueFamilyIndex = renderer->graphics.family
 	};
 
-	for (size_t i = 0; i < frames; ++i)
+	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
 		_GFX_VK_CHECK(
 			context->vk.CreateCommandPool(
@@ -58,13 +76,13 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// Initialize the rest of the pools.
 	rec->renderer = renderer;
 
-	for (size_t i = 0; i < frames; ++i)
+	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
 		rec->pools[i].used = 0;
 		gfx_vec_init(&rec->pools[i].vk.cmds, sizeof(VkCommandBuffer));
 	}
 
-	// Init subordinate & Link the recorder into the renderer.
+	// Init subordinate & link the recorder into the renderer.
 	// Modifying the renderer, lock!
 	// Also using this lock for access to the pool!
 	_gfx_mutex_lock(&renderer->lock);
@@ -100,16 +118,14 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 	// Stay locked; we need to make the command pools stale,
 	// as its command buffers might still be in use by pending virtual frames!
 	// Still, NOT thread-safe with respect to the virtual frame deque!
-	const size_t frames = _GFX_RENDERER_NUM_FRAMES(renderer);
-
-	for (size_t i = 0; i < frames; ++i)
+	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 		_gfx_push_stale(renderer,
 			VK_NULL_HANDLE, VK_NULL_HANDLE, recorder->pools[i].vk.pool);
 
 	_gfx_mutex_unlock(&renderer->lock);
 
 	// Free all the memory.
-	for (size_t i = 0; i < frames; ++i)
+	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 		gfx_vec_clear(&recorder->pools[i].vk.cmds);
 
 	free(recorder);

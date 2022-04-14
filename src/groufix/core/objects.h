@@ -685,7 +685,8 @@ struct GFXRenderer
 	_GFXMutex lock;       // For recorders, techniques & sets.
 
 	// Render frame (i.e. collection of virtual frames).
-	bool recording;
+	unsigned int numFrames;
+	bool         recording;
 
 	GFXDeque stales; // Stores { unsigned int, (Vk*)+ }.
 	GFXDeque frames; // Stores GFXFrame.
@@ -1170,16 +1171,6 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
  ****************************/
 
 /**
- * Retrieves the number of virtual frames of a renderer.
- * NOT thread-safe with respect to the virtual frame deque!
- */
-#define _GFX_RENDERER_NUM_FRAMES(renderer) \
-	(renderer->pFrame.vk.done == VK_NULL_HANDLE ? \
-	renderer->frames.size : \
-	renderer->frames.size + 1);
-
-
-/**
  * Initializes a virtual frame of a renderer.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
@@ -1379,7 +1370,7 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame);
 
 
 /****************************
- * Technique and set.
+ * Recorder, technique and set.
  ****************************/
 
 /**
@@ -1395,15 +1386,28 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
  * Pushes stale resources to the renderer,
  * destroying it the next time the previous frame is acquired/synchronized.
  * @param renderer Cannot be NULL.
+ * @return Non-zero if successfully pushed.
  *
  * Not reentrant nor thread-safe with respect to the virtual frame deque.
  * Any Vulkan resource handle may be VK_NULL_HANDLE, as long as one is not.
  * All handles are invalidated after this call.
+ *
+ * Failure is considered fatal, resources prematurely destroyed.
  */
-void _gfx_push_stale(GFXRenderer* renderer,
+bool _gfx_push_stale(GFXRenderer* renderer,
                      VkImageView imageView,
                      VkBufferView bufferView,
                      VkCommandPool commandPool);
+
+/**
+ * Resets a recording pool, i.e. resets all command buffers.
+ * @param recorder Cannot be NULL.
+ * @param frame    Index of the frame to reset buffers of.
+ * @return Non-zero if successfully reset.
+ *
+ * Failure is considered fatal, command buffers cannot be used.
+ */
+bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame);
 
 /**
  * Computes the size of a specific descriptor set layout within a technique.

@@ -180,7 +180,7 @@ static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
 }
 
 /****************************/
-void _gfx_push_stale(GFXRenderer* renderer,
+bool _gfx_push_stale(GFXRenderer* renderer,
                      VkImageView imageView,
                      VkBufferView bufferView,
                      VkCommandPool commandPool)
@@ -221,7 +221,10 @@ void _gfx_push_stale(GFXRenderer* renderer,
 			"prematurely destroyed instead...");
 
 		_gfx_destroy_stale(renderer, &stale);
+		return 0;
 	}
+
+	return 1;
 }
 
 /****************************/
@@ -286,6 +289,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 		}
 
 	// And uh some remaining stuff.
+	rend->numFrames = frames;
 	rend->recording = 0;
 
 	gfx_list_init(&rend->recorders);
@@ -365,6 +369,14 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 }
 
 /****************************/
+GFX_API unsigned int gfx_renderer_get_num_frames(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	return renderer->numFrames;
+}
+
+/****************************/
 GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer,
                                      const GFXReader* src)
 {
@@ -415,6 +427,15 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 
 		_gfx_destroy_stale(renderer, stale);
 		gfx_deque_pop_front(&renderer->stales, 1);
+	}
+
+	// And lastly reset all recorders.
+	for (
+		GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
+		rec != NULL;
+		rec = (GFXRecorder*)rec->list.next)
+	{
+		_gfx_recorder_reset(rec, renderer->pFrame.index);
 	}
 
 	return &renderer->pFrame;

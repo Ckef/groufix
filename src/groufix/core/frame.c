@@ -272,7 +272,7 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 			context->vk.device, 1, &frame->vk.done),
 		goto error);
 
-	// Immediately reset the relevant command pools, release the memory!
+	// Immediately reset the relevant command pool, release the memory!
 	_GFX_VK_CHECK(
 		context->vk.ResetCommandPool(
 			context->vk.device, frame->vk.pool, 0),
