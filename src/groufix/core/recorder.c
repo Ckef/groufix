@@ -26,14 +26,10 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// Allocate a new recorder.
 	GFXRecorder* rec = malloc(
 		sizeof(GFXRecorder) +
-		sizeof(VkCommandPool) * frames);
+		sizeof(_GFXRecorderPool) * frames);
 
 	if (rec == NULL)
 		goto error;
-
-	// Initialize things.
-	rec->renderer = renderer;
-	gfx_vec_init(&rec->cmds, sizeof(VkCommandBuffer));
 
 	// Create one command pool for each frame.
 	VkCommandPoolCreateInfo cpci = {
@@ -48,15 +44,24 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	{
 		_GFX_VK_CHECK(
 			context->vk.CreateCommandPool(
-				context->vk.device, &cpci, NULL, &rec->pools[i]),
+				context->vk.device, &cpci, NULL, &rec->pools[i].vk.pool),
 			{
 				// Destroy all pools on failure.
 				while (i > 0) context->vk.DestroyCommandPool(
-					context->vk.device, rec->pools[--i], NULL);
+					context->vk.device, rec->pools[--i].vk.pool, NULL);
 
 				free(rec);
 				goto error;
 			});
+	}
+
+	// Initialize the rest of the pools.
+	rec->renderer = renderer;
+
+	for (size_t i = 0; i < frames; ++i)
+	{
+		rec->pools[i].used = 0;
+		gfx_vec_init(&rec->pools[i].vk.cmds, sizeof(VkCommandBuffer));
 	}
 
 	// Init subordinate & Link the recorder into the renderer.
@@ -99,11 +104,13 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 
 	for (size_t i = 0; i < frames; ++i)
 		_gfx_push_stale(renderer,
-			VK_NULL_HANDLE, VK_NULL_HANDLE, recorder->pools[i]);
+			VK_NULL_HANDLE, VK_NULL_HANDLE, recorder->pools[i].vk.pool);
 
 	_gfx_mutex_unlock(&renderer->lock);
 
 	// Free all the memory.
-	gfx_vec_clear(&recorder->cmds);
+	for (size_t i = 0; i < frames; ++i)
+		gfx_vec_clear(&recorder->pools[i].vk.cmds);
+
 	free(recorder);
 }

@@ -626,13 +626,32 @@ struct GFXFrame
 	// Vulkan fields.
 	struct
 	{
-		VkCommandPool   pool; // TODO: Remove.
-		VkCommandBuffer cmd;  // TODO: Remove.
+		VkCommandPool   pool;
+		VkCommandBuffer cmd;
 		VkSemaphore     rendered;
 		VkFence         done; // For resource access.
 
 	} vk;
 };
+
+
+/**
+ * Recording command pool.
+ */
+typedef struct _GFXRecorderPool
+{
+	size_t used; // Used buffers in cmds.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkCommandPool pool;
+		GFXVec        cmds; // Stores VkCommandBuffer.
+
+	} vk;
+
+} _GFXRecorderPool;
 
 
 /**
@@ -642,10 +661,9 @@ struct GFXRecorder
 {
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
-	_GFXPoolSub  sub;  // For descriptor access.
 
-	GFXVec        cmds;    // Stores VkCommandBuffer.
-	VkCommandPool pools[]; // One for each virtual frame.
+	_GFXPoolSub      sub;     // For descriptor access.
+	_GFXRecorderPool pools[]; // One for each virtual frame.
 };
 
 

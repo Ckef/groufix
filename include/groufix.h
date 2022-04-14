@@ -25,20 +25,20 @@
 
 /**
  * Initializes the engine, attaching the calling thread as the main thread.
- * This call must be made before any groufix calls can be made.
+ * This call MUST be made before any groufix calls can be made.
  * @return Non-zero on success.
  */
 GFX_API bool gfx_init(void);
 
 /**
  * Terminates the engine, detaching the calling thread in the process.
- * Must be called by the same thread that called gfx_init (the main thread).
+ * MUST be called by the same thread that called gfx_init (the main thread).
  */
 GFX_API void gfx_terminate(void);
 
 /**
  * Initializes the calling thread for groufix use.
- * This call must be made on the calling thread before any other groufix calls,
+ * This call MUST be made on the calling thread before any other groufix calls,
  * the main thread (the one that called gfx_init) is the only exception.
  * @return Non-zero on success.
  */
@@ -46,7 +46,7 @@ GFX_API bool gfx_attach(void);
 
 /**
  * Detaches the thread from groufix, cleaning up any thread-local data.
- * All attached threads (except main) need to call this before gfx_terminate.
+ * All attached threads (except main) MUST call this before gfx_terminate.
  */
 GFX_API void gfx_detach(void);
 

@@ -690,7 +690,7 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
  * @param frame Cannot be NULL, invalidated after this call!
  * @param deps  Cannot be NULL if numDeps > 0.
  *
- * All resources used to render a frame cannot be destroyed until the next
+ * All memory resources used to render a frame cannot be freed until the next
  * time this frame is acquired. The frames can be identified by their index.
  *
  * Failure during submission cannot be recovered from,

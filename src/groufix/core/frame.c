@@ -177,7 +177,6 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 
 	// Create command pool.
 	// These buffers will be reset and re-recorded every frame.
-	// TODO: Want to create more for threaded rendering.
 	VkCommandPoolCreateInfo cpci = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 
