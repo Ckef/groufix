@@ -429,15 +429,6 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 		gfx_deque_pop_front(&renderer->stales, 1);
 	}
 
-	// And lastly reset all recorders.
-	for (
-		GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
-		rec != NULL;
-		rec = (GFXRecorder*)rec->list.next)
-	{
-		_gfx_recorder_reset(rec, renderer->pFrame.index);
-	}
-
 	return &renderer->pFrame;
 }
 

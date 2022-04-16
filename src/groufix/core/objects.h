@@ -661,9 +661,10 @@ struct GFXRecorder
 {
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
+	_GFXPoolSub  sub;     // For descriptor access.
 
-	_GFXPoolSub      sub;     // For descriptor access.
-	_GFXRecorderPool pools[]; // One for each virtual frame.
+	_GFXRecorderPool* current; // Current frame's pool, or NULL.
+	_GFXRecorderPool  pools[]; // One for each virtual frame.
 };
 
 
@@ -1189,7 +1190,8 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
- * Blocks until all pending submissions of a virtual frame are done.
+ * Blocks until all pending submissions of a virtual frame are done
+ * and subsequently resets all command pools.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
  * @return Non-zero if successfully synchronized.
@@ -1400,7 +1402,8 @@ bool _gfx_push_stale(GFXRenderer* renderer,
                      VkCommandPool commandPool);
 
 /**
- * Resets a recording pool, i.e. resets all command buffers.
+ * Resets a recording pool, i.e. resets all command buffers
+ * and sets the current recording pool to use for recording commands.
  * @param recorder Cannot be NULL.
  * @param frame    Index of the frame to reset buffers of.
  * @return Non-zero if successfully reset.

@@ -278,6 +278,16 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 			context->vk.device, frame->vk.pool, 0),
 		goto error);
 
+	// This includes all the recording pools.
+	for (
+		GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
+		rec != NULL;
+		rec = (GFXRecorder*)rec->list.next)
+	{
+		if (!_gfx_recorder_reset(rec, frame->index))
+			goto error;
+	}
+
 	return 1;
 
 

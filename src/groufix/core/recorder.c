@@ -20,12 +20,13 @@ bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 	_GFXContext* context = recorder->renderer->allocator.context;
 
 	// No command buffers are in use anymore.
-	recorder->pools[frame].used = 0;
+	recorder->current = &recorder->pools[frame];
+	recorder->current->used = 0;
 
 	// Try to reset the command pool.
 	_GFX_VK_CHECK(
 		context->vk.ResetCommandPool(
-			context->vk.device, recorder->pools[frame].vk.pool, 0),
+			context->vk.device, recorder->current->vk.pool, 0),
 		{
 			gfx_log_fatal("Resetting of recorder failed.");
 			return 0;
@@ -75,12 +76,19 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 
 	// Initialize the rest of the pools.
 	rec->renderer = renderer;
+	rec->current = NULL;
 
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
 		rec->pools[i].used = 0;
 		gfx_vec_init(&rec->pools[i].vk.cmds, sizeof(VkCommandBuffer));
 	}
+
+	// Ok so we cheat a little by checking if the renderer has a public frame.
+	// If it does, we take its index to set the current pool.
+	// Note that this is not thread-safe with frame operations!
+	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
+		rec->current = &rec->pools[renderer->pFrame.index];
 
 	// Init subordinate & link the recorder into the renderer.
 	// Modifying the renderer, lock!
