@@ -11,6 +11,27 @@
 #include <stdlib.h>
 
 
+/****************************
+ * Retrieves a pipeline from the renderer's cache (or warms it up).
+ * Essentially a wrapper for _gfx_cache_(get|warmup).
+ * @param renderable Cannot be NULL.
+ * @param elem       Output cache element, cannot be NULL if warmup is zero.
+ * @param warmup     Non-zero to only warmup and not retrieve.
+ * @return Zero on failure.
+ *
+ * Completely thread-safe with respect to the renderable!
+ */
+bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
+                       bool warmup)
+{
+	assert(renderable != NULL);
+	assert(warmup || elem != NULL);
+
+	// TODO: Implement.
+
+	return 0;
+}
+
 /****************************/
 bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 {

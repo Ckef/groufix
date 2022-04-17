@@ -282,12 +282,14 @@ typedef struct GFXRenderable
 /**
  * Initializes a renderable.
  * The object pointed to by renderable _CAN_ be moved or copied!
- * Does not need to be cleared, hence no _init postfix.
  * @param renderable Cannot be NULL.
  * @param pass       Cannot be NULL.
  * @param tech       Cannot be NULL.
  * @param prim       May be NULL!
  * @return Non-zero on success.
+ *
+ * Can be called from any thread at any time!
+ * Does not need to be cleared, hence no _init postfix.
  */
 GFX_API bool gfx_renderable(GFXRenderable* renderable,
                             GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim);
