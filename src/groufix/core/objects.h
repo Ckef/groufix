@@ -738,6 +738,7 @@ struct GFXPass
 {
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
+	uintmax_t    gen;   // Build generation (to invalidate pipelines).
 
 	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.
 

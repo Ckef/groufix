@@ -60,6 +60,11 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 	{
 		pass->vk.pass = VK_NULL_HANDLE;
 		pass->vk.pipeline = VK_NULL_HANDLE;
+
+		// Increase generation; the renderpass is used in pipelines,
+		// ergo we need to invalidate current pipelines using it.
+		// TODO: Warn when it overflows?
+		++pass->gen;
 	}
 }
 
@@ -451,6 +456,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	// Initialize things.
 	pass->renderer = renderer;
 	pass->level = 0;
+	pass->gen = 0;
 	pass->numParents = numParents;
 
 	if (numParents) memcpy(

@@ -62,7 +62,10 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 	renderable->pass = pass;
 	renderable->technique = tech;
 	renderable->primitive = prim;
-	atomic_store(&renderable->pipeline, (uintptr_t)NULL);
+
+	atomic_store(&renderable->lock, 0);
+	renderable->pipeline = NULL;
+	renderable->gen = 0;
 
 	return 1;
 }

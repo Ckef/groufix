@@ -272,8 +272,9 @@ typedef struct GFXRenderable
 	GFXTechnique* technique;
 	GFXPrimitive* primitive;
 
-	// TODO: What if the pass changes?
-	atomic_uintptr_t pipeline;
+	atomic_bool lock;
+	void*       pipeline;
+	uintmax_t   gen;
 
 } GFXRenderable;
 
