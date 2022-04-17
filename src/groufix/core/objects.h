@@ -661,7 +661,7 @@ struct GFXRecorder
 {
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
-	_GFXPoolSub  sub;     // For descriptor access.
+	_GFXPoolSub  sub;  // For descriptor access.
 
 	_GFXRecorderPool* current; // Current frame's pool, or NULL.
 	_GFXRecorderPool  pools[]; // One for each virtual frame.
@@ -692,8 +692,6 @@ struct GFXRenderer
 	GFXDeque stales; // Stores { unsigned int, (Vk*)+ }.
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
-
-	// TODO: Add a 'cache' storing {technique,primitive,pass} -> pipeline.
 
 
 	// Render backing (i.e. attachments).

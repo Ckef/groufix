@@ -36,6 +36,38 @@ bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 }
 
 /****************************/
+GFX_API bool gfx_renderable(GFXRenderable* renderable,
+                            GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim)
+{
+	assert(renderable != NULL);
+	assert(pass != NULL);
+	assert(tech != NULL);
+
+	// Neat place to check renderer & context sharing.
+	if (
+		pass->renderer != tech->renderer ||
+		(prim != NULL &&
+			((_GFXPrimitive*)prim)->buffer.heap->allocator.context !=
+			pass->renderer->allocator.context))
+	{
+		gfx_log_error(
+			"Could not initialize renderable; its pass and technique must "
+			"share a renderable and be built on the same logical Vulkan "
+			"device as its primitive.");
+
+		return 0;
+	}
+
+	// Init renderable, store NULL as pipeline.
+	renderable->pass = pass;
+	renderable->technique = tech;
+	renderable->primitive = prim;
+	atomic_store(&renderable->pipeline, (uintptr_t)NULL);
+
+	return 1;
+}
+
+/****************************/
 GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);

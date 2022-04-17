@@ -259,6 +259,40 @@ typedef struct GFXFrame GFXFrame;
 
 
 /****************************
+ * Primitive renderable.
+ ****************************/
+
+/**
+ * Renderable definition.
+ */
+typedef struct GFXRenderable
+{
+	// All ready-only.
+	GFXPass*      pass;
+	GFXTechnique* technique;
+	GFXPrimitive* primitive;
+
+	// TODO: What if the pass changes?
+	atomic_uintptr_t pipeline;
+
+} GFXRenderable;
+
+
+/**
+ * Initializes a renderable.
+ * The object pointed to by renderable _CAN_ be moved or copied!
+ * Does not need to be cleared, hence no _init postfix.
+ * @param renderable Cannot be NULL.
+ * @param pass       Cannot be NULL.
+ * @param tech       Cannot be NULL.
+ * @param prim       May be NULL!
+ * @return Non-zero on success.
+ */
+GFX_API bool gfx_renderable(GFXRenderable* renderable,
+                            GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim);
+
+
+/****************************
  * Renderer handling.
  ****************************/
 

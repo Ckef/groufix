@@ -15,7 +15,6 @@
 #include "groufix/containers/vec.h"
 #include "groufix/core/threads.h"
 #include "groufix.h"
-#include <stdatomic.h>
 
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
