@@ -13,18 +13,6 @@
 #include <string.h>
 
 
-// #shaders a technique can hold.
-#define _GFX_NUM_SHADER_STAGES 6
-
-// Get index from shader stage.
-#define _GFX_GET_SHADER_STAGE_INDEX(stage) \
-	((stage) == GFX_STAGE_VERTEX ? 0 : \
-	(stage) == GFX_STAGE_TESS_CONTROL ? 1 : \
-	(stage) == GFX_STAGE_TESS_EVALUATION ? 2 : \
-	(stage) == GFX_STAGE_GEOMETRY ? 3 : \
-	(stage) == GFX_STAGE_FRAGMENT ? 4 : \
-	(stage) == GFX_STAGE_COMPUTE ? 5 : _GFX_NUM_SHADER_STAGES)
-
 // Get Vulkan descriptor type.
 #define _GFX_GET_VK_DESCRIPTOR_TYPE(type, dynamic) \
 	((type) == _GFX_SHADER_BUFFER_UNIFORM ? (dynamic ? \
@@ -470,14 +458,8 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 		}
 
 	// Allocate a new technique.
-	// We allocate set layouts at the tail of the technique,
-	// make sure to adhere to its alignment requirements!
-	const size_t structSize = GFX_ALIGN_UP(
-		sizeof(GFXTechnique) + sizeof(GFXShader*) * _GFX_NUM_SHADER_STAGES,
-		alignof(_GFXCacheElem*));
-
 	GFXTechnique* tech = malloc(
-		structSize +
+		sizeof(GFXTechnique) +
 		sizeof(_GFXCacheElem*) * (maxSet + 1));
 
 	if (tech == NULL)
@@ -486,10 +468,9 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	// Initialize the technique.
 	tech->renderer = renderer;
 	tech->numSets = (size_t)(maxSet + 1);
-	tech->setLayouts = (_GFXCacheElem**)((char*)tech + structSize);
-	tech->layout = NULL;
 	tech->pushSize = pushSize;
 	tech->pushStages = pushStages;
+	tech->layout = NULL;
 	memcpy(tech->shaders, shads, sizeof(shads));
 
 	for (size_t l = 0; l < tech->numSets; ++l)

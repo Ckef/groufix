@@ -244,6 +244,22 @@
  ****************************/
 
 /**
+ * Get an index from a single shader stage
+ * and total #stages that exist.
+ */
+#define _GFX_GET_SHADER_STAGE_INDEX(stage) \
+	((stage) == GFX_STAGE_VERTEX ? 0 : \
+	(stage) == GFX_STAGE_TESS_CONTROL ? 1 : \
+	(stage) == GFX_STAGE_TESS_EVALUATION ? 2 : \
+	(stage) == GFX_STAGE_GEOMETRY ? 3 : \
+	(stage) == GFX_STAGE_FRAGMENT ? 4 : \
+	(stage) == GFX_STAGE_COMPUTE ? 5 : \
+	6) /* Should not happen. */
+
+#define _GFX_NUM_SHADER_STAGES 6
+
+
+/**
  * Reflected shader resource.
  */
 typedef struct _GFXShaderResource
@@ -782,18 +798,18 @@ struct GFXTechnique
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
 
-	size_t          numSets;
-	_GFXCacheElem** setLayouts; // Set layouts (sorted), all NULL until locked.
-	_GFXCacheElem*  layout;     // Pipeline layout, NULL until locked.
-	uint32_t        pushSize;
-	GFXShaderStage  pushStages;
+	GFXShader*     shaders[_GFX_NUM_SHADER_STAGES]; // May contain NULL.
+	size_t         numSets;
+	uint32_t       pushSize;
+	GFXShaderStage pushStages;
 
 	// All sorted on { set, binding, index }.
 	GFXVec samplers;  // Stores { size_t set, GFXSampler }, temporary!
 	GFXVec immutable; // Stores { size_t set, size_t binding }.
 	GFXVec dynamic;   // Stores { size_t set, size_t binding }.
 
-	GFXShader* shaders[]; // Fixed number, may contain NULL.
+	_GFXCacheElem* layout;       // Pipeline layout, NULL until locked.
+	_GFXCacheElem* setLayouts[]; // Set layouts (sorted), all NULL until locked.
 };
 
 

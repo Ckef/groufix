@@ -73,9 +73,43 @@ static bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
 
 	_gfx_renderable_unlock(renderable);
 
+	// We do not have a pipeline, create a new one.
+	// Multiple threads could end up creating the same new pipeline, but
+	// this is not expected to be a consistently occuring event so it's fine.
+	GFXRenderer* renderer =
+		renderable->pass->renderer;
+
+	union {
+		VkGraphicsPipelineCreateInfo gpci;
+		VkComputePipelineCreateInfo cpci;
+
+	} pci;
+
 	// TODO: Continue implementing.
 
-	return 0;
+	if (warmup)
+		// If asked to warmup, just do that :)
+		return _gfx_cache_warmup(
+			&renderer->cache, (VkStructureType*)&pci, NULL);
+	else
+	{
+		// Otherwise, actually retrieve the pipeline.
+		*elem = _gfx_cache_get(
+			&renderer->cache, (VkStructureType*)&pci, NULL);
+
+		// Finally, update the stored pipeline!
+		// Skip this step on failure tho.
+		if (*elem == NULL) return 0;
+
+		_gfx_renderable_lock(renderable);
+
+		renderable->pipeline = *elem;
+		renderable->gen = renderable->pass->gen;
+
+		_gfx_renderable_unlock(renderable);
+
+		return 1;
+	}
 }
 
 /****************************/
