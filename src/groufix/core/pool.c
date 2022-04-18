@@ -96,7 +96,7 @@ static _GFXPoolBlock* _gfx_alloc_pool_block(_GFXPool* pool)
 	// Init the rest & return.
 	gfx_list_init(&block->elems);
 	block->full = 0;
-	atomic_store(&block->sets, 0);
+	atomic_store_explicit(&block->sets, 0, memory_order_relaxed);
 
 	return block;
 
@@ -176,7 +176,7 @@ static bool _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	// If it hits zero, we can destroy the block.
 	// Note it is an atomic variable, but this function does not need to be
 	// thread safe at all, so in this case any side effects don't matter.
-	if (atomic_fetch_sub(&block->sets, 1) == 1)
+	if (atomic_fetch_sub_explicit(&block->sets, 1, memory_order_relaxed) == 1)
 	{
 		// Loop over all elements and erase them from the recycled hashtable.
 		// We know they are all in recycled as the number of in-use sets is 0.
@@ -218,7 +218,8 @@ static bool _gfx_make_pool_elem_stale(_GFXPool* pool, GFXMap* map,
 	// First check if the element was already flushed enough times.
 	// If so, immediately recycle.
 	const unsigned int flushed =
-		pool->flushes - atomic_load(&elem->flushes);
+		pool->flushes -
+		atomic_load_explicit(&elem->flushes, memory_order_relaxed);
 
 	if (flushed >= flushes)
 		return _gfx_recycle_pool_elem(pool, map, elem);
@@ -236,7 +237,9 @@ static bool _gfx_make_pool_elem_stale(_GFXPool* pool, GFXMap* map,
 	}
 
 	// And set its new flush count on success.
-	atomic_store(&elem->flushes, flushes - flushed);
+	atomic_store_explicit(
+		&elem->flushes, flushes - flushed, memory_order_relaxed);
+
 	return 1;
 }
 
@@ -372,7 +375,7 @@ recycle:
 		_GFXPoolElem* next = gfx_map_next(map, elem);
 
 		// Recycle it if it has no more flushes to do (i.e. reaches 0).
-		if (atomic_fetch_sub(&elem->flushes, 1) == 1)
+		if (atomic_fetch_sub_explicit(&elem->flushes, 1, memory_order_relaxed) == 1)
 			lost += !_gfx_recycle_pool_elem(pool, map, elem);
 
 		elem = next;
@@ -440,7 +443,7 @@ void _gfx_pool_reset(_GFXPool* pool)
 		block = (_GFXPoolBlock*)block->list.next)
 	{
 		gfx_list_clear(&block->elems);
-		atomic_store(&block->sets, 0);
+		atomic_store_explicit(&block->sets, 0, memory_order_relaxed);
 
 		context->vk.ResetDescriptorPool(
 			context->vk.device, block->vk.pool, 0);
@@ -706,7 +709,7 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	// Icrease the set count of its descriptor block.
 	// Note that it NEEDS to be atomic, any thread can access any block if
 	// they all happen to grab recycled sets.
-	atomic_fetch_add(&elem->block->sets, 1);
+	atomic_fetch_add_explicit(&elem->block->sets, 1, memory_order_relaxed);
 
 	// Ok now it's just a matter of updating the actual Vulkan descriptors!
 	// Note that it can be an empty set, check template existence.
@@ -716,6 +719,6 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 
 	// Reset #flushes of the element & return when found.
 found:
-	atomic_store(&elem->flushes, pool->flushes);
+	atomic_store_explicit(&elem->flushes, pool->flushes, memory_order_relaxed);
 	return elem;
 }

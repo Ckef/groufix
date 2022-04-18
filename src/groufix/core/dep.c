@@ -41,11 +41,13 @@
 static void _gfx_inject_barrier(VkCommandBuffer cmd,
                                 const _GFXSync* sync, _GFXContext* context)
 {
-	VkBufferMemoryBarrier bmb;
-	VkImageMemoryBarrier imb;
+	union {
+		VkBufferMemoryBarrier bmb;
+		VkImageMemoryBarrier imb;
+	} mb;
 
 	if (sync->vk.buffer != VK_NULL_HANDLE)
-		bmb = (VkBufferMemoryBarrier){
+		mb.bmb = (VkBufferMemoryBarrier){
 			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
 
 			.pNext               = NULL,
@@ -58,7 +60,7 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 			.size                = sync->range.size
 		};
 	else
-		imb = (VkImageMemoryBarrier){
+		mb.imb = (VkImageMemoryBarrier){
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 
 			.pNext               = NULL,
@@ -84,8 +86,8 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 	context->vk.CmdPipelineBarrier(cmd,
 		sync->vk.srcStage, sync->vk.dstStage,
 		0, 0, NULL,
-		sync->vk.buffer != VK_NULL_HANDLE ? 1 : 0, &bmb,
-		sync->vk.image != VK_NULL_HANDLE ? 1 : 0, &imb);
+		sync->vk.buffer != VK_NULL_HANDLE ? 1 : 0, &mb.bmb,
+		sync->vk.image != VK_NULL_HANDLE ? 1 : 0, &mb.imb);
 }
 
 /****************************

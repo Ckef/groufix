@@ -244,6 +244,22 @@
  ****************************/
 
 /**
+ * Get an index from a single shader stage
+ * and total #stages that exist.
+ */
+#define _GFX_GET_SHADER_STAGE_INDEX(stage) \
+	((stage) == GFX_STAGE_VERTEX ? 0 : \
+	(stage) == GFX_STAGE_TESS_CONTROL ? 1 : \
+	(stage) == GFX_STAGE_TESS_EVALUATION ? 2 : \
+	(stage) == GFX_STAGE_GEOMETRY ? 3 : \
+	(stage) == GFX_STAGE_FRAGMENT ? 4 : \
+	(stage) == GFX_STAGE_COMPUTE ? 5 : \
+	6) /* Should not happen. */
+
+#define _GFX_NUM_SHADER_STAGES 6
+
+
+/**
  * Reflected shader resource.
  */
 typedef struct _GFXShaderResource
@@ -661,7 +677,7 @@ struct GFXRecorder
 {
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
-	_GFXPoolSub  sub;     // For descriptor access.
+	_GFXPoolSub  sub;  // For descriptor access.
 
 	_GFXRecorderPool* current; // Current frame's pool, or NULL.
 	_GFXRecorderPool  pools[]; // One for each virtual frame.
@@ -692,8 +708,6 @@ struct GFXRenderer
 	GFXDeque stales; // Stores { unsigned int, (Vk*)+ }.
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
-
-	// TODO: Add a 'cache' storing {technique,primitive,pass} -> pipeline.
 
 
 	// Render backing (i.e. attachments).
@@ -740,6 +754,7 @@ struct GFXPass
 {
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
+	uintmax_t    gen;   // Build generation (to invalidate pipelines).
 
 	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.
 
@@ -748,6 +763,8 @@ struct GFXPass
 	struct
 	{
 		size_t backing; // Window attachment index (or SIZE_MAX).
+
+		_GFXCacheElem* pass;
 
 		// TODO: Super temporary!!
 		_GFXPoolSub sub;
@@ -761,10 +778,9 @@ struct GFXPass
 	// Vulkan fields.
 	struct
 	{
-		// TODO: Temporary!?
-		VkRenderPass pass;
+		VkRenderPass pass;         // For locality.
 		GFXVec       framebuffers; // Stores VkFramebuffer.
-		VkPipeline   pipeline;
+		VkPipeline   pipeline;     // TODO: Temporary!!
 
 	} vk;
 
@@ -783,18 +799,18 @@ struct GFXTechnique
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
 
-	size_t          numSets;
-	_GFXCacheElem** setLayouts; // Set layouts (sorted), all NULL until locked.
-	_GFXCacheElem*  layout;     // Pipeline layout, NULL until locked.
-	uint32_t        pushSize;
-	GFXShaderStage  pushStages;
+	GFXShader*     shaders[_GFX_NUM_SHADER_STAGES]; // May contain NULL.
+	size_t         numSets;
+	uint32_t       pushSize;
+	GFXShaderStage pushStages;
 
 	// All sorted on { set, binding, index }.
 	GFXVec samplers;  // Stores { size_t set, GFXSampler }, temporary!
 	GFXVec immutable; // Stores { size_t set, size_t binding }.
 	GFXVec dynamic;   // Stores { size_t set, size_t binding }.
 
-	GFXShader* shaders[]; // Fixed number, may contain NULL.
+	_GFXCacheElem* layout;       // Pipeline layout, NULL until locked.
+	_GFXCacheElem* setLayouts[]; // Set layouts (sorted), all NULL until locked.
 };
 
 

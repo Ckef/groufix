@@ -15,13 +15,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-
-/**
- * Assertion for atomics support.
- */
 #if defined (__STDC_NO_ATOMICS__)
 	#error "Host platform does not support atomics."
 #endif
+
+#include <stdatomic.h>
 
 
 /**
