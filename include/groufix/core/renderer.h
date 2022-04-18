@@ -308,6 +308,16 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
                             GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim);
 
 /**
+ * Warms up the internal pipeline cache.
+ * @param renderable Cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * This function is reentrant. However, CANNOT be called
+ * during or inbetween gfx_frame_start and gfx_frame_submit.
+ */
+GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable);
+
+/**
  * Initializes a computable.
  * The object pointed to by computable _CAN_ be moved or copied!
  * @param computable Cannot be NULL.
@@ -315,6 +325,13 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
  */
 GFX_API bool gfx_computable(GFXComputable* computable,
                             GFXTechnique* tech);
+
+/**
+ * Warms up the internal pipeline cache.
+ * @param computable Cannot be NULL.
+ * @see gfx_renderable_warmup.
+ */
+GFX_API bool gfx_computable_warmup(GFXComputable* computable);
 
 
 /****************************

@@ -425,6 +425,14 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 }
 
 /****************************/
+GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable)
+{
+	assert(renderable != NULL);
+
+	return _gfx_renderable_pipeline(renderable, NULL, 1);
+}
+
+/****************************/
 GFX_API bool gfx_computable(GFXComputable* computable,
                             GFXTechnique* tech)
 {
@@ -446,6 +454,14 @@ GFX_API bool gfx_computable(GFXComputable* computable,
 		&computable->pipeline, (uintptr_t)NULL, memory_order_relaxed);
 
 	return 0;
+}
+
+/****************************/
+GFX_API bool gfx_computable_warmup(GFXComputable* computable)
+{
+	assert(computable != NULL);
+
+	return _gfx_computable_pipeline(computable, NULL, 1);
 }
 
 /****************************/
