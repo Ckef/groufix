@@ -54,10 +54,11 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 	}
 
 	// Second, we check if the render pass needs to be reconstructed.
-	// All these objects are cached, so no need to destroy anything.
+	// This object is cached, so no need to destroy anything.
 	// This is only the case when the format has changed.
 	if (flags & _GFX_REFORMAT)
 	{
+		pass->build.pass = NULL;
 		pass->vk.pass = VK_NULL_HANDLE;
 		pass->vk.pipeline = VK_NULL_HANDLE;
 
@@ -188,11 +189,10 @@ static bool _gfx_pass_build_objects(GFXPass* pass)
 			.pDependencies   = NULL
 		};
 
-		_GFXCacheElem* elem =
-			_gfx_cache_get(&rend->cache, &rpci.sType, NULL);
+		pass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
 
-		if (elem == NULL) goto error;
-		pass->vk.pass = elem->vk.pass;
+		if (pass->build.pass == NULL) goto error;
+		pass->vk.pass = pass->build.pass->vk.pass;
 	}
 
 	// Create framebuffers.
@@ -410,7 +410,7 @@ static bool _gfx_pass_build_objects(GFXPass* pass)
 				tech->shaders[0],
 				tech->shaders[4],
 				tech->layout,
-				&pass->vk.pass
+				pass->build.pass
 			});
 
 		if (elem == NULL) goto error;
@@ -469,9 +469,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	// Initialize building stuff.
 	pass->build.backing = SIZE_MAX;
-
+	pass->build.pass = NULL;
 	pass->vk.pass = VK_NULL_HANDLE;
-	pass->vk.pipeline = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
@@ -482,6 +481,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->build.primitive = NULL;
 	pass->build.technique = NULL;
 	pass->build.set = NULL;
+	pass->vk.pipeline = VK_NULL_HANDLE;
 
 
 	return pass;

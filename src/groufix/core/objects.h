@@ -764,6 +764,8 @@ struct GFXPass
 	{
 		size_t backing; // Window attachment index (or SIZE_MAX).
 
+		_GFXCacheElem* pass;
+
 		// TODO: Super temporary!!
 		_GFXPoolSub sub;
 		_GFXPrimitive* primitive;
@@ -776,10 +778,9 @@ struct GFXPass
 	// Vulkan fields.
 	struct
 	{
-		// TODO: Temporary!?
-		VkRenderPass pass;
+		VkRenderPass pass;         // For locality.
 		GFXVec       framebuffers; // Stores VkFramebuffer.
-		VkPipeline   pipeline;
+		VkPipeline   pipeline;     // TODO: Temporary!!
 
 	} vk;
 

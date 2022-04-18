@@ -77,12 +77,177 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	// Multiple threads could end up creating the same new pipeline, but
 	// this is not expected to be a consistently occuring event so it's fine.
 	GFXRenderer* renderer = renderable->pass->renderer;
-	const void* handles[_GFX_NUM_SHADER_STAGES + 2];
+	GFXPass* pass = renderable->pass;
+	GFXTechnique* tech = renderable->technique;
+	_GFXPrimitive* prim = (_GFXPrimitive*)renderable->primitive;
 
-	// TODO: Build/validate handles and a VkGraphicsPipelineCreateInfo.
+	const void* handles[_GFX_NUM_SHADER_STAGES + 2];
+	uint32_t numShaders = 0;
+
+	// Set & validate hashing handles.
+	for (uint32_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		if (tech->shaders[s] != NULL)
+			handles[numShaders++] = tech->shaders[s];
+
+	handles[numShaders+0] = tech->layout;
+	handles[numShaders+1] = pass->build.pass;
+
+	if (handles[numShaders+0] == NULL || handles[numShaders+1] == NULL)
+	{
+		gfx_log_warn("Invalid renderable; recording command skipped.");
+		return 0;
+	}
+
+	// Build create info.
+	const size_t numAttribs = prim != NULL ? prim->numAttribs : 0;
+	const size_t numBindings = prim != NULL ? prim->numBindings : 0;
+	VkPipelineShaderStageCreateInfo pstci[numShaders > 0 ? numShaders : 1];
+	VkVertexInputAttributeDescription viad[numAttribs > 0 ? numAttribs : 1];
+	VkVertexInputBindingDescription vibd[numBindings > 0 ? numBindings : 1];
+
+	for (uint32_t s = 0; s < numShaders; ++s)
+		pstci[s] = (VkPipelineShaderStageCreateInfo){
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+
+			.pNext  = NULL,
+			.flags  = 0,
+			.stage  = _GFX_GET_VK_SHADER_STAGE(((GFXShader*)handles[s])->stage),
+			.module = ((GFXShader*)handles[s])->vk.module,
+			.pName  = "main",
+
+			.pSpecializationInfo = NULL
+		};
+
+	for (size_t i = 0; i < numAttribs; ++i)
+		viad[i] = (VkVertexInputAttributeDescription){
+			.location = (uint32_t)i,
+			.binding  = prim->attribs[i].binding,
+			.format   = prim->attribs[i].vk.format,
+			.offset   = prim->attribs[i].offset
+		};
+
+	for (size_t i = 0; i < numBindings; ++i)
+		vibd[i] = (VkVertexInputBindingDescription){
+			.binding   = (uint32_t)i,
+			.stride    = prim->bindings[i].stride,
+			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+		};
 
 	VkGraphicsPipelineCreateInfo gpci = {
-		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+
+		.pNext              = NULL,
+		.flags              = 0,
+		.stageCount         = numShaders,
+		.pStages            = pstci,
+		.layout             = tech->layout->vk.layout,
+		.renderPass         = pass->vk.pass,
+		.subpass            = 0,
+		.basePipelineHandle = VK_NULL_HANDLE,
+		.basePipelineIndex  = -1,
+		.pTessellationState = NULL,
+		.pDepthStencilState = NULL,
+
+		.pVertexInputState = (VkPipelineVertexInputStateCreateInfo[]){{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+
+			.pNext                           = NULL,
+			.flags                           = 0,
+			.vertexAttributeDescriptionCount = (uint32_t)numAttribs,
+			.pVertexAttributeDescriptions    = viad,
+			.vertexBindingDescriptionCount   = (uint32_t)numBindings,
+			.pVertexBindingDescriptions      = vibd
+		}},
+
+		.pInputAssemblyState = (VkPipelineInputAssemblyStateCreateInfo[]){{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+
+			.pNext    = NULL,
+			.flags    = 0,
+			.topology = prim != NULL ?
+				_GFX_GET_VK_PRIMITIVE_TOPOLOGY(prim->base.topology) : 0,
+
+			.primitiveRestartEnable = VK_FALSE
+		}},
+
+		.pViewportState = (VkPipelineViewportStateCreateInfo[]){{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+
+			.pNext         = NULL,
+			.flags         = 0,
+			.viewportCount = 1,
+			.pViewports    = NULL,
+			.scissorCount  = 1,
+			.pScissors     = NULL
+		}},
+
+		.pRasterizationState = (VkPipelineRasterizationStateCreateInfo[]){{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+
+			.pNext                   = NULL,
+			.flags                   = 0,
+			.depthClampEnable        = VK_FALSE,
+			.rasterizerDiscardEnable = VK_FALSE,
+			.polygonMode             = VK_POLYGON_MODE_FILL,
+			.cullMode                = VK_CULL_MODE_BACK_BIT,
+			.frontFace               = VK_FRONT_FACE_CLOCKWISE,
+			.depthBiasEnable         = VK_FALSE,
+			.depthBiasConstantFactor = 0.0f,
+			.depthBiasClamp          = 0.0f,
+			.depthBiasSlopeFactor    = 0.0f,
+			.lineWidth               = 1.0f
+		}},
+
+		.pMultisampleState = (VkPipelineMultisampleStateCreateInfo[]){{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+
+			.pNext                 = NULL,
+			.flags                 = 0,
+			.rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
+			.sampleShadingEnable   = VK_FALSE,
+			.minSampleShading      = 1.0f,
+			.pSampleMask           = NULL,
+			.alphaToCoverageEnable = VK_FALSE,
+			.alphaToOneEnable      = VK_FALSE
+		}},
+
+		.pColorBlendState = (VkPipelineColorBlendStateCreateInfo[]){{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+
+			.pNext           = NULL,
+			.flags           = 0,
+			.logicOpEnable   = VK_FALSE,
+			.logicOp         = VK_LOGIC_OP_COPY,
+			.attachmentCount = 1,
+			.blendConstants  = { 0.0f, 0.0f, 0.0f, 0.0f },
+
+			.pAttachments = (VkPipelineColorBlendAttachmentState[]){{
+				.blendEnable         = VK_FALSE,
+				.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+				.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+				.colorBlendOp        = VK_BLEND_OP_ADD,
+				.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+				.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+				.alphaBlendOp        = VK_BLEND_OP_ADD,
+				.colorWriteMask      =
+					VK_COLOR_COMPONENT_R_BIT |
+					VK_COLOR_COMPONENT_G_BIT |
+					VK_COLOR_COMPONENT_B_BIT |
+					VK_COLOR_COMPONENT_A_BIT
+			}}
+		}},
+
+		.pDynamicState = (VkPipelineDynamicStateCreateInfo[]){{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+
+			.pNext             = NULL,
+			.flags             = 0,
+			.dynamicStateCount = 2,
+			.pDynamicStates    = (VkDynamicState[]){
+				VK_DYNAMIC_STATE_VIEWPORT,
+				VK_DYNAMIC_STATE_SCISSOR
+			}
+		}}
 	};
 
 	if (warmup)
@@ -100,7 +265,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		_gfx_renderable_lock(renderable);
 
 		renderable->pipeline = (uintptr_t)(void*)*elem;
-		renderable->gen = renderable->pass->gen;
+		renderable->gen = pass->gen;
 
 		_gfx_renderable_unlock(renderable);
 
@@ -135,6 +300,7 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 
 	// We do not have a pipeline, create a new one.
 	// Again, multiple threads creating the same one is fine.
+	GFXRenderer* renderer = computable->technique->renderer;
 	GFXTechnique* tech = computable->technique;
 	const void* handles[2];
 
@@ -154,7 +320,7 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 
 		.pNext              = NULL,
 		.flags              = 0,
-		.layout             = ((_GFXCacheElem*)handles[1])->vk.layout,
+		.layout             = tech->layout->vk.layout,
 		.basePipelineHandle = VK_NULL_HANDLE,
 		.basePipelineIndex  = -1,
 
@@ -172,11 +338,11 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 
 	if (warmup)
 		// If asked to warmup, just do that :)
-		return _gfx_cache_warmup(&tech->renderer->cache, &cpci.sType, handles);
+		return _gfx_cache_warmup(&renderer->cache, &cpci.sType, handles);
 	else
 	{
 		// Otherwise, actually retrieve the pipeline.
-		*elem = _gfx_cache_get(&tech->renderer->cache, &cpci.sType, handles);
+		*elem = _gfx_cache_get(&renderer->cache, &cpci.sType, handles);
 
 		// Finally, update the stored pipeline!
 		// Skip this step on failure tho.
