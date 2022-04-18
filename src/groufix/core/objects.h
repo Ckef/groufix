@@ -852,6 +852,7 @@ struct GFXSet
 	GFXListNode    list; // Base-type.
 	GFXRenderer*   renderer;
 	_GFXCacheElem* setLayout;
+	_GFXSetEntry*  first;
 
 	// If used since last modification.
 	atomic_bool used;

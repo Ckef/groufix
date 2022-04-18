@@ -736,18 +736,11 @@ _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
 	memcpy(key.bytes, &set->setLayout, sizeof(_GFXCacheElem*));
 	memcpy(key.bytes + sizeof(_GFXCacheElem*), &set, sizeof(GFXSet*));
 
-	// Get the first set entry.
-	const size_t structSize = GFX_ALIGN_UP(
-		sizeof(GFXSet) + sizeof(_GFXSetBinding) * set->numBindings,
-		alignof(_GFXSetEntry));
-
-	const _GFXSetEntry* first =
-		(const _GFXSetEntry*)((char*)set + structSize);
-
 	// Get the descriptor set.
 	_GFXPoolElem* elem = _gfx_pool_get(
 		&set->renderer->pool, sub,
-		set->setLayout, &key.hash, &first->vk.update);
+		set->setLayout, &key.hash,
+		set->first != NULL ? &set->first->vk.update : NULL);
 
 	// Make sure to set the used flag on success.
 	// This HAS to be atomic so multiple threads can record using this set!
@@ -804,9 +797,10 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	atomic_store(&aset->used, 0);
 
 	// Get all the bindings.
-	_GFXSetEntry* entryPtr =
-		(_GFXSetEntry*)((char*)aset + structSize);
+	aset->first = numEntries > 0 ?
+		(_GFXSetEntry*)((char*)aset + structSize) : NULL;
 
+	_GFXSetEntry* entryPtr = aset->first;
 	for (size_t b = 0; b < numBindings; ++b)
 	{
 		_GFXSetBinding* binding = &aset->bindings[b];
