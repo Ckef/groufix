@@ -94,7 +94,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 	if (handles[numShaders+0] == NULL || handles[numShaders+1] == NULL)
 	{
-		gfx_log_warn("Invalid renderable; recording command skipped.");
+		gfx_log_warn("Invalid renderable; pipeline not built.");
 		return 0;
 	}
 
@@ -310,7 +310,7 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 
 	if (handles[0] == NULL || handles[1] == NULL)
 	{
-		gfx_log_warn("Invalid computable; recording command skipped.");
+		gfx_log_warn("Invalid computable; pipeline not built.");
 		return 0;
 	}
 
