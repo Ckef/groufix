@@ -766,6 +766,8 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
  * _gfx_deps_catch, then let submit call _gfx_deps_prepare.
  * That way we can put draw() (or whatever) calls inbetween that ALSO modify
  * the dependency object :o !?
+ * TODO: OR make gfx_frame_inject() just store GFXInject arrays for later
+ * and only process them once the frame is submitted, same effect!
  *
  * Submits the acquired virtual frame of a renderer.
  * Implicitly starts if not yet done so.
