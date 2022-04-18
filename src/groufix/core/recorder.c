@@ -181,6 +181,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.pScissors     = NULL
 		}},
 
+		// TODO: Somehow take as input.
 		.pRasterizationState = (VkPipelineRasterizationStateCreateInfo[]){{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 
@@ -198,6 +199,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.lineWidth               = 1.0f
 		}},
 
+		// TODO: Somehow take as input.
 		.pMultisampleState = (VkPipelineMultisampleStateCreateInfo[]){{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
 
@@ -211,6 +213,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.alphaToOneEnable      = VK_FALSE
 		}},
 
+		// TODO: Take as input from the pass.
 		.pColorBlendState = (VkPipelineColorBlendStateCreateInfo[]){{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 
@@ -428,6 +431,8 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable)
 {
 	assert(renderable != NULL);
+
+	// TODO: Need to somehow verify that the pass is up to date and built!
 
 	return _gfx_renderable_pipeline(renderable, NULL, 1);
 }

@@ -308,7 +308,7 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
                             GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim);
 
 /**
- * Warms up the internal pipeline cache.
+ * Warms up the internal pipeline cache (technique must be locked).
  * @param renderable Cannot be NULL.
  * @return Non-zero on success.
  *
@@ -327,7 +327,7 @@ GFX_API bool gfx_computable(GFXComputable* computable,
                             GFXTechnique* tech);
 
 /**
- * Warms up the internal pipeline cache.
+ * Warms up the internal pipeline cache (technique must be locked).
  * @param computable Cannot be NULL.
  * @see gfx_renderable_warmup.
  */
