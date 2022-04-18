@@ -259,7 +259,7 @@ typedef struct GFXFrame GFXFrame;
 
 
 /****************************
- * Primitive renderable.
+ * Primitive renderable/computable.
  ****************************/
 
 /**
@@ -273,10 +273,23 @@ typedef struct GFXRenderable
 	GFXPrimitive* primitive;
 
 	atomic_bool lock;
-	void*       pipeline;
+	uintptr_t   pipeline;
 	uintmax_t   gen;
 
 } GFXRenderable;
+
+
+/**
+ * Computable definition.
+ */
+typedef struct GFXComputable
+{
+	// All read-only.
+	GFXTechnique* technique;
+
+	atomic_uintptr_t pipeline;
+
+} GFXComputable;
 
 
 /**
@@ -293,6 +306,15 @@ typedef struct GFXRenderable
  */
 GFX_API bool gfx_renderable(GFXRenderable* renderable,
                             GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim);
+
+/**
+ * Initializes a computable.
+ * The object pointed to by computable _CAN_ be moved or copied!
+ * @param computable Cannot be NULL.
+ * @see gfx_renderable.
+ */
+GFX_API bool gfx_computable(GFXComputable* computable,
+                            GFXTechnique* tech);
 
 
 /****************************

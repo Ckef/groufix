@@ -42,7 +42,7 @@ static inline void _gfx_renderable_unlock(GFXRenderable* renderable)
 }
 
 /****************************
- * Retrieves a pipeline from the renderer's cache (or warms it up).
+ * Retrieves a graphics pipeline from the renderer's cache (or warms it up).
  * Essentially a wrapper for _gfx_cache_(get|warmup).
  * @param renderable Cannot be NULL.
  * @param elem       Output cache element, cannot be NULL if warmup is zero.
@@ -51,8 +51,8 @@ static inline void _gfx_renderable_unlock(GFXRenderable* renderable)
  *
  * Completely thread-safe with respect to the renderable!
  */
-static bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
-                              bool warmup)
+static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
+                                     _GFXCacheElem** elem, bool warmup)
 {
 	assert(renderable != NULL);
 	assert(warmup || elem != NULL);
@@ -63,10 +63,10 @@ static bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
 	_gfx_renderable_lock(renderable);
 
 	if (
-		renderable->pipeline != NULL &&
+		renderable->pipeline != (uintptr_t)NULL &&
 		renderable->gen == renderable->pass->gen)
 	{
-		if (!warmup) *elem = (_GFXCacheElem*)renderable->pipeline;
+		if (!warmup) *elem = (void*)renderable->pipeline;
 		_gfx_renderable_unlock(renderable);
 		return 1;
 	}
@@ -76,26 +76,22 @@ static bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
 	// We do not have a pipeline, create a new one.
 	// Multiple threads could end up creating the same new pipeline, but
 	// this is not expected to be a consistently occuring event so it's fine.
-	GFXRenderer* renderer =
-		renderable->pass->renderer;
+	GFXRenderer* renderer = renderable->pass->renderer;
+	const void* handles[_GFX_NUM_SHADER_STAGES + 2];
 
-	union {
-		VkGraphicsPipelineCreateInfo gpci;
-		VkComputePipelineCreateInfo cpci;
+	// TODO: Build/validate handles and a VkGraphicsPipelineCreateInfo.
 
-	} pci;
-
-	// TODO: Continue implementing.
+	VkGraphicsPipelineCreateInfo gpci = {
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
+	};
 
 	if (warmup)
 		// If asked to warmup, just do that :)
-		return _gfx_cache_warmup(
-			&renderer->cache, (VkStructureType*)&pci, NULL);
+		return _gfx_cache_warmup(&renderer->cache, &gpci.sType, handles);
 	else
 	{
 		// Otherwise, actually retrieve the pipeline.
-		*elem = _gfx_cache_get(
-			&renderer->cache, (VkStructureType*)&pci, NULL);
+		*elem = _gfx_cache_get(&renderer->cache, &gpci.sType, handles);
 
 		// Finally, update the stored pipeline!
 		// Skip this step on failure tho.
@@ -103,10 +99,92 @@ static bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
 
 		_gfx_renderable_lock(renderable);
 
-		renderable->pipeline = *elem;
+		renderable->pipeline = (uintptr_t)(void*)*elem;
 		renderable->gen = renderable->pass->gen;
 
 		_gfx_renderable_unlock(renderable);
+
+		return 1;
+	}
+}
+
+/****************************
+ * Retrieves a compute pipeline from the renderer's cache (or warms it up).
+ * Essentially a wrapper for _gfx_cache_(get|warmup).
+ * @param computable Cannot be NULL.
+ * @see _gfx_renderable_pipeline.
+ *
+ * Completely thread-safe with respect to the computable!
+ */
+static bool _gfx_computable_pipeline(GFXComputable* computable,
+                                     _GFXCacheElem** elem, bool warmup)
+{
+	assert(computable != NULL);
+	assert(warmup || elem != NULL);
+
+	// Unlike for renderables,
+	// we can just check the pipeline and return when it's there!
+	_GFXCacheElem* pipeline = (void*)atomic_load_explicit(
+		&computable->pipeline, memory_order_relaxed);
+
+	if (pipeline != NULL)
+	{
+		if (!warmup) *elem = pipeline;
+		return 1;
+	}
+
+	// We do not have a pipeline, create a new one.
+	// Again, multiple threads creating the same one is fine.
+	GFXTechnique* tech = computable->technique;
+	const void* handles[2];
+
+	// Set & validate hashing handles.
+	handles[0] = tech->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)];
+	handles[1] = tech->layout;
+
+	if (handles[0] == NULL || handles[1] == NULL)
+	{
+		gfx_log_warn("Invalid computable; recording command skipped.");
+		return 0;
+	}
+
+	// Build create info.
+	VkComputePipelineCreateInfo cpci = {
+		.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+
+		.pNext              = NULL,
+		.flags              = 0,
+		.layout             = ((_GFXCacheElem*)handles[1])->vk.layout,
+		.basePipelineHandle = VK_NULL_HANDLE,
+		.basePipelineIndex  = -1,
+
+		.stage = {
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+
+			.pNext               = NULL,
+			.flags               = 0,
+			.stage               = VK_SHADER_STAGE_COMPUTE_BIT,
+			.module              = ((GFXShader*)handles[0])->vk.module,
+			.pName               = "main",
+			.pSpecializationInfo = NULL
+		}
+	};
+
+	if (warmup)
+		// If asked to warmup, just do that :)
+		return _gfx_cache_warmup(&tech->renderer->cache, &cpci.sType, handles);
+	else
+	{
+		// Otherwise, actually retrieve the pipeline.
+		*elem = _gfx_cache_get(&tech->renderer->cache, &cpci.sType, handles);
+
+		// Finally, update the stored pipeline!
+		// Skip this step on failure tho.
+		if (*elem == NULL) return 0;
+
+		atomic_store_explicit(
+			&computable->pipeline,
+			(uintptr_t)(void*)*elem, memory_order_relaxed);
 
 		return 1;
 	}
@@ -159,16 +237,49 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 		return 0;
 	}
 
+	// Renderables cannot hold compute shaders!
+	if (tech->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)] != NULL)
+	{
+		gfx_log_error(
+			"Could not initialize renderable; cannot hold a compute shader.");
+
+		return 0;
+	}
+
 	// Init renderable, store NULL as pipeline.
 	renderable->pass = pass;
 	renderable->technique = tech;
 	renderable->primitive = prim;
 
 	atomic_store_explicit(&renderable->lock, 0, memory_order_relaxed);
-	renderable->pipeline = NULL;
+	renderable->pipeline = (uintptr_t)NULL;
 	renderable->gen = 0;
 
 	return 1;
+}
+
+/****************************/
+GFX_API bool gfx_computable(GFXComputable* computable,
+                            GFXTechnique* tech)
+{
+	assert(computable != NULL);
+	assert(tech != NULL);
+
+	// Computables can only hold compute shaders!
+	if (tech->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)] == NULL)
+	{
+		gfx_log_error(
+			"Could not initialize computable; can only hold a compute shader.");
+
+		return 0;
+	}
+
+	// Init computable, store NULL as pipeline.
+	computable->technique = tech;
+	atomic_store_explicit(
+		&computable->pipeline, (uintptr_t)NULL, memory_order_relaxed);
+
+	return 0;
 }
 
 /****************************/
