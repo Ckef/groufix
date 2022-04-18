@@ -16,7 +16,21 @@
  */
 static inline void _gfx_renderable_lock(GFXRenderable* renderable)
 {
-	while (!atomic_exchange_explicit(&renderable->lock, 1, memory_order_acquire));
+	bool l = 0;
+
+	// Based on the glibc implementation of pthread_spin_lock.
+	// We assume the first try will be mostly successful,
+	// thus we use atomic_exchange, which is assumed to be fast on success.
+	if (!atomic_exchange_explicit(&renderable->lock, 1, memory_order_acquire))
+		return;
+
+	// Otherwise we use a weak CAS loop and not an exchange so we bail out
+	// after a failed attempt and fallback to an atomic_load.
+	// This has the advantage that the atomic_load can be relaxed and we do not
+	// force any expensive memory synchronizations and penalize other threads.
+	while (!atomic_compare_exchange_weak_explicit(
+		&renderable->lock, &l, 1,
+		memory_order_acquire, memory_order_relaxed)) l = 0;
 }
 
 /****************************
@@ -45,6 +59,7 @@ static bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
 
 	// Firstly, spin-lock the renderable and check if we have an up-to-date
 	// pipeline, if so, we can just return :)
+	// Immediately unlock afterwards for maximum concurrency!
 	_gfx_renderable_lock(renderable);
 
 	if (
@@ -55,6 +70,8 @@ static bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
 		_gfx_renderable_unlock(renderable);
 		return 1;
 	}
+
+	_gfx_renderable_unlock(renderable);
 
 	// TODO: Continue implementing.
 
