@@ -12,6 +12,22 @@
 
 
 /****************************
+ * Spin-locks a renderable for pipeline retrieval.
+ */
+static inline void _gfx_renderable_lock(GFXRenderable* renderable)
+{
+	while (!atomic_exchange_explicit(&renderable->lock, 1, memory_order_acquire));
+}
+
+/****************************
+ * Unlocks a renderable for pipeline retrieval.
+ */
+static inline void _gfx_renderable_unlock(GFXRenderable* renderable)
+{
+	atomic_store_explicit(&renderable->lock, 0, memory_order_release);
+}
+
+/****************************
  * Retrieves a pipeline from the renderer's cache (or warms it up).
  * Essentially a wrapper for _gfx_cache_(get|warmup).
  * @param renderable Cannot be NULL.
@@ -21,13 +37,26 @@
  *
  * Completely thread-safe with respect to the renderable!
  */
-bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
-                       bool warmup)
+static bool _gfx_get_pipeline(GFXRenderable* renderable, _GFXCacheElem** elem,
+                              bool warmup)
 {
 	assert(renderable != NULL);
 	assert(warmup || elem != NULL);
 
-	// TODO: Implement.
+	// Firstly, spin-lock the renderable and check if we have an up-to-date
+	// pipeline, if so, we can just return :)
+	_gfx_renderable_lock(renderable);
+
+	if (
+		renderable->pipeline != NULL &&
+		renderable->gen == renderable->pass->gen)
+	{
+		if (!warmup) *elem = (_GFXCacheElem*)renderable->pipeline;
+		_gfx_renderable_unlock(renderable);
+		return 1;
+	}
+
+	// TODO: Continue implementing.
 
 	return 0;
 }
@@ -84,7 +113,7 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 	renderable->technique = tech;
 	renderable->primitive = prim;
 
-	atomic_store(&renderable->lock, 0);
+	atomic_store_explicit(&renderable->lock, 0, memory_order_relaxed);
 	renderable->pipeline = NULL;
 	renderable->gen = 0;
 

@@ -255,7 +255,7 @@ static void _gfx_set_update(GFXSet* set,
 static void _gfx_set_recycle(GFXSet* set)
 {
 	// Only recycle if the set has been used & reset used flag.
-	if (atomic_exchange(&set->used, 0))
+	if (atomic_exchange_explicit(&set->used, 0, memory_order_relaxed))
 	{
 		GFXRenderer* renderer = set->renderer;
 
@@ -751,7 +751,7 @@ _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
 
 	// Make sure to set the used flag on success.
 	// This HAS to be atomic so multiple threads can record using this set!
-	if (elem != NULL) atomic_store(&set->used, 1);
+	if (elem != NULL) atomic_store_explicit(&set->used, 1, memory_order_relaxed);
 	return elem;
 }
 
@@ -801,7 +801,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	aset->setLayout = technique->setLayouts[set];
 	aset->numAttachs = 0;
 	aset->numBindings = numBindings;
-	atomic_store(&aset->used, 0);
+	atomic_store_explicit(&aset->used, 0, memory_order_relaxed);
 
 	// Get all the bindings.
 	_GFXSetEntry* entryPtr =

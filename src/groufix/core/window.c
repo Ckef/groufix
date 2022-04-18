@@ -224,7 +224,7 @@ static void _gfx_glfw_framebuffer_size(GLFWwindow* handle,
 	// that one gets updated by the thread that uses it.
 	_gfx_mutex_lock(&window->frame.lock);
 
-	atomic_store(&window->frame.recreate, 1);
+	atomic_store_explicit(&window->frame.recreate, 1, memory_order_relaxed);
 	window->frame.rWidth = (uint32_t)width;
 	window->frame.rHeight = (uint32_t)height;
 
@@ -404,7 +404,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 
 	// So we setup everything related to GLFW, now set the frame properties.
 	// Initialize signal & lock for swapping and resizing.
-	atomic_store(&window->swap, 0);
+	atomic_store_explicit(&window->swap, 0, memory_order_relaxed);
 
 	if (!_gfx_mutex_init(&window->frame.lock))
 		goto clean_window;
@@ -419,7 +419,7 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	window->frame.width = (uint32_t)width;
 	window->frame.height = (uint32_t)height;
 
-	atomic_store(&window->frame.recreate, 0);
+	atomic_store_explicit(&window->frame.recreate, 0, memory_order_relaxed);
 	window->frame.rWidth = (uint32_t)width;
 	window->frame.rHeight = (uint32_t)height;
 	window->frame.flags = flags;
@@ -571,7 +571,7 @@ GFX_API void gfx_window_set_flags(GFXWindow* window, GFXWindowFlags flags)
 
 	// If buffer settings changed, signal a swapchain recreate.
 	if ((flags & bufferBits) != (win->frame.flags & bufferBits))
-		atomic_store(&win->frame.recreate, 1);
+		atomic_store_explicit(&win->frame.recreate, 1, memory_order_relaxed);
 
 	win->frame.flags = flags;
 

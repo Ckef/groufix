@@ -613,7 +613,7 @@ typedef enum _GFXRecreateFlags
  */
 static inline bool _gfx_swapchain_try_lock(_GFXWindow* window)
 {
-	return !atomic_exchange(&window->swap, 1);
+	return !atomic_exchange_explicit(&window->swap, 1, memory_order_acquire);
 }
 
 /**
@@ -622,7 +622,7 @@ static inline bool _gfx_swapchain_try_lock(_GFXWindow* window)
  */
 static inline void _gfx_swapchain_unlock(_GFXWindow* window)
 {
-	atomic_store(&window->swap, 0);
+	atomic_store_explicit(&window->swap, 0, memory_order_release);
 }
 
 /**

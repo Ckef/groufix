@@ -17,7 +17,8 @@
  */
 static inline bool _gfx_swapchain_sig(_GFXWindow* window)
 {
-	return atomic_exchange(&window->frame.recreate, 0);
+	return atomic_exchange_explicit(
+		&window->frame.recreate, 0, memory_order_relaxed);
 }
 
 /****************************
@@ -52,7 +53,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 	// correct inputs at this point.
 	_gfx_mutex_lock(&window->frame.lock);
 
-	atomic_store(&window->frame.recreate, 0);
+	atomic_store_explicit(&window->frame.recreate, 0, memory_order_relaxed);
 
 	const uint32_t width = window->frame.rWidth;
 	const uint32_t height = window->frame.rHeight;
