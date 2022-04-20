@@ -872,6 +872,9 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				refs[r].obj.image->vk.image :
 				(attach != NULL ? attach->vk.image : VK_NULL_HANDLE);
 
+			// TODO: Instead of always inserting a barrier here,
+			// when equal queues, postpone it to the catch, so we always
+			// stall barriers until they're actually necessary?
 			// Insert barrier if necessary:
 			// - Equal queues, need to insert dependency.
 			// - Not discarding & not concurrent, need ownership transfer.

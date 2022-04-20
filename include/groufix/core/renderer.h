@@ -702,8 +702,20 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
 
 
 /****************************
- * Recorder handling.
+ * Recorder & recording commands.
  ****************************/
+
+/**
+ * Compute command flags.
+ */
+typedef enum GFXComputeFlags
+{
+	GFX_COMPUTE_ASYNC  = 0x0001,
+	GFX_COMPUTE_BEFORE = 0x0002,
+	GFX_COMPUTE_AFTER  = 0x0004 // Overrules GFX_COMPUTE_BEFORE.
+
+} GFXComputeFlags;
+
 
 /**
  * Adds a new recorder to the renderer.
@@ -713,9 +725,9 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
  * Thread-safe with respect to renderer,
  * as are all other functions related to this recorder.
  *
- * However, all of them CANNOT run during gfx_renderer_acquire or
+ * However, this function and gfx_erase_recorder CANNOT
+ * run during gfx_renderer_acquire or
  * during or inbetween gfx_frame_start and gfx_frame_submit.
- * Except ofcourse for any recording command :)
  */
 GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
 
@@ -724,6 +736,46 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
  * @param recorder Cannot be NULL.
  */
 GFX_API void gfx_erase_recorder(GFXRecorder* recorder);
+
+/**
+ * Records render commands within a given pass.
+ * The callback takes this recorder and the current virtual frame index.
+ * @param recorder Cannot be NULL.
+ * @param pass     Cannot be NULL.
+ * @param cb       Callback, cannot be NULL.
+ * @param ptr      User pointer as third argument of cb.
+ *
+ * Must be called inbetween gfx_frame_start and gfx_frame_submit!
+ * Different recorders can always call gfx_recorder_(render|compute)
+ * concurrently, with any arguments!
+ */
+GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
+                                 void (*cb)(GFXRecorder*, unsigned int, void*),
+                                 void* ptr);
+
+/**
+ * Records compute commands.
+ * The callback takes this recorder and the current virtual frame index.
+ * @param relative Relative pass (NULL for all) to be ordered before/after.
+ * @param deps     Cannot be NULL if numDeps > 0.
+ * @see gfx_recorder_render.
+ *
+ * All compute commands are submitted before all passes by default.
+ * If GFX_COMPUTE_(BEFORE|AFTER) is set, they are submitted before/after
+ * a given relative pass.
+ *
+ * All dependency objects behave the same as in gfx_frame_inject,
+ * and are consumed in the same relative order to all passes.
+ *
+ * If GFX_COMPUTE_ASYNC is set, relative is ignored (as if NULL were passed)
+ * and dependencies are consumed even before/after all dependencies injected
+ * by gfx_frame_start!
+ */
+GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
+                                  GFXPass* relative,
+                                  void (*cb)(GFXRecorder*, unsigned int, void*),
+                                  void* ptr,
+                                  size_t numDeps, const GFXInject* deps);
 
 
 /****************************
@@ -752,14 +804,39 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
  * Prepares the acquired virtual frame to start recording,
  * becomes a no-op if already started.
  * @param frame Cannot be NULL.
+ * @param deps  Cannot be NULL if numDeps > 0.
  *
  * The renderer (including its attachments, passes and sets) cannot be
  * modified after this call until gfx_frame_submit has returned!
  *
+ * All dependency objects behave the same as in gfx_frame_inject,
+ * except all wait and signal commands are respectively consumed before and
+ * after all dependencies injected by gfx_frame_inject.
+ *
  * Failure during starting cannot be recovered from,
  * any such failure is appropriately logged.
  */
-GFX_API void gfx_frame_start(GFXFrame* frame);
+GFX_API void gfx_frame_start(GFXFrame* frame,
+                             size_t numDeps, const GFXInject* deps);
+
+/**
+ * Injects dependencies in the acquired virtual frame for a given pass.
+ * Dependencies are consumed in the same order as calls to this function,
+ * and in the order that the passes are submitted.
+ * @param frame Cannot be NULL.
+ * @param deps  Cannot be NULL if numDeps > 0.
+ *
+ * All given dependency objects are referenced until gfx_frame_submit has
+ * returned. Signal commands only become visible after gfx_frame_submit and
+ * wait commands see all signal commands up until gfx_frame_submit.
+ *
+ * All render commands within the given pass are inbetween the
+ * wait and signal commands that are given here.
+ *
+ * Failure is ignored and appropriately logged.
+ */
+GFX_API void gfx_frame_inject(GFXFrame* frame, GFXPass* pass,
+                              size_t numDeps, const GFXInject* deps);
 
 /**
  * TODO: Make gfx_frame_start takes the deps, store those, then call
@@ -772,7 +849,6 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
  * Submits the acquired virtual frame of a renderer.
  * Implicitly starts if not yet done so.
  * @param frame Cannot be NULL, invalidated after this call!
- * @param deps  Cannot be NULL if numDeps > 0.
  *
  * All memory resources used to render a frame cannot be freed until the next
  * time this frame is acquired. The frames can be identified by their index.
@@ -780,8 +856,7 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
  * Failure during submission cannot be recovered from,
  * any such failure is appropriately logged.
  */
-GFX_API void gfx_frame_submit(GFXFrame* frame,
-                              size_t numDeps, const GFXInject* deps);
+GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 
 #endif
