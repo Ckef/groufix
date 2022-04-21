@@ -1102,6 +1102,17 @@ struct GFXDependency
 
 
 /**
+ * TODO: Define _gfx_injection() or smth to init the `out` field separately.
+ * Make it so catch() and prepare() can be called any number of times using
+ * the same recycled injection metadata (for multiple/nested passes).
+ * This will output all semaphores to the same array, which is nice.
+ * Then after submission we can call all the abort/finish() calls, this may
+ * advance sync objs from different passes but this is fine as they should all
+ * be either aborted or all finished. Explain this.
+ * To catch prepared signal commands that haven't been abort/finished yet,
+ * _gfx_deps_catch should also match on SYNC_PREPARE with the same
+ * injection metadata. Explain that recycled metadata can catch its own signals.
+ *
  * TODO: Somehow generate or pass a tag for recycling.
  * Starts a new dependency injection by catching pending signal commands.
  * The object pointed to by injection cannot be moved or copied!
