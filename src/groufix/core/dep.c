@@ -993,7 +993,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 				sync->stage =
 					(sync->stage == _GFX_SYNC_PREPARE) ?
 						_GFX_SYNC_PENDING :
-					(sync->vk.srcFamily != sync->vk.dstFamily) ?
+					(sync->flags & _GFX_SYNC_SEMAPHORE) ?
 						_GFX_SYNC_USED :
 						_GFX_SYNC_UNUSED;
 
