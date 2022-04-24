@@ -472,6 +472,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	{
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 
+		// TODO: Currently throws away memory!! Need _gfx_injection().
 		// Inject pass wait commands.
 		if (!_gfx_deps_catch(
 			context, frame->vk.cmd,

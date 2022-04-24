@@ -1155,7 +1155,8 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * The content of injection is invalidated after this call.
+ * The content of injection is invalidated after this call, however it can
+ * be passed any number of times to this function.
  */
 void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
                      _GFXInjection* injection);
@@ -1166,7 +1167,8 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * The content of injection is invalidated after this call.
+ * The content of injection is invalidated after this call, however it can
+ * be passed any number of times to this function.
  */
 void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection);
