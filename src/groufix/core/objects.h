@@ -1250,7 +1250,7 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
  * @param frame    Cannot be NULL.
  * @return Zero if the frame could not be submitted.
  *
- * This will consume (not erase) all `pDeps` fields of the renderer and passes!
+ * This will _always_ consume all `pDeps` fields of the renderer and all passes!
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
 bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);

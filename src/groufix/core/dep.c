@@ -933,6 +933,9 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
 	free(injection->out.waits);
 	free(injection->out.sigs);
 	free(injection->out.stages);
+	injection->out.waits = NULL;
+	injection->out.sigs = NULL;
+	injection->out.stages = NULL;
 
 	// For aborting we loop over all synchronization objects of each
 	// command's dependency object. If it contains objects claimed by the
@@ -974,6 +977,9 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 	free(injection->out.waits);
 	free(injection->out.sigs);
 	free(injection->out.stages);
+	injection->out.waits = NULL;
+	injection->out.sigs = NULL;
+	injection->out.stages = NULL;
 
 	// To finish an injection, we loop over all synchronization objects of
 	// each command's dependency object. If it contains objects claimed by the

@@ -598,6 +598,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 {
 	assert(recorder != NULL);
 	assert(recorder->renderer->recording);
+	assert(relative == NULL || relative->renderer == recorder->renderer);
 	assert(cb != NULL);
 	assert(numDeps == 0 || deps != NULL);
 
