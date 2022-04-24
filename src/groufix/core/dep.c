@@ -631,12 +631,18 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				_GFX_INJ_OUTPUT(
 					injection->out.numWaits, injection->out.waits,
 					sizeof(VkSemaphore), sync->vk.signaled,
-					return 0);
+					{
+						_gfx_mutex_unlock(&injs[i].dep->lock);
+						return 0;
+					});
 
 				_GFX_INJ_OUTPUT(
 					numWaits, injection->out.stages,
 					sizeof(VkPipelineStageFlagBits), sync->vk.dstStage,
-					return 0);
+					{
+						_gfx_mutex_unlock(&injs[i].dep->lock);
+						return 0;
+					});
 			}
 
 			// Signal that the operation resource has been transitioned.
@@ -796,7 +802,10 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				_GFX_INJ_OUTPUT(
 					injection->out.numSigs, injection->out.sigs,
 					sizeof(VkSemaphore), sync->vk.signaled,
-					return 0);
+					{
+						_gfx_mutex_unlock(&injs[i].dep->lock);
+						return 0;
+					});
 
 			// Now we need to actually 'claim' it &
 			// put the object in the prepare stage.
@@ -987,7 +996,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 				sync->stage =
 					(sync->stage == _GFX_SYNC_PREPARE) ?
 						_GFX_SYNC_PENDING :
-					(sync->vk.srcFamily != sync->vk.dstFamily) ?
+					(sync->flags & _GFX_SYNC_SEMAPHORE) ?
 						_GFX_SYNC_USED :
 						_GFX_SYNC_UNUSED;
 

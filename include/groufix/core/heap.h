@@ -421,9 +421,6 @@ typedef enum GFXTransferFlags
  *
  * gfx_read only:
  *  Will act as if GFX_TRANSFER_BLOCK is always passed!
- *
- *  Fails if the resource was not created with
- *   GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ.
  */
 GFX_API bool gfx_read(GFXReference src, void* dst,
                       GFXTransferFlags flags,
@@ -434,9 +431,6 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 /**
  * Writes data to a memory resource reference.
  * @see gfx_read.
- *
- * Fails if the resource was not created with
- *  GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE.
  */
 GFX_API bool gfx_write(const void* src, GFXReference dst,
                        GFXTransferFlags flags,
@@ -447,9 +441,6 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 /**
  * Copies data from one memory resource reference to another.
  * @see gfx_read.
- *
- * Fails if the src was not created with GFX_MEMORY_READ.
- * Fails if the dst was not created with GFX_MEMORY_WRITE.
  */
 GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
                       GFXTransferFlags flags,
@@ -464,7 +455,6 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
  *
  * This function is reentrant, meaning any buffer can be mapped any number
  * of times, from any thread!
- * Fails if the referenced resource was not created with GFX_MEMORY_HOST_VISIBLE.
  */
 GFX_API void* gfx_map(GFXBufferRef ref);
 
