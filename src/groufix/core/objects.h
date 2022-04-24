@@ -708,6 +708,7 @@ struct GFXRenderer
 	GFXDeque stales; // Stores { unsigned int, (Vk*)+ }.
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
+	GFXVec   pDeps;  // Stores GFXInject, from pFrame start.
 
 
 	// Render backing (i.e. attachments).
@@ -757,6 +758,7 @@ struct GFXPass
 	uintmax_t    gen;   // Build generation (to invalidate pipelines).
 
 	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.
+	GFXVec pDeps;    // Stores GFXInject, from renderer->pFrame injects.
 
 
 	// Building output (can be invalidated).
@@ -1246,13 +1248,12 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
  * Must be called exactly once for each call to _gfx_frame_acquire.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
- * @param deps     Cannot be NULL if numDeps > 0.
  * @return Zero if the frame could not be submitted.
  *
+ * This will consume (not erase) all `pDeps` fields of the renderer and passes!
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
-bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
-                       size_t numDeps, const GFXInject* deps);
+bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Blocks until all virtual frames of a renderer are done.

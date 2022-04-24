@@ -383,12 +383,10 @@ error:
 }
 
 /****************************/
-bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
-                       size_t numDeps, const GFXInject* deps)
+bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 {
 	assert(frame != NULL);
 	assert(renderer != NULL);
-	assert(numDeps == 0 || deps != NULL);
 
 	_GFXContext* context = renderer->allocator.context;
 	GFXVec* attachs = &renderer->backing.attachs;
@@ -417,8 +415,13 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 		goto error);
 
 	// Inject wait commands.
-	if (!_gfx_deps_catch(context, frame->vk.cmd, numDeps, deps, &injection))
+	if (!_gfx_deps_catch(
+		context, frame->vk.cmd,
+		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		&injection))
+	{
 		goto clean_deps;
+	}
 
 	// Record all passes.
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
@@ -427,8 +430,13 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 			frame);
 
 	// Inject signal commands.
-	if (!_gfx_deps_prepare(frame->vk.cmd, 0, numDeps, deps, &injection))
+	if (!_gfx_deps_prepare(
+		frame->vk.cmd, 0,
+		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		&injection))
+	{
 		goto clean_deps;
+	}
 
 	_GFX_VK_CHECK(
 		context->vk.EndCommandBuffer(frame->vk.cmd),
@@ -551,15 +559,23 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
 	// Note: we do not flush the pool after synchronization to spare time!
 	_gfx_pool_flush(&renderer->pool);
 
+	// TODO: For finishing/aborting, make a helper function that loops
+	// over all passes and finish/aborts them. Then that function can also
+	// erase all dependencies (instead of in renderer.c).
+
 	// Lastly, make all commands visible for future operations.
-	_gfx_deps_finish(numDeps, deps, &injection);
+	_gfx_deps_finish(
+		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		&injection);
 
 	return 1;
 
 
 	// Cleanup on failure.
 clean_deps:
-	_gfx_deps_abort(numDeps, deps, &injection);
+	_gfx_deps_abort(
+		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		&injection);
 error:
 	gfx_log_fatal("Submission of virtual frame failed.");
 

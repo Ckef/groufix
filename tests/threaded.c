@@ -26,8 +26,8 @@ TEST_DESCRIBE(render_loop, _t)
 	while (!atomic_load(&termSig))
 	{
 		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
-		gfx_frame_start(frame);
-		gfx_frame_submit(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
+		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
+		gfx_frame_submit(frame);
 		gfx_heap_purge(_t->heap);
 	}
 }
