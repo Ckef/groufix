@@ -474,6 +474,7 @@ GFX_API bool gfx_computable_warmup(GFXComputable* computable)
 GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
+	assert(!renderer->recording);
 
 	_GFXContext* context = renderer->allocator.context;
 
@@ -548,6 +549,7 @@ error:
 GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 {
 	assert(recorder != NULL);
+	assert(!recorder->renderer->recording);
 
 	GFXRenderer* renderer = recorder->renderer;
 
@@ -572,4 +574,32 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 		gfx_vec_clear(&recorder->pools[i].vk.cmds);
 
 	free(recorder);
+}
+
+/****************************/
+GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
+                                 void (*cb)(GFXRecorder*, unsigned int, void*),
+                                 void* ptr)
+{
+	assert(recorder != NULL);
+	assert(recorder->renderer->recording);
+	assert(pass != NULL);
+	assert(cb != NULL);
+
+	// TODO: Implement.
+}
+
+/****************************/
+GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
+                                  GFXPass* relative,
+                                  void (*cb)(GFXRecorder*, unsigned int, void*),
+                                  void* ptr,
+                                  size_t numDeps, const GFXInject* deps)
+{
+	assert(recorder != NULL);
+	assert(recorder->renderer->recording);
+	assert(cb != NULL);
+	assert(numDeps == 0 || deps != NULL);
+
+	// TODO: Implement.
 }

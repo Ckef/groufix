@@ -324,7 +324,6 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
                                             size_t numShaders, GFXShader** shaders)
 {
 	assert(renderer != NULL);
-	assert(!renderer->recording);
 	assert(numShaders > 0);
 	assert(shaders != NULL);
 
@@ -499,7 +498,6 @@ error:
 GFX_API void gfx_erase_tech(GFXTechnique* technique)
 {
 	assert(technique != NULL);
-	assert(!technique->renderer->recording);
 
 	GFXRenderer* renderer = technique->renderer;
 
@@ -530,7 +528,6 @@ GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
                                size_t numSamplers, const GFXSampler* samplers)
 {
 	assert(technique != NULL);
-	assert(!technique->renderer->recording);
 	assert(set < technique->numSets);
 	assert(numSamplers > 0);
 	assert(samplers != NULL);
@@ -601,7 +598,6 @@ GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
                               size_t binding)
 {
 	assert(technique != NULL);
-	assert(!technique->renderer->recording);
 	assert(set < technique->numSets);
 
 	// Skip if already locked.
@@ -634,7 +630,6 @@ GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
 GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 {
 	assert(technique != NULL);
-	assert(!technique->renderer->recording);
 
 	GFXRenderer* renderer = technique->renderer;
 
