@@ -1045,6 +1045,7 @@ typedef struct _GFXSync
 	{
 		_GFX_SYNC_UNUSED, // Everything but `vk.signaled` is undefined.
 		_GFX_SYNC_PREPARE,
+		_GFX_SYNC_PREPARE_CATCH, // Within the same injection.
 		_GFX_SYNC_PENDING,
 		_GFX_SYNC_CATCH,
 		_GFX_SYNC_USED
@@ -1103,20 +1104,21 @@ struct GFXDependency
 
 
 /**
- * TODO: Define _gfx_injection() or smth to init the `out` field separately?
- * Make it so catch() and prepare() can be called any number of times using
- * the same recycled injection metadata (for multiple/nested passes).
- * This will output all semaphores to the same array, which is nice.
- * Then after submission we can call all the abort/finish() calls, this may
- * advance sync objs from different passes but this is fine as they should all
- * be either aborted or all finished. Explain this.
- * To catch prepared signal commands that haven't been abort/finished yet,
- * _gfx_deps_catch should also match on SYNC_PREPARE with the same
- * injection metadata. Explain that recycled metadata can catch its own signals.
- *
- * TODO: Somehow generate or pass a tag for recycling.
- * Starts a new dependency injection by catching pending signal commands.
+ * Starts a new dependency injection (initializes output metadata).
  * The object pointed to by injection cannot be moved or copied!
+ */
+static inline void _gfx_injection(_GFXInjection* injection)
+{
+	injection->out.numWaits = 0;
+	injection->out.waits = NULL;
+	injection->out.numSigs = 0;
+	injection->out.sigs = NULL;
+	injection->out.stages = NULL;
+}
+
+/**
+ * TODO: Somehow generate or pass a tag for recycling.
+ * Completes dependency injections by catching pending signal commands.
  * @param context   Cannot be NULL.
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
  * @param numInjs   Number of given injection commands.
@@ -1125,11 +1127,17 @@ struct GFXDependency
  * @param Zero on failure, must call _gfx_deps_abort.
  *
  * Thread-safe with respect to all dependency objects!
- * Either `_gfx_deps_abort` or `_gfx_deps_finish` must be called with the same
- * injection object (and other inputs) to appropriately cleanup and free all
- * metadata. Note: this call itself can only be called once!
  *
- * All output arrays in injection may be externally realloc'd,
+ * Can be called any number of times using the same injection metadata.
+ * However, after the first call to `_gfx_deps_abort` or `_gfx_deps_finish`,
+ * neither `_gfx_deps_catch` nor `_gfx_deps_prepare` can be called anymore.
+ *
+ * Every call to _gfx_deps_catch must be followed with a call (taking the same
+ * injection metadata and other inputs) to _gfx_deps_prepare, and then to
+ * either _gfx_deps_abort OR _gfx_deps_finish.
+ *
+ * Right before the first call to _gfx_deps_abort or _gfx_deps_finish,
+ * all output arrays in injection may be externally realloc'd,
  * they will be properly freed when aborted or finished.
  */
 bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
@@ -1137,25 +1145,29 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
                      _GFXInjection* injection);
 
 /**
- * Injects dependencies by preparing new signal commands.
+ * Starts dependency injections by preparing new signal commands.
  * @param blocking Non-zero to indicate the operation is blocking.
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * Must have succesfully returned from _gfx_deps_catch with injection as
- * argument before calling, as must all other inputs be the same.
+ *
+ * All commands are _always_ already visible to subsequent calls to
+ * _gfx_deps_catch taking the same injection metadata.
  */
 bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
                        size_t numInjs, const GFXInject* injs,
                        _GFXInjection* injection);
 
 /**
- * Aborts a dependency injection, freeing all data.
+ * Aborts a dependency injection, cleaning all metadata.
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * The content of injection is invalidated after this call, however it can
- * be passed any number of times to this function.
+ * The contents of injection is invalidated after this call.
+ *
+ * Each injection metadata object may only be called with
+ * either _gfx_deps_abort OR _gfx_deps_catch for ALL calls.
+ * NEVER can both be used in the same injection!
  */
 void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
                      _GFXInjection* injection);
@@ -1166,8 +1178,7 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * The content of injection is invalidated after this call, however it can
- * be passed any number of times to this function.
+ * The contents of injection is invalidated after this call.
  */
 void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection);

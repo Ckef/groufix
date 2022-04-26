@@ -489,14 +489,6 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.sizes != NULL);
 
-	// Initialize the injection output.
-	// Must be done first so _gfx_deps_abort can be called.
-	injection->out.numWaits = 0;
-	injection->out.waits = NULL;
-	injection->out.numSigs = 0;
-	injection->out.sigs = NULL;
-	injection->out.stages = NULL;
-
 	// Context validation of all dependency objects.
 	// Only do this here as all other functions must be called with equal args.
 	for (size_t i = 0; i < numInjs; ++i)
@@ -556,12 +548,18 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		{
 			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
 			if (
-				sync->stage != _GFX_SYNC_PENDING ||
+				sync->stage != _GFX_SYNC_PENDING &&
+				// Catch prepared signals from the same injection!
+				(sync->stage != _GFX_SYNC_PREPARE || injection != sync->inj))
+			{
+				continue;
+			}
 
-				// Also silently filter out mismatching renderers!
-				(sync->ref.obj.renderer != NULL &&
+			// Also silently filter out mismatching renderers!
+			if (
+				sync->ref.obj.renderer != NULL &&
 				injection->inp.renderer != NULL &&
-				injection->inp.renderer != sync->ref.obj.renderer))
+				injection->inp.renderer != sync->ref.obj.renderer)
 			{
 				continue;
 			}
@@ -615,8 +613,9 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			// We have a matching synchronization object, in other words,
 			// we are going to catch a signal command with this wait command.
 			// First put the object in the catch stage.
-			sync->stage = _GFX_SYNC_CATCH;
 			sync->inj = injection;
+			sync->stage = (sync->stage == _GFX_SYNC_PREPARE) ?
+				_GFX_SYNC_PREPARE_CATCH : _GFX_SYNC_CATCH;
 
 			// TODO: Maybe do something special with host read/write flags?
 			// Insert barrier to acquire ownership if necessary.
@@ -884,6 +883,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// TODO: Instead of always inserting a barrier here,
 			// when equal queues, postpone it to the catch, so we always
 			// stall barriers until they're actually necessary?
+
 			// Insert barrier if necessary:
 			// - Equal queues, need to insert dependency.
 			// - Not discarding & not concurrent, need ownership transfer.
@@ -994,7 +994,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
 			if (sync->inj == injection)
 			{
-				// If the object was prepared, it is now pending.
+				// If the object was only prepared, it is now pending.
 				// Otherwise it _must_ have been caught, in which case we
 				// advance it to used or unused.
 				// It only needs to be used if the semaphore was used,

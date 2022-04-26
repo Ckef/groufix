@@ -400,6 +400,8 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		}
 	};
 
+	_gfx_injection(&injection);
+
 	// Go and record all passes in submission order.
 	// We wrap a loop over all passes inbetween a begin and end command.
 	VkCommandBufferBeginInfo cbbi = {
