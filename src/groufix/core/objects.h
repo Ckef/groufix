@@ -758,7 +758,6 @@ struct GFXPass
 	uintmax_t    gen;   // Build generation (to invalidate pipelines).
 
 	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.
-	GFXVec pDeps;    // Stores GFXInject, from renderer->pFrame injects.
 
 
 	// Building output (can be invalidated).
@@ -1104,7 +1103,7 @@ struct GFXDependency
 
 
 /**
- * TODO: Define _gfx_injection() or smth to init the `out` field separately.
+ * TODO: Define _gfx_injection() or smth to init the `out` field separately?
  * Make it so catch() and prepare() can be called any number of times using
  * the same recycled injection metadata (for multiple/nested passes).
  * This will output all semaphores to the same array, which is nice.
@@ -1252,7 +1251,7 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
  * @param frame    Cannot be NULL.
  * @return Zero if the frame could not be submitted.
  *
- * This will _always_ consume all `pDeps` fields of the renderer and all passes!
+ * This will consume (not erase) all elements in renderer->pDeps!
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
 bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);

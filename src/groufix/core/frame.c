@@ -58,50 +58,6 @@ static bool _gfx_frame_rebuild(GFXRenderer* renderer, _GFXFrameSync* sync,
 }
 
 /****************************
- * Finishes a frame submission by finishing/aborting all dependency injections.
- * @param renderer  Cannot be NULL.
- * @param injection Injection metadata to finish, cannot be NULL.
- */
-static void _gfx_frame_finish(GFXRenderer* renderer, bool success,
-                              _GFXInjection* injection)
-{
-	assert(renderer != NULL);
-	assert(injection != NULL);
-
-	// First we loop over all passes in submission order to finish/abort
-	// all their injected commands.
-	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
-	{
-		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
-
-		if (success)
-			_gfx_deps_finish(
-				pass->pDeps.size, gfx_vec_at(&pass->pDeps, 0),
-				injection);
-		else
-			_gfx_deps_abort(
-				pass->pDeps.size, gfx_vec_at(&pass->pDeps, 0),
-				injection);
-
-		// And we erase the commands, done with the frame.
-		// Keep the memory in case we repeatedly inject.
-		gfx_vec_release(&pass->pDeps);
-	}
-
-	// Do the same for dependencies from frame start.
-	if (success)
-		_gfx_deps_finish(
-			renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
-			injection);
-	else
-		_gfx_deps_abort(
-			renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
-			injection);
-
-	gfx_vec_release(&renderer->pDeps);
-}
-
-/****************************
  * Frees and removes the last num sync objects.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
@@ -458,7 +414,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		context->vk.BeginCommandBuffer(frame->vk.cmd, &cbbi),
 		goto error);
 
-	// Inject start wait commands.
+	// Inject wait commands.
 	if (!_gfx_deps_catch(
 		context, frame->vk.cmd,
 		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
@@ -469,33 +425,11 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Record all passes.
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
-	{
-		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		_gfx_pass_record(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p),
+			frame);
 
-		// TODO: Currently throws away memory!! Need _gfx_injection().
-		// Inject pass wait commands.
-		if (!_gfx_deps_catch(
-			context, frame->vk.cmd,
-			pass->pDeps.size, gfx_vec_at(&pass->pDeps, 0),
-			&injection))
-		{
-			goto clean_deps;
-		}
-
-		// Record.
-		_gfx_pass_record(pass, frame);
-
-		// Inject pass signal commands.
-		if (!_gfx_deps_prepare(
-			frame->vk.cmd, 0,
-			pass->pDeps.size, gfx_vec_at(&pass->pDeps, 0),
-			&injection))
-		{
-			goto clean_deps;
-		}
-	}
-
-	// Inject start signal commands.
+	// Inject signal commands.
 	if (!_gfx_deps_prepare(
 		frame->vk.cmd, 0,
 		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
@@ -625,18 +559,20 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// Note: we do not flush the pool after synchronization to spare time!
 	_gfx_pool_flush(&renderer->pool);
 
-	// Lastly, finish, make all commands visible for future operations.
-	_gfx_frame_finish(renderer, 1, &injection);
+	// Lastly, make all commands visible for future operations.
+	_gfx_deps_finish(
+		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		&injection);
 
 	return 1;
 
 
 	// Cleanup on failure.
 clean_deps:
-	_gfx_frame_finish(renderer, 0, &injection);
+	_gfx_deps_abort(
+		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		&injection);
 error:
-	// TODO: _always_ call _gfx_frame_finish so all dependencies get erased!
-	// For this we need the _gfx_injection() init structure.
 	gfx_log_fatal("Submission of virtual frame failed.");
 
 	return 0;

@@ -443,35 +443,6 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame)
 }
 
 /****************************/
-GFX_API void gfx_frame_inject(GFXFrame* frame, GFXPass* pass,
-                              size_t numDeps, const GFXInject* deps)
-{
-	assert(frame != NULL);
-	assert(pass != NULL);
-	assert(numDeps == 0 || deps != NULL);
-
-	// Note that we do not actually even need the frame,
-	// but it is passed so injection are restricted to individual frames!
-	assert(_GFX_RENDERER_FROM_PUBLIC_FRAME(frame) == pass->renderer);
-
-	// Store dependencies for submission.
-	if (numDeps == 0)
-	{
-		// If none to append, clear memory that was kept by submission.
-		if (pass->pDeps.size == 0)
-			gfx_vec_clear(&pass->pDeps);
-	}
-	else
-	{
-		// Otherwise, append injection commands.
-		if (!gfx_vec_push(&pass->pDeps, numDeps, deps))
-			gfx_log_warn(
-				"Dependency injection failed, "
-				"injection commands could not be stored at frame inject.");
-	}
-}
-
-/****************************/
 GFX_API void gfx_frame_start(GFXFrame* frame,
                              size_t numDeps, const GFXInject* deps)
 {
@@ -491,15 +462,16 @@ GFX_API void gfx_frame_start(GFXFrame* frame,
 		_gfx_frame_acquire(renderer, frame);
 	}
 
-	// Much like in gfx_frame_inject, we store dependencies for submission.
-	// But this time at the renderer itself instead of a pass :)
+	// Store dependencies for submission.
 	if (numDeps == 0)
 	{
+		// If none to append, clear memory that was kept by submission.
 		if (renderer->pDeps.size == 0)
 			gfx_vec_clear(&renderer->pDeps);
 	}
 	else
 	{
+		// Otherwise, append injection commands.
 		if (!gfx_vec_push(&renderer->pDeps, numDeps, deps))
 			gfx_log_warn(
 				"Dependency injection failed, "
@@ -519,8 +491,11 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 	if (!renderer->recording) gfx_frame_start(frame, 0, NULL);
 
 	// Submit the frame :)
-	// This will erase all dependency injections!
 	_gfx_frame_submit(renderer, frame);
+
+	// Erase all dependency injections.
+	// Keep the memory in case we repeatedly inject.
+	gfx_vec_release(&renderer->pDeps);
 
 	// And then stick it in the deque at the other end.
 	if (!gfx_deque_push(&renderer->frames, 1, frame))

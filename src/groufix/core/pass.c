@@ -474,7 +474,6 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
-	gfx_vec_init(&pass->pDeps, sizeof(GFXInject));
 
 
 	// TODO: Super temporary!!
@@ -503,7 +502,6 @@ void _gfx_destroy_pass(GFXPass* pass)
 
 	// Free all remaining things.
 	gfx_vec_clear(&pass->consumes);
-	gfx_vec_clear(&pass->pDeps);
 	free(pass);
 }
 

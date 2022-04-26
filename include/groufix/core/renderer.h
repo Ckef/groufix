@@ -754,6 +754,8 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
                                  void* ptr);
 
 /**
+ * TODO: Draft, dependencies cannot be willy nilly injected into (sub)passes!
+ * TODO: Maybe just make compute passes.
  * Records compute commands.
  * The callback takes this recorder and the current virtual frame index.
  * @param relative Relative pass (NULL for all) to be ordered before/after.
@@ -764,7 +766,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
  * If GFX_COMPUTE_(BEFORE|AFTER) is set, they are submitted before/after
  * a given relative pass.
  *
- * All dependency objects behave the same as in gfx_frame_inject,
+ * All dependency objects behave the same as in gfx_frame_start,
  * and are consumed in the same relative order to all passes.
  *
  * If GFX_COMPUTE_ASYNC is set, relative is ignored (as if NULL were passed)
@@ -801,26 +803,6 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
 
 /**
- * Injects dependencies in the acquired virtual frame for a given pass.
- * Dependencies are consumed in the same order as calls to this function,
- * and in the order that the passes are submitted.
- * @param frame Cannot be NULL.
- * @param pass  Cannot be NULL, must be from the same renderer.
- * @param deps  Cannot be NULL if numDeps > 0.
- *
- * All given dependency objects are referenced until gfx_frame_submit has
- * returned. Signal commands only become visible after gfx_frame_submit and
- * wait commands see all signal commands up until gfx_frame_submit.
- *
- * All render commands within the given pass are inbetween the
- * wait and signal commands that are given here.
- *
- * Failure is ignored and appropriately logged.
- */
-GFX_API void gfx_frame_inject(GFXFrame* frame, GFXPass* pass,
-                              size_t numDeps, const GFXInject* deps);
-
-/**
  * Prepares the acquired virtual frame to start recording,
  * appends all dependency injections if already started.
  * @param frame Cannot be NULL.
@@ -829,9 +811,9 @@ GFX_API void gfx_frame_inject(GFXFrame* frame, GFXPass* pass,
  * The renderer (including its attachments, passes and sets) cannot be
  * modified after this call until gfx_frame_submit has returned!
  *
- * All dependency objects behave the same as in gfx_frame_inject,
- * except all wait and signal commands are respectively consumed before and
- * after all dependencies injected by gfx_frame_inject.
+ * All given dependency objects are referenced until gfx_frame_submit has
+ * returned. Signal commands only become visible after gfx_frame_submit and
+ * wait commands see all signal commands up until gfx_frame_submit.
  *
  * Failure during starting cannot be recovered from,
  * any such failure is appropriately logged.
