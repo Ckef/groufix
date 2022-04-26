@@ -855,8 +855,8 @@ typedef struct _GFXSetBinding
 	VkDescriptorType type;     // Undefined if empty.
 	GFXViewType      viewType; // Undefined if not a non-attachment image.
 
-	size_t        count;    // 0 = empty binding.
-	_GFXSetEntry* entries;  // NULL if empty or immutable samplers only.
+	size_t        count;   // 0 = empty binding.
+	_GFXSetEntry* entries; // NULL if empty or immutable samplers only.
 
 } _GFXSetBinding;
 

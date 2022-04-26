@@ -683,6 +683,23 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 }
 
 /****************************/
+GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	return pass->numParents;
+}
+
+/****************************/
+GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
+{
+	assert(pass != NULL);
+	assert(parent < pass->numParents);
+
+	return pass->parents[parent];
+}
+
+/****************************/
 GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
                               GFXAccessMask mask, GFXShaderStage stage)
 {
@@ -788,23 +805,6 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 
 	// Changed a pass, the graph is invalidated.
 	_gfx_render_graph_invalidate(pass->renderer);
-}
-
-/****************************/
-GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
-{
-	assert(pass != NULL);
-
-	return pass->numParents;
-}
-
-/****************************/
-GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
-{
-	assert(pass != NULL);
-	assert(parent < pass->numParents);
-
-	return pass->parents[parent];
 }
 
 /****************************/

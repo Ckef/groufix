@@ -465,12 +465,25 @@ GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer);
 /**
  * Retrieves a target pass of a renderer.
  * @param renderer Cannot be NULL.
- * @param target   Target index, must be < gfx_renderer_get_num(renderer).
+ * @param target   Target index, must be < gfx_renderer_get_num_targets(renderer).
  *
  * The index of each target may change when a new pass is added,
  * however their order remains fixed during the lifetime of the renderer.
  */
 GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer, size_t target);
+
+/**
+ * Retrieves the number of parents of a pass.
+ * @param pass Cannot be NULL.
+ */
+GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
+
+/**
+ * Retrieves a parent of a pass.
+ * @param pass   Cannot be NULL.
+ * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
+ */
+GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
 
 /**
  * TODO: shader location == in add-order?
@@ -506,19 +519,6 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
  * @param index Attachment index to release.
  */
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
-
-/**
- * Retrieves the number of parents of a pass.
- * @param pass Cannot be NULL.
- */
-GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
-
-/**
- * Retrieves a parent of a pass.
- * @param pass   Cannot be NULL.
- * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
- */
-GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
 
 /**
  * TODO: Totally temporary!
