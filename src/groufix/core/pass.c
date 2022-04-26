@@ -456,6 +456,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	// Initialize things.
 	pass->renderer = renderer;
 	pass->level = 0;
+	pass->order = 0;
 	pass->gen = 0;
 	pass->numParents = numParents;
 

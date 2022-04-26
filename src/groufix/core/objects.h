@@ -679,6 +679,23 @@ struct GFXRecorder
 	GFXRenderer* renderer;
 	_GFXPoolSub  sub;  // For descriptor access.
 
+
+	// Recording input.
+	struct
+	{
+		GFXPass* pass;
+
+	} inp;
+
+
+	// Recording output.
+	struct
+	{
+		GFXVec cmds; // Stores { GFXPass*, unsigned int, VkCommandBuffer }.
+
+	} out;
+
+
 	_GFXRecorderPool* current; // Current frame's pool, or NULL.
 	_GFXRecorderPool  pools[]; // One for each virtual frame.
 };
@@ -755,6 +772,7 @@ struct GFXPass
 {
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
+	unsigned int order; // Actual submission order.
 	uintmax_t    gen;   // Build generation (to invalidate pipelines).
 
 	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.

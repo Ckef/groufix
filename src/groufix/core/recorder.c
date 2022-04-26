@@ -12,6 +12,18 @@
 
 
 /****************************
+ * Recording command buffer element definition.
+ */
+typedef struct _GFXCmdElem
+{
+	GFXPass*        pass;
+	unsigned int    order;
+	VkCommandBuffer cmd;
+
+} _GFXCmdElem;
+
+
+/****************************
  * Spin-locks a renderable for pipeline retrieval.
  */
 static inline void _gfx_renderable_lock(GFXRenderable* renderable)
@@ -513,6 +525,8 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// Initialize the rest of the pools.
 	rec->renderer = renderer;
 	rec->current = NULL;
+	rec->inp.pass = NULL;
+	gfx_vec_init(&rec->out.cmds, sizeof(_GFXCmdElem));
 
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
@@ -573,6 +587,7 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 		gfx_vec_clear(&recorder->pools[i].vk.cmds);
 
+	gfx_vec_clear(&recorder->out.cmds);
 	free(recorder);
 }
 
