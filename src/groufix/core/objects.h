@@ -691,7 +691,7 @@ struct GFXRecorder
 	// Recording output.
 	struct
 	{
-		GFXVec cmds; // Stores { unsigned int, VkCommandBuffer }.
+		GFXVec cmds; // Stores { unsigned int, VkCommandBuffer } (sorted).
 
 	} out;
 
@@ -1469,8 +1469,6 @@ bool _gfx_push_stale(GFXRenderer* renderer,
  * @param recorder Cannot be NULL.
  * @param frame    Index of the frame to reset buffers of.
  * @return Non-zero if successfully reset.
- *
- * Failure is considered fatal, command buffers cannot be used.
  */
 bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame);
 

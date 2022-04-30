@@ -371,6 +371,51 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 	}
 }
 
+/****************************
+ * Claims (or creates) a command buffer from the current recording pool.
+ * To unclaim, the current pool's used count should be decreased.
+ * @param pool Cannot be NULL.
+ * @return The command buffer, VK_NULL_HANDLE on failure.
+ */
+static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	_GFXContext* context = recorder->renderer->allocator.context;
+	_GFXRecorderPool* pool = &recorder->pools[recorder->current];
+
+	// If we still have enough command buffers, return the next one.
+	if (pool->used < pool->vk.cmds.size)
+		// Immediately increase used counter.
+		return *(VkCommandBuffer*)gfx_vec_at(&pool->vk.cmds, pool->used++);
+
+	// Otherwise, allocate a new one.
+	if (!gfx_vec_push(&pool->vk.cmds, 1, NULL))
+		return VK_NULL_HANDLE;
+
+	VkCommandBufferAllocateInfo cbai = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+
+		.pNext              = NULL,
+		.commandPool        = pool->vk.pool,
+		.level              = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+		.commandBufferCount = 1
+	};
+
+	VkCommandBuffer* cmd = gfx_vec_at(&pool->vk.cmds, pool->used);
+	_GFX_VK_CHECK(
+		context->vk.AllocateCommandBuffers(
+			context->vk.device, &cbai, cmd),
+		{
+			gfx_vec_pop(&pool->vk.cmds, 1);
+			return VK_NULL_HANDLE;
+		});
+
+	// Increase used counter & return.
+	++pool->used;
+	return *cmd;
+}
+
 /****************************/
 bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 {
@@ -379,18 +424,23 @@ bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 
 	_GFXContext* context = recorder->renderer->allocator.context;
 
-	// No command buffers are in use anymore.
+	// Set new current index & clear output.
 	recorder->current = frame;
-	recorder->pools[frame].used = 0;
+	gfx_vec_release(&recorder->out.cmds);
 
 	// Try to reset the command pool.
 	_GFX_VK_CHECK(
 		context->vk.ResetCommandPool(
 			context->vk.device, recorder->pools[frame].vk.pool, 0),
 		{
-			gfx_log_fatal("Resetting of recorder failed.");
+			gfx_log_warn("Resetting of recorder failed.");
 			return 0;
 		});
+
+	// TODO: Maybe here or somewhere else; free buffers we're not using.
+
+	// No command buffers are in use anymore.
+	recorder->pools[frame].used = 0;
 
 	return 1;
 }
@@ -601,7 +651,76 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	assert(pass->renderer == recorder->renderer);
 	assert(cb != NULL);
 
-	// TODO: Implement.
+	_GFXContext* context = recorder->renderer->allocator.context;
+
+	// Firstly, claim a command buffer to use.
+	VkCommandBuffer cmd = _gfx_recorder_claim(recorder);
+	if (cmd == VK_NULL_HANDLE) goto error;
+
+	// Start recording with it.
+	VkCommandBufferBeginInfo cbbi = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+
+		.pNext = NULL,
+		.flags =
+			VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT |
+			VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
+
+		.pInheritanceInfo = (VkCommandBufferInheritanceInfo[]){{
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+
+			.pNext       = NULL,
+			.renderPass  = pass->vk.pass,
+			.subpass     = 0,              // TODO: Determine this.
+			.framebuffer = VK_NULL_HANDLE, // TODO: Get the current one?
+
+			.occlusionQueryEnable = VK_FALSE,
+			.queryFlags           = 0,
+			.pipelineStatistics   = 0
+		}}
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.BeginCommandBuffer(cmd, &cbbi),
+		goto error);
+
+	// Set recording input, record, unset input.
+	recorder->inp.pass = pass;
+	cb(recorder, recorder->current, ptr);
+	recorder->inp.pass = NULL;
+
+	_GFX_VK_CHECK(
+		context->vk.EndCommandBuffer(cmd),
+		goto error);
+
+	// Now insert the command buffer in its correct position.
+	// Which is in submission order of the passes.
+	_GFXCmdElem elem = {
+		.order = pass->order,
+		.cmd = cmd
+	};
+
+	// Hopefully backwards linear search is in-line with the recording order.
+	size_t loc;
+	for (loc = recorder->out.cmds.size; loc > 0; --loc)
+	{
+		unsigned int order =
+			((_GFXCmdElem*)gfx_vec_at(&recorder->out.cmds, loc-1))->order;
+
+		if (order <= elem.order)
+			break;
+	}
+
+	// Insert at found position.
+	if (!gfx_vec_insert(&recorder->out.cmds, 1, &elem, loc))
+		goto error;
+
+	return;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Recorder failed to record render commands.");
 }
 
 /****************************/

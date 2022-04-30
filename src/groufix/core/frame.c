@@ -284,8 +284,8 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 		rec != NULL;
 		rec = (GFXRecorder*)rec->list.next)
 	{
-		if (!_gfx_recorder_reset(rec, frame->index))
-			goto error;
+		// Failure can be ignored.
+		_gfx_recorder_reset(rec, frame->index);
 	}
 
 	return 1;
@@ -425,6 +425,8 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		goto clean_deps;
 	}
 
+	// TODO: Somehow get the buffers for this pass from the recorder,
+	// record those secondary cmd buffers into this one :)
 	// Record all passes.
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
 		_gfx_pass_record(
