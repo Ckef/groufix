@@ -375,7 +375,7 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
  * Claims (or creates) a command buffer from the current recording pool.
  * To unclaim, the current pool's used count should be decreased.
  * @param pool Cannot be NULL.
- * @return The command buffer, VK_NULL_HANDLE on failure.
+ * @return The command buffer, NULL on failure.
  */
 static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder)
 {
@@ -391,7 +391,7 @@ static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder)
 
 	// Otherwise, allocate a new one.
 	if (!gfx_vec_push(&pool->vk.cmds, 1, NULL))
-		return VK_NULL_HANDLE;
+		return NULL;
 
 	VkCommandBufferAllocateInfo cbai = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -408,7 +408,7 @@ static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder)
 			context->vk.device, &cbai, cmd),
 		{
 			gfx_vec_pop(&pool->vk.cmds, 1);
-			return VK_NULL_HANDLE;
+			return NULL;
 		});
 
 	// Increase used counter & return.
@@ -575,7 +575,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	rec->renderer = renderer;
 	rec->current = 0;
 	rec->inp.pass = NULL;
-	rec->inp.cmd = VK_NULL_HANDLE;
+	rec->inp.cmd = NULL;
 	gfx_vec_init(&rec->out.cmds, sizeof(_GFXCmdElem));
 
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
@@ -652,11 +652,12 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	assert(pass->renderer == recorder->renderer);
 	assert(cb != NULL);
 
-	_GFXContext* context = recorder->renderer->allocator.context;
+	GFXRenderer* rend = recorder->renderer;
+	_GFXContext* context = rend->allocator.context;
 
 	// Firstly, claim a command buffer to use.
 	VkCommandBuffer cmd = _gfx_recorder_claim(recorder);
-	if (cmd == VK_NULL_HANDLE) goto error;
+	if (cmd == NULL) goto error;
 
 	// Start recording with it.
 	VkCommandBufferBeginInfo cbbi = {
@@ -672,8 +673,8 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 
 			.pNext       = NULL,
 			.renderPass  = pass->vk.pass,
-			.subpass     = 0,              // TODO: Determine this.
-			.framebuffer = VK_NULL_HANDLE, // TODO: Get the current one?
+			.subpass     = 0, // TODO: Determine this.
+			.framebuffer = _gfx_pass_framebuffer(pass, &rend->pFrame),
 
 			.occlusionQueryEnable = VK_FALSE,
 			.queryFlags           = 0,
@@ -692,7 +693,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	cb(recorder, recorder->current, ptr);
 
 	recorder->inp.pass = NULL;
-	recorder->inp.cmd = VK_NULL_HANDLE;
+	recorder->inp.cmd = NULL;
 
 	_GFX_VK_CHECK(
 		context->vk.EndCommandBuffer(cmd),

@@ -1423,7 +1423,14 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 void _gfx_pass_destruct(GFXPass* pass);
 
 /**
- * TODO: Temporary probably.
+ * Retrieves the current framebuffer of a pass with respect to a frame.
+ * @param pass  Cannot be NULL.
+ * @param frame Cannot be NULL.
+ * @return VK_NULL_HANDLE if unknown.
+ */
+VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
+
+/**
  * Records the pass into the command buffers of a frame.
  * The frame's command buffers must be in the recording state (!).
  * @param pass  Cannot be NULL.

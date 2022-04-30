@@ -549,6 +549,33 @@ void _gfx_pass_destruct(GFXPass* pass)
 }
 
 /****************************/
+VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
+{
+	assert(pass != NULL);
+	assert(frame != NULL);
+
+	// Just a single framebuffer.
+	if (pass->vk.framebuffers.size == 1)
+		return *(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, 0);
+
+	// Query the sync object associated with this pass' swapchain backing.
+	// If no swapchain backing, `build.backing` will be SIZE_MAX.
+	// The sync object knows the swapchain image index!
+	if (frame->refs.size <= pass->build.backing)
+		return VK_NULL_HANDLE;
+
+	const _GFXFrameSync* sync = gfx_vec_at(
+		&frame->syncs,
+		*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
+
+	// Validate & return.
+	if (pass->vk.framebuffers.size <= sync->image)
+		return VK_NULL_HANDLE;
+
+	return *(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, sync->image);
+}
+
+/****************************/
 void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 {
 	assert(pass != NULL);
@@ -574,10 +601,7 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	if (pass->build.backing == SIZE_MAX)
 		return;
 
-	// Query the synchronization object associated with this
-	// swapchain as backing. This should only be queried once!
-	// Once we have the sync object, we know the swapchain image index
-	// and can select the framebuffer to use for recording.
+	// Get the sync object associated with this swapchain as backing.
 	_GFXFrameSync* sync = gfx_vec_at(
 		&frame->syncs,
 		*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
