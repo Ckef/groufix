@@ -355,7 +355,7 @@ static void _test_init(TestState* _test_state)
 	if (_test_base.heap == NULL)
 		TEST_FAIL();
 
-	_test_base.dep = gfx_create_dep(_test_base.device);
+	_test_base.dep = gfx_create_dep(_test_base.device, 2);
 	if (_test_base.dep == NULL)
 		TEST_FAIL();
 

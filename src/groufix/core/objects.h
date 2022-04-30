@@ -1050,6 +1050,7 @@ typedef struct _GFXSync
 {
 	_GFXUnpackRef ref;
 	GFXRange      range; // Unpacked, i.e. normalized offset & non-zero size.
+	unsigned int  waits; // #wait commands left to recycle (if used).
 
 	// TODO: Keep track of used attachment `generation`?
 
@@ -1115,6 +1116,8 @@ struct GFXDependency
 	GFXVec       syncs; // Stores _GFXSync.
 	_GFXMutex    lock;
 
+	unsigned int waitCapacity;
+
 	// Vulkan family indices.
 	uint32_t graphics;
 	uint32_t compute;
@@ -1136,11 +1139,6 @@ static inline void _gfx_injection(_GFXInjection* injection)
 }
 
 /**
- * TODO: Define a recycle count so sync objs get recycled after N waits.
- * We can call N the "wait command capacity of the dependency object",
- * i.e. how many gfx_dep_wait*s on a dep can be made who's operation's are
- * not yet finished. A used semaphore is recycled after N waits on the dep.
- *
  * Completes dependency injections by catching pending signal commands.
  * @param context   Cannot be NULL.
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.

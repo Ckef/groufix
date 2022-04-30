@@ -424,7 +424,7 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore)
 }
 
 /****************************/
-GFX_API GFXDependency* gfx_create_dep(GFXDevice* device)
+GFX_API GFXDependency* gfx_create_dep(GFXDevice* device, unsigned int capacity)
 {
 	// Allocate a new dependency object.
 	GFXDependency* dep = malloc(sizeof(GFXDependency));
@@ -443,6 +443,7 @@ GFX_API GFXDependency* gfx_create_dep(GFXDevice* device)
 	_gfx_pick_family(dep->context, &dep->transfer, VK_QUEUE_TRANSFER_BIT, 0);
 
 	gfx_vec_init(&dep->syncs, sizeof(_GFXSync));
+	dep->waitCapacity = capacity;
 
 	return dep;
 
@@ -547,9 +548,16 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
 		{
 			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
+
+			// But first we quickly check if we can recycle any used objs!
+			if (sync->stage == _GFX_SYNC_USED && sync->waits > 0)
+				if ((--sync->waits) == 0)
+					sync->stage = _GFX_SYNC_UNUSED;
+
+			// Match against pending signals.
 			if (
 				sync->stage != _GFX_SYNC_PENDING &&
-				// Catch prepared signals from the same injection!
+				// Catch prepared signals from the same injection too!
 				(sync->stage != _GFX_SYNC_PREPARE || injection != sync->inj))
 			{
 				continue;
@@ -810,6 +818,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// put the object in the prepare stage.
 			sync->ref = refs[r];
 			sync->range = ranges[r];
+			sync->waits = injs[i].dep->waitCapacity; // Preemptively set.
 			sync->inj = injection;
 			sync->stage = _GFX_SYNC_PREPARE;
 			sync->flags = semaphore ? _GFX_SYNC_SEMAPHORE : 0;
