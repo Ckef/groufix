@@ -810,7 +810,6 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// put the object in the prepare stage.
 			sync->ref = refs[r];
 			sync->range = ranges[r];
-			sync->tag = 0;
 			sync->inj = injection;
 			sync->stage = _GFX_SYNC_PREPARE;
 			sync->flags = semaphore ? _GFX_SYNC_SEMAPHORE : 0;

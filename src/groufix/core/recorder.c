@@ -16,8 +16,7 @@
  */
 typedef struct _GFXCmdElem
 {
-	GFXPass*        pass;
-	unsigned int    order;
+	unsigned int    order; // Pass order.
 	VkCommandBuffer cmd;
 
 } _GFXCmdElem;
@@ -381,13 +380,13 @@ bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 	_GFXContext* context = recorder->renderer->allocator.context;
 
 	// No command buffers are in use anymore.
-	recorder->current = &recorder->pools[frame];
-	recorder->current->used = 0;
+	recorder->current = frame;
+	recorder->pools[frame].used = 0;
 
 	// Try to reset the command pool.
 	_GFX_VK_CHECK(
 		context->vk.ResetCommandPool(
-			context->vk.device, recorder->current->vk.pool, 0),
+			context->vk.device, recorder->pools[frame].vk.pool, 0),
 		{
 			gfx_log_fatal("Resetting of recorder failed.");
 			return 0;
@@ -524,7 +523,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 
 	// Initialize the rest of the pools.
 	rec->renderer = renderer;
-	rec->current = NULL;
+	rec->current = 0;
 	rec->inp.pass = NULL;
 	gfx_vec_init(&rec->out.cmds, sizeof(_GFXCmdElem));
 
@@ -538,7 +537,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// If it does, we take its index to set the current pool.
 	// Note that this is not thread-safe with frame operations!
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-		rec->current = &rec->pools[renderer->pFrame.index];
+		rec->current = renderer->pFrame.index;
 
 	// Init subordinate & link the recorder into the renderer.
 	// Modifying the renderer, lock!
@@ -599,6 +598,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	assert(recorder != NULL);
 	assert(recorder->renderer->recording);
 	assert(pass != NULL);
+	assert(pass->renderer == recorder->renderer);
 	assert(cb != NULL);
 
 	// TODO: Implement.

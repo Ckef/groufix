@@ -691,13 +691,13 @@ struct GFXRecorder
 	// Recording output.
 	struct
 	{
-		GFXVec cmds; // Stores { GFXPass*, unsigned int, VkCommandBuffer }.
+		GFXVec cmds; // Stores { unsigned int, VkCommandBuffer }.
 
 	} out;
 
 
-	_GFXRecorderPool* current; // Current frame's pool, or NULL.
-	_GFXRecorderPool  pools[]; // One for each virtual frame.
+	unsigned int     current; // Current virtual frame index.
+	_GFXRecorderPool pools[]; // One for each virtual frame.
 };
 
 
@@ -1050,7 +1050,6 @@ typedef struct _GFXSync
 {
 	_GFXUnpackRef ref;
 	GFXRange      range; // Unpacked, i.e. normalized offset & non-zero size.
-	uintmax_t     tag;   // So we can recycle, 0 = yet untagged.
 
 	// TODO: Keep track of used attachment `generation`?
 
@@ -1135,7 +1134,11 @@ static inline void _gfx_injection(_GFXInjection* injection)
 }
 
 /**
- * TODO: Somehow generate or pass a tag for recycling.
+ * TODO: Define a recycle count so sync objs get recycled after N waits.
+ * We can call N the "wait command capacity of the dependency object",
+ * i.e. how many gfx_dep_wait*s on a dep can be made who's operation's are
+ * not yet finished. A used semaphore is recycled after N waits on the dep.
+ *
  * Completes dependency injections by catching pending signal commands.
  * @param context   Cannot be NULL.
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
