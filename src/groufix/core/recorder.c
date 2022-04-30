@@ -416,6 +416,31 @@ static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder)
 	return *cmd;
 }
 
+/****************************
+ * Outputs a command buffer of a specific submission order.
+ * @param recorder Cannot be NULL.
+ * @param elem     Command buffer + order to output.
+ * @return Zero on failure.
+ */
+static bool _gfx_recorder_output(GFXRecorder* recorder, const _GFXCmdElem* elem)
+{
+	// Find the right spot to insert at.
+	// We assume the most prevelant way of recording stuff is in submission
+	// order. Which would make backwards linear search perfect.
+	size_t loc;
+	for (loc = recorder->out.cmds.size; loc > 0; --loc)
+	{
+		unsigned int order =
+			((_GFXCmdElem*)gfx_vec_at(&recorder->out.cmds, loc-1))->order;
+
+		if (order <= elem->order)
+			break;
+	}
+
+	// Insert at found position.
+	return gfx_vec_insert(&recorder->out.cmds, 1, elem, loc);
+}
+
 /****************************/
 bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 {
@@ -443,6 +468,47 @@ bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 	recorder->pools[frame].used = 0;
 
 	return 1;
+}
+
+/****************************/
+void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
+                          VkCommandBuffer cmd)
+{
+	assert(recorder != NULL);
+	assert(cmd != NULL);
+
+	_GFXContext* context = recorder->renderer->allocator.context;
+
+	// Do a binary search to find the left-most command buffer of this order.
+	size_t l = 0;
+	size_t r = recorder->out.cmds.size;
+
+	while (l < r)
+	{
+		const size_t p = (l + r) >> 1;
+		const _GFXCmdElem* e = gfx_vec_at(&recorder->out.cmds, p);
+
+		if (e->order < order) l = p + 1;
+		else r = p;
+	}
+
+	// Then find the right-most command buffer of this order.
+	while (r < recorder->out.cmds.size)
+	{
+		const _GFXCmdElem* e = gfx_vec_at(&recorder->out.cmds, r);
+		if (e->order > order) break;
+		else ++r;
+	}
+
+	// Finally record them all into the given command buffer.
+	if (r > l)
+	{
+		VkCommandBuffer buffs[r-l];
+		for (size_t i = l; i < r; ++i) buffs[i-l] =
+			((_GFXCmdElem*)gfx_vec_at(&recorder->out.cmds, i))->cmd;
+
+		context->vk.CmdExecuteCommands(cmd, (uint32_t)(r-l), buffs);
+	}
 }
 
 /****************************/
@@ -706,19 +772,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 		.cmd = cmd
 	};
 
-	// Hopefully backwards linear search is in-line with the recording order.
-	size_t loc;
-	for (loc = recorder->out.cmds.size; loc > 0; --loc)
-	{
-		unsigned int order =
-			((_GFXCmdElem*)gfx_vec_at(&recorder->out.cmds, loc-1))->order;
-
-		if (order <= elem.order)
-			break;
-	}
-
-	// Insert at found position.
-	if (!gfx_vec_insert(&recorder->out.cmds, 1, &elem, loc))
+	if (!_gfx_recorder_output(recorder, &elem))
 		goto error;
 
 	return;

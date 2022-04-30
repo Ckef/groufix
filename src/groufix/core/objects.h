@@ -1481,6 +1481,16 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame);
 
 /**
+ * Records the recording output of a recorder into a given command buffer.
+ * The command buffer must be in the recording state (!).
+ * @param recorder  Cannot be NULL.
+ * @param order     Buffers that were output with this order will be recorded.
+ * @param cmd       Cannot be NULL, must be in the render pass of `order` (!).
+ */
+void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
+                          VkCommandBuffer cmd);
+
+/**
  * Computes the size of a specific descriptor set layout within a technique.
  * @param technique   Cannot be NULL, must be locked.
  * @param set         Must be < technique->numSets.

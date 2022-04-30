@@ -564,6 +564,8 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 	if (frame->refs.size <= pass->build.backing)
 		return VK_NULL_HANDLE;
 
+	// If `build.backing` is a valid index, it MUST be a window.
+	// Meaning it MUST have a synchronization object!
 	const _GFXFrameSync* sync = gfx_vec_at(
 		&frame->syncs,
 		*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
