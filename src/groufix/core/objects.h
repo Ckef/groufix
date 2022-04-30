@@ -683,7 +683,8 @@ struct GFXRecorder
 	// Recording input.
 	struct
 	{
-		GFXPass* pass;
+		GFXPass*        pass;
+		VkCommandBuffer cmd;
 
 	} inp;
 

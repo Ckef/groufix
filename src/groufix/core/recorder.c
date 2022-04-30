@@ -575,6 +575,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	rec->renderer = renderer;
 	rec->current = 0;
 	rec->inp.pass = NULL;
+	rec->inp.cmd = VK_NULL_HANDLE;
 	gfx_vec_init(&rec->out.cmds, sizeof(_GFXCmdElem));
 
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
@@ -686,8 +687,12 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 
 	// Set recording input, record, unset input.
 	recorder->inp.pass = pass;
+	recorder->inp.cmd = cmd;
+
 	cb(recorder, recorder->current, ptr);
+
 	recorder->inp.pass = NULL;
+	recorder->inp.cmd = VK_NULL_HANDLE;
 
 	_GFX_VK_CHECK(
 		context->vk.EndCommandBuffer(cmd),
