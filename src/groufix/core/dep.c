@@ -36,7 +36,7 @@
 /****************************
  * TODO: Make this take multiple sync objs and merge them on equal stage masks?
  * Injects a pipeline/memory barrier, just as stored in a _GFXSync object.
- * Assumes exactly one of `sync->vk.buffer` and `sync->vk.image` is set.
+ * Assumes one of `sync->vk.buffer` or `sync->vk.image` is appropriately set.
  */
 static void _gfx_inject_barrier(VkCommandBuffer cmd,
                                 const _GFXSync* sync, _GFXContext* context)
@@ -46,7 +46,7 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 		VkImageMemoryBarrier imb;
 	} mb;
 
-	if (sync->vk.buffer != VK_NULL_HANDLE)
+	if (sync->ref.obj.buffer != NULL)
 		mb.bmb = (VkBufferMemoryBarrier){
 			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
 
@@ -86,8 +86,8 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 	context->vk.CmdPipelineBarrier(cmd,
 		sync->vk.srcStage, sync->vk.dstStage,
 		0, 0, NULL,
-		sync->vk.buffer != VK_NULL_HANDLE ? 1 : 0, &mb.bmb,
-		sync->vk.image != VK_NULL_HANDLE ? 1 : 0, &mb.imb);
+		sync->ref.obj.buffer != NULL ? 1 : 0, &mb.bmb,
+		sync->ref.obj.buffer == NULL ? 1 : 0, &mb.imb);
 }
 
 /****************************
@@ -816,9 +816,9 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 
 			// Manually unpack the destination access/stage/layout.
 			// TODO: What if the attachment isn't built yet?
-			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(refs[r]);
-			GFXFormat fmt = (refs[r].obj.image != NULL) ?
-				refs[r].obj.image->base.format :
+			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(sync->ref);
+			GFXFormat fmt = (sync->ref.obj.image != NULL) ?
+				sync->ref.obj.image->base.format :
 				(attach != NULL ? attach->base.format : GFX_FORMAT_EMPTY);
 
 			sync->vk.dstAccess =
@@ -827,7 +827,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, injs[i].stage, fmt);
 			sync->vk.newLayout =
 				// Undefined layout for buffers.
-				(refs[r].obj.buffer != NULL) ?
+				(sync->ref.obj.buffer != NULL) ?
 					VK_IMAGE_LAYOUT_UNDEFINED :
 					_GFX_GET_VK_IMAGE_LAYOUT(injs[i].mask, fmt);
 
@@ -853,9 +853,9 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// we do not want to transition!
 			// Meaning we can figure out if we want an acquire operation.
 			const GFXMemoryFlags mFlags =
-				refs[0].obj.buffer != NULL ? refs[0].obj.buffer->base.flags :
-				refs[0].obj.image != NULL ? refs[0].obj.image->base.flags :
-				refs[0].obj.renderer != NULL ? attach->base.flags : 0;
+				sync->ref.obj.buffer != NULL ? sync->ref.obj.buffer->base.flags :
+				sync->ref.obj.image != NULL ? sync->ref.obj.image->base.flags :
+				sync->ref.obj.renderer != NULL ? attach->base.flags : 0;
 
 			const bool concurrent = mFlags &
 				(GFX_MEMORY_COMPUTE_CONCURRENT |
@@ -871,13 +871,16 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			sync->vk.dstFamily = discard || concurrent ?
 				VK_QUEUE_FAMILY_IGNORED : family;
 
-			// Unpack VkBuffer & VkImage handles.
-			sync->vk.buffer = (refs[r].obj.buffer != NULL) ?
-				refs[r].obj.buffer->vk.buffer : VK_NULL_HANDLE;
-
-			sync->vk.image = (refs[r].obj.image != NULL) ?
-				refs[r].obj.image->vk.image :
-				(attach != NULL ? attach->vk.image : VK_NULL_HANDLE);
+			// Unpack VkBuffer & VkImage handles for locality.
+			if (sync->ref.obj.buffer != NULL)
+				sync->vk.buffer = sync->ref.obj.buffer->vk.buffer;
+			else if (sync->ref.obj.image != NULL)
+				sync->vk.image = sync->ref.obj.image->vk.image;
+			else if (attach != NULL)
+				sync->vk.image = attach->vk.image;
+			else
+				// Should not happen.
+				sync->vk.buffer = VK_NULL_HANDLE;
 
 			// TODO: Instead of always inserting a barrier here,
 			// when equal queues, postpone it to the catch, so we always

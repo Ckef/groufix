@@ -1096,8 +1096,10 @@ typedef struct _GFXSync
 		VkPipelineStageFlags dstStage;
 
 		// Unpacked for locality.
-		VkBuffer buffer;
-		VkImage  image;
+		union {
+			VkBuffer buffer;
+			VkImage  image;
+		};
 
 	} vk;
 
