@@ -95,6 +95,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	const void* handles[_GFX_NUM_SHADER_STAGES + 2];
 	uint32_t numShaders = 0;
 
+	// TODO: Use other handles so shaders can be destroyed?
 	// Set & validate hashing handles.
 	for (uint32_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
 		if (tech->shaders[s] != NULL)
@@ -319,6 +320,7 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 	GFXTechnique* tech = computable->technique;
 	const void* handles[2];
 
+	// TODO: Use other shader handle so the shader can be destroyed?
 	// Set & validate hashing handles.
 	handles[0] = tech->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)];
 	handles[1] = tech->layout;
@@ -739,7 +741,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 
 			.pNext       = NULL,
 			.renderPass  = pass->vk.pass,
-			.subpass     = 0, // TODO: Determine this.
+			.subpass     = 0,
 			.framebuffer = _gfx_pass_framebuffer(pass, &rend->pFrame),
 
 			.occlusionQueryEnable = VK_FALSE,
@@ -785,16 +787,15 @@ error:
 
 /****************************/
 GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
-                                  GFXPass* relative,
+                                  GFXPass* pass,
                                   void (*cb)(GFXRecorder*, unsigned int, void*),
-                                  void* ptr,
-                                  size_t numDeps, const GFXInject* deps)
+                                  void* ptr)
 {
 	assert(recorder != NULL);
 	assert(recorder->renderer->recording);
-	assert(relative == NULL || relative->renderer == recorder->renderer);
+	assert(flags & GFX_COMPUTE_ASYNC || pass != NULL);
+	assert(pass == NULL || pass->renderer == recorder->renderer);
 	assert(cb != NULL);
-	assert(numDeps == 0 || deps != NULL);
 
 	// TODO: Implement.
 }

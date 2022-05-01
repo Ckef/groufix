@@ -754,30 +754,18 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
                                  void* ptr);
 
 /**
- * TODO: Draft, dependencies cannot be willy nilly injected into (sub)passes!
- * TODO: Maybe just make compute passes.
- * Records compute commands.
+ * TODO: Draft; probably want to make explicit compute passes (or a pass type).
+ * Records compute commands within a given pass.
  * The callback takes this recorder and the current virtual frame index.
- * @param relative Relative pass (NULL for all) to be ordered before/after.
- * @param deps     Cannot be NULL if numDeps > 0.
  * @see gfx_recorder_render.
  *
- * All compute commands are submitted before all passes by default.
- * If GFX_COMPUTE_(BEFORE|AFTER) is set, they are submitted before/after
- * a given relative pass.
- *
- * All dependency objects behave the same as in gfx_frame_start,
- * and are consumed in the same relative order to all passes.
- *
- * If GFX_COMPUTE_ASYNC is set, relative is ignored (as if NULL were passed)
- * and dependencies are consumed even before/after all dependencies injected
- * by gfx_frame_start!
+ * If GFX_COMPUTE_ASYNC is set, pass is ignored and the submission order
+ * is before/after all passes as defined by GFX_COMPUTE_(BEFORE|AFTER).
  */
 GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
-                                  GFXPass* relative,
+                                  GFXPass* pass,
                                   void (*cb)(GFXRecorder*, unsigned int, void*),
-                                  void* ptr,
-                                  size_t numDeps, const GFXInject* deps);
+                                  void* ptr);
 
 
 /****************************
