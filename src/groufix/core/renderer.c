@@ -296,6 +296,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	gfx_list_init(&rend->techniques);
 	gfx_list_init(&rend->sets);
 	gfx_deque_init(&rend->stales, sizeof(_GFXStale));
+	gfx_vec_init(&rend->pDeps, sizeof(GFXInject));
 
 	return rend;
 
@@ -326,13 +327,14 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	// Force submit if public frame is dangling.
 	// gfx_frame_submit will also start for us :)
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-		gfx_frame_submit(&renderer->pFrame, 0, NULL);
+		gfx_frame_submit(&renderer->pFrame);
 
 	// Clear all frames, will block until rendering is done.
 	for (size_t f = 0; f < renderer->frames.size; ++f)
 		_gfx_frame_clear(renderer, gfx_deque_at(&renderer->frames, f));
 
 	gfx_deque_clear(&renderer->frames);
+	gfx_vec_clear(&renderer->pDeps);
 
 	// Erase all recorders.
 	while (renderer->recorders.head != NULL)
@@ -404,7 +406,7 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	// If not submitted yet, force submit.
 	// gfx_frame_submit will also start for us :)
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-		gfx_frame_submit(&renderer->pFrame, 0, NULL);
+		gfx_frame_submit(&renderer->pFrame);
 
 	// Pop a frame from the frames deque, this is effectively the oldest frame,
 	// i.e. the one that was submitted the first of all existing frames.
@@ -441,9 +443,11 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame)
 }
 
 /****************************/
-GFX_API void gfx_frame_start(GFXFrame* frame)
+GFX_API void gfx_frame_start(GFXFrame* frame,
+                             size_t numDeps, const GFXInject* deps)
 {
 	assert(frame != NULL);
+	assert(numDeps == 0 || deps != NULL);
 
 	// frame == &renderer->pFrame.
 	GFXRenderer* renderer = _GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
@@ -457,23 +461,41 @@ GFX_API void gfx_frame_start(GFXFrame* frame)
 		// Acquire the frame's swapchain etc :)
 		_gfx_frame_acquire(renderer, frame);
 	}
+
+	// Store dependencies for submission.
+	if (numDeps == 0)
+	{
+		// If none to append, clear memory that was kept by submission.
+		if (renderer->pDeps.size == 0)
+			gfx_vec_clear(&renderer->pDeps);
+	}
+	else
+	{
+		// Otherwise, append injection commands.
+		if (!gfx_vec_push(&renderer->pDeps, numDeps, deps))
+			gfx_log_warn(
+				"Dependency injection failed, "
+				"injection commands could not be stored at frame start.");
+	}
 }
 
 /****************************/
-GFX_API void gfx_frame_submit(GFXFrame* frame,
-                              size_t numDeps, const GFXInject* deps)
+GFX_API void gfx_frame_submit(GFXFrame* frame)
 {
 	assert(frame != NULL);
-	assert(numDeps == 0 || deps != NULL);
 
 	// frame == &renderer->pFrame.
 	GFXRenderer* renderer = _GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
 
 	// If not started yet, force start.
-	if (!renderer->recording) gfx_frame_start(frame);
+	if (!renderer->recording) gfx_frame_start(frame, 0, NULL);
 
 	// Submit the frame :)
-	_gfx_frame_submit(renderer, frame, numDeps, deps);
+	_gfx_frame_submit(renderer, frame);
+
+	// Erase all dependency injections.
+	// Keep the memory in case we repeatedly inject.
+	gfx_vec_release(&renderer->pDeps);
 
 	// And then stick it in the deque at the other end.
 	if (!gfx_deque_push(&renderer->frames, 1, frame))

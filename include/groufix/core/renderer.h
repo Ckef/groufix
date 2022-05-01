@@ -465,12 +465,25 @@ GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer);
 /**
  * Retrieves a target pass of a renderer.
  * @param renderer Cannot be NULL.
- * @param target   Target index, must be < gfx_renderer_get_num(renderer).
+ * @param target   Target index, must be < gfx_renderer_get_num_targets(renderer).
  *
  * The index of each target may change when a new pass is added,
  * however their order remains fixed during the lifetime of the renderer.
  */
 GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer, size_t target);
+
+/**
+ * Retrieves the number of parents of a pass.
+ * @param pass Cannot be NULL.
+ */
+GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
+
+/**
+ * Retrieves a parent of a pass.
+ * @param pass   Cannot be NULL.
+ * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
+ */
+GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
 
 /**
  * TODO: shader location == in add-order?
@@ -506,28 +519,6 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
  * @param index Attachment index to release.
  */
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
-
-/**
- * Retrieves the number of parents of a pass.
- * @param pass Cannot be NULL.
- */
-GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
-
-/**
- * Retrieves a parent of a pass.
- * @param pass   Cannot be NULL.
- * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
- */
-GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
-
-/**
- * TODO: Totally temporary!
- * Makes the pass render the given things.
- */
-GFX_API void gfx_pass_use(GFXPass* pass,
-                          GFXPrimitive* primitive,
-                          GFXTechnique* technique,
-                          GFXSet* set);
 
 
 /****************************
@@ -702,8 +693,20 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
 
 
 /****************************
- * Recorder handling.
+ * Recorder & recording commands.
  ****************************/
+
+/**
+ * Compute command flags.
+ */
+typedef enum GFXComputeFlags
+{
+	GFX_COMPUTE_ASYNC  = 0x0001,
+	GFX_COMPUTE_BEFORE = 0x0002,
+	GFX_COMPUTE_AFTER  = 0x0004 // Overrules GFX_COMPUTE_BEFORE.
+
+} GFXComputeFlags;
+
 
 /**
  * Adds a new recorder to the renderer.
@@ -713,9 +716,9 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
  * Thread-safe with respect to renderer,
  * as are all other functions related to this recorder.
  *
- * However, all of them CANNOT run during gfx_renderer_acquire or
+ * However, this function and gfx_erase_recorder CANNOT
+ * run during gfx_renderer_acquire or
  * during or inbetween gfx_frame_start and gfx_frame_submit.
- * Except ofcourse for any recording command :)
  */
 GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
 
@@ -724,6 +727,85 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
  * @param recorder Cannot be NULL.
  */
 GFX_API void gfx_erase_recorder(GFXRecorder* recorder);
+
+/**
+ * Records render commands within a given pass.
+ * The callback takes this recorder and the current virtual frame index.
+ * @param recorder Cannot be NULL.
+ * @param pass     Cannot be NULL.
+ * @param cb       Callback, cannot be NULL.
+ * @param ptr      User pointer as third argument of cb.
+ *
+ * Must be called inbetween gfx_frame_start and gfx_frame_submit!
+ * Different recorders can always call gfx_recorder_(render|compute)
+ * concurrently, with any arguments!
+ */
+GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
+                                 void (*cb)(GFXRecorder*, unsigned int, void*),
+                                 void* ptr);
+
+/**
+ * TODO: Draft; probably want to make explicit compute passes (or a pass type).
+ * Records compute commands within a given pass.
+ * The callback takes this recorder and the current virtual frame index.
+ * @see gfx_recorder_render.
+ *
+ * If GFX_COMPUTE_ASYNC is set, pass is ignored and the submission order
+ * is before/after all passes as defined by GFX_COMPUTE_(BEFORE|AFTER).
+ */
+GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
+                                  GFXPass* pass,
+                                  void (*cb)(GFXRecorder*, unsigned int, void*),
+                                  void* ptr);
+
+/**
+ * Render command to bind a render/descriptor set.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder  Cannot be NULL.
+ * @param technique Cannot be NULL.
+ * @param numSets   Must be > 0.
+ * @param sets      Cannot be NULL.
+ */
+GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
+                          size_t firstSet,
+                          size_t numSets, GFXSet** sets);
+
+/**
+ * Render command to record a non-indexed draw.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder   Cannot be NULL.
+ * @param renderable Cannot be NULL.
+ * @param vertices   Zero for the entire primitive.
+ * @param instances  Must be > 0.
+ */
+GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
+                          uint32_t firstVertex, uint32_t vertices,
+                          uint32_t firstInstance, uint32_t instances);
+
+/**
+ * Render command to record an indexed draw.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder   Cannot be NULL.
+ * @param renderable Cannot be NULL.
+ * @param indices    Zero for the entire primitive.
+ * @param instances  Must be > 0.
+ */
+GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderable,
+                                  uint32_t firstIndex, uint32_t indices,
+                                  int32_t vertexOffset,
+                                  uint32_t firstInstance, uint32_t instances);
+
+/**
+ * Compute command to record a compute dispatch.
+ * Can only be called within a callback of gfx_recorder_compute!
+ * @param recorder   Cannot be NULL.
+ * @param computable Cannot be NULL.
+ * @param groupX     Must be > 0.
+ * @param groupY     Must be > 0.
+ * @param groupZ     Must be > 0.
+ */
+GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
+                              uint32_t groupX, uint32_t groupY, uint32_t groupZ);
 
 
 /****************************
@@ -750,29 +832,27 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
 
 /**
  * Prepares the acquired virtual frame to start recording,
- * becomes a no-op if already started.
+ * appends all dependency injections if already started.
  * @param frame Cannot be NULL.
+ * @param deps  Cannot be NULL if numDeps > 0.
  *
  * The renderer (including its attachments, passes and sets) cannot be
  * modified after this call until gfx_frame_submit has returned!
  *
+ * All given dependency objects are referenced until gfx_frame_submit has
+ * returned. Signal commands only become visible after gfx_frame_submit and
+ * wait commands see all signal commands up until gfx_frame_submit.
+ *
  * Failure during starting cannot be recovered from,
  * any such failure is appropriately logged.
  */
-GFX_API void gfx_frame_start(GFXFrame* frame);
+GFX_API void gfx_frame_start(GFXFrame* frame,
+                             size_t numDeps, const GFXInject* deps);
 
 /**
- * TODO: Make gfx_frame_start takes the deps, store those, then call
- * _gfx_deps_catch, then let submit call _gfx_deps_prepare.
- * That way we can put draw() (or whatever) calls inbetween that ALSO modify
- * the dependency object :o !?
- * TODO: OR make gfx_frame_inject() just store GFXInject arrays for later
- * and only process them once the frame is submitted, same effect!
- *
  * Submits the acquired virtual frame of a renderer.
  * Implicitly starts if not yet done so.
  * @param frame Cannot be NULL, invalidated after this call!
- * @param deps  Cannot be NULL if numDeps > 0.
  *
  * All memory resources used to render a frame cannot be freed until the next
  * time this frame is acquired. The frames can be identified by their index.
@@ -780,8 +860,7 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
  * Failure during submission cannot be recovered from,
  * any such failure is appropriately logged.
  */
-GFX_API void gfx_frame_submit(GFXFrame* frame,
-                              size_t numDeps, const GFXInject* deps);
+GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 
 #endif

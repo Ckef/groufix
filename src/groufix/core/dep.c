@@ -36,7 +36,7 @@
 /****************************
  * TODO: Make this take multiple sync objs and merge them on equal stage masks?
  * Injects a pipeline/memory barrier, just as stored in a _GFXSync object.
- * Assumes exactly one of `sync->vk.buffer` and `sync->vk.image` is set.
+ * Assumes one of `sync->vk.buffer` or `sync->vk.image` is appropriately set.
  */
 static void _gfx_inject_barrier(VkCommandBuffer cmd,
                                 const _GFXSync* sync, _GFXContext* context)
@@ -46,7 +46,7 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 		VkImageMemoryBarrier imb;
 	} mb;
 
-	if (sync->vk.buffer != VK_NULL_HANDLE)
+	if (sync->ref.obj.buffer != NULL)
 		mb.bmb = (VkBufferMemoryBarrier){
 			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
 
@@ -86,8 +86,8 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 	context->vk.CmdPipelineBarrier(cmd,
 		sync->vk.srcStage, sync->vk.dstStage,
 		0, 0, NULL,
-		sync->vk.buffer != VK_NULL_HANDLE ? 1 : 0, &mb.bmb,
-		sync->vk.image != VK_NULL_HANDLE ? 1 : 0, &mb.imb);
+		sync->ref.obj.buffer != NULL ? 1 : 0, &mb.bmb,
+		sync->ref.obj.buffer == NULL ? 1 : 0, &mb.imb);
 }
 
 /****************************
@@ -424,7 +424,7 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore)
 }
 
 /****************************/
-GFX_API GFXDependency* gfx_create_dep(GFXDevice* device)
+GFX_API GFXDependency* gfx_create_dep(GFXDevice* device, unsigned int capacity)
 {
 	// Allocate a new dependency object.
 	GFXDependency* dep = malloc(sizeof(GFXDependency));
@@ -443,6 +443,7 @@ GFX_API GFXDependency* gfx_create_dep(GFXDevice* device)
 	_gfx_pick_family(dep->context, &dep->transfer, VK_QUEUE_TRANSFER_BIT, 0);
 
 	gfx_vec_init(&dep->syncs, sizeof(_GFXSync));
+	dep->waitCapacity = capacity;
 
 	return dep;
 
@@ -488,14 +489,6 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.sizes != NULL);
-
-	// Initialize the injection output.
-	// Must be done first so _gfx_deps_abort can be called.
-	injection->out.numWaits = 0;
-	injection->out.waits = NULL;
-	injection->out.numSigs = 0;
-	injection->out.sigs = NULL;
-	injection->out.stages = NULL;
 
 	// Context validation of all dependency objects.
 	// Only do this here as all other functions must be called with equal args.
@@ -555,13 +548,26 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
 		{
 			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
-			if (
-				sync->stage != _GFX_SYNC_PENDING ||
 
-				// Also silently filter out mismatching renderers!
-				(sync->ref.obj.renderer != NULL &&
+			// But first we quickly check if we can recycle any used objs!
+			if (sync->stage == _GFX_SYNC_USED && sync->waits > 0)
+				if ((--sync->waits) == 0)
+					sync->stage = _GFX_SYNC_UNUSED;
+
+			// Match against pending signals.
+			if (
+				sync->stage != _GFX_SYNC_PENDING &&
+				// Catch prepared signals from the same injection too!
+				(sync->stage != _GFX_SYNC_PREPARE || injection != sync->inj))
+			{
+				continue;
+			}
+
+			// Also silently filter out mismatching renderers!
+			if (
+				sync->ref.obj.renderer != NULL &&
 				injection->inp.renderer != NULL &&
-				injection->inp.renderer != sync->ref.obj.renderer))
+				injection->inp.renderer != sync->ref.obj.renderer)
 			{
 				continue;
 			}
@@ -615,8 +621,9 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			// We have a matching synchronization object, in other words,
 			// we are going to catch a signal command with this wait command.
 			// First put the object in the catch stage.
-			sync->stage = _GFX_SYNC_CATCH;
 			sync->inj = injection;
+			sync->stage = (sync->stage == _GFX_SYNC_PREPARE) ?
+				_GFX_SYNC_PREPARE_CATCH : _GFX_SYNC_CATCH;
 
 			// TODO: Maybe do something special with host read/write flags?
 			// Insert barrier to acquire ownership if necessary.
@@ -811,16 +818,16 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// put the object in the prepare stage.
 			sync->ref = refs[r];
 			sync->range = ranges[r];
-			sync->tag = 0;
+			sync->waits = injs[i].dep->waitCapacity; // Preemptively set.
 			sync->inj = injection;
 			sync->stage = _GFX_SYNC_PREPARE;
 			sync->flags = semaphore ? _GFX_SYNC_SEMAPHORE : 0;
 
 			// Manually unpack the destination access/stage/layout.
 			// TODO: What if the attachment isn't built yet?
-			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(refs[r]);
-			GFXFormat fmt = (refs[r].obj.image != NULL) ?
-				refs[r].obj.image->base.format :
+			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(sync->ref);
+			GFXFormat fmt = (sync->ref.obj.image != NULL) ?
+				sync->ref.obj.image->base.format :
 				(attach != NULL ? attach->base.format : GFX_FORMAT_EMPTY);
 
 			sync->vk.dstAccess =
@@ -829,7 +836,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, injs[i].stage, fmt);
 			sync->vk.newLayout =
 				// Undefined layout for buffers.
-				(refs[r].obj.buffer != NULL) ?
+				(sync->ref.obj.buffer != NULL) ?
 					VK_IMAGE_LAYOUT_UNDEFINED :
 					_GFX_GET_VK_IMAGE_LAYOUT(injs[i].mask, fmt);
 
@@ -855,9 +862,9 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// we do not want to transition!
 			// Meaning we can figure out if we want an acquire operation.
 			const GFXMemoryFlags mFlags =
-				refs[0].obj.buffer != NULL ? refs[0].obj.buffer->base.flags :
-				refs[0].obj.image != NULL ? refs[0].obj.image->base.flags :
-				refs[0].obj.renderer != NULL ? attach->base.flags : 0;
+				sync->ref.obj.buffer != NULL ? sync->ref.obj.buffer->base.flags :
+				sync->ref.obj.image != NULL ? sync->ref.obj.image->base.flags :
+				sync->ref.obj.renderer != NULL ? attach->base.flags : 0;
 
 			const bool concurrent = mFlags &
 				(GFX_MEMORY_COMPUTE_CONCURRENT |
@@ -873,13 +880,20 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			sync->vk.dstFamily = discard || concurrent ?
 				VK_QUEUE_FAMILY_IGNORED : family;
 
-			// Unpack VkBuffer & VkImage handles.
-			sync->vk.buffer = (refs[r].obj.buffer != NULL) ?
-				refs[r].obj.buffer->vk.buffer : VK_NULL_HANDLE;
+			// Unpack VkBuffer & VkImage handles for locality.
+			if (sync->ref.obj.buffer != NULL)
+				sync->vk.buffer = sync->ref.obj.buffer->vk.buffer;
+			else if (sync->ref.obj.image != NULL)
+				sync->vk.image = sync->ref.obj.image->vk.image;
+			else if (attach != NULL)
+				sync->vk.image = attach->vk.image;
+			else
+				// Should not happen.
+				sync->vk.buffer = VK_NULL_HANDLE;
 
-			sync->vk.image = (refs[r].obj.image != NULL) ?
-				refs[r].obj.image->vk.image :
-				(attach != NULL ? attach->vk.image : VK_NULL_HANDLE);
+			// TODO: Instead of always inserting a barrier here,
+			// when equal queues, postpone it to the catch, so we always
+			// stall barriers until they're actually necessary?
 
 			// Insert barrier if necessary:
 			// - Equal queues, need to insert dependency.
@@ -930,6 +944,9 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
 	free(injection->out.waits);
 	free(injection->out.sigs);
 	free(injection->out.stages);
+	injection->out.waits = NULL;
+	injection->out.sigs = NULL;
+	injection->out.stages = NULL;
 
 	// For aborting we loop over all synchronization objects of each
 	// command's dependency object. If it contains objects claimed by the
@@ -971,6 +988,9 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 	free(injection->out.waits);
 	free(injection->out.sigs);
 	free(injection->out.stages);
+	injection->out.waits = NULL;
+	injection->out.sigs = NULL;
+	injection->out.stages = NULL;
 
 	// To finish an injection, we loop over all synchronization objects of
 	// each command's dependency object. If it contains objects claimed by the
@@ -985,7 +1005,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
 			if (sync->inj == injection)
 			{
-				// If the object was prepared, it is now pending.
+				// If the object was only prepared, it is now pending.
 				// Otherwise it _must_ have been caught, in which case we
 				// advance it to used or unused.
 				// It only needs to be used if the semaphore was used,

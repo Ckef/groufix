@@ -59,8 +59,14 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 		_gfx_sync_frames(renderer);
 
 		for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-			_gfx_pass_destruct(
-				*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
+		{
+			GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+			_gfx_pass_destruct(pass);
+
+			// At this point we also sneakedly set the order of all passes
+			// so the recorders know what's up.
+			pass->order = (unsigned int)i;
+		}
 	}
 
 	// TODO: Here we analyze the graph for e.g. pass merging.

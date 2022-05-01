@@ -61,7 +61,7 @@ typedef struct _GFXBindingElem
 
 
 /****************************
- * Compares two shader resources, ignoring the location and/or set and binding.
+ * Compares two shader resources, ignoring the location/set/id and binding.
  * @return Non-zero if equal.
  */
 static inline bool _gfx_cmp_resources(const _GFXShaderResource* l,
@@ -324,7 +324,6 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
                                             size_t numShaders, GFXShader** shaders)
 {
 	assert(renderer != NULL);
-	assert(!renderer->recording);
 	assert(numShaders > 0);
 	assert(shaders != NULL);
 
@@ -471,6 +470,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	tech->pushSize = pushSize;
 	tech->pushStages = pushStages;
 	tech->layout = NULL;
+	tech->vk.layout = VK_NULL_HANDLE;
 	memcpy(tech->shaders, shads, sizeof(shads));
 
 	for (size_t l = 0; l < tech->numSets; ++l)
@@ -499,7 +499,6 @@ error:
 GFX_API void gfx_erase_tech(GFXTechnique* technique)
 {
 	assert(technique != NULL);
-	assert(!technique->renderer->recording);
 
 	GFXRenderer* renderer = technique->renderer;
 
@@ -530,7 +529,6 @@ GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
                                size_t numSamplers, const GFXSampler* samplers)
 {
 	assert(technique != NULL);
-	assert(!technique->renderer->recording);
 	assert(set < technique->numSets);
 	assert(numSamplers > 0);
 	assert(samplers != NULL);
@@ -601,7 +599,6 @@ GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
                               size_t binding)
 {
 	assert(technique != NULL);
-	assert(!technique->renderer->recording);
 	assert(set < technique->numSets);
 
 	// Skip if already locked.
@@ -634,7 +631,6 @@ GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
 GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 {
 	assert(technique != NULL);
-	assert(!technique->renderer->recording);
 
 	GFXRenderer* renderer = technique->renderer;
 
@@ -835,6 +831,9 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 		if (technique->layout == NULL)
 			goto reset;
 	}
+
+	// Set `vk.layout` for locality!
+	technique->vk.layout = technique->layout->vk.layout;
 
 	// And finally, get rid of the samplers, once we've successfully locked
 	// we already created and used all samplers and cannot unlock.

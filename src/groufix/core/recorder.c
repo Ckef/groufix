@@ -12,6 +12,17 @@
 
 
 /****************************
+ * Recording command buffer element definition.
+ */
+typedef struct _GFXCmdElem
+{
+	unsigned int    order; // Pass order.
+	VkCommandBuffer cmd;
+
+} _GFXCmdElem;
+
+
+/****************************
  * Spin-locks a renderable for pipeline retrieval.
  */
 static inline void _gfx_renderable_lock(GFXRenderable* renderable)
@@ -84,6 +95,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	const void* handles[_GFX_NUM_SHADER_STAGES + 2];
 	uint32_t numShaders = 0;
 
+	// TODO: Use other handles so shaders can be destroyed?
 	// Set & validate hashing handles.
 	for (uint32_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
 		if (tech->shaders[s] != NULL)
@@ -141,7 +153,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		.flags              = 0,
 		.stageCount         = numShaders,
 		.pStages            = pstci,
-		.layout             = tech->layout->vk.layout,
+		.layout             = tech->vk.layout,
 		.renderPass         = pass->vk.pass,
 		.subpass            = 0,
 		.basePipelineHandle = VK_NULL_HANDLE,
@@ -308,6 +320,7 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 	GFXTechnique* tech = computable->technique;
 	const void* handles[2];
 
+	// TODO: Use other shader handle so the shader can be destroyed?
 	// Set & validate hashing handles.
 	handles[0] = tech->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)];
 	handles[1] = tech->layout;
@@ -324,7 +337,7 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 
 		.pNext              = NULL,
 		.flags              = 0,
-		.layout             = tech->layout->vk.layout,
+		.layout             = tech->vk.layout,
 		.basePipelineHandle = VK_NULL_HANDLE,
 		.basePipelineIndex  = -1,
 
@@ -360,28 +373,247 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 	}
 }
 
+/****************************
+ * Claims (or creates) a command buffer from the current recording pool.
+ * To unclaim, the current pool's used count should be decreased.
+ * @param recorder Cannot be NULL.
+ * @return The command buffer, NULL on failure.
+ */
+static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	_GFXContext* context = recorder->context;
+	_GFXRecorderPool* pool = &recorder->pools[recorder->current];
+
+	// If we still have enough command buffers, return the next one.
+	if (pool->used < pool->vk.cmds.size)
+		// Immediately increase used counter.
+		return *(VkCommandBuffer*)gfx_vec_at(&pool->vk.cmds, pool->used++);
+
+	// Otherwise, allocate a new one.
+	if (!gfx_vec_push(&pool->vk.cmds, 1, NULL))
+		return NULL;
+
+	VkCommandBufferAllocateInfo cbai = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+
+		.pNext              = NULL,
+		.commandPool        = pool->vk.pool,
+		.level              = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+		.commandBufferCount = 1
+	};
+
+	VkCommandBuffer* cmd = gfx_vec_at(&pool->vk.cmds, pool->used);
+	_GFX_VK_CHECK(
+		context->vk.AllocateCommandBuffers(
+			context->vk.device, &cbai, cmd),
+		{
+			gfx_vec_pop(&pool->vk.cmds, 1);
+			return NULL;
+		});
+
+	// Increase used counter & return.
+	++pool->used;
+	return *cmd;
+}
+
+/****************************
+ * Binds a graphics pipeline to the current recording.
+ * @param recorder   Cannot be NULL, assumed to be in a callback.
+ * @param renderable Cannot be NULL, assumed to be validated.
+ * @return Zero on failure.
+ */
+static bool _gfx_recorder_bind_renderable(GFXRecorder* recorder,
+                                          GFXRenderable* renderable)
+{
+	assert(recorder != NULL);
+	assert(renderable != NULL);
+
+	_GFXContext* context = recorder->context;
+
+	// Get pipeline from renderable.
+	_GFXCacheElem* elem;
+	if (!_gfx_renderable_pipeline(renderable, &elem, 0))
+		return 0;
+
+	// Bind as graphics pipeline.
+	if (recorder->bind.gPipeline != elem)
+	{
+		recorder->bind.gPipeline = elem;
+		context->vk.CmdBindPipeline(recorder->inp.cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS, elem->vk.pipeline);
+	}
+
+	return 1;
+}
+
+/****************************
+ * Binds a compute pipeline to the current recording.
+ * @param recorder   Cannot be NULL, assumed to be in a callback.
+ * @param computable Cannot be NULL, assumed to be validated.
+ * @return Zero on failure.
+ */
+static bool _gfx_recorder_bind_computable(GFXRecorder* recorder,
+                                          GFXComputable* computable)
+{
+	assert(recorder != NULL);
+	assert(computable != NULL);
+
+	_GFXContext* context = recorder->context;
+
+	// Get pipeline from computable.
+	_GFXCacheElem* elem;
+	if (!_gfx_computable_pipeline(computable, &elem, 0))
+		return 0;
+
+	// Bind as compute pipeline.
+	if (recorder->bind.cPipeline != elem)
+	{
+		recorder->bind.cPipeline = elem;
+		context->vk.CmdBindPipeline(recorder->inp.cmd,
+			VK_PIPELINE_BIND_POINT_COMPUTE, elem->vk.pipeline);
+	}
+
+	return 1;
+}
+
+/****************************
+ * Binds a vertex and/or index buffer to the current recording.
+ * @param recorder   Cannot be NULL, assumed to be in a callback.
+ * @param renderable Cannot be NULL, assumed to be validated.
+ */
+static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
+                                         GFXRenderable* renderable)
+{
+	assert(recorder != NULL);
+	assert(renderable != NULL);
+
+	_GFXContext* context = recorder->context;
+
+	// Bind vertex & index buffers.
+	_GFXPrimitive* prim = (_GFXPrimitive*)renderable->primitive;
+	if (prim != NULL && recorder->bind.primitive != prim)
+	{
+		recorder->bind.primitive = prim;
+		VkBuffer vertexBuffs[prim->numBindings];
+		VkDeviceSize vertexOffsets[prim->numBindings];
+
+		for (size_t i = 0; i < prim->numBindings; ++i)
+			vertexBuffs[i] = prim->bindings[i].buffer->vk.buffer,
+			vertexOffsets[i] = prim->bindings[i].offset;
+
+		context->vk.CmdBindVertexBuffers(recorder->inp.cmd,
+			0, (uint32_t)prim->numBindings,
+			vertexBuffs, vertexOffsets);
+
+		if (prim->base.numIndices > 0)
+		{
+			_GFXUnpackRef index =
+				_gfx_ref_unpack(gfx_ref_prim_indices(&prim->base));
+
+			context->vk.CmdBindIndexBuffer(recorder->inp.cmd,
+				index.obj.buffer->vk.buffer,
+				index.value,
+				prim->base.indexSize == sizeof(uint16_t) ?
+					VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+		}
+	}
+}
+
+/****************************
+ * Outputs a command buffer of a specific submission order.
+ * @param recorder Cannot be NULL.
+ * @param elem     Command buffer + order to output.
+ * @return Zero on failure.
+ */
+static bool _gfx_recorder_output(GFXRecorder* recorder, const _GFXCmdElem* elem)
+{
+	// Find the right spot to insert at.
+	// We assume the most prevelant way of recording stuff is in submission
+	// order. Which would make backwards linear search perfect.
+	size_t loc;
+	for (loc = recorder->out.cmds.size; loc > 0; --loc)
+	{
+		unsigned int order =
+			((_GFXCmdElem*)gfx_vec_at(&recorder->out.cmds, loc-1))->order;
+
+		if (order <= elem->order)
+			break;
+	}
+
+	// Insert at found position.
+	return gfx_vec_insert(&recorder->out.cmds, 1, elem, loc);
+}
+
 /****************************/
 bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 {
 	assert(recorder != NULL);
 	assert(frame < recorder->renderer->numFrames);
 
-	_GFXContext* context = recorder->renderer->allocator.context;
+	_GFXContext* context = recorder->context;
 
-	// No command buffers are in use anymore.
-	recorder->current = &recorder->pools[frame];
-	recorder->current->used = 0;
+	// Set new current index & clear output.
+	recorder->current = frame;
+	gfx_vec_release(&recorder->out.cmds);
 
 	// Try to reset the command pool.
 	_GFX_VK_CHECK(
 		context->vk.ResetCommandPool(
-			context->vk.device, recorder->current->vk.pool, 0),
+			context->vk.device, recorder->pools[frame].vk.pool, 0),
 		{
-			gfx_log_fatal("Resetting of recorder failed.");
+			gfx_log_warn("Resetting of recorder failed.");
 			return 0;
 		});
 
+	// TODO: Maybe here or somewhere else; free buffers we're not using.
+
+	// No command buffers are in use anymore.
+	recorder->pools[frame].used = 0;
+
 	return 1;
+}
+
+/****************************/
+void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
+                          VkCommandBuffer cmd)
+{
+	assert(recorder != NULL);
+	assert(cmd != NULL);
+
+	_GFXContext* context = recorder->context;
+
+	// Do a binary search to find the left-most command buffer of this order.
+	size_t l = 0;
+	size_t r = recorder->out.cmds.size;
+
+	while (l < r)
+	{
+		const size_t p = (l + r) >> 1;
+		const _GFXCmdElem* e = gfx_vec_at(&recorder->out.cmds, p);
+
+		if (e->order < order) l = p + 1;
+		else r = p;
+	}
+
+	// Then find the right-most command buffer of this order.
+	while (r < recorder->out.cmds.size)
+	{
+		const _GFXCmdElem* e = gfx_vec_at(&recorder->out.cmds, r);
+		if (e->order > order) break;
+		else ++r;
+	}
+
+	// Finally record them all into the given command buffer.
+	if (r > l)
+	{
+		VkCommandBuffer buffs[r-l];
+		for (size_t i = l; i < r; ++i) buffs[i-l] =
+			((_GFXCmdElem*)gfx_vec_at(&recorder->out.cmds, i))->cmd;
+
+		context->vk.CmdExecuteCommands(cmd, (uint32_t)(r-l), buffs);
+	}
 }
 
 /****************************/
@@ -474,6 +706,7 @@ GFX_API bool gfx_computable_warmup(GFXComputable* computable)
 GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
+	assert(!renderer->recording);
 
 	_GFXContext* context = renderer->allocator.context;
 
@@ -511,7 +744,11 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 
 	// Initialize the rest of the pools.
 	rec->renderer = renderer;
-	rec->current = NULL;
+	rec->context = context;
+	rec->current = 0;
+	rec->inp.pass = NULL;
+	rec->inp.cmd = NULL;
+	gfx_vec_init(&rec->out.cmds, sizeof(_GFXCmdElem));
 
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
@@ -523,7 +760,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// If it does, we take its index to set the current pool.
 	// Note that this is not thread-safe with frame operations!
 	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-		rec->current = &rec->pools[renderer->pFrame.index];
+		rec->current = renderer->pFrame.index;
 
 	// Init subordinate & link the recorder into the renderer.
 	// Modifying the renderer, lock!
@@ -548,6 +785,7 @@ error:
 GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 {
 	assert(recorder != NULL);
+	assert(!recorder->renderer->recording);
 
 	GFXRenderer* renderer = recorder->renderer;
 
@@ -571,5 +809,276 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 		gfx_vec_clear(&recorder->pools[i].vk.cmds);
 
+	gfx_vec_clear(&recorder->out.cmds);
 	free(recorder);
+}
+
+/****************************/
+GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
+                                 void (*cb)(GFXRecorder*, unsigned int, void*),
+                                 void* ptr)
+{
+	assert(recorder != NULL);
+	assert(recorder->renderer->recording);
+	assert(pass != NULL);
+	assert(pass->renderer == recorder->renderer);
+	assert(cb != NULL);
+
+	GFXRenderer* rend = recorder->renderer;
+	_GFXContext* context = recorder->context;
+
+	// Firstly, claim a command buffer to use.
+	VkCommandBuffer cmd = _gfx_recorder_claim(recorder);
+	if (cmd == NULL) goto error;
+
+	// Start recording with it.
+	VkCommandBufferBeginInfo cbbi = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+
+		.pNext = NULL,
+		.flags =
+			VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT |
+			VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
+
+		.pInheritanceInfo = (VkCommandBufferInheritanceInfo[]){{
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+
+			.pNext       = NULL,
+			.renderPass  = pass->vk.pass,
+			.subpass     = 0,
+			.framebuffer = _gfx_pass_framebuffer(pass, &rend->pFrame),
+
+			.occlusionQueryEnable = VK_FALSE,
+			.queryFlags           = 0,
+			.pipelineStatistics   = 0
+		}}
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.BeginCommandBuffer(cmd, &cbbi),
+		goto error);
+
+	// Set viewport & scissor state.
+	// TODO: Define public GFXRenderArea with a GFXSizeClass?
+	VkViewport viewport = {
+		.x        = 0.0f,
+		.y        = 0.0f,
+		.width    = (float)pass->build.fWidth,
+		.height   = (float)pass->build.fHeight,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
+
+	VkRect2D scissor = {
+		.offset = { 0, 0 },
+		.extent = {
+			pass->build.fWidth,
+			pass->build.fHeight
+		}
+	};
+
+	context->vk.CmdSetViewport(cmd, 0, 1, &viewport);
+	context->vk.CmdSetScissor(cmd, 0, 1, &scissor);
+
+	// Set recording input, record, unset input.
+	recorder->inp.pass = pass;
+	recorder->inp.cmd = cmd;
+	recorder->bind.gPipeline = NULL;
+	recorder->bind.cPipeline = NULL;
+	recorder->bind.primitive = NULL;
+
+	cb(recorder, recorder->current, ptr);
+
+	recorder->inp.pass = NULL;
+	recorder->inp.cmd = NULL;
+
+	_GFX_VK_CHECK(
+		context->vk.EndCommandBuffer(cmd),
+		goto error);
+
+	// Now insert the command buffer in its correct position.
+	// Which is in submission order of the passes.
+	_GFXCmdElem elem = {
+		.order = pass->order,
+		.cmd = cmd
+	};
+
+	if (!_gfx_recorder_output(recorder, &elem))
+		goto error;
+
+	return;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Recorder failed to record render commands.");
+}
+
+/****************************/
+GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
+                                  GFXPass* pass,
+                                  void (*cb)(GFXRecorder*, unsigned int, void*),
+                                  void* ptr)
+{
+	assert(recorder != NULL);
+	assert(recorder->renderer->recording);
+	assert(flags & GFX_COMPUTE_ASYNC || pass != NULL);
+	assert(pass == NULL || pass->renderer == recorder->renderer);
+	assert(cb != NULL);
+
+	// TODO: Implement.
+}
+
+/****************************/
+GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
+                          size_t firstSet,
+                          size_t numSets, GFXSet** sets)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	assert(technique != NULL);
+	assert(technique->renderer == recorder->renderer);
+	assert(numSets > 0);
+	assert(sets != NULL);
+	assert(firstSet + numSets <= technique->numSets);
+
+	_GFXContext* context = recorder->context;
+
+	// Get all the Vulkan descriptor sets.
+	VkDescriptorSet dSets[numSets];
+	for (size_t s = 0; s < numSets; ++s)
+	{
+		_GFXPoolElem* elem = _gfx_set_get(sets[s], &recorder->sub);
+		if (elem == NULL)
+		{
+			gfx_log_error(
+				"Failed to get Vulkan descriptor set during bind command; "
+				"command not recorded.");
+
+			return;
+		}
+
+		dSets[s] = elem->vk.set;
+	}
+
+	// Perform the bind command.
+	// TODO: Take dynamic offsets from input.
+	const VkPipelineBindPoint bindPoint =
+		technique->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)] == NULL ?
+		VK_PIPELINE_BIND_POINT_GRAPHICS :
+		VK_PIPELINE_BIND_POINT_COMPUTE;
+
+	context->vk.CmdBindDescriptorSets(recorder->inp.cmd,
+		bindPoint, technique->vk.layout,
+		(uint32_t)firstSet, (uint32_t)numSets, dSets,
+		0, NULL);
+}
+
+/****************************/
+GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
+                          uint32_t firstVertex, uint32_t vertices,
+                          uint32_t firstInstance, uint32_t instances)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	assert(renderable != NULL);
+	assert(renderable->pass == recorder->inp.pass);
+	assert(renderable->technique != NULL);
+	assert(vertices > 0 || renderable->primitive != NULL);
+	assert(instances > 0);
+	assert(renderable->primitive == NULL ||
+		(firstVertex + vertices <= renderable->primitive->numVertices));
+
+	_GFXContext* context = recorder->context;
+
+	// Take entire primitive if asked.
+	if (vertices == 0)
+		vertices = renderable->primitive->numVertices - firstVertex;
+
+	// Bind pipeline.
+	if (!_gfx_recorder_bind_renderable(recorder, renderable))
+	{
+		gfx_log_error(
+			"Failed to get Vulkan graphics pipeline during draw command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Bind primitive.
+	_gfx_recorder_bind_primitive(recorder, renderable);
+
+	// Perform the draw command.
+	context->vk.CmdDraw(recorder->inp.cmd,
+		vertices, instances, firstVertex, firstInstance);
+}
+
+/****************************/
+GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderable,
+                                  uint32_t firstIndex, uint32_t indices,
+                                  int32_t vertexOffset,
+                                  uint32_t firstInstance, uint32_t instances)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	assert(renderable != NULL);
+	assert(renderable->pass == recorder->inp.pass);
+	assert(renderable->technique != NULL);
+	assert(indices > 0 || renderable->primitive != NULL);
+	assert(instances > 0);
+	assert(renderable->primitive == NULL ||
+		(firstIndex + indices <= renderable->primitive->numIndices));
+
+	_GFXContext* context = recorder->context;
+
+	// Take entire primitive if asked.
+	if (indices == 0)
+		indices = renderable->primitive->numIndices - firstIndex;
+
+	// Bind pipeline.
+	if (!_gfx_recorder_bind_renderable(recorder, renderable))
+	{
+		gfx_log_error(
+			"Failed to get Vulkan graphics pipeline during draw command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Bind primitive.
+	_gfx_recorder_bind_primitive(recorder, renderable);
+
+	// Perform the draw command.
+	context->vk.CmdDrawIndexed(recorder->inp.cmd,
+		indices, instances, firstIndex, vertexOffset, firstInstance);
+}
+
+/****************************/
+GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
+                              uint32_t groupX, uint32_t groupY, uint32_t groupZ)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	// TODO: Check that the input pass is a compute pass?
+	assert(computable != NULL);
+	assert(computable->technique != NULL);
+	assert(computable->technique->renderer == recorder->renderer);
+	assert(groupX > 0);
+	assert(groupY > 0);
+	assert(groupZ > 0);
+
+	_GFXContext* context = recorder->context;
+
+	// Bind pipeline.
+	if (!_gfx_recorder_bind_computable(recorder, computable))
+	{
+		gfx_log_error(
+			"Failed to get Vulkan compute pipeline during dispatch command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Perform the dispatch command.
+	context->vk.CmdDispatch(recorder->inp.cmd, groupX, groupY, groupZ);
 }

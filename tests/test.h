@@ -125,9 +125,10 @@
 
 
 /**
- * Default event handlers.
+ * Default event handlers & callbacks.
  */
 #define TEST_EVT_KEY_RELEASE _test_key_release
+#define TEST_CALLBACK_RENDER _test_default_render
 
 
 /**
@@ -140,11 +141,14 @@ typedef struct TestBase
 	GFXHeap*       heap;
 	GFXDependency* dep;
 	GFXRenderer*   renderer; // Window is attached at index 0.
+	GFXRecorder*   recorder;
 	GFXPrimitive*  primitive;
 	GFXShader*     vertex;
 	GFXShader*     fragment;
 	GFXTechnique*  technique;
 	GFXSet*        set;
+	GFXPass*       pass;
+	GFXRenderable  renderable;
 
 } TestBase;
 
@@ -181,11 +185,14 @@ static TestBase _test_base =
 	.heap = NULL,
 	.dep = NULL,
 	.renderer = NULL,
+	.recorder = NULL,
 	.primitive = NULL,
 	.vertex = NULL,
 	.fragment = NULL,
 	.technique = NULL,
-	.set = NULL
+	.set = NULL,
+	.pass = NULL,
+	.renderable = { NULL, NULL, NULL }
 };
 
 
@@ -328,6 +335,17 @@ static void _test_key_release(GFXWindow* window,
 }
 
 /**
+ * Default render callback.
+ */
+static void _test_default_render(GFXRecorder* recorder,
+                                 unsigned int frame, void* ptr)
+{
+	// Record stuff.
+	gfx_cmd_bind(recorder, _test_base.technique, 0, 1, &_test_base.set);
+	gfx_cmd_draw_indexed(recorder, &_test_base.renderable, 0, 0, 0, 0, 1);
+}
+
+/**
  * Initializes the test base program.
  */
 static void _test_init(TestState* _test_state)
@@ -355,7 +373,7 @@ static void _test_init(TestState* _test_state)
 	if (_test_base.heap == NULL)
 		TEST_FAIL();
 
-	_test_base.dep = gfx_create_dep(_test_base.device);
+	_test_base.dep = gfx_create_dep(_test_base.device, 2);
 	if (_test_base.dep == NULL)
 		TEST_FAIL();
 
@@ -365,6 +383,11 @@ static void _test_init(TestState* _test_state)
 		TEST_FAIL();
 
 	if (!gfx_renderer_attach_window(_test_base.renderer, 0, _test_base.window))
+		TEST_FAIL();
+
+	// Add a single recorder.
+	_test_base.recorder = gfx_renderer_add_recorder(_test_base.renderer);
+	if (_test_base.recorder == NULL)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
@@ -558,16 +581,16 @@ static void _test_init(TestState* _test_state)
 		TEST_FAIL();
 
 	// Add a single pass that writes to the window.
-	GFXPass* pass = gfx_renderer_add_pass(_test_base.renderer, 0, NULL);
-	if (pass == NULL)
+	_test_base.pass = gfx_renderer_add_pass(_test_base.renderer, 0, NULL);
+	if (_test_base.pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_consume(pass, 0, GFX_ACCESS_ATTACHMENT_WRITE, 0))
+	if (!gfx_pass_consume(_test_base.pass, 0, GFX_ACCESS_ATTACHMENT_WRITE, 0))
 		TEST_FAIL();
 
-	// Make it render the thing.
-	gfx_pass_use(pass,
-		_test_base.primitive, _test_base.technique, _test_base.set);
+	// Init the default renderable.
+	gfx_renderable(&_test_base.renderable,
+		_test_base.pass, _test_base.technique, _test_base.primitive);
 #endif
 }
 

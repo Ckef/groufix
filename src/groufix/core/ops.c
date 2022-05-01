@@ -450,12 +450,14 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 		goto unlock;
 	}
 
-	// Fill in injection metadata family queue.
-	injection->inp.family = pool->queue.family;
-
 	// Set the staging buffer if not blocking, so it gets freed at some point.
 	if (staging != NULL && !(flags & GFX_TRANSFER_BLOCK))
 		transfer->staging = staging;
+
+	// Fill in injection metadata family queue & start the injection.
+	injection->inp.family = pool->queue.family;
+
+	_gfx_injection(injection);
 
 	// Record the command buffer, we check all src/dst resource type
 	// combinations and perform the appropriate copy command.

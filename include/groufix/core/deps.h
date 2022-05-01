@@ -56,10 +56,26 @@ typedef struct GFXDependency GFXDependency;
 
 /**
  * Creates a dependency object.
- * @param device NULL is equivalent to gfx_get_primary_device().
+ * @param device   NULL is equivalent to gfx_get_primary_device().
+ * @param capacity Wait capacity of the dependency object.
  * @return NULL on failure.
+ *
+ * @capacity:
+ * When a dependency is formed between operations that do not operate on the
+ * same underlying Vulkan queue, internal semaphores are created.
+ * (this can happen between async and non-async operations).
+ *
+ * These internal semaphores are recycled after N (capacity) wait commands.
+ * In other words: the dependency object can hold `capacity` concurrent
+ * wait commands of which the operation that the commands are inserted in
+ * are not yet completed.
+ * Once an operation that waited on this dependency is finished,
+ * we are allowed to insert another wait command into this dependency object.
+ *
+ * capacity can be 0 (infinite) to _never_ recycle any internal semaphores,
+ * their memory will be stale until the dependency object is destroyed!
  */
-GFX_API GFXDependency* gfx_create_dep(GFXDevice* device);
+GFX_API GFXDependency* gfx_create_dep(GFXDevice* device, unsigned int capacity);
 
 /**
  * Destroys a dependency object.

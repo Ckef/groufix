@@ -677,10 +677,39 @@ struct GFXRecorder
 {
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
-	_GFXPoolSub  sub;  // For descriptor access.
+	_GFXContext* context; // For locality.
+	_GFXPoolSub  sub;     // For descriptor access.
 
-	_GFXRecorderPool* current; // Current frame's pool, or NULL.
-	_GFXRecorderPool  pools[]; // One for each virtual frame.
+
+	// Recording input.
+	struct
+	{
+		GFXPass*        pass;
+		VkCommandBuffer cmd;
+
+	} inp;
+
+
+	// Current bindings.
+	struct
+	{
+		_GFXCacheElem* gPipeline;
+		_GFXCacheElem* cPipeline;
+		_GFXPrimitive* primitive;
+
+	} bind;
+
+
+	// Recording output.
+	struct
+	{
+		GFXVec cmds; // Stores { unsigned int, VkCommandBuffer } (sorted).
+
+	} out;
+
+
+	unsigned int     current; // Current virtual frame index.
+	_GFXRecorderPool pools[]; // One for each virtual frame.
 };
 
 
@@ -708,6 +737,7 @@ struct GFXRenderer
 	GFXDeque stales; // Stores { unsigned int, (Vk*)+ }.
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
+	GFXVec   pDeps;  // Stores GFXInject, from pFrame start.
 
 
 	// Render backing (i.e. attachments).
@@ -754,6 +784,7 @@ struct GFXPass
 {
 	GFXRenderer* renderer;
 	unsigned int level; // Determines submission order.
+	unsigned int order; // Actual submission order.
 	uintmax_t    gen;   // Build generation (to invalidate pipelines).
 
 	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.
@@ -762,15 +793,11 @@ struct GFXPass
 	// Building output (can be invalidated).
 	struct
 	{
-		size_t backing; // Window attachment index (or SIZE_MAX).
+		size_t   backing; // Window attachment index (or SIZE_MAX).
+		uint32_t fWidth;
+		uint32_t fHeight;
 
 		_GFXCacheElem* pass;
-
-		// TODO: Super temporary!!
-		_GFXPoolSub sub;
-		_GFXPrimitive* primitive;
-		GFXTechnique* technique;
-		GFXSet* set;
 
 	} build;
 
@@ -780,7 +807,6 @@ struct GFXPass
 	{
 		VkRenderPass pass;         // For locality.
 		GFXVec       framebuffers; // Stores VkFramebuffer.
-		VkPipeline   pipeline;     // TODO: Temporary!!
 
 	} vk;
 
@@ -808,6 +834,15 @@ struct GFXTechnique
 	GFXVec samplers;  // Stores { size_t set, GFXSampler }, temporary!
 	GFXVec immutable; // Stores { size_t set, size_t binding }.
 	GFXVec dynamic;   // Stores { size_t set, size_t binding }.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkPipelineLayout layout; // For locality.
+
+	} vk;
+
 
 	_GFXCacheElem* layout;       // Pipeline layout, NULL until locked.
 	_GFXCacheElem* setLayouts[]; // Set layouts (sorted), all NULL until locked.
@@ -854,8 +889,8 @@ typedef struct _GFXSetBinding
 	VkDescriptorType type;     // Undefined if empty.
 	GFXViewType      viewType; // Undefined if not a non-attachment image.
 
-	size_t        count;    // 0 = empty binding.
-	_GFXSetEntry* entries;  // NULL if empty or immutable samplers only.
+	size_t        count;   // 0 = empty binding.
+	_GFXSetEntry* entries; // NULL if empty or immutable samplers only.
 
 } _GFXSetBinding;
 
@@ -1031,7 +1066,7 @@ typedef struct _GFXSync
 {
 	_GFXUnpackRef ref;
 	GFXRange      range; // Unpacked, i.e. normalized offset & non-zero size.
-	uintmax_t     tag;   // So we can recycle, 0 = yet untagged.
+	unsigned int  waits; // #wait commands left to recycle (if used).
 
 	// TODO: Keep track of used attachment `generation`?
 
@@ -1044,6 +1079,7 @@ typedef struct _GFXSync
 	{
 		_GFX_SYNC_UNUSED, // Everything but `vk.signaled` is undefined.
 		_GFX_SYNC_PREPARE,
+		_GFX_SYNC_PREPARE_CATCH, // Within the same injection.
 		_GFX_SYNC_PENDING,
 		_GFX_SYNC_CATCH,
 		_GFX_SYNC_USED
@@ -1077,8 +1113,10 @@ typedef struct _GFXSync
 		VkPipelineStageFlags dstStage;
 
 		// Unpacked for locality.
-		VkBuffer buffer;
-		VkImage  image;
+		union {
+			VkBuffer buffer;
+			VkImage  image;
+		};
 
 	} vk;
 
@@ -1094,6 +1132,8 @@ struct GFXDependency
 	GFXVec       syncs; // Stores _GFXSync.
 	_GFXMutex    lock;
 
+	unsigned int waitCapacity;
+
 	// Vulkan family indices.
 	uint32_t graphics;
 	uint32_t compute;
@@ -1102,9 +1142,20 @@ struct GFXDependency
 
 
 /**
- * TODO: Somehow generate or pass a tag for recycling.
- * Starts a new dependency injection by catching pending signal commands.
+ * Starts a new dependency injection (initializes output metadata).
  * The object pointed to by injection cannot be moved or copied!
+ */
+static inline void _gfx_injection(_GFXInjection* injection)
+{
+	injection->out.numWaits = 0;
+	injection->out.waits = NULL;
+	injection->out.numSigs = 0;
+	injection->out.sigs = NULL;
+	injection->out.stages = NULL;
+}
+
+/**
+ * Completes dependency injections by catching pending signal commands.
  * @param context   Cannot be NULL.
  * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
  * @param numInjs   Number of given injection commands.
@@ -1113,11 +1164,17 @@ struct GFXDependency
  * @param Zero on failure, must call _gfx_deps_abort.
  *
  * Thread-safe with respect to all dependency objects!
- * Either `_gfx_deps_abort` or `_gfx_deps_finish` must be called with the same
- * injection object (and other inputs) to appropriately cleanup and free all
- * metadata. Note: this call itself can only be called once!
  *
- * All output arrays in injection may be externally realloc'd,
+ * Can be called any number of times using the same injection metadata.
+ * However, after the first call to `_gfx_deps_abort` or `_gfx_deps_finish`,
+ * neither `_gfx_deps_catch` nor `_gfx_deps_prepare` can be called anymore.
+ *
+ * Every call to _gfx_deps_catch must be followed with a call (taking the same
+ * injection metadata and other inputs) to _gfx_deps_prepare, and then to
+ * either _gfx_deps_abort OR _gfx_deps_finish.
+ *
+ * Right before the first call to _gfx_deps_abort or _gfx_deps_finish,
+ * all output arrays in injection may be externally realloc'd,
  * they will be properly freed when aborted or finished.
  */
 bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
@@ -1125,24 +1182,29 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
                      _GFXInjection* injection);
 
 /**
- * Injects dependencies by preparing new signal commands.
+ * Starts dependency injections by preparing new signal commands.
  * @param blocking Non-zero to indicate the operation is blocking.
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * Must have succesfully returned from _gfx_deps_catch with injection as
- * argument before calling, as must all other inputs be the same.
+ *
+ * All commands are _always_ already visible to subsequent calls to
+ * _gfx_deps_catch taking the same injection metadata.
  */
 bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
                        size_t numInjs, const GFXInject* injs,
                        _GFXInjection* injection);
 
 /**
- * Aborts a dependency injection, freeing all data.
+ * Aborts a dependency injection, cleaning all metadata.
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * The content of injection is invalidated after this call.
+ * The contents of injection is invalidated after this call.
+ *
+ * Each injection metadata object may only be called with
+ * either _gfx_deps_abort OR _gfx_deps_catch for ALL calls.
+ * NEVER can both be used in the same injection!
  */
 void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
                      _GFXInjection* injection);
@@ -1153,7 +1215,7 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * The content of injection is invalidated after this call.
+ * The contents of injection is invalidated after this call.
  */
 void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection);
@@ -1235,13 +1297,12 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
  * Must be called exactly once for each call to _gfx_frame_acquire.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
- * @param deps     Cannot be NULL if numDeps > 0.
  * @return Zero if the frame could not be submitted.
  *
+ * This will consume (not erase) all elements in renderer->pDeps!
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
-bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame,
-                       size_t numDeps, const GFXInject* deps);
+bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Blocks until all virtual frames of a renderer are done.
@@ -1377,12 +1438,20 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 void _gfx_pass_destruct(GFXPass* pass);
 
 /**
- * TODO: Temporary probably.
+ * Retrieves the current framebuffer of a pass with respect to a frame.
+ * @param pass  Cannot be NULL.
+ * @param frame Cannot be NULL.
+ * @return VK_NULL_HANDLE if unknown.
+ */
+VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
+
+/**
  * Records the pass into the command buffers of a frame.
  * The frame's command buffers must be in the recording state (!).
  * @param pass  Cannot be NULL.
  * @param frame Cannot be NULL, must be of the same renderer as pass.
  *
+ * Internally calls _gfx_recorder_record for all recorders!
  * No-op if the pass is not built.
  */
 void _gfx_pass_record(GFXPass* pass, GFXFrame* frame);
@@ -1424,10 +1493,18 @@ bool _gfx_push_stale(GFXRenderer* renderer,
  * @param recorder Cannot be NULL.
  * @param frame    Index of the frame to reset buffers of.
  * @return Non-zero if successfully reset.
- *
- * Failure is considered fatal, command buffers cannot be used.
  */
 bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame);
+
+/**
+ * Records the recording output of a recorder into a given command buffer.
+ * The command buffer must be in the recording state (!).
+ * @param recorder  Cannot be NULL.
+ * @param order     Buffers that were output with this order will be recorded.
+ * @param cmd       Cannot be NULL, must be in the render pass of `order` (!).
+ */
+void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
+                          VkCommandBuffer cmd);
 
 /**
  * Computes the size of a specific descriptor set layout within a technique.

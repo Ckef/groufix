@@ -269,7 +269,8 @@ static void _gfx_set_recycle(GFXSet* set)
 		// note that the associated descriptor pool might be freed on
 		// recycling as well.
 		// Meaning: we are allowed to do this after all frames have synced.
-		// This means the set itself is recycled 1 frame late; acceptable.
+		// This means the set itself is recycled 1 frame late because the
+		// pool is only flushed at the end of a frame; acceptable.
 
 		// Recycle all matching descriptor sets, this is explicitly NOT
 		// thread-safe, so we use the renderer's lock!
