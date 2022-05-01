@@ -677,7 +677,8 @@ struct GFXRecorder
 {
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
-	_GFXPoolSub  sub;  // For descriptor access.
+	_GFXContext* context; // For locality.
+	_GFXPoolSub  sub;     // For descriptor access.
 
 
 	// Recording input.
@@ -687,6 +688,16 @@ struct GFXRecorder
 		VkCommandBuffer cmd;
 
 	} inp;
+
+
+	// Current bindings.
+	struct
+	{
+		_GFXCacheElem* gPipeline;
+		_GFXCacheElem* cPipeline;
+		_GFXPrimitive* primitive;
+
+	} bind;
 
 
 	// Recording output.
@@ -828,6 +839,15 @@ struct GFXTechnique
 	GFXVec samplers;  // Stores { size_t set, GFXSampler }, temporary!
 	GFXVec immutable; // Stores { size_t set, size_t binding }.
 	GFXVec dynamic;   // Stores { size_t set, size_t binding }.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkPipelineLayout layout; // For locality.
+
+	} vk;
+
 
 	_GFXCacheElem* layout;       // Pipeline layout, NULL until locked.
 	_GFXCacheElem* setLayouts[]; // Set layouts (sorted), all NULL until locked.

@@ -398,7 +398,7 @@ static bool _gfx_pass_build_objects(GFXPass* pass)
 			.pDepthStencilState  = NULL,
 			.pColorBlendState    = &pcbsci,
 			.pDynamicState       = &pdsci,
-			.layout              = tech->layout->vk.layout,
+			.layout              = tech->vk.layout,
 			.renderPass          = pass->vk.pass,
 			.subpass             = 0,
 			.basePipelineHandle  = VK_NULL_HANDLE,
@@ -662,7 +662,7 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 	if (elem != NULL)
 		context->vk.CmdBindDescriptorSets(
 			frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			tech->layout->vk.layout, 0, 1, &elem->vk.set, 0, NULL);
+			tech->vk.layout, 0, 1, &elem->vk.set, 0, NULL);
 
 	// Bind index buffer.
 	if (prim->base.numIndices > 0)

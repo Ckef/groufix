@@ -767,6 +767,55 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
                                   void (*cb)(GFXRecorder*, unsigned int, void*),
                                   void* ptr);
 
+/**
+ * Render command to bind a render/descriptor set.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder  Cannot be NULL.
+ * @param technique Cannot be NULL.
+ * @param numSets   Must be > 0.
+ * @param sets      Cannot be NULL.
+ */
+GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
+                          size_t firstSet,
+                          size_t numSets, GFXSet** sets);
+
+/**
+ * Render command to record a non-indexed draw.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder   Cannot be NULL.
+ * @param renderable Cannot be NULL.
+ * @param vertices   Zero for the entire primitive.
+ * @param instances  Must be > 0.
+ */
+GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
+                          uint32_t firstVertex, uint32_t vertices,
+                          uint32_t firstInstance, uint32_t instances);
+
+/**
+ * Render command to record an indexed draw.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder   Cannot be NULL.
+ * @param renderable Cannot be NULL.
+ * @param indices    Zero for the entire primitive.
+ * @param instances  Must be > 0.
+ */
+GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderable,
+                                  uint32_t firstIndex, uint32_t indices,
+                                  int32_t vertexOffset,
+                                  uint32_t firstInstance, uint32_t instances);
+
+/**
+ * Compute command to record a compute dispatch.
+ * Can only be called within a callback of gfx_recorder_compute!
+ * @param recorder   Cannot be NULL.
+ * @param computable Cannot be NULL.
+ * @param groupX     Must be > 0.
+ * @param groupY     Must be > 0.
+ * @param groupZ     Must be > 0.
+ */
+GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
+                              uint32_t groupX, uint32_t groupY, uint32_t groupZ);
+
 
 /****************************
  * Frame operations.
