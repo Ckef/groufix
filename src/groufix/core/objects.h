@@ -1442,19 +1442,10 @@ void _gfx_pass_destruct(GFXPass* pass);
  * @param pass  Cannot be NULL.
  * @param frame Cannot be NULL.
  * @return VK_NULL_HANDLE if unknown.
+ *
+ * Not thread-safe with respect to frame's refs and syncs!
  */
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
-
-/**
- * Records the pass into the command buffers of a frame.
- * The frame's command buffers must be in the recording state (!).
- * @param pass  Cannot be NULL.
- * @param frame Cannot be NULL, must be of the same renderer as pass.
- *
- * Internally calls _gfx_recorder_record for all recorders!
- * No-op if the pass is not built.
- */
-void _gfx_pass_record(GFXPass* pass, GFXFrame* frame);
 
 
 /****************************

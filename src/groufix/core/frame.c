@@ -427,10 +427,48 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Record all passes.
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
-		// TODO: Do this inline, remove the _gfx_pass_record call.
-		_gfx_pass_record(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p),
-			frame);
+	{
+		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		if (pass->build.pass == NULL)
+			continue;
+
+		// Gather all necessary render pass info to record.
+		VkClearValue clear = {
+			.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
+		};
+
+		VkRenderPassBeginInfo rpbi = {
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+
+			.pNext           = NULL,
+			.renderPass      = pass->vk.pass,
+			.framebuffer     = _gfx_pass_framebuffer(pass, frame),
+			.clearValueCount = 1,
+			.pClearValues    = &clear,
+
+			.renderArea = {
+				.offset = { 0, 0 },
+				.extent = {
+					pass->build.fWidth,
+					pass->build.fHeight
+				}
+			}
+		};
+
+		context->vk.CmdBeginRenderPass(frame->vk.cmd,
+			&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+
+		// Record all recorders.
+		for (
+			GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
+			rec != NULL;
+			rec = (GFXRecorder*)rec->list.next)
+		{
+			_gfx_recorder_record(rec, pass->order, frame->vk.cmd);
+		}
+
+		context->vk.CmdEndRenderPass(frame->vk.cmd);
+	}
 
 	// Inject signal commands.
 	if (!_gfx_deps_prepare(

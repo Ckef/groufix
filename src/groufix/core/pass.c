@@ -373,60 +373,6 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 }
 
 /****************************/
-void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
-{
-	assert(pass != NULL);
-	assert(frame != NULL);
-
-	GFXRenderer* rend = pass->renderer;
-	_GFXContext* context = rend->allocator.context;
-
-	// TODO: Future: if no backing window, do smth else.
-	if (pass->build.backing == SIZE_MAX)
-		return;
-
-	// Gather all necessary render pass info to record.
-	// This assumes the buffer is already in the recording state!
-	VkClearValue clear = {
-		.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
-	};
-
-	VkRenderPassBeginInfo rpbi = {
-		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-
-		.pNext           = NULL,
-		.renderPass      = pass->vk.pass,
-		.framebuffer     = _gfx_pass_framebuffer(pass, frame),
-		.clearValueCount = 1,
-		.pClearValues    = &clear,
-
-		.renderArea = {
-			.offset = { 0, 0 },
-			.extent = {
-				pass->build.fWidth,
-				pass->build.fHeight
-			}
-		}
-	};
-
-	// Begin render pass.
-	context->vk.CmdBeginRenderPass(frame->vk.cmd,
-		&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-
-	// Record all recorders.
-	for (
-		GFXRecorder* rec = (GFXRecorder*)rend->recorders.head;
-		rec != NULL;
-		rec = (GFXRecorder*)rec->list.next)
-	{
-		_gfx_recorder_record(rec, pass->order, frame->vk.cmd);
-	}
-
-	// End render pass.
-	context->vk.CmdEndRenderPass(frame->vk.cmd);
-}
-
-/****************************/
 GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
 {
 	assert(pass != NULL);
