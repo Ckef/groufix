@@ -329,21 +329,6 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 }
 
 /****************************/
-void _gfx_pass_destruct(GFXPass* pass)
-{
-	assert(pass != NULL);
-
-	// Remove reference to backing window.
-	pass->build.backing = SIZE_MAX;
-
-	// Destruct all partial things.
-	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
-
-	// Clear memory.
-	gfx_vec_clear(&pass->vk.framebuffers);
-}
-
-/****************************/
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 {
 	assert(pass != NULL);
@@ -370,6 +355,21 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 		return VK_NULL_HANDLE;
 
 	return *(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, sync->image);
+}
+
+/****************************/
+void _gfx_pass_destruct(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	// Remove reference to backing window.
+	pass->build.backing = SIZE_MAX;
+
+	// Destruct all partial things.
+	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
+
+	// Clear memory.
+	gfx_vec_clear(&pass->vk.framebuffers);
 }
 
 /****************************/

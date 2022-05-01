@@ -1430,14 +1430,6 @@ void _gfx_destroy_pass(GFXPass* pass);
 bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 
 /**
- * Destructs the Vulkan object structure, non-recursively.
- * @param pass Cannot be NULL.
- *
- * Must be called before detaching any attachment it uses!
- */
-void _gfx_pass_destruct(GFXPass* pass);
-
-/**
  * Retrieves the current framebuffer of a pass with respect to a frame.
  * @param pass  Cannot be NULL.
  * @param frame Cannot be NULL.
@@ -1446,6 +1438,14 @@ void _gfx_pass_destruct(GFXPass* pass);
  * Not thread-safe with respect to frame's refs and syncs!
  */
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
+
+/**
+ * Destructs the Vulkan object structure, non-recursively.
+ * @param pass Cannot be NULL.
+ *
+ * Must be called before detaching any attachment it uses!
+ */
+void _gfx_pass_destruct(GFXPass* pass);
 
 
 /****************************
