@@ -187,16 +187,20 @@ static bool _gfx_pass_build_objects(GFXPass* pass)
 
 		pass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
 
-		if (pass->build.pass == NULL) goto error;
+		if (pass->build.pass == NULL) goto clean;
 		pass->vk.pass = pass->build.pass->vk.pass;
 	}
 
 	// Create framebuffers.
 	if (pass->vk.framebuffers.size == 0)
 	{
+		// Remember the width/height for during recording.
+		pass->build.fWidth = at->window.window->frame.width;
+		pass->build.fHeight = at->window.window->frame.height;
+
 		// Reserve the exact amount, it's probably not gonna change.
 		if (!gfx_vec_reserve(&pass->vk.framebuffers, at->window.vk.views.size))
-			goto error;
+			goto clean;
 
 		for (size_t i = 0; i < at->window.vk.views.size; ++i)
 		{
@@ -208,17 +212,15 @@ static bool _gfx_pass_build_objects(GFXPass* pass)
 				.renderPass      = pass->vk.pass,
 				.attachmentCount = 1,
 				.pAttachments    = gfx_vec_at(&at->window.vk.views, i),
-				.width           = at->window.window->frame.width,
-				.height          = at->window.window->frame.height,
+				.width           = pass->build.fWidth,
+				.height          = pass->build.fHeight,
 				.layers          = 1
 			};
 
 			VkFramebuffer frame;
 			_GFX_VK_CHECK(context->vk.CreateFramebuffer(
-				context->vk.device, &fci, NULL, &frame), goto error);
+				context->vk.device, &fci, NULL, &frame), goto clean);
 
-			pass->build.fWidth = fci.width;
-			pass->build.fHeight = fci.height;
 			gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
 		}
 	}
@@ -226,9 +228,10 @@ static bool _gfx_pass_build_objects(GFXPass* pass)
 	return 1;
 
 
-	// Error on failure.
-error:
+	// Cleanup on failure.
+clean:
 	gfx_log_error("Could not allocate all resources of a pass.");
+	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
 
 	return 0;
 }
@@ -292,11 +295,12 @@ void _gfx_destroy_pass(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	// Destroy Vulkan object structure.
-	_gfx_pass_destruct(pass);
+	// Destruct all partial things.
+	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
 
 	// Free all remaining things.
 	gfx_vec_clear(&pass->consumes);
+	gfx_vec_clear(&pass->vk.framebuffers);
 	free(pass);
 }
 
@@ -314,17 +318,14 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 
 	// Aaaand then build the entire Vulkan object structure.
 	if (!_gfx_pass_build_objects(pass))
-		goto clean;
+	{
+		gfx_log_error("Could not (re)build a pass.");
+
+		pass->build.backing = SIZE_MAX;
+		return 0;
+	}
 
 	return 1;
-
-
-	// Cleanup on failure.
-clean:
-	gfx_log_error("Could not (re)build a pass.");
-	_gfx_pass_destruct(pass);
-
-	return 0;
 }
 
 /****************************/

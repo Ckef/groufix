@@ -427,6 +427,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Record all passes.
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
+		// TODO: Do this inline, remove the _gfx_pass_record call.
 		_gfx_pass_record(
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p),
 			frame);
