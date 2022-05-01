@@ -858,6 +858,27 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 		context->vk.BeginCommandBuffer(cmd, &cbbi),
 		goto error);
 
+	// Set viewport & scissor state.
+	VkViewport viewport = {
+		.x        = 0.0f,
+		.y        = 0.0f,
+		.width    = (float)pass->build.fWidth,
+		.height   = (float)pass->build.fHeight,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
+
+	VkRect2D scissor = {
+		.offset = { 0, 0 },
+		.extent = {
+			pass->build.fWidth,
+			pass->build.fHeight
+		}
+	};
+
+	context->vk.CmdSetViewport(cmd, 0, 1, &viewport);
+	context->vk.CmdSetScissor(cmd, 0, 1, &scissor);
+
 	// Set recording input, record, unset input.
 	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;

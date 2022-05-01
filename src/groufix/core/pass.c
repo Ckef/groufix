@@ -50,6 +50,8 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 				context->vk.device, *frame, NULL);
 		}
 
+		pass->build.fWidth = 0;
+		pass->build.fHeight = 0;
 		gfx_vec_release(&pass->vk.framebuffers);
 	}
 
@@ -222,6 +224,8 @@ static bool _gfx_pass_build_objects(GFXPass* pass)
 			_GFX_VK_CHECK(context->vk.CreateFramebuffer(
 				context->vk.device, &fci, NULL, &frame), goto error);
 
+			pass->build.fWidth = fci.width;
+			pass->build.fHeight = fci.height;
 			gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
 		}
 	}
@@ -470,6 +474,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	// Initialize building stuff.
 	pass->build.backing = SIZE_MAX;
+	pass->build.fWidth = 0;
+	pass->build.fHeight = 0;
 	pass->build.pass = NULL;
 	pass->vk.pass = VK_NULL_HANDLE;
 

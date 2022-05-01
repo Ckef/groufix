@@ -793,7 +793,9 @@ struct GFXPass
 	// Building output (can be invalidated).
 	struct
 	{
-		size_t backing; // Window attachment index (or SIZE_MAX).
+		size_t   backing; // Window attachment index (or SIZE_MAX).
+		uint32_t fWidth;
+		uint32_t fHeight;
 
 		_GFXCacheElem* pass;
 
