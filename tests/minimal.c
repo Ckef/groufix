@@ -20,6 +20,7 @@ TEST_DESCRIBE(minimal, _t)
 	{
 		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
 		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
+		gfx_recorder_render(_t->recorder, _t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
 		gfx_heap_purge(_t->heap);
 		gfx_wait_events();

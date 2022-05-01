@@ -337,11 +337,13 @@ static void _test_key_release(GFXWindow* window,
 /**
  * Default render callback.
  */
-//static void _test_default_render(GFXRecorder* recorder,
-//                                 unsigned int frame, void* ptr)
-//{
-	// Record stuff...
-//}
+static void _test_default_render(GFXRecorder* recorder,
+                                 unsigned int frame, void* ptr)
+{
+	// Record stuff.
+	gfx_cmd_bind(recorder, _test_base.technique, 0, 1, &_test_base.set);
+	gfx_cmd_draw_indexed(recorder, &_test_base.renderable, 0, 0, 0, 0, 1);
+}
 
 /**
  * Initializes the test base program.
@@ -589,10 +591,6 @@ static void _test_init(TestState* _test_state)
 	// Init the default renderable.
 	gfx_renderable(&_test_base.renderable,
 		_test_base.pass, _test_base.technique, _test_base.primitive);
-
-	// Make it render the thing.
-	gfx_pass_use(_test_base.pass,
-		_test_base.primitive, _test_base.technique, _test_base.set);
 #endif
 }
 

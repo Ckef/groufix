@@ -520,15 +520,6 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
  */
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
 
-/**
- * TODO: Totally temporary!
- * Makes the pass render the given things.
- */
-GFX_API void gfx_pass_use(GFXPass* pass,
-                          GFXPrimitive* primitive,
-                          GFXTechnique* technique,
-                          GFXSet* set);
-
 
 /****************************
  * Technique creation.

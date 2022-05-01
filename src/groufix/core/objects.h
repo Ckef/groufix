@@ -799,12 +799,6 @@ struct GFXPass
 
 		_GFXCacheElem* pass;
 
-		// TODO: Super temporary!!
-		_GFXPoolSub sub;
-		_GFXPrimitive* primitive;
-		GFXTechnique* technique;
-		GFXSet* set;
-
 	} build;
 
 
@@ -813,7 +807,6 @@ struct GFXPass
 	{
 		VkRenderPass pass;         // For locality.
 		GFXVec       framebuffers; // Stores VkFramebuffer.
-		VkPipeline   pipeline;     // TODO: Temporary!!
 
 	} vk;
 
@@ -1458,6 +1451,7 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
  * @param pass  Cannot be NULL.
  * @param frame Cannot be NULL, must be of the same renderer as pass.
  *
+ * Internally calls _gfx_recorder_record for all recorders!
  * No-op if the pass is not built.
  */
 void _gfx_pass_record(GFXPass* pass, GFXFrame* frame);

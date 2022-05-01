@@ -425,8 +425,6 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		goto clean_deps;
 	}
 
-	// TODO: Somehow get the buffers for this pass from the recorder,
-	// record those secondary cmd buffers into this one :)
 	// Record all passes.
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
 		_gfx_pass_record(

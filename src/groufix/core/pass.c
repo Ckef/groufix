@@ -62,7 +62,6 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 	{
 		pass->build.pass = NULL;
 		pass->vk.pass = VK_NULL_HANDLE;
-		pass->vk.pipeline = VK_NULL_HANDLE;
 
 		// Increase generation; the renderpass is used in pipelines,
 		// ergo we need to invalidate current pipelines using it.
@@ -126,15 +125,10 @@ static size_t _gfx_pass_pick_backing(GFXPass* pass)
 static bool _gfx_pass_build_objects(GFXPass* pass)
 {
 	assert(pass != NULL);
-	assert(pass->build.primitive != NULL); // TODO: Obviously temporary.
-	assert(pass->build.technique != NULL); // TODO: Uh oh, temporary.
-	assert(pass->build.set != NULL); // TODO: Samesies, temporary.
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->allocator.context;
 	_GFXAttach* at = NULL;
-	_GFXPrimitive* prim = pass->build.primitive;
-	GFXTechnique* tech = pass->build.technique;
 
 	// Get the backing window attachment.
 	if (pass->build.backing != SIZE_MAX)
@@ -201,7 +195,6 @@ static bool _gfx_pass_build_objects(GFXPass* pass)
 	if (pass->vk.framebuffers.size == 0)
 	{
 		// Reserve the exact amount, it's probably not gonna change.
-		// TODO: Instead of building all framebuffers, just cache the ones we need?
 		if (!gfx_vec_reserve(&pass->vk.framebuffers, at->window.vk.views.size))
 			goto error;
 
@@ -228,197 +221,6 @@ static bool _gfx_pass_build_objects(GFXPass* pass)
 			pass->build.fHeight = fci.height;
 			gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
 		}
-	}
-
-	// Create pipeline.
-	if (pass->vk.pipeline == VK_NULL_HANDLE)
-	{
-		// Pipeline shader stages.
-		// TODO: We literally pick the vertex and fragment shader,
-		// this should obviously be dynamic.
-		VkPipelineShaderStageCreateInfo pstci[] = {
-			{
-				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-
-				.pNext               = NULL,
-				.flags               = 0,
-				.stage               = VK_SHADER_STAGE_VERTEX_BIT,
-				.module              = tech->shaders[0]->vk.module,
-				.pName               = "main",
-				.pSpecializationInfo = NULL
-			}, {
-				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-
-				.pNext               = NULL,
-				.flags               = 0,
-				.stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
-				.module              = tech->shaders[4]->vk.module,
-				.pName               = "main",
-				.pSpecializationInfo = NULL
-			}
-		};
-
-		// Pipeline vertex input state.
-		VkVertexInputAttributeDescription viad[prim->numAttribs];
-		VkVertexInputBindingDescription vibd[prim->numBindings];
-
-		for (size_t i = 0; i < prim->numAttribs; ++i)
-			viad[i] = (VkVertexInputAttributeDescription){
-				.location = (uint32_t)i,
-				.binding  = prim->attribs[i].binding,
-				.format   = prim->attribs[i].vk.format,
-				.offset   = prim->attribs[i].offset
-			};
-
-		for (size_t i = 0; i < prim->numBindings; ++i)
-			vibd[i] = (VkVertexInputBindingDescription){
-				.binding   = (uint32_t)i,
-				.stride    = prim->bindings[i].stride,
-				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-			};
-
-		VkPipelineVertexInputStateCreateInfo pvisci = {
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-
-			.pNext                           = NULL,
-			.flags                           = 0,
-			.vertexAttributeDescriptionCount = (uint32_t)prim->numAttribs,
-			.pVertexAttributeDescriptions    = viad,
-			.vertexBindingDescriptionCount   = (uint32_t)prim->numBindings,
-			.pVertexBindingDescriptions      = vibd
-		};
-
-		// Pipeline input assembly state.
-		VkPipelineInputAssemblyStateCreateInfo piasci = {
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-
-			.pNext                  = NULL,
-			.flags                  = 0,
-			.topology               = _GFX_GET_VK_PRIMITIVE_TOPOLOGY(prim->base.topology),
-			.primitiveRestartEnable = VK_FALSE
-		};
-
-		// Pipeline viewport state.
-		VkPipelineViewportStateCreateInfo pvsci = {
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-
-			.pNext         = NULL,
-			.flags         = 0,
-			.viewportCount = 1,
-			.pViewports    = NULL,
-			.scissorCount  = 1,
-			.pScissors     = NULL
-		};
-
-		// Pipeline rasterization state.
-		VkPipelineRasterizationStateCreateInfo prsci = {
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-
-			.pNext                   = NULL,
-			.flags                   = 0,
-			.depthClampEnable        = VK_FALSE,
-			.rasterizerDiscardEnable = VK_FALSE,
-			.polygonMode             = VK_POLYGON_MODE_FILL,
-			.cullMode                = VK_CULL_MODE_BACK_BIT,
-			.frontFace               = VK_FRONT_FACE_CLOCKWISE,
-			.depthBiasEnable         = VK_FALSE,
-			.depthBiasConstantFactor = 0.0f,
-			.depthBiasClamp          = 0.0f,
-			.depthBiasSlopeFactor    = 0.0f,
-			.lineWidth               = 1.0f
-		};
-
-		// Pipeline multisample state
-		VkPipelineMultisampleStateCreateInfo pmsci = {
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-
-			.pNext                 = NULL,
-			.flags                 = 0,
-			.rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
-			.sampleShadingEnable   = VK_FALSE,
-			.minSampleShading      = 1.0,
-			.pSampleMask           = NULL,
-			.alphaToCoverageEnable = VK_FALSE,
-			.alphaToOneEnable      = VK_FALSE
-		};
-
-		// Pipeline color blend state.
-		VkPipelineColorBlendAttachmentState pcbas = {
-			.blendEnable         = VK_FALSE,
-			.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-			.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.colorBlendOp        = VK_BLEND_OP_ADD,
-			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.alphaBlendOp        = VK_BLEND_OP_ADD,
-			.colorWriteMask      =
-				VK_COLOR_COMPONENT_R_BIT |
-				VK_COLOR_COMPONENT_G_BIT |
-				VK_COLOR_COMPONENT_B_BIT |
-				VK_COLOR_COMPONENT_A_BIT
-		};
-
-		VkPipelineColorBlendStateCreateInfo pcbsci = {
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-
-			.pNext           = NULL,
-			.flags           = 0,
-			.logicOpEnable   = VK_FALSE,
-			.logicOp         = VK_LOGIC_OP_COPY,
-			.attachmentCount = 1,
-			.pAttachments    = &pcbas,
-			.blendConstants  = { 0.0f, 0.0f, 0.0f, 0.0f }
-		};
-
-		// Pipeline dynamic state.
-		VkDynamicState dStates[] = {
-			VK_DYNAMIC_STATE_VIEWPORT,
-			VK_DYNAMIC_STATE_SCISSOR
-		};
-
-		VkPipelineDynamicStateCreateInfo pdsci = {
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-
-			.pNext             = NULL,
-			.flags             = 0,
-			.dynamicStateCount = 2,
-			.pDynamicStates    = dStates
-		};
-
-		// Finally create graphics pipeline.
-		VkGraphicsPipelineCreateInfo gpci = {
-			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-
-			.pNext               = NULL,
-			.flags               = 0,
-			.stageCount          = 2,
-			.pStages             = pstci,
-			.pVertexInputState   = &pvisci,
-			.pInputAssemblyState = &piasci,
-			.pTessellationState  = NULL,
-			.pViewportState      = &pvsci,
-			.pRasterizationState = &prsci,
-			.pMultisampleState   = &pmsci,
-			.pDepthStencilState  = NULL,
-			.pColorBlendState    = &pcbsci,
-			.pDynamicState       = &pdsci,
-			.layout              = tech->vk.layout,
-			.renderPass          = pass->vk.pass,
-			.subpass             = 0,
-			.basePipelineHandle  = VK_NULL_HANDLE,
-			.basePipelineIndex   = 0
-		};
-
-		_GFXCacheElem* elem = _gfx_cache_get(
-			&rend->cache, &gpci.sType, (const void*[]){
-				tech->shaders[0],
-				tech->shaders[4],
-				tech->layout,
-				pass->build.pass
-			});
-
-		if (elem == NULL) goto error;
-		pass->vk.pipeline = elem->vk.pipeline;
 	}
 
 	return 1;
@@ -482,15 +284,6 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
 
-
-	// TODO: Super temporary!!
-	_gfx_pool_sub(&renderer->pool, &pass->build.sub);
-	pass->build.primitive = NULL;
-	pass->build.technique = NULL;
-	pass->build.set = NULL;
-	pass->vk.pipeline = VK_NULL_HANDLE;
-
-
 	return pass;
 }
 
@@ -498,11 +291,6 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 void _gfx_destroy_pass(GFXPass* pass)
 {
 	assert(pass != NULL);
-
-
-	// TODO: Super temporary!!
-	_gfx_pool_unsub(&pass->renderer->pool, &pass->build.sub);
-
 
 	// Destroy Vulkan object structure.
 	_gfx_pass_destruct(pass);
@@ -591,52 +379,13 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->allocator.context;
-	_GFXPrimitive* prim = pass->build.primitive;
-	GFXTechnique* tech = pass->build.technique;
-	GFXSet* set = pass->build.set;
-
-	// Can't be recording if resources are missing.
-	// Window could be minimized or smth.
-	if (
-		pass->vk.pass == VK_NULL_HANDLE ||
-		pass->vk.framebuffers.size == 0 ||
-		pass->vk.pipeline == VK_NULL_HANDLE)
-	{
-		return;
-	}
 
 	// TODO: Future: if no backing window, do smth else.
 	if (pass->build.backing == SIZE_MAX)
 		return;
 
-	// Get the sync object associated with this swapchain as backing.
-	_GFXFrameSync* sync = gfx_vec_at(
-		&frame->syncs,
-		*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
-
-	VkFramebuffer framebuffer =
-		*(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, sync->image);
-
 	// Gather all necessary render pass info to record.
 	// This assumes the buffer is already in the recording state!
-	// TODO: Define public GFXRenderArea with a GFXSizeClass?
-	VkViewport viewport = {
-		.x        = 0.0f,
-		.y        = 0.0f,
-		.width    = (float)sync->window->frame.width,
-		.height   = (float)sync->window->frame.height,
-		.minDepth = 0.0f,
-		.maxDepth = 1.0f
-	};
-
-	VkRect2D scissor = {
-		.offset = { 0, 0 },
-		.extent = {
-			sync->window->frame.width,
-			sync->window->frame.height
-		}
-	};
-
 	VkClearValue clear = {
 		.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
 	};
@@ -646,70 +395,31 @@ void _gfx_pass_record(GFXPass* pass, GFXFrame* frame)
 
 		.pNext           = NULL,
 		.renderPass      = pass->vk.pass,
-		.framebuffer     = framebuffer,
+		.framebuffer     = _gfx_pass_framebuffer(pass, frame),
 		.clearValueCount = 1,
 		.pClearValues    = &clear,
-		.renderArea      = scissor
+
+		.renderArea = {
+			.offset = { 0, 0 },
+			.extent = {
+				pass->build.fWidth,
+				pass->build.fHeight
+			}
+		}
 	};
 
-	// Set viewport & scissor.
-	context->vk.CmdSetViewport(frame->vk.cmd, 0, 1, &viewport);
-	context->vk.CmdSetScissor(frame->vk.cmd, 0, 1, &scissor);
+	// Begin render pass.
+	context->vk.CmdBeginRenderPass(frame->vk.cmd,
+		&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
-	// Begin render pass, bind pipeline & descriptor sets.
-	context->vk.CmdBeginRenderPass(
-		frame->vk.cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
-
-	context->vk.CmdBindPipeline(
-		frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->vk.pipeline);
-
-	// Get & bind a single descriptor set.
-	_GFXPoolElem* elem = _gfx_set_get(set, &pass->build.sub);
-	if (elem != NULL)
-		context->vk.CmdBindDescriptorSets(
-			frame->vk.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			tech->vk.layout, 0, 1, &elem->vk.set, 0, NULL);
-
-	// Bind index buffer.
-	if (prim->base.numIndices > 0)
+	// Record all recorders.
+	for (
+		GFXRecorder* rec = (GFXRecorder*)rend->recorders.head;
+		rec != NULL;
+		rec = (GFXRecorder*)rec->list.next)
 	{
-		_GFXUnpackRef index =
-			_gfx_ref_unpack(gfx_ref_prim_indices(&prim->base));
-
-		context->vk.CmdBindIndexBuffer(
-			frame->vk.cmd,
-			index.obj.buffer->vk.buffer,
-			index.value,
-			prim->base.indexSize == sizeof(uint16_t) ?
-				VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+		_gfx_recorder_record(rec, pass->order, frame->vk.cmd);
 	}
-
-	// Bind vertex buffers.
-	VkBuffer vertexBuffs[prim->numBindings];
-	VkDeviceSize vertexOffsets[prim->numBindings];
-
-	for (size_t i = 0; i < prim->numBindings; ++i)
-		vertexBuffs[i] = prim->bindings[i].buffer->vk.buffer,
-		vertexOffsets[i] = prim->bindings[i].offset;
-
-	context->vk.CmdBindVertexBuffers(
-		frame->vk.cmd,
-		0, (uint32_t)prim->numBindings,
-		vertexBuffs, vertexOffsets);
-
-	// Draw.
-	// TODO: Renderable objects should define what range of the primitive to draw.
-	// Relevant when some simple primitives share a simple attribute layout.
-	if (prim->base.numIndices > 0)
-		context->vk.CmdDrawIndexed(
-			frame->vk.cmd,
-			prim->base.numIndices,
-			1, 0, 0, 0);
-	else
-		context->vk.CmdDraw(
-			frame->vk.cmd,
-			prim->base.numVertices,
-			1, 0, 0);
 
 	// End render pass.
 	context->vk.CmdEndRenderPass(frame->vk.cmd);
@@ -838,22 +548,4 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 
 	// Changed a pass, the graph is invalidated.
 	_gfx_render_graph_invalidate(pass->renderer);
-}
-
-/****************************/
-GFX_API void gfx_pass_use(GFXPass* pass,
-                          GFXPrimitive* primitive,
-                          GFXTechnique* technique,
-                          GFXSet* set)
-{
-	assert(pass != NULL);
-	assert(!pass->renderer->recording);
-	assert(primitive != NULL);
-	assert(technique != NULL);
-	assert(set != NULL);
-
-	// TODO: Eventually check if they are using the same context & renderer.
-	pass->build.primitive = (_GFXPrimitive*)primitive;
-	pass->build.technique = technique;
-	pass->build.set = set;
 }
