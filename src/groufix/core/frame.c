@@ -324,7 +324,9 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 	// In this upcoming loop we can acquire all the swapchain images and
 	// do all the rebuilding too!
 	gfx_vec_release(&frame->refs);
-	gfx_vec_push(&frame->refs, attachs->size, NULL);
+
+	if (!gfx_vec_push(&frame->refs, attachs->size, NULL))
+		goto error;
 
 	bool synced = 0; // Sadly we may have to sync all on rebuild.
 

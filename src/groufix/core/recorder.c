@@ -480,20 +480,20 @@ static bool _gfx_recorder_bind_computable(GFXRecorder* recorder,
 
 /****************************
  * Binds a vertex and/or index buffer to the current recording.
- * @param recorder   Cannot be NULL, assumed to be in a callback.
- * @param renderable Cannot be NULL, assumed to be validated.
+ * @param recorder  Cannot be NULL, assumed to be in a callback.
+ * @param primitive Cannot be NULL.
  */
 static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
-                                         GFXRenderable* renderable)
+                                         GFXPrimitive* primitive)
 {
 	assert(recorder != NULL);
-	assert(renderable != NULL);
+	assert(primitive != NULL);
 
 	_GFXContext* context = recorder->context;
+	_GFXPrimitive* prim = (_GFXPrimitive*)primitive;
 
 	// Bind vertex & index buffers.
-	_GFXPrimitive* prim = (_GFXPrimitive*)renderable->primitive;
-	if (prim != NULL && recorder->bind.primitive != prim)
+	if (recorder->bind.primitive != prim)
 	{
 		recorder->bind.primitive = prim;
 		VkBuffer vertexBuffs[prim->numBindings];
@@ -507,15 +507,15 @@ static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
 			0, (uint32_t)prim->numBindings,
 			vertexBuffs, vertexOffsets);
 
-		if (prim->base.numIndices > 0)
+		if (primitive->numIndices > 0)
 		{
 			_GFXUnpackRef index =
-				_gfx_ref_unpack(gfx_ref_prim_indices(&prim->base));
+				_gfx_ref_unpack(gfx_ref_prim_indices(primitive));
 
 			context->vk.CmdBindIndexBuffer(recorder->inp.cmd,
 				index.obj.buffer->vk.buffer,
 				index.value,
-				prim->base.indexSize == sizeof(uint16_t) ?
+				primitive->indexSize == sizeof(uint16_t) ?
 					VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
 		}
 	}
@@ -1006,7 +1006,8 @@ GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
 	}
 
 	// Bind primitive.
-	_gfx_recorder_bind_primitive(recorder, renderable);
+	if (renderable->primitive != NULL)
+		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
 
 	// Perform the draw command.
 	context->vk.CmdDraw(recorder->inp.cmd,
@@ -1046,7 +1047,8 @@ GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderab
 	}
 
 	// Bind primitive.
-	_gfx_recorder_bind_primitive(recorder, renderable);
+	if (renderable->primitive != NULL)
+		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
 
 	// Perform the draw command.
 	context->vk.CmdDrawIndexed(recorder->inp.cmd,

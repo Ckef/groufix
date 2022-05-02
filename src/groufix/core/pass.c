@@ -26,7 +26,7 @@ typedef struct _GFXConsumeElem
 
 
 /****************************
- * Destructs the Vulkan object structure, non-recursively.
+ * Destructs a subset of all Vulkan objects, non-recursively.
  * @param pass  Cannot be NULL.
  * @param flags What resources should be destroyed (0 to do nothing).
  */
@@ -57,7 +57,6 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 
 	// Second, we check if the render pass needs to be reconstructed.
 	// This object is cached, so no need to destroy anything.
-	// This is only the case when the format has changed.
 	if (flags & _GFX_REFORMAT)
 	{
 		pass->build.pass = NULL;
@@ -116,124 +115,6 @@ static size_t _gfx_pass_pick_backing(GFXPass* pass)
 	}
 
 	return backing;
-}
-
-/****************************
- * Builds all missing resources of the Vulkan object structure.
- * @return Non-zero on success.
- */
-static bool _gfx_pass_build_objects(GFXPass* pass)
-{
-	assert(pass != NULL);
-
-	GFXRenderer* rend = pass->renderer;
-	_GFXContext* context = rend->allocator.context;
-	_GFXAttach* at = NULL;
-
-	// Get the backing window attachment.
-	if (pass->build.backing != SIZE_MAX)
-		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
-
-	// Skip if there's no render target (e.g. minimized window).
-	// TODO: Future: if no backing window, do smth else.
-	if (at == NULL || at->window.vk.views.size == 0)
-		return 1;
-
-	// Create render pass.
-	if (pass->vk.pass == VK_NULL_HANDLE)
-	{
-		VkAttachmentDescription ad = {
-			.flags          = 0,
-			.format         = at->window.window->frame.format,
-			.samples        = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-		};
-
-		VkAttachmentReference ar = {
-			.attachment = 0,
-			.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-		};
-
-		VkSubpassDescription sd = {
-			.flags                   = 0,
-			.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
-			.inputAttachmentCount    = 0,
-			.pInputAttachments       = NULL,
-			.colorAttachmentCount    = 1,
-			.pColorAttachments       = &ar,
-			.pResolveAttachments     = NULL,
-			.pDepthStencilAttachment = NULL,
-			.preserveAttachmentCount = 0,
-			.pPreserveAttachments    = NULL
-		};
-
-		VkRenderPassCreateInfo rpci = {
-			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-
-			.pNext           = NULL,
-			.flags           = 0,
-			.attachmentCount = 1,
-			.pAttachments    = &ad,
-			.subpassCount    = 1,
-			.pSubpasses      = &sd,
-			.dependencyCount = 0,
-			.pDependencies   = NULL
-		};
-
-		pass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
-
-		if (pass->build.pass == NULL) goto clean;
-		pass->vk.pass = pass->build.pass->vk.pass;
-	}
-
-	// Create framebuffers.
-	if (pass->vk.framebuffers.size == 0)
-	{
-		// Remember the width/height for during recording.
-		pass->build.fWidth = at->window.window->frame.width;
-		pass->build.fHeight = at->window.window->frame.height;
-
-		// Reserve the exact amount, it's probably not gonna change.
-		if (!gfx_vec_reserve(&pass->vk.framebuffers, at->window.vk.views.size))
-			goto clean;
-
-		for (size_t i = 0; i < at->window.vk.views.size; ++i)
-		{
-			VkFramebufferCreateInfo fci = {
-				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-
-				.pNext           = NULL,
-				.flags           = 0,
-				.renderPass      = pass->vk.pass,
-				.attachmentCount = 1,
-				.pAttachments    = gfx_vec_at(&at->window.vk.views, i),
-				.width           = pass->build.fWidth,
-				.height          = pass->build.fHeight,
-				.layers          = 1
-			};
-
-			VkFramebuffer frame;
-			_GFX_VK_CHECK(context->vk.CreateFramebuffer(
-				context->vk.device, &fci, NULL, &frame), goto clean);
-
-			gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
-		}
-	}
-
-	return 1;
-
-
-	// Cleanup on failure.
-clean:
-	gfx_log_error("Could not allocate all resources of a pass.");
-	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
-
-	return 0;
 }
 
 /****************************/
@@ -309,6 +190,9 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 {
 	assert(pass != NULL);
 
+	GFXRenderer* rend = pass->renderer;
+	_GFXContext* context = rend->allocator.context;
+
 	// First we destroy the things we want to recreate.
 	_gfx_pass_destruct_partial(pass, flags);
 
@@ -316,16 +200,112 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	if (pass->build.backing == SIZE_MAX)
 		pass->build.backing = _gfx_pass_pick_backing(pass);
 
-	// Aaaand then build the entire Vulkan object structure.
-	if (!_gfx_pass_build_objects(pass))
-	{
-		gfx_log_error("Could not (re)build a pass.");
+	// Then go ahead and rebuild all missing bits.
+	// Get the backing window attachment.
+	_GFXAttach* at = NULL;
+	if (pass->build.backing != SIZE_MAX)
+		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
-		pass->build.backing = SIZE_MAX;
-		return 0;
+	// Skip if there's no render target (e.g. minimized window).
+	// TODO: Future: if no backing window, do smth else.
+	if (at == NULL || at->window.vk.views.size == 0)
+		return 1;
+
+	// Create render pass.
+	if (pass->vk.pass == VK_NULL_HANDLE)
+	{
+		VkAttachmentDescription ad = {
+			.flags          = 0,
+			.format         = at->window.window->frame.format,
+			.samples        = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+		};
+
+		VkAttachmentReference ar = {
+			.attachment = 0,
+			.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+		};
+
+		VkSubpassDescription sd = {
+			.flags                   = 0,
+			.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.inputAttachmentCount    = 0,
+			.pInputAttachments       = NULL,
+			.colorAttachmentCount    = 1,
+			.pColorAttachments       = &ar,
+			.pResolveAttachments     = NULL,
+			.pDepthStencilAttachment = NULL,
+			.preserveAttachmentCount = 0,
+			.pPreserveAttachments    = NULL
+		};
+
+		VkRenderPassCreateInfo rpci = {
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+
+			.pNext           = NULL,
+			.flags           = 0,
+			.attachmentCount = 1,
+			.pAttachments    = &ad,
+			.subpassCount    = 1,
+			.pSubpasses      = &sd,
+			.dependencyCount = 0,
+			.pDependencies   = NULL
+		};
+
+		pass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
+		if (pass->build.pass == NULL) goto clean;
+
+		pass->vk.pass = pass->build.pass->vk.pass;
+	}
+
+	// Create framebuffers.
+	if (pass->vk.framebuffers.size == 0)
+	{
+		// Remember the width/height for during recording.
+		pass->build.fWidth = at->window.window->frame.width;
+		pass->build.fHeight = at->window.window->frame.height;
+
+		// Reserve the exact amount, it's probably not gonna change.
+		if (!gfx_vec_reserve(&pass->vk.framebuffers, at->window.vk.views.size))
+			goto clean;
+
+		for (size_t i = 0; i < at->window.vk.views.size; ++i)
+		{
+			VkFramebufferCreateInfo fci = {
+				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+
+				.pNext           = NULL,
+				.flags           = 0,
+				.renderPass      = pass->vk.pass,
+				.attachmentCount = 1,
+				.pAttachments    = gfx_vec_at(&at->window.vk.views, i),
+				.width           = pass->build.fWidth,
+				.height          = pass->build.fHeight,
+				.layers          = 1
+			};
+
+			VkFramebuffer frame;
+			_GFX_VK_CHECK(context->vk.CreateFramebuffer(
+				context->vk.device, &fci, NULL, &frame), goto clean);
+
+			gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
+		}
 	}
 
 	return 1;
+
+
+	// Cleanup on failure.
+clean:
+	gfx_log_error("Could not (re)build a pass.");
+	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
+
+	return 0;
 }
 
 /****************************/
