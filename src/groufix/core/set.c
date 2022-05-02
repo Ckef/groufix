@@ -794,6 +794,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	aset->renderer = renderer;
 	aset->setLayout = technique->setLayouts[set];
 	aset->numAttachs = 0;
+	aset->numDynamics = 0;
 	aset->numBindings = numBindings;
 	atomic_store_explicit(&aset->used, 0, memory_order_relaxed);
 
@@ -811,6 +812,14 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		// even though binding->count might be > 0!
 		if (_gfx_tech_get_set_binding(technique, set, b, binding))
 			entries = binding->count;
+
+		// Count number of dynamic buffers.
+		if (
+			binding->type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
+			binding->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC)
+		{
+			++aset->numDynamics;
+		}
 
 		binding->entries = entries > 0 ? entryPtr : NULL;
 		entryPtr += entries;

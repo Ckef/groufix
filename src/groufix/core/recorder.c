@@ -932,7 +932,9 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 /****************************/
 GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
                           size_t firstSet,
-                          size_t numSets, GFXSet** sets)
+                          size_t numSets, size_t numDynamics,
+                          GFXSet** sets,
+                          const uint32_t* offsets)
 {
 	assert(recorder != NULL);
 	assert(recorder->inp.cmd != NULL);
@@ -941,11 +943,15 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(numSets > 0);
 	assert(sets != NULL);
 	assert(firstSet + numSets <= technique->numSets);
+	assert(numDynamics == 0 || offsets != NULL);
 
 	_GFXContext* context = recorder->context;
 
 	// Get all the Vulkan descriptor sets.
+	// And count the number of dynamic offsets.
 	VkDescriptorSet dSets[numSets];
+	size_t numOffsets = 0;
+
 	for (size_t s = 0; s < numSets; ++s)
 	{
 		_GFXPoolElem* elem = _gfx_set_get(sets[s], &recorder->sub);
@@ -959,19 +965,37 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		}
 
 		dSets[s] = elem->vk.set;
+		numOffsets += sets[s]->numDynamics;
 	}
 
 	// Perform the bind command.
-	// TODO: Take dynamic offsets from input.
 	const VkPipelineBindPoint bindPoint =
 		technique->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)] == NULL ?
 		VK_PIPELINE_BIND_POINT_GRAPHICS :
 		VK_PIPELINE_BIND_POINT_COMPUTE;
 
-	context->vk.CmdBindDescriptorSets(recorder->inp.cmd,
-		bindPoint, technique->vk.layout,
-		(uint32_t)firstSet, (uint32_t)numSets, dSets,
-		0, NULL);
+	if (numDynamics >= numOffsets)
+	{
+		// If enough dynamic offsets are given, just pass that array.
+		context->vk.CmdBindDescriptorSets(recorder->inp.cmd,
+			bindPoint, technique->vk.layout,
+			(uint32_t)firstSet, (uint32_t)numSets, dSets,
+			(uint32_t)numOffsets, offsets);
+	}
+	else
+	{
+		// If not, create a new array,
+		// set all trailing 'empty' offsets to 0.
+		uint32_t offs[numOffsets > 0 ? numOffsets : 1];
+
+		for (size_t d = 0; d < numOffsets; ++d)
+			offs[d] = d < numDynamics ? offsets[d] : 0;
+
+		context->vk.CmdBindDescriptorSets(recorder->inp.cmd,
+			bindPoint, technique->vk.layout,
+			(uint32_t)firstSet, (uint32_t)numSets, dSets,
+			(uint32_t)numOffsets, offs);
+	}
 }
 
 /****************************/

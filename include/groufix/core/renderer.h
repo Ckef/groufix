@@ -761,14 +761,18 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 /**
  * Render command to bind a render/descriptor set.
  * Can only be called within a callback of gfx_recorder_render!
- * @param recorder  Cannot be NULL.
- * @param technique Cannot be NULL.
- * @param numSets   Must be > 0.
- * @param sets      Cannot be NULL.
+ * @param recorder    Cannot be NULL.
+ * @param technique   Cannot be NULL.
+ * @param numSets     Must be > 0.
+ * @param numDynamics Number of dynamic offsets, missing offsets will be 0.
+ * @param sets        Cannot be NULL.
+ * @param offsets     Cannot be NULL if numDynamics > 0.
  */
 GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
                           size_t firstSet,
-                          size_t numSets, GFXSet** sets);
+                          size_t numSets, size_t numDynamics,
+                          GFXSet** sets,
+                          const uint32_t* offsets);
 
 /**
  * Render command to record a non-indexed draw.
