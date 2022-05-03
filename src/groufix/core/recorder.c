@@ -665,9 +665,19 @@ GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable)
 {
 	assert(renderable != NULL);
 
-	// TODO: Need to somehow verify that the pass is up to date and built!
+	GFXRenderer* renderer = renderable->pass->renderer;
 
-	return _gfx_renderable_pipeline(renderable, NULL, 1);
+	// To build pipelines, we need the Vulkan render pass.
+	// This is the exact reason we can warmup all passes of the render graph!
+	// Sadly this is not thread-safe at all, so we re-use the renderer's lock.
+	_gfx_mutex_lock(&renderer->lock);
+	bool success = _gfx_render_graph_warmup(renderer);
+	_gfx_mutex_unlock(&renderer->lock);
+
+	if (success)
+		return _gfx_renderable_pipeline(renderable, NULL, 1);
+
+	return 0;
 }
 
 /****************************/

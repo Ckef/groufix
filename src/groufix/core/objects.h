@@ -1369,11 +1369,19 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * (Re)builds the render graph and all its resources.
  * Will resolve to a no-op if everything is already built.
  * @param renderer Cannot be NULL.
- * @param Non-zero if the entire graph is in a built state.
+ * @return Non-zero if the entire graph is in a built state.
  *
  * This will call _gfx_sync_frames internally when the graph got invalidated!
  */
 bool _gfx_render_graph_build(GFXRenderer* renderer);
+
+/**
+ * Builds the Vulkan render passes if not present yet.
+ * Can be used for potential pipeline warmups.
+ * @param renderer Cannot be NULL.
+ * @return Non-zero on success.
+ */
+bool _gfx_render_graph_warmup(GFXRenderer* renderer);
 
 /**
  * (Re)builds render graph resources dependent on the given attachment index.
@@ -1424,13 +1432,20 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 void _gfx_destroy_pass(GFXPass* pass);
 
 /**
- * TODO: Merge passes with the same resolution into subpasses.
- * (Re)builds the Vulkan object structure.
+ * (Re)builds all Vulkan objects.
  * @param pass  Cannot be NULL.
  * @param flags What resources should be recreated (0 to recreate nothing).
  * @return Non-zero if valid and built.
  */
 bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
+
+/**
+ * Builds the Vulkan render pass if not present yet.
+ * Can be used for potential pipeline warmups.
+ * @param pass Cannot be NULL.
+ * @param Non-zero on success.
+ */
+bool _gfx_pass_warmup(GFXPass* pass);
 
 /**
  * Retrieves the current framebuffer of a pass with respect to a frame.
@@ -1443,7 +1458,7 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
 
 /**
- * Destructs the Vulkan object structure, non-recursively.
+ * Destructs all Vulkan objects, non-recursively.
  * @param pass Cannot be NULL.
  *
  * Must be called before detaching any attachment it uses!

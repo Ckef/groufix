@@ -196,11 +196,12 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	// First we destroy the things we want to recreate.
 	_gfx_pass_destruct_partial(pass, flags);
 
-	// Pick a backing window if we did not yet.
-	if (pass->build.backing == SIZE_MAX)
-		pass->build.backing = _gfx_pass_pick_backing(pass);
+	// Do a warmup, i.e. make sure the Vulkan render pass is built.
+	// This will log an error for us!
+	if (!_gfx_pass_warmup(pass))
+		return 0;
 
-	// Then go ahead and rebuild all missing bits.
+	// Then go ahead and build the framebuffers.
 	// Get the backing window attachment.
 	_GFXAttach* at = NULL;
 	if (pass->build.backing != SIZE_MAX)
@@ -210,6 +211,73 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	// TODO: Future: if no backing window, do smth else.
 	if (at == NULL || at->window.vk.views.size == 0)
 		return 1;
+
+	// Get framebuffer size.
+	const uint32_t width = at->window.window->frame.width;
+	const uint32_t height = at->window.window->frame.height;
+
+	// Create framebuffers (if not of 0 zero size).
+	if (pass->vk.framebuffers.size == 0 && width > 0 && height > 0)
+	{
+		// Remember the width/height for during recording.
+		pass->build.fWidth = width;
+		pass->build.fHeight = height;
+
+		// Reserve the exact amount, it's probably not gonna change.
+		if (!gfx_vec_reserve(&pass->vk.framebuffers, at->window.vk.views.size))
+			goto error;
+
+		for (size_t i = 0; i < at->window.vk.views.size; ++i)
+		{
+			VkFramebufferCreateInfo fci = {
+				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+
+				.pNext           = NULL,
+				.flags           = 0,
+				.renderPass      = pass->vk.pass,
+				.attachmentCount = 1,
+				.pAttachments    = gfx_vec_at(&at->window.vk.views, i),
+				.width           = width,
+				.height          = height,
+				.layers          = 1
+			};
+
+			VkFramebuffer frame;
+			_GFX_VK_CHECK(context->vk.CreateFramebuffer(
+				context->vk.device, &fci, NULL, &frame), goto error);
+
+			gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
+		}
+	}
+
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Could not build framebuffers for a pass.");
+	return 0;
+}
+
+/****************************/
+bool _gfx_pass_warmup(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	GFXRenderer* rend = pass->renderer;
+
+	// Pick a backing window if we did not yet.
+	if (pass->build.backing == SIZE_MAX)
+		pass->build.backing = _gfx_pass_pick_backing(pass);
+
+	// Get the backing window attachment.
+	_GFXAttach* at = NULL;
+	if (pass->build.backing != SIZE_MAX)
+		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
+
+	// Skip if there's no render target (e.g. minimized window).
+	// TODO: Future: if no backing window, do smth else.
+	if (at == NULL) return 1;
 
 	// Create render pass.
 	if (pass->vk.pass == VK_NULL_HANDLE)
@@ -257,54 +325,19 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 			.pDependencies   = NULL
 		};
 
+		// Remember the cache element for locality!
 		pass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
-		if (pass->build.pass == NULL) goto clean;
+		if (pass->build.pass == NULL) goto error;
 
 		pass->vk.pass = pass->build.pass->vk.pass;
-	}
-
-	// Create framebuffers.
-	if (pass->vk.framebuffers.size == 0)
-	{
-		// Remember the width/height for during recording.
-		pass->build.fWidth = at->window.window->frame.width;
-		pass->build.fHeight = at->window.window->frame.height;
-
-		// Reserve the exact amount, it's probably not gonna change.
-		if (!gfx_vec_reserve(&pass->vk.framebuffers, at->window.vk.views.size))
-			goto clean;
-
-		for (size_t i = 0; i < at->window.vk.views.size; ++i)
-		{
-			VkFramebufferCreateInfo fci = {
-				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-
-				.pNext           = NULL,
-				.flags           = 0,
-				.renderPass      = pass->vk.pass,
-				.attachmentCount = 1,
-				.pAttachments    = gfx_vec_at(&at->window.vk.views, i),
-				.width           = pass->build.fWidth,
-				.height          = pass->build.fHeight,
-				.layers          = 1
-			};
-
-			VkFramebuffer frame;
-			_GFX_VK_CHECK(context->vk.CreateFramebuffer(
-				context->vk.device, &fci, NULL, &frame), goto clean);
-
-			gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
-		}
 	}
 
 	return 1;
 
 
-	// Cleanup on failure.
-clean:
-	gfx_log_error("Could not (re)build a pass.");
-	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
-
+	// Error on failure.
+error:
+	gfx_log_error("Could not build a pass.");
 	return 0;
 }
 

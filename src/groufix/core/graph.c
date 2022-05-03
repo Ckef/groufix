@@ -10,6 +10,31 @@
 #include <assert.h>
 
 
+/****************************
+ * Purges (destructs) all invalidated passes.
+ * If never built yet, it will also set all pass orders.
+ * @param renderer Cannot be NULL.
+ */
+static void _gfx_render_graph_purge(GFXRenderer* renderer)
+{
+	// If the graph is validated or built, nothing to do.
+	if (renderer->graph.state == _GFX_GRAPH_INVALID)
+	{
+		// For destructing we need to wait until all rendering is done.
+		_gfx_sync_frames(renderer);
+
+		for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+		{
+			GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+			_gfx_pass_destruct(pass);
+
+			// At this point we also sneakedly set the order of all passes
+			// so the recorders know what's up.
+			pass->order = (unsigned int)i;
+		}
+	}
+}
+
 /****************************/
 void _gfx_render_graph_init(GFXRenderer* renderer)
 {
@@ -52,28 +77,11 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 	// When the graph is not valid (either its not built yet or explicitly
 	// invalidated), it needs to be entirely rebuilt. Optimizations such as
 	// merging passes may change, we want to capture these changes.
-	if (renderer->graph.state == _GFX_GRAPH_INVALID)
-	{
-		// So we destruct all the things before building.
-		// But for that we need to wait until all pending rendering is done.
-		_gfx_sync_frames(renderer);
-
-		for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		{
-			GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
-			_gfx_pass_destruct(pass);
-
-			// At this point we also sneakedly set the order of all passes
-			// so the recorders know what's up.
-			pass->order = (unsigned int)i;
-		}
-	}
+	_gfx_render_graph_purge(renderer);
 
 	// TODO: Here we analyze the graph for e.g. pass merging.
 	// That or do it within _gfx_pass_build?
 
-	// Ok so we either need to finish the build or the entire thing got
-	// invalidated and we destructed all the things.
 	// So now make sure all the passes in the graph are built.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
@@ -90,6 +98,33 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 
 	// Yep it's built.
 	renderer->graph.state = _GFX_GRAPH_BUILT;
+
+	return 1;
+}
+
+/****************************/
+bool _gfx_render_graph_warmup(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// Already done.
+	if (renderer->graph.state == _GFX_GRAPH_BUILT)
+		return 1;
+
+	// With the same logic as building; we purge all things first.
+	_gfx_render_graph_purge(renderer);
+
+	// And then make sure all passes are warmped up!
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+	{
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+
+		if (!_gfx_pass_warmup(pass))
+			return 0;
+	}
+
+	// Do not set any state, nothing is fully built.
 
 	return 1;
 }

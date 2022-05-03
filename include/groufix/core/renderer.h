@@ -314,6 +314,11 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
  *
  * This function is reentrant. However, CANNOT be called
  * during or inbetween gfx_frame_start and gfx_frame_submit.
+ *
+ * gfx_renderable only:
+ *  This call will internally pre-built a portion of the associated pass.
+ *  If the render graph (any pass!) is changed after this call, the warmup data
+ *  is invalidated and this call is effecitvely rendered a waste.
  */
 GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable);
 
