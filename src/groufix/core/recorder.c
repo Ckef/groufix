@@ -968,7 +968,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		numOffsets += sets[s]->numDynamics;
 	}
 
-	// Perform the bind command.
+	// Record the bind command.
 	const VkPipelineBindPoint bindPoint =
 		technique->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)] == NULL ?
 		VK_PIPELINE_BIND_POINT_GRAPHICS :
@@ -1033,7 +1033,7 @@ GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
 	if (renderable->primitive != NULL)
 		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
 
-	// Perform the draw command.
+	// Record the draw command.
 	context->vk.CmdDraw(recorder->inp.cmd,
 		vertices, instances, firstVertex, firstInstance);
 }
@@ -1074,7 +1074,7 @@ GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderab
 	if (renderable->primitive != NULL)
 		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
 
-	// Perform the draw command.
+	// Record the draw command.
 	context->vk.CmdDrawIndexed(recorder->inp.cmd,
 		indices, instances, firstIndex, vertexOffset, firstInstance);
 }
@@ -1105,6 +1105,6 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
 		return;
 	}
 
-	// Perform the dispatch command.
+	// Record the dispatch command.
 	context->vk.CmdDispatch(recorder->inp.cmd, groupX, groupY, groupZ);
 }

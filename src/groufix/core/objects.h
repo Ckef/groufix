@@ -844,6 +844,7 @@ struct GFXTechnique
 	} vk;
 
 
+	// Locking output.
 	_GFXCacheElem* layout;       // Pipeline layout, NULL until locked.
 	_GFXCacheElem* setLayouts[]; // Set layouts (sorted), all NULL until locked.
 };
