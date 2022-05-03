@@ -628,6 +628,15 @@ static inline void _gfx_swapchain_unlock(_GFXWindow* window)
 }
 
 /**
+ * Makes sure `window->frame.format` is set to the current device properties.
+ * @param window Cannot be NULL.
+ * @return Zero if no format was found.
+ *
+ * Not thread-affine, but also not thread-safe.
+ */
+bool _gfx_swapchain_format(_GFXWindow* window);
+
+/**
  * Acquires the next available image from the swapchain of a window.
  * @param window    Cannot be NULL.
  * @param available Cannot be VK_NULL_HANDLE, semaphore to be signaled.

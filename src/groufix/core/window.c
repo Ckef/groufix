@@ -437,6 +437,10 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	_GFX_GET_DEVICE(window->device, device);
 	_GFX_GET_CONTEXT(window->context, device, goto clean_surface);
 
+	// Pick a swapchain format, for potential pipeline warmups!
+	if (!_gfx_swapchain_format(window))
+		goto clean_surface;
+
 	// Pick all the queue families that need image access.
 	if (!_gfx_window_pick_access(window))
 		goto clean_surface;

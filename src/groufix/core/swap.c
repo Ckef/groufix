@@ -22,6 +22,48 @@ static inline bool _gfx_swapchain_sig(_GFXWindow* window)
 }
 
 /****************************
+ * Picks the image format + color space to use.
+ * @param count   Must be > 0.
+ * @param formats Cannot be NULL.
+ * @return Chosen index into formats.
+ */
+static uint32_t _gfx_swapchain_pick_format(_GFXDevice* device,
+                                           uint32_t count,
+                                           const VkSurfaceFormatKHR* formats)
+{
+	assert(count > 0);
+	assert(formats != NULL);
+
+	// Decide on the image format + color space to use.
+	// We simply pick the first sRGB format + color space.
+	// This means any writes to this image are converted linear -> sRGB!
+	uint32_t index = UINT32_MAX;
+
+	for (uint32_t f = 0; f < count; ++f)
+	{
+		if (
+			formats[f].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
+			_gfx_parse_format(device, formats[f].format).type == GFX_SRGB)
+		{
+			index = f;
+			break;
+		}
+	}
+
+	// No sRGB format available :(
+	if (index == UINT32_MAX)
+	{
+		gfx_log_warn(
+			"[ %s ] could not select an sRGB image format for a "
+			"swapchain, using the driver default instead.");
+
+		index = 0;
+	}
+
+	return index;
+}
+
+/****************************
  * (Re)creates the swapchain of a window, left empty at framebuffer size of 0x0.
  * Also updates all of window->frame.{ images, format, width, height }.
  * @param window Cannot be NULL.
@@ -72,7 +114,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 			window->vk.swapchain = VK_NULL_HANDLE;
 		}
 
-		window->frame.format = VK_FORMAT_UNDEFINED;
+		// Note: do not reset the format for potential pipeline warmups!
 		window->frame.width = 0;
 		window->frame.height = 0;
 
@@ -124,57 +166,16 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 			GFX_MAX(imageCount, sc.minImageCount) :
 			GFX_CLAMP(imageCount, sc.minImageCount, sc.maxImageCount);
 
-		// Decide on the presentation mode.
-		// - single buffered: Immediate.
-		// - double buffered: FIFO.
-		// - triple buffered: Mailbox.
-		// These are based on expected behavior, not actual images allocated.
-		// Fallback to FIFO, as this is required to be supported.
-		VkPresentModeKHR mode =
-			(wFlags & GFX_WINDOW_TRIPLE_BUFFER) ? VK_PRESENT_MODE_MAILBOX_KHR :
-			(wFlags & GFX_WINDOW_DOUBLE_BUFFER) ? VK_PRESENT_MODE_FIFO_KHR :
-			VK_PRESENT_MODE_IMMEDIATE_KHR;
-
-		uint32_t m;
-		for (m = 0; m < mCount; ++m)
-			if (modes[m] == mode) break;
-
-		if (m >= mCount)
-			mode = VK_PRESENT_MODE_FIFO_KHR;
-
 		// Decide on the image format + color space to use.
-		// We simply pick the first sRGB format + color space.
-		// This means any writes to this image are converted linear -> sRGB!
-		VkSurfaceFormatKHR format = { .format = VK_FORMAT_UNDEFINED };
+		uint32_t f = _gfx_swapchain_pick_format(device, fCount, formats);
 
-		for (uint32_t f = 0; f < fCount; ++f)
-		{
-			if (
-				formats[f].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
-				_gfx_parse_format(device, formats[f].format).type == GFX_SRGB)
-			{
-				format = formats[f];
-				break;
-			}
-		}
-
-		// No sRGB format available :(
-		if (format.format == VK_FORMAT_UNDEFINED)
-		{
-			gfx_log_warn(
-				"[ %s ] could not select an sRGB image format for a "
-				"swapchain, using the driver default instead.");
-
-			format = formats[0];
-		}
-
-		if (window->frame.format != format.format)
+		if (window->frame.format != formats[f].format)
 		{
 			*flags |= _GFX_REFORMAT;
-			window->frame.format = format.format;
+			window->frame.format = formats[f].format;
 		}
 
-		// Decide on the extend of the swapchain (i.e. the width and height).
+		// Decide on the extent of the swapchain (i.e. the width and height).
 		// We just pick the current extent of the surface, if it doesn't have
 		// one, we pick the size GLFW claims it has.
 		VkExtent2D extent = sc.currentExtent;
@@ -198,6 +199,24 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 			window->frame.height = extent.height;
 		}
 
+		// Decide on the presentation mode.
+		// - single buffered: Immediate.
+		// - double buffered: FIFO.
+		// - triple buffered: Mailbox.
+		// These are based on expected behavior, not actual images allocated.
+		// Fallback to FIFO, as this is required to be supported.
+		VkPresentModeKHR mode =
+			(wFlags & GFX_WINDOW_TRIPLE_BUFFER) ? VK_PRESENT_MODE_MAILBOX_KHR :
+			(wFlags & GFX_WINDOW_DOUBLE_BUFFER) ? VK_PRESENT_MODE_FIFO_KHR :
+			VK_PRESENT_MODE_IMMEDIATE_KHR;
+
+		uint32_t m;
+		for (m = 0; m < mCount; ++m)
+			if (modes[m] == mode) break;
+
+		if (m >= mCount)
+			mode = VK_PRESENT_MODE_FIFO_KHR;
+
 		// Finally create the actual new swapchain.
 		// We use an old swapchain so Vulkan can re-use data if it wants.
 		// If there still exists a fresh previous swapchain, there must not
@@ -213,8 +232,8 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 			.flags            = 0,
 			.surface          = window->vk.surface,
 			.minImageCount    = imageCount,
-			.imageFormat      = format.format,
-			.imageColorSpace  = format.colorSpace,
+			.imageFormat      = formats[f].format,
+			.imageColorSpace  = formats[f].colorSpace,
 			.imageExtent      = extent,
 			.imageArrayLayers = 1,
 			.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -304,6 +323,35 @@ clean:
 	*flags = 0;
 
 	return 0;
+}
+
+/****************************/
+bool _gfx_swapchain_format(_GFXWindow* window)
+{
+	assert(window != NULL);
+
+	// Already set.
+	if (window->frame.format != VK_FORMAT_UNDEFINED)
+		return 1;
+
+	// If not, get all formats of the device.
+	_GFXDevice* device = window->device;
+
+	uint32_t fCount;
+	_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
+		device->vk.device, window->vk.surface, &fCount, NULL), return 0);
+
+	if (fCount == 0) return 0;
+
+	VkSurfaceFormatKHR formats[fCount];
+	_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
+		device->vk.device, window->vk.surface, &fCount, formats), return 0);
+
+	// Then pick & set.
+	uint32_t f = _gfx_swapchain_pick_format(device, fCount, formats);
+	window->frame.format = formats[f].format;
+
+	return 1;
 }
 
 /****************************/
