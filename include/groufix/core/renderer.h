@@ -312,8 +312,9 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
  * @param renderable Cannot be NULL.
  * @return Non-zero on success.
  *
- * This function is reentrant. However, CANNOT be called
- * during or inbetween gfx_frame_start and gfx_frame_submit.
+ * This function is reentrant.
+ * However, NOT thread-safe with respect to the associated pass/renderer and
+ * CANNOT be called during or inbetween gfx_frame_start and gfx_frame_submit.
  *
  * gfx_renderable only:
  *  This call will internally pre-built a portion of the associated pass.
