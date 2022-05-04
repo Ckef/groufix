@@ -560,6 +560,12 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique);
 GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
 
 /**
+ * Retrieves the push constant range's size of a technique.
+ * @param technique Cannot be NULL.
+ */
+GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique);
+
+/**
  * Sets immutable samplers of the technique.
  * @param technique   Cannot be NULL.
  * @param set         Must be < gfx_tech_get_num_sets(technique).
@@ -766,7 +772,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 
 /**
  * Render command to bind a render/descriptor set.
- * Can only be called within a callback of gfx_recorder_render!
+ * Can only be called within a callback of gfx_recorder_(render|compute)!
  * @param recorder    Cannot be NULL.
  * @param technique   Cannot be NULL.
  * @param numSets     Must be > 0.
@@ -779,6 +785,19 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
                           size_t numSets, size_t numDynamics,
                           GFXSet** sets,
                           const uint32_t* offsets);
+
+/**
+ * Render command to update push constants.
+ * Can only be called within a callback of gfx_recorder_(render|compute)!
+ * @param recorder  Cannot be NULL.
+ * @param technique Cannot be NULL.
+ * @param offset    Must be a multiple of 4.
+ * @param size      Must be a multiple of 4, zero for all remaining bytes.
+ * @param data      An array of size bytes.
+ */
+GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
+                          uint32_t offset,
+                          uint32_t size, const void* data);
 
 /**
  * Render command to record a non-indexed draw.

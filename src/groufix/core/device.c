@@ -162,8 +162,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	{
 		pdv11f->storageBuffer16BitAccess           = VK_FALSE;
 		pdv11f->uniformAndStorageBuffer16BitAccess = VK_FALSE;
-		pdv11f->storagePushConstant16              = VK_FALSE;
-		pdv11f->storageInputOutput16               = VK_FALSE;
 		pdv11f->multiview                          = VK_FALSE;
 		pdv11f->multiviewGeometryShader            = VK_FALSE;
 		pdv11f->multiviewTessellationShader        = VK_FALSE;
@@ -179,7 +177,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 		pdv12f->drawIndirectCount                                  = VK_FALSE;
 		pdv12f->storageBuffer8BitAccess                            = VK_FALSE;
 		pdv12f->uniformAndStorageBuffer8BitAccess                  = VK_FALSE;
-		pdv12f->storagePushConstant8                               = VK_FALSE;
 		pdv12f->shaderBufferInt64Atomics                           = VK_FALSE;
 		pdv12f->shaderSharedInt64Atomics                           = VK_FALSE;
 		pdv12f->descriptorIndexing                                 = VK_FALSE;
@@ -774,6 +771,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CmdEndRenderPass);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdExecuteCommands);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdPipelineBarrier);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdPushConstants);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdSetViewport);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdSetScissor);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);
@@ -961,6 +959,9 @@ bool _gfx_devices_init(void)
 					.shaderInt64              = pdf.shaderInt64,
 					.shaderFloat16            = (vk12 ? pdv12f.shaderFloat16 : 0),
 					.shaderFloat64            = pdf.shaderFloat64,
+					.shaderPushConstant8      = (vk12 ? pdv12f.storagePushConstant8 : 0),
+					.shaderPushConstant16     = (vk11 ? pdv11f.storagePushConstant16 : 0),
+					.shaderInputOutput16      = (vk11 ? pdv11f.storageInputOutput16 : 0),
 					.samplerAnisotropy        = pdf.samplerAnisotropy,
 					.samplerClampToEdgeMirror = (vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
 					.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0)
@@ -980,6 +981,7 @@ bool _gfx_devices_init(void)
 					.maxAttributeOffset    = pdp.limits.maxVertexInputAttributeOffset,
 					.maxAttributeStride    = pdp.limits.maxVertexInputBindingStride,
 					.maxPrimitiveBuffers   = pdp.limits.maxVertexInputBindings,
+					.maxPushConstantSize   = pdp.limits.maxPushConstantsSize,
 
 					.minTexelBufferAlign   = pdp.limits.minTexelBufferOffsetAlignment,
 					.minUniformBufferAlign = pdp.limits.minUniformBufferOffsetAlignment,

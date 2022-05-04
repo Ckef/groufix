@@ -950,9 +950,10 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(recorder->inp.cmd != NULL);
 	assert(technique != NULL);
 	assert(technique->renderer == recorder->renderer);
+	assert(firstSet < technique->numSets);
 	assert(numSets > 0);
+	assert(numSets <= technique->numSets - firstSet);
 	assert(sets != NULL);
-	assert(firstSet + numSets <= technique->numSets);
 	assert(numDynamics == 0 || offsets != NULL);
 
 	_GFXContext* context = recorder->context;
@@ -1009,6 +1010,35 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 }
 
 /****************************/
+GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
+                          uint32_t offset,
+                          uint32_t size, const void* data)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	assert(technique != NULL);
+	assert(technique->renderer == recorder->renderer);
+	assert(offset % 4 == 0);
+	assert(offset < technique->pushSize);
+	assert(size % 4 == 0);
+	assert(size > 0);
+	assert(size <= technique->pushSize - offset);
+	assert(data != NULL);
+
+	_GFXContext* context = recorder->context;
+
+	// Take all remaining bytes if asked.
+	if (size == 0)
+		size = technique->pushSize - offset;
+
+	// Record the push command.
+	context->vk.CmdPushConstants(recorder->inp.cmd,
+		technique->vk.layout,
+		_GFX_GET_VK_SHADER_STAGE(technique->pushStages),
+		offset, size, data);
+}
+
+/****************************/
 GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
                           uint32_t firstVertex, uint32_t vertices,
                           uint32_t firstInstance, uint32_t instances)
@@ -1021,7 +1051,8 @@ GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
 	assert(vertices > 0 || renderable->primitive != NULL);
 	assert(instances > 0);
 	assert(renderable->primitive == NULL ||
-		(firstVertex + vertices <= renderable->primitive->numVertices));
+		(firstVertex < renderable->primitive->numVertices &&
+		vertices <= renderable->primitive->numVertices - firstVertex));
 
 	_GFXContext* context = recorder->context;
 
@@ -1062,7 +1093,8 @@ GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderab
 	assert(indices > 0 || renderable->primitive != NULL);
 	assert(instances > 0);
 	assert(renderable->primitive == NULL ||
-		(firstIndex + indices <= renderable->primitive->numIndices));
+		(firstIndex < renderable->primitive->numIndices &&
+		indices <= renderable->primitive->numIndices - firstIndex));
 
 	_GFXContext* context = recorder->context;
 

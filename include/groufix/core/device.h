@@ -57,6 +57,9 @@ typedef struct GFXDevice
 		bool shaderInt64;
 		bool shaderFloat16;
 		bool shaderFloat64;
+		bool shaderPushConstant8;
+		bool shaderPushConstant16;
+		bool shaderInputOutput16;
 		bool samplerAnisotropy;
 		bool samplerClampToEdgeMirror;
 		bool samplerMinmax;
@@ -79,6 +82,7 @@ typedef struct GFXDevice
 		uint32_t maxAttributeOffset;
 		uint32_t maxAttributeStride;
 		uint32_t maxPrimitiveBuffers;
+		uint32_t maxPushConstantSize;
 
 		uint64_t minTexelBufferAlign;
 		uint64_t minUniformBufferAlign;

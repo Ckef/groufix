@@ -525,6 +525,14 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique)
 }
 
 /****************************/
+GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique)
+{
+	assert(technique != NULL);
+
+	return technique->pushSize;
+}
+
+/****************************/
 GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
                                size_t numSamplers, const GFXSampler* samplers)
 {
