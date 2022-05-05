@@ -532,6 +532,18 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
  ****************************/
 
 /**
+ * Specialization constant value.
+ */
+typedef union GFXConstant
+{
+	int32_t  i32;
+	uint32_t u32;
+	float    f;
+
+} GFXConstant;
+
+
+/**
  * Adds a new technique to the renderer.
  * @param renderer   Cannot be NULL.
  * @param numShaders Must be > 0.
@@ -566,6 +578,21 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
 GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique);
 
 /**
+ * Sets specialization constant of the technique.
+ * @param technique Cannot be NULL.
+ * @param stage     Shader stages to set the specialization constant of.
+ * @param id        ID of the specialization constant in SPIR-V.
+ * @param size      Must be sizeof(value.(i32|u32|f)) of the correct data-type.
+ * @return Zero if failed to set the constant in one or more shaders.
+ *
+ * Fails if the technique is already locked.
+ * Shaders that do not have the specialization constant are left unchanged.
+ */
+GFX_API bool gfx_tech_constant(GFXTechnique* technique,
+                               GFXShaderStage stage, uint32_t id,
+                               size_t size, GFXConstant value);
+
+/**
  * Sets immutable samplers of the technique.
  * @param technique   Cannot be NULL.
  * @param set         Must be < gfx_tech_get_num_sets(technique).
@@ -576,7 +603,8 @@ GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique);
  * Fails if the technique is already locked.
  * Warns about samplers that do not match the shader input type.
  */
-GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
+GFX_API bool gfx_tech_samplers(GFXTechnique* technique,
+                               size_t set,
                                size_t numSamplers, const GFXSampler* samplers);
 
 /**
@@ -589,8 +617,8 @@ GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
  * Fails if the technique is already locked.
  * Warns if the shader input type is not a uniform or storage buffer.
  */
-GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
-                              size_t binding);
+GFX_API bool gfx_tech_dynamic(GFXTechnique* technique,
+                              size_t set, size_t binding);
 
 /**
  * Locks the technique, preparing it for rendering & making it immutable.

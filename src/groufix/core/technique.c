@@ -39,6 +39,19 @@
 
 
 /****************************
+ * Technique constant element definition.
+ */
+typedef struct _GFXConstantElem
+{
+	uint32_t    stage; // Shader stage index.
+	uint32_t    id;
+	size_t      size;
+	GFXConstant value;
+
+} _GFXConstantElem;
+
+
+/****************************
  * Technique immutable sampler element definition.
  */
 typedef struct _GFXSamplerElem
@@ -476,6 +489,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	for (size_t l = 0; l < tech->numSets; ++l)
 		tech->setLayouts[l] = NULL;
 
+	gfx_vec_init(&tech->constants, sizeof(_GFXConstantElem));
 	gfx_vec_init(&tech->samplers, sizeof(_GFXSamplerElem));
 	gfx_vec_init(&tech->immutable, sizeof(_GFXBindingElem));
 	gfx_vec_init(&tech->dynamic, sizeof(_GFXBindingElem));
@@ -509,6 +523,7 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique)
 	_gfx_mutex_unlock(&renderer->lock);
 
 	// Destroy itself.
+	gfx_vec_clear(&technique->constants);
 	gfx_vec_clear(&technique->samplers);
 	gfx_vec_clear(&technique->immutable);
 	gfx_vec_clear(&technique->dynamic);
@@ -533,7 +548,29 @@ GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique)
 }
 
 /****************************/
-GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
+GFX_API bool gfx_tech_constant(GFXTechnique* technique,
+                               GFXShaderStage stage, uint32_t id,
+                               size_t size, GFXConstant value)
+{
+	assert(technique != NULL);
+	assert(stage != 0);
+	assert(
+		size == sizeof(value.i32) ||
+		size == sizeof(value.u32) ||
+		size == sizeof(value.f));
+
+	// Skip if already locked.
+	if (technique->layout != NULL)
+		return 0;
+
+	// TODO: Implement.
+
+	return 0;
+}
+
+/****************************/
+GFX_API bool gfx_tech_samplers(GFXTechnique* technique,
+                               size_t set,
                                size_t numSamplers, const GFXSampler* samplers)
 {
 	assert(technique != NULL);
@@ -603,8 +640,8 @@ GFX_API bool gfx_tech_samplers(GFXTechnique* technique, size_t set,
 }
 
 /****************************/
-GFX_API bool gfx_tech_dynamic(GFXTechnique* technique, size_t set,
-                              size_t binding)
+GFX_API bool gfx_tech_dynamic(GFXTechnique* technique,
+                              size_t set, size_t binding)
 {
 	assert(technique != NULL);
 	assert(set < technique->numSets);

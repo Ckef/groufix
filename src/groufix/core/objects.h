@@ -830,6 +830,9 @@ struct GFXTechnique
 	uint32_t       pushSize;
 	GFXShaderStage pushStages;
 
+	// Sorted on { stage, id }.
+	GFXVec constants; // Stores { uint32_t stage, uint32_t id, size_t, GFXConstant }.
+
 	// All sorted on { set, binding, index }.
 	GFXVec samplers;  // Stores { size_t set, GFXSampler }, temporary!
 	GFXVec immutable; // Stores { size_t set, size_t binding }.
