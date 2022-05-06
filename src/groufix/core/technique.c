@@ -217,6 +217,66 @@ static _GFXShaderResource* _gfx_tech_get_resource(GFXTechnique* technique,
 }
 
 /****************************/
+void _gfx_tech_get_constants(GFXTechnique* technique,
+                             VkSpecializationInfo* infos,
+                             VkSpecializationMapEntry* entries)
+{
+	assert(technique != NULL);
+	assert(technique->layout != NULL); // Must be locked.
+	assert(infos != NULL);
+	assert(technique->constants.size == 0 || entries != NULL);
+
+	// Init info structs to empty.
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		infos[s] = (VkSpecializationInfo){
+			.mapEntryCount = 0,
+			.pMapEntries = NULL,
+			.dataSize = 0,
+			.pData = NULL
+		};
+
+	// No constants, done.
+	if (technique->constants.size == 0) return;
+
+	// Loop over all constants, count & output them;
+	// They are already sorted correctly.
+	uint32_t currStage = UINT32_MAX;
+	uint32_t currOffset = 0;
+
+	for (size_t c = 0; c < technique->constants.size; ++c)
+	{
+		_GFXConstantElem* elem = gfx_vec_at(&technique->constants, c);
+		infos[elem->stage].mapEntryCount += 1;
+		infos[elem->stage].dataSize += sizeof(_GFXConstantElem);
+
+		// If we hit a new stage, set the map entry & data pointers.
+		if (elem->stage != currStage)
+		{
+			currStage = elem->stage;
+			currOffset = 0;
+
+			infos[elem->stage].pMapEntries = entries + c;
+			infos[elem->stage].pData =
+				// Point to the first value of the stage.
+				(char*)elem + offsetof(_GFXConstantElem, value);
+
+			// Also chop off the first bit of the first constant elem.
+			infos[elem->stage].dataSize -= offsetof(_GFXConstantElem, value);
+		}
+
+		// Output the map entry.
+		entries[c] = (VkSpecializationMapEntry){
+			.constantID = elem->id,
+			.offset = currOffset,
+			.size = elem->size
+		};
+
+		// Increase offset for next entry.
+		currOffset += (uint32_t)sizeof(_GFXConstantElem);
+	}
+}
+
+/****************************/
 void _gfx_tech_get_set_size(GFXTechnique* technique,
                             size_t set, size_t* numBindings, size_t* numEntries)
 {
@@ -549,7 +609,7 @@ GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique)
 
 /****************************/
 GFX_API bool gfx_tech_constant(GFXTechnique* technique,
-                               GFXShaderStage stage, uint32_t id,
+                               uint32_t id, GFXShaderStage stage,
                                size_t size, GFXConstant value)
 {
 	assert(technique != NULL);
@@ -563,9 +623,72 @@ GFX_API bool gfx_tech_constant(GFXTechnique* technique,
 	if (technique->layout != NULL)
 		return 0;
 
-	// TODO: Implement.
+	// Keep track of success.
+	bool success = 1;
 
-	return 0;
+	// Loop over all shader stages, set constants.
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		// Cheat a little by fabricating each bit-flag from stage index.
+		if ((stage & ((uint32_t)1 << s)) && technique->shaders[s] != NULL)
+		{
+			GFXShader* shader = technique->shaders[s];
+
+			// Check if this shader even has the constant ID.
+			size_t i;
+			for (i = shader->reflect.constants; i > 0; --i)
+			{
+				_GFXShaderResource* res =
+					shader->reflect.resources +
+					shader->reflect.locations +
+					shader->reflect.bindings + (i-1);
+
+				if (res->id == id) break;
+			}
+
+			// Silently skip it if not.
+			if (i == 0) continue;
+
+			// If it does, insert/update the specialization constant.
+			// Do another binary search to find it, then insert if not found.
+			size_t l = 0;
+			size_t r = technique->constants.size;
+
+			while (l < r)
+			{
+				const size_t p = (l + r) >> 1;
+				_GFXConstantElem* e = gfx_vec_at(&technique->constants, p);
+
+				const bool lesser =
+					e->stage < s || (e->stage == s && e->id < id);
+				const bool greater =
+					e->stage > s || (e->stage == s && e->id > id);
+
+				if (lesser) l = p + 1;
+				else if (greater) r = p;
+				else {
+					// If found, just update.
+					e->size = size;
+					e->value = value;
+					break;
+				}
+			}
+
+			// Insert if not found.
+			if (l == r)
+			{
+				_GFXConstantElem elem = {
+					.stage = (uint32_t)s,
+					.id = id,
+					.size = size,
+					.value = value
+				};
+
+				if (!gfx_vec_insert(&technique->constants, 1, &elem, l))
+					success = 0;
+			}
+		}
+
+	return success;
 }
 
 /****************************/

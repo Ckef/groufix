@@ -110,6 +110,13 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		return 0;
 	}
 
+	// Get specialization constants.
+	const size_t numConsts = tech->constants.size;
+	VkSpecializationInfo si[_GFX_NUM_SHADER_STAGES];
+	VkSpecializationMapEntry sme[numConsts > 0 ? numConsts : 1];
+
+	_gfx_tech_get_constants(tech, si, sme);
+
 	// Build create info.
 	const size_t numAttribs = prim != NULL ? prim->numAttribs : 0;
 	const size_t numBindings = prim != NULL ? prim->numBindings : 0;
@@ -127,7 +134,8 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.module = ((GFXShader*)handles[s])->vk.module,
 			.pName  = "main",
 
-			.pSpecializationInfo = NULL
+			// Do not pass anything if no entries; for smaller hashes!
+			.pSpecializationInfo = (si[s].mapEntryCount > 0) ? si + s : NULL
 		};
 
 	for (size_t i = 0; i < numAttribs; ++i)
@@ -331,6 +339,14 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 		return 0;
 	}
 
+	// Get specialization constants.
+	const size_t numConsts = tech->constants.size;
+	VkSpecializationInfo si[_GFX_NUM_SHADER_STAGES];
+	VkSpecializationMapEntry sme[numConsts > 0 ? numConsts : 1];
+
+	_gfx_tech_get_constants(tech, si, sme);
+	VkSpecializationInfo* siC = si + _GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE);
+
 	// Build create info.
 	VkComputePipelineCreateInfo cpci = {
 		.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
@@ -344,12 +360,14 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 		.stage = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 
-			.pNext               = NULL,
-			.flags               = 0,
-			.stage               = VK_SHADER_STAGE_COMPUTE_BIT,
-			.module              = ((GFXShader*)handles[0])->vk.module,
-			.pName               = "main",
-			.pSpecializationInfo = NULL
+			.pNext  = NULL,
+			.flags  = 0,
+			.stage  = VK_SHADER_STAGE_COMPUTE_BIT,
+			.module = ((GFXShader*)handles[0])->vk.module,
+			.pName  = "main",
+
+			// Do not pass anything if no entries; for smaller hashes!
+			.pSpecializationInfo = (siC->mapEntryCount > 0) ? siC : NULL
 		}
 	};
 

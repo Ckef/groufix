@@ -246,6 +246,7 @@
 /**
  * Get an index from a single shader stage
  * and total #stages that exist.
+ * Indices are ordered the same as GFXShaderStage bit-flags!
  */
 #define _GFX_GET_SHADER_STAGE_INDEX(stage) \
 	((stage) == GFX_STAGE_VERTEX ? 0 : \
@@ -1517,6 +1518,18 @@ bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame);
  */
 void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
                           VkCommandBuffer cmd);
+
+/**
+ * Retrieves all Vulkan specialization constant info and map entries.
+ * @param technique Cannot be NULL, must be locked.
+ * @param infos     `_GFX_NUM_SHADER_STAGES` VkSpecilizationInfo structs.
+ * @param entries   `technique->constants.size` VkSpecializationMapEntry structs.
+ *
+ * All output entries are sorted on { stage, constantID }.
+ */
+void _gfx_tech_get_constants(GFXTechnique* technique,
+                             VkSpecializationInfo* infos,
+                             VkSpecializationMapEntry* entries);
 
 /**
  * Computes the size of a specific descriptor set layout within a technique.

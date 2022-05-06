@@ -586,10 +586,10 @@ GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique);
  * @return Zero if failed to set the constant in one or more shaders.
  *
  * Fails if the technique is already locked.
- * Shaders that do not have the specialization constant are left unchanged.
+ * Shaders that do not have the specialization constant are ignored.
  */
 GFX_API bool gfx_tech_constant(GFXTechnique* technique,
-                               GFXShaderStage stage, uint32_t id,
+                               uint32_t id, GFXShaderStage stage,
                                size_t size, GFXConstant value);
 
 /**

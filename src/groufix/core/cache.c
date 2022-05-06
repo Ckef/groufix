@@ -301,18 +301,19 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 				for (size_t e = 0; e < si->mapEntryCount; ++e)
 				{
 					_GFX_KEY_PUSH(si->pMapEntries[e].constantID);
-					_GFX_KEY_PUSH(si->pMapEntries[e].offset);
+					// Ignore the offset field.
 					_GFX_KEY_PUSH(si->pMapEntries[e].size);
+
+					if (!_gfx_hash_builder_push(
+						&builder, si->pMapEntries[e].size,
+						(char*)si->pData + si->pMapEntries[e].offset))
+					{
+						goto clean;
+					}
 				}
 
-				_GFX_KEY_PUSH(si->dataSize);
-
-				if (si->dataSize > 0 &&
-					_gfx_hash_builder_push(
-						&builder, si->dataSize, si->pData) == NULL)
-				{
-					goto clean;
-				}
+				// Ignore the dataSize field.
+				// pData field implicitly pushed above.
 			}
 		}
 
@@ -539,18 +540,19 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			for (size_t e = 0; e < si->mapEntryCount; ++e)
 			{
 				_GFX_KEY_PUSH(si->pMapEntries[e].constantID);
-				_GFX_KEY_PUSH(si->pMapEntries[e].offset);
+				// Ignore the offset field.
 				_GFX_KEY_PUSH(si->pMapEntries[e].size);
+
+				if (!_gfx_hash_builder_push(
+					&builder, si->pMapEntries[e].size,
+					(char*)si->pData + si->pMapEntries[e].offset))
+				{
+					goto clean;
+				}
 			}
 
-			_GFX_KEY_PUSH(si->dataSize);
-
-			if (si->dataSize > 0 &&
-				_gfx_hash_builder_push(
-					&builder, si->dataSize, si->pData) == NULL)
-			{
-				goto clean;
-			}
+			// Ignore the dataSize field.
+			// pData field implicitly pushed above.
 		}
 
 		_GFX_KEY_PUSH_HANDLE();
