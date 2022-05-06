@@ -125,18 +125,24 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	VkVertexInputBindingDescription vibd[numBindings > 0 ? numBindings : 1];
 
 	for (uint32_t s = 0; s < numShaders; ++s)
+	{
+		const GFXShader* shader = handles[s];
+		const uint32_t stage = _GFX_GET_SHADER_STAGE_INDEX(shader->stage);
+
 		pstci[s] = (VkPipelineShaderStageCreateInfo){
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 
 			.pNext  = NULL,
 			.flags  = 0,
-			.stage  = _GFX_GET_VK_SHADER_STAGE(((GFXShader*)handles[s])->stage),
-			.module = ((GFXShader*)handles[s])->vk.module,
+			.stage  = _GFX_GET_VK_SHADER_STAGE(shader->stage),
+			.module = shader->vk.module,
 			.pName  = "main",
 
 			// Do not pass anything if no entries; for smaller hashes!
-			.pSpecializationInfo = (si[s].mapEntryCount > 0) ? si + s : NULL
+			.pSpecializationInfo =
+				(si[stage].mapEntryCount > 0) ? si + stage : NULL
 		};
+	}
 
 	for (size_t i = 0; i < numAttribs; ++i)
 		viad[i] = (VkVertexInputAttributeDescription){
@@ -330,7 +336,8 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 
 	// TODO: Use other shader handle so the shader can be destroyed?
 	// Set & validate hashing handles.
-	handles[0] = tech->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)];
+	const uint32_t stage = _GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE);
+	handles[0] = tech->shaders[stage];
 	handles[1] = tech->layout;
 
 	if (handles[0] == NULL || handles[1] == NULL)
@@ -345,7 +352,6 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 	VkSpecializationMapEntry sme[numConsts > 0 ? numConsts : 1];
 
 	_gfx_tech_get_constants(tech, si, sme);
-	VkSpecializationInfo* siC = si + _GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE);
 
 	// Build create info.
 	VkComputePipelineCreateInfo cpci = {
@@ -367,7 +373,8 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 			.pName  = "main",
 
 			// Do not pass anything if no entries; for smaller hashes!
-			.pSpecializationInfo = (siC->mapEntryCount > 0) ? siC : NULL
+			.pSpecializationInfo =
+				(si[stage].mapEntryCount > 0) ? si + stage : NULL
 		}
 	};
 

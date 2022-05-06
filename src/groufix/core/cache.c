@@ -485,8 +485,8 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 				_GFX_KEY_PUSH(pcbsci->pAttachments[a].colorWriteMask);
 			}
 
-			if (_gfx_hash_builder_push(
-				&builder, sizeof(pcbsci->blendConstants), pcbsci->blendConstants) == NULL)
+			if (!_gfx_hash_builder_push(
+				&builder, sizeof(pcbsci->blendConstants), pcbsci->blendConstants))
 			{
 				goto clean;
 			}
@@ -1333,8 +1333,8 @@ bool _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst)
 		_GFX_KEY_PUSH(pdp.driverVersion);
 		_GFX_KEY_PUSH(driverABI);
 
-		if (_gfx_hash_builder_push(
-			&builder, sizeof(pdp.pipelineCacheUUID), pdp.pipelineCacheUUID) == NULL)
+		if (!_gfx_hash_builder_push(
+			&builder, sizeof(pdp.pipelineCacheUUID), pdp.pipelineCacheUUID))
 		{
 			goto clean;
 		}
