@@ -123,6 +123,11 @@ typedef struct GFXInject
 } GFXInject;
 
 
+// TODO: Someday in the future change it so we only have gfx_dep_wait,
+// and cannot wait for specific resources, only for entire queue destinations.
+// This makes it so we can pool semaphores and not use one for every resource.
+// Makes heap pooling much smoother also.
+
 /**
  * Injection macros. Dependency objects can be signaled or waited upon
  * with respect to (a set of) resources on the GPU, the CPU is never blocked!
