@@ -7,8 +7,8 @@
  */
 
 #include "groufix/core/objects.h"
-#include <shaderc/shaderc.h>
-#include <spirv_cross_c.h>
+#include "shaderc/shaderc.h"
+#include "spirv_cross_c.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
