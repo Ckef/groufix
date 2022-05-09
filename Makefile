@@ -67,7 +67,8 @@ OFLAGS_ALL = \
  -Ideps/glfw/include \
  -Ideps/Vulkan-Headers/include \
  -Ideps/shaderc/libshaderc/include \
- -Ideps/SPIRV-Cross
+ -Ideps/SPIRV-Cross \
+ -isystem deps/cgltf # All warnings ignored
 
 ifeq ($(OS),Windows_NT)
  OFLAGS = $(OFLAGS_ALL)

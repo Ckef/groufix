@@ -9,6 +9,9 @@
 #include "groufix/parsers/gltf.h"
 #include <assert.h>
 
+#define CGLTF_IMPLEMENTATION
+#include "cgltf.h"
+
 
 /****************************/
 GFX_API void gfx_parse_gltf(const GFXReader* src)

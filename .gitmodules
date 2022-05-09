@@ -10,3 +10,6 @@
 [submodule "deps/SPIRV-Cross"]
 	path = deps/SPIRV-Cross
 	url = https://github.com/KhronosGroup/SPIRV-Cross
+[submodule "deps/cgltf"]
+	path = deps/cgltf
+	url = https://github.com/jkuhlmann/cgltf
