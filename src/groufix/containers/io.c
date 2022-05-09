@@ -65,15 +65,24 @@ static long long _gfx_file_len(const GFXReader* str)
 	if (file->handle == NULL) return -1;
 
 	// Get current position.
+#if defined (GFX_WIN32)
+	__int64 pos = _ftelli64(file->handle);
+#else
 	long pos = ftell(file->handle);
+#endif
+
 	if (pos < 0) return -1;
 
-	// Seek end, get length.
+	// Seek end, get length & reset old position.
 	if (fseek(file->handle, 0, SEEK_END)) return -1;
-	long len = ftell(file->handle);
 
-	// Reset to old position.
+#if defined (GFX_WIN32)
+	__int64 len = _ftelli64(file->handle);
+	if (_fseeki64(file->handle, pos, SEEK_SET)) return -1;
+#else
+	long len = ftell(file->handle);
 	if (fseek(file->handle, pos, SEEK_SET)) return -1;
+#endif
 
 	return len;
 }
