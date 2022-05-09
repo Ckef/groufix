@@ -186,9 +186,11 @@ ifeq ($(OS),Windows_NT)
 	$(eval OUTSUB_W = $(subst /,\,$(OUT)$(SUB)))
 	@if not exist $(OUTSUB_W)\groufix\containers\nul mkdir $(OUTSUB_W)\groufix\containers
 	@if not exist $(OUTSUB_W)\groufix\core\nul mkdir $(OUTSUB_W)\groufix\core
+	@if not exist $(OUTSUB_W)\groufix\parsers\nul mkdir $(OUTSUB_W)\groufix\parsers
 else
 	@mkdir -p $(OUT)$(SUB)/groufix/containers
 	@mkdir -p $(OUT)$(SUB)/groufix/core
+	@mkdir -p $(OUT)$(SUB)/groufix/parsers
 endif
 
 
@@ -257,6 +259,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/technique.o \
  $(OUT)$(SUB)/groufix/core/vulkan.o \
  $(OUT)$(SUB)/groufix/core/window.o \
+ $(OUT)$(SUB)/groufix/parsers/gltf.o \
  $(OUT)$(SUB)/groufix.o
 
 LIBS = \
