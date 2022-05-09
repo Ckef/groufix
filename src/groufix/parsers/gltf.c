@@ -7,16 +7,87 @@
  */
 
 #include "groufix/parsers/gltf.h"
+#include "groufix/core/log.h"
 #include <assert.h>
+#include <stdlib.h>
 
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
 
 
 /****************************/
-GFX_API void gfx_parse_gltf(const GFXReader* src)
+GFX_API bool gfx_parse_gltf(const GFXReader* src)
 {
 	assert(src != NULL);
 
-	// TODO: Implement.
+	// Allocate source buffer.
+	long long len = gfx_io_len(src);
+	if (len <= 0)
+	{
+		gfx_log_error(
+			"Zero or unknown stream length, cannot parse glTF source.");
+
+		return 0;
+	}
+
+	void* source = malloc((size_t)len);
+	if (source == NULL)
+	{
+		gfx_log_error(
+			"Could not allocate source buffer to parse glTF source.");
+
+		return 0;
+	}
+
+	// Read source.
+	len = gfx_io_read(src, source, (size_t)len);
+	if (len <= 0)
+	{
+		gfx_log_error(
+			"Could not read glTF source from stream.");
+
+		free(source);
+		return 0;
+	}
+
+	// Parse the glTF source.
+	cgltf_options options = {0};
+	cgltf_data* data = NULL;
+
+	cgltf_result result = cgltf_parse(&options, source, (size_t)len, &data);
+	free(source); // Immediately free source buffer.
+
+	// Some useful logging.
+	switch (result)
+	{
+	case cgltf_result_unknown_format:
+		gfx_log_error("Failed to parse glTF; unknown format.");
+		return 0;
+
+	case cgltf_result_invalid_json:
+		gfx_log_error("Failed to parse glTF; invalid JSON.");
+		return 0;
+
+	case cgltf_result_data_too_short:
+	case cgltf_result_invalid_gltf:
+		gfx_log_error("Failed to parse glTF; contains invalid source.");
+		return 0;
+
+	case cgltf_result_legacy_gltf:
+		gfx_log_error("Failed to parse glTF; contains legacy source.");
+		return 0;
+
+	default:
+		if (result != cgltf_result_success)
+		{
+			gfx_log_error("Failed to parse glTF; unknown reason.");
+			return 0;
+		}
+		break;
+	}
+
+	// TODO: Continue implement.
+
+	cgltf_free(data);
+	return 1;
 }

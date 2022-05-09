@@ -18,8 +18,9 @@
  * TODO: Define more.
  * Parses a glTF 2.0 stream into groufix objects.
  * @param src Source stream, cannot be NULL.
+ * @return Non-zero on success.
  */
-GFX_API void gfx_parse_gltf(const GFXReader* src);
+GFX_API bool gfx_parse_gltf(const GFXReader* src);
 
 
 #endif
