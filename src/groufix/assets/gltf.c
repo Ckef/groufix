@@ -16,9 +16,12 @@
 
 
 /****************************/
-GFX_API bool gfx_load_gltf(const GFXReader* src)
+GFX_API bool gfx_load_gltf(GFXHeap* heap, const GFXReader* src,
+                           GFXGltfResult* result)
 {
+	assert(heap != NULL);
 	assert(src != NULL);
+	assert(result != NULL);
 
 	// Allocate source buffer.
 	long long len = gfx_io_len(src);
@@ -54,11 +57,11 @@ GFX_API bool gfx_load_gltf(const GFXReader* src)
 	cgltf_options options = {0};
 	cgltf_data* data = NULL;
 
-	cgltf_result result = cgltf_parse(&options, source, (size_t)len, &data);
+	cgltf_result res = cgltf_parse(&options, source, (size_t)len, &data);
 	free(source); // Immediately free source buffer.
 
 	// Some useful logging.
-	switch (result)
+	switch (res)
 	{
 	case cgltf_result_unknown_format:
 		gfx_log_error("Failed to load glTF; unknown format.");
@@ -78,7 +81,7 @@ GFX_API bool gfx_load_gltf(const GFXReader* src)
 		return 0;
 
 	default:
-		if (result != cgltf_result_success)
+		if (res != cgltf_result_success)
 		{
 			gfx_log_error("Failed to load glTF; unknown reason.");
 			return 0;
@@ -86,8 +89,16 @@ GFX_API bool gfx_load_gltf(const GFXReader* src)
 		break;
 	}
 
-	// TODO: Continue implement.
+	// TODO: Continue implementing.
 
 	cgltf_free(data);
 	return 1;
+}
+
+/****************************/
+GFX_API void gfx_release_gltf(GFXGltfResult* result)
+{
+	assert(result != NULL);
+
+	// TODO: Implement.
 }
