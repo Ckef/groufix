@@ -6,7 +6,7 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/parsers/gltf.h"
+#include "groufix/assets/gltf.h"
 #include "groufix/core/log.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -16,7 +16,7 @@
 
 
 /****************************/
-GFX_API bool gfx_parse_gltf(const GFXReader* src)
+GFX_API bool gfx_load_gltf(const GFXReader* src)
 {
 	assert(src != NULL);
 
@@ -25,7 +25,7 @@ GFX_API bool gfx_parse_gltf(const GFXReader* src)
 	if (len <= 0)
 	{
 		gfx_log_error(
-			"Zero or unknown stream length, cannot parse glTF source.");
+			"Zero or unknown stream length, cannot load glTF source.");
 
 		return 0;
 	}
@@ -34,7 +34,7 @@ GFX_API bool gfx_parse_gltf(const GFXReader* src)
 	if (source == NULL)
 	{
 		gfx_log_error(
-			"Could not allocate source buffer to parse glTF source.");
+			"Could not allocate source buffer to load glTF source.");
 
 		return 0;
 	}
@@ -61,26 +61,26 @@ GFX_API bool gfx_parse_gltf(const GFXReader* src)
 	switch (result)
 	{
 	case cgltf_result_unknown_format:
-		gfx_log_error("Failed to parse glTF; unknown format.");
+		gfx_log_error("Failed to load glTF; unknown format.");
 		return 0;
 
 	case cgltf_result_invalid_json:
-		gfx_log_error("Failed to parse glTF; invalid JSON.");
+		gfx_log_error("Failed to load glTF; invalid JSON.");
 		return 0;
 
 	case cgltf_result_data_too_short:
 	case cgltf_result_invalid_gltf:
-		gfx_log_error("Failed to parse glTF; contains invalid source.");
+		gfx_log_error("Failed to load glTF; contains invalid source.");
 		return 0;
 
 	case cgltf_result_legacy_gltf:
-		gfx_log_error("Failed to parse glTF; contains legacy source.");
+		gfx_log_error("Failed to load glTF; contains legacy source.");
 		return 0;
 
 	default:
 		if (result != cgltf_result_success)
 		{
-			gfx_log_error("Failed to parse glTF; unknown reason.");
+			gfx_log_error("Failed to load glTF; unknown reason.");
 			return 0;
 		}
 		break;

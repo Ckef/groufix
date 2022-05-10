@@ -20,7 +20,7 @@
  * @param src Source stream, cannot be NULL.
  * @return Non-zero on success.
  */
-GFX_API bool gfx_parse_gltf(const GFXReader* src);
+GFX_API bool gfx_load_gltf(const GFXReader* src);
 
 
 #endif
