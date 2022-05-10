@@ -20,8 +20,8 @@
  */
 typedef struct GFXGltfResult
 {
-	size_t        numPrimitives;
-	GFXPrimitive* primitives;
+	size_t         numPrimitives;
+	GFXPrimitive** primitives;
 
 } GFXGltfResult;
 
@@ -37,7 +37,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, const GFXReader* src,
                            GFXGltfResult* result);
 
 /**
- * Clears the result structure created by from gfx_load_gltf().
+ * Clears the result structure created by gfx_load_gltf().
  * Does NOT destroy or free any of the stored groufix objects!
  * @param result Cannot be NULL.
  */

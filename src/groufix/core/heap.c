@@ -892,12 +892,12 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 
 		// We store the resolved (!) attribute references.
 		// If no reference, insert a reference to the newly allocated buffer.
-		// And get the primitive buffer & stride we need to merge with.
+		// And get the primitive buffer offset & stride we need to merge with.
 		_GFXPrimBuffer pBuff;
-		pBuff.size = 0;
 		pBuff.stride = attrib->base.stride;
-
-		attrib->offset = attrib->base.offset; // To be normalized.
+		pBuff.size = attrib->base.offset +
+			attrib->base.stride * ((uint64_t)numVertices - 1) +
+			GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT;
 
 		if (GFX_REF_IS_NULL(attrib->base.buffer))
 		{
@@ -906,10 +906,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 			pBuff.buffer = &prim->buffer;
 			pBuff.offset = 0;
 
-			verSize = GFX_MAX(verSize,
-				attrib->base.offset +
-				attrib->base.stride * ((uint64_t)numVertices - 1) +
-				GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT);
+			verSize = GFX_MAX(verSize, pBuff.size);
 		}
 		else
 		{
@@ -941,47 +938,24 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 
 		// Then find a primitive buffer to merge with, we point each
 		// attribute to this buffer by index (i.e. the vertex input binding).
-		// Merge if buffer & stride are equal, normalize offset.
+		// Merge if buffer, offset & stride are equal, calculate size.
 		size_t b;
 		for (b = 0; b < prim->numBindings; ++b)
 			if (prim->bindings[b].buffer == pBuff.buffer &&
+				prim->bindings[b].offset == pBuff.offset &&
 				prim->bindings[b].stride == pBuff.stride) break;
 
 		attrib->binding = (uint32_t)b;
 
 		if (b < prim->numBindings)
-			// If merging, take the lowest offset as input binding offset.
-			prim->bindings[b].offset =
-				GFX_MIN(prim->bindings[b].offset, pBuff.offset);
+			// If merging, calculate total size.
+			prim->bindings[b].size =
+				GFX_MAX(prim->bindings[b].size, pBuff.size);
 		else
 		{
 			++prim->numBindings;
 			prim->bindings[b] = pBuff;
 		}
-	}
-
-	// Loop over all attributes again and check if their reference's offset
-	// is still equal to that of the associated input binding. If not,
-	// we add the extra offset, i.e. normalize it.
-	// We do this so we do't modify the user-land attribute, plus when
-	// referencing this vertex buffer in user-land we get correct offsets.
-	for (size_t a = 0; a < numAttribs; ++a)
-	{
-		_GFXAttribute* attrib = &prim->attribs[a];
-		_GFXPrimBuffer* pBuff = &prim->bindings[attrib->binding];
-		const uint64_t pOffset = pBuff->offset;
-		const uint64_t aOffset = (pBuff->buffer == &prim->buffer) ?
-			// To avoid an unpack warning.
-			0 : _gfx_ref_unpack(attrib->base.buffer).value;
-
-		if (pOffset < aOffset)
-			attrib->offset += (uint32_t)(aOffset - pOffset);
-
-		// Also calculate the total size.
-		pBuff->size = GFX_MAX(pBuff->size,
-			attrib->offset +
-			pBuff->stride * ((uint64_t)numVertices - 1) +
-			GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT);
 	}
 
 	// Also resolve (!) the index reference real quick.

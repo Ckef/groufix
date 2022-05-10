@@ -483,8 +483,8 @@ typedef struct _GFXPrimBuffer
 {
 	_GFXBuffer* buffer;
 	uint64_t    offset; // Offset to bind at.
-	uint64_t    size;   // Total size (including the last attribute) in bytes.
 	uint32_t    stride;
+	uint64_t    size; // Total size (including the last attribute) in bytes.
 
 } _GFXPrimBuffer;
 
@@ -495,7 +495,6 @@ typedef struct _GFXPrimBuffer
 typedef struct _GFXAttribute
 {
 	GFXAttribute base;
-	uint32_t     offset;  // Normalized version of base.offset.
 	uint32_t     binding; // Vulkan input binding.
 
 

@@ -149,7 +149,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.location = (uint32_t)i,
 			.binding  = prim->attribs[i].binding,
 			.format   = prim->attribs[i].vk.format,
-			.offset   = prim->attribs[i].offset
+			.offset   = prim->attribs[i].base.offset
 		};
 
 	for (size_t i = 0; i < numBindings; ++i)
