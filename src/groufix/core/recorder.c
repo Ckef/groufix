@@ -156,8 +156,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		vibd[i] = (VkVertexInputBindingDescription){
 			.binding   = (uint32_t)i,
 			.stride    = prim->bindings[i].stride,
-			// TODO: Make it take from input.
-			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+			.inputRate = prim->bindings[i].rate
 		};
 
 	VkGraphicsPipelineCreateInfo gpci = {

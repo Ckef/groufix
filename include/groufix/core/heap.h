@@ -100,6 +100,17 @@ typedef enum GFXImageUsage
 
 
 /**
+ * Vertex attribute input rate.
+ */
+typedef enum GFXInputRate
+{
+	GFX_RATE_VERTEX,
+	GFX_RATE_INSTANCE
+
+} GFXInputRate;
+
+
+/**
  * Resource group binding type.
  */
 typedef enum GFXBindingType
@@ -116,9 +127,10 @@ typedef enum GFXBindingType
  */
 typedef struct GFXAttribute
 {
-	GFXFormat format;
-	uint32_t  offset; // Additional offset into buffer, in bytes.
-	uint32_t  stride; // In bytes.
+	GFXFormat    format;
+	uint32_t     offset; // Additional offset into buffer, in bytes.
+	uint32_t     stride; // In bytes.
+	GFXInputRate rate;
 
 	// Bound data (input only).
 	GFXBufferRef buffer; // May be GFX_REF_NULL to allocate new.

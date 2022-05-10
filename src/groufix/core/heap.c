@@ -893,11 +893,17 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		// We store the resolved (!) attribute references.
 		// If no reference, insert a reference to the newly allocated buffer.
 		// And get the primitive buffer offset & stride we need to merge with.
-		_GFXPrimBuffer pBuff;
-		pBuff.stride = attrib->base.stride;
-		pBuff.size = attrib->base.offset +
-			attrib->base.stride * ((uint64_t)numVertices - 1) +
-			GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT;
+		_GFXPrimBuffer pBuff = {
+			.stride = attrib->base.stride,
+			.rate = (attrib->base.rate == GFX_RATE_INSTANCE) ?
+				VK_VERTEX_INPUT_RATE_INSTANCE :
+				VK_VERTEX_INPUT_RATE_VERTEX,
+
+			// Size up to and including the last vertex.
+			.size = attrib->base.offset +
+				attrib->base.stride * ((uint64_t)numVertices - 1) +
+				GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT
+		};
 
 		if (GFX_REF_IS_NULL(attrib->base.buffer))
 		{
@@ -938,12 +944,13 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 
 		// Then find a primitive buffer to merge with, we point each
 		// attribute to this buffer by index (i.e. the vertex input binding).
-		// Merge if buffer, offset & stride are equal, calculate size.
+		// Merge if buffer, offset, stride & rate are equal, calculate size.
 		size_t b;
 		for (b = 0; b < prim->numBindings; ++b)
 			if (prim->bindings[b].buffer == pBuff.buffer &&
 				prim->bindings[b].offset == pBuff.offset &&
-				prim->bindings[b].stride == pBuff.stride) break;
+				prim->bindings[b].stride == pBuff.stride &&
+				prim->bindings[b].rate == pBuff.rate) break;
 
 		attrib->binding = (uint32_t)b;
 

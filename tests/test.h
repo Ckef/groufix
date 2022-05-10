@@ -413,17 +413,20 @@ static void _test_init(TestState* _test_state)
 				.format = GFX_FORMAT_R32G32B32_SFLOAT,
 				.offset = 0,
 				.stride = sizeof(float) * 8,
-				.buffer = GFX_REF_NULL
+				.buffer = GFX_REF_NULL,
+				.rate = GFX_RATE_VERTEX
 			}, {
 				.format = GFX_FORMAT_R32G32B32_SFLOAT,
 				.offset = sizeof(float) * 3,
 				.stride = sizeof(float) * 8,
-				.buffer = GFX_REF_NULL
+				.buffer = GFX_REF_NULL,
+				.rate = GFX_RATE_VERTEX
 			}, {
 				.format = GFX_FORMAT_R32G32_SFLOAT,
 				.offset = sizeof(float) * 6,
 				.stride = sizeof(float) * 8,
-				.buffer = GFX_REF_NULL
+				.buffer = GFX_REF_NULL,
+				.rate = GFX_RATE_VERTEX
 			}
 		});
 

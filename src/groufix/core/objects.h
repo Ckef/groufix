@@ -486,6 +486,8 @@ typedef struct _GFXPrimBuffer
 	uint32_t    stride;
 	uint64_t    size; // Total size (including the last attribute) in bytes.
 
+	VkVertexInputRate rate;
+
 } _GFXPrimBuffer;
 
 
