@@ -134,7 +134,7 @@ typedef struct GFXAttribute
 	// Bound data (input only).
 	GFXBufferRef buffer; // May be GFX_REF_NULL to allocate new.
 
-	// If GFX_RATE_INSTANCE, buffer may not be GFX_REF_NULL!
+	// Ignored if buffer is GFX_REF_NULL, assumes vertex input rate.
 	GFXInputRate rate;
 
 } GFXAttribute;

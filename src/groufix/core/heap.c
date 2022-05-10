@@ -890,17 +890,9 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 				goto clean;
 			});
 
-		// Quick input rate check.
-		if (
-			attrib->base.rate == GFX_RATE_INSTANCE &&
-			GFX_REF_IS_NULL(attrib->base.buffer))
-		{
-			gfx_log_error(
-				"When the input rate of a vertex attribute is a function "
-				"of the instance index, the attribute must reference a buffer.");
-
-			goto clean;
-		}
+		// Quickly fix input rate.
+		if (GFX_REF_IS_NULL(attrib->base.buffer))
+			attrib->base.rate = GFX_RATE_VERTEX;
 
 		// We store the resolved (!) attribute references.
 		// If no reference, insert a reference to the newly allocated buffer.
