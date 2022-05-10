@@ -127,13 +127,15 @@ typedef enum GFXBindingType
  */
 typedef struct GFXAttribute
 {
-	GFXFormat    format;
-	uint32_t     offset; // Additional offset into buffer, in bytes.
-	uint32_t     stride; // In bytes.
-	GFXInputRate rate;
+	GFXFormat format;
+	uint32_t  offset; // Additional offset into buffer, in bytes.
+	uint32_t  stride; // In bytes.
 
 	// Bound data (input only).
 	GFXBufferRef buffer; // May be GFX_REF_NULL to allocate new.
+
+	// If GFX_RATE_INSTANCE, buffer may not be GFX_REF_NULL!
+	GFXInputRate rate;
 
 } GFXAttribute;
 

@@ -890,9 +890,21 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 				goto clean;
 			});
 
+		// Quick input rate check.
+		if (
+			attrib->base.rate == GFX_RATE_INSTANCE &&
+			GFX_REF_IS_NULL(attrib->base.buffer))
+		{
+			gfx_log_error(
+				"When the input rate of a vertex attribute is a function "
+				"of the instance index, the attribute must reference a buffer.");
+
+			goto clean;
+		}
+
 		// We store the resolved (!) attribute references.
 		// If no reference, insert a reference to the newly allocated buffer.
-		// And get the primitive buffer offset & stride we need to merge with.
+		// And get the primitive buffer we need to merge with the others.
 		_GFXPrimBuffer pBuff = {
 			.stride = attrib->base.stride,
 			.rate = (attrib->base.rate == GFX_RATE_INSTANCE) ?
@@ -900,7 +912,10 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 				VK_VERTEX_INPUT_RATE_VERTEX,
 
 			// Size up to and including the last vertex.
-			.size = attrib->base.offset +
+			// Or just the reference size if instance rate.
+			.size = (attrib->base.rate == GFX_RATE_INSTANCE) ?
+				_gfx_ref_size(attrib->base.buffer) :
+				attrib->base.offset +
 				attrib->base.stride * ((uint64_t)numVertices - 1) +
 				GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT
 		};
