@@ -818,7 +818,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 			binding->type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
 			binding->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC)
 		{
-			++aset->numDynamics;
+			aset->numDynamics += entries;
 		}
 
 		binding->entries = entries > 0 ? entryPtr : NULL;

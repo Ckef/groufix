@@ -914,8 +914,8 @@ struct GFXSet
 	// If used since last modification.
 	atomic_bool used;
 
-	size_t numAttachs; // #referenced attachments.
-	size_t numDynamics;
+	size_t numAttachs;  // #referenced attachments.
+	size_t numDynamics; // #dynamic buffer entries.
 	size_t numBindings;
 
 	_GFXSetBinding bindings[]; // Sorted, no gaps.
