@@ -763,6 +763,39 @@ GFX_API bool gfx_tech_samplers(GFXTechnique* technique,
 }
 
 /****************************/
+GFX_API bool gfx_tech_immutable(GFXTechnique* technique,
+                                size_t set, size_t binding)
+{
+	assert(technique != NULL);
+	assert(set < technique->numSets);
+
+	// Skip if already locked.
+	if (technique->layout != NULL)
+		return 0;
+
+	// Check if we can make this resoure immutable.
+	_GFXShaderResource* res =
+		_gfx_tech_get_resource(technique, set, binding);
+
+	if (res == NULL ||
+		(res->type != _GFX_SHADER_IMAGE_AND_SAMPLER &&
+		res->type != _GFX_SHADER_SAMPLER))
+	{
+		// Nop.
+		gfx_log_warn(
+			"Could not set an immutable descriptor resource "
+			"(set=%"GFX_PRIs", binding=%"GFX_PRIs") of a technique, "
+			"not a sampler.",
+			set, binding);
+
+		return 0;
+	}
+
+	// Insert the binding element.
+	return _gfx_find_binding_elem(&technique->immutable, set, binding, 1);
+}
+
+/****************************/
 GFX_API bool gfx_tech_dynamic(GFXTechnique* technique,
                               size_t set, size_t binding)
 {
@@ -781,7 +814,6 @@ GFX_API bool gfx_tech_dynamic(GFXTechnique* technique,
 		(res->type != _GFX_SHADER_BUFFER_UNIFORM &&
 		res->type != _GFX_SHADER_BUFFER_STORAGE))
 	{
-		// Nop.
 		gfx_log_warn(
 			"Could not set a dynamic descriptor resource "
 			"(set=%"GFX_PRIs", binding=%"GFX_PRIs") of a technique, "

@@ -556,12 +556,14 @@ static void _test_init(TestState* _test_state)
 		TEST_FAIL();
 	}
 
-	// Add a single technique.
+	// Add a single technique & set immutable samplers.
 	_test_base.technique = gfx_renderer_add_tech(_test_base.renderer, 2,
 		(GFXShader*[]){ _test_base.vertex, _test_base.fragment });
 
 	if (_test_base.technique == NULL)
 		TEST_FAIL();
+
+	gfx_tech_immutable(_test_base.technique, 0, 1); // Warns on fail.
 
 	// Add a single set.
 	_test_base.set = gfx_renderer_add_set(_test_base.renderer,

@@ -608,14 +608,22 @@ GFX_API bool gfx_tech_samplers(GFXTechnique* technique,
                                size_t numSamplers, const GFXSampler* samplers);
 
 /**
- * Sets a buffer binding of the technique to be dynamic.
+ * Sets a sampler binding of the technique to be immutable.
  * @param technique Cannot be NULL.
  * @param set       Must be < gfx_tech_get_num_sets(technique).
  * @param binding   Descriptor binding number.
- * @return Non-zero if the binding can be made dynamic.
+ * @return Non-zero if the binding can be made immutable.
  *
  * Fails if the technique is already locked.
- * Warns if the shader input type is not a uniform or storage buffer.
+ * Warns if the shader input type does not match.
+ */
+GFX_API bool gfx_tech_immutable(GFXTechnique* technique,
+                                size_t set, size_t binding);
+
+/**
+ * Sets a buffer binding of the technique to be dynamic.
+ * @see gfx_tech_immutable.
+ * @return Non-zero if the binding can be made dynamic.
  */
 GFX_API bool gfx_tech_dynamic(GFXTechnique* technique,
                               size_t set, size_t binding);
