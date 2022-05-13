@@ -1173,13 +1173,14 @@ static inline void _gfx_injection(_GFXInjection* injection)
  *
  * Thread-safe with respect to all dependency objects!
  *
- * Can be called any number of times using the same injection metadata.
+ * Can be called any number of times using the same injection metadata pointer.
  * However, after the first call to `_gfx_deps_abort` or `_gfx_deps_finish`,
  * neither `_gfx_deps_catch` nor `_gfx_deps_prepare` can be called anymore.
  *
- * Every call to _gfx_deps_catch must be followed with a call (taking the same
- * injection metadata and other inputs) to _gfx_deps_prepare, and then to
- * either _gfx_deps_abort OR _gfx_deps_finish.
+ * Every injection command passed to _gfx_deps_catch or _gfx_deps_prepare must
+ * subsequently be passed to a call to _gfx_deps_abort or _gfx_deps_finish.
+ * These two calls MUST take the same injection metadata pointer.
+ * Inbetween calls injection->inp may be altered.
  *
  * Right before the first call to _gfx_deps_abort or _gfx_deps_finish,
  * all output arrays in injection may be externally realloc'd,
@@ -1197,7 +1198,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
  * Thread-safe with respect to all dependency objects!
  *
  * All commands are _always_ already visible to subsequent calls to
- * _gfx_deps_catch taking the same injection metadata.
+ * _gfx_deps_catch taking the same injection metadata pointer.
  */
 bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
                        size_t numInjs, const GFXInject* injs,
@@ -1208,11 +1209,11 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * The contents of injection is invalidated after this call.
+ * The content of injection is invalidated after this call.
  *
  * Each injection metadata object may only be called with
- * either _gfx_deps_abort OR _gfx_deps_catch for ALL calls.
- * NEVER can both be used in the same injection!
+ * either _gfx_deps_abort OR _gfx_deps_catch for ALL injection commands.
+ * NEVER can both calls be used for the same injection metadata pointer!
  */
 void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
                      _GFXInjection* injection);
@@ -1223,7 +1224,7 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
  * @see _gfx_deps_catch.
  *
  * Thread-safe with respect to all dependency objects!
- * The contents of injection is invalidated after this call.
+ * The content of injection is invalidated after this call.
  */
 void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
                       _GFXInjection* injection);

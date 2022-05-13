@@ -248,8 +248,10 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
  * Outputs index of SIZE_MAX if not an operation reference.
  */
 static bool _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
-                              size_t* numRefs, const _GFXUnpackRef** refs,
-                              size_t* indices, GFXRange* ranges,
+                              size_t* numRefs,
+                              const _GFXUnpackRef** refs,
+                              size_t* indices,
+                              GFXRange* ranges,
                               VkAccessFlags* flags,
                               VkImageLayout* layouts,
                               VkPipelineStageFlags* stages,
