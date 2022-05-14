@@ -15,6 +15,39 @@
 #include "cgltf.h"
 
 
+/****************************
+ * Retrieves a cgltf_result as a readable string.
+ */
+static const char* _gfx_gltf_error_string(cgltf_result result)
+{
+	switch (result)
+	{
+	case cgltf_result_success:
+		return "Success.";
+
+	case cgltf_result_data_too_short:
+		return "Data too short.";
+
+	case cgltf_result_unknown_format:
+		return "Unknown format.";
+
+	case cgltf_result_invalid_json:
+		return "Invalid JSON.";
+
+	case cgltf_result_invalid_gltf:
+		return "Invalid glTF.";
+
+	case cgltf_result_out_of_memory:
+		return "Out of memory.";
+
+	case cgltf_result_legacy_gltf:
+		return "Legacy glTF.";
+
+	default:
+		return "Unknown error.";
+	}
+}
+
 /****************************/
 GFX_API bool gfx_load_gltf(GFXHeap* heap, const GFXReader* src,
                            GFXGltfResult* result)
@@ -60,33 +93,14 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, const GFXReader* src,
 	cgltf_result res = cgltf_parse(&options, source, (size_t)len, &data);
 	free(source); // Immediately free source buffer.
 
-	// Some useful logging.
-	switch (res)
+	// Some extra validation.
+	if (res == cgltf_result_success) res = cgltf_validate(data);
+
+	// Fail on error.
+	if (res != cgltf_result_success)
 	{
-	case cgltf_result_unknown_format:
-		gfx_log_error("Failed to load glTF; unknown format.");
+		gfx_log_error("Failed to load glTF: %s", _gfx_gltf_error_string(res));
 		return 0;
-
-	case cgltf_result_invalid_json:
-		gfx_log_error("Failed to load glTF; invalid JSON.");
-		return 0;
-
-	case cgltf_result_data_too_short:
-	case cgltf_result_invalid_gltf:
-		gfx_log_error("Failed to load glTF; contains invalid source.");
-		return 0;
-
-	case cgltf_result_legacy_gltf:
-		gfx_log_error("Failed to load glTF; contains legacy source.");
-		return 0;
-
-	default:
-		if (res != cgltf_result_success)
-		{
-			gfx_log_error("Failed to load glTF; unknown reason.");
-			return 0;
-		}
-		break;
 	}
 
 	// TODO: Continue implementing.
