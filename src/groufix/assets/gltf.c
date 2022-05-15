@@ -57,6 +57,8 @@ static const char* _gfx_gltf_error_string(cgltf_result result)
  */
 static void* _gfx_gltf_decode_base64(size_t size, const char* src)
 {
+	if (size == 0) return NULL; // Empty is explicit error.
+
 	unsigned char* bin = malloc(size);
 	if (bin == NULL) return NULL;
 
@@ -98,7 +100,7 @@ static void* _gfx_gltf_decode_base64(size_t size, const char* src)
 
 /****************************
  * TODO: Figure out buffer usage & access mask dynamically?
- * Allocates a new buffer and fills it with biven data.
+ * Allocates a new buffer and fills it with given data.
  * @return NULL on failure.
  */
 static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
@@ -113,17 +115,18 @@ static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
 	if (buffer == NULL) return NULL;
 
 	// Write data.
-	bool written = gfx_write(bin, gfx_ref_buffer(buffer),
-		GFX_TRANSFER_ASYNC,
-		1, dep != NULL ? 1 : 0,
-		(GFXRegion[]){{ .offset = 0, .size = size }},
-		(GFXRegion[]){{ .offset = 0, .size = size }},
-		(GFXInject[]){
-			gfx_dep_sig(dep,
-				GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ, 0)
-		});
+	const GFXRegion region = {
+		.offset = 0,
+		.size = size
+	};
 
-	if (!written)
+	const GFXInject inject =
+		gfx_dep_sig(dep,
+			GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ, 0);
+
+	if (!gfx_write(bin, gfx_ref_buffer(buffer),
+		GFX_TRANSFER_ASYNC,
+		1, dep != NULL ? 1 : 0, &region, &region, &inject))
 	{
 		gfx_free_buffer(buffer);
 		return NULL;

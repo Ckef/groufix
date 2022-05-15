@@ -341,12 +341,14 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
  * @param context    Appends created set to its sets member.
  * @param count      Number of queues/mutexes to create, must be > 0.
  * @param createInfo Queue create info output, cannot be NULL.
+ * @param flags      Flags this queue is specifically chosen for.
  * @return Non-zero on success.
  */
 static bool _gfx_alloc_queue_set(_GFXContext* context,
                                  VkDeviceQueueCreateInfo* createInfo,
                                  uint32_t family, size_t count,
-                                 bool present, VkQueueFlags flags)
+                                 bool present,
+                                 VkQueueFlags allFlags, VkQueueFlags flags)
 {
 	assert(context != NULL);
 	assert(createInfo != NULL);
@@ -357,9 +359,10 @@ static bool _gfx_alloc_queue_set(_GFXContext* context,
 	_GFXQueueSet* set = malloc(sizeof(_GFXQueueSet) + sizeof(_GFXMutex) * count);
 	if (set == NULL) return 0;
 
-	set->family  = family;
-	set->flags   = flags;
-	set->present = present;
+	set->flags    = flags;
+	set->allFlags = allFlags;
+	set->present  = present;
+	set->family   = family;
 
 	// Keep inserting a mutex for each queue and stop as soon as we fail.
 	for (set->count = 0; set->count < count; ++set->count)
@@ -449,10 +452,16 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	else
 	{
 		// If no graphics family with presentation, find separate families.
+		// Again, hopefully there's a graphics family with only compute.
 		graphics = _gfx_find_queue_family(
-			device, families, props, VK_QUEUE_GRAPHICS_BIT, 0);
+			device, families, props, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0);
 		present = _gfx_find_queue_family(
 			device, families, props, 0, 1);
+
+		// Fallback to a graphics-only family.
+		if (graphics == UINT32_MAX)
+			graphics = _gfx_find_queue_family(
+				device, families, props, VK_QUEUE_GRAPHICS_BIT, 0);
 	}
 
 	// Now check if we found a family for all queues (and log for all).
@@ -498,6 +507,7 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 
 		success = success && _gfx_alloc_queue_set(context,
 			(*createInfos) + (sets++), graphics, count, present == graphics,
+			_GFX_QUEUE_FLAGS_ALL(props[graphics].queueFlags),
 			VK_QUEUE_GRAPHICS_BIT |
 				(compute == graphics ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0) |
 				(transfer == graphics ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
@@ -512,6 +522,7 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 
 		success = success && _gfx_alloc_queue_set(context,
 			(*createInfos) + (sets++), present, count, 1,
+			_GFX_QUEUE_FLAGS_ALL(props[present].queueFlags),
 				(compute == present ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0) |
 				(transfer == present ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
 	}
@@ -524,6 +535,7 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 
 		success = success && _gfx_alloc_queue_set(context,
 			(*createInfos) + (sets++), compute, count, 0,
+			_GFX_QUEUE_FLAGS_ALL(props[compute].queueFlags),
 			VK_QUEUE_COMPUTE_BIT |
 				(transfer == compute ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
 	}
@@ -533,6 +545,7 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	{
 		success = success && _gfx_alloc_queue_set(context,
 			(*createInfos) + (sets++), transfer, 1, 0,
+			_GFX_QUEUE_FLAGS_ALL(props[transfer].queueFlags),
 			VK_QUEUE_TRANSFER_BIT);
 	}
 

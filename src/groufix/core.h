@@ -165,9 +165,10 @@ typedef struct _GFXQueueSet
 {
 	GFXListNode list; // Base-type.
 
-	uint32_t     family;  // Vulkan family index.
-	VkQueueFlags flags;   // Only contains flags it was chosen for.
-	bool         present; // Non-zero if chosen for presentation.
+	VkQueueFlags flags;    // Only contains flags it was chosen for.
+	VkQueueFlags allFlags; // All Vulkan queue capabilities.
+	bool         present;  // Non-zero if chosen for presentation.
+	uint32_t     family;   // Vulkan family index.
 
 	size_t       count;
 	_GFXMutex    locks[]; // Count mutexes, one for each queue.
