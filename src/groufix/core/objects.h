@@ -1179,7 +1179,7 @@ static inline void _gfx_injection(_GFXInjection* injection)
  *
  * Every injection command passed to _gfx_deps_catch or _gfx_deps_prepare must
  * subsequently be passed to a call to _gfx_deps_abort or _gfx_deps_finish.
- * These two calls MUST take the same injection metadata pointer.
+ * These subsequent calls MUST take the same injection metadata pointer.
  * Inbetween calls injection->inp may be altered.
  *
  * Right before the first call to _gfx_deps_abort or _gfx_deps_finish,

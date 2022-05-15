@@ -11,6 +11,7 @@
 #define GFX_PARSERS_GLTF_H
 
 #include "groufix/containers/io.h"
+#include "groufix/core/deps.h"
 #include "groufix/core/heap.h"
 #include "groufix/def.h"
 
@@ -20,6 +21,9 @@
  */
 typedef struct GFXGltfResult
 {
+	size_t      numBuffers;
+	GFXBuffer** buffers;
+
 	size_t         numPrimitives;
 	GFXPrimitive** primitives;
 
@@ -29,17 +33,21 @@ typedef struct GFXGltfResult
 /**
  * Parses a glTF 2.0 stream into groufix objects.
  * @param heap   Heap to allocate resources from, cannot be NULL.
+ * @param dep    Dependency to inject signal commands in, may be NULL!
  * @param src    Source stream, cannot be NULL.
  * @param result Cannot be NULL, output parsing results.
  * @return Non-zero on success.
  */
-GFX_API bool gfx_load_gltf(GFXHeap* heap, const GFXReader* src,
+GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
+                           const GFXReader* src,
                            GFXGltfResult* result);
 
 /**
  * Clears the result structure created by gfx_load_gltf().
  * Does NOT destroy or free any of the stored groufix objects!
  * @param result Cannot be NULL.
+ *
+ * The content of result is invalidated after this call.
  */
 GFX_API void gfx_release_gltf(GFXGltfResult* result);
 
