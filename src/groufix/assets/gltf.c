@@ -57,6 +57,61 @@
 
 
 /****************************
+ * Constructs a vertex attribute format from the glTF accessor type,
+ * component type and normalized flag.
+ */
+static GFXFormat _gfx_gltf_attribute_fmt(cgltf_component_type cType,
+                                         cgltf_type type,
+                                         cgltf_bool normalized)
+{
+	// Compute #components and their properties.
+	const size_t comps =
+		type == cgltf_type_scalar ? 1 :
+		type == cgltf_type_vec2 ? 2 :
+		type == cgltf_type_vec3 ? 3 :
+		type == cgltf_type_vec4 ? 4 : 0;
+
+	const unsigned char depth =
+		cType == cgltf_component_type_r_8 ? 8 :
+		cType == cgltf_component_type_r_8u ? 8 :
+		cType == cgltf_component_type_r_16 ? 16 :
+		cType == cgltf_component_type_r_16u ? 16 :
+		cType == cgltf_component_type_r_32u ? 32 :
+		cType == cgltf_component_type_r_32f ? 32 : 0;
+
+	const GFXFormatType fType =
+		// Signed integer.
+		(cType == cgltf_component_type_r_8 ||
+		cType == cgltf_component_type_r_16) ?
+			(normalized ? GFX_SNORM : GFX_SINT) :
+		// Unsigned integer.
+		(cType == cgltf_component_type_r_8u ||
+		cType == cgltf_component_type_r_16u ||
+		cType == cgltf_component_type_r_32u) ?
+			(normalized ? GFX_UNORM : GFX_UINT) :
+		// Floating point.
+		cType == cgltf_component_type_r_32f ?
+			GFX_SFLOAT : 0;
+
+	const GFXOrder order =
+		type == cgltf_type_scalar ? GFX_ORDER_R :
+		type == cgltf_type_vec2 ? GFX_ORDER_RG :
+		type == cgltf_type_vec3 ? GFX_ORDER_RGB :
+		type == cgltf_type_vec4 ? GFX_ORDER_RGBA : 0;
+
+	return (GFXFormat){
+		{
+			comps > 0 ? depth : 0,
+			comps > 1 ? depth : 0,
+			comps > 2 ? depth : 0,
+			comps > 3 ? depth : 0
+		},
+		fType,
+		order
+	};
+}
+
+/****************************
  * Decodes a base64 string into a newly allocated binary buffer.
  * @param size Size of the output buffer (_NOT_ of src) in bytes, fails if 0.
  * @return Must call free() on success!
@@ -285,7 +340,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 		for (size_t p = 0; p < data->meshes[m].primitives_count; ++p)
 		{
-			// Allocate primitive.
+			// Gather all primitive data.
 			const cgltf_primitive* cprim = &data->meshes[m].primitives[p];
 
 			const size_t numIndices =
@@ -297,6 +352,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			GFXBuffer* indexBuffer =
 				cprim->indices != NULL ?
 				*(GFXBuffer**)gfx_vec_at(&buffers,
+					// Get index into the buffers array.
 					(size_t)(cprim->indices->buffer_view->buffer -
 						data->buffers)) : NULL;
 
@@ -315,20 +371,25 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			size_t numVertices = SIZE_MAX;
 			GFXAttribute attributes[cprim->attributes_count];
 
+			// Fill attribute data.
 			for (size_t a = 0; a < cprim->attributes_count; ++a)
 			{
 				numVertices = GFX_MIN(
 					numVertices, cprim->attributes[a].data->count);
 
-				// TODO: Set format.
-				// Fill attribute data.
 				GFXBuffer* buffer = *(GFXBuffer**)gfx_vec_at(&buffers,
+					// Get index into the buffer array.
 					(size_t)(cprim->attributes[a].data->buffer_view->buffer -
 						data->buffers));
 
 				attributes[a] = (GFXAttribute){
 					.offset = (uint32_t)cprim->attributes[a].data->offset,
 					.rate = GFX_RATE_VERTEX,
+
+					.format = _gfx_gltf_attribute_fmt(
+						cprim->attributes[a].data->component_type,
+						cprim->attributes[a].data->type,
+						cprim->attributes[a].data->normalized),
 
 					.stride = (uint32_t)(
 						cprim->attributes[a].data->buffer_view->stride == 0 ?
@@ -348,6 +409,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
+			// Allocate primitive.
 			GFXPrimitive* prim = gfx_alloc_prim(heap,
 				0, 0, _GFX_GET_GLTF_TOPOLOGY(cprim->type),
 				(uint32_t)numIndices, indexSize,
