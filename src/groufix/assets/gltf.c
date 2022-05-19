@@ -17,42 +17,48 @@
 #include "cgltf.h"
 
 
-/****************************
- * Retrieves a cgltf_result as a readable string.
- */
-static const char* _gfx_gltf_error_string(cgltf_result result)
-{
-	switch (result)
-	{
-	case cgltf_result_success:
-		return "Success.";
+#define _GFX_GET_GLTF_ERROR_STRING(result) \
+	((result) == cgltf_result_success ? \
+		"success" : \
+	(result) == cgltf_result_data_too_short ? \
+		"data too short" : \
+	(result) == cgltf_result_unknown_format ? \
+		"unknown format" : \
+	(result) == cgltf_result_invalid_json ? \
+		"invalid JSON" : \
+	(result) == cgltf_result_invalid_gltf ? \
+		"invalid glTF" : \
+	(result) == cgltf_result_out_of_memory ? \
+		"out of memory" : \
+	(result) == cgltf_result_legacy_gltf ? \
+		"legacy glTF" : \
+		"unknown error")
 
-	case cgltf_result_data_too_short:
-		return "Data too short.";
+#define _GFX_GET_GLTF_TOPOLOGY(topo) \
+	((topo) == cgltf_primitive_type_points ? \
+		GFX_TOPO_POINT_LIST : \
+	(topo) == cgltf_primitive_type_lines ? \
+		GFX_TOPO_LINE_LIST : \
+	(topo) == cgltf_primitive_type_line_loop ? \
+		GFX_TOPO_LINE_STRIP : \
+	(topo) == cgltf_primitive_type_line_strip ? \
+		GFX_TOPO_LINE_STRIP : \
+	(topo) == cgltf_primitive_type_triangles ? \
+		GFX_TOPO_TRIANGLE_LIST : \
+	(topo) == cgltf_primitive_type_triangle_strip ? \
+		GFX_TOPO_TRIANGLE_STRIP : \
+	(topo) == cgltf_primitive_type_triangle_fan ? \
+		GFX_TOPO_TRIANGLE_FAN : \
+		GFX_TOPO_TRIANGLE_LIST)
 
-	case cgltf_result_unknown_format:
-		return "Unknown format.";
+#define _GFX_GET_GLTF_INDEX_SIZE(type) \
+	((type) == cgltf_component_type_r_16u ? sizeof(uint16_t) : \
+	(type) == cgltf_component_type_r_32u ? sizeof(uint32_t) : 0)
 
-	case cgltf_result_invalid_json:
-		return "Invalid JSON.";
-
-	case cgltf_result_invalid_gltf:
-		return "Invalid glTF.";
-
-	case cgltf_result_out_of_memory:
-		return "Out of memory.";
-
-	case cgltf_result_legacy_gltf:
-		return "Legacy glTF.";
-
-	default:
-		return "Unknown error.";
-	}
-}
 
 /****************************
  * Decodes a base64 string into a newly allocated binary buffer.
- * @param size Size of the output buffer (_NOT_ of src) in bytes.
+ * @param size Size of the output buffer (_NOT_ of src) in bytes, fails if 0.
  * @return Must call free() on success!
  */
 static void* _gfx_gltf_decode_base64(size_t size, const char* src)
@@ -99,13 +105,18 @@ static void* _gfx_gltf_decode_base64(size_t size, const char* src)
 }
 
 /****************************
- * TODO: Figure out buffer usage & access mask dynamically?
  * Allocates a new buffer and fills it with given data.
+ * @param size Must be > 0.
  * @return NULL on failure.
  */
 static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
                                          size_t size, const void* bin)
 {
+	assert(heap != NULL);
+	assert(dep != NULL);
+	assert(size > 0);
+	assert(bin != NULL);
+
 	// Allocate.
 	GFXBuffer* buffer = gfx_alloc_buffer(heap,
 		GFX_MEMORY_WRITE,
@@ -141,6 +152,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
                            GFXGltfResult* result)
 {
 	assert(heap != NULL);
+	assert(dep != NULL);
 	assert(src != NULL);
 	assert(result != NULL);
 
@@ -188,7 +200,10 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	// Fail on error.
 	if (res != cgltf_result_success)
 	{
-		gfx_log_error("Failed to load glTF: %s", _gfx_gltf_error_string(res));
+		gfx_log_error(
+			"Failed to load glTF, %s.",
+			_GFX_GET_GLTF_ERROR_STRING(res));
+
 		cgltf_free(data);
 		return 0;
 	}
@@ -198,9 +213,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	// From this point onwards we need to clean on failure.
 	GFXVec buffers;
 	GFXVec primitives;
+	GFXVec meshes;
 	gfx_vec_init(&buffers, sizeof(GFXBuffer*));
 	gfx_vec_init(&primitives, sizeof(GFXPrimitive*));
+	gfx_vec_init(&meshes, sizeof(GFXGltfMesh));
 	gfx_vec_reserve(&buffers, data->buffers_count);
+	gfx_vec_reserve(&meshes, data->meshes_count);
 
 	// Create all buffers.
 	for (size_t b = 0; b < data->buffers_count; ++b)
@@ -217,11 +235,11 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			if (comma == NULL || comma - uri < 7 ||
 				strncmp(comma - 7, ";base64", 7) != 0)
 			{
-				gfx_log_error("Data URI can only be base64.");
+				gfx_log_error("Data URIs can only be base64.");
 				goto clean;
 			}
 
-			// Decode.
+			// Decode base64.
 			void* bin = _gfx_gltf_decode_base64(
 				data->buffers[b].size, comma + 1);
 
@@ -231,7 +249,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
-			// Alloc buffer.
+			// Allocate buffer.
 			buffer = _gfx_gltf_alloc_buffer(
 				heap, dep, data->buffers[b].size, bin);
 
@@ -253,7 +271,103 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		}
 	}
 
-	// TODO: Continue implementing.
+	// Create all meshes and primitives.
+	for (size_t m = 0; m < data->meshes_count; ++m)
+	{
+		// Insert mesh.
+		GFXGltfMesh mesh = {
+			.firstPrimitive = primitives.size,
+			.numPrimitives = data->meshes[m].primitives_count
+		};
+
+		if (!gfx_vec_push(&meshes, 1, &mesh))
+			goto clean;
+
+		for (size_t p = 0; p < data->meshes[m].primitives_count; ++p)
+		{
+			// Allocate primitive.
+			const cgltf_primitive* cprim = &data->meshes[m].primitives[p];
+
+			const size_t numIndices =
+				cprim->indices != NULL ? cprim->indices->count : 0;
+			const char indexSize =
+				cprim->indices != NULL ?
+				_GFX_GET_GLTF_INDEX_SIZE(cprim->indices->component_type) : 0;
+
+			GFXBuffer* indexBuffer =
+				cprim->indices != NULL ?
+				*(GFXBuffer**)gfx_vec_at(&buffers,
+					(size_t)(cprim->indices->buffer_view->buffer -
+						data->buffers)) : NULL;
+
+			if (numIndices > 0 && indexSize == 0)
+			{
+				gfx_log_error("Index accessors must be sizeof(uint16_t|uint32_t).");
+				goto clean;
+			}
+
+			if (cprim->attributes_count == 0)
+			{
+				gfx_log_error("Primitives must have attributes.");
+				goto clean;
+			}
+
+			size_t numVertices = SIZE_MAX;
+			GFXAttribute attributes[cprim->attributes_count];
+
+			for (size_t a = 0; a < cprim->attributes_count; ++a)
+			{
+				numVertices = GFX_MIN(
+					numVertices, cprim->attributes[a].data->count);
+
+				// TODO: Set format.
+				// Fill attribute data.
+				GFXBuffer* buffer = *(GFXBuffer**)gfx_vec_at(&buffers,
+					(size_t)(cprim->attributes[a].data->buffer_view->buffer -
+						data->buffers));
+
+				attributes[a] = (GFXAttribute){
+					.offset = (uint32_t)cprim->attributes[a].data->offset,
+					.rate = GFX_RATE_VERTEX,
+
+					.stride = (uint32_t)(
+						cprim->attributes[a].data->buffer_view->stride == 0 ?
+							cprim->attributes[a].data->stride :
+							cprim->attributes[a].data->buffer_view->stride),
+
+					.buffer = buffer != NULL ?
+						gfx_ref_buffer_at(buffer,
+							cprim->attributes[a].data->buffer_view->offset) :
+						GFX_REF_NULL
+				};
+			}
+
+			if (numVertices == 0)
+			{
+				gfx_log_error("Primitives must have vertices.");
+				goto clean;
+			}
+
+			GFXPrimitive* prim = gfx_alloc_prim(heap,
+				0, 0, _GFX_GET_GLTF_TOPOLOGY(cprim->type),
+				(uint32_t)numIndices, indexSize,
+				(uint32_t)numVertices,
+				indexBuffer != NULL ?
+					gfx_ref_buffer_at(indexBuffer,
+						cprim->indices->buffer_view->offset) :
+					GFX_REF_NULL,
+				cprim->attributes_count, attributes);
+
+			if (prim == NULL) goto clean;
+
+			// Insert primitive.
+			if (!gfx_vec_push(&primitives, 1, &prim))
+			{
+				gfx_free_prim(prim);
+				goto clean;
+			}
+		}
+	}
 
 	// We are done building groufix objects, free gltf things.
 	cgltf_free(data);
@@ -264,6 +378,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 	result->numPrimitives = primitives.size;
 	result->primitives = gfx_vec_claim(&primitives);
+
+	result->numMeshes = meshes.size;
+	result->meshes = gfx_vec_claim(&meshes);
 
 	return 1;
 
@@ -278,6 +395,7 @@ clean:
 
 	gfx_vec_clear(&buffers);
 	gfx_vec_clear(&primitives);
+	gfx_vec_clear(&meshes);
 	cgltf_free(data);
 
 	gfx_log_error("Failed to load glTF from stream.");
@@ -292,6 +410,7 @@ GFX_API void gfx_release_gltf(GFXGltfResult* result)
 
 	free(result->buffers);
 	free(result->primitives);
+	free(result->meshes);
 
 	// Leave all values, result is invalidated.
 }

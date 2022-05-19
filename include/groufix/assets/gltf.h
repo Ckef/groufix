@@ -17,6 +17,17 @@
 
 
 /**
+ * glTF mesh definition.
+ */
+typedef struct GFXGltfMesh
+{
+	size_t firstPrimitive;
+	size_t numPrimitives;
+
+} GFXGltfMesh;
+
+
+/**
  * glTF 2.0 parsing result definition.
  */
 typedef struct GFXGltfResult
@@ -27,13 +38,16 @@ typedef struct GFXGltfResult
 	size_t         numPrimitives;
 	GFXPrimitive** primitives;
 
+	size_t       numMeshes;
+	GFXGltfMesh* meshes;
+
 } GFXGltfResult;
 
 
 /**
  * Parses a glTF 2.0 stream into groufix objects.
  * @param heap   Heap to allocate resources from, cannot be NULL.
- * @param dep    Dependency to inject signal commands in, may be NULL!
+ * @param dep    Dependency to inject signal commands in, cannot be NULL.
  * @param src    Source stream, cannot be NULL.
  * @param result Cannot be NULL, output parsing results.
  * @return Non-zero on success.
