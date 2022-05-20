@@ -11,7 +11,8 @@
  * TEST_DESCRIBE(name, base)
  *   Describe a new test, the syntax is similar to a function:
  *   TEST_DESCRIBE(basic_test, t) { gfx_window_set_title(t->window, "test"); }
- *   Where `t` is the name of the exposed TestBase pointer.
+ *   Where `t` is equivalent to (&TEST_BASE),
+ *   i.e. a pointer to the global TestBase struct.
  *
  * TEST_FAIL()
  *   Forces the test to fail and exits the program.
@@ -125,14 +126,16 @@
 
 
 /**
- * Default event handlers & callbacks.
+ * Global TestBase struct and
+ * default event handlers & callbacks.
  */
+#define TEST_BASE _test_base
 #define TEST_EVT_KEY_RELEASE _test_key_release
 #define TEST_CALLBACK_RENDER _test_default_render
 
 
 /**
- * Base testing state, modify at your leisure :)
+ * Base testing state, read/write at your leisure :)
  */
 typedef struct TestBase
 {
@@ -176,7 +179,7 @@ typedef struct TestState
 
 
 /**
- * Instance of the test base state.
+ * 'Global' instance of the test base state.
  */
 static TestBase _test_base =
 {

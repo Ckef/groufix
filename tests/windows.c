@@ -10,22 +10,12 @@
 
 
 /****************************
- * Wrapper to render another renderable.
+ * Second render callback to draw a different renderable.
  */
-static void render2(GFXRecorder* recorder,
-                   unsigned int frame, void* ptr)
+static void render2(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
-	// Create new renderable, take `ptr` as pass.
-	// Not terribly efficient to do this every frame but oh well.
-	GFXRenderable renderable2;
-	gfx_renderable(&renderable2,
-		(GFXPass*)ptr, _test_base.technique, _test_base.primitive);
-
-	// Sandwich the test render call so we can use this renderable.
-	GFXRenderable temp = _test_base.renderable;
-	_test_base.renderable = renderable2;
-	TEST_CALLBACK_RENDER(recorder, frame, NULL);
-	_test_base.renderable = temp;
+	gfx_cmd_bind(recorder, TEST_BASE.technique, 0, 1, 0, &TEST_BASE.set, NULL);
+	gfx_cmd_draw_indexed(recorder, (GFXRenderable*)ptr, 0, 0, 0, 0, 1);
 }
 
 
@@ -58,6 +48,10 @@ TEST_DESCRIBE(windows, _t)
 	if (!gfx_pass_consume(pass2, 1, GFX_ACCESS_ATTACHMENT_WRITE, 0))
 		TEST_FAIL();
 
+	// And of course a second renderable.
+	GFXRenderable renderable2;
+	gfx_renderable(&renderable2, pass2, _t->technique, _t->primitive);
+
 	// Setup an event loop.
 	// We wait instead of poll, only update when an event was detected.
 	while (
@@ -67,7 +61,7 @@ TEST_DESCRIBE(windows, _t)
 		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
 		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
 		gfx_recorder_render(_t->recorder, _t->pass, TEST_CALLBACK_RENDER, NULL);
-		gfx_recorder_render(_t->recorder, pass2, render2, pass2);
+		gfx_recorder_render(_t->recorder, pass2, render2, &renderable2);
 		gfx_frame_submit(frame);
 		gfx_heap_purge(_t->heap);
 		gfx_wait_events();
