@@ -49,11 +49,13 @@
  * TEST_SKIP_CREATE_RENDER_GRAPH
  *   Do not build a render graph,
  *   i.e. no passes are added to the base renderer.
+ *   Also skips creating a scene.
  *
  * TEST_SKIP_CREATE_SCENE
  *   Do not build a scene,
  *   i.e. no renderables (or associated resources) are created.
- *   Implied by TEST_SKIP_CREATE_RENDER_GRAPH.
+ *   To record with the created scene, default render callbacks are defined:
+ *    TEST_CALLBACK_RENDER
  */
 
 
