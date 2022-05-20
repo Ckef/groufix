@@ -49,6 +49,11 @@
  * TEST_SKIP_CREATE_RENDER_GRAPH
  *   Do not build a render graph,
  *   i.e. no passes are added to the base renderer.
+ *
+ * TEST_SKIP_CREATE_SCENE
+ *   Do not build a scene,
+ *   i.e. no renderables (or associated resources) are created.
+ *   Implied by TEST_SKIP_CREATE_RENDER_GRAPH.
  */
 
 
@@ -139,19 +144,24 @@
  */
 typedef struct TestBase
 {
+	// Base stuff.
 	GFXDevice*     device;
 	GFXWindow*     window;
 	GFXHeap*       heap;
 	GFXDependency* dep;
 	GFXRenderer*   renderer; // Window is attached at index 0.
 	GFXRecorder*   recorder;
-	GFXPrimitive*  primitive;
-	GFXShader*     vertex;
-	GFXShader*     fragment;
-	GFXTechnique*  technique;
-	GFXSet*        set;
-	GFXPass*       pass;
-	GFXRenderable  renderable;
+
+	// Render graph stuff.
+	GFXPass* pass;
+
+	// Scene stuff.
+	GFXPrimitive* primitive;
+	GFXShader*    vertex;
+	GFXShader*    fragment;
+	GFXTechnique* technique;
+	GFXSet*       set;
+	GFXRenderable renderable;
 
 } TestBase;
 
@@ -189,12 +199,12 @@ static TestBase _test_base =
 	.dep = NULL,
 	.renderer = NULL,
 	.recorder = NULL,
+	.pass = NULL,
 	.primitive = NULL,
 	.vertex = NULL,
 	.fragment = NULL,
 	.technique = NULL,
 	.set = NULL,
-	.pass = NULL,
 	.renderable = { NULL, NULL, NULL }
 };
 
@@ -394,6 +404,15 @@ static void _test_init(TestState* _test_state)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
+	// Add a single pass that writes to the window.
+	_test_base.pass = gfx_renderer_add_pass(_test_base.renderer, 0, NULL);
+	if (_test_base.pass == NULL)
+		TEST_FAIL();
+
+	if (!gfx_pass_consume(_test_base.pass, 0, GFX_ACCESS_ATTACHMENT_WRITE, 0))
+		TEST_FAIL();
+
+#if !defined (TEST_SKIP_CREATE_SCENE)
 	// Allocate a primitive.
 	uint16_t indexData[] = {
 		0, 1, 3, 2
@@ -585,18 +604,12 @@ static void _test_init(TestState* _test_state)
 	if (_test_base.set == NULL)
 		TEST_FAIL();
 
-	// Add a single pass that writes to the window.
-	_test_base.pass = gfx_renderer_add_pass(_test_base.renderer, 0, NULL);
-	if (_test_base.pass == NULL)
-		TEST_FAIL();
-
-	if (!gfx_pass_consume(_test_base.pass, 0, GFX_ACCESS_ATTACHMENT_WRITE, 0))
-		TEST_FAIL();
-
 	// Init the default renderable.
 	gfx_renderable(&_test_base.renderable,
 		_test_base.pass, _test_base.technique, _test_base.primitive);
-#endif
+
+#endif // TEST_SKIP_CREATE_SCENE
+#endif // TEST_SKIP_CREATE_RENDER_GRAPH
 }
 
 
