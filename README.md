@@ -31,7 +31,7 @@ The Makefile takes the following flags:
 
 ### Dependencies
 
-Most major dependencies, such as [GLFW](https://www.glfw.org/) and [Shaderc](https://github.com/google/shaderc), are included as submodules in the repository. They are automatically built and linked by the included Makefile.
+Most major dependencies are included as submodules in the repository (see the `deps/` directory). They are automatically built and linked by the included Makefile.
 
 To build and run with debug options enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. All other dependencies based on your setup are:
 
@@ -73,7 +73,7 @@ When an exception is made to any of the listed rules, this will always be noted 
 
 * __Heap allocations__. To facilitate concurrent creation of resources, all `gfx_alloc_*` and `gfx_free_*` functions are thread-safe with respect to the `GFXHeap`.
 
-* __Memory resource operations__. To facilitate concurrent modification of resources, operations performed on _different_ resources are thread-safe with respect to the `GFXHeap` that allocated them.
+* __Resource operations__. To facilitate concurrent modification of memory resources, operations performed on _different_ resources are thread-safe with respect to the `GFXHeap` that allocated them.
 
 * __Dependency objects__. To facilitate concurrent synchronization of resources, the `gfx_dep_*` macro family is thread-safe with respect to the `GFXDependency`.
 
