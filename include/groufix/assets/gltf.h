@@ -7,8 +7,8 @@
  */
 
 
-#ifndef GFX_PARSERS_GLTF_H
-#define GFX_PARSERS_GLTF_H
+#ifndef GFX_ASSETS_GLTF_H
+#define GFX_ASSETS_GLTF_H
 
 #include "groufix/containers/io.h"
 #include "groufix/core/deps.h"
