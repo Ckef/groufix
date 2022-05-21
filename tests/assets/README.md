@@ -1,11 +1,16 @@
 
-License Information
--------------------
+Damaged Helmet
+==============
 
 This folder contains:
 [Battle Damaged Sci-fi Helmet - PBR](https://sketchfab.com/models/b81008d513954189a063ff901f7abfe4)
-by [theblueturtle\_](https://sketchfab.com/theblueturtle_),
-published under a Create Commons Attribution-NonCommercial license.
+by [theblueturtle\_](https://sketchfab.com/theblueturtle_).
+
+
+License Information
+-------------------
+
+Published under a Creative Commons Attribution-NonCommercial license.
 
 Pulled from [glTF Sample Models](https://github.com/KhronosGroup/glTF-Sample-Models).
 
