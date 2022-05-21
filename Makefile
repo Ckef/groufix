@@ -304,12 +304,14 @@ $(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
 # Platform flags
 UNIX_TESTS = \
  $(BIN)$(SUB)/fps \
+ $(BIN)$(SUB)/loading \
  $(BIN)$(SUB)/minimal \
  $(BIN)$(SUB)/threaded \
  $(BIN)$(SUB)/windows
 
 WIN_TESTS = \
  $(BIN)$(SUB)/fps.exe \
+ $(BIN)$(SUB)/loading.exe \
  $(BIN)$(SUB)/minimal.exe \
  $(BIN)$(SUB)/threaded.exe \
  $(BIN)$(SUB)/windows.exe
