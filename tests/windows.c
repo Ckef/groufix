@@ -12,7 +12,7 @@
 /****************************
  * Second render callback to draw a different renderable.
  */
-static void render2(GFXRecorder* recorder, unsigned int frame, void* ptr)
+static void test_render2(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
 	gfx_cmd_bind(recorder, TEST_BASE.technique, 0, 1, 0, &TEST_BASE.set, NULL);
 	gfx_cmd_draw_indexed(recorder, (GFXRenderable*)ptr, 0, 0, 0, 0, 1);
@@ -61,7 +61,7 @@ TEST_DESCRIBE(windows, _t)
 		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
 		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
 		gfx_recorder_render(_t->recorder, _t->pass, TEST_CALLBACK_RENDER, NULL);
-		gfx_recorder_render(_t->recorder, pass2, render2, &renderable2);
+		gfx_recorder_render(_t->recorder, pass2, test_render2, &renderable2);
 		gfx_frame_submit(frame);
 		gfx_heap_purge(_t->heap);
 		gfx_wait_events();

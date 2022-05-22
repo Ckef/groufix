@@ -215,9 +215,10 @@ static TestBase _test_base =
  * Some default shaders.
  ****************************/
 
+#if !defined (TEST_SKIP_CREATE_SCENE)
+
 static const char* _test_glsl_vertex =
 	"#version 450\n"
-	"#extension GL_ARB_separate_shader_objects : enable\n"
 	"layout(row_major, set = 0, binding = 0) uniform UBO {\n"
 	"  mat4 mvp;\n"
 	"};\n"
@@ -238,7 +239,6 @@ static const char* _test_glsl_vertex =
 
 static const char* _test_glsl_fragment =
 	"#version 450\n"
-	"#extension GL_ARB_separate_shader_objects : enable\n"
 	"layout(set = 0, binding = 1) uniform sampler2D texSampler;\n"
 	"layout(location = 0) in vec3 fragColor;\n"
 	"layout(location = 1) in vec2 fragTexCoord;\n"
@@ -247,6 +247,8 @@ static const char* _test_glsl_fragment =
 	"  float tex = texture(texSampler, fragTexCoord).r;\n"
 	"  outColor = vec4(fragColor, 1.0) * tex;\n"
 	"}\n";
+
+#endif
 
 
 /****************************
@@ -349,6 +351,9 @@ static void _test_key_release(GFXWindow* window,
 	}
 }
 
+
+#if !defined (TEST_SKIP_CREATE_SCENE)
+
 /**
  * Default render callback.
  */
@@ -358,7 +363,11 @@ static void _test_default_render(GFXRecorder* recorder,
 	// Record stuff.
 	gfx_cmd_bind(recorder, _test_base.technique, 0, 1, 0, &_test_base.set, NULL);
 	gfx_cmd_draw_indexed(recorder, &_test_base.renderable, 0, 0, 0, 0, 1);
+
 }
+
+#endif
+
 
 /**
  * Initializes the test base program.
