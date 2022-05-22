@@ -78,11 +78,28 @@ typedef struct GFXDevice
 		uint32_t maxBufferTexels;
 		uint32_t maxUniformBufferRange;
 		uint32_t maxStorageBufferRange;
+		uint32_t maxPushConstantSize;
+		uint32_t maxBoundSets;
 		uint32_t maxAttributes;
 		uint32_t maxAttributeOffset;
 		uint32_t maxAttributeStride;
 		uint32_t maxPrimitiveBuffers;
-		uint32_t maxPushConstantSize;
+
+		uint32_t maxStageUniformBuffers;
+		uint32_t maxStageStorageBuffers;
+		uint32_t maxStageSampledImages;
+		uint32_t maxStageStorageImages;
+		uint32_t maxStageSamplers;
+		uint32_t maxStageAttachmentInputs;
+
+		uint32_t maxSetUniformBuffers; // Includes dynamic.
+		uint32_t maxSetStorageBuffers; // Includes dynamic.
+		uint32_t maxSetUniformBuffersDynamic; // Only dynamic.
+		uint32_t maxSetStorageBuffersDynamic; // Only dynamic.
+		uint32_t maxSetSampledImages;
+		uint32_t maxSetStorageImages;
+		uint32_t maxSetSamplers;
+		uint32_t maxSetAttachmentInputs;
 
 		uint64_t minTexelBufferAlign;
 		uint64_t minUniformBufferAlign;

@@ -875,187 +875,200 @@ bool _gfx_devices_init(void)
 	// The number or order of devices never changes after initialization,
 	// nor is there a user pointer for callbacks, as there are no callbacks.
 	// This means we do not have to dynamically allocate the devices.
-	uint32_t count;
+	uint32_t count = 0;
+	bool success = 1;
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
-		_groufix.vk.instance, &count, NULL), goto terminate);
+		_groufix.vk.instance, &count, NULL), success = 0);
 
-	if (count == 0)
+	VkPhysicalDevice devices[count > 0 ? count : 1];
+	if (!success || count == 0) goto terminate;
+
+	// Enumerate all devices.
+	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
+		_groufix.vk.instance, &count, devices), goto terminate);
+
+	// Fill the array of groufix devices.
+	// While doing so, keep track of the primary device,
+	// this to make sure the primary device is at index 0.
+	if (!gfx_vec_reserve(&_groufix.devices, (size_t)count))
 		goto terminate;
 
-	// We use a scope here so the goto above is allowed.
+	GFXDeviceType type = GFX_DEVICE_UNKNOWN;
+	uint32_t ver = 0;
+	bool foundPrim = 0;
+
+	// We keep moving around all the devices to sort the primary one to
+	// the front, so we leave its mutex and name pointer blank.
+	for (uint32_t i = 0; i < count; ++i)
 	{
-		// Enumerate all devices.
-		VkPhysicalDevice devices[count];
+		// Get some Vulkan properties and define a new device.
+		VkPhysicalDeviceProperties pdp;
+		_groufix.vk.GetPhysicalDeviceProperties(devices[i], &pdp);
 
-		_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
-			_groufix.vk.instance, &count, devices), goto terminate);
+		_GFXDevice dev = {
+			.api     = pdp.apiVersion,
+			.context = NULL,
+			.index   = 0,
+			.vk      = { .device = devices[i] }
+		};
 
-		// Fill the array of groufix devices.
-		// While doing so, keep track of the primary device,
-		// this to make sure the primary device is at index 0.
-		if (!gfx_vec_reserve(&_groufix.devices, (size_t)count))
-			goto terminate;
+		memcpy(
+			dev.name, pdp.deviceName,
+			VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
 
-		GFXDeviceType type = GFX_DEVICE_UNKNOWN;
-		uint32_t ver = 0;
-		bool foundPrim = 0;
+		// Get all Vulkan device features as well.
+		bool vk11, vk12;
+		VkPhysicalDeviceFeatures pdf;
+		VkPhysicalDeviceVulkan11Features pdv11f;
+		VkPhysicalDeviceVulkan12Features pdv12f;
+		_GFX_GET_DEVICE_FEATURES(&dev, vk11, vk12, pdf, pdv11f, pdv12f);
 
-		// We keep moving around all the devices to sort the primary one to
-		// the front, so we leave its mutex and name pointer blank.
-		for (uint32_t i = 0; i < count; ++i)
-		{
-			// Get some Vulkan properties and define a new device.
-			VkPhysicalDeviceProperties pdp;
-			_groufix.vk.GetPhysicalDeviceProperties(devices[i], &pdp);
+		// Sadly we need to get get queue family properties and find
+		// ourselves the transfer queue as well, this so we can report
+		// the transfer's queue image granularity.
+		// While we're at it, check if we have graphics, compute & transfer.
+		uint32_t families;
+		_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+			devices[i], &families, NULL);
 
-			_GFXDevice dev = {
-				.api     = pdp.apiVersion,
-				.context = NULL,
-				.index   = 0,
-				.vk      = { .device = devices[i] }
-			};
+		VkQueueFamilyProperties props[families];
+		_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+			devices[i], &families, props);
 
-			memcpy(
-				dev.name, pdp.deviceName,
-				VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
+		const uint32_t graphics = _gfx_find_queue_family(
+			&dev, families, props, VK_QUEUE_GRAPHICS_BIT, 0);
+		const uint32_t compute = _gfx_find_queue_family(
+			&dev, families, props, VK_QUEUE_COMPUTE_BIT, 0);
+		const uint32_t transfer = _gfx_find_queue_family(
+			&dev, families, props, VK_QUEUE_TRANSFER_BIT, 0);
 
-			// Get all Vulkan device features as well.
-			bool vk11, vk12;
-			VkPhysicalDeviceFeatures pdf;
-			VkPhysicalDeviceVulkan11Features pdv11f;
-			VkPhysicalDeviceVulkan12Features pdv12f;
-			_GFX_GET_DEVICE_FEATURES(&dev, vk11, vk12, pdf, pdv11f, pdv12f);
+		const bool available =
+			dev.api >= _GFX_VK_API_VERSION &&
+			graphics != UINT32_MAX &&
+			compute != UINT32_MAX &&
+			transfer != UINT32_MAX;
 
-			// Sadly we need to get get queue family properties and find
-			// ourselves the transfer queue as well, this so we can report
-			// the transfer's queue image granularity.
-			// While we're at it, check if we have graphics, compute & transfer.
-			uint32_t families;
-			_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-				devices[i], &families, NULL);
+		// Then define the features and limits part of the new device :)
+		dev.base = (GFXDevice){
+			.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
+			.name = NULL,
+			.available = dev.api >= _GFX_VK_API_VERSION,
 
-			VkQueueFamilyProperties props[families];
-			_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-				devices[i], &families, props);
+			.features = {
+				.indexUint32              = pdf.fullDrawIndexUint32,
+				.cubeArray                = pdf.imageCubeArray,
+				.geometryShader           = pdf.geometryShader,
+				.tessellationShader       = pdf.tessellationShader,
+				.compressionBC            = pdf.textureCompressionBC,
+				.compressionETC2          = pdf.textureCompressionETC2,
+				.compressionASTC          = pdf.textureCompressionASTC_LDR,
+				.shaderClipDistance       = pdf.shaderClipDistance,
+				.shaderCullDistance       = pdf.shaderCullDistance,
+				.shaderInt8               = (vk12 ? pdv12f.shaderInt8 : 0),
+				.shaderInt16              = pdf.shaderInt16,
+				.shaderInt64              = pdf.shaderInt64,
+				.shaderFloat16            = (vk12 ? pdv12f.shaderFloat16 : 0),
+				.shaderFloat64            = pdf.shaderFloat64,
+				.shaderPushConstant8      = (vk12 ? pdv12f.storagePushConstant8 : 0),
+				.shaderPushConstant16     = (vk11 ? pdv11f.storagePushConstant16 : 0),
+				.shaderInputOutput16      = (vk11 ? pdv11f.storageInputOutput16 : 0),
+				.samplerAnisotropy        = pdf.samplerAnisotropy,
+				.samplerClampToEdgeMirror = (vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
+				.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0)
+			},
 
-			const uint32_t graphics = _gfx_find_queue_family(
-				&dev, families, props, VK_QUEUE_GRAPHICS_BIT, 0);
-			const uint32_t compute = _gfx_find_queue_family(
-				&dev, families, props, VK_QUEUE_COMPUTE_BIT, 0);
-			const uint32_t transfer = _gfx_find_queue_family(
-				&dev, families, props, VK_QUEUE_TRANSFER_BIT, 0);
+			.limits = {
+				.maxIndexUint32        = pdp.limits.maxDrawIndexedIndexValue,
+				.maxImageSize1D        = pdp.limits.maxImageDimension1D,
+				.maxImageSize2D        = pdp.limits.maxImageDimension2D,
+				.maxImageSize3D        = pdp.limits.maxImageDimension3D,
+				.maxImageSizeCube      = pdp.limits.maxImageDimensionCube,
+				.maxImageLayers        = pdp.limits.maxImageArrayLayers,
+				.maxBufferTexels       = pdp.limits.maxTexelBufferElements,
+				.maxUniformBufferRange = pdp.limits.maxUniformBufferRange,
+				.maxStorageBufferRange = pdp.limits.maxStorageBufferRange,
+				.maxPushConstantSize   = pdp.limits.maxPushConstantsSize,
+				.maxBoundSets          = pdp.limits.maxBoundDescriptorSets,
+				.maxAttributes         = pdp.limits.maxVertexInputAttributes,
+				.maxAttributeOffset    = pdp.limits.maxVertexInputAttributeOffset,
+				.maxAttributeStride    = pdp.limits.maxVertexInputBindingStride,
+				.maxPrimitiveBuffers   = pdp.limits.maxVertexInputBindings,
 
-			const bool available =
-				dev.api >= _GFX_VK_API_VERSION &&
-				graphics != UINT32_MAX &&
-				compute != UINT32_MAX &&
-				transfer != UINT32_MAX;
+				.maxStageUniformBuffers   = pdp.limits.maxPerStageDescriptorUniformBuffers,
+				.maxStageStorageBuffers   = pdp.limits.maxPerStageDescriptorStorageBuffers,
+				.maxStageSampledImages    = pdp.limits.maxPerStageDescriptorSampledImages,
+				.maxStageStorageImages    = pdp.limits.maxPerStageDescriptorStorageImages,
+				.maxStageSamplers         = pdp.limits.maxPerStageDescriptorSamplers,
+				.maxStageAttachmentInputs = pdp.limits.maxPerStageDescriptorInputAttachments,
 
-			// Then define the features and limits part of the new device :)
-			dev.base = (GFXDevice){
-				.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
-				.name = NULL,
-				.available = dev.api >= _GFX_VK_API_VERSION,
+				.maxSetUniformBuffers        = pdp.limits.maxDescriptorSetUniformBuffers,
+				.maxSetStorageBuffers        = pdp.limits.maxDescriptorSetStorageBuffers,
+				.maxSetUniformBuffersDynamic = pdp.limits.maxDescriptorSetUniformBuffersDynamic,
+				.maxSetStorageBuffersDynamic = pdp.limits.maxDescriptorSetStorageBuffersDynamic,
+				.maxSetSampledImages         = pdp.limits.maxDescriptorSetSampledImages,
+				.maxSetStorageImages         = pdp.limits.maxDescriptorSetStorageImages,
+				.maxSetSamplers              = pdp.limits.maxDescriptorSetSamplers,
+				.maxSetAttachmentInputs      = pdp.limits.maxDescriptorSetInputAttachments,
 
-				.features = {
-					.indexUint32              = pdf.fullDrawIndexUint32,
-					.cubeArray                = pdf.imageCubeArray,
-					.geometryShader           = pdf.geometryShader,
-					.tessellationShader       = pdf.tessellationShader,
-					.compressionBC            = pdf.textureCompressionBC,
-					.compressionETC2          = pdf.textureCompressionETC2,
-					.compressionASTC          = pdf.textureCompressionASTC_LDR,
-					.shaderClipDistance       = pdf.shaderClipDistance,
-					.shaderCullDistance       = pdf.shaderCullDistance,
-					.shaderInt8               = (vk12 ? pdv12f.shaderInt8 : 0),
-					.shaderInt16              = pdf.shaderInt16,
-					.shaderInt64              = pdf.shaderInt64,
-					.shaderFloat16            = (vk12 ? pdv12f.shaderFloat16 : 0),
-					.shaderFloat64            = pdf.shaderFloat64,
-					.shaderPushConstant8      = (vk12 ? pdv12f.storagePushConstant8 : 0),
-					.shaderPushConstant16     = (vk11 ? pdv11f.storagePushConstant16 : 0),
-					.shaderInputOutput16      = (vk11 ? pdv11f.storageInputOutput16 : 0),
-					.samplerAnisotropy        = pdf.samplerAnisotropy,
-					.samplerClampToEdgeMirror = (vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
-					.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0)
-				},
+				.minTexelBufferAlign   = pdp.limits.minTexelBufferOffsetAlignment,
+				.minUniformBufferAlign = pdp.limits.minUniformBufferOffsetAlignment,
+				.minStorageBufferAlign = pdp.limits.minStorageBufferOffsetAlignment,
 
-				.limits = {
-					.maxIndexUint32        = pdp.limits.maxDrawIndexedIndexValue,
-					.maxImageSize1D        = pdp.limits.maxImageDimension1D,
-					.maxImageSize2D        = pdp.limits.maxImageDimension2D,
-					.maxImageSize3D        = pdp.limits.maxImageDimension3D,
-					.maxImageSizeCube      = pdp.limits.maxImageDimensionCube,
-					.maxImageLayers        = pdp.limits.maxImageArrayLayers,
-					.maxBufferTexels       = pdp.limits.maxTexelBufferElements,
-					.maxUniformBufferRange = pdp.limits.maxUniformBufferRange,
-					.maxStorageBufferRange = pdp.limits.maxStorageBufferRange,
-					.maxAttributes         = pdp.limits.maxVertexInputAttributes,
-					.maxAttributeOffset    = pdp.limits.maxVertexInputAttributeOffset,
-					.maxAttributeStride    = pdp.limits.maxVertexInputBindingStride,
-					.maxPrimitiveBuffers   = pdp.limits.maxVertexInputBindings,
-					.maxPushConstantSize   = pdp.limits.maxPushConstantsSize,
+				.maxMipLodBias = pdp.limits.maxSamplerLodBias,
+				.maxAnisotropy = pdp.limits.maxSamplerAnisotropy,
 
-					.minTexelBufferAlign   = pdp.limits.minTexelBufferOffsetAlignment,
-					.minUniformBufferAlign = pdp.limits.minUniformBufferOffsetAlignment,
-					.minStorageBufferAlign = pdp.limits.minStorageBufferOffsetAlignment,
-
-					.maxMipLodBias = pdp.limits.maxSamplerLodBias,
-					.maxAnisotropy = pdp.limits.maxSamplerAnisotropy,
-
-					.imageTransferGranularity = {
-						.x = available ? props[transfer].minImageTransferGranularity.width : 0,
-						.y = available ? props[transfer].minImageTransferGranularity.height : 0,
-						.z = available ? props[transfer].minImageTransferGranularity.depth : 0
-					}
+				.imageTransferGranularity = {
+					.x = available ? props[transfer].minImageTransferGranularity.width : 0,
+					.y = available ? props[transfer].minImageTransferGranularity.height : 0,
+					.z = available ? props[transfer].minImageTransferGranularity.depth : 0
 				}
-			};
-
-			// Check if the new device is a better pick as primary.
-			// If the type of device is superior, pick it as primary.
-			// If the type is equal, pick the greater Vulkan version.
-			const bool isPrim = available && (!foundPrim ||
-				dev.base.type < type ||
-				(dev.base.type == type && pdp.apiVersion > ver));
-
-			if (!isPrim)
-				gfx_vec_push(&_groufix.devices, 1, &dev);
-			else
-			{
-				// If new primary, insert it at index 0.
-				gfx_vec_insert(&_groufix.devices, 1, &dev, 0);
-				type = dev.base.type;
-				ver = pdp.apiVersion;
-				foundPrim = 1;
 			}
-		}
+		};
 
-		// Now loop over 'm again to init its mutex/formats and
-		// point the public name pointer to the right smth.
-		// Because the number of devices never changes, the vector never
-		// gets reallocated, thus we store & init these mutexes here.
-		for (uint32_t i = 0; i < count; ++i)
+		// Check if the new device is a better pick as primary.
+		// If the type of device is superior, pick it as primary.
+		// If the type is equal, pick the greater Vulkan version.
+		const bool isPrim = available && (!foundPrim ||
+			dev.base.type < type ||
+			(dev.base.type == type && pdp.apiVersion > ver));
+
+		if (!isPrim)
+			gfx_vec_push(&_groufix.devices, 1, &dev);
+		else
 		{
-			_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
-			dev->base.name = dev->name;
-
-			// Sneaky goto-based init/clear structure :o
-			if (!_gfx_mutex_init(&dev->lock))
-				goto clear_prev_devices;
-			if (_gfx_device_init_formats(dev))
-				continue; // Success!
-
-			_gfx_mutex_clear(&dev->lock);
-
-		clear_prev_devices:
-			// If it could not init, remove remaining devices and let
-			// _gfx_devices_terminate handle the rest.
-			gfx_vec_pop(&_groufix.devices, count - i);
-			goto terminate;
+			// If new primary, insert it at index 0.
+			gfx_vec_insert(&_groufix.devices, 1, &dev, 0);
+			type = dev.base.type;
+			ver = pdp.apiVersion;
+			foundPrim = 1;
 		}
-
-		return 1;
 	}
+
+	// Now loop over 'm again to init its mutex/formats and
+	// point the public name pointer to the right smth.
+	// Because the number of devices never changes, the vector never
+	// gets reallocated, thus we store & init these mutexes here.
+	for (uint32_t i = 0; i < count; ++i)
+	{
+		_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
+		dev->base.name = dev->name;
+
+		// Sneaky goto-based init/clear structure :o
+		if (!_gfx_mutex_init(&dev->lock))
+			goto clear_prev_devices;
+		if (_gfx_device_init_formats(dev))
+			continue; // Success!
+
+		_gfx_mutex_clear(&dev->lock);
+
+	clear_prev_devices:
+		// If it could not init, remove remaining devices and let
+		// _gfx_devices_terminate handle the rest.
+		gfx_vec_pop(&_groufix.devices, count - i);
+		goto terminate;
+	}
+
+	return 1;
 
 
 	// Cleanup on failure.
