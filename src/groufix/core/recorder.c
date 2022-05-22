@@ -985,7 +985,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 	// Check technique.
 	if (technique->layout == NULL)
 	{
-		gfx_log_warn(
+		gfx_log_error(
 			"Technique not locked during bind command; "
 			"command not recorded.");
 
@@ -1064,7 +1064,7 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
 	// Check technique.
 	if (technique->layout == NULL)
 	{
-		gfx_log_warn(
+		gfx_log_error(
 			"Technique not locked during push command; "
 			"command not recorded.");
 
