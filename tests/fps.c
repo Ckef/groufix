@@ -12,23 +12,23 @@
 /****************************
  * Test to see many frames.
  */
-TEST_DESCRIBE(fps, _t)
+TEST_DESCRIBE(fps, t)
 {
 	// Triple buffer the window for the maniest frames per second.
 	// This way we're not limited to waiting on v-sync.
 	gfx_window_set_flags(
-		_t->window,
-		gfx_window_get_flags(_t->window) | GFX_WINDOW_TRIPLE_BUFFER);
+		t->window,
+		gfx_window_get_flags(t->window) | GFX_WINDOW_TRIPLE_BUFFER);
 
 	// Setup an event loop.
-	while (!gfx_window_should_close(_t->window))
+	while (!gfx_window_should_close(t->window))
 	{
-		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
+		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
 		gfx_poll_events();
-		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
-		gfx_recorder_render(_t->recorder, _t->pass, TEST_CALLBACK_RENDER, NULL);
+		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
+		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
-		gfx_heap_purge(_t->heap);
+		gfx_heap_purge(t->heap);
 	}
 }
 

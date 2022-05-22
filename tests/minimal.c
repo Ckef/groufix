@@ -12,17 +12,17 @@
 /****************************
  * Minimal test.
  */
-TEST_DESCRIBE(minimal, _t)
+TEST_DESCRIBE(minimal, t)
 {
 	// Setup an event loop.
 	// We wait instead of poll, only update when an event was detected.
-	while (!gfx_window_should_close(_t->window))
+	while (!gfx_window_should_close(t->window))
 	{
-		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
-		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
-		gfx_recorder_render(_t->recorder, _t->pass, TEST_CALLBACK_RENDER, NULL);
+		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
+		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
+		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
-		gfx_heap_purge(_t->heap);
+		gfx_heap_purge(t->heap);
 		gfx_wait_events();
 	}
 }

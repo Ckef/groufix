@@ -20,16 +20,16 @@ static atomic_bool termSig = 0;
 /****************************
  * The bit that renders.
  */
-TEST_DESCRIBE(render_loop, _t)
+TEST_DESCRIBE(render_loop, t)
 {
 	// Like the other loop, but submit the renderer :)
 	while (!atomic_load(&termSig))
 	{
-		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
-		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
-		gfx_recorder_render(_t->recorder, _t->pass, TEST_CALLBACK_RENDER, NULL);
+		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
+		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
+		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
-		gfx_heap_purge(_t->heap);
+		gfx_heap_purge(t->heap);
 	}
 }
 
@@ -37,18 +37,18 @@ TEST_DESCRIBE(render_loop, _t)
 /****************************
  * Threading test.
  */
-TEST_DESCRIBE(threaded, _t)
+TEST_DESCRIBE(threaded, t)
 {
 	// Yeah we're gonna have maniest frames here too.
 	gfx_window_set_flags(
-		_t->window,
-		gfx_window_get_flags(_t->window) | GFX_WINDOW_TRIPLE_BUFFER);
+		t->window,
+		gfx_window_get_flags(t->window) | GFX_WINDOW_TRIPLE_BUFFER);
 
 	// Create thread to run the render loop.
 	TEST_RUN_THREAD(render_loop);
 
 	// Setup an event loop.
-	while (!gfx_window_should_close(_t->window))
+	while (!gfx_window_should_close(t->window))
 		gfx_wait_events();
 
 	// Join the render thread.

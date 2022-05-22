@@ -15,7 +15,7 @@
 /****************************
  * Helper to load a shader.
  */
-static GFXShader* test_load_shader(GFXShaderStage stage, const char* uri)
+static GFXShader* load_shader(GFXShaderStage stage, const char* uri)
 {
 	// Open file.
 	GFXFile file;
@@ -53,7 +53,7 @@ error:
 /****************************
  * Helper to load some glTF.
  */
-static bool test_load_gltf(const char* uri, GFXGltfResult* result)
+static bool load_gltf(const char* uri, GFXGltfResult* result)
 {
 	// Open file.
 	GFXFile file;
@@ -82,14 +82,14 @@ error:
 /****************************
  * Custom render callback to render the thing.
  */
-static void test_render(GFXRecorder* recorder, unsigned int frame, void* ptr)
+static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
 	// Some hardcoded matrices.
 	float push[] = {
 		// Model-view.
-		-0.5f, 0.0f, 0.0f, 0.0f,
-		 0.0f, 0.0f, 0.5f, 0.0f,
-		 0.0f, 0.5f, 0.0f, 0.0f,
+		-0.7f, 0.0f, 0.0f, 0.0f,
+		 0.0f, 0.0f, 0.7f, 0.0f,
+		 0.0f, 0.7f, 0.0f, 0.0f,
 		 0.0f, 0.0f, 0.0f, 1.0f,
 
 		// Projection.
@@ -109,15 +109,15 @@ static void test_render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 /****************************
  * Loading assets test.
  */
-TEST_DESCRIBE(loading, _t)
+TEST_DESCRIBE(loading, t)
 {
 	bool success = 0;
 
 	// Load a vertex and fragment shader.
 	const char* vUri = "tests/shaders/basic.vert";
 	const char* fUri = "tests/shaders/basic.frag";
-	GFXShader* vert = test_load_shader(GFX_STAGE_VERTEX, vUri);
-	GFXShader* frag = test_load_shader(GFX_STAGE_FRAGMENT, fUri);
+	GFXShader* vert = load_shader(GFX_STAGE_VERTEX, vUri);
+	GFXShader* frag = load_shader(GFX_STAGE_FRAGMENT, fUri);
 
 	if (vert == NULL || frag == NULL)
 		goto clean;
@@ -126,7 +126,7 @@ TEST_DESCRIBE(loading, _t)
 	const char* uri = "tests/assets/DamagedHelmet.gltf";
 	GFXGltfResult result;
 
-	if (!test_load_gltf(uri, &result))
+	if (!load_gltf(uri, &result))
 		goto clean;
 
 	// Grab the first primitive from the glTF.
@@ -137,24 +137,24 @@ TEST_DESCRIBE(loading, _t)
 
 	// Create a technique & lock it.
 	GFXTechnique* tech = gfx_renderer_add_tech(
-		_t->renderer, 2, (GFXShader*[]){ vert, frag });
+		t->renderer, 2, (GFXShader*[]){ vert, frag });
 
 	if (tech == NULL || !gfx_tech_lock(tech))
 		goto clean;
 
 	// Init a renderable using the above stuff.
 	GFXRenderable rend;
-	gfx_renderable(&rend, _t->pass, tech, prim);
+	gfx_renderable(&rend, t->pass, tech, prim);
 
 	// Setup an event loop.
-	while (!gfx_window_should_close(_t->window))
+	while (!gfx_window_should_close(t->window))
 	{
-		GFXFrame* frame = gfx_renderer_acquire(_t->renderer);
+		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
 		gfx_poll_events();
-		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(_t->dep) });
-		gfx_recorder_render(_t->recorder, _t->pass, test_render, &rend);
+		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
+		gfx_recorder_render(t->recorder, t->pass, render, &rend);
 		gfx_frame_submit(frame);
-		gfx_heap_purge(_t->heap);
+		gfx_heap_purge(t->heap);
 	}
 
 	success = 1;
