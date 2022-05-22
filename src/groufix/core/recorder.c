@@ -861,7 +861,11 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	GFXRenderer* rend = recorder->renderer;
 	_GFXContext* context = recorder->context;
 
-	// Firstly, claim a command buffer to use.
+	// Check for the presence of a framebuffer.
+	VkFramebuffer framebuffer = _gfx_pass_framebuffer(pass, &rend->pFrame);
+	if (framebuffer == VK_NULL_HANDLE) return;
+
+	// Then, claim a command buffer to use.
 	VkCommandBuffer cmd = _gfx_recorder_claim(recorder);
 	if (cmd == NULL) goto error;
 
@@ -880,7 +884,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 			.pNext       = NULL,
 			.renderPass  = pass->vk.pass,
 			.subpass     = 0,
-			.framebuffer = _gfx_pass_framebuffer(pass, &rend->pFrame),
+			.framebuffer = framebuffer,
 
 			.occlusionQueryEnable = VK_FALSE,
 			.queryFlags           = 0,

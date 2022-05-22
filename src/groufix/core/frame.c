@@ -434,6 +434,11 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		if (pass->build.pass == NULL)
 			continue;
 
+		// Check for the presence of a framebuffer.
+		VkFramebuffer framebuffer = _gfx_pass_framebuffer(pass, frame);
+		if (framebuffer == VK_NULL_HANDLE)
+			continue;
+
 		// Gather all necessary render pass info to record.
 		VkClearValue clear = {
 			.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
@@ -444,7 +449,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 			.pNext           = NULL,
 			.renderPass      = pass->vk.pass,
-			.framebuffer     = _gfx_pass_framebuffer(pass, frame),
+			.framebuffer     = framebuffer,
 			.clearValueCount = 1,
 			.pClearValues    = &clear,
 
