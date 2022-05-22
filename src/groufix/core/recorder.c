@@ -964,6 +964,24 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 }
 
 /****************************/
+GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
+                                   uint32_t* width, uint32_t* height)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	assert(width != NULL);
+	assert(height != NULL);
+
+	// Output 0,0 if no associated pass.
+	if (recorder->inp.pass == NULL)
+		*width = 0,
+		*height = 0;
+	else
+		*width = recorder->inp.pass->build.fWidth,
+		*height = recorder->inp.pass->build.fHeight;
+}
+
+/****************************/
 GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
                           size_t firstSet,
                           size_t numSets, size_t numDynamics,

@@ -492,6 +492,19 @@ GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
 GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
 
 /**
+ * Retrieves the virtual frame size associated with a pass.
+ * @param pass   Cannot be NULL.
+ * @param width  Cannot be NULL, output width.
+ * @param height Cannot be NULL, output height.
+ *
+ * Only outputs the _actual_ size, meaning this will only return meaningful
+ * values when called inbetween gfx_frame_start and gfx_frame_submit.
+ * Outputs 0,0 if no associated attachments.
+ */
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height);
+
+/**
  * TODO: shader location == in add-order?
  * Consume an attachment of a renderer.
  * @param pass  Cannot be NULL.
@@ -805,6 +818,18 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
                                   GFXPass* pass,
                                   void (*cb)(GFXRecorder*, unsigned int, void*),
                                   void* ptr);
+
+/**
+ * Retrieves the virtual frame size associated with the current pass.
+ * Can only be called within a callback of gfx_recorder_(render|compute)!
+ * @param recorder Cannot be NULL.
+ * @param width    Cannot be NULL, output width.
+ * @param height   Cannot be NULL, output height.
+ *
+ * Outputs 0,0 if no associated attachments.
+ */
+GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
+                                   uint32_t* width, uint32_t* height);
 
 /**
  * Render command to bind a render/descriptor set.

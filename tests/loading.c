@@ -84,6 +84,13 @@ error:
  */
 static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
+	// Get aspect ratio.
+	uint32_t width;
+	uint32_t height;
+	gfx_recorder_get_size(recorder, &width, &height);
+
+	float aspect = (height != 0) ? (float)width / (float)height : 1.0f;
+
 	// Some hardcoded matrices.
 	float push[] = {
 		// Model-view.
@@ -93,7 +100,7 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 		 0.0f, 0.0f, 0.0f, 1.0f,
 
 		// Projection.
-		1.0f, 0.0f, 0.0f, 0.0f,
+		1.0f / aspect, 0.0f, 0.0f, 0.0f,
 		0.0f, 1.0f, 0.0f, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f,
 		0.0f, 0.0f, 0.0f, 1.0f,

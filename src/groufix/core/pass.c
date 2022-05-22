@@ -216,7 +216,7 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	const uint32_t width = at->window.window->frame.width;
 	const uint32_t height = at->window.window->frame.height;
 
-	// Create framebuffers (if not of 0 zero size).
+	// Create framebuffers (if not of zero size).
 	if (pass->vk.framebuffers.size == 0 && width > 0 && height > 0)
 	{
 		// Remember the width/height for during recording.
@@ -400,6 +400,18 @@ GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
 	assert(parent < pass->numParents);
 
 	return pass->parents[parent];
+}
+
+/****************************/
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height)
+{
+	assert(pass != NULL);
+	assert(width != NULL);
+	assert(height != NULL);
+
+	*width = pass->build.fWidth;
+	*height = pass->build.fHeight;
 }
 
 /****************************/
