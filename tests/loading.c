@@ -89,7 +89,7 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 	uint32_t height;
 	gfx_recorder_get_size(recorder, &width, &height);
 
-	float aspect = (height != 0) ? (float)width / (float)height : 1.0f;
+	float invAspect = (width != 0) ? (float)height / (float)width : 1.0f;
 
 	// Some hardcoded matrices.
 	float push[] = {
@@ -100,7 +100,7 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 		 0.0f, 0.0f, 0.0f, 1.0f,
 
 		// Projection.
-		1.0f / aspect, 0.0f, 0.0f, 0.0f,
+		invAspect, 0.0f, 0.0f, 0.0f,
 		0.0f, 1.0f, 0.0f, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f,
 		0.0f, 0.0f, 0.0f, 1.0f,
