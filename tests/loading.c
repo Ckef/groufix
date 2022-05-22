@@ -84,7 +84,25 @@ error:
  */
 static void test_render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
-	gfx_cmd_draw_indexed(recorder, (GFXRenderable*)ptr, 0, 0, 0, 0, 1);
+	// Some hardcoded matrices.
+	float push[] = {
+		// Model-view.
+		-0.5f, 0.0f, 0.0f, 0.0f,
+		 0.0f, 0.0f, 0.5f, 0.0f,
+		 0.0f, 0.5f, 0.0f, 0.0f,
+		 0.0f, 0.0f, 0.0f, 1.0f,
+
+		// Projection.
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f,
+	};
+
+	// Draw the thing.
+	GFXRenderable* rend = ptr;
+	gfx_cmd_push(recorder, rend->technique, 0, sizeof(push), push);
+	gfx_cmd_draw_indexed(recorder, rend, 0, 0, 0, 0, 1);
 }
 
 

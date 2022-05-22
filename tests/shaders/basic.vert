@@ -10,10 +10,11 @@ out gl_PerVertex {
 };
 
 layout(push_constant) uniform Constants {
-	mat4 mvp;
+	mat4 model;
+	mat4 projection;
 };
 
 void main() {
-	gl_Position = vec4(vPosition, 1.0);
+	gl_Position = projection * model * vec4(vPosition, 1.0);
 	fNormal = vNormal;
 }
