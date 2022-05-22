@@ -982,6 +982,16 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 
 	_GFXContext* context = recorder->context;
 
+	// Check technique.
+	if (technique->layout == NULL)
+	{
+		gfx_log_warn(
+			"Technique not locked during bind command; "
+			"command not recorded.");
+
+		return;
+	}
+
 	// Get all the Vulkan descriptor sets.
 	// And count the number of dynamic offsets.
 	VkDescriptorSet dSets[numSets];
@@ -1050,6 +1060,16 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(data != NULL);
 
 	_GFXContext* context = recorder->context;
+
+	// Check technique.
+	if (technique->layout == NULL)
+	{
+		gfx_log_warn(
+			"Technique not locked during push command; "
+			"command not recorded.");
+
+		return;
+	}
 
 	// Take all remaining bytes if asked.
 	if (size == 0)
