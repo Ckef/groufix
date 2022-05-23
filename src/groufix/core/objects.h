@@ -1291,13 +1291,15 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Acquires all relevant resources for a virtual frame to be recorded.
- * this may call _gfx_sync_frames internally on-swapchain recreate.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL, may not be in renderer->frames!
  * @return Zero if the frame (or renderer) could not be built.
  *
  * Cannot be called again until a call to _gfx_frame_submit has been made.
  * Failure is considered fatal, swapchains could be left in an incomplete state.
+ *
+ * This may call _gfx_sync_frames internally on-swapchain recreate,
+ * meaning frame MUST NOT be in the renderer's frame deque when calling this!
  */
 bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
 
@@ -1313,15 +1315,36 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
  */
 bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);
 
+
+/****************************
+ * Virtual frame based operations.
+ ****************************/
+
 /**
  * Blocks until all virtual frames of a renderer are done.
  * @param renderer Cannot be NULL.
  * @return Non-zero if successfully synchronized.
  *
- * Note: once a frame is synced/acquired, it cannot be synchronized until it is
- * submitted and it must not be in the renderer's frame deque when calling this!
+ * Not reentrant nor thread-safe with respect to the virtual frame deque.
  */
 bool _gfx_sync_frames(GFXRenderer* renderer);
+
+/**
+ * Pushes stale resources to the renderer,
+ * destroying it the next time the previous frame is acquired/synchronized.
+ * @param renderer Cannot be NULL.
+ * @return Non-zero if successfully pushed.
+ *
+ * Not reentrant nor thread-safe with respect to the virtual frame deque.
+ * Any Vulkan resource handle may be VK_NULL_HANDLE, as long as one is not.
+ * All handles are invalidated after this call.
+ *
+ * Failure is considered fatal, resources prematurely destroyed.
+ */
+bool _gfx_push_stale(GFXRenderer* renderer,
+                     VkImageView imageView,
+                     VkBufferView bufferView,
+                     VkCommandPool commandPool);
 
 
 /****************************
@@ -1484,23 +1507,6 @@ void _gfx_pass_destruct(GFXPass* pass);
  */
 _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
                                 const GFXSampler* sampler);
-
-/**
- * Pushes stale resources to the renderer,
- * destroying it the next time the previous frame is acquired/synchronized.
- * @param renderer Cannot be NULL.
- * @return Non-zero if successfully pushed.
- *
- * Not reentrant nor thread-safe with respect to the virtual frame deque.
- * Any Vulkan resource handle may be VK_NULL_HANDLE, as long as one is not.
- * All handles are invalidated after this call.
- *
- * Failure is considered fatal, resources prematurely destroyed.
- */
-bool _gfx_push_stale(GFXRenderer* renderer,
-                     VkImageView imageView,
-                     VkBufferView bufferView,
-                     VkCommandPool commandPool);
 
 /**
  * Resets a recording pool, i.e. resets all command buffers

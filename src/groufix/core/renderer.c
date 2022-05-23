@@ -79,6 +79,75 @@ typedef struct _GFXStale
 } _GFXStale;
 
 
+/****************************
+ * Destroys all the resources stored in a stale resource object.
+ * @param renderer Cannot be NULL.
+ * @param stale    Cannot be NULL, not removed from renderer!
+ */
+static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
+{
+	assert(renderer != NULL);
+	assert(stale != NULL);
+
+	_GFXContext* context = renderer->allocator.context;
+
+	// Yep just destroy all resources.
+	context->vk.DestroyImageView(
+		context->vk.device, stale->vk.imageView, NULL);
+	context->vk.DestroyBufferView(
+		context->vk.device, stale->vk.bufferView, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, stale->vk.commandPool, NULL);
+}
+
+/****************************/
+bool _gfx_push_stale(GFXRenderer* renderer,
+                     VkImageView imageView,
+                     VkBufferView bufferView,
+                     VkCommandPool commandPool)
+{
+	assert(renderer != NULL);
+	assert(
+		imageView != VK_NULL_HANDLE ||
+		bufferView != VK_NULL_HANDLE ||
+		commandPool != VK_NULL_HANDLE);
+
+	// Get the last submitted frame's index.
+	// If there are no frames, there must be a public frame.
+	// If there's not, we're destroying the renderer so it doesn't matter.
+	const GFXFrame* frame =
+		renderer->frames.size == 0 ?
+		&renderer->pFrame :
+		gfx_deque_at(&renderer->frames, renderer->frames.size - 1);
+
+	_GFXStale stale = {
+		.frame = frame->index,
+		.vk = {
+			.imageView = imageView,
+			.bufferView = bufferView,
+			.commandPool = commandPool
+		}
+	};
+
+	// If no non-public frames, there are no frames still rendering,
+	// thus we can immediately destroy.
+	if (renderer->frames.size == 0)
+		_gfx_destroy_stale(renderer, &stale);
+
+	// Try to push the stale resource otherwise.
+	else if (!gfx_deque_push(&renderer->stales, 1, &stale))
+	{
+		gfx_log_fatal(
+			"Stale resources could not be pushed, "
+			"prematurely destroyed instead...");
+
+		_gfx_destroy_stale(renderer, &stale);
+		return 0;
+	}
+
+	return 1;
+}
+
 /****************************/
 _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
                                 const GFXSampler* sampler)
@@ -156,75 +225,6 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
 
 	// Create an actual sampler object.
 	return _gfx_cache_get(&renderer->cache, &sci.sType, NULL);
-}
-
-/****************************
- * Destroys all the resources stored in a stale resource object.
- * @param renderer Cannot be NULL.
- * @param stale    Cannot be NULL, not removed from renderer!
- */
-static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
-{
-	assert(renderer != NULL);
-	assert(stale != NULL);
-
-	_GFXContext* context = renderer->allocator.context;
-
-	// Yep just destroy all resources.
-	context->vk.DestroyImageView(
-		context->vk.device, stale->vk.imageView, NULL);
-	context->vk.DestroyBufferView(
-		context->vk.device, stale->vk.bufferView, NULL);
-	context->vk.DestroyCommandPool(
-		context->vk.device, stale->vk.commandPool, NULL);
-}
-
-/****************************/
-bool _gfx_push_stale(GFXRenderer* renderer,
-                     VkImageView imageView,
-                     VkBufferView bufferView,
-                     VkCommandPool commandPool)
-{
-	assert(renderer != NULL);
-	assert(
-		imageView != VK_NULL_HANDLE ||
-		bufferView != VK_NULL_HANDLE ||
-		commandPool != VK_NULL_HANDLE);
-
-	// Get the last submitted frame's index.
-	// If there are no frames, there must be a public frame.
-	// If there's not, we're destroying the renderer so it doesn't matter.
-	const GFXFrame* frame =
-		renderer->frames.size == 0 ?
-		&renderer->pFrame :
-		gfx_deque_at(&renderer->frames, renderer->frames.size - 1);
-
-	_GFXStale stale = {
-		.frame = frame->index,
-		.vk = {
-			.imageView = imageView,
-			.bufferView = bufferView,
-			.commandPool = commandPool
-		}
-	};
-
-	// If no non-public frames, there are no frames still rendering,
-	// thus we can immediately destroy.
-	if (renderer->frames.size == 0)
-		_gfx_destroy_stale(renderer, &stale);
-
-	// Try to push the stale resource otherwise.
-	else if (!gfx_deque_push(&renderer->stales, 1, &stale))
-	{
-		gfx_log_fatal(
-			"Stale resources could not be pushed, "
-			"prematurely destroyed instead...");
-
-		_gfx_destroy_stale(renderer, &stale);
-		return 0;
-	}
-
-	return 1;
 }
 
 /****************************/

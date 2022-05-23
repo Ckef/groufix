@@ -634,7 +634,7 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 	_GFXContext* context = renderer->allocator.context;
 
 	// If no frames found, we're done.
-	// This is necessary because this can be called during _gfx_frame_submit.
+	// This is necessary because this can be called during _gfx_frame_acquire.
 	if (renderer->frames.size == 0)
 		return 1;
 
