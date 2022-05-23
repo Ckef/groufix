@@ -1270,6 +1270,7 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
 bool _gfx_sync_frames(GFXRenderer* renderer);
 
 /**
+ * TODO: Add VkFramebuffer?
  * Pushes stale resources to the renderer,
  * destroying it the next time the previous frame is acquired/synchronized.
  * @param renderer Cannot be NULL.
