@@ -11,28 +11,41 @@
 
 
 /****************************
- * Purges (destructs) all invalidated passes.
- * If never built yet, it will also set all pass orders.
- * @param renderer Cannot be NULL.
+ * Promptly purges (destructs) all passes, leaving the graph 'empty'.
+ * @param renderer Cannot be NULL, its graph state must not be empty.
  */
 static void _gfx_render_graph_purge(GFXRenderer* renderer)
 {
-	// If the graph is validated or built, nothing to do.
-	if (renderer->graph.state == _GFX_GRAPH_INVALID)
-	{
-		// For destructing we need to wait until all rendering is done.
-		_gfx_sync_frames(renderer);
+	assert(renderer != NULL);
+	assert(renderer->graph.state != _GFX_GRAPH_EMPTY);
 
-		for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		{
-			GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
-			_gfx_pass_destruct(pass);
+	// For destructing we need to wait until all rendering is done.
+	_gfx_sync_frames(renderer);
 
-			// At this point we also sneakedly set the order of all passes
-			// so the recorders know what's up.
-			pass->order = (unsigned int)i;
-		}
-	}
+	// Destruct all passes.
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+		_gfx_pass_destruct(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
+
+	// The graph is now empty.
+	renderer->graph.state = _GFX_GRAPH_EMPTY;
+}
+
+/****************************
+ * Analyzes the render graph to setup all passes for correct builds.
+ * @param renderer Cannot be NULL, its graph state must not be validated.
+ */
+static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+	assert(renderer->graph.state != _GFX_GRAPH_VALIDATED);
+
+	// TODO: Analyze the graph for e.g. pass merging.
+
+	// Its now validated!
+	renderer->graph.state = _GFX_GRAPH_VALIDATED;
+
+	return 1;
 }
 
 /****************************/
@@ -74,13 +87,16 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 	if (renderer->graph.state == _GFX_GRAPH_BUILT)
 		return 1;
 
-	// When the graph is not valid (either its not built yet or explicitly
-	// invalidated), it needs to be entirely rebuilt. Optimizations such as
-	// merging passes may change, we want to capture these changes.
-	_gfx_render_graph_purge(renderer);
+	// When the graph is not valid, it needs to be entirely rebuilt.
+	// Optimizations such as merging passes may change,
+	// we want to capture these changes.
+	if (renderer->graph.state == _GFX_GRAPH_INVALID)
+		_gfx_render_graph_purge(renderer);
 
-	// TODO: Here we analyze the graph for e.g. pass merging.
-	// That or do it within _gfx_pass_build?
+	// If not valid yet, analyze the graph.
+	if (renderer->graph.state != _GFX_GRAPH_VALIDATED)
+		if (!_gfx_render_graph_analyze(renderer))
+			return 0;
 
 	// So now make sure all the passes in the graph are built.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
@@ -89,11 +105,16 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 
 		// We cannot continue, the pass itself should log errors.
+		// No need to worry about destructing, state remains 'validated'.
 		if (!_gfx_pass_build(pass, 0))
 		{
 			gfx_log_error("Renderer's graph build incomplete.");
 			return 0;
 		}
+
+		// At this point we also sneakedly set the order of all passes
+		// so the recorders know what's up.
+		pass->order = (unsigned int)i;
 	}
 
 	// Yep it's built.
@@ -112,7 +133,13 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 		return 1;
 
 	// With the same logic as building; we purge all things first.
-	_gfx_render_graph_purge(renderer);
+	if (renderer->graph.state == _GFX_GRAPH_INVALID)
+		_gfx_render_graph_purge(renderer);
+
+	// If not valid yet, analyze the graph.
+	if (renderer->graph.state != _GFX_GRAPH_VALIDATED)
+		if (!_gfx_render_graph_analyze(renderer))
+			return 0;
 
 	// And then make sure all passes are warmped up!
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
@@ -120,11 +147,16 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 		GFXPass* pass =
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 
+		// No need to worry about destructing, state remains 'validated'.
 		if (!_gfx_pass_warmup(pass))
+		{
+			gfx_log_error("Renderer's graph warmup incomplete.");
 			return 0;
+		}
 	}
 
-	// Do not set any state, nothing is fully built.
+	// Not completely built, but it can be invalidated.
+	renderer->graph.state = _GFX_GRAPH_VALIDATED;
 
 	return 1;
 }
@@ -178,6 +210,7 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index)
 		{
 			_gfx_pass_destruct(pass);
 
+			// If failed, the graph is not invalid, but incomplete.
 			if (renderer->graph.state == _GFX_GRAPH_BUILT)
 				renderer->graph.state = _GFX_GRAPH_VALIDATED;
 		}
@@ -191,7 +224,8 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer)
 
 	// Just set the flag, it is used to destruct everything at the start of
 	// the next build call. This way we can re-analyze it.
-	renderer->graph.state = _GFX_GRAPH_INVALID;
+	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+		renderer->graph.state = _GFX_GRAPH_INVALID;
 }
 
 /****************************/
@@ -250,9 +284,10 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
 			gfx_vec_erase(&renderer->graph.targets, 1, t-1);
 	}
 
-	// We added a pass, clearly we need to rebuild.
-	// Plus we need to re-analyze because we may have new parent/child links.
-	renderer->graph.state = _GFX_GRAPH_INVALID;
+	// We added a pass, we need to re-analyze
+	// because we may have new parent/child links.
+	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+		renderer->graph.state = _GFX_GRAPH_INVALID;
 
 	return pass;
 

@@ -769,7 +769,8 @@ struct GFXRenderer
 		// Graph state.
 		enum
 		{
-			_GFX_GRAPH_INVALID,
+			_GFX_GRAPH_EMPTY,
+			_GFX_GRAPH_INVALID, // Needs to purge.
 			_GFX_GRAPH_VALIDATED,
 			_GFX_GRAPH_BUILT
 
