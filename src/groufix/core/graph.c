@@ -19,10 +19,6 @@ static void _gfx_render_graph_purge(GFXRenderer* renderer)
 	assert(renderer != NULL);
 	assert(renderer->graph.state != _GFX_GRAPH_EMPTY);
 
-	// For destructing we need to wait until all rendering is done.
-	// TODO: Remove when making framebuffers stale instead.
-	_gfx_sync_frames(renderer);
-
 	// Destruct all passes.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 		_gfx_pass_destruct(

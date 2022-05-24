@@ -835,7 +835,8 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 	// Still, NOT thread-safe with respect to the virtual frame deque!
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 		_gfx_push_stale(renderer,
-			VK_NULL_HANDLE, VK_NULL_HANDLE, recorder->pools[i].vk.pool);
+			VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE,
+			recorder->pools[i].vk.pool);
 
 	_gfx_mutex_unlock(&renderer->lock);
 

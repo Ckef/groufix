@@ -1271,9 +1271,8 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
 bool _gfx_sync_frames(GFXRenderer* renderer);
 
 /**
- * TODO: Add VkFramebuffer?
- * Pushes stale resources to the renderer,
- * destroying it the next time the previous frame is acquired/synchronized.
+ * Pushes stale resources to the renderer, subsequently
+ * destroying it the next time the previous frame is acquired again.
  * @param renderer Cannot be NULL.
  * @return Non-zero if successfully pushed.
  *
@@ -1284,6 +1283,7 @@ bool _gfx_sync_frames(GFXRenderer* renderer);
  * Failure is considered fatal, resources are prematurely destroyed.
  */
 bool _gfx_push_stale(GFXRenderer* renderer,
+                     VkFramebuffer framebuffer,
                      VkImageView imageView,
                      VkBufferView bufferView,
                      VkCommandPool commandPool);
@@ -1403,7 +1403,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero if the entire graph is in a built state.
  *
- * This will call _gfx_sync_frames internally when the graph got invalidated!
+ * This will call the relevant _gfx_pass_(destruct|build) calls.
  */
 bool _gfx_render_graph_build(GFXRenderer* renderer);
 
@@ -1412,6 +1412,8 @@ bool _gfx_render_graph_build(GFXRenderer* renderer);
  * Can be used for potential pipeline warmups.
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
+ *
+ * This will call the relevant _gfx_pass_(destruct|warmup) calls.
  */
 bool _gfx_render_graph_warmup(GFXRenderer* renderer);
 
@@ -1420,6 +1422,8 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer);
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    Must contain the _GFX_RECREATE bit.
+ *
+ * This will call the relevant _gfx_pass_build calls.
  */
 void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
                                _GFXRecreateFlags flags);
@@ -1429,7 +1433,7 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
  * @param renderer Cannot be NULL.
  *
  * Must be called before detaching the attachment at index!
- * It will in turn call the relevant _gfx_pass_destruct calls.
+ * It will call the relevant _gfx_pass_destruct calls.
  */
 void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index);
 
@@ -1468,6 +1472,8 @@ void _gfx_destroy_pass(GFXPass* pass);
  * @param pass  Cannot be NULL.
  * @param flags What resources should be recreated (0 to recreate nothing).
  * @return Non-zero if valid and built.
+ *
+ * Not thread-safe with respect to the virtual frame deque iff flags is not 0!
  */
 bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 
@@ -1494,6 +1500,7 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
  * @param pass Cannot be NULL.
  *
  * Must be called before detaching any attachment it uses!
+ * Not thread-safe with respect to the virtual frame deque!
  */
 void _gfx_pass_destruct(GFXPass* pass);
 

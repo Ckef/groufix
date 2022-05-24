@@ -70,6 +70,7 @@ typedef struct _GFXStale
 	// Vulkan fields (any may be VK_NULL_HANDLE).
 	struct
 	{
+		VkFramebuffer framebuffer;
 		VkImageView imageView;
 		VkBufferView bufferView;
 		VkCommandPool commandPool;
@@ -92,6 +93,8 @@ static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
 	_GFXContext* context = renderer->allocator.context;
 
 	// Yep just destroy all resources.
+	context->vk.DestroyFramebuffer(
+		context->vk.device, stale->vk.framebuffer, NULL);
 	context->vk.DestroyImageView(
 		context->vk.device, stale->vk.imageView, NULL);
 	context->vk.DestroyBufferView(
@@ -102,12 +105,14 @@ static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
 
 /****************************/
 bool _gfx_push_stale(GFXRenderer* renderer,
+                     VkFramebuffer framebuffer,
                      VkImageView imageView,
                      VkBufferView bufferView,
                      VkCommandPool commandPool)
 {
 	assert(renderer != NULL);
 	assert(
+		framebuffer != VK_NULL_HANDLE ||
 		imageView != VK_NULL_HANDLE ||
 		bufferView != VK_NULL_HANDLE ||
 		commandPool != VK_NULL_HANDLE);
@@ -123,6 +128,7 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 	_GFXStale stale = {
 		.frame = frame->index,
 		.vk = {
+			.framebuffer = framebuffer,
 			.imageView = imageView,
 			.bufferView = bufferView,
 			.commandPool = commandPool
@@ -353,15 +359,17 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	gfx_list_clear(&renderer->sets);
 
 	// Destroy all stale resources.
+	// Just before this, clear the render backing & graph,
+	// as they might still be pushing stale resources!
+	_gfx_render_graph_clear(renderer);
+	_gfx_render_backing_clear(renderer);
+
 	for (size_t s = 0; s < renderer->stales.size; ++s)
 		_gfx_destroy_stale(renderer, gfx_deque_at(&renderer->stales, s));
 
 	gfx_deque_clear(&renderer->stales);
 
-	// Clear the allocator, cache, pool, backing & graph in a sensible order,
-	// considering the graph depends on the backing 'n stuff :)
-	_gfx_render_graph_clear(renderer);
-	_gfx_render_backing_clear(renderer);
+	// Then clear the allocator, cache & pool.
 	_gfx_pool_clear(&renderer->pool);
 	_gfx_cache_clear(&renderer->cache);
 	_gfx_allocator_clear(&renderer->allocator);

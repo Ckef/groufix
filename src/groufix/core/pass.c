@@ -35,20 +35,19 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 {
 	assert(pass != NULL);
 
-	_GFXContext* context = pass->renderer->allocator.context;
-
 	// The recreate flag is always set if anything is set and signals that
 	// the actual images have been recreated.
 	// So we destroy the framebuffer, which references the actual images.
 	if (flags & _GFX_RECREATE)
 	{
+		// Actually make it stale instead of immediately destroying,
+		// it might still be in use by pending virtual frames.
+		// NOT locked using the renderer's lock;
+		// This might be called by warmups, which already uses that lock!
 		for (size_t i = 0; i < pass->vk.framebuffers.size; ++i)
-		{
-			VkFramebuffer* frame =
-				gfx_vec_at(&pass->vk.framebuffers, i);
-			context->vk.DestroyFramebuffer(
-				context->vk.device, *frame, NULL);
-		}
+			_gfx_push_stale(pass->renderer,
+				*(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, i),
+				VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE);
 
 		pass->build.fWidth = 0;
 		pass->build.fHeight = 0;

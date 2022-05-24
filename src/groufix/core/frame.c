@@ -363,8 +363,6 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Ok so before actually recording stuff we need everything to be built.
 	// These functions will not do anything if not necessary.
-	// The render graph may be rebuilt entirely, in which case it will call
-	// _gfx_sync_frames for us :)
 	if (
 		!_gfx_render_backing_build(renderer) ||
 		!_gfx_render_graph_build(renderer))
