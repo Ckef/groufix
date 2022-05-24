@@ -762,8 +762,8 @@ struct GFXRenderer
 	// Render graph (directed acyclic graph of passes).
 	struct
 	{
-		GFXVec targets; // Stores GFXPass* (target passes, tree roots).
-		GFXVec passes;  // Stores GFXPass* (in submission order).
+		GFXVec sinks;  // Stores GFXPass* (sink passes, tree roots).
+		GFXVec passes; // Stores GFXPass* (in submission order).
 
 
 		// Graph state.

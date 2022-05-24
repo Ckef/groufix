@@ -50,7 +50,7 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	gfx_vec_init(&renderer->graph.targets, sizeof(GFXPass*));
+	gfx_vec_init(&renderer->graph.sinks, sizeof(GFXPass*));
 	gfx_vec_init(&renderer->graph.passes, sizeof(GFXPass*));
 
 	// No graph is a valid graph.
@@ -72,7 +72,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i-1));
 
 	gfx_vec_clear(&renderer->graph.passes);
-	gfx_vec_clear(&renderer->graph.targets);
+	gfx_vec_clear(&renderer->graph.sinks);
 }
 
 /****************************/
@@ -244,8 +244,8 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
 	if (pass == NULL)
 		goto error;
 
-	// Add the new pass as a target, as it has no 'children' yet.
-	if (!gfx_vec_push(&renderer->graph.targets, 1, &pass))
+	// Add the new pass as a sink, as it has no 'children' yet.
+	if (!gfx_vec_push(&renderer->graph.sinks, 1, &pass))
 		goto clean;
 
 	// Find the right place to insert the new pass at,
@@ -266,23 +266,23 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
 	// Insert at found position.
 	if (!gfx_vec_insert(&renderer->graph.passes, 1, &pass, loc))
 	{
-		gfx_vec_pop(&renderer->graph.targets, 1);
+		gfx_vec_pop(&renderer->graph.sinks, 1);
 		goto clean;
 	}
 
-	// Loop through all targets, remove if it's now a parent.
+	// Loop through all sinks, remove if it's now a parent.
 	// Skip the last element, as we just added that.
-	for (size_t t = renderer->graph.targets.size-1; t > 0; --t)
+	for (size_t t = renderer->graph.sinks.size-1; t > 0; --t)
 	{
-		GFXPass* target =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.targets, t-1);
+		GFXPass* sink =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.sinks, t-1);
 
 		size_t d;
 		for (d = 0; d < numParents; ++d)
-			if (target == parents[d]) break;
+			if (sink == parents[d]) break;
 
 		if (d < numParents)
-			gfx_vec_erase(&renderer->graph.targets, 1, t-1);
+			gfx_vec_erase(&renderer->graph.sinks, 1, t-1);
 	}
 
 	// We added a pass, we need to re-analyze
@@ -306,18 +306,18 @@ error:
 }
 
 /****************************/
-GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer)
+GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	return renderer->graph.targets.size;
+	return renderer->graph.sinks.size;
 }
 
 /****************************/
-GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer, size_t target)
+GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink)
 {
 	assert(renderer != NULL);
-	assert(target < renderer->graph.targets.size);
+	assert(sink < renderer->graph.sinks.size);
 
-	return *(GFXPass**)gfx_vec_at(&renderer->graph.targets, target);
+	return *(GFXPass**)gfx_vec_at(&renderer->graph.sinks, sink);
 }

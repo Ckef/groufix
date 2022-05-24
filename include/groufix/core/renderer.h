@@ -448,7 +448,7 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
  ****************************/
 
 /**
- * Adds a new (target) pass to the renderer given a set of parent.
+ * Adds a new (sink) pass to the renderer given a set of parent.
  * A pass will be after all its parents in submission order.
  * Each element in parents must be associated with the same renderer.
  * @param renderer   Cannot be NULL.
@@ -460,23 +460,23 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
                                        size_t numParents, GFXPass** parents);
 
 /**
- * Retrieves the number of target passes of a renderer.
- * A target pass is one that is not a parent off any pass (last in the path).
+ * Retrieves the number of sink passes of a renderer.
+ * A sink pass is one that is not a parent of any pass (last in the path).
  * @param renderer Cannot be NULL.
  *
  * This number may change when a new pass is added.
  */
-GFX_API size_t gfx_renderer_get_num_targets(GFXRenderer* renderer);
+GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
 
 /**
- * Retrieves a target pass of a renderer.
+ * Retrieves a sink pass of a renderer.
  * @param renderer Cannot be NULL.
- * @param target   Target index, must be < gfx_renderer_get_num_targets(renderer).
+ * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
  *
- * The index of each target may change when a new pass is added,
+ * The index of each sink may change when a new pass is added,
  * however their order remains fixed during the lifetime of the renderer.
  */
-GFX_API GFXPass* gfx_renderer_get_target(GFXRenderer* renderer, size_t target);
+GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
 
 /**
  * Retrieves the number of parents of a pass.
