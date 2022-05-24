@@ -20,6 +20,7 @@ static void _gfx_render_graph_purge(GFXRenderer* renderer)
 	assert(renderer->graph.state != _GFX_GRAPH_EMPTY);
 
 	// For destructing we need to wait until all rendering is done.
+	// TODO: Remove when making framebuffers stale instead.
 	_gfx_sync_frames(renderer);
 
 	// Destruct all passes.
@@ -33,12 +34,12 @@ static void _gfx_render_graph_purge(GFXRenderer* renderer)
 
 /****************************
  * Analyzes the render graph to setup all passes for correct builds.
- * @param renderer Cannot be NULL, its graph state must not be validated.
+ * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */
 static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
-	assert(renderer->graph.state != _GFX_GRAPH_VALIDATED);
+	assert(renderer->graph.state < _GFX_GRAPH_VALIDATED);
 
 	// TODO: Analyze the graph for e.g. pass merging.
 
@@ -94,7 +95,7 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 		_gfx_render_graph_purge(renderer);
 
 	// If not valid yet, analyze the graph.
-	if (renderer->graph.state != _GFX_GRAPH_VALIDATED)
+	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
 		if (!_gfx_render_graph_analyze(renderer))
 			return 0;
 
@@ -129,7 +130,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Already done.
-	if (renderer->graph.state == _GFX_GRAPH_BUILT)
+	if (renderer->graph.state >= _GFX_GRAPH_WARMED)
 		return 1;
 
 	// With the same logic as building; we purge all things first.
@@ -137,7 +138,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 		_gfx_render_graph_purge(renderer);
 
 	// If not valid yet, analyze the graph.
-	if (renderer->graph.state != _GFX_GRAPH_VALIDATED)
+	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
 		if (!_gfx_render_graph_analyze(renderer))
 			return 0;
 
@@ -156,7 +157,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 	}
 
 	// Not completely built, but it can be invalidated.
-	renderer->graph.state = _GFX_GRAPH_VALIDATED;
+	renderer->graph.state = _GFX_GRAPH_WARMED;
 
 	return 1;
 }
@@ -167,6 +168,10 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 {
 	assert(renderer != NULL);
 	assert(flags & _GFX_RECREATE);
+
+	// Nothing to rebuild if nothing is built.
+	if (renderer->graph.state < _GFX_GRAPH_WARMED)
+		return;
 
 	// Loop over all passes and check if they read from or write to the
 	// attachment index, if so, rebuild those passes.
@@ -185,8 +190,8 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 			{
 				gfx_log_warn("Renderer's graph rebuild failed.");
 
-				if (renderer->graph.state == _GFX_GRAPH_BUILT)
-					renderer->graph.state = _GFX_GRAPH_VALIDATED;
+				// The graph is not invalid, but incomplete.
+				renderer->graph.state = _GFX_GRAPH_VALIDATED;
 			}
 		}
 	}
@@ -210,8 +215,8 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index)
 		{
 			_gfx_pass_destruct(pass);
 
-			// If failed, the graph is not invalid, but incomplete.
-			if (renderer->graph.state == _GFX_GRAPH_BUILT)
+			// The graph is incomplete now.
+			if (renderer->graph.state >= _GFX_GRAPH_WARMED)
 				renderer->graph.state = _GFX_GRAPH_VALIDATED;
 		}
 	}
@@ -287,7 +292,10 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
 	// We added a pass, we need to re-analyze
 	// because we may have new parent/child links.
 	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
-		renderer->graph.state = _GFX_GRAPH_INVALID;
+		renderer->graph.state =
+			// If the first pass, no need to purge, just set to empty.
+			(renderer->graph.passes.size > 1) ?
+				_GFX_GRAPH_INVALID : _GFX_GRAPH_EMPTY;
 
 	return pass;
 

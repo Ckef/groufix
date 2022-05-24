@@ -109,7 +109,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 		// If something exists, mark it as old.
 		if (window->vk.swapchain != VK_NULL_HANDLE)
 		{
-			*flags |= _GFX_RECREATE_ALL;
+			*flags |= (_GFX_RECREATE | _GFX_RESIZE);
 			window->vk.oldSwapchain = window->vk.swapchain;
 			window->vk.swapchain = VK_NULL_HANDLE;
 		}
@@ -123,8 +123,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 
 	// Ok we are recreating, add flags to the recreate output as necessary,
 	// in case the swapchain got rejected because it was already out of date..
-	*flags |= (window->vk.swapchain == VK_NULL_HANDLE) ?
-		_GFX_RECREATE_ALL : _GFX_RECREATE;
+	*flags |= _GFX_RECREATE;
 
 	// Get all formats, present modes and capabilities of the device.
 	uint32_t fCount;

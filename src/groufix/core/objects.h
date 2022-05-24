@@ -772,6 +772,7 @@ struct GFXRenderer
 			_GFX_GRAPH_EMPTY,
 			_GFX_GRAPH_INVALID, // Needs to purge.
 			_GFX_GRAPH_VALIDATED,
+			_GFX_GRAPH_WARMED,
 			_GFX_GRAPH_BUILT
 
 		} state;
