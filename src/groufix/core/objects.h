@@ -593,14 +593,7 @@ typedef struct _GFXWindowAttach
 	_GFXWindow*       window;
 	_GFXRecreateFlags flags; // Used by virtual frames, from last submission.
 
-
-	// Vulkan fields.
-	struct
-	{
-		// TODO: Move to pass (for consume with ranges).
-		GFXVec views; // Stores VkImageView, on-swapchain recreate.
-
-	} vk;
+	// Inherits all resources from window.
 
 } _GFXWindowAttach;
 
@@ -829,8 +822,8 @@ struct GFXPass
 	// Vulkan fields.
 	struct
 	{
-		VkRenderPass pass;         // For locality.
-		GFXVec       framebuffers; // Stores VkFramebuffer.
+		VkRenderPass pass;   // For locality.
+		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 
 	} vk;
 
