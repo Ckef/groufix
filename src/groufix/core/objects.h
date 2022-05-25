@@ -578,7 +578,7 @@ typedef struct _GFXImageAttach
 	struct
 	{
 		VkFormat format;
-		VkImage  image; // For locality.
+		VkImage  image; // Most recent (for locality).
 
 	} vk;
 
@@ -597,7 +597,7 @@ typedef struct _GFXWindowAttach
 	// Vulkan fields.
 	struct
 	{
-		// TODO: Move to pass, or someplace else.
+		// TODO: Move to pass (for consume with ranges).
 		GFXVec views; // Stores VkImageView, on-swapchain recreate.
 
 	} vk;
