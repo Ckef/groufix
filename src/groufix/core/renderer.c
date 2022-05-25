@@ -421,7 +421,11 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	// Note: we actually pop it, so we are allowed to call _gfx_sync_frames,
 	// which is super necessary and useful!
 	renderer->pFrame = *(GFXFrame*)gfx_deque_at(&renderer->frames, 0);
-	gfx_deque_pop_front(&renderer->frames, 1);
+
+	if (renderer->frames.size > 1)
+		gfx_deque_pop_front(&renderer->frames, 1);
+	else
+		gfx_deque_release(&renderer->frames); // So we don't free the memory.
 
 	// Synchronize the frame :)
 	_gfx_frame_sync(renderer, &renderer->pFrame);
