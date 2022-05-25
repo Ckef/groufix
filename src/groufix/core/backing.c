@@ -49,11 +49,11 @@ static bool _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
 
+	// Already allocated.
 	GFXVec* attachs = &renderer->backing.attachs;
+	if (index < attachs->size) return 1;
 
-	if (index < attachs->size)
-		return 1;
-
+	// Allocate new.
 	size_t elems = index + 1 - attachs->size;
 
 	if (!gfx_vec_push(attachs, elems, NULL))
@@ -65,7 +65,7 @@ static bool _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 		return 0;
 	}
 
-	// All empty.
+	// Set all empty.
 	for (size_t i = 0; i < elems; ++i)
 		((_GFXAttach*)gfx_vec_at(attachs, index - i))->type =
 			_GFX_ATTACH_EMPTY;
@@ -94,7 +94,9 @@ static void _gfx_destruct_attachment(GFXRenderer* renderer, size_t index)
 	// Destruct an implicit image.
 	if (at->type == _GFX_ATTACH_IMAGE)
 	{
-		// TODO: Destroy image or smth.
+		// TODO: Destroy all images.
+
+		gfx_list_clear(&at->image.backings);
 	}
 
 	// Destruct a window (i.e. swapchain-dependent resources).
@@ -385,6 +387,8 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 			}
 		}
 	};
+
+	gfx_list_init(&attach->image.backings);
 
 	// New attachment is not yet built.
 	renderer->backing.state = _GFX_BACKING_INVALID;

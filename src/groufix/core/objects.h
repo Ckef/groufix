@@ -547,18 +547,38 @@ typedef struct _GFXGroup
  ****************************/
 
 /**
+ * Attachment backing.
+ */
+typedef struct _GFXBacking
+{
+	GFXListNode  list; // Base-type.
+	_GFXMemAlloc alloc;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkImage image;
+
+	} vk;
+
+} _GFXBacking;
+
+
+/**
  * Image (implicit) attachment.
  */
 typedef struct _GFXImageAttach
 {
 	GFXAttachment base;
+	GFXList       backings; // References _GFXBacking.
 
 
 	// Vulkan fields.
 	struct
 	{
 		VkFormat format;
-		VkImage  image;
+		VkImage  image; // For locality.
 
 	} vk;
 
