@@ -76,6 +76,44 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 }
 
 /****************************/
+bool _gfx_render_graph_warmup(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// Already done.
+	if (renderer->graph.state >= _GFX_GRAPH_WARMED)
+		return 1;
+
+	// With the same logic as building; we purge all things first.
+	if (renderer->graph.state == _GFX_GRAPH_INVALID)
+		_gfx_render_graph_purge(renderer);
+
+	// If not valid yet, analyze the graph.
+	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
+		if (!_gfx_render_graph_analyze(renderer))
+			return 0;
+
+	// And then make sure all passes are warmped up!
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+	{
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+
+		// No need to worry about destructing, state remains 'validated'.
+		if (!_gfx_pass_warmup(pass))
+		{
+			gfx_log_error("Renderer's graph warmup incomplete.");
+			return 0;
+		}
+	}
+
+	// Not completely built, but it can be invalidated.
+	renderer->graph.state = _GFX_GRAPH_WARMED;
+
+	return 1;
+}
+
+/****************************/
 bool _gfx_render_graph_build(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
@@ -116,44 +154,6 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 
 	// Yep it's built.
 	renderer->graph.state = _GFX_GRAPH_BUILT;
-
-	return 1;
-}
-
-/****************************/
-bool _gfx_render_graph_warmup(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	// Already done.
-	if (renderer->graph.state >= _GFX_GRAPH_WARMED)
-		return 1;
-
-	// With the same logic as building; we purge all things first.
-	if (renderer->graph.state == _GFX_GRAPH_INVALID)
-		_gfx_render_graph_purge(renderer);
-
-	// If not valid yet, analyze the graph.
-	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
-		if (!_gfx_render_graph_analyze(renderer))
-			return 0;
-
-	// And then make sure all passes are warmped up!
-	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
-
-		// No need to worry about destructing, state remains 'validated'.
-		if (!_gfx_pass_warmup(pass))
-		{
-			gfx_log_error("Renderer's graph warmup incomplete.");
-			return 0;
-		}
-	}
-
-	// Not completely built, but it can be invalidated.
-	renderer->graph.state = _GFX_GRAPH_WARMED;
 
 	return 1;
 }

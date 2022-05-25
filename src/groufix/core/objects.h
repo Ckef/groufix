@@ -1418,16 +1418,6 @@ void _gfx_render_graph_init(GFXRenderer* renderer);
 void _gfx_render_graph_clear(GFXRenderer* renderer);
 
 /**
- * (Re)builds the render graph and all its resources.
- * Will resolve to a no-op if everything is already built.
- * @param renderer Cannot be NULL.
- * @return Non-zero if the entire graph is in a built state.
- *
- * This will call the relevant _gfx_pass_(destruct|build) calls.
- */
-bool _gfx_render_graph_build(GFXRenderer* renderer);
-
-/**
  * Builds the Vulkan render passes if not present yet.
  * Can be used for potential pipeline warmups.
  * @param renderer Cannot be NULL.
@@ -1436,6 +1426,16 @@ bool _gfx_render_graph_build(GFXRenderer* renderer);
  * This will call the relevant _gfx_pass_(destruct|warmup) calls.
  */
 bool _gfx_render_graph_warmup(GFXRenderer* renderer);
+
+/**
+ * (Re)builds the render graph and all its resources.
+ * Will resolve to a no-op if everything is already built.
+ * @param renderer Cannot be NULL.
+ * @return Non-zero if the entire graph is in a built state.
+ *
+ * This will call the relevant _gfx_pass_(destruct|build) calls.
+ */
+bool _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
  * (Re)builds render graph resources dependent on the given attachment index.
@@ -1488,6 +1488,14 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 void _gfx_destroy_pass(GFXPass* pass);
 
 /**
+ * Builds the Vulkan render pass if not present yet.
+ * Can be used for potential pipeline warmups.
+ * @param pass Cannot be NULL.
+ * @param Non-zero on success.
+ */
+bool _gfx_pass_warmup(GFXPass* pass);
+
+/**
  * (Re)builds all Vulkan objects.
  * @param pass  Cannot be NULL.
  * @param flags What resources should be recreated (0 to recreate nothing).
@@ -1496,14 +1504,6 @@ void _gfx_destroy_pass(GFXPass* pass);
  * Not thread-safe with respect to the virtual frame deque iff flags is not 0!
  */
 bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
-
-/**
- * Builds the Vulkan render pass if not present yet.
- * Can be used for potential pipeline warmups.
- * @param pass Cannot be NULL.
- * @param Non-zero on success.
- */
-bool _gfx_pass_warmup(GFXPass* pass);
 
 /**
  * Retrieves the current framebuffer of a pass with respect to a frame.
