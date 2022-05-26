@@ -40,6 +40,8 @@ typedef struct _GFXFrameElem
  * Destructs a subset of all Vulkan objects, non-recursively.
  * @param pass  Cannot be NULL.
  * @param flags What resources should be destroyed (0 to do nothing).
+ *
+ * Not thread-safe with respect to pushing stale resources!
  */
 static void _gfx_pass_destruct_partial(GFXPass* pass,
                                        _GFXRecreateFlags flags)
@@ -53,7 +55,7 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 		// Make all framebuffers and views stale.
 		// Note that they might still be in use by pending virtual frames.
 		// NOT locked using the renderer's lock;
-		// This might be called by warmups, which already uses that lock!
+		// the reason that _gfx_pass_(build|destruct) are not thread-safe.
 		for (size_t i = 0; i < pass->vk.frames.size; ++i)
 		{
 			_GFXFrameElem* elem = gfx_vec_at(&pass->vk.frames, i);

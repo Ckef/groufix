@@ -743,7 +743,7 @@ struct GFXRenderer
 	GFXList   recorders;  // References GFXRecorder.
 	GFXList   techniques; // References GFXTechnique.
 	GFXList   sets;       // References GFXSet.
-	_GFXMutex lock;       // For recorders, techniques & sets.
+	_GFXMutex lock;       // For recorders, techniques & sets (and stales).
 
 	// Render frame (i.e. collection of virtual frames).
 	unsigned int numFrames;
@@ -1417,6 +1417,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @return Non-zero on success.
  *
  * This will call the relevant _gfx_pass_(destruct|warmup) calls.
+ * Thus not thread-safe with respect to pushing stale resources!
  */
 bool _gfx_render_graph_warmup(GFXRenderer* renderer);
 
@@ -1427,6 +1428,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer);
  * @return Non-zero if the entire graph is in a built state.
  *
  * This will call the relevant _gfx_pass_(destruct|build) calls.
+ * Thus not thread-safe with respect to pushing stale resources!
  */
 bool _gfx_render_graph_build(GFXRenderer* renderer);
 
@@ -1437,6 +1439,7 @@ bool _gfx_render_graph_build(GFXRenderer* renderer);
  * @param flags    Must contain the _GFX_RECREATE bit.
  *
  * This will call the relevant _gfx_pass_build calls.
+ * Thus not thread-safe with respect to pushing stale resources!
  */
 void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
                                _GFXRecreateFlags flags);
@@ -1447,6 +1450,7 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
  *
  * Must be called before detaching the attachment at index!
  * It will call the relevant _gfx_pass_destruct calls.
+ * Thus not thread-safe with respect to pushing stale resources!
  */
 void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index);
 
@@ -1494,7 +1498,7 @@ bool _gfx_pass_warmup(GFXPass* pass);
  * @param flags What resources should be recreated (0 to recreate nothing).
  * @return Non-zero if valid and built.
  *
- * Not thread-safe with respect to the virtual frame deque iff flags is not 0!
+ * Not thread-safe with respect to pushing stale resources iff flags is not 0!
  */
 bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 
@@ -1513,7 +1517,7 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
  * @param pass Cannot be NULL.
  *
  * Must be called before detaching any attachment it uses!
- * Not thread-safe with respect to the virtual frame deque!
+ * Not thread-safe with respect to pushing stale resources!
  */
 void _gfx_pass_destruct(GFXPass* pass);
 

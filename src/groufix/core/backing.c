@@ -95,15 +95,20 @@ static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 		_gfx_sync_frames(renderer);
 
 		// Destruct the parts of the graph dependent on the attachment.
-		// Very important indeed!
+		// This is not thread-safe at all, so we re-use the renderer's lock.
+		_gfx_mutex_lock(&renderer->lock);
 		_gfx_render_graph_destruct(renderer, index);
+		_gfx_mutex_unlock(&renderer->lock);
 	}
 
 	// Then, if it is an image, reset the descriptor pools,
 	// this image attachment may not be referenced anymore!
 	if (attach->type == _GFX_ATTACH_IMAGE)
 	{
+		// Also not thread-safe as sets/recorders could call the pool.
+		_gfx_mutex_lock(&renderer->lock);
 		_gfx_pool_reset(&renderer->pool);
+		_gfx_mutex_unlock(&renderer->lock);
 
 		// TODO: Have it destroy all images, prolly another function smth.
 		gfx_list_clear(&attach->image.backings);
