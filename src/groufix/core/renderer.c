@@ -251,6 +251,8 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	// Do this first so all other things know the families!
 	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
 	_gfx_pick_queue(context, &rend->present, 0, 1);
+	_gfx_pick_family(context, &rend->compute, VK_QUEUE_COMPUTE_BIT, 0);
+	_gfx_pick_family(context, &rend->transfer, VK_QUEUE_TRANSFER_BIT, 0);
 
 	// Initialize the technique/set lock first.
 	if (!_gfx_mutex_init(&rend->lock))

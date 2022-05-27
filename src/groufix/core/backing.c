@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <stdlib.h>
 
 
 /****************************
@@ -37,7 +38,140 @@ static inline bool _gfx_cmp_attachments(const GFXAttachment* l,
 		(l->flags == r->flags) &&
 		(l->usage == r->usage) &&
 		GFX_FORMAT_IS_EQUAL(l->format, r->format) &&
+		(l->mipmaps == r->mipmaps) &&
 		(l->layers == r->layers);
+}
+
+/****************************
+ * Allocates a new backing image and links it into an attachment.
+ * @param attach Must be an image attachment.
+ * @return Non-zero on success.
+ */
+static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
+{
+	assert(renderer != NULL);
+	assert(attach != NULL);
+	assert(attach->type == _GFX_ATTACH_IMAGE);
+
+	_GFXContext* context = renderer->allocator.context;
+
+	// Allocate a new backing image.
+	_GFXBacking* backing = malloc(sizeof(_GFXBacking));
+	if (backing == NULL)
+		goto clean;
+
+	// Get queue families to share with.
+	uint32_t families[3] = {
+		renderer->graphics.family,
+		renderer->compute,
+		renderer->transfer
+	};
+
+	uint32_t fCount =
+		_gfx_filter_families(attach->image.base.flags, families);
+
+	// Create a new Vulkan image.
+	VkImageCreateFlags createFlags =
+		(attach->image.base.type == GFX_IMAGE_3D_SLICED) ?
+			VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT :
+		(attach->image.base.type == GFX_IMAGE_CUBE) ?
+			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
+
+	VkImageUsageFlags usage =
+		_GFX_GET_VK_IMAGE_USAGE(
+			attach->image.base.flags, attach->image.base.usage);
+
+	VkImageCreateInfo ici = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+
+		.pNext                 = NULL,
+		.flags                 = createFlags,
+		.imageType             = _GFX_GET_VK_IMAGE_TYPE(attach->image.base.type),
+		.format                = attach->image.vk.format,
+		.extent                = {
+			// TODO: Compute size somehow.
+			.width  = 0,
+			.height = 0,
+			.depth  = 0
+		},
+		.mipLevels             = attach->image.base.mipmaps,
+		.arrayLayers           = attach->image.base.layers,
+		// TODO: Make samples user input.
+		.samples               = VK_SAMPLE_COUNT_1_BIT,
+		.tiling                = VK_IMAGE_TILING_OPTIMAL,
+		.usage                 = usage,
+		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
+		.queueFamilyIndexCount = fCount > 1 ? fCount : 0,
+		.pQueueFamilyIndices   = fCount > 1 ? families : NULL,
+		.sharingMode           = fCount > 1 ?
+			VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
+	};
+
+	_GFX_VK_CHECK(context->vk.CreateImage(
+		context->vk.device, &ici, NULL, &backing->vk.image), goto clean);
+
+	// Get memory requirements & do actual allocation.
+	// Always perform a dedicated allocation for attachments!
+	// This makes it so we don't hog huge memory blocks on the GPU!
+	// TODO: Maybe use VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT here?
+	VkMemoryRequirements mr;
+	context->vk.GetImageMemoryRequirements(
+		context->vk.device, backing->vk.image, &mr);
+
+	if (!_gfx_allocd(&renderer->allocator, &backing->alloc,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		mr, VK_NULL_HANDLE, backing->vk.image))
+	{
+		goto clean_image;
+	}
+
+	// Bind the image to the memory.
+	_GFX_VK_CHECK(
+		context->vk.BindImageMemory(
+			context->vk.device,
+			backing->vk.image,
+			backing->alloc.vk.memory, backing->alloc.offset),
+		goto clean_alloc);
+
+	// Link the backing into the attachment as most recent.
+	gfx_list_insert_before(&attach->image.backings, &backing->list, NULL);
+	attach->image.vk.image = backing->vk.image;
+
+	return 1;
+
+
+	// Cleanup on failure.
+clean_alloc:
+	_gfx_free(&renderer->allocator, &backing->alloc);
+clean_image:
+	context->vk.DestroyImage(
+		context->vk.device, backing->vk.image, NULL);
+clean:
+	free(backing);
+
+	return 0;
+}
+
+/****************************
+ * Frees a backing buffer created by _gfx_alloc_backing.
+ * However, DOES NOT unlink the backing from its attachment!
+ */
+static void _gfx_free_backing(GFXRenderer* renderer, _GFXBacking* backing)
+{
+	assert(renderer != NULL);
+	assert(backing != NULL);
+
+	_GFXContext* context = renderer->allocator.context;
+
+	// Destroy Vulkan image.
+	context->vk.DestroyImage(
+		context->vk.device, backing->vk.image, NULL);
+
+	// Free the memory.
+	_gfx_free(&renderer->allocator, &backing->alloc);
+
+	free(backing);
 }
 
 /****************************

@@ -739,6 +739,8 @@ struct GFXRenderer
 	_GFXPool      pool;
 	_GFXQueue     graphics;
 	_GFXQueue     present;
+	uint32_t      compute;  // Family index only.
+	uint32_t      transfer; // Family index only.
 
 	GFXList   recorders;  // References GFXRecorder.
 	GFXList   techniques; // References GFXTechnique.
