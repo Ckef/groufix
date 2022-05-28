@@ -44,7 +44,7 @@ static inline bool _gfx_cmp_attachments(const GFXAttachment* l,
 
 /****************************
  * Allocates a new backing image and links it into an attachment.
- * @param attach Must be an image attachment.
+ * @param attach Must be an image attachment of non-zero size.
  * @return Non-zero on success.
  */
 static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
@@ -52,6 +52,9 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 	assert(renderer != NULL);
 	assert(attach != NULL);
 	assert(attach->type == _GFX_ATTACH_IMAGE);
+	assert(attach->image.width > 0);
+	assert(attach->image.height > 0);
+	assert(attach->image.depth > 0);
 
 	_GFXContext* context = renderer->allocator.context;
 
@@ -88,10 +91,9 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 		.imageType             = _GFX_GET_VK_IMAGE_TYPE(attach->image.base.type),
 		.format                = attach->image.vk.format,
 		.extent                = {
-			// TODO: Compute size somehow.
-			.width  = 0,
-			.height = 0,
-			.depth  = 0
+			.width  = attach->image.width,
+			.height = attach->image.height,
+			.depth  = attach->image.depth
 		},
 		.mipLevels             = attach->image.base.mipmaps,
 		.arrayLayers           = attach->image.base.layers,
@@ -246,7 +248,14 @@ static bool _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 		_gfx_pool_reset(&renderer->pool);
 		_gfx_mutex_unlock(&renderer->lock);
 
-		// TODO: Have it destroy all images, prolly another function smth.
+		// Ok now just free all images.
+		while (attach->image.backings.tail != NULL)
+		{
+			_GFXBacking* backing = (_GFXBacking*)attach->image.backings.tail;
+			gfx_list_erase(&attach->image.backings, &backing->list);
+			_gfx_free_backing(renderer, backing);
+		}
+
 		gfx_list_clear(&attach->image.backings);
 	}
 
@@ -265,15 +274,18 @@ static bool _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 
 /****************************
  * Resolves all attachment sizes of the render backing.
+ * Optionally given index is to ignore potential resizes of other attachments.
  * @param renderer Cannot be NULL, its backing state must not yet be validated.
+ * @param index    Must be < number of attachments or SIZE_MAX.
  *
  * This will unset (i.e. invalidate) any recent Vulkan image if
  * the associated attachment has been resized.
  */
-static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
+static bool _gfx_render_backing_resolve(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
 	assert(renderer->backing.state < _GFX_BACKING_VALIDATED);
+	assert(index == SIZE_MAX || index < renderer->backing.attachs.size);
 
 	// TODO: Resolve all the sizes, this should log errors!
 	// If the size changes, attach->image.vk.image must be set to VK_NULL_HANDLE!
@@ -308,13 +320,18 @@ static size_t _gfx_render_backing_alloc(GFXRenderer* renderer)
 		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, i);
 		if (
 			// Not an image attachment, or already built!
+			// Also do nothing when any dimension is zero.
 			attach->type != _GFX_ATTACH_IMAGE ||
-			attach->image.vk.image != VK_NULL_HANDLE)
+			attach->image.vk.image != VK_NULL_HANDLE ||
+			attach->image.width == 0 ||
+			attach->image.height == 0 ||
+			attach->image.depth == 0)
 		{
 			continue;
 		}
 
-		// TODO: Allocate or smth.
+		// Allocate the backing image!
+		failed += !_gfx_alloc_backing(renderer, attach);
 	}
 
 	if (failed == 0)
@@ -359,7 +376,7 @@ bool _gfx_render_backing_build(GFXRenderer* renderer)
 
 	// Resolve if not yet done.
 	if (renderer->backing.state < _GFX_BACKING_VALIDATED)
-		if (!_gfx_render_backing_resolve(renderer))
+		if (!_gfx_render_backing_resolve(renderer, SIZE_MAX))
 			return 0;
 
 	// Build all attachments.
@@ -398,8 +415,7 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
 	renderer->backing.state = _GFX_BACKING_INVALID;
 
 	// Re-resolve, this should log errors.
-	// TODO: Pass index as argument to speed up the process?
-	if (!_gfx_render_backing_resolve(renderer))
+	if (!_gfx_render_backing_resolve(renderer, index))
 		return;
 
 	if (built)
@@ -467,6 +483,9 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 		.type = _GFX_ATTACH_IMAGE,
 		.image = {
 			.base = attachment,
+			.width = 0,
+			.height = 0,
+			.depth = 0,
 			.vk = {
 				.format = vkFmt,
 				.image  = VK_NULL_HANDLE

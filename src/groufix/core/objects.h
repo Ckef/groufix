@@ -573,6 +573,11 @@ typedef struct _GFXImageAttach
 	GFXAttachment base;
 	GFXList       backings; // References _GFXBacking.
 
+	// Resolved size.
+	uint32_t width;
+	uint32_t height;
+	uint32_t depth;
+
 
 	// Vulkan fields.
 	struct
