@@ -57,8 +57,7 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 
 	// Allocate a new backing image.
 	_GFXBacking* backing = malloc(sizeof(_GFXBacking));
-	if (backing == NULL)
-		goto clean;
+	if (backing == NULL) goto clean;
 
 	// Get queue families to share with.
 	uint32_t families[3] = {
@@ -154,7 +153,7 @@ clean:
 }
 
 /****************************
- * Frees a backing buffer created by _gfx_alloc_backing.
+ * Frees a backing image created by _gfx_alloc_backing.
  * However, DOES NOT unlink the backing from its attachment!
  */
 static void _gfx_free_backing(GFXRenderer* renderer, _GFXBacking* backing)
@@ -212,28 +211,31 @@ static bool _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
  * window attachment it will be unlocked for use at another attachment.
  * @param renderer Cannot be NULL.
  * @param index    Must be < number of attachments.
+ * @return Non-zero if anything was detached.
  *
- * Will block until rendering is done if necessary!
+ * Does not alter the render backing state!
+ * Will block until rendering is done if detaching!
  */
-static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
+static bool _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
 	assert(index < renderer->backing.attachs.size);
 
 	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
 
+	// Nothing to detach.
+	if (attach->type == _GFX_ATTACH_EMPTY)
+		return 0;
+
 	// Before detaching, we wait until all rendering is done.
 	// This so we can 'detach' (i.e. destroy) the associated resources.
-	if (attach->type != _GFX_ATTACH_EMPTY)
-	{
-		_gfx_sync_frames(renderer);
+	_gfx_sync_frames(renderer);
 
-		// Destruct the parts of the graph dependent on the attachment.
-		// This is not thread-safe at all, so we re-use the renderer's lock.
-		_gfx_mutex_lock(&renderer->lock);
-		_gfx_render_graph_destruct(renderer, index);
-		_gfx_mutex_unlock(&renderer->lock);
-	}
+	// Destruct the parts of the graph dependent on the attachment.
+	// This is not thread-safe at all, so we re-use the renderer's lock.
+	_gfx_mutex_lock(&renderer->lock);
+	_gfx_render_graph_destruct(renderer, index);
+	_gfx_mutex_unlock(&renderer->lock);
 
 	// Then, if it is an image, reset the descriptor pools,
 	// this image attachment may not be referenced anymore!
@@ -257,6 +259,69 @@ static void _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 
 	// Describe attachment as empty.
 	attach->type = _GFX_ATTACH_EMPTY;
+
+	return 1;
+}
+
+/****************************
+ * Resolves all attachment sizes of the render backing.
+ * @param renderer Cannot be NULL, its backing state must not yet be validated.
+ *
+ * This will unset (i.e. invalidate) any recent Vulkan image if
+ * the associated attachment has been resized.
+ */
+static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+	assert(renderer->backing.state < _GFX_BACKING_VALIDATED);
+
+	// TODO: Resolve all the sizes, this should log errors!
+	// If the size changes, attach->image.vk.image must be set to VK_NULL_HANDLE!
+
+	// TODO: This would be the place to calculate when the previously
+	// most recent image (that is now invalidated) can be destroyed!
+
+	// TODO: Then call _gfx_render_backing_purge every frame to
+	// destroy the backing images that can then be destroyed.
+
+	// It's now validated!
+	renderer->backing.state = _GFX_BACKING_VALIDATED;
+
+	return 1;
+}
+
+/****************************
+ * Allocates a new backing image for all attachments that need one.
+ * @param renderer Cannot be NULL, its backing state must be validated.
+ * @return Number of failed allocations (0 means success).
+ */
+static size_t _gfx_render_backing_alloc(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+	assert(renderer->backing.state == _GFX_BACKING_VALIDATED);
+
+	// So yeah go and make sure all attachments have an image.
+	size_t failed = 0;
+
+	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
+	{
+		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, i);
+		if (
+			// Not an image attachment, or already built!
+			attach->type != _GFX_ATTACH_IMAGE ||
+			attach->image.vk.image != VK_NULL_HANDLE)
+		{
+			continue;
+		}
+
+		// TODO: Allocate or smth.
+	}
+
+	if (failed == 0)
+		// Yey built.
+		renderer->backing.state = _GFX_BACKING_BUILT;
+
+	return failed;
 }
 
 /****************************/
@@ -292,19 +357,22 @@ bool _gfx_render_backing_build(GFXRenderer* renderer)
 	if (renderer->backing.state == _GFX_BACKING_BUILT)
 		return 1;
 
-	// Build all attachments.
-	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
-	{
-		// TODO: Something along the lines of:
-		/*if (!_gfx_build_attachment(renderer, i))
-		{
-			gfx_log_error("Renderer's backing build incomplete.");
+	// Resolve if not yet done.
+	if (renderer->backing.state < _GFX_BACKING_VALIDATED)
+		if (!_gfx_render_backing_resolve(renderer))
 			return 0;
-		}*/
-	}
 
-	// Yey built.
-	renderer->backing.state = _GFX_BACKING_BUILT;
+	// Build all attachments.
+	size_t failed = _gfx_render_backing_alloc(renderer);
+
+	if (failed > 0)
+	{
+		gfx_log_error(
+			"Failed to build %"GFX_PRIs" attachments of a renderer.",
+			failed);
+
+		return 0;
+	}
 
 	return 1;
 }
@@ -316,16 +384,34 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
 	assert(renderer != NULL);
 	assert(flags & _GFX_RECREATE);
 
-	// TODO: Here we actually want to resize all image attachments
-	// that have a relative size to this window attachment.
-	// The given flags are relevant for this.
-
-	// TODO: Something along the lines of:
-	/*if (!_gfx_build_attachment(renderer, index))
+	// Nothing to rebuild if not resized or nothing is built yet.
+	if (
+		!(flags & _GFX_RESIZE) ||
+		renderer->backing.state == _GFX_BACKING_INVALID)
 	{
-		gfx_log_warn("Renderer's backing rebuild failed.");
-		renderer->backing.state = _GFX_BACKING_INVALID;
-	}*/
+		return;
+	}
+
+	// Remember if we want to rebuild affected attachments,
+	// then invalidate the build for resolving.
+	const bool built = (renderer->backing.state == _GFX_BACKING_BUILT);
+	renderer->backing.state = _GFX_BACKING_INVALID;
+
+	// Re-resolve, this should log errors.
+	// TODO: Pass index as argument to speed up the process?
+	if (!_gfx_render_backing_resolve(renderer))
+		return;
+
+	if (built)
+	{
+		// Ok now rebuild all the affected attachments.
+		size_t failed = _gfx_render_backing_alloc(renderer);
+
+		if (failed > 0)
+			gfx_log_warn(
+				"Failed to rebuild %"GFX_PRIs" attachments of a renderer.",
+				failed);
+	}
 }
 
 /****************************/
@@ -390,7 +476,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 
 	gfx_list_init(&attach->image.backings);
 
-	// New attachment is not yet built.
+	// New attachment is not yet resolved.
 	renderer->backing.state = _GFX_BACKING_INVALID;
 
 	return 1;
@@ -460,7 +546,7 @@ GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
 		}
 	};
 
-	// New attachment is not yet built.
+	// Other attachment might be relative to this one.
 	renderer->backing.state = _GFX_BACKING_INVALID;
 
 	return 1;
@@ -511,5 +597,7 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index)
 	assert(index < renderer->backing.attachs.size);
 
 	// Yeah well, detach :)
-	_gfx_detach_attachment(renderer, index);
+	if (_gfx_detach_attachment(renderer, index))
+		// Who knows what happens now.
+		renderer->backing.state = _GFX_BACKING_INVALID;
 }

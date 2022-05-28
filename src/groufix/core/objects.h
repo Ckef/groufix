@@ -767,6 +767,7 @@ struct GFXRenderer
 		enum
 		{
 			_GFX_BACKING_INVALID,
+			_GFX_BACKING_VALIDATED,
 			_GFX_BACKING_BUILT
 
 		} state;

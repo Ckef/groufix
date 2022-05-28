@@ -37,7 +37,7 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 	assert(renderer != NULL);
 	assert(renderer->graph.state < _GFX_GRAPH_VALIDATED);
 
-	// TODO: Analyze the graph for e.g. pass merging.
+	// TODO: Analyze the graph for e.g. pass merging, this should log errors!
 
 	// Its now validated!
 	renderer->graph.state = _GFX_GRAPH_VALIDATED;
@@ -94,17 +94,21 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 			return 0;
 
 	// And then make sure all passes are warmped up!
+	size_t failed = 0;
+
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
-
 		// No need to worry about destructing, state remains 'validated'.
-		if (!_gfx_pass_warmup(pass))
-		{
-			gfx_log_error("Renderer's graph warmup incomplete.");
-			return 0;
-		}
+		failed += !_gfx_pass_warmup(gfx_vec_at(&renderer->graph.passes, i));
+	}
+
+	if (failed > 0)
+	{
+		gfx_log_error(
+			"Failed to warmup %"GFX_PRIs" passes of the renderer's graph.",
+			failed);
+
+		return 0;
 	}
 
 	// Not completely built, but it can be invalidated.
@@ -134,22 +138,29 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 			return 0;
 
 	// So now make sure all the passes in the graph are built.
+	size_t failed = 0;
+
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
 		GFXPass* pass =
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 
-		// We cannot continue, the pass itself should log errors.
+		// The pass itself should log errors.
 		// No need to worry about destructing, state remains 'validated'.
-		if (!_gfx_pass_build(pass, 0))
-		{
-			gfx_log_error("Renderer's graph build incomplete.");
-			return 0;
-		}
+		failed += !_gfx_pass_build(pass, 0);
 
 		// At this point we also sneakedly set the order of all passes
 		// so the recorders know what's up.
 		pass->order = (unsigned int)i;
+	}
+
+	if (failed > 0)
+	{
+		gfx_log_error(
+			"Failed to build %"GFX_PRIs" passes of the renderer's graph.",
+			failed);
+
+		return 0;
 	}
 
 	// Yep it's built.
@@ -171,6 +182,8 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 
 	// Loop over all passes and check if they read from or write to the
 	// attachment index, if so, rebuild those passes.
+	size_t failed = 0;
+
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
 		GFXPass* pass =
@@ -182,14 +195,18 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 		{
 			// If we fail, just ignore and signal we're not built.
 			// Will be tried again in _gfx_render_graph_build.
-			if (!_gfx_pass_build(pass, flags))
-			{
-				gfx_log_warn("Renderer's graph rebuild failed.");
-
-				// The graph is not invalid, but incomplete.
-				renderer->graph.state = _GFX_GRAPH_VALIDATED;
-			}
+			failed += !_gfx_pass_build(pass, flags);
 		}
+	}
+
+	if (failed > 0)
+	{
+		gfx_log_warn(
+			"Failed to rebuild %"GFX_PRIs" passes of the renderer's graph.",
+			failed);
+
+		// The graph is not invalid, but incomplete.
+		renderer->graph.state = _GFX_GRAPH_VALIDATED;
 	}
 }
 

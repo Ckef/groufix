@@ -353,8 +353,7 @@ _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
 
 	// Allocate a new staging buffer.
 	_GFXStaging* staging = malloc(sizeof(_GFXStaging));
-	if (staging == NULL)
-		goto clean;
+	if (staging == NULL) goto clean;
 
 	// Create a new Vulkan buffer.
 	// Note that staging buffers are never shared between queues!
