@@ -547,18 +547,43 @@ typedef struct _GFXGroup
  ****************************/
 
 /**
+ * Attachment backing.
+ */
+typedef struct _GFXBacking
+{
+	GFXListNode  list; // Base-type.
+	_GFXMemAlloc alloc;
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkImage image;
+
+	} vk;
+
+} _GFXBacking;
+
+
+/**
  * Image (implicit) attachment.
  */
 typedef struct _GFXImageAttach
 {
 	GFXAttachment base;
+	GFXList       backings; // References _GFXBacking.
+
+	// Resolved size.
+	uint32_t width;
+	uint32_t height;
+	uint32_t depth;
 
 
 	// Vulkan fields.
 	struct
 	{
 		VkFormat format;
-		VkImage  image;
+		VkImage  image; // Most recent (for locality).
 
 	} vk;
 
@@ -573,14 +598,7 @@ typedef struct _GFXWindowAttach
 	_GFXWindow*       window;
 	_GFXRecreateFlags flags; // Used by virtual frames, from last submission.
 
-
-	// Vulkan fields.
-	struct
-	{
-		// TODO: Move to pass, or someplace else.
-		GFXVec views; // Stores VkImageView, on-swapchain recreate.
-
-	} vk;
+	// Inherits all resources from window.
 
 } _GFXWindowAttach;
 
@@ -726,11 +744,13 @@ struct GFXRenderer
 	_GFXPool      pool;
 	_GFXQueue     graphics;
 	_GFXQueue     present;
+	uint32_t      compute;  // Family index only.
+	uint32_t      transfer; // Family index only.
 
 	GFXList   recorders;  // References GFXRecorder.
 	GFXList   techniques; // References GFXTechnique.
 	GFXList   sets;       // References GFXSet.
-	_GFXMutex lock;       // For recorders, techniques & sets.
+	_GFXMutex lock;       // For recorders, techniques & sets (and stales).
 
 	// Render frame (i.e. collection of virtual frames).
 	unsigned int numFrames;
@@ -752,6 +772,7 @@ struct GFXRenderer
 		enum
 		{
 			_GFX_BACKING_INVALID,
+			_GFX_BACKING_VALIDATED,
 			_GFX_BACKING_BUILT
 
 		} state;
@@ -809,8 +830,8 @@ struct GFXPass
 	// Vulkan fields.
 	struct
 	{
-		VkRenderPass pass;         // For locality.
-		GFXVec       framebuffers; // Stores VkFramebuffer.
+		VkRenderPass pass;   // For locality.
+		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 
 	} vk;
 
@@ -1398,24 +1419,26 @@ void _gfx_render_graph_init(GFXRenderer* renderer);
 void _gfx_render_graph_clear(GFXRenderer* renderer);
 
 /**
- * (Re)builds the render graph and all its resources.
- * Will resolve to a no-op if everything is already built.
- * @param renderer Cannot be NULL.
- * @return Non-zero if the entire graph is in a built state.
- *
- * This will call the relevant _gfx_pass_(destruct|build) calls.
- */
-bool _gfx_render_graph_build(GFXRenderer* renderer);
-
-/**
  * Builds the Vulkan render passes if not present yet.
  * Can be used for potential pipeline warmups.
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
  *
  * This will call the relevant _gfx_pass_(destruct|warmup) calls.
+ * Thus not thread-safe with respect to pushing stale resources!
  */
 bool _gfx_render_graph_warmup(GFXRenderer* renderer);
+
+/**
+ * (Re)builds the render graph and all its resources.
+ * Will resolve to a no-op if everything is already built.
+ * @param renderer Cannot be NULL.
+ * @return Non-zero if the entire graph is in a built state.
+ *
+ * This will call the relevant _gfx_pass_(destruct|build) calls.
+ * Thus not thread-safe with respect to pushing stale resources!
+ */
+bool _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
  * (Re)builds render graph resources dependent on the given attachment index.
@@ -1424,6 +1447,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer);
  * @param flags    Must contain the _GFX_RECREATE bit.
  *
  * This will call the relevant _gfx_pass_build calls.
+ * Thus not thread-safe with respect to pushing stale resources!
  */
 void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
                                _GFXRecreateFlags flags);
@@ -1434,6 +1458,7 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
  *
  * Must be called before detaching the attachment at index!
  * It will call the relevant _gfx_pass_destruct calls.
+ * Thus not thread-safe with respect to pushing stale resources!
  */
 void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index);
 
@@ -1468,22 +1493,22 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 void _gfx_destroy_pass(GFXPass* pass);
 
 /**
- * (Re)builds all Vulkan objects.
- * @param pass  Cannot be NULL.
- * @param flags What resources should be recreated (0 to recreate nothing).
- * @return Non-zero if valid and built.
- *
- * Not thread-safe with respect to the virtual frame deque iff flags is not 0!
- */
-bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
-
-/**
  * Builds the Vulkan render pass if not present yet.
  * Can be used for potential pipeline warmups.
  * @param pass Cannot be NULL.
  * @param Non-zero on success.
  */
 bool _gfx_pass_warmup(GFXPass* pass);
+
+/**
+ * (Re)builds all Vulkan objects.
+ * @param pass  Cannot be NULL.
+ * @param flags What resources should be recreated (0 to recreate nothing).
+ * @return Non-zero if valid and built.
+ *
+ * Not thread-safe with respect to pushing stale resources iff flags is not 0!
+ */
+bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 
 /**
  * Retrieves the current framebuffer of a pass with respect to a frame.
@@ -1500,7 +1525,7 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
  * @param pass Cannot be NULL.
  *
  * Must be called before detaching any attachment it uses!
- * Not thread-safe with respect to the virtual frame deque!
+ * Not thread-safe with respect to pushing stale resources!
  */
 void _gfx_pass_destruct(GFXPass* pass);
 

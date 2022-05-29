@@ -26,9 +26,22 @@ typedef struct _GFXConsumeElem
 
 
 /****************************
+ * Frame (framebuffer + swapchain view) element definition.
+ */
+typedef struct _GFXFrameElem
+{
+	VkImageView   view; // Swapchain view, may be VK_NULL_HANDLE.
+	VkFramebuffer buffer;
+
+} _GFXFrameElem;
+
+
+/****************************
  * Destructs a subset of all Vulkan objects, non-recursively.
  * @param pass  Cannot be NULL.
  * @param flags What resources should be destroyed (0 to do nothing).
+ *
+ * Not thread-safe with respect to pushing stale resources!
  */
 static void _gfx_pass_destruct_partial(GFXPass* pass,
                                        _GFXRecreateFlags flags)
@@ -37,21 +50,23 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 
 	// The recreate flag is always set if anything is set and signals that
 	// the actual images have been recreated.
-	// So we destroy the framebuffer, which references the actual images.
 	if (flags & _GFX_RECREATE)
 	{
-		// Actually make it stale instead of immediately destroying,
-		// it might still be in use by pending virtual frames.
+		// Make all framebuffers and views stale.
+		// Note that they might still be in use by pending virtual frames.
 		// NOT locked using the renderer's lock;
-		// This might be called by warmups, which already uses that lock!
-		for (size_t i = 0; i < pass->vk.framebuffers.size; ++i)
+		// the reason that _gfx_pass_(build|destruct) are not thread-safe.
+		for (size_t i = 0; i < pass->vk.frames.size; ++i)
+		{
+			_GFXFrameElem* elem = gfx_vec_at(&pass->vk.frames, i);
 			_gfx_push_stale(pass->renderer,
-				*(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, i),
-				VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE);
+				elem->buffer, elem->view,
+				VK_NULL_HANDLE, VK_NULL_HANDLE);
+		}
 
 		pass->build.fWidth = 0;
 		pass->build.fHeight = 0;
-		gfx_vec_release(&pass->vk.framebuffers);
+		gfx_vec_release(&pass->vk.frames);
 	}
 
 	// Second, we check if the render pass needs to be reconstructed.
@@ -164,8 +179,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->build.pass = NULL;
 	pass->vk.pass = VK_NULL_HANDLE;
 
-	gfx_vec_init(&pass->vk.framebuffers, sizeof(VkFramebuffer));
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
+	gfx_vec_init(&pass->vk.frames, sizeof(_GFXFrameElem));
 
 	return pass;
 }
@@ -180,82 +195,8 @@ void _gfx_destroy_pass(GFXPass* pass)
 
 	// Free all remaining things.
 	gfx_vec_clear(&pass->consumes);
-	gfx_vec_clear(&pass->vk.framebuffers);
+	gfx_vec_clear(&pass->vk.frames);
 	free(pass);
-}
-
-/****************************/
-bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
-{
-	assert(pass != NULL);
-
-	GFXRenderer* rend = pass->renderer;
-	_GFXContext* context = rend->allocator.context;
-
-	// First we destroy the things we want to recreate.
-	_gfx_pass_destruct_partial(pass, flags);
-
-	// Do a warmup, i.e. make sure the Vulkan render pass is built.
-	// This will log an error for us!
-	if (!_gfx_pass_warmup(pass))
-		return 0;
-
-	// Then go ahead and build the framebuffers.
-	// Get the backing window attachment.
-	_GFXAttach* at = NULL;
-	if (pass->build.backing != SIZE_MAX)
-		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
-
-	// Skip if there's no render target (e.g. minimized window).
-	// TODO: Future: if no backing window, do smth else.
-	if (at == NULL || at->window.vk.views.size == 0)
-		return 1;
-
-	// Get framebuffer size.
-	const uint32_t width = at->window.window->frame.width;
-	const uint32_t height = at->window.window->frame.height;
-
-	// Create framebuffers (if not of zero size).
-	if (pass->vk.framebuffers.size == 0 && width > 0 && height > 0)
-	{
-		// Remember the width/height for during recording.
-		pass->build.fWidth = width;
-		pass->build.fHeight = height;
-
-		// Reserve the exact amount, it's probably not gonna change.
-		if (!gfx_vec_reserve(&pass->vk.framebuffers, at->window.vk.views.size))
-			goto error;
-
-		for (size_t i = 0; i < at->window.vk.views.size; ++i)
-		{
-			VkFramebufferCreateInfo fci = {
-				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-
-				.pNext           = NULL,
-				.flags           = 0,
-				.renderPass      = pass->vk.pass,
-				.attachmentCount = 1,
-				.pAttachments    = gfx_vec_at(&at->window.vk.views, i),
-				.width           = width,
-				.height          = height,
-				.layers          = 1
-			};
-
-			VkFramebuffer frame;
-			_GFX_VK_CHECK(context->vk.CreateFramebuffer(
-				context->vk.device, &fci, NULL, &frame), goto error);
-
-			gfx_vec_push(&pass->vk.framebuffers, 1, &frame);
-		}
-	}
-
-	return 1;
-
-
-	// Error on failure.
-error:
-	gfx_log_error("Could not build framebuffers for a pass.");
-	return 0;
 }
 
 /****************************/
@@ -341,14 +282,134 @@ error:
 }
 
 /****************************/
+bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
+{
+	assert(pass != NULL);
+
+	GFXRenderer* rend = pass->renderer;
+	_GFXContext* context = rend->allocator.context;
+
+	// First we destroy the things we want to recreate.
+	_gfx_pass_destruct_partial(pass, flags);
+
+	// Do a warmup, i.e. make sure the Vulkan render pass is built.
+	// This will log an error for us!
+	if (!_gfx_pass_warmup(pass))
+		return 0;
+
+	// Then go ahead and build the frames.
+	// Get the backing window attachment.
+	// Skip if there's no render target (e.g. minimized window).
+	// TODO: Future: if no backing window, do smth else.
+	_GFXAttach* at = NULL;
+	if (pass->build.backing != SIZE_MAX)
+		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
+
+	if (at == NULL) return 1;
+
+	// Get framebuffer size.
+	_GFXWindow* window = at->window.window;
+	const uint32_t width = window->frame.width;
+	const uint32_t height = window->frame.height;
+	const size_t images = window->frame.images.size;
+
+	// Create framebuffers and views (if not of zero size).
+	// One for each distinct swapchain image.
+	if (pass->vk.frames.size == 0 && width > 0 && height > 0 && images > 0)
+	{
+		// Remember the width/height for during recording.
+		pass->build.fWidth = width;
+		pass->build.fHeight = height;
+
+		// Reserve the exact amount, it's probably not gonna change.
+		if (!gfx_vec_reserve(&pass->vk.frames, images))
+			goto error;
+
+		for (size_t i = 0; i < images; ++i)
+		{
+			_GFXFrameElem elem;
+
+			// So then an image view for the swapchain image.
+			VkImage image =
+				*(VkImage*)gfx_vec_at(&window->frame.images, i);
+
+			VkImageViewCreateInfo ivci = {
+				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+
+				.pNext    = NULL,
+				.flags    = 0,
+				.image    = image,
+				.viewType = VK_IMAGE_VIEW_TYPE_2D,
+				.format   = window->frame.format,
+
+				.components = {
+					.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.a = VK_COMPONENT_SWIZZLE_IDENTITY
+				},
+
+				.subresourceRange = {
+					.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel   = 0,
+					.levelCount     = 1,
+					.baseArrayLayer = 0,
+					.layerCount     = 1
+				}
+			};
+
+			_GFX_VK_CHECK(
+				context->vk.CreateImageView(
+					context->vk.device, &ivci, NULL, &elem.view),
+				goto error);
+
+			// And a framebuffer for that specific swapchain image.
+			VkFramebufferCreateInfo fci = {
+				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+
+				.pNext           = NULL,
+				.flags           = 0,
+				.renderPass      = pass->vk.pass,
+				.attachmentCount = 1,
+				.pAttachments    = &elem.view,
+				.width           = width,
+				.height          = height,
+				.layers          = 1
+			};
+
+			_GFX_VK_CHECK(
+				context->vk.CreateFramebuffer(
+					context->vk.device, &fci, NULL, &elem.buffer),
+				{
+					// Nvm immediately destroy the view.
+					context->vk.DestroyImageView(
+						context->vk.device, elem.view, NULL);
+					goto error;
+				});
+
+			// It was already reserved :)
+			gfx_vec_push(&pass->vk.frames, 1, &elem);
+		}
+	}
+
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Could not build framebuffers for a pass.");
+	return 0;
+}
+
+/****************************/
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 {
 	assert(pass != NULL);
 	assert(frame != NULL);
 
 	// Just a single framebuffer.
-	if (pass->vk.framebuffers.size == 1)
-		return *(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, 0);
+	if (pass->vk.frames.size == 1)
+		return ((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, 0))->buffer;
 
 	// Query the sync object associated with this pass' swapchain backing.
 	// If no swapchain backing, `build.backing` will be SIZE_MAX.
@@ -363,10 +424,10 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 		*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
 
 	// Validate & return.
-	if (pass->vk.framebuffers.size <= sync->image)
+	if (pass->vk.frames.size <= sync->image)
 		return VK_NULL_HANDLE;
 
-	return *(VkFramebuffer*)gfx_vec_at(&pass->vk.framebuffers, sync->image);
+	return ((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, sync->image))->buffer;
 }
 
 /****************************/
@@ -381,7 +442,7 @@ void _gfx_pass_destruct(GFXPass* pass)
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
 
 	// Clear memory.
-	gfx_vec_clear(&pass->vk.framebuffers);
+	gfx_vec_clear(&pass->vk.frames);
 }
 
 /****************************/

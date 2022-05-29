@@ -41,6 +41,7 @@ typedef struct GFXAttachment
 	GFXImageUsage  usage;
 
 	GFXFormat format;
+	uint32_t  mipmaps;
 	uint32_t  layers;
 
 	// Optionally dynamic size.
