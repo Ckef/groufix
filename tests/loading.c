@@ -153,6 +153,30 @@ TEST_DESCRIBE(loading, t)
 	GFXRenderable rend;
 	gfx_renderable(&rend, t->pass, tech, prim);
 
+	// Lastly, setup a depth buffer for our object.
+	if (!gfx_renderer_attach(t->renderer, 1,
+		(GFXAttachment){
+			.type  = GFX_IMAGE_2D,
+			.flags = 0,
+			.usage = 0,
+
+			.format  = GFX_FORMAT_D16_UNORM,
+			.mipmaps = 1,
+			.layers  = 1,
+
+			.size = GFX_SIZE_RELATIVE,
+			.ref = 0,
+			.xScale = 1.0f,
+			.yScale = 1.0f,
+			.zScale = 1.0f
+		}))
+	{
+		goto clean;
+	}
+
+	if (!gfx_pass_consume(t->pass, 1, GFX_ACCESS_ATTACHMENT_TEST, 0))
+		goto clean;
+
 	// Setup an event loop.
 	while (!gfx_window_should_close(t->window))
 	{

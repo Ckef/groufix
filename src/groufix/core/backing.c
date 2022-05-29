@@ -360,10 +360,14 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 			if (!resolved[attach->image.base.ref])
 				continue;
 
-			// Resolve.
 			_GFXAttach* ref = gfx_vec_at(
 				&renderer->backing.attachs, attach->image.base.ref);
 
+			// Referenced attachment is empty.
+			if (ref->type == _GFX_ATTACH_EMPTY)
+				continue;
+
+			// Resolve.
 			uint32_t width = 0;
 			uint32_t height = 0;
 			uint32_t depth = 0;
@@ -372,8 +376,7 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 				width = ref->window.window->frame.width,
 				height = ref->window.window->frame.height,
 				depth = 1;
-
-			else if (ref->type == _GFX_ATTACH_IMAGE)
+			else
 				width = ref->image.width,
 				height = ref->image.height,
 				depth = ref->image.depth;
