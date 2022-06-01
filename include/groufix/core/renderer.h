@@ -337,7 +337,7 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
  * gfx_renderable only:
  *  This call will internally pre-built a portion of the associated pass.
  *  If the render graph (any pass!) is changed after this call, the warmup data
- *  is invalidated and this call is effecitvely rendered a waste.
+ *  is invalidated and this call is effectively rendered a waste.
  */
 GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable);
 

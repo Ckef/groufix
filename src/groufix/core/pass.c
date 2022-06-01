@@ -149,13 +149,15 @@ static size_t _gfx_pass_pick_depth_stencil(GFXPass* pass)
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
 		_GFXAttach* attach = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
-		// Validate the acces mask, attachment and its format etc.
+		// Validate the access mask & that it is a window.
 		if (
 			!(con->mask & GFX_ACCESS_ATTACHMENT_READ) ||
 			con->view.index >= rend->backing.attachs.size ||
 			attach->type != _GFX_ATTACH_IMAGE ||
-				!(GFX_FORMAT_HAS_DEPTH(attach->image.base.format) ||
-				GFX_FORMAT_HAS_STENCIL(attach->image.base.format)))
+
+			// Also check that it's a depth/stencil image obviously.
+			!(GFX_FORMAT_HAS_DEPTH(attach->image.base.format) ||
+			GFX_FORMAT_HAS_STENCIL(attach->image.base.format)))
 		{
 			continue;
 		}
@@ -165,7 +167,6 @@ static size_t _gfx_pass_pick_depth_stencil(GFXPass* pass)
 			index = con->view.index;
 		else
 		{
-			// If so, well we cannot, throw a warning.
 			gfx_log_warn(
 				"A single pass can only read/write to a single "
 				"depth/stencil attachment at a time.");
@@ -346,8 +347,7 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 
 	// Do a warmup, i.e. make sure the Vulkan render pass is built.
 	// This will log an error for us!
-	if (!_gfx_pass_warmup(pass))
-		return 0;
+	if (!_gfx_pass_warmup(pass)) return 0;
 
 	// Then go ahead and build the frames.
 	// Get the backing window attachment.
