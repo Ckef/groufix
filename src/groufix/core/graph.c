@@ -99,7 +99,8 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
 		// No need to worry about destructing, state remains 'validated'.
-		failed += !_gfx_pass_warmup(gfx_vec_at(&renderer->graph.passes, i));
+		failed += !_gfx_pass_warmup(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
 	}
 
 	if (failed > 0)
