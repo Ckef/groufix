@@ -221,6 +221,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	// Initialize building stuff.
 	pass->build.backing = SIZE_MAX;
+	pass->build.depSten = SIZE_MAX;
 	pass->build.fWidth = 0;
 	pass->build.fHeight = 0;
 	pass->build.pass = NULL;
