@@ -487,8 +487,9 @@ void _gfx_pass_destruct(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	// Remove reference to backing window.
+	// Remove references to attachments.
 	pass->build.backing = SIZE_MAX;
+	pass->build.depSten = SIZE_MAX;
 
 	// Destruct all partial things.
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
