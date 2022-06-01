@@ -30,8 +30,8 @@ typedef enum GFXAccessMask
 	GFX_ACCESS_STORAGE_READ     = 0x000020,
 	GFX_ACCESS_STORAGE_WRITE    = 0x000040,
 	GFX_ACCESS_ATTACHMENT_INPUT = 0x000080,
-	GFX_ACCESS_ATTACHMENT_READ  = 0x000100, // Necessary for blending.
-	GFX_ACCESS_ATTACHMENT_WRITE = 0x000200, // Necessary for depth/stencil testing.
+	GFX_ACCESS_ATTACHMENT_READ  = 0x000100, // Necessary for blending/depth/stencil.
+	GFX_ACCESS_ATTACHMENT_WRITE = 0x000200,
 	GFX_ACCESS_ATTACHMENT_BLEND = 0x000300, // Both read/write.
 	GFX_ACCESS_ATTACHMENT_TEST  = 0x000300, // Both read/write (depth/stencil testing).
 	GFX_ACCESS_TRANSFER_READ    = 0x000400,

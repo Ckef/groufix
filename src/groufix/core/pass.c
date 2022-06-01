@@ -101,15 +101,14 @@ static size_t _gfx_pass_pick_backing(GFXPass* pass)
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		_GFXAttach* attach = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 		// Validate the access mask &
 		// that the attachment exists and is a window.
 		if (
-			con->mask != GFX_ACCESS_ATTACHMENT_WRITE ||
+			!(con->mask & GFX_ACCESS_ATTACHMENT_WRITE) ||
 			con->view.index >= rend->backing.attachs.size ||
-			((_GFXAttach*)gfx_vec_at(
-				&rend->backing.attachs,
-				con->view.index))->type != _GFX_ATTACH_WINDOW)
+			attach->type != _GFX_ATTACH_WINDOW)
 		{
 			continue;
 		}
@@ -129,6 +128,54 @@ static size_t _gfx_pass_pick_backing(GFXPass* pass)
 	}
 
 	return backing;
+}
+
+/****************************
+ * Picks an attachment to use as depth/stencil buffer, silently logging issues.
+ * @param pass Cannot be NULL.
+ * @return The picked attachment, SIZE_MAX if none found.
+ */
+static size_t _gfx_pass_pick_depth_stencil(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	GFXRenderer* rend = pass->renderer;
+
+	size_t index = SIZE_MAX;
+
+	// Again, validate that there is exactly 1 depth/stencil use.
+	for (size_t i = 0; i < pass->consumes.size; ++i)
+	{
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		_GFXAttach* attach = gfx_vec_at(&rend->backing.attachs, con->view.index);
+
+		// Validate the acces mask, attachment and its format etc.
+		if (
+			!(con->mask & GFX_ACCESS_ATTACHMENT_READ) ||
+			con->view.index >= rend->backing.attachs.size ||
+			attach->type != _GFX_ATTACH_IMAGE ||
+				!(GFX_FORMAT_HAS_DEPTH(attach->image.base.format) ||
+				GFX_FORMAT_HAS_STENCIL(attach->image.base.format)))
+		{
+			continue;
+		}
+
+		// Check if we already had a depth/stencil attachment.
+		if (index == SIZE_MAX)
+			index = con->view.index;
+		else
+		{
+			// If so, well we cannot, throw a warning.
+			gfx_log_warn(
+				"A single pass can only read/write to a single "
+				"depth/stencil attachment at a time.");
+
+			break;
+		}
+
+	}
+
+	return index;
 }
 
 /****************************/
@@ -209,6 +256,10 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	// Pick a backing window if we did not yet.
 	if (pass->build.backing == SIZE_MAX)
 		pass->build.backing = _gfx_pass_pick_backing(pass);
+
+	// Pick a depth/stencil buffer if we did not yet.
+	if (pass->build.depSten == SIZE_MAX)
+		pass->build.depSten = _gfx_pass_pick_depth_stencil(pass);
 
 	// Get the backing window attachment.
 	_GFXAttach* at = NULL;
