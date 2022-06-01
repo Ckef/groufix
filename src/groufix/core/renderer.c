@@ -47,17 +47,6 @@
 		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER : \
 		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
 
-#define _GFX_GET_VK_COMPARE_OP(op) \
-	(((op) == GFX_CMP_NEVER) ?  VK_COMPARE_OP_NEVER : \
-	((op) == GFX_CMP_LESS) ? VK_COMPARE_OP_LESS : \
-	((op) == GFX_CMP_LESS_EQUAL) ? VK_COMPARE_OP_LESS_OR_EQUAL : \
-	((op) == GFX_CMP_GREATER) ? VK_COMPARE_OP_GREATER : \
-	((op) == GFX_CMP_GREATER_EQUAL) ? VK_COMPARE_OP_GREATER_OR_EQUAL : \
-	((op) == GFX_CMP_EQUAL) ? VK_COMPARE_OP_EQUAL : \
-	((op) == GFX_CMP_NOT_EQUAL) ? VK_COMPARE_OP_NOT_EQUAL : \
-	((op) == GFX_CMP_ALWAYS) ? VK_COMPARE_OP_ALWAYS : \
-	VK_COMPARE_OP_ALWAYS)
-
 
 /****************************
  * Stale resource (to be destroyed after acquisition).

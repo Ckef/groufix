@@ -149,6 +149,23 @@ typedef enum GFXCompareOp
 
 
 /**
+ * Stencil operation.
+ */
+typedef enum GFXStencilOp
+{
+	GFX_STENCIL_KEEP,
+	GFX_STENCIL_ZERO,
+	GFX_STENCIL_REPLACE,
+	GFX_STENCIL_INVERT,
+	GFX_STENCIL_INCR_CLAMP,
+	GFX_STENCIL_INCR_WRAP,
+	GFX_STENCIL_DECR_CLAMP,
+	GFX_STENCIL_DECR_WRAP
+
+} GFXStencilOp;
+
+
+/**
  * Resource view description.
  */
 typedef struct GFXView
