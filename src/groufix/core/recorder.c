@@ -657,7 +657,7 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 	{
 		gfx_log_error(
 			"Could not initialize renderable; its pass and technique must "
-			"share a renderable and be built on the same logical Vulkan "
+			"share a renderer and be built on the same logical Vulkan "
 			"device as its primitive.");
 
 		return 0;

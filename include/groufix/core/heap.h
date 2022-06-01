@@ -93,8 +93,11 @@ typedef enum GFXImageUsage
 	GFX_IMAGE_SAMPLED_LINEAR = 0x0002,
 	GFX_IMAGE_SAMPLED_MINMAX = 0x0004,
 	GFX_IMAGE_STORAGE        = 0x0008,
-	GFX_IMAGE_INPUT          = 0x0010, // For attachments.
-	GFX_IMAGE_BLEND          = 0x0020  // For attachments.
+
+	// For attachments only.
+	GFX_IMAGE_INPUT     = 0x0010,
+	GFX_IMAGE_BLEND     = 0x0020,
+	GFX_IMAGE_TRANSIENT = 0x0040 // May NOT combine with non-attachment usages.
 
 } GFXImageUsage;
 

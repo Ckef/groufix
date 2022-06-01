@@ -102,7 +102,9 @@
 	((usage) & GFX_IMAGE_STORAGE ? \
 		VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlags)0) | \
 	((usage) & GFX_IMAGE_INPUT ? \
-		VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT : (VkImageUsageFlags)0))
+		VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT : (VkImageUsageFlags)0) | \
+	((usage) & GFX_IMAGE_TRANSIENT ? \
+		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : (VkImageUsageFlags)0))
 
 #define _GFX_GET_VK_FORMAT_FEATURES(flags, usage) \
 	(((flags) & GFX_MEMORY_READ ? \
@@ -676,7 +678,7 @@ struct GFXFrame
  */
 typedef struct _GFXRecorderPool
 {
-	size_t used; // Used buffers in cmds.
+	size_t used; // #used buffers in cmds.
 
 
 	// Vulkan fields.

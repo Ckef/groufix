@@ -58,6 +58,29 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 
 	_GFXContext* context = renderer->allocator.context;
 
+	// Attachments are special, so we add some convenience errors.
+	VkImageUsageFlags usage =
+		_GFX_GET_VK_IMAGE_USAGE(
+			attach->image.base.flags, attach->image.base.usage) |
+		(GFX_FORMAT_HAS_DEPTH(attach->image.base.format) ||
+		GFX_FORMAT_HAS_STENCIL(attach->image.base.format) ?
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+
+	if ((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) &&
+		(usage & (VkImageUsageFlags)~(
+			VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)))
+	{
+		gfx_log_error(
+			"When attaching a transient image, no other non-attachment "
+			"usages may be set, nor can the read or write memory flags be set.");
+
+		return 0;
+	}
+
 	// Allocate a new backing image.
 	_GFXBacking* backing = malloc(sizeof(_GFXBacking));
 	if (backing == NULL) goto clean;
@@ -78,15 +101,6 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 			VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT :
 		(attach->image.base.type == GFX_IMAGE_CUBE) ?
 			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
-
-	// TODO: What about VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT?
-	VkImageUsageFlags usage =
-		_GFX_GET_VK_IMAGE_USAGE(
-			attach->image.base.flags, attach->image.base.usage) |
-		(GFX_FORMAT_HAS_DEPTH(attach->image.base.format) ||
-		GFX_FORMAT_HAS_STENCIL(attach->image.base.format) ?
-			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
 	VkImageCreateInfo ici = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -119,14 +133,18 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 	// Get memory requirements & do actual allocation.
 	// Always perform a dedicated allocation for attachments!
 	// This makes it so we don't hog huge memory blocks on the GPU!
-	// TODO: Maybe use VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT here?
 	VkMemoryRequirements mr;
 	context->vk.GetImageMemoryRequirements(
 		context->vk.device, backing->vk.image, &mr);
 
+	// Include the lazily allocated bit if transient is requested.
+	VkMemoryPropertyFlags optimal =
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+		(usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) ?
+			VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT : 0;
+
 	if (!_gfx_allocd(&renderer->allocator, &backing->alloc,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, optimal,
 		mr, VK_NULL_HANDLE, backing->vk.image))
 	{
 		goto clean_image;
