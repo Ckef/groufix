@@ -454,8 +454,20 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 			_GFX_KEY_PUSH(pdssci->depthCompareOp);
 			_GFX_KEY_PUSH(pdssci->depthBoundsTestEnable);
 			_GFX_KEY_PUSH(pdssci->stencilTestEnable);
-			_GFX_KEY_PUSH(pdssci->front);
-			_GFX_KEY_PUSH(pdssci->back);
+			_GFX_KEY_PUSH(pdssci->front.failOp);
+			_GFX_KEY_PUSH(pdssci->front.passOp);
+			_GFX_KEY_PUSH(pdssci->front.depthFailOp);
+			_GFX_KEY_PUSH(pdssci->front.compareOp);
+			_GFX_KEY_PUSH(pdssci->front.compareMask);
+			_GFX_KEY_PUSH(pdssci->front.writeMask);
+			_GFX_KEY_PUSH(pdssci->front.reference);
+			_GFX_KEY_PUSH(pdssci->back.failOp);
+			_GFX_KEY_PUSH(pdssci->back.passOp);
+			_GFX_KEY_PUSH(pdssci->back.depthFailOp);
+			_GFX_KEY_PUSH(pdssci->back.compareOp);
+			_GFX_KEY_PUSH(pdssci->back.compareMask);
+			_GFX_KEY_PUSH(pdssci->back.writeMask);
+			_GFX_KEY_PUSH(pdssci->back.reference);
 			_GFX_KEY_PUSH(pdssci->minDepthBounds);
 			_GFX_KEY_PUSH(pdssci->maxDepthBounds);
 		}
