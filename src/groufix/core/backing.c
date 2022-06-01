@@ -442,7 +442,7 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 	if (totalResolved < renderer->backing.attachs.size)
 	{
 		gfx_log_error(
-			"Failed to resolve %"GFX_PRIs" attachment sizes of a renderer.",
+			"Failed to resolve %"GFX_PRIs" attachment size(s) of a renderer.",
 			renderer->backing.attachs.size - totalResolved);
 
 		return 0;
@@ -537,7 +537,7 @@ bool _gfx_render_backing_build(GFXRenderer* renderer)
 	if (failed > 0)
 	{
 		gfx_log_error(
-			"Failed to build %"GFX_PRIs" attachments of a renderer.",
+			"Failed to build %"GFX_PRIs" attachment(s) of a renderer.",
 			failed);
 
 		return 0;
@@ -582,7 +582,7 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
 
 		if (failed > 0)
 			gfx_log_warn(
-				"Failed to rebuild %"GFX_PRIs" attachments of a renderer.",
+				"Failed to rebuild %"GFX_PRIs" attachment(s) of a renderer.",
 				failed);
 	}
 }

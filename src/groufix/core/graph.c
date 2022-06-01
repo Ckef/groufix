@@ -105,7 +105,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 	if (failed > 0)
 	{
 		gfx_log_error(
-			"Failed to warmup %"GFX_PRIs" passes of the renderer's graph.",
+			"Failed to warmup %"GFX_PRIs" pass(es) of the renderer's graph.",
 			failed);
 
 		return 0;
@@ -157,7 +157,7 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 	if (failed > 0)
 	{
 		gfx_log_error(
-			"Failed to build %"GFX_PRIs" passes of the renderer's graph.",
+			"Failed to build %"GFX_PRIs" pass(es) of the renderer's graph.",
 			failed);
 
 		return 0;
@@ -202,7 +202,7 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 	if (failed > 0)
 	{
 		gfx_log_warn(
-			"Failed to rebuild %"GFX_PRIs" passes of the renderer's graph.",
+			"Failed to rebuild %"GFX_PRIs" pass(es) of the renderer's graph.",
 			failed);
 
 		// The graph is not invalid, but incomplete.
