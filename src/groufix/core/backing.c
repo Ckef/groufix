@@ -415,10 +415,10 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 				attach->image.height = height;
 				attach->image.depth = depth;
 
-				// TODO: In case this attachment was signaled out to a
-				// dependency, this would be the place to calculate when the
-				// previously most recent image (that is now invalidated)
-				// can be destroyed!
+				// TODO: In case this attachment was used in a dependency
+				// that reaches outside this renderer, this would be the
+				// place to calculate when the previously most recent image
+				// (that is now invalidated) can be destroyed!
 
 				// TODO: Then call _gfx_render_backing_purge every frame to
 				// destroy the backing images that can then be destroyed.

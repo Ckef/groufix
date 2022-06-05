@@ -363,7 +363,6 @@ static void _test_default_render(GFXRecorder* recorder,
 	// Record stuff.
 	gfx_cmd_bind(recorder, _test_base.technique, 0, 1, 0, &_test_base.set, NULL);
 	gfx_cmd_draw_indexed(recorder, &_test_base.renderable, 0, 0, 0, 0, 1);
-
 }
 
 #endif
