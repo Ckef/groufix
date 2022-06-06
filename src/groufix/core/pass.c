@@ -37,6 +37,61 @@ typedef struct _GFXFrameElem
 
 
 /****************************
+ * Compares two user defined depth state descriptions.
+ * @return Non-zero if equal.
+ */
+static inline bool _gfx_cmp_depth(const GFXDepthState* l,
+                                  const GFXDepthState* r)
+{
+	return
+		l->flags == r->flags &&
+		l->cmp == r->cmp &&
+		(!(l->flags & GFX_DEPTH_BOUNDED) ||
+			(l->minDepth == r->minDepth &&
+			l->maxDepth == r->maxDepth));
+}
+
+/****************************
+ * Compares two user defined stencil state descriptions.
+ * @return Non-zero if equal.
+ */
+static inline bool _gfx_cmp_stencil(const GFXStencilState* l,
+                                    const GFXStencilState* r)
+{
+	const bool front =
+		l->front.fail == r->front.fail &&
+		l->front.pass == r->front.pass &&
+		l->front.depthFail == r->front.depthFail &&
+		l->front.cmp == r->front.cmp &&
+		l->front.cmpMask == r->front.cmpMask &&
+		l->front.writeMask == r->front.writeMask &&
+		l->front.reference == r->front.reference;
+
+	const bool back =
+		l->back.fail == r->back.fail &&
+		l->back.pass == r->back.pass &&
+		l->back.depthFail == r->back.depthFail &&
+		l->back.cmp == r->back.cmp &&
+		l->back.cmpMask == r->back.cmpMask &&
+		l->back.writeMask == r->back.writeMask &&
+		l->back.reference == r->back.reference;
+
+	return front && back;
+}
+
+/****************************
+ * Increases the pass 'generation'; invalidating any renderable/computable
+ * pipeline that references this pass.
+ */
+static inline void _gfx_pass_gen(GFXPass* pass)
+{
+	if (++pass->gen == 0) gfx_log_warn(
+		"Pass build generation reached maximum (%"PRIuMAX") and overflowed; "
+		"may cause old renderables/computables to not be invalidated.",
+		UINTMAX_MAX);
+}
+
+/****************************
  * Destructs a subset of all Vulkan objects, non-recursively.
  * @param pass  Cannot be NULL.
  * @param flags What resources should be destroyed (0 to do nothing).
@@ -78,8 +133,7 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 
 		// Increase generation; the renderpass is used in pipelines,
 		// ergo we need to invalidate current pipelines using it.
-		// TODO: Warn when it overflows?
-		++pass->gen;
+		_gfx_pass_gen(pass);
 	}
 }
 
@@ -230,6 +284,35 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
 	gfx_vec_init(&pass->vk.frames, sizeof(_GFXFrameElem));
+
+	// And finally some default state.
+	pass->state.depth = (GFXDepthState){
+		.flags = GFX_DEPTH_WRITE,
+		.cmp = GFX_CMP_LESS,
+	};
+
+	pass->state.stencil = (GFXStencilState){
+		.front = {
+			.fail = GFX_STENCIL_KEEP,
+			.pass = GFX_STENCIL_KEEP,
+			.depthFail = GFX_STENCIL_KEEP,
+			.cmp = GFX_CMP_NEVER,
+
+			.cmpMask = 0,
+			.writeMask = 0,
+			.reference = 0
+		},
+		.back = {
+			.fail = GFX_STENCIL_KEEP,
+			.pass = GFX_STENCIL_KEEP,
+			.depthFail = GFX_STENCIL_KEEP,
+			.cmp = GFX_CMP_NEVER,
+
+			.cmpMask = 0,
+			.writeMask = 0,
+			.reference = 0
+		}
+	};
 
 	return pass;
 }
@@ -499,20 +582,28 @@ void _gfx_pass_destruct(GFXPass* pass)
 }
 
 /****************************/
-GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
+GFX_API void gfx_pass_set_depth(GFXPass* pass, GFXDepthState state)
 {
 	assert(pass != NULL);
 
-	return pass->numParents;
+	// If new values, set & increase generation to invalidate pipelines.
+	if (!_gfx_cmp_depth(&pass->state.depth, &state))
+	{
+		pass->state.depth = state;
+		_gfx_pass_gen(pass);
+	}
 }
 
 /****************************/
-GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
+GFX_API void gfx_pass_set_stencil(GFXPass* pass, GFXStencilState state)
 {
 	assert(pass != NULL);
-	assert(parent < pass->numParents);
 
-	return pass->parents[parent];
+	if (!_gfx_cmp_stencil(&pass->state.stencil, &state))
+	{
+		pass->state.stencil = state;
+		_gfx_pass_gen(pass);
+	}
 }
 
 /****************************/
@@ -633,4 +724,21 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 
 	// Changed a pass, the graph is invalidated.
 	_gfx_render_graph_invalidate(pass->renderer);
+}
+
+/****************************/
+GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	return pass->numParents;
+}
+
+/****************************/
+GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
+{
+	assert(pass != NULL);
+	assert(parent < pass->numParents);
+
+	return pass->parents[parent];
 }

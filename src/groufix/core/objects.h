@@ -839,6 +839,15 @@ struct GFXPass
 	GFXVec consumes; // Stores { bool, GFXAccessMask, GFXShaderStage, GFXView }.
 
 
+	// State input.
+	struct
+	{
+		GFXDepthState   depth;
+		GFXStencilState stencil;
+
+	} state;
+
+
 	// Building output (can be invalidated).
 	struct
 	{

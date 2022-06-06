@@ -95,6 +95,17 @@ typedef enum GFXSamplerFlags
 
 
 /**
+ * Depth paramater flags.
+ */
+typedef enum GFXDepthFlags
+{
+	GFX_DEPTH_WRITE   = 0x0001,
+	GFX_DEPTH_BOUNDED = 0x0002
+
+} GFXDepthFlags;
+
+
+/**
  * Texture lookup filtering.
  */
 typedef enum GFXFilter
@@ -211,6 +222,57 @@ typedef struct GFXSampler
 	GFXCompareOp cmp;
 
 } GFXSampler;
+
+
+/**
+ * Depth state description.
+ */
+typedef struct GFXDepthState
+{
+	GFXDepthFlags flags;
+	GFXCompareOp  cmp;
+
+	float minDepth;
+	float maxDepth;
+
+} GFXDepthState;
+
+
+/**
+ * Stencil state description.
+ */
+typedef struct GFXStencilState
+{
+	// Front-facing polygons.
+	struct
+	{
+		GFXStencilOp fail;
+		GFXStencilOp pass;
+		GFXStencilOp depthFail;
+		GFXCompareOp cmp;
+
+		uint32_t cmpMask;
+		uint32_t writeMask;
+		uint32_t reference;
+
+	} front;
+
+
+	// Back-facing polygons.
+	struct
+	{
+		GFXStencilOp fail;
+		GFXStencilOp pass;
+		GFXStencilOp depthFail;
+		GFXCompareOp cmp;
+
+		uint32_t cmpMask;
+		uint32_t writeMask;
+		uint32_t reference;
+
+	} back;
+
+} GFXStencilState;
 
 
 /**
@@ -478,36 +540,16 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
                                        size_t numParents, GFXPass** parents);
 
 /**
- * Retrieves the number of sink passes of a renderer.
- * A sink pass is one that is not a parent of any pass (last in the path).
- * @param renderer Cannot be NULL.
- *
- * This number may change when a new pass is added.
- */
-GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
-
-/**
- * Retrieves a sink pass of a renderer.
- * @param renderer Cannot be NULL.
- * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
- *
- * The index of each sink may change when a new pass is added,
- * however their order remains fixed during the lifetime of the renderer.
- */
-GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
-
-/**
- * Retrieves the number of parents of a pass.
+ * Sets the depth state of a pass.
  * @param pass Cannot be NULL.
  */
-GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
+GFX_API void gfx_pass_set_depth(GFXPass* pass, GFXDepthState state);
 
 /**
- * Retrieves a parent of a pass.
- * @param pass   Cannot be NULL.
- * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
+ * Sets the stencil state of a pass.
+ * @param pass Cannot be NULL.
  */
-GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
+GFX_API void gfx_pass_set_stencil(GFXPass* pass, GFXStencilState state);
 
 /**
  * Retrieves the virtual frame size associated with a pass.
@@ -556,6 +598,38 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
  * @param index Attachment index to release.
  */
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
+
+/**
+ * Retrieves the number of sink passes of a renderer.
+ * A sink pass is one that is not a parent of any pass (last in the path).
+ * @param renderer Cannot be NULL.
+ *
+ * This number may change when a new pass is added.
+ */
+GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
+
+/**
+ * Retrieves a sink pass of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
+ *
+ * The index of each sink may change when a new pass is added,
+ * however their order remains fixed during the lifetime of the renderer.
+ */
+GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
+
+/**
+ * Retrieves the number of parents of a pass.
+ * @param pass Cannot be NULL.
+ */
+GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
+
+/**
+ * Retrieves a parent of a pass.
+ * @param pass   Cannot be NULL.
+ * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
+ */
+GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
 
 
 /****************************
