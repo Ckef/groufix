@@ -92,6 +92,38 @@ static inline void _gfx_pass_gen(GFXPass* pass)
 }
 
 /****************************
+ * Stand-in function for all the gfx_pass_consume* variants.
+ * @see gfx_pass_consume*.
+ * @param elem Cannot be NULL.
+ */
+static bool _gfx_pass_consume(GFXPass* pass, const _GFXConsumeElem* elem)
+{
+	assert(pass != NULL);
+	assert(!pass->renderer->recording);
+	assert(elem != NULL);
+
+	// Try to find it first.
+	for (size_t i = 0; i < pass->consumes.size; ++i)
+	{
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		if (con->view.index == elem->view.index)
+		{
+			*con = *elem;
+			return 1;
+		}
+	}
+
+	// Insert anew.
+	if (!gfx_vec_push(&pass->consumes, 1, elem))
+		return 0;
+
+	// Changed a pass, the graph is invalidated.
+	_gfx_render_graph_invalidate(pass->renderer);
+
+	return 1;
+}
+
+/****************************
  * Destructs a subset of all Vulkan objects, non-recursively.
  * @param pass  Cannot be NULL.
  * @param flags What resources should be destroyed (0 to do nothing).
@@ -622,16 +654,27 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
                               GFXAccessMask mask, GFXShaderStage stage)
 {
-	// Just call gfx_pass_consumea with the entire resource.
-	return gfx_pass_consumea(pass, index, mask, stage,
-		(GFXRange){
-			// Specify all aspect flags, will be filtered later on.
-			.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
-			.mipmap = 0,
-			.numMipmaps = 0,
-			.layer = 0,
-			.numLayers = 0
-		});
+	// Relies on stand-in function for asserts.
+
+	const _GFXConsumeElem elem = {
+		.viewed = 0,
+		.mask = mask,
+		.stage = stage,
+		// Take the entire reference.
+		.view = {
+			.index = index,
+			.range = (GFXRange){
+				// Specify all aspect flags, will be filtered later on.
+				.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
+				.mipmap = 0,
+				.numMipmaps = 0,
+				.layer = 0,
+				.numLayers = 0
+			}
+		}
+	};
+
+	return _gfx_pass_consume(pass, &elem);
 }
 
 /****************************/
@@ -639,10 +682,9 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
                                GFXAccessMask mask, GFXShaderStage stage,
                                GFXRange range)
 {
-	assert(pass != NULL);
-	assert(!pass->renderer->recording);
+	// Relies on stand-in function for asserts.
 
-	_GFXConsumeElem elem = {
+	const _GFXConsumeElem elem = {
 		.viewed = 0,
 		.mask = mask,
 		.stage = stage,
@@ -652,25 +694,7 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 		}
 	};
 
-	// Try to find it first.
-	for (size_t i = 0; i < pass->consumes.size; ++i)
-	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
-		if (con->view.index == index)
-		{
-			*con = elem;
-			return 1;
-		}
-	}
-
-	// Insert anew.
-	if (!gfx_vec_push(&pass->consumes, 1, &elem))
-		return 0;
-
-	// Changed a pass, the graph is invalidated.
-	_gfx_render_graph_invalidate(pass->renderer);
-
-	return 1;
+	return _gfx_pass_consume(pass, &elem);
 }
 
 /****************************/
@@ -678,37 +702,18 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
                                GFXAccessMask mask, GFXShaderStage stage,
                                GFXView view)
 {
-	assert(pass != NULL);
-	assert(!pass->renderer->recording);
+	// Relies on stand-in function for asserts.
 
 	view.index = index; // Purely for function call consistency.
 
-	_GFXConsumeElem elem = {
+	const _GFXConsumeElem elem = {
 		.viewed = 1,
 		.mask = mask,
 		.stage = stage,
 		.view = view
 	};
 
-	// Try to find it first.
-	for (size_t i = 0; i < pass->consumes.size; ++i)
-	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
-		if (con->view.index == view.index)
-		{
-			*con = elem;
-			return 1;
-		}
-	}
-
-	// Insert anew.
-	if (!gfx_vec_push(&pass->consumes, 1, &elem))
-		return 0;
-
-	// Changed a pass, the graph is invalidated.
-	_gfx_render_graph_invalidate(pass->renderer);
-
-	return 1;
+	return _gfx_pass_consume(pass, &elem);
 }
 
 /****************************/
@@ -719,8 +724,10 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 
 	// FInd and erase.
 	for (size_t i = pass->consumes.size; i > 0; --i)
-		if (((_GFXConsumeElem*)gfx_vec_at(&pass->consumes, i))->view.index == index)
-			gfx_vec_erase(&pass->consumes, 1, i-1);
+	{
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		if (con->view.index == index) gfx_vec_erase(&pass->consumes, 1, i-1);
+	}
 
 	// Changed a pass, the graph is invalidated.
 	_gfx_render_graph_invalidate(pass->renderer);
