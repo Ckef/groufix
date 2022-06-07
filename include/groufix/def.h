@@ -25,7 +25,7 @@
 /**
  * Identification of the host platform.
  */
-#if defined (__unix) || defined (__unix__)
+#if defined (__unix) || defined (__unix__) || defined (__APPLE__)
 	#define GFX_UNIX
 #elif defined (_WIN32) || defined (__WIN32__) || defined (WIN32) || defined (__MINGW32__)
 	#define GFX_WIN32
