@@ -145,7 +145,7 @@ static void _gfx_glfw_char(GLFWwindow* handle, unsigned int codepoint)
 	GFXWindow* window = glfwGetWindowUserPointer(handle);
 
 	if (window->events.key.text != NULL)
-		window->events.key.text(window, (char32_t)codepoint);
+		window->events.key.text(window, (uint32_t)codepoint);
 }
 
 /****************************

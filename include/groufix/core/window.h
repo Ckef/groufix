@@ -13,7 +13,6 @@
 #include "groufix/core/device.h"
 #include "groufix/core/keys.h"
 #include "groufix/def.h"
-#include <uchar.h>
 
 
 /**
@@ -87,7 +86,7 @@ typedef struct GFXWindow
 			void (*press  )(struct GFXWindow*, GFXKey, int scan, GFXModifier);
 			void (*release)(struct GFXWindow*, GFXKey, int scan, GFXModifier);
 			void (*repeat )(struct GFXWindow*, GFXKey, int scan, GFXModifier);
-			void (*text   )(struct GFXWindow*, char32_t codepoint);
+			void (*text   )(struct GFXWindow*, uint32_t codepoint);
 
 		} key;
 

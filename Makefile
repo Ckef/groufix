@@ -39,6 +39,15 @@ OUT   = obj
 USE_WAYLAND = OFF
 
 
+# Is this macOS?
+MACOS = OFF
+ifneq ($(OS),Windows_NT)
+ ifeq ($(shell uname -s),Darwin)
+  MACOS = ON
+ endif
+endif
+
+
 # Compiler prefix (None if not a cross-compile)
 ifeq ($(CC),i686-w64-mingw32-gcc)
  CC_PREFIX = i686-w64-mingw32
@@ -85,6 +94,14 @@ ifeq ($(USE_WAYLAND),ON)
  LFLAGS_UNIX = $(LFLAGS_ALL) -ldl -lwayland-client
 else
  LFLAGS_UNIX = $(LFLAGS_ALL) -ldl
+endif
+
+ifeq ($(MACOS),ON)
+ LFLAGS_UNIX += \
+  -framework CoreFoundation \
+  -framework CoreGraphics \
+  -framework Cocoa \
+  -framework IOKit
 endif
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
@@ -298,7 +315,7 @@ $(BIN)$(SUB)/libgroufix$(EXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
 
 # Test programs
 $(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
-	$(CC) $(TFLAGS) -Itests $< -o $@ -L$(BIN)$(SUB) -Wl,-rpath='$$ORIGIN' -lgroufix
+	$(CC) $(TFLAGS) -Itests $< -o $@ -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
 # Platform flags
