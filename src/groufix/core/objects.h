@@ -680,7 +680,7 @@ struct GFXFrame
 	unsigned int index;
 
 	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
-	GFXVec syncs; // Stores _GFXFrameSync.
+	GFXVec syncs; // Stores _GFXFrameSync, one for each window attachment.
 
 
 	// Vulkan fields.
@@ -852,7 +852,6 @@ struct GFXPass
 	struct
 	{
 		size_t   backing; // Window attachment index (or SIZE_MAX).
-		size_t   depSten; // Depth/stencil attachment index (or SIZE_MAX).
 		uint32_t fWidth;
 		uint32_t fHeight;
 
@@ -865,6 +864,7 @@ struct GFXPass
 	struct
 	{
 		VkRenderPass pass;   // For locality.
+		GFXVec       views;  // Stores { void*, VkImageView }.
 		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 
 	} vk;

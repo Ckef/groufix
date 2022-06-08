@@ -26,6 +26,17 @@ typedef struct _GFXConsumeElem
 
 
 /****************************
+ * Image (non-swapchain) view element definition.
+ */
+typedef struct _GFXViewElem
+{
+	_GFXConsumeElem* consume; // Undefined when the graph is invalidated.
+	VkImageView      view;
+
+} _GFXViewElem;
+
+
+/****************************
  * Frame (framebuffer + swapchain view) element definition.
  */
 typedef struct _GFXFrameElem
@@ -151,8 +162,17 @@ static void _gfx_pass_destruct_partial(GFXPass* pass,
 				VK_NULL_HANDLE, VK_NULL_HANDLE);
 		}
 
+		for (size_t i = 0; i < pass->vk.views.size; ++i)
+		{
+			_GFXViewElem* elem = gfx_vec_at(&pass->vk.views, i);
+			_gfx_push_stale(pass->renderer,
+				VK_NULL_HANDLE, elem->view,
+				VK_NULL_HANDLE, VK_NULL_HANDLE);
+		}
+
 		pass->build.fWidth = 0;
 		pass->build.fHeight = 0;
+		gfx_vec_release(&pass->vk.views);
 		gfx_vec_release(&pass->vk.frames);
 	}
 
@@ -308,13 +328,13 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	// Initialize building stuff.
 	pass->build.backing = SIZE_MAX;
-	pass->build.depSten = SIZE_MAX;
 	pass->build.fWidth = 0;
 	pass->build.fHeight = 0;
 	pass->build.pass = NULL;
 	pass->vk.pass = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
+	gfx_vec_init(&pass->vk.views, sizeof(_GFXViewElem));
 	gfx_vec_init(&pass->vk.frames, sizeof(_GFXFrameElem));
 
 	// And finally some default state.
@@ -359,6 +379,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 
 	// Free all remaining things.
 	gfx_vec_clear(&pass->consumes);
+	gfx_vec_clear(&pass->vk.views);
 	gfx_vec_clear(&pass->vk.frames);
 	free(pass);
 }
@@ -375,8 +396,8 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		pass->build.backing = _gfx_pass_pick_backing(pass);
 
 	// Pick a depth/stencil buffer if we did not yet.
-	if (pass->build.depSten == SIZE_MAX)
-		pass->build.depSten = _gfx_pass_pick_depth_stencil(pass);
+	//if (pass->build.depSten == SIZE_MAX)
+	//	pass->build.depSten = _gfx_pass_pick_depth_stencil(pass);
 
 	// Get the backing window attachment.
 	_GFXAttach* at = NULL;
@@ -591,10 +612,9 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 		*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
 
 	// Validate & return.
-	if (pass->vk.frames.size <= sync->image)
-		return VK_NULL_HANDLE;
-
-	return ((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, sync->image))->buffer;
+	return pass->vk.frames.size <= sync->image ?
+		VK_NULL_HANDLE :
+		((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, sync->image))->buffer;
 }
 
 /****************************/
@@ -602,9 +622,8 @@ void _gfx_pass_destruct(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	// Remove references to attachments.
+	// Remove references to window backing.
 	pass->build.backing = SIZE_MAX;
-	pass->build.depSten = SIZE_MAX;
 
 	// Destruct all partial things.
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
@@ -631,6 +650,7 @@ GFX_API void gfx_pass_set_stencil(GFXPass* pass, GFXStencilState state)
 {
 	assert(pass != NULL);
 
+	// Ditto gfx_pass_set_depth.
 	if (!_gfx_cmp_stencil(&pass->state.stencil, &state))
 	{
 		pass->state.stencil = state;
@@ -725,7 +745,7 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 	// FInd and erase.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index) gfx_vec_erase(&pass->consumes, 1, i-1);
 	}
 
