@@ -22,6 +22,8 @@
 #define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
 
+#include <stdatomic.h>
+
 
 // Least Vulkan version that must be supported.
 #define _GFX_VK_API_VERSION VK_MAKE_API_VERSION(0,1,1,0)

@@ -19,8 +19,6 @@
 	#error "Host platform does not support atomics."
 #endif
 
-#include <stdatomic.h>
-
 
 /**
  * Identification of the host platform.
