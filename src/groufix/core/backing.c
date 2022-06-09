@@ -141,7 +141,8 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 	VkMemoryPropertyFlags optimal =
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
 		((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) ?
-			VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT : 0);
+			VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT :
+			(VkMemoryPropertyFlags)0);
 
 	if (!_gfx_allocd(&renderer->allocator, &backing->alloc,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, optimal,
