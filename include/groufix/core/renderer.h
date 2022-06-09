@@ -352,7 +352,11 @@ typedef struct GFXRenderable
 	GFXTechnique* technique;
 	GFXPrimitive* primitive;
 
+#if defined (__cplusplus)
+	std::atomic_bool lock;
+#else
 	atomic_bool lock;
+#endif
 	uintptr_t   pipeline;
 	uintmax_t   gen;
 
@@ -367,7 +371,11 @@ typedef struct GFXComputable
 	// All read-only.
 	GFXTechnique* technique;
 
+#if defined (__cplusplus)
+	std::atomic_uintptr_t pipeline;
+#else
 	atomic_uintptr_t pipeline;
+#endif
 
 } GFXComputable;
 

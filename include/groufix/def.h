@@ -19,7 +19,11 @@
 	#error "Host platform does not support atomics."
 #endif
 
-#include <stdatomic.h>
+#if defined (__cplusplus)
+	#include <atomic>
+#else
+	#include <stdatomic.h>
+#endif
 
 
 /**
@@ -70,6 +74,16 @@
 	#define GFX_API extern "C" GFX_LIB
 #else
 	#define GFX_API extern GFX_LIB
+#endif
+
+
+/**
+ * groufix struct literal initialization.
+ */
+#if defined (__cplusplus) && __cplusplus >= 202002L
+	#define GFX_LITERAL(type) type
+#else
+	#define GFX_LITERAL(type) (type)
 #endif
 
 

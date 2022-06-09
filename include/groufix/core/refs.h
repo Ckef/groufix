@@ -158,7 +158,7 @@ typedef GFXReference GFXImageRef;
  * Empty reference macro (i.e. null reference) & type checkers.
  */
 #define GFX_REF_NULL \
-	(GFXReference){ .type = GFX_REF_EMPTY }
+	GFX_LITERAL(GFXReference){ .type = GFX_REF_EMPTY }
 
 #define GFX_REF_IS_NULL(ref) \
 	((ref).type == GFX_REF_EMPTY)
@@ -190,7 +190,7 @@ typedef GFXReference GFXImageRef;
  * are _NOT_ thread-safe with respect to the renderer!
  */
 #define gfx_ref_buffer(buffer) \
-	(GFXBufferRef){ \
+	GFX_LITERAL(GFXBufferRef){ \
 		.type = GFX_REF_BUFFER, \
 		.obj = buffer, \
 		.offset = 0, \
@@ -198,7 +198,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_buffer_at(buffer, offset_) \
-	(GFXBufferRef){ \
+	GFX_LITERAL(GFXBufferRef){ \
 		.type = GFX_REF_BUFFER, \
 		.obj = buffer, \
 		.offset = offset_, \
@@ -206,7 +206,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_image(image) \
-	(GFXImageRef){ \
+	GFX_LITERAL(GFXImageRef){ \
 		.type = GFX_REF_IMAGE, \
 		.obj = image, \
 		.offset = 0, \
@@ -214,7 +214,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_prim_vertices(primitive, attribute_) \
-	(GFXBufferRef){ \
+	GFX_LITERAL(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_VERTICES, \
 		.obj = primitive, \
 		.offset = 0, \
@@ -222,7 +222,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_prim_vertices_at(primitive, attribute_, offset_) \
-	(GFXBufferRef){ \
+	GFX_LITERAL(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_VERTICES, \
 		.obj = primitive, \
 		.offset = offset_, \
@@ -230,7 +230,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_prim_indices(primitive) \
-	(GFXBufferRef){ \
+	GFX_LITERAL(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_INDICES, \
 		.obj = primitive, \
 		.offset = 0, \
@@ -238,7 +238,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_prim_indices_at(primitive, offset_) \
-	(GFXBufferRef){ \
+	GFX_LITERAL(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_INDICES, \
 		.obj = primitive, \
 		.offset = offset_, \
@@ -246,7 +246,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_group_buffer(group, binding_, index_) \
-	(GFXBufferRef){ \
+	GFX_LITERAL(GFXBufferRef){ \
 		.type = GFX_REF_GROUP_BUFFER, \
 		.obj = group, \
 		.offset = 0, \
@@ -254,7 +254,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_group_buffer_at(group, binding_, index_, offset_) \
-	(GFXBufferRef){ \
+	GFX_LITERAL(GFXBufferRef){ \
 		.type = GFX_REF_GROUP_BUFFER, \
 		.obj = group, \
 		.offset = offset_, \
@@ -262,7 +262,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_group_image(group, binding_, index_) \
-	(GFXImageRef){ \
+	GFX_LITERAL(GFXImageRef){ \
 		.type = GFX_REF_GROUP_IMAGE, \
 		.obj = group, \
 		.offset = 0, \
@@ -270,7 +270,7 @@ typedef GFXReference GFXImageRef;
 	}
 
 #define gfx_ref_attach(renderer, attachment_) \
-	(GFXImageRef){ \
+	GFX_LITERAL(GFXImageRef){ \
 		.type = GFX_REF_ATTACHMENT, \
 		.obj = renderer, \
 		.offset = 0, \

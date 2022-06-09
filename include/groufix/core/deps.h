@@ -172,7 +172,7 @@ typedef struct GFXInject
  * respect to the dependency objects being referenced!
  */
 #define gfx_dep_sig(dep_, mask_, stage_) \
-	(GFXInject){ \
+	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_SIGNAL, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL, \
@@ -181,7 +181,7 @@ typedef struct GFXInject
 	}
 
 #define gfx_dep_sigr(dep_, mask_, stage_, ref_) \
-	(GFXInject){ \
+	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_SIGNAL, \
 		.dep = dep_, \
 		.ref = ref_, \
@@ -190,7 +190,7 @@ typedef struct GFXInject
 	}
 
 #define gfx_dep_siga(dep_, mask_, stage_, range_) \
-	(GFXInject){ \
+	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_SIGNAL_RANGE, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL, \
@@ -200,7 +200,7 @@ typedef struct GFXInject
 	}
 
 #define gfx_dep_sigra(dep_, mask_, stage_, ref_, range_) \
-	(GFXInject){ \
+	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_SIGNAL_RANGE, \
 		.dep = dep_, \
 		.ref = ref_, \
@@ -210,21 +210,21 @@ typedef struct GFXInject
 	}
 
 #define gfx_dep_wait(dep_) \
-	(GFXInject){ \
+	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_WAIT, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL \
 	}
 
 #define gfx_dep_waitr(dep_, ref_) \
-	(GFXInject){ \
+	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_WAIT, \
 		.dep = dep_, \
 		.ref = ref_ \
 	}
 
 #define gfx_dep_waita(dep_, range_) \
-	(GFXInject){ \
+	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_WAIT_RANGE, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL, \
@@ -232,7 +232,7 @@ typedef struct GFXInject
 	}
 
 #define gfx_dep_waitra(dep_, ref_, range_) \
-	(GFXInject){ \
+	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_WAIT_RANGE, \
 		.dep = dep_, \
 		.ref = ref_, \
