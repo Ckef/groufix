@@ -11,24 +11,6 @@
 
 
 /****************************
- * Promptly purges (destructs) all passes, leaving the graph 'empty'.
- * @param renderer Cannot be NULL, its graph state must not be empty.
- */
-static void _gfx_render_graph_purge(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-	assert(renderer->graph.state != _GFX_GRAPH_EMPTY);
-
-	// Destruct all passes.
-	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		_gfx_pass_destruct(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
-
-	// The graph is now empty.
-	renderer->graph.state = _GFX_GRAPH_EMPTY;
-}
-
-/****************************
  * Analyzes the render graph to setup all passes for correct builds.
  * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */
@@ -84,9 +66,9 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 	if (renderer->graph.state >= _GFX_GRAPH_WARMED)
 		return 1;
 
-	// With the same logic as building; we purge all things first.
+	// With the same logic as building; we destruct all things first.
 	if (renderer->graph.state == _GFX_GRAPH_INVALID)
-		_gfx_render_graph_purge(renderer);
+		_gfx_render_graph_destruct(renderer);
 
 	// If not valid yet, analyze the graph.
 	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
@@ -131,7 +113,7 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 	// Optimizations such as merging passes may change,
 	// we want to capture these changes.
 	if (renderer->graph.state == _GFX_GRAPH_INVALID)
-		_gfx_render_graph_purge(renderer);
+		_gfx_render_graph_destruct(renderer);
 
 	// If not valid yet, analyze the graph.
 	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
@@ -171,8 +153,7 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 }
 
 /****************************/
-void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
-                               _GFXRecreateFlags flags)
+void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 {
 	assert(renderer != NULL);
 	assert(flags & _GFX_RECREATE);
@@ -181,24 +162,14 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 	if (renderer->graph.state < _GFX_GRAPH_WARMED)
 		return;
 
-	// Loop over all passes and check if they read from or write to the
-	// attachment index, if so, rebuild those passes.
+	// (Re)build all passes.
+	// If we fail, just ignore and signal we're not built.
+	// Will be tried again in _gfx_render_graph_build.
 	size_t failed = 0;
 
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
-
-		// TODO: Also check if it's using it as an image attachment.
-		// Check if it's writing to it as a window back-buffer.
-		if (pass->build.backing == index)
-		{
-			// If we fail, just ignore and signal we're not built.
-			// Will be tried again in _gfx_render_graph_build.
-			failed += !_gfx_pass_build(pass, flags);
-		}
-	}
+		failed += !_gfx_pass_build(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i), flags);
 
 	if (failed > 0)
 	{
@@ -212,28 +183,17 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
 }
 
 /****************************/
-void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index)
+void _gfx_render_graph_destruct(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	// Loop over all passes and check if they read from or write to the
-	// attachment index, if so, destruct the pass.
+	// Destruct all passes.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+		_gfx_pass_destruct(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
 
-		// TODO: Also check if it's using it as an image attachment.
-		// Check if it's writing to it as a window back-buffer.
-		if (pass->build.backing == index)
-		{
-			_gfx_pass_destruct(pass);
-
-			// The graph is incomplete now.
-			if (renderer->graph.state >= _GFX_GRAPH_WARMED)
-				renderer->graph.state = _GFX_GRAPH_VALIDATED;
-		}
-	}
+	// The graph is now empty.
+	renderer->graph.state = _GFX_GRAPH_EMPTY;
 }
 
 /****************************/

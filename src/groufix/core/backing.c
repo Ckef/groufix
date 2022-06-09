@@ -263,10 +263,11 @@ static bool _gfx_detach_attachment(GFXRenderer* renderer, size_t index)
 	// This so we can 'detach' (i.e. destroy) the associated resources.
 	_gfx_sync_frames(renderer);
 
-	// Destruct the parts of the graph dependent on the attachment.
+	// Destruct the render graph, given any other attachment may be relative
+	// to this one, we must destruct the entire graph.
 	// This is not thread-safe at all, so we re-use the renderer's lock.
 	_gfx_mutex_lock(&renderer->lock);
-	_gfx_render_graph_destruct(renderer, index);
+	_gfx_render_graph_destruct(renderer);
 	_gfx_mutex_unlock(&renderer->lock);
 
 	// Then, if it is an image, reset the descriptor pools,
@@ -547,16 +548,10 @@ bool _gfx_render_backing_build(GFXRenderer* renderer)
 }
 
 /****************************/
-void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
-                                 _GFXRecreateFlags flags)
+void _gfx_render_backing_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 {
 	assert(renderer != NULL);
 	assert(flags & _GFX_RECREATE);
-
-	// Yeah index is actually just ignored. The algorithm used to resolve
-	// all sizes of all attachments does not really benefit from this index.
-	// But just in case this is changed, and for symmetry with the graph
-	// API, we keep it here :)
 
 	// Nothing to rebuild if not resized or nothing is built yet.
 	if (

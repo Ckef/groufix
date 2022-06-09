@@ -141,8 +141,7 @@ static bool _gfx_pass_consume(GFXPass* pass, const _GFXConsumeElem* elem)
  *
  * Not thread-safe with respect to pushing stale resources!
  */
-static void _gfx_pass_destruct_partial(GFXPass* pass,
-                                       _GFXRecreateFlags flags)
+static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 {
 	assert(pass != NULL);
 

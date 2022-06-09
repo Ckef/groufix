@@ -1432,13 +1432,12 @@ void _gfx_render_backing_clear(GFXRenderer* renderer);
 bool _gfx_render_backing_build(GFXRenderer* renderer);
 
 /**
- * (Re)builds render backing resources dependent on the given attachment index.
+ * (Re)builds all relevant render backing resources.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    Must contain the _GFX_RECREATE bit.
  */
-void _gfx_render_backing_rebuild(GFXRenderer* renderer, size_t index,
-                                 _GFXRecreateFlags flags);
+void _gfx_render_backing_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags);
 
 /**
  * Initializes the render graph of a renderer.
@@ -1475,7 +1474,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer);
 bool _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
- * (Re)builds render graph resources dependent on the given attachment index.
+ * (Re)builds all relevant render graph resources.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    Must contain the _GFX_RECREATE bit.
@@ -1483,18 +1482,17 @@ bool _gfx_render_graph_build(GFXRenderer* renderer);
  * This will call the relevant _gfx_pass_build calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
-void _gfx_render_graph_rebuild(GFXRenderer* renderer, size_t index,
-                               _GFXRecreateFlags flags);
+void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags);
 
 /**
- * Immediately destruct everything that depends on the attachment at index.
+ * Immediately destruct all render graph resources.
  * @param renderer Cannot be NULL.
  *
- * Must be called before detaching the attachment at index!
- * It will call the relevant _gfx_pass_destruct calls.
+ * Must be called before detaching any attachment!
+ * This will call the relevant _gfx_pass_destruct calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
-void _gfx_render_graph_destruct(GFXRenderer* renderer, size_t index);
+void _gfx_render_graph_destruct(GFXRenderer* renderer);
 
 /**
  * Invalidates the render graph, forcing it to destruct and rebuild everything

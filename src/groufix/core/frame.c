@@ -25,11 +25,11 @@
 
 
 /****************************
- * Recreates swapchain-dependent resources associated with a sync object.
+ * Recreates swapchain-dependent resources associated with a window.
  * @param synced Input AND Output of whether we already synchronized all frames.
  * @return Zero on failure.
  */
-static bool _gfx_frame_rebuild(GFXRenderer* renderer, _GFXFrameSync* sync,
+static bool _gfx_frame_rebuild(GFXRenderer* renderer, _GFXWindow* window,
                                _GFXRecreateFlags flags, bool* synced)
 {
 	if (flags & _GFX_RECREATE)
@@ -47,9 +47,9 @@ static bool _gfx_frame_rebuild(GFXRenderer* renderer, _GFXFrameSync* sync,
 		}
 
 		// Then rebuild & purge the swapchain stuff.
-		_gfx_render_backing_rebuild(renderer, sync->backing, flags);
-		_gfx_render_graph_rebuild(renderer, sync->backing, flags);
-		_gfx_swapchain_purge(sync->window);
+		_gfx_render_backing_rebuild(renderer, flags);
+		_gfx_render_graph_rebuild(renderer, flags);
+		_gfx_swapchain_purge(window);
 	}
 
 	return 1;
@@ -357,7 +357,7 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 		// that could have postponed a rebuild to now.
 		flags |= at->window.flags;
 
-		if (!_gfx_frame_rebuild(renderer, sync, flags, &synced))
+		if (!_gfx_frame_rebuild(renderer, sync->window, flags, &synced))
 			goto error;
 	}
 
