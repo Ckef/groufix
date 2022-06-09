@@ -88,6 +88,16 @@
 
 
 /**
+ * Define an operator| for enum types in C++ mode.
+ */
+#if defined (__cplusplus)
+	#define GFX_BIT_FIELD(T) inline T operator|(T a, T b) { return (T)((int)a | (int)b); }
+#else
+	#define GFX_BIT_FIELD(T)
+#endif
+
+
+/**
  * groufix public atomic types.
  */
 #if defined (__cplusplus)

@@ -20,6 +20,7 @@
  */
 typedef enum GFXWindowFlags
 {
+	GFX_WINDOW_NONE          = 0x0000,
 	GFX_WINDOW_HIDDEN        = 0x0001, // Overrules all.
 	GFX_WINDOW_BORDERLESS    = 0x0002,
 	GFX_WINDOW_FOCUS         = 0x0004, // One-time action.
@@ -31,6 +32,8 @@ typedef enum GFXWindowFlags
 	GFX_WINDOW_TRIPLE_BUFFER = 0x0100  // Overrules GFX_WINDOW_DOUBLE_BUFFER.
 
 } GFXWindowFlags;
+
+GFX_BIT_FIELD(GFXWindowFlags)
 
 
 /**

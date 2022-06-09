@@ -87,11 +87,14 @@ typedef enum GFXViewType
  */
 typedef enum GFXSamplerFlags
 {
+	GFX_SAMPLER_NONE         = 0x0000,
 	GFX_SAMPLER_ANISOTROPY   = 0x0001,
 	GFX_SAMPLER_COMPARE      = 0x0002,
 	GFX_SAMPLER_UNNORMALIZED = 0x0004
 
 } GFXSamplerFlags;
+
+GFX_BIT_FIELD(GFXSamplerFlags)
 
 
 /**
@@ -99,10 +102,13 @@ typedef enum GFXSamplerFlags
  */
 typedef enum GFXDepthFlags
 {
+	GFX_DEPTH_NONE    = 0x0000,
 	GFX_DEPTH_WRITE   = 0x0001,
 	GFX_DEPTH_BOUNDED = 0x0002
 
 } GFXDepthFlags;
+
+GFX_BIT_FIELD(GFXDepthFlags)
 
 
 /**
@@ -855,11 +861,14 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
  */
 typedef enum GFXComputeFlags
 {
+	GFX_COMPUTE_NONE   = 0x0000,
 	GFX_COMPUTE_ASYNC  = 0x0001,
 	GFX_COMPUTE_BEFORE = 0x0002,
 	GFX_COMPUTE_AFTER  = 0x0004 // Overrules GFX_COMPUTE_BEFORE.
 
 } GFXComputeFlags;
+
+GFX_BIT_FIELD(GFXComputeFlags)
 
 
 /**
