@@ -88,6 +88,16 @@
 
 
 /**
+ * groufix public atomic types.
+ */
+#if defined (__cplusplus)
+	#define GFX_ATOMIC(type) std::atomic_##type
+#else
+	#define GFX_ATOMIC(type) atomic_##type
+#endif
+
+
+/**
  * Platform agnostic size_t print format.
  */
 #if defined (GFX_WIN32)
