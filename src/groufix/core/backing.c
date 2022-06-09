@@ -140,8 +140,8 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 	// Include the lazily allocated bit if transient is requested.
 	VkMemoryPropertyFlags optimal =
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-		(usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) ?
-			VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT : 0;
+		((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) ?
+			VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT : 0);
 
 	if (!_gfx_allocd(&renderer->allocator, &backing->alloc,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, optimal,
