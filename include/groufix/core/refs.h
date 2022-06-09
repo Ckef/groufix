@@ -104,25 +104,29 @@ typedef struct GFXRegion
  ****************************/
 
 /**
+ * Resource reference type.
+ */
+typedef enum GFXReferenceType
+{
+	GFX_REF_BUFFER,
+	GFX_REF_IMAGE,
+	GFX_REF_PRIMITIVE_VERTICES,
+	GFX_REF_PRIMITIVE_INDICES,
+	GFX_REF_GROUP_BUFFER,
+	GFX_REF_GROUP_IMAGE,
+	GFX_REF_ATTACHMENT,
+
+	GFX_REF_EMPTY
+
+} GFXReferenceType;
+
+
+/**
  * Unified memory resource reference.
  */
 typedef struct GFXReference
 {
-	// Reference type.
-	enum
-	{
-		GFX_REF_BUFFER,
-		GFX_REF_IMAGE,
-		GFX_REF_PRIMITIVE_VERTICES,
-		GFX_REF_PRIMITIVE_INDICES,
-		GFX_REF_GROUP_BUFFER,
-		GFX_REF_GROUP_IMAGE,
-		GFX_REF_ATTACHMENT,
-
-		GFX_REF_EMPTY
-
-	} type;
-
+	GFXReferenceType type;
 
 	// Referenced object, isa
 	//  GFXBuffer* | GFXImage* | GFXPrimitive* | GFXGroup* | GFXRenderer*.

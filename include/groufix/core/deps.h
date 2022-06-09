@@ -92,20 +92,24 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep);
  ****************************/
 
 /**
+ * Dependency injection type.
+ */
+typedef enum GFXInjectType
+{
+	GFX_DEP_SIGNAL,
+	GFX_DEP_SIGNAL_RANGE,
+	GFX_DEP_WAIT,
+	GFX_DEP_WAIT_RANGE
+
+} GFXInjectType;
+
+
+/**
  * Dependency injection command.
  */
 typedef struct GFXInject
 {
-	// Injection type.
-	enum
-	{
-		GFX_DEP_SIGNAL,
-		GFX_DEP_SIGNAL_RANGE,
-		GFX_DEP_WAIT,
-		GFX_DEP_WAIT_RANGE
-
-	} type;
-
+	GFXInjectType type;
 
 	// Object to inject a dependency in.
 	GFXDependency* dep;
