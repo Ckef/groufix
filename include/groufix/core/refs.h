@@ -28,6 +28,8 @@ typedef enum GFXImageAspect
 
 } GFXImageAspect;
 
+GFX_BIT_FIELD(GFXimageAspect)
+
 
 /**
  * Unified memory range (i.e. sub-resource).

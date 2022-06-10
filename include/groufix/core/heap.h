@@ -56,6 +56,7 @@ typedef enum GFXTopology
  */
 typedef enum GFXMemoryFlags
 {
+	GFX_MEMORY_NONE         = 0x0000,
 	GFX_MEMORY_HOST_VISIBLE = 0x0001, // i.e. mappable.
 	GFX_MEMORY_DEVICE_LOCAL = 0x0002, // Implied if GFX_MEMORY_HOST_VISIBLE is _not_ set.
 	GFX_MEMORY_READ         = 0x0004,
@@ -67,12 +68,15 @@ typedef enum GFXMemoryFlags
 
 } GFXMemoryFlags;
 
+GFX_BIT_FIELD(GFXMemoryFlags)
+
 
 /**
  * Buffer usage flags.
  */
 typedef enum GFXBufferUsage
 {
+	GFX_BUFFER_NONE          = 0x0000,
 	GFX_BUFFER_VERTEX        = 0x0001,
 	GFX_BUFFER_INDEX         = 0x0002,
 	GFX_BUFFER_UNIFORM       = 0x0004,
@@ -83,12 +87,15 @@ typedef enum GFXBufferUsage
 
 } GFXBufferUsage;
 
+GFX_BIT_FIELD(GFXBufferUsage)
+
 
 /**
  * Image usage flags.
  */
 typedef enum GFXImageUsage
 {
+	GFX_IMAGE_NONE           = 0x0000,
 	GFX_IMAGE_SAMPLED        = 0x0001,
 	GFX_IMAGE_SAMPLED_LINEAR = 0x0002,
 	GFX_IMAGE_SAMPLED_MINMAX = 0x0004,
@@ -100,6 +107,8 @@ typedef enum GFXImageUsage
 	GFX_IMAGE_TRANSIENT = 0x0040 // May NOT combine with non-attachment usages.
 
 } GFXImageUsage;
+
+GFX_BIT_FIELD(GFXImageUsage)
 
 
 /**
@@ -411,10 +420,13 @@ typedef enum GFXTransferFlags
 {
 	// TODO: Introduce GFX_TRANSFER_POOL, for pooling into 1 command buffer.
 	// TODO: We could reverse meaning and call it GFX_TRANSFER_FLUSH instead c:
+	GFX_TRANSFER_NONE  = 0x0000,
 	GFX_TRANSFER_ASYNC = 0x0001,
 	GFX_TRANSFER_BLOCK = 0x0002
 
 } GFXTransferFlags;
+
+GFX_BIT_FIELD(GFXTransferFlags)
 
 
 /**

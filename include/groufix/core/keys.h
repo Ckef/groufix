@@ -10,6 +10,8 @@
 #ifndef GFX_CORE_KEYS_H
 #define GFX_CORE_KEYS_H
 
+#include "groufix/def.h"
+
 
 /**
  * Keyboard modifiers (identical to GLFW modifiers).
@@ -17,6 +19,7 @@
  */
 typedef enum GFXModifier
 {
+	GFX_MOD_NONE      = 0x0000,
 	GFX_MOD_SHIFT     = 0x0001,
 	GFX_MOD_CONTROL   = 0x0002,
 	GFX_MOD_ALT       = 0x0004,
@@ -25,6 +28,8 @@ typedef enum GFXModifier
 	GFX_MOD_NUM_LOCK  = 0x0020
 
 } GFXModifier;
+
+GFX_BIT_FIELD(GFXModifier)
 
 
 /**

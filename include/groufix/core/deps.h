@@ -48,6 +48,8 @@ typedef enum GFXAccessMask
 
 } GFXAccessMask;
 
+GFX_BIT_FIELD(GFXAccessMask)
+
 
 /**
  * Dependency object definition.

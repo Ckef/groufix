@@ -32,6 +32,8 @@ typedef enum GFXFormatType
 
 } GFXFormatType;
 
+GFX_BIT_FIELD(GFXFormatType)
+
 
 /**
  * Format component order (defines `comps` in GFXFormat).
@@ -62,6 +64,8 @@ typedef enum GFXOrder
 	// TODO: Add YUV/YCbCr support?
 
 } GFXOrder;
+
+GFX_BIT_FIELD(GFXOrder)
 
 
 /**
@@ -101,6 +105,8 @@ typedef enum GFXFormatFeatures
 
 } GFXFormatFeatures;
 
+GFX_BIT_FIELD(GFXFormatFeatures)
+
 
 /**
  * Fuzzy search flags.
@@ -112,6 +118,8 @@ typedef enum GFXFuzzyFlags
 	GFX_FUZZY_STRICT_DEPTH = 0x0003 // Both MIN_DEPTH and MAX_DEPTH.
 
 } GFXFuzzyFlags;
+
+GFX_BIT_FIELD(GFXFuzzyFlags)
 
 
 /**
