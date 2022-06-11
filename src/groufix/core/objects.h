@@ -1495,8 +1495,9 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags);
 void _gfx_render_graph_destruct(GFXRenderer* renderer);
 
 /**
- * Invalidates the render graph, forcing it to destruct and rebuild everything
- * the next time _gfx_render_graph_build is called.
+ * Invalidates the render graph, forcing it to first destruct everything
+ * the next time _gfx_render_graph_(warmup|build) is called.
+ * If _gfx_render_graph_rebuild is called before that, it is rendered a no-op.
  * @param renderer Cannot be NULL.
  */
 void _gfx_render_graph_invalidate(GFXRenderer* renderer);
@@ -1543,6 +1544,15 @@ bool _gfx_pass_warmup(GFXPass* pass);
 bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
 
 /**
+ * Destructs all Vulkan objects, non-recursively.
+ * @param pass Cannot be NULL.
+ *
+ * Must be called before its consumptions/attachments are changed!
+ * Not thread-safe with respect to pushing stale resources!
+ */
+void _gfx_pass_destruct(GFXPass* pass);
+
+/**
  * Retrieves the current framebuffer of a pass with respect to a frame.
  * @param pass  Cannot be NULL.
  * @param frame Cannot be NULL.
@@ -1551,15 +1561,6 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
  * Not thread-safe with respect to frame's refs and syncs!
  */
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
-
-/**
- * Destructs all Vulkan objects, non-recursively.
- * @param pass Cannot be NULL.
- *
- * Must be called before detaching any attachment it uses!
- * Not thread-safe with respect to pushing stale resources!
- */
-void _gfx_pass_destruct(GFXPass* pass);
 
 
 /****************************

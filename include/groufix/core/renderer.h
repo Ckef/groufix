@@ -572,8 +572,9 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
                                uint32_t* width, uint32_t* height);
 
 /**
- * TODO: shader location == in add-order?
  * Consume an attachment of a renderer.
+ * Shader location is in add-order, calling with the same index twice
+ * does _not_ change the shader location, should release first.
  * @param pass  Cannot be NULL.
  * @param mask  Access mask to consume the attachment with.
  * @param stage Shader stages with access to the attachment.

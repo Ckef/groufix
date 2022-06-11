@@ -235,7 +235,9 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 			.imageColorSpace  = formats[f].colorSpace,
 			.imageExtent      = extent,
 			.imageArrayLayers = 1,
-			.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.imageUsage       =
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+				(sc.supportedUsageFlags & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT),
 			.preTransform     = sc.currentTransform,
 			.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 			.presentMode      = mode,

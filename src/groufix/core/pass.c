@@ -26,12 +26,12 @@ typedef struct _GFXConsumeElem
 
 
 /****************************
- * Image (non-swapchain) view element definition.
+ * Image view (for all framebuffers) element definition.
  */
 typedef struct _GFXViewElem
 {
-	_GFXConsumeElem* consume; // Undefined when the graph is invalidated.
-	VkImageView      view;
+	_GFXConsumeElem* consume;
+	VkImageView      view; // Remains VK_NULL_HANDLE if a swapchain.
 
 } _GFXViewElem;
 
@@ -129,6 +129,7 @@ static bool _gfx_pass_consume(GFXPass* pass, const _GFXConsumeElem* elem)
 		return 0;
 
 	// Changed a pass, the graph is invalidated.
+	// This makes it so the graph will destruct this pass before anything else.
 	_gfx_render_graph_invalidate(pass->renderer);
 
 	return 1;
@@ -164,9 +165,10 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 		for (size_t i = 0; i < pass->vk.views.size; ++i)
 		{
 			_GFXViewElem* elem = gfx_vec_at(&pass->vk.views, i);
-			_gfx_push_stale(pass->renderer,
-				VK_NULL_HANDLE, elem->view,
-				VK_NULL_HANDLE, VK_NULL_HANDLE);
+			if (elem->view != VK_NULL_HANDLE)
+				_gfx_push_stale(pass->renderer,
+					VK_NULL_HANDLE, elem->view,
+					VK_NULL_HANDLE, VK_NULL_HANDLE);
 		}
 
 		pass->build.fWidth = 0;
@@ -189,99 +191,89 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 }
 
 /****************************
- * Picks a window to use as back-buffer, silently logging issues.
- * @param pass Cannot be NULL.
- * @return The picked backing, SIZE_MAX if none found.
+ * Filters all consumped attachments into a framebuffer attachments &
+ * a potential window to use as back-buffer, silently logging issues.
+ * @param pass Cannot be NULL, must not yet be 'filtered'.
+ * @return Zero on failure.
  */
-static size_t _gfx_pass_pick_backing(GFXPass* pass)
+static bool _gfx_pass_filter_attachments(GFXPass* pass)
 {
 	assert(pass != NULL);
+	assert(pass->build.backing == SIZE_MAX);
+	assert(pass->vk.views.size == 0);
 
 	GFXRenderer* rend = pass->renderer;
 
-	size_t backing = SIZE_MAX;
+	// Keep track of the depth/stencil backing so we can warn :)
+	size_t depSten = SIZE_MAX;
 
-	// Validate that there is exactly 1 window we write to.
-	// We don't really have to but we're nice, in case of Vulkan spam...
+	// Reserve as many views as there are attachments, can never be more.
+	if (!gfx_vec_reserve(&pass->vk.views, pass->consumes.size))
+		return 0;
+
+	// And start looping over all consumptions :)
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
 		_GFXAttach* attach = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
-		// Validate the access mask &
-		// that the attachment exists and is a window.
+		// Validate existence of the attachment.
 		if (
-			!(con->mask & GFX_ACCESS_ATTACHMENT_WRITE) ||
 			con->view.index >= rend->backing.attachs.size ||
-			attach->type != _GFX_ATTACH_WINDOW)
+			attach->type == _GFX_ATTACH_EMPTY)
 		{
 			continue;
 		}
 
-		// If it is, check if we already had a backing window.
-		if (backing == SIZE_MAX)
-			backing = con->view.index;
-		else
-		{
-			// If so, well we cannot, throw a warning.
-			gfx_log_warn(
-				"A single pass can only write to a single "
-				"window attachment at a time.");
-
-			break;
-		}
-	}
-
-	return backing;
-}
-
-/****************************
- * Picks an attachment to use as depth/stencil buffer, silently logging issues.
- * @param pass Cannot be NULL.
- * @return The picked attachment, SIZE_MAX if none found.
- */
-static size_t _gfx_pass_pick_depth_stencil(GFXPass* pass)
-{
-	assert(pass != NULL);
-
-	GFXRenderer* rend = pass->renderer;
-
-	size_t index = SIZE_MAX;
-
-	// Again, validate that there is exactly 1 depth/stencil use.
-	for (size_t i = 0; i < pass->consumes.size; ++i)
-	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
-		_GFXAttach* attach = gfx_vec_at(&rend->backing.attachs, con->view.index);
-
-		// Validate the access mask & that it is a window.
-		if (
-			!(con->mask & GFX_ACCESS_ATTACHMENT_READ) ||
-			con->view.index >= rend->backing.attachs.size ||
-			attach->type != _GFX_ATTACH_IMAGE ||
-
-			// Also check that it's a depth/stencil image obviously.
-			!(GFX_FORMAT_HAS_DEPTH(attach->image.base.format) ||
-			GFX_FORMAT_HAS_STENCIL(attach->image.base.format)))
+		// Validate that we want to access it as attachment.
+		if (!(con->mask &
+			(GFX_ACCESS_ATTACHMENT_INPUT |
+			GFX_ACCESS_ATTACHMENT_READ |
+			GFX_ACCESS_ATTACHMENT_WRITE)))
 		{
 			continue;
 		}
 
-		// Check if we already had a depth/stencil attachment.
-		if (index == SIZE_MAX)
-			index = con->view.index;
-		else
+		// If a window we read/write to, pick it.
+		if (attach->type == _GFX_ATTACH_WINDOW &&
+			(con->mask &
+				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
 		{
-			gfx_log_warn(
-				"A single pass can only read/write to a single "
-				"depth/stencil attachment at a time.");
-
-			break;
+			// Check if we already had a backing window.
+			if (pass->build.backing == SIZE_MAX)
+				pass->build.backing = con->view.index;
+			else
+				gfx_log_warn(
+					"A single pass can only read/write to a single "
+					"window attachment at a time.");
 		}
 
+		// If a depth/stencil we read/write from, pick it.
+		else if (attach->type == _GFX_ATTACH_IMAGE &&
+			(GFX_FORMAT_HAS_DEPTH(attach->image.base.format) ||
+			GFX_FORMAT_HAS_STENCIL(attach->image.base.format)) &&
+			(con->mask &
+				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
+		{
+			if (depSten == SIZE_MAX)
+				depSten = con->view.index;
+			else
+			{
+				gfx_log_warn(
+					"A single pass can only read/write to a single "
+					"depth/stencil attachment at a time.");
+
+				// If already picked, do not add this consumption as view!
+				continue;
+			}
+		}
+
+		// Add a view element referencing this consumption.
+		_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
+		gfx_vec_push(&pass->vk.views, 1, &elem);
 	}
 
-	return index;
+	return 1;
 }
 
 /****************************/
@@ -390,13 +382,11 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 	GFXRenderer* rend = pass->renderer;
 
-	// Pick a backing window if we did not yet.
-	if (pass->build.backing == SIZE_MAX)
-		pass->build.backing = _gfx_pass_pick_backing(pass);
-
-	// Pick a depth/stencil buffer if we did not yet.
-	//if (pass->build.depSten == SIZE_MAX)
-	//	pass->build.depSten = _gfx_pass_pick_depth_stencil(pass);
+	// Ok so we need to know about all attachments.
+	// Filter them if not done so already.
+	if (pass->build.backing == SIZE_MAX && pass->vk.views.size == 0)
+		if (!_gfx_pass_filter_attachments(pass))
+			goto error;
 
 	// Get the backing window attachment.
 	_GFXAttach* at = NULL;
@@ -589,6 +579,22 @@ error:
 }
 
 /****************************/
+void _gfx_pass_destruct(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	// Remove references to window backing.
+	pass->build.backing = SIZE_MAX;
+
+	// Destruct all partial things.
+	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
+
+	// Clear memory.
+	gfx_vec_clear(&pass->vk.views);
+	gfx_vec_clear(&pass->vk.frames);
+}
+
+/****************************/
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 {
 	assert(pass != NULL);
@@ -614,21 +620,6 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 	return pass->vk.frames.size <= sync->image ?
 		VK_NULL_HANDLE :
 		((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, sync->image))->buffer;
-}
-
-/****************************/
-void _gfx_pass_destruct(GFXPass* pass)
-{
-	assert(pass != NULL);
-
-	// Remove references to window backing.
-	pass->build.backing = SIZE_MAX;
-
-	// Destruct all partial things.
-	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
-
-	// Clear memory.
-	gfx_vec_clear(&pass->vk.frames);
 }
 
 /****************************/
@@ -741,14 +732,14 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
 
-	// FInd and erase.
+	// Find and erase.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index) gfx_vec_erase(&pass->consumes, 1, i-1);
 	}
 
-	// Changed a pass, the graph is invalidated.
+	// Same as _gfx_pass_consume, invalidate for destruction.
 	_gfx_render_graph_invalidate(pass->renderer);
 }
 
