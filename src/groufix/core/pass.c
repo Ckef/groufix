@@ -171,6 +171,7 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 					VK_NULL_HANDLE, VK_NULL_HANDLE);
 		}
 
+		pass->build.backing = SIZE_MAX;
 		pass->build.fWidth = 0;
 		pass->build.fHeight = 0;
 		gfx_vec_release(&pass->vk.views);
@@ -191,7 +192,7 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 }
 
 /****************************
- * Filters all consumped attachments into a framebuffer attachments &
+ * Filters all consumed attachments into framebuffer views &
  * a potential window to use as back-buffer, silently logging issues.
  * @param pass Cannot be NULL, must not yet be 'filtered'.
  * @return Zero on failure.
@@ -582,9 +583,6 @@ error:
 void _gfx_pass_destruct(GFXPass* pass)
 {
 	assert(pass != NULL);
-
-	// Remove references to window backing.
-	pass->build.backing = SIZE_MAX;
 
 	// Destruct all partial things.
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
