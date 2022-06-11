@@ -216,12 +216,12 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
-		_GFXAttach* attach = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 		// Validate existence of the attachment.
 		if (
 			con->view.index >= rend->backing.attachs.size ||
-			attach->type == _GFX_ATTACH_EMPTY)
+			at->type == _GFX_ATTACH_EMPTY)
 		{
 			continue;
 		}
@@ -236,7 +236,7 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 		}
 
 		// If a window we read/write to, pick it.
-		if (attach->type == _GFX_ATTACH_WINDOW &&
+		if (at->type == _GFX_ATTACH_WINDOW &&
 			(con->mask &
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
 		{
@@ -249,10 +249,15 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 					"window attachment at a time.");
 		}
 
+		// Courtesy warning.
+		else if (at->type == _GFX_ATTACH_WINDOW)
+			gfx_log_warn(
+				"A pass can only read/write to a window attachment.");
+
 		// If a depth/stencil we read/write from, pick it.
-		else if (attach->type == _GFX_ATTACH_IMAGE &&
-			(GFX_FORMAT_HAS_DEPTH(attach->image.base.format) ||
-			GFX_FORMAT_HAS_STENCIL(attach->image.base.format)) &&
+		else if (at->type == _GFX_ATTACH_IMAGE &&
+			(GFX_FORMAT_HAS_DEPTH(at->image.base.format) ||
+			GFX_FORMAT_HAS_STENCIL(at->image.base.format)) &&
 			(con->mask &
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
 		{
@@ -383,81 +388,121 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 	GFXRenderer* rend = pass->renderer;
 
-	// Ok so we need to know about all attachments.
+	// Ok so we need to know about all pass attachments.
 	// Filter them if not done so already.
 	if (pass->build.backing == SIZE_MAX && pass->vk.views.size == 0)
 		if (!_gfx_pass_filter_attachments(pass))
-			goto error;
+			return 0;
+
+	// At this point we have all information for _gfx_pass_build to run.
+	// So if we already have a pass, we are done.
+	if (pass->vk.pass != VK_NULL_HANDLE)
+		return 1;
 
 	// Get the backing window attachment.
-	_GFXAttach* at = NULL;
+	_GFXAttach* backing = NULL;
 	if (pass->build.backing != SIZE_MAX)
-		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
+		backing = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
-	// Skip if there's no render target (e.g. minimized window).
-	// TODO: Future: if no backing window, do smth else.
-	if (at == NULL) return 1;
+	// Describe all attachments.
+	// Keep track of all the input/color and depth/stencil attachment counts.
+	size_t numAttachs = pass->vk.views.size > 0 ? pass->vk.views.size : 1;
+	size_t numInputs = 0;
+	size_t numColors = 0;
+	bool hasDepSten = 0;
+	VkAttachmentDescription ad[numAttachs];
+	VkAttachmentReference input[numAttachs];
+	VkAttachmentReference color[numAttachs];
+	VkAttachmentReference depSten;
+	numAttachs = 0; // We may skip some.
 
-	// Create render pass.
-	if (pass->vk.pass == VK_NULL_HANDLE)
+	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
-		VkAttachmentDescription ad = {
-			.flags          = 0,
-			.format         = at->window.window->frame.format,
-			.samples        = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-		};
+		const _GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
+		const _GFXConsumeElem* con = view->consume;
+		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
-		VkAttachmentReference ar = {
-			.attachment = 0,
-			.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-		};
+		// Swapchain.
+		if (at->type == _GFX_ATTACH_WINDOW)
+		{
+			// If not the picked backing window,
+			// this shader location is considered unused, not allowed!
+			if (at != backing)
+			{
+				VkAttachmentReference ref = (VkAttachmentReference){
+					.attachment = VK_ATTACHMENT_UNUSED,
+					.layout     = VK_IMAGE_LAYOUT_UNDEFINED
+				};
 
-		VkSubpassDescription sd = {
-			.flags                   = 0,
-			.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
-			.inputAttachmentCount    = 0,
-			.pInputAttachments       = NULL,
-			.colorAttachmentCount    = 1,
-			.pColorAttachments       = &ar,
-			.pResolveAttachments     = NULL,
-			.pDepthStencilAttachment = NULL,
-			.preserveAttachmentCount = 0,
-			.pPreserveAttachments    = NULL
-		};
+				if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
+					input[numInputs++] = ref;
+				else
+					color[numColors++] = ref;
 
-		VkRenderPassCreateInfo rpci = {
-			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+				continue; // Done.
+			}
 
-			.pNext           = NULL,
-			.flags           = 0,
-			.attachmentCount = 1,
-			.pAttachments    = &ad,
-			.subpassCount    = 1,
-			.pSubpasses      = &sd,
-			.dependencyCount = 0,
-			.pDependencies   = NULL
-		};
+			// Describe the window as attachment and reference it.
+			color[numColors++] = (VkAttachmentReference){
+				.attachment = (uint32_t)numAttachs,
+				.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+			};
 
-		// Remember the cache element for locality!
-		pass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
-		if (pass->build.pass == NULL) goto error;
+			ad[numAttachs++] = (VkAttachmentDescription){
+				.flags          = 0,
+				.format         = at->window.window->frame.format,
+				.samples        = VK_SAMPLE_COUNT_1_BIT,
+				// TODO: Make clearing user input.
+				.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+				.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+				.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+				.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+				.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+			};
+		}
 
-		pass->vk.pass = pass->build.pass->vk.pass;
+		// Non-swapchain.
+		else
+		{
+			// TODO: Implement.
+		}
 	}
 
+	// Ok now create the pass.
+	VkSubpassDescription sd = {
+		.flags                   = 0,
+		.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+		.inputAttachmentCount    = (uint32_t)numInputs,
+		.pInputAttachments       = numInputs > 0 ? input : NULL,
+		.colorAttachmentCount    = (uint32_t)numColors,
+		.pColorAttachments       = numColors > 0 ? color : NULL,
+		.pResolveAttachments     = NULL,
+		.pDepthStencilAttachment = hasDepSten ? &depSten : NULL,
+		.preserveAttachmentCount = 0,
+		.pPreserveAttachments    = NULL
+	};
+
+	VkRenderPassCreateInfo rpci = {
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+
+		.pNext           = NULL,
+		.flags           = 0,
+		.attachmentCount = (uint32_t)numAttachs,
+		.pAttachments    = numAttachs > 0 ? ad : NULL,
+		.subpassCount    = 1,
+		.pSubpasses      = &sd,
+		.dependencyCount = 0,
+		.pDependencies   = NULL
+	};
+
+	// Remember the cache element for locality!
+	pass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
+	if (pass->build.pass == NULL) return 0;
+
+	pass->vk.pass = pass->build.pass->vk.pass;
+
 	return 1;
-
-
-	// Error on failure.
-error:
-	gfx_log_error("Could not build a pass.");
-	return 0;
 }
 
 /****************************/

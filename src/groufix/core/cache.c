@@ -209,7 +209,7 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		{
 			const VkSubpassDescription* sd = rpci->pSubpasses + s;
 			// Ignore subpass flags.
-			_GFX_KEY_PUSH(sd->pipelineBindPoint);
+			// Ignore pipelineBindPoint.
 			_GFX_KEY_PUSH(sd->inputAttachmentCount);
 
 			for (size_t i = 0; i < sd->inputAttachmentCount; ++i)
