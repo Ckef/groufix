@@ -419,8 +419,11 @@ static void _test_init(TestState* _test_state)
 	if (_test_base.pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_consume(_test_base.pass, 0, GFX_ACCESS_ATTACHMENT_WRITE, 0))
+	if (!gfx_pass_consume(_test_base.pass, 0,
+		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
+	{
 		TEST_FAIL();
+	}
 
 #if !defined (TEST_SKIP_CREATE_SCENE)
 	// Allocate a primitive.
@@ -436,7 +439,8 @@ static void _test_init(TestState* _test_state)
 	};
 
 	_test_base.primitive = gfx_alloc_prim(_test_base.heap,
-		GFX_MEMORY_WRITE, 0,
+		GFX_MEMORY_WRITE,
+		GFX_BUFFER_NONE,
 		GFX_TOPO_TRIANGLE_STRIP,
 		4, sizeof(uint16_t), 4,
 		GFX_REF_NULL,
@@ -469,7 +473,8 @@ static void _test_init(TestState* _test_state)
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(vertexData) }},
 		(GFXRegion[]){{ .offset = 0, .size = 0 }},
 		(GFXInject[]){
-			gfx_dep_sig(_test_base.dep, GFX_ACCESS_VERTEX_READ, 0)
+			gfx_dep_sig(_test_base.dep,
+				GFX_ACCESS_VERTEX_READ, GFX_STAGE_ANY)
 		}))
 	{
 		TEST_FAIL();
@@ -479,7 +484,8 @@ static void _test_init(TestState* _test_state)
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(indexData) }},
 		(GFXRegion[]){{ .offset = 0, .size = 0 }},
 		(GFXInject[]){
-			gfx_dep_sig(_test_base.dep, GFX_ACCESS_INDEX_READ, 0)
+			gfx_dep_sig(_test_base.dep,
+				GFX_ACCESS_INDEX_READ, GFX_STAGE_ANY)
 		}))
 	{
 		TEST_FAIL();

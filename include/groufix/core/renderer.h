@@ -245,38 +245,29 @@ typedef struct GFXDepthState
 
 
 /**
+ * Stencil operation state.
+ */
+typedef struct GFXStencilOpState
+{
+	GFXStencilOp fail;
+	GFXStencilOp pass;
+	GFXStencilOp depthFail;
+	GFXCompareOp cmp;
+
+	uint32_t cmpMask;
+	uint32_t writeMask;
+	uint32_t reference;
+
+} GFXStencilOpState;
+
+
+/**
  * Stencil state description.
  */
 typedef struct GFXStencilState
 {
-	// Front-facing polygons.
-	struct
-	{
-		GFXStencilOp fail;
-		GFXStencilOp pass;
-		GFXStencilOp depthFail;
-		GFXCompareOp cmp;
-
-		uint32_t cmpMask;
-		uint32_t writeMask;
-		uint32_t reference;
-
-	} front;
-
-
-	// Back-facing polygons.
-	struct
-	{
-		GFXStencilOp fail;
-		GFXStencilOp pass;
-		GFXStencilOp depthFail;
-		GFXCompareOp cmp;
-
-		uint32_t cmpMask;
-		uint32_t writeMask;
-		uint32_t reference;
-
-	} back;
+	GFXStencilOpState front; // Front-facing polygons.
+	GFXStencilOpState back;  // Back-facing polygons.
 
 } GFXStencilState;
 

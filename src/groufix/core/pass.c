@@ -340,27 +340,20 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		.cmp = GFX_CMP_LESS,
 	};
 
+	GFXStencilOpState opState = {
+		.fail = GFX_STENCIL_KEEP,
+		.pass = GFX_STENCIL_KEEP,
+		.depthFail = GFX_STENCIL_KEEP,
+		.cmp = GFX_CMP_NEVER,
+
+		.cmpMask = 0,
+		.writeMask = 0,
+		.reference = 0
+	};
+
 	pass->state.stencil = (GFXStencilState){
-		.front = {
-			.fail = GFX_STENCIL_KEEP,
-			.pass = GFX_STENCIL_KEEP,
-			.depthFail = GFX_STENCIL_KEEP,
-			.cmp = GFX_CMP_NEVER,
-
-			.cmpMask = 0,
-			.writeMask = 0,
-			.reference = 0
-		},
-		.back = {
-			.fail = GFX_STENCIL_KEEP,
-			.pass = GFX_STENCIL_KEEP,
-			.depthFail = GFX_STENCIL_KEEP,
-			.cmp = GFX_CMP_NEVER,
-
-			.cmpMask = 0,
-			.writeMask = 0,
-			.reference = 0
-		}
+		.front = opState,
+		.back = opState
 	};
 
 	return pass;

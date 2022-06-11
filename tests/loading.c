@@ -157,7 +157,7 @@ TEST_DESCRIBE(loading, t)
 	if (!gfx_renderer_attach(t->renderer, 1,
 		(GFXAttachment){
 			.type  = GFX_IMAGE_2D,
-			.flags = 0,
+			.flags = GFX_MEMORY_NONE,
 			.usage = GFX_IMAGE_TRANSIENT,
 
 			.format  = GFX_FORMAT_D16_UNORM,
@@ -174,8 +174,11 @@ TEST_DESCRIBE(loading, t)
 		goto clean;
 	}
 
-	if (!gfx_pass_consume(t->pass, 1, GFX_ACCESS_ATTACHMENT_TEST, 0))
+	if (!gfx_pass_consume(t->pass, 1,
+		GFX_ACCESS_ATTACHMENT_TEST, GFX_STAGE_ANY))
+	{
 		goto clean;
+	}
 
 	// Setup an event loop.
 	while (!gfx_window_should_close(t->window))

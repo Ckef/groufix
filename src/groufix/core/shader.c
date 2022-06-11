@@ -515,7 +515,7 @@ clean_reflect:
 /****************************/
 GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 {
-	assert(stage != 0);
+	assert(stage != GFX_STAGE_ANY);
 	assert(GFX_IS_POWER_OF_TWO(stage)); // Only 1 stage can be set.
 
 	// Allocate a new shader.

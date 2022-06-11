@@ -45,8 +45,11 @@ TEST_DESCRIBE(windows, t)
 	if (pass2 == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_consume(pass2, 1, GFX_ACCESS_ATTACHMENT_WRITE, 0))
+	if (!gfx_pass_consume(pass2, 1,
+		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
+	{
 		TEST_FAIL();
+	}
 
 	// And of course a second renderable.
 	GFXRenderable renderable2;
