@@ -2,7 +2,7 @@
 groufix
 =======
 
-_groufix_ is a cross-platform, thread-friendly and hardware accelerated graphics engine built in C. The library is primarily focused on the Vulkan API (1.1+). The main repository is hosted on [GitHub](https://github.com/Ckef/groufix).
+_groufix_ is a cross-platform, thread-friendly and hardware accelerated graphics engine built in C11. The library is primarily focused on the Vulkan API (1.1+). The main repository is hosted on [GitHub](https://github.com/Ckef/groufix).
 
 The engine currently supports the following targets:
 
@@ -49,8 +49,8 @@ _When building on Windows_:
 * [Python 3](https://www.python.org/) needs to be installed for building [Shaderc](https://github.com/google/shaderc), make sure to install Python to your `PATH` variable.
 
 
-Usage
------
+API
+---
 
 Once _groufix_ is built, it can be used in your code with `#include <groufix.h>`. All core functionality will be available through this file. The engine must be initialized with a call to `gfx_init`. The thread that initializes the engine is considered the _main thread_. Any other function of _groufix_ cannot be called before `gfx_init` has returned succesfully, the only exceptions being `gfx_terminate`, `gfx_attach`, `gfx_detach` and the `gfx_log_*` function family. When the engine will not be used anymore, it must be terminated by the main thread with a call to `gfx_terminate`. Once the engine is terminated, it behaves exactly the same as before initialization.
 
