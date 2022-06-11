@@ -300,7 +300,7 @@ typedef struct _GFXShaderResource
 	// Array size (increasing location for vert/frag io), 0 = unsized.
 	size_t count;
 
-	// Undefined if not a non-attachment image.
+	// Undefined if not a 'non-attachment image'.
 	GFXViewType viewType;
 
 
@@ -864,7 +864,7 @@ struct GFXPass
 	struct
 	{
 		VkRenderPass pass;   // For locality.
-		GFXVec       views;  // Stores { void*, VkImageView }.
+		GFXVec       views;  // Stores { void* -> `consumes`, VkImageView }.
 		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 
 	} vk;
@@ -950,7 +950,7 @@ typedef struct _GFXSetEntry
 typedef struct _GFXSetBinding
 {
 	VkDescriptorType type;     // Undefined if empty.
-	GFXViewType      viewType; // Undefined if not a non-attachment image.
+	GFXViewType      viewType; // Undefined if not a 'non-attachment image'.
 
 	size_t        count;   // 0 = empty binding.
 	_GFXSetEntry* entries; // NULL if empty or immutable samplers only.

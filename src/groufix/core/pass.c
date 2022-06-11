@@ -512,43 +512,86 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 
 	// Do a warmup, i.e. make sure the Vulkan render pass is built.
 	// This will log an error for us!
-	if (!_gfx_pass_warmup(pass)) return 0;
+	if (!_gfx_pass_warmup(pass))
+		return 0;
 
-	// Then go ahead and build the frames.
+	// If we already have frames, we're done.
+	if (pass->vk.frames.size > 0)
+		return 1;
+
 	// Get the backing window attachment.
-	// Skip if there's no render target (e.g. minimized window).
-	// TODO: Future: if no backing window, do smth else.
-	const _GFXAttach* at = NULL;
+	const _GFXAttach* backing = NULL;
 	if (pass->build.backing != SIZE_MAX)
-		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
+		backing = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
-	if (at == NULL) return 1;
+	// We're gonna need to create all image views.
+	// Keep track of the attachment count, we may skip some.
+	// Also somewhere we're gonna need to get the dimensions.
+	VkImageView views[pass->vk.views.size > 0 ? pass->vk.views.size : 1];
+	size_t numAttachs = 0;
+	size_t backingInd = SIZE_MAX;
 
-	// Get framebuffer size.
-	_GFXWindow* window = at->window.window;
-	const uint32_t width = window->frame.width;
-	const uint32_t height = window->frame.height;
-	const size_t images = window->frame.images.size;
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint32_t layers = 0;
 
-	// Create framebuffers and views (if not of zero size).
-	// One for each distinct swapchain image.
-	if (pass->vk.frames.size == 0 && width > 0 && height > 0 && images > 0)
+	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
-		// Remember the width/height for during recording.
-		pass->build.fWidth = width;
-		pass->build.fHeight = height;
+		_GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
+		const _GFXConsumeElem* con = view->consume;
+		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
-		// Reserve the exact amount, it's probably not gonna change.
-		if (!gfx_vec_reserve(&pass->vk.frames, images))
-			goto error;
-
-		for (size_t i = 0; i < images; ++i)
+		// Swapchain.
+		if (at->type == _GFX_ATTACH_WINDOW)
 		{
-			_GFXFrameElem elem;
+			// If not the picked backing window, ignore.
+			if (at != backing) continue;
 
-			// So then an image view for the swapchain image.
-			VkImage image =
-				*(VkImage*)gfx_vec_at(&window->frame.images, i);
+			// If it is, to be filled in below.
+			backingInd = numAttachs;
+			views[numAttachs++] = VK_NULL_HANDLE;
+
+			// Get dimensions.
+			width = at->window.window->frame.width;
+			height = at->window.window->frame.height;
+			layers = 1;
+		}
+
+		// Non-swapchain.
+		else
+		{
+			// TODO: Implement, don't forget to set `view->view`!
+		}
+	}
+
+	// No dimensions.. just gonna do nothing then.
+	if (width == 0 || height == 0 || layers == 0)
+		return 1;
+
+	// Remember the width/height for during recording.
+	pass->build.fWidth = width;
+	pass->build.fHeight = height;
+
+	// Ok now we need to create all the framebuffers.
+	// We either have one for each window image, or just a single one.
+	// Reserve the exact amount, it's probably not gonna change.
+	const size_t frames =
+		(backingInd != SIZE_MAX) ?
+		backing->window.window->frame.images.size : 1;
+
+	if (!gfx_vec_reserve(&pass->vk.frames, frames))
+		goto error;
+
+	for (size_t i = 0; i < frames; ++i)
+	{
+		_GFXFrameElem elem = { .view = VK_NULL_HANDLE };
+
+		// If there is a swapchain ..
+		if (backingInd != SIZE_MAX)
+		{
+			// .. create another image view for each swapchain image.
+			_GFXWindow* window = backing->window.window;
+			VkImage image = *(VkImage*)gfx_vec_at(&window->frame.images, i);
 
 			VkImageViewCreateInfo ivci = {
 				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -580,33 +623,36 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 					context->vk.device, &ivci, NULL, &elem.view),
 				goto error);
 
-			// And a framebuffer for that specific swapchain image.
-			VkFramebufferCreateInfo fci = {
-				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-
-				.pNext           = NULL,
-				.flags           = 0,
-				.renderPass      = pass->vk.pass,
-				.attachmentCount = 1,
-				.pAttachments    = &elem.view,
-				.width           = width,
-				.height          = height,
-				.layers          = 1
-			};
-
-			_GFX_VK_CHECK(
-				context->vk.CreateFramebuffer(
-					context->vk.device, &fci, NULL, &elem.buffer),
-				{
-					// Nvm immediately destroy the view.
-					context->vk.DestroyImageView(
-						context->vk.device, elem.view, NULL);
-					goto error;
-				});
-
-			// It was already reserved :)
-			gfx_vec_push(&pass->vk.frames, 1, &elem);
+			// Fill in the left-empty image view from above.
+			views[backingInd] = elem.view;
 		}
+
+		// Create a framebuffer.
+		VkFramebufferCreateInfo fci = {
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+
+			.pNext           = NULL,
+			.flags           = 0,
+			.renderPass      = pass->vk.pass,
+			.attachmentCount = (uint32_t)numAttachs,
+			.pAttachments    = numAttachs > 0 ? views : NULL,
+			.width           = width,
+			.height          = height,
+			.layers          = layers
+		};
+
+		_GFX_VK_CHECK(
+			context->vk.CreateFramebuffer(
+				context->vk.device, &fci, NULL, &elem.buffer),
+			{
+				// Nvm immediately destroy the view.
+				context->vk.DestroyImageView(
+					context->vk.device, elem.view, NULL);
+				goto error;
+			});
+
+		// It was already reserved :)
+		gfx_vec_push(&pass->vk.frames, 1, &elem);
 	}
 
 	return 1;
