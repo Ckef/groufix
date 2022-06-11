@@ -400,7 +400,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		return 1;
 
 	// Get the backing window attachment.
-	_GFXAttach* backing = NULL;
+	const _GFXAttach* backing = NULL;
 	if (pass->build.backing != SIZE_MAX)
 		backing = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
@@ -434,9 +434,10 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					.layout     = VK_IMAGE_LAYOUT_UNDEFINED
 				};
 
+				// It may be masked as both input and read/write.
 				if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
 					input[numInputs++] = ref;
-				else
+				if (!(con->mask & GFX_ACCESS_ATTACHMENT_INPUT))
 					color[numColors++] = ref;
 
 				continue; // Done.
@@ -524,7 +525,7 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	// Get the backing window attachment.
 	// Skip if there's no render target (e.g. minimized window).
 	// TODO: Future: if no backing window, do smth else.
-	_GFXAttach* at = NULL;
+	const _GFXAttach* at = NULL;
 	if (pass->build.backing != SIZE_MAX)
 		at = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
