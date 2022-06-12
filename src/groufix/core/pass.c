@@ -418,22 +418,27 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		// Swapchain.
 		if (at->type == _GFX_ATTACH_WINDOW)
 		{
-			// If not the picked backing window,
+			VkAttachmentReference unused = (VkAttachmentReference){
+				.attachment = VK_ATTACHMENT_UNUSED,
+				.layout     = VK_IMAGE_LAYOUT_UNDEFINED
+			};
+
+			// If masked as attachment input,
 			// this shader location is considered unused, not allowed!
+			if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
+				input[numInputs++] = unused;
+
+			// If not the picked backing window, same story.
 			if (at != backing)
 			{
-				VkAttachmentReference ref = (VkAttachmentReference){
-					.attachment = VK_ATTACHMENT_UNUSED,
-					.layout     = VK_IMAGE_LAYOUT_UNDEFINED
-				};
+				// May not even be masked for read/write.
+				if (con->mask &
+					(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
+				{
+					color[numColors++] = unused;
+				}
 
-				// It may be masked as both input and read/write.
-				if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
-					input[numInputs++] = ref;
-				if (!(con->mask & GFX_ACCESS_ATTACHMENT_INPUT))
-					color[numColors++] = ref;
-
-				continue; // Done.
+				continue; // Skip.
 			}
 
 			// Describe the window as attachment and reference it.
@@ -564,13 +569,13 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 		}
 	}
 
-	// No dimensions.. just gonna do nothing then.
-	if (width == 0 || height == 0 || layers == 0)
-		return 1;
-
 	// Remember the width/height for during recording.
 	pass->build.fWidth = width;
 	pass->build.fHeight = height;
+
+	// No dimensions.. just gonna do nothing then.
+	if (width == 0 || height == 0 || layers == 0)
+		return 1;
 
 	// Ok now we need to create all the framebuffers.
 	// We either have one for each window image, or just a single one.
