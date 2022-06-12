@@ -521,8 +521,8 @@ static void _test_init(TestState* _test_state)
 			{
 				.type = GFX_BINDING_BUFFER,
 				.count = 1,
-				.elementSize = sizeof(float) * 16,
 				.numElements = 1,
+				.elementSize = sizeof(float) * 16,
 				.buffers = NULL
 			}, {
 				.type = GFX_BINDING_IMAGE,

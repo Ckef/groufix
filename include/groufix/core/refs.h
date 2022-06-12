@@ -18,6 +18,12 @@
  ****************************/
 
 /**
+ * Describe union member as both anonymous and named.
+ */
+#define GFX_UNION_ANONYMOUS(member, name) struct member; struct member name;
+
+
+/**
  * Image aspect (i.e. interpreted sub-image).
  */
 typedef enum GFXImageAspect
@@ -39,15 +45,16 @@ typedef struct GFXRange
 {
 	union {
 		// Buffer offset/size.
-		struct
+		GFX_UNION_ANONYMOUS(
 		{
 			uint64_t offset;
 			uint64_t size; // 0 for all bytes after `offset`.
-		};
+
+		}, buf)
 
 
 		// Image aspect/mips/layers.
-		struct
+		GFX_UNION_ANONYMOUS(
 		{
 			GFXImageAspect aspect;
 
@@ -55,7 +62,8 @@ typedef struct GFXRange
 			uint32_t numMipmaps; // 0 for all mipmaps after `mipmap`.
 			uint32_t layer;
 			uint32_t numLayers; // 0 for all layers after `layer`.
-		};
+
+		}, img)
 	};
 
 } GFXRange;
@@ -69,7 +77,7 @@ typedef struct GFXRegion
 {
 	union {
 		// Buffer (or host pointer) offset/size.
-		struct
+		GFX_UNION_ANONYMOUS(
 		{
 			uint64_t offset;
 			uint64_t size;
@@ -77,11 +85,12 @@ typedef struct GFXRegion
 			// Buffer packing for image operations (0 = tightly packed).
 			uint32_t rowSize; // In texels.
 			uint32_t numRows; // In texels.
-		};
+
+		}, buf)
 
 
 		// Image aspect/mip/layers/offset/extent.
-		struct
+		GFX_UNION_ANONYMOUS(
 		{
 			GFXImageAspect aspect; // Cannot contain both color and depth/stencil!
 
@@ -95,7 +104,8 @@ typedef struct GFXRegion
 			uint32_t width;
 			uint32_t height;
 			uint32_t depth;
-		};
+
+		}, img)
 	};
 
 } GFXRegion;
