@@ -20,7 +20,9 @@
 /**
  * Describe union member as both anonymous and named.
  */
-#define GFX_UNION_ANONYMOUS(member, name) struct member; struct member name;
+#define GFX_UNION_ANONYMOUS(member, name) \
+	struct member; \
+	struct member name;
 
 
 /**
@@ -41,30 +43,28 @@ GFX_BIT_FIELD(GFXImageAspect)
  * Unified memory range (i.e. sub-resource).
  * Meaningless without an accompanied memory resource.
  */
-typedef struct GFXRange
+typedef union GFXRange
 {
-	union {
-		// Buffer offset/size.
-		GFX_UNION_ANONYMOUS(
-		{
-			uint64_t offset;
-			uint64_t size; // 0 for all bytes after `offset`.
+	// Buffer offset/size.
+	GFX_UNION_ANONYMOUS(
+	{
+		uint64_t offset;
+		uint64_t size; // 0 for all bytes after `offset`.
 
-		}, buf)
+	}, buf)
 
 
-		// Image aspect/mips/layers.
-		GFX_UNION_ANONYMOUS(
-		{
-			GFXImageAspect aspect;
+	// Image aspect/mips/layers.
+	GFX_UNION_ANONYMOUS(
+	{
+		GFXImageAspect aspect;
 
-			uint32_t mipmap;
-			uint32_t numMipmaps; // 0 for all mipmaps after `mipmap`.
-			uint32_t layer;
-			uint32_t numLayers; // 0 for all layers after `layer`.
+		uint32_t mipmap;
+		uint32_t numMipmaps; // 0 for all mipmaps after `mipmap`.
+		uint32_t layer;
+		uint32_t numLayers; // 0 for all layers after `layer`.
 
-		}, img)
-	};
+	}, img)
 
 } GFXRange;
 
@@ -73,40 +73,38 @@ typedef struct GFXRange
  * Unified memory region (i.e. part of a sub-resource).
  * Meaningless without an accompanied memory resource.
  */
-typedef struct GFXRegion
+typedef union GFXRegion
 {
-	union {
-		// Buffer (or host pointer) offset/size.
-		GFX_UNION_ANONYMOUS(
-		{
-			uint64_t offset;
-			uint64_t size;
+	// Buffer (or host pointer) offset/size.
+	GFX_UNION_ANONYMOUS(
+	{
+		uint64_t offset;
+		uint64_t size;
 
-			// Buffer packing for image operations (0 = tightly packed).
-			uint32_t rowSize; // In texels.
-			uint32_t numRows; // In texels.
+		// Buffer packing for image operations (0 = tightly packed).
+		uint32_t rowSize; // In texels.
+		uint32_t numRows; // In texels.
 
-		}, buf)
+	}, buf)
 
 
-		// Image aspect/mip/layers/offset/extent.
-		GFX_UNION_ANONYMOUS(
-		{
-			GFXImageAspect aspect; // Cannot contain both color and depth/stencil!
+	// Image aspect/mip/layers/offset/extent.
+	GFX_UNION_ANONYMOUS(
+	{
+		GFXImageAspect aspect; // Cannot contain both color and depth/stencil!
 
-			uint32_t mipmap;
-			uint32_t layer;
-			uint32_t numLayers; // Cannot be 0 (as opposed to GFXRange).
+		uint32_t mipmap;
+		uint32_t layer;
+		uint32_t numLayers; // Cannot be 0 (as opposed to GFXRange).
 
-			uint32_t x;
-			uint32_t y;
-			uint32_t z;
-			uint32_t width;
-			uint32_t height;
-			uint32_t depth;
+		uint32_t x;
+		uint32_t y;
+		uint32_t z;
+		uint32_t width;
+		uint32_t height;
+		uint32_t depth;
 
-		}, img)
-	};
+	}, img)
 
 } GFXRegion;
 
