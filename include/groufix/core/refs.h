@@ -28,7 +28,7 @@ typedef enum GFXImageAspect
 
 } GFXImageAspect;
 
-GFX_BIT_FIELD(GFXimageAspect)
+GFX_BIT_FIELD(GFXImageAspect)
 
 
 /**
