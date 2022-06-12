@@ -580,7 +580,7 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 		backing->window.window->frame.images.size : 1;
 
 	if (!gfx_vec_reserve(&pass->vk.frames, frames))
-		goto error;
+		goto clean;
 
 	for (size_t i = 0; i < frames; ++i)
 	{
@@ -621,7 +621,7 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 			_GFX_VK_CHECK(
 				context->vk.CreateImageView(
 					context->vk.device, &ivci, NULL, &elem.view),
-				goto error);
+				goto clean);
 
 			// Fill in the left-empty image view from above.
 			views[backingInd] = elem.view;
@@ -648,7 +648,7 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 				// Nvm immediately destroy the view.
 				context->vk.DestroyImageView(
 					context->vk.device, elem.view, NULL);
-				goto error;
+				goto clean;
 			});
 
 		// It was already reserved :)
@@ -658,9 +658,12 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	return 1;
 
 
-	// Error on failure.
-error:
+	// Cleanup on failure.
+clean:
 	gfx_log_error("Could not build framebuffers for a pass.");
+
+	// Get rid of everything; avoid dangling views.
+	_gfx_pass_destruct(pass);
 	return 0;
 }
 
