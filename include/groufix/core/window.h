@@ -43,7 +43,7 @@ typedef struct GFXVideoMode
 {
 	uint32_t     width;
 	uint32_t     height;
-	unsigned int refresh;
+	unsigned int refresh; // 0 for any.
 
 } GFXVideoMode;
 

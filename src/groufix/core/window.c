@@ -344,7 +344,8 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 
 	// If entering fullscreen, use the given refresh rate.
 	if (monitor != NULL)
-		glfwWindowHint(GLFW_REFRESH_RATE, (int)mode.refresh);
+		glfwWindowHint(GLFW_REFRESH_RATE,
+			mode.refresh == 0 ? GLFW_DONT_CARE : (int)mode.refresh);
 
 	window->handle = glfwCreateWindow(
 		(int)mode.width,
@@ -610,7 +611,7 @@ GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
 		0, 0,
 		(int)mode.width,
 		(int)mode.height,
-		(int)mode.refresh);
+		mode.refresh == 0 ? GLFW_DONT_CARE : (int)mode.refresh);
 }
 
 /****************************/
@@ -621,8 +622,7 @@ GFX_API GFXVideoMode gfx_window_get_video(GFXWindow* window)
 	_GFXWindow* win = (_GFXWindow*)window;
 	GLFWmonitor* monitor = glfwGetWindowMonitor(win->handle);
 
-	GFXVideoMode mode = {
-		.width = 0, .height = 0, .refresh = 0 };
+	GFXVideoMode mode = { 0, 0, 0 };
 
 	if (monitor == NULL)
 	{
@@ -667,7 +667,7 @@ GFX_API void gfx_window_set_video(GFXWindow* window, GFXVideoMode mode)
 			0, 0,
 			(int)mode.width,
 			(int)mode.height,
-			(int)mode.refresh);
+			mode.refresh == 0 ? GLFW_DONT_CARE : (int)mode.refresh);
 }
 
 /****************************/

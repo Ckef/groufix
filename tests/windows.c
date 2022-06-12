@@ -28,7 +28,7 @@ TEST_DESCRIBE(windows, t)
 	GFXWindow* window2 = gfx_create_window(
 		GFX_WINDOW_RESIZABLE | GFX_WINDOW_DOUBLE_BUFFER,
 		t->device, NULL,
-		(GFXVideoMode){ .width = 600, .height = 400 }, "groufix2");
+		(GFXVideoMode){ 600, 400, 0 }, "groufix2");
 
 	if (window2 == NULL)
 		TEST_FAIL();

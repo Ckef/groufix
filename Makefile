@@ -337,8 +337,8 @@ MFLAGS_ALL  = --no-print-directory
 MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix EXT=.so PTEST=%
 MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win EXT=.dll PTEST=%.exe
 
-.build-win-tests: $(WIN_TESTS)
 .build-unix-tests: $(UNIX_TESTS)
+.build-win-tests: $(WIN_TESTS)
 
 
 # Platform builds

@@ -9,7 +9,7 @@ out gl_PerVertex {
 	vec4 gl_Position;
 };
 
-layout(push_constant) uniform Constants {
+layout(row_major, push_constant) uniform Constants {
 	mat4 model;
 	mat4 projection;
 };

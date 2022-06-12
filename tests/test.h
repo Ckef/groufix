@@ -330,7 +330,7 @@ static void _test_key_release(GFXWindow* window,
 		{
 			gfx_window_set_monitor(
 				window, NULL,
-				(GFXVideoMode){ .width = 600, .height = 400 });
+				(GFXVideoMode){ 600, 400, 0 });
 		}
 		else
 		{
@@ -381,7 +381,7 @@ static void _test_init(TestState* _test_state)
 	_test_base.window = gfx_create_window(
 		GFX_WINDOW_RESIZABLE | GFX_WINDOW_DOUBLE_BUFFER,
 		_test_base.device, NULL,
-		(GFXVideoMode){ .width = 600, .height = 400 }, "groufix");
+		(GFXVideoMode){ 600, 400, 0 }, "groufix");
 
 	if (_test_base.window == NULL)
 		TEST_FAIL();
