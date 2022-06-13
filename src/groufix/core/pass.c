@@ -235,8 +235,9 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 			continue;
 		}
 
-		// If a window we read/write to, pick it.
+		// If a window we read/write color to, pick it.
 		if (at->type == _GFX_ATTACH_WINDOW &&
+			(con->view.range.aspect & GFX_IMAGE_COLOR) &&
 			(con->mask &
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
 		{
@@ -254,10 +255,12 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 			gfx_log_warn(
 				"A pass can only read/write to a window attachment.");
 
-		// If a depth/stencil we read/write from, pick it.
+		// If a depth/stencil we read/write to, pick it.
 		else if (at->type == _GFX_ATTACH_IMAGE &&
 			(GFX_FORMAT_HAS_DEPTH(at->image.base.format) ||
 			GFX_FORMAT_HAS_STENCIL(at->image.base.format)) &&
+			(con->view.range.aspect &
+				(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
 			(con->mask &
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
 		{
