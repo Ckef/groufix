@@ -890,6 +890,9 @@ GFX_API void gfx_pass_load(GFXPass* pass, size_t index, GFXImageAspect aspect)
 			if (aspect & GFX_IMAGE_COLOR) _GFX_OPS_LOAD(con->color);
 			if (aspect & GFX_IMAGE_DEPTH) _GFX_OPS_LOAD(con->depth);
 			if (aspect & GFX_IMAGE_STENCIL) _GFX_OPS_LOAD(con->stencil);
+
+			// May change subpass dependencies, invalidate graph!
+			_gfx_render_graph_invalidate(pass->renderer);
 			break;
 		}
 	}
@@ -910,6 +913,8 @@ GFX_API void gfx_pass_store(GFXPass* pass, size_t index, GFXImageAspect aspect)
 			if (aspect & GFX_IMAGE_COLOR) _GFX_OPS_STORE(con->color);
 			if (aspect & GFX_IMAGE_DEPTH) _GFX_OPS_STORE(con->depth);
 			if (aspect & GFX_IMAGE_STENCIL) _GFX_OPS_STORE(con->stencil);
+
+			_gfx_render_graph_invalidate(pass->renderer);
 			break;
 		}
 	}
@@ -940,6 +945,8 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index, GFXImageAspect aspect,
 				value.depth = con->clear.gfx.depth;
 
 			con->clear.gfx = value; // Type-punned into a VkClearValue!
+
+			_gfx_render_graph_invalidate(pass->renderer);
 			break;
 		}
 	}
@@ -958,12 +965,12 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 		if (con->view.index == index)
 		{
 			gfx_vec_erase(&pass->consumes, 1, i-1);
+
+			// Same as _gfx_pass_consume, invalidate for destruction.
+			_gfx_render_graph_invalidate(pass->renderer);
 			break;
 		}
 	}
-
-	// Same as _gfx_pass_consume, invalidate for destruction.
-	_gfx_render_graph_invalidate(pass->renderer);
 }
 
 /****************************/
