@@ -51,6 +51,9 @@ TEST_DESCRIBE(windows, t)
 		TEST_FAIL();
 	}
 
+	gfx_pass_clear(pass2, 1,
+		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
+
 	// And of course a second renderable.
 	GFXRenderable renderable2;
 	gfx_renderable(&renderable2, pass2, t->technique, t->primitive);

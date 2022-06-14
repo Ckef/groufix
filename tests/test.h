@@ -425,6 +425,9 @@ static void _test_init(TestState* _test_state)
 		TEST_FAIL();
 	}
 
+	gfx_pass_clear(_test_base.pass, 0,
+		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
+
 #if !defined (TEST_SKIP_CREATE_SCENE)
 	// Allocate a primitive.
 	uint16_t indexData[] = {

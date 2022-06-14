@@ -67,6 +67,25 @@ typedef struct GFXAttachment
 
 
 /**
+ * Attachment clear value.
+ */
+typedef union GFXClear
+{
+	float    f[4];
+	int32_t  i32[4];
+	uint32_t u32[4];
+
+	GFX_UNION_ANONYMOUS(
+	{
+		float    depth;
+		uint32_t stencil;
+
+	}, test)
+
+} GFXClear;
+
+
+/**
  * Image view type (interpreted dimensionality).
  */
 typedef enum GFXViewType
@@ -270,33 +289,6 @@ typedef struct GFXStencilState
 	GFXStencilOpState back;  // Back-facing polygons.
 
 } GFXStencilState;
-
-
-/**
- * Set resource description.
- */
-typedef struct GFXSetResource
-{
-	size_t binding;
-	size_t index; // Binding array index.
-
-	GFXReference ref;
-
-} GFXSetResource;
-
-
-/**
- * Set group (i.e. multiple resources) description.
- */
-typedef struct GFXSetGroup
-{
-	size_t binding;
-	size_t offset;      // Binding offset in the group.
-	size_t numBindings; // 0 for all remaining bindings.
-
-	GFXGroup* group;
-
-} GFXSetGroup;
 
 
 /**
@@ -592,6 +584,31 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
                                GFXView view);
 
 /**
+ * Preserve the contents of a consumed attachment from before the pass.
+ * No-op if attachment at index is not consumed!
+ * @param pass   Cannot be NULL.
+ * @param index  Attachment index to preserve.
+ * @param aspect Image aspect to apply the operation to.
+ */
+GFX_API void gfx_pass_load(GFXPass* pass, size_t index, GFXImageAspect aspect);
+
+/**
+ * Writes the contents of a consumed attachment to memory after the pass.
+ * No-op if attachment at index is not consumed!
+ * @see gfx_pass_load.
+ */
+GFX_API void gfx_pass_store(GFXPass* pass, size_t index, GFXImageAspect aspect);
+
+/**
+ * Clears the contents of a consumed attachment before the pass.
+ * No-op if attachment at index is not consumed!
+ * @param aspect Cannot contain both color AND depth/stencil!
+ * @see gfx_pass_load.
+ */
+GFX_API void gfx_pass_clear(GFXPass* pass, size_t index, GFXImageAspect aspect,
+                            GFXClear value);
+
+/**
  * Release any consumption of an attachment of the renderer.
  * @param pass  Cannot be NULL.
  * @param index Attachment index to release.
@@ -747,6 +764,33 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique);
 /****************************
  * Set creation and modification.
  ****************************/
+
+/**
+ * Set resource description.
+ */
+typedef struct GFXSetResource
+{
+	size_t binding;
+	size_t index; // Binding array index.
+
+	GFXReference ref;
+
+} GFXSetResource;
+
+
+/**
+ * Set group (i.e. multiple resources) description.
+ */
+typedef struct GFXSetGroup
+{
+	size_t binding;
+	size_t offset;      // Binding offset in the group.
+	size_t numBindings; // 0 for all remaining bindings.
+
+	GFXGroup* group;
+
+} GFXSetGroup;
+
 
 /**
  * Adds a new set to the renderer, locking the used technique.

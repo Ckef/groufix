@@ -180,6 +180,9 @@ TEST_DESCRIBE(loading, t)
 		goto clean;
 	}
 
+	gfx_pass_clear(t->pass, 1,
+		GFX_IMAGE_DEPTH, (GFXClear){ .depth = 1.0f });
+
 	// Setup an event loop.
 	while (!gfx_window_should_close(t->window))
 	{

@@ -12,6 +12,29 @@
 #include <string.h>
 
 
+// Modifies consumption operations based on a new request.
+#define _GFX_OPS_LOAD(ops) \
+	ops = (ops & _GFX_CONSUME_STORE) | _GFX_CONSUME_LOAD
+
+#define _GFX_OPS_CLEAR(ops) \
+	ops = (ops & _GFX_CONSUME_STORE) | _GFX_CONSUME_CLEAR
+
+#define _GFX_OPS_STORE(ops) \
+	ops = (ops & (_GFX_CONSUME_LOAD | _GFX_CONSUME_CLEAR)) | _GFX_CONSUME_STORE
+
+
+/****************************
+ * Attachment consumption operations.
+ */
+typedef enum _GFXConsumeOps
+{
+	_GFX_CONSUME_LOAD  = 0x0001,
+	_GFX_CONSUME_CLEAR = 0x0002,
+	_GFX_CONSUME_STORE = 0x0004
+
+} _GFXConsumeOps;
+
+
 /****************************
  * Attachment consumption element definition.
  */
@@ -21,6 +44,17 @@ typedef struct _GFXConsumeElem
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
 	GFXView        view; // index used as attachment index.
+
+	_GFXConsumeOps color;
+	_GFXConsumeOps depth;
+	_GFXConsumeOps stencil;
+
+	union {
+		// Identical definitions!
+		VkClearValue vk;
+		GFXClear gfx;
+
+	} clear;
 
 } _GFXConsumeElem;
 
@@ -104,27 +138,40 @@ static inline void _gfx_pass_gen(GFXPass* pass)
 
 /****************************
  * Stand-in function for all the gfx_pass_consume* variants.
+ * All fields of elem must be set except for color, depth, stencil and clear.
  * @see gfx_pass_consume*.
  * @param elem Cannot be NULL.
  */
-static bool _gfx_pass_consume(GFXPass* pass, const _GFXConsumeElem* elem)
+static bool _gfx_pass_consume(GFXPass* pass, _GFXConsumeElem* elem)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
 	assert(elem != NULL);
 
 	// Try to find it first.
-	for (size_t i = 0; i < pass->consumes.size; ++i)
+	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == elem->view.index)
 		{
+			// Keep old operation values.
+			_GFXConsumeElem t = *con;
 			*con = *elem;
+
+			con->color = t.color;
+			con->depth = t.depth;
+			con->stencil = t.stencil;
+			con->clear = t.clear;
 			return 1;
 		}
 	}
 
-	// Insert anew.
+	// Insert anew with default values.
+	elem->color = 0;
+	elem->depth = 0;
+	elem->stencil = 0;
+	elem->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
+
 	if (!gfx_vec_push(&pass->consumes, 1, elem))
 		return 0;
 
@@ -334,6 +381,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->vk.pass = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
+	gfx_vec_init(&pass->clears, sizeof(VkClearValue));
 	gfx_vec_init(&pass->vk.views, sizeof(_GFXViewElem));
 	gfx_vec_init(&pass->vk.frames, sizeof(_GFXFrameElem));
 
@@ -372,6 +420,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 
 	// Free all remaining things.
 	gfx_vec_clear(&pass->consumes);
+	gfx_vec_clear(&pass->clears);
 	gfx_vec_clear(&pass->vk.views);
 	gfx_vec_clear(&pass->vk.frames);
 	free(pass);
@@ -454,8 +503,14 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.flags          = 0,
 				.format         = at->window.window->frame.format,
 				.samples        = VK_SAMPLE_COUNT_1_BIT,
-				// TODO: Make clearing user input.
-				.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+				.loadOp         =
+					(con->color & _GFX_CONSUME_LOAD) ?
+						VK_ATTACHMENT_LOAD_OP_LOAD :
+					(con->color & _GFX_CONSUME_CLEAR) ?
+						VK_ATTACHMENT_LOAD_OP_CLEAR :
+						VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+
+				// All other input ops are ignored for windows.
 				.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
 				.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -760,7 +815,7 @@ GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
 {
 	// Relies on stand-in function for asserts.
 
-	const _GFXConsumeElem elem = {
+	_GFXConsumeElem elem = {
 		.viewed = 0,
 		.mask = mask,
 		.stage = stage,
@@ -788,7 +843,7 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 {
 	// Relies on stand-in function for asserts.
 
-	const _GFXConsumeElem elem = {
+	_GFXConsumeElem elem = {
 		.viewed = 0,
 		.mask = mask,
 		.stage = stage,
@@ -810,7 +865,7 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 
 	view.index = index; // Purely for function call consistency.
 
-	const _GFXConsumeElem elem = {
+	_GFXConsumeElem elem = {
 		.viewed = 1,
 		.mask = mask,
 		.stage = stage,
@@ -818,6 +873,76 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 	};
 
 	return _gfx_pass_consume(pass, &elem);
+}
+
+/****************************/
+GFX_API void gfx_pass_load(GFXPass* pass, size_t index, GFXImageAspect aspect)
+{
+	assert(pass != NULL);
+	assert(!pass->renderer->recording);
+
+	// Find and set.
+	for (size_t i = pass->consumes.size; i > 0; --i)
+	{
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
+		if (con->view.index == index)
+		{
+			if (aspect & GFX_IMAGE_COLOR) _GFX_OPS_LOAD(con->color);
+			if (aspect & GFX_IMAGE_DEPTH) _GFX_OPS_LOAD(con->depth);
+			if (aspect & GFX_IMAGE_STENCIL) _GFX_OPS_LOAD(con->stencil);
+			break;
+		}
+	}
+}
+
+/****************************/
+GFX_API void gfx_pass_store(GFXPass* pass, size_t index, GFXImageAspect aspect)
+{
+	assert(pass != NULL);
+	assert(!pass->renderer->recording);
+
+	// Find and set.
+	for (size_t i = pass->consumes.size; i > 0; --i)
+	{
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
+		if (con->view.index == index)
+		{
+			if (aspect & GFX_IMAGE_COLOR) _GFX_OPS_STORE(con->color);
+			if (aspect & GFX_IMAGE_DEPTH) _GFX_OPS_STORE(con->depth);
+			if (aspect & GFX_IMAGE_STENCIL) _GFX_OPS_STORE(con->stencil);
+			break;
+		}
+	}
+}
+
+/****************************/
+GFX_API void gfx_pass_clear(GFXPass* pass, size_t index, GFXImageAspect aspect,
+                            GFXClear value)
+{
+	assert(pass != NULL);
+	assert(!pass->renderer->recording);
+	assert(!(aspect & GFX_IMAGE_COLOR) || aspect == GFX_IMAGE_COLOR);
+
+	// Find and set.
+	for (size_t i = pass->consumes.size; i > 0; --i)
+	{
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
+		if (con->view.index == index)
+		{
+			if (aspect & GFX_IMAGE_COLOR) _GFX_OPS_CLEAR(con->color);
+			if (aspect & GFX_IMAGE_DEPTH) _GFX_OPS_CLEAR(con->depth);
+			if (aspect & GFX_IMAGE_STENCIL) _GFX_OPS_CLEAR(con->stencil);
+
+			// Set clear value, preserve other if only 1 of depth/stencil.
+			if (aspect == GFX_IMAGE_DEPTH)
+				value.stencil = con->clear.gfx.stencil;
+			else if(aspect == GFX_IMAGE_STENCIL)
+				value.depth = con->clear.gfx.depth;
+
+			con->clear.gfx = value; // Type-punned into a VkClearValue!
+			break;
+		}
+	}
 }
 
 /****************************/
@@ -830,7 +955,11 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == index) gfx_vec_erase(&pass->consumes, 1, i-1);
+		if (con->view.index == index)
+		{
+			gfx_vec_erase(&pass->consumes, 1, i-1);
+			break;
+		}
 	}
 
 	// Same as _gfx_pass_consume, invalidate for destruction.
