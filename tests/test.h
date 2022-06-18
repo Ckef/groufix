@@ -510,7 +510,7 @@ static void _test_init(TestState* _test_state)
 	};
 
 	GFXImage* image = gfx_alloc_image(_test_base.heap,
-		GFX_MEMORY_WRITE, GFX_IMAGE_2D,
+		GFX_IMAGE_2D, GFX_MEMORY_WRITE,
 		GFX_IMAGE_SAMPLED, GFX_FORMAT_R8_UNORM, 1, 1,
 		4, 4, 1);
 
