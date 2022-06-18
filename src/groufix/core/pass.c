@@ -741,6 +741,7 @@ void _gfx_pass_destruct(GFXPass* pass)
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
 
 	// Clear memory.
+	gfx_vec_clear(&pass->clears);
 	gfx_vec_clear(&pass->vk.views);
 	gfx_vec_clear(&pass->vk.frames);
 }
