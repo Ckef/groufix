@@ -836,8 +836,10 @@ struct GFXPass
 	unsigned int order; // Actual submission order.
 	uintmax_t    gen;   // Build generation (to invalidate pipelines).
 
-	// Attachment consumptions, stores:
-	//  { bool, GFXAccessMask, GFXShaderStage, GFXView, ops (x3), VkClearValue }.
+	// Attachment consumptions,
+	// stores {
+	//  bool, GFXAccessMask, GFXShaderStage, GFXView,
+	//  ops (x3), VkClearValue }.
 	GFXVec consumes;
 	GFXVec clears; // Stores VkClearValue, updated on pass (re)build.
 

@@ -436,18 +436,14 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 			continue;
 
 		// Gather all necessary render pass info to record.
-		VkClearValue clear = {
-			.color = {{ 0.0f, 0.0f, 0.0f, 0.0f }}
-		};
-
 		VkRenderPassBeginInfo rpbi = {
 			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 
 			.pNext           = NULL,
 			.renderPass      = pass->vk.pass,
 			.framebuffer     = framebuffer,
-			.clearValueCount = 1,
-			.pClearValues    = &clear,
+			.clearValueCount = (uint32_t)pass->clears.size,
+			.pClearValues    = gfx_vec_at(&pass->clears, 0),
 
 			.renderArea = {
 				.offset = { 0, 0 },

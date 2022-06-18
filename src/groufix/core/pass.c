@@ -97,31 +97,20 @@ static inline bool _gfx_cmp_depth(const GFXDepthState* l,
 }
 
 /****************************
- * Compares two user defined stencil state descriptions.
+ * Compares two user defined stencil operation states.
  * @return Non-zero if equal.
  */
-static inline bool _gfx_cmp_stencil(const GFXStencilState* l,
-                                    const GFXStencilState* r)
+static inline bool _gfx_cmp_stencil(const GFXStencilOpState* l,
+                                    const GFXStencilOpState* r)
 {
-	const bool front =
-		l->front.fail == r->front.fail &&
-		l->front.pass == r->front.pass &&
-		l->front.depthFail == r->front.depthFail &&
-		l->front.cmp == r->front.cmp &&
-		l->front.cmpMask == r->front.cmpMask &&
-		l->front.writeMask == r->front.writeMask &&
-		l->front.reference == r->front.reference;
-
-	const bool back =
-		l->back.fail == r->back.fail &&
-		l->back.pass == r->back.pass &&
-		l->back.depthFail == r->back.depthFail &&
-		l->back.cmp == r->back.cmp &&
-		l->back.cmpMask == r->back.cmpMask &&
-		l->back.writeMask == r->back.writeMask &&
-		l->back.reference == r->back.reference;
-
-	return front && back;
+	return
+		l->fail == r->fail &&
+		l->pass == r->pass &&
+		l->depthFail == r->depthFail &&
+		l->cmp == r->cmp &&
+		l->cmpMask == r->cmpMask &&
+		l->writeMask == r->writeMask &&
+		l->reference == r->reference;
 }
 
 /****************************
@@ -444,6 +433,9 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	if (pass->vk.pass != VK_NULL_HANDLE)
 		return 1;
 
+	// We are always gonna update the clear values.
+	gfx_vec_release(&pass->clears);
+
 	// Get the backing window attachment.
 	const _GFXAttach* backing = NULL;
 	if (pass->build.backing != SIZE_MAX)
@@ -466,6 +458,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		const _GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
 		const _GFXConsumeElem* con = view->consume;
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		bool clear = 0;
 
 		// Swapchain.
 		if (at->type == _GFX_ATTACH_WINDOW)
@@ -517,6 +510,9 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
 				.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 			};
+
+			// Set to clear.
+			if (con->color & _GFX_CONSUME_CLEAR) clear = 1;
 		}
 
 		// Non-swapchain.
@@ -524,6 +520,12 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		{
 			// TODO: Implement.
 		}
+
+		// Lastly, if we're not skipped and a clear op is given,
+		// store the clear value for when we begin the pass.
+		if (clear && !gfx_vec_push(&pass->clears, 1, &con->clear.vk))
+			// Yeah...
+			gfx_log_warn("Failed to store a clear value for a pass.");
 	}
 
 	// Ok now create the pass.
@@ -607,7 +609,7 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 		// Swapchain.
 		if (at->type == _GFX_ATTACH_WINDOW)
 		{
-			// If not the picked backing window, ignore.
+			// If not the picked backing window, skip.
 			if (at != backing) continue;
 
 			// If it is, to be filled in below.
@@ -790,7 +792,9 @@ GFX_API void gfx_pass_set_stencil(GFXPass* pass, GFXStencilState state)
 	assert(pass != NULL);
 
 	// Ditto gfx_pass_set_depth.
-	if (!_gfx_cmp_stencil(&pass->state.stencil, &state))
+	if (
+		!_gfx_cmp_stencil(&pass->state.stencil.front, &state.front) ||
+		!_gfx_cmp_stencil(&pass->state.stencil.back, &state.back))
 	{
 		pass->state.stencil = state;
 		_gfx_pass_gen(pass);
