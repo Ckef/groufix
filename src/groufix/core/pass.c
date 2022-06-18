@@ -303,14 +303,9 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 			if (depSten == SIZE_MAX)
 				depSten = con->view.index;
 			else
-			{
 				gfx_log_warn(
 					"A single pass can only read/write to a single "
 					"depth/stencil attachment at a time.");
-
-				// If already picked, do not add this consumption as view!
-				continue;
-			}
 		}
 
 		// Add a view element referencing this consumption.
