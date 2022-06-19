@@ -197,7 +197,7 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 		_GFX_UNPACK_REF_ATTACH(*ref)->base.format;
 
 	const GFXImageAspect aspect =
-		GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ?
+		GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
 			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
 			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
 			GFX_IMAGE_COLOR;

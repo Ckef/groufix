@@ -159,14 +159,14 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
  * Containment checks if fmta is in the 'fuzzy' set fmtb.
  */
 #define GFX_FORMAT_EMPTY \
-	GFX_LITERAL(GFXFormat){ .comps = {0,0,0,0}, .type = 0, .order = 0 }
+	GFX_LITERAL(GFXFormat){ {0,0,0,0}, (GFXFormatType)0, (GFXOrder)0 }
 
 #define GFX_FORMAT_IS_EMPTY(fmt) \
 	((fmt).comps[0] == 0 && \
 	(fmt).comps[1] == 0 && \
 	(fmt).comps[2] == 0 && \
 	(fmt).comps[3] == 0 && \
-	(fmt).type == 0 && (fmt).order == 0)
+	(fmt).type == (GFXFormatType)0 && (fmt).order == (GFXOrder)0)
 
 #define GFX_FORMAT_IS_COMPRESSED(fmt) \
 	((fmt).order == GFX_ORDER_BCn || \
@@ -179,6 +179,9 @@ GFX_API GFXFormat gfx_format_fuzzy(GFXFormat fmt, GFXFuzzyFlags flags,
 
 #define GFX_FORMAT_HAS_STENCIL(fmt) \
 	((fmt).order & (GFX_ORDER_STENCIL | GFX_ORDER_DEPTH_STENCIL))
+
+#define GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) \
+	((fmt).order & (GFX_ORDER_DEPTH | GFX_ORDER_STENCIL | GFX_ORDER_DEPTH_STENCIL))
 
 #define GFX_FORMAT_IS_EQUAL(fmta, fmtb) \
 	((fmta).comps[0] == (fmtb).comps[0] && \

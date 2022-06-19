@@ -62,8 +62,7 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 	VkImageUsageFlags usage =
 		_GFX_GET_VK_IMAGE_USAGE(
 			attach->image.base.flags, attach->image.base.usage) |
-		(GFX_FORMAT_HAS_DEPTH(attach->image.base.format) ||
-		GFX_FORMAT_HAS_STENCIL(attach->image.base.format) ?
+		(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(attach->image.base.format) ?
 			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
@@ -603,8 +602,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 			.linearTilingFeatures = 0,
 			.optimalTilingFeatures =
 				_GFX_GET_VK_FORMAT_FEATURES(attachment.flags, attachment.usage) |
-				((GFX_FORMAT_HAS_DEPTH(attachment.format) ||
-				GFX_FORMAT_HAS_STENCIL(attachment.format)) ?
+				(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(attachment.format) ?
 					VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT :
 					VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT),
 			.bufferFeatures = 0

@@ -135,7 +135,7 @@ static void _gfx_set_update(GFXSet* set,
 					entry->viewType : binding->viewType;
 
 			const GFXImageAspect aspect =
-				GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ?
+				GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
 					(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
 					(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
 					GFX_IMAGE_COLOR;
@@ -145,7 +145,7 @@ static void _gfx_set_update(GFXSet* set,
 				// TODO: Make some input somewhere so we can force a general layout?
 				binding->type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ?
 					VK_IMAGE_LAYOUT_GENERAL :
-					GFX_FORMAT_HAS_DEPTH(fmt) || GFX_FORMAT_HAS_STENCIL(fmt) ?
+					GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
 						VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
 						VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 

@@ -293,8 +293,7 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 
 		// If a depth/stencil we read/write to, pick it.
 		else if (at->type == _GFX_ATTACH_IMAGE &&
-			(GFX_FORMAT_HAS_DEPTH(at->image.base.format) ||
-			GFX_FORMAT_HAS_STENCIL(at->image.base.format)) &&
+			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
 			(con->view.range.aspect &
 				(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
 			(con->mask &
