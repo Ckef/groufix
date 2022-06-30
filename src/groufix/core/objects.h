@@ -850,6 +850,12 @@ struct GFXPass
 		GFXDepthState   depth;
 		GFXStencilState stencil;
 
+		enum {
+			_GFX_PASS_DEPTH   = 0x0001,
+			_GFX_PASS_STENCIL = 0x0002
+
+		} enabled;
+
 	} state;
 
 

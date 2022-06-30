@@ -369,6 +369,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	gfx_vec_init(&pass->vk.frames, sizeof(_GFXFrameElem));
 
 	// And finally some default state.
+	pass->state.enabled = 0;
+
 	pass->state.depth = (GFXDepthState){
 		.flags = GFX_DEPTH_WRITE,
 		.cmp = GFX_CMP_LESS,

@@ -87,8 +87,8 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	// We do not have a pipeline, create a new one.
 	// Multiple threads could end up creating the same new pipeline, but
 	// this is not expected to be a consistently occuring event so it's fine.
-	GFXRenderer* renderer = renderable->pass->renderer;
 	GFXPass* pass = renderable->pass;
+	GFXRenderer* renderer = pass->renderer;
 	GFXTechnique* tech = renderable->technique;
 	_GFXPrimitive* prim = (_GFXPrimitive*)renderable->primitive;
 
@@ -159,6 +159,73 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.inputRate = prim->bindings[i].rate
 		};
 
+	VkStencilOpState sos = {
+		.failOp      = VK_STENCIL_OP_KEEP,
+		.passOp      = VK_STENCIL_OP_KEEP,
+		.depthFailOp = VK_STENCIL_OP_KEEP,
+		.compareOp   = VK_COMPARE_OP_NEVER,
+		.compareMask = 0,
+		.writeMask   = 0,
+		.reference   = 0
+	};
+
+	VkPipelineDepthStencilStateCreateInfo pdssci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+
+		.pNext                 = NULL,
+		.flags                 = 0,
+		.depthTestEnable       = VK_FALSE,
+		.depthWriteEnable      = VK_FALSE,
+		.depthCompareOp        = VK_COMPARE_OP_ALWAYS,
+		.depthBoundsTestEnable = VK_FALSE,
+		.stencilTestEnable     = VK_FALSE,
+		.front                 = sos,
+		.back                  = sos,
+		.minDepthBounds        = 0.0f,
+		.maxDepthBounds        = 1.0f
+	};
+
+	if (pass->state.enabled & _GFX_PASS_DEPTH)
+	{
+		pdssci.depthTestEnable = VK_TRUE;
+		pdssci.depthCompareOp = _GFX_GET_VK_COMPARE_OP(pass->state.depth.cmp);
+
+		if (pass->state.depth.flags & GFX_DEPTH_WRITE)
+			pdssci.depthWriteEnable = VK_TRUE;
+
+		if (pass->state.depth.flags & GFX_DEPTH_BOUNDED)
+		{
+			pdssci.depthBoundsTestEnable = VK_TRUE;
+			pdssci.minDepthBounds = pass->state.depth.minDepth;
+			pdssci.maxDepthBounds = pass->state.depth.maxDepth;
+		}
+	}
+
+	if (pass->state.enabled & _GFX_PASS_STENCIL)
+	{
+		pdssci.stencilTestEnable = VK_TRUE;
+
+		pdssci.front = (VkStencilOpState){
+			.failOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.front.fail),
+			.passOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.front.pass),
+			.depthFailOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.front.depthFail),
+			.compareOp = _GFX_GET_VK_COMPARE_OP(pass->state.stencil.front.cmp),
+			.compareMask = pass->state.stencil.front.cmpMask,
+			.writeMask = pass->state.stencil.front.writeMask,
+			.reference = pass->state.stencil.front.reference
+		};
+
+		pdssci.back = (VkStencilOpState){
+			.failOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.back.fail),
+			.passOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.back.pass),
+			.depthFailOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.back.depthFail),
+			.compareOp = _GFX_GET_VK_COMPARE_OP(pass->state.stencil.back.cmp),
+			.compareMask = pass->state.stencil.back.cmpMask,
+			.writeMask = pass->state.stencil.back.writeMask,
+			.reference = pass->state.stencil.back.reference
+		};
+	}
+
 	VkGraphicsPipelineCreateInfo gpci = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 
@@ -172,7 +239,9 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		.basePipelineHandle = VK_NULL_HANDLE,
 		.basePipelineIndex  = -1,
 		.pTessellationState = NULL,
-		.pDepthStencilState = NULL,
+		.pDepthStencilState =
+			pass->state.enabled & (_GFX_PASS_DEPTH | _GFX_PASS_STENCIL) ?
+			&pdssci : NULL,
 
 		.pVertexInputState = (VkPipelineVertexInputStateCreateInfo[]){{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -329,8 +398,8 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 
 	// We do not have a pipeline, create a new one.
 	// Again, multiple threads creating the same one is fine.
-	GFXRenderer* renderer = computable->technique->renderer;
 	GFXTechnique* tech = computable->technique;
+	GFXRenderer* renderer = tech->renderer;
 	const void* handles[2];
 
 	// TODO: Use other shader handle so the shader can be destroyed?
