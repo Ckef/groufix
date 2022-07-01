@@ -183,9 +183,6 @@ static _GFXHashKey* _gfx_cache_alloc_key(const VkStructureType* createInfo,
 		const VkRenderPassCreateInfo* rpci =
 			(const VkRenderPassCreateInfo*)createInfo;
 
-		// TODO: Push compatibility info first (with a prepended byte length),
-		// so when building pipeline keys we can insert that info?
-
 		// Ignore the pNext field.
 		// Ignore render pass flags.
 		_GFX_KEY_PUSH(rpci->attachmentCount);

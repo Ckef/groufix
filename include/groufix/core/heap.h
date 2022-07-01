@@ -420,6 +420,7 @@ typedef enum GFXTransferFlags
 {
 	// TODO: Introduce GFX_TRANSFER_POOL, for pooling into 1 command buffer.
 	// TODO: We could reverse meaning and call it GFX_TRANSFER_FLUSH instead c:
+	// TODO: Then add gfx_pool_flush(), so no flushing is automatically done.
 	GFX_TRANSFER_NONE  = 0x0000,
 	GFX_TRANSFER_ASYNC = 0x0001,
 	GFX_TRANSFER_BLOCK = 0x0002
