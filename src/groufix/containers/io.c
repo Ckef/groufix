@@ -29,6 +29,35 @@ static long long _gfx_stderr(const GFXWriter* str, const void* data, size_t len)
 }
 
 /****************************
+ * GFXBinReader implementation of the len function.
+ */
+static long long _gfx_bin_reader_len(const GFXReader* str)
+{
+	GFXBinReader* reader = GFX_IO_OBJ(str, GFXBinReader, reader);
+	return (long long)reader->len;
+}
+
+/****************************
+ * GFXBinReader implementation of the read function.
+ */
+static long long _gfx_bin_reader_read(const GFXReader* str, void* data, size_t len)
+{
+	GFXBinReader* reader = GFX_IO_OBJ(str, GFXBinReader, reader);
+
+	// Read all bytes.
+	len = GFX_MIN(len, reader->len - reader->pos);
+
+	memcpy(data, reader->bin + reader->pos, len);
+	reader->pos += len;
+
+	// Reset position.
+	if (reader->pos >= reader->len)
+		reader->pos = 0;
+
+	return (long long)len;
+}
+
+/****************************
  * GFXStringReader implementation of the len function.
  */
 static long long _gfx_string_reader_len(const GFXReader* str)
@@ -187,6 +216,22 @@ GFX_API long long gfx_io_vwritef(const GFXWriter* str, const char* fmt, va_list 
 error:
 	va_end(args2);
 	return -1;
+}
+
+/****************************/
+GFX_API GFXReader* gfx_bin_reader(GFXBinReader* str, size_t len, const char* bin)
+{
+	assert(str != NULL);
+	assert(len == 0 || bin != NULL);
+
+	str->reader.len = _gfx_bin_reader_len;
+	str->reader.read = _gfx_bin_reader_read;
+
+	str->len = len;
+	str->pos = 0;
+	str->bin = bin;
+
+	return &str->reader;
 }
 
 /****************************/

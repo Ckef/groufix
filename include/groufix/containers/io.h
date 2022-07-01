@@ -41,6 +41,33 @@ typedef struct GFXWriter
 
 
 /**
+ * Includer definition.
+ */
+typedef struct GFXIncluder
+{
+	// Resolve function, non-NULL return must be released.
+	const GFXReader* (*resolve)(const struct GFXIncluder*, const char* uri);
+
+	// Release function, no-op if str is NULL.
+	void (*release)(const struct GFXIncluder*, const GFXReader* str);
+
+} GFXIncluder;
+
+
+/**
+ * Binary data stream definition.
+ */
+typedef struct GFXBinReader
+{
+	GFXReader reader;
+	size_t len;
+	size_t pos;
+	const char* bin;
+
+} GFXBinReader;
+
+
+/**
  * Constant string stream definition.
  */
 typedef struct GFXStringReader
@@ -65,6 +92,18 @@ typedef struct GFXFile
 
 
 /**
+ * TODO: Implement.
+ * File includer definition.
+ */
+typedef struct GFXFileIncluder
+{
+	GFXIncluder includer;
+	const char* path;
+
+} GFXFileIncluder;
+
+
+/**
  * stdout/stderr constants.
  */
 #define GFX_IO_STDOUT (&gfx_io_stdout)
@@ -75,9 +114,9 @@ GFX_API const GFXWriter gfx_io_stderr;
 
 
 /**
- * Get pointer to an object from pointer to its GFXReader or GFXWriter member.
+ * Get pointer to an object from pointer to its IO object member.
  * Defined as follows:
- * struct Type { ... ( GFXReader | GFXWriter ) str; ... };
+ * struct Type { ... (GFXReader|GFXWriter|GFXIncluder) str; ... };
  * ...
  * struct Type stream;
  * assert(&stream == GFX_IO_OBJ(&stream->str, struct Type, str))
@@ -114,6 +153,24 @@ static inline long long gfx_io_write(const GFXWriter* str, const void* data, siz
 }
 
 /**
+ * Shorthand to call the resolve function.
+ * @return Resolved reader stream, NULL on failure.
+ */
+static inline const GFXReader* gfx_io_resolve(const GFXIncluder* inc, const char* uri)
+{
+	return inc->resolve(inc, uri);
+}
+
+/**
+ * Shorthand to call the release function.
+ * @param str Previously resolved reader stream, may be NULL.
+ */
+static inline void gfx_io_release(const GFXIncluder* inc, const GFXReader* str)
+{
+	inc->release(inc, str);
+}
+
+/**
  * Writes formatted data to a writer stream.
  * @param fmt Format, cannot be NULL, must be NULL-terminated.
  * @see gfx_io_write.
@@ -125,6 +182,18 @@ GFX_API long long gfx_io_writef(const GFXWriter* str, const char* fmt, ...);
  * @see gfx_io_writef.
  */
 GFX_API long long gfx_io_vwritef(const GFXWriter* str, const char* fmt, va_list args);
+
+/**
+ * Initializes a binary data stream.
+ * Does not need to be cleared, hence no _init postfix.
+ * @param str Cannot be NULL.
+ * @param bin Cannot be NULL if len > 0.
+ * @return &str->reader.
+ *
+ * The data will NOT be copied, the reader is invalidated if
+ * bin is freed or otherwise moved.
+ */
+GFX_API GFXReader* gfx_bin_reader(GFXBinReader* str, size_t len, const char* bin);
 
 /**
  * Initializes a constant string stream.
