@@ -67,7 +67,7 @@ endif
 
 WFLAGS = -Wall -Wconversion -Wsign-compare -Wshadow -pedantic
 CFLAGS = $(DFLAGS) $(WFLAGS) -std=c11 -Iinclude
-TFLAGS = $(CFLAGS) -pthread
+TFLAGS = $(CFLAGS) -pthread -lm
 
 
 # Flags for library files only
@@ -315,7 +315,7 @@ $(BIN)$(SUB)/libgroufix$(EXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
 
 # Test programs
 $(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
-	$(CC) $(TFLAGS) -Itests $< -o $@ -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
+	$(CC) -Itests $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
 # Platform flags

@@ -795,7 +795,7 @@ GFX_API bool gfx_computable(GFXComputable* computable,
 	atomic_store_explicit(
 		&computable->pipeline, (uintptr_t)NULL, memory_order_relaxed);
 
-	return 0;
+	return 1;
 }
 
 /****************************/

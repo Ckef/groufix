@@ -7,6 +7,7 @@
  */
 
 #include <groufix/assets/gltf.h>
+#include <math.h>
 
 #define TEST_SKIP_CREATE_SCENE
 #include "test.h"
@@ -84,6 +85,11 @@ error:
  */
 static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
+	// Rotate with some constant factor lol (it's locked to vsync).
+	const float pi2 = 6.28318530718f;
+	static float rot = 0.0f;
+	rot = (rot >= pi2 ? rot - pi2 : rot) + 0.01f;
+
 	// Get aspect ratio.
 	uint32_t width;
 	uint32_t height;
@@ -91,14 +97,16 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 	gfx_recorder_get_size(recorder, &width, &height, &layers);
 
 	float invAspect = (width != 0) ? (float)height / (float)width : 1.0f;
+	float hCos = cosf(rot);
+	float hSin = sinf(rot);
 
 	// Some hardcoded matrices.
 	float push[] = {
 		// Model-view.
-		-0.7f, 0.0f, 0.0f, 0.0f,
-		 0.0f, 0.0f, 0.7f, 0.0f,
-		 0.0f, 0.7f, 0.0f, 0.0f,
-		 0.0f, 0.0f, 0.0f, 1.0f,
+		-0.7f * hCos, 0.7f * hSin, 0.0f, 0.0f,
+		 0.0f,        0.0f,        0.7f, 0.0f,
+		 0.7f * hSin, 0.7f * hCos, 0.0f, 0.0f,
+		 0.0f,        0.0f,        0.0f, 1.0f,
 
 		// Projection.
 		invAspect, 0.0f, 0.0f, 0.0f,
