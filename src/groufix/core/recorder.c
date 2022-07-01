@@ -110,56 +110,8 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		return 0;
 	}
 
-	// Get specialization constants.
-	const size_t numConsts = tech->constants.size;
-	VkSpecializationInfo si[_GFX_NUM_SHADER_STAGES];
-	VkSpecializationMapEntry sme[numConsts > 0 ? numConsts : 1];
-
-	_gfx_tech_get_constants(tech, si, sme);
-
-	// Build create info.
-	const size_t numAttribs = prim != NULL ? prim->numAttribs : 0;
-	const size_t numBindings = prim != NULL ? prim->numBindings : 0;
-	VkPipelineShaderStageCreateInfo pstci[numShaders > 0 ? numShaders : 1];
-	VkVertexInputAttributeDescription viad[numAttribs > 0 ? numAttribs : 1];
-	VkVertexInputBindingDescription vibd[numBindings > 0 ? numBindings : 1];
-
-	for (uint32_t s = 0; s < numShaders; ++s)
-	{
-		const GFXShader* shader = handles[s];
-		const uint32_t stage = _GFX_GET_SHADER_STAGE_INDEX(shader->stage);
-
-		pstci[s] = (VkPipelineShaderStageCreateInfo){
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-
-			.pNext  = NULL,
-			.flags  = 0,
-			.stage  = _GFX_GET_VK_SHADER_STAGE(shader->stage),
-			.module = shader->vk.module,
-			.pName  = "main",
-
-			// Do not pass anything if no entries; for smaller hashes!
-			.pSpecializationInfo =
-				(si[stage].mapEntryCount > 0) ? si + stage : NULL
-		};
-	}
-
-	for (size_t i = 0; i < numAttribs; ++i)
-		viad[i] = (VkVertexInputAttributeDescription){
-			.location = (uint32_t)i,
-			.binding  = prim->attribs[i].binding,
-			.format   = prim->attribs[i].vk.format,
-			.offset   = prim->attribs[i].base.offset
-		};
-
-	for (size_t i = 0; i < numBindings; ++i)
-		vibd[i] = (VkVertexInputBindingDescription){
-			.binding   = (uint32_t)i,
-			.stride    = prim->bindings[i].stride,
-			.inputRate = prim->bindings[i].rate
-		};
-
-	VkStencilOpState sos = {
+	// Build depth/stencil info.
+	const VkStencilOpState sos = {
 		.failOp      = VK_STENCIL_OP_KEEP,
 		.passOp      = VK_STENCIL_OP_KEEP,
 		.depthFailOp = VK_STENCIL_OP_KEEP,
@@ -225,6 +177,55 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.reference = pass->state.stencil.back.reference
 		};
 	}
+
+	// Get specialization constants.
+	const size_t numConsts = tech->constants.size;
+	VkSpecializationInfo si[_GFX_NUM_SHADER_STAGES];
+	VkSpecializationMapEntry sme[numConsts > 0 ? numConsts : 1];
+
+	_gfx_tech_get_constants(tech, si, sme);
+
+	// Build create info.
+	const size_t numAttribs = prim != NULL ? prim->numAttribs : 0;
+	const size_t numBindings = prim != NULL ? prim->numBindings : 0;
+	VkPipelineShaderStageCreateInfo pstci[numShaders > 0 ? numShaders : 1];
+	VkVertexInputAttributeDescription viad[numAttribs > 0 ? numAttribs : 1];
+	VkVertexInputBindingDescription vibd[numBindings > 0 ? numBindings : 1];
+
+	for (uint32_t s = 0; s < numShaders; ++s)
+	{
+		const GFXShader* shader = handles[s];
+		const uint32_t stage = _GFX_GET_SHADER_STAGE_INDEX(shader->stage);
+
+		pstci[s] = (VkPipelineShaderStageCreateInfo){
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+
+			.pNext  = NULL,
+			.flags  = 0,
+			.stage  = _GFX_GET_VK_SHADER_STAGE(shader->stage),
+			.module = shader->vk.module,
+			.pName  = "main",
+
+			// Do not pass anything if no entries; for smaller hashes!
+			.pSpecializationInfo =
+				(si[stage].mapEntryCount > 0) ? si + stage : NULL
+		};
+	}
+
+	for (size_t i = 0; i < numAttribs; ++i)
+		viad[i] = (VkVertexInputAttributeDescription){
+			.location = (uint32_t)i,
+			.binding  = prim->attribs[i].binding,
+			.format   = prim->attribs[i].vk.format,
+			.offset   = prim->attribs[i].base.offset
+		};
+
+	for (size_t i = 0; i < numBindings; ++i)
+		vibd[i] = (VkVertexInputBindingDescription){
+			.binding   = (uint32_t)i,
+			.stride    = prim->bindings[i].stride,
+			.inputRate = prim->bindings[i].rate
+		};
 
 	VkGraphicsPipelineCreateInfo gpci = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -1039,20 +1040,23 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 
 /****************************/
 GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
-                                   uint32_t* width, uint32_t* height)
+                                   uint32_t* width, uint32_t* height, uint32_t* layers)
 {
 	assert(recorder != NULL);
 	assert(recorder->inp.cmd != NULL);
 	assert(width != NULL);
 	assert(height != NULL);
+	assert(layers != NULL);
 
 	// Output 0,0 if no associated pass.
 	if (recorder->inp.pass == NULL)
 		*width = 0,
-		*height = 0;
+		*height = 0,
+		*layers = 0;
 	else
 		*width = recorder->inp.pass->build.fWidth,
-		*height = recorder->inp.pass->build.fHeight;
+		*height = recorder->inp.pass->build.fHeight,
+		*layers = recorder->inp.pass->build.fLayers;
 }
 
 /****************************/

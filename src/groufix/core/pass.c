@@ -20,7 +20,18 @@
 	ops = (ops & _GFX_CONSUME_STORE) | _GFX_CONSUME_CLEAR
 
 #define _GFX_OPS_STORE(ops) \
-	ops = (ops & (_GFX_CONSUME_LOAD | _GFX_CONSUME_CLEAR)) | _GFX_CONSUME_STORE
+	ops |= _GFX_CONSUME_STORE
+
+
+// Get vulkan attachment operations.
+#define _GFX_GET_VK_LOAD_OP(ops) \
+	((ops) & _GFX_CONSUME_LOAD ? VK_ATTACHMENT_LOAD_OP_LOAD : \
+	(ops) & _GFX_CONSUME_CLEAR ? VK_ATTACHMENT_LOAD_OP_CLEAR : \
+	VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+
+#define _GFX_GET_VK_STORE_OP(ops) \
+	((ops) & _GFX_CONSUME_STORE ? VK_ATTACHMENT_STORE_OP_STORE : \
+	VK_ATTACHMENT_STORE_OP_DONT_CARE)
 
 
 /****************************
@@ -210,6 +221,7 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 		pass->build.backing = SIZE_MAX;
 		pass->build.fWidth = 0;
 		pass->build.fHeight = 0;
+		pass->build.fLayers = 0;
 		gfx_vec_release(&pass->vk.views);
 		gfx_vec_release(&pass->vk.frames);
 	}
@@ -360,6 +372,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->build.backing = SIZE_MAX;
 	pass->build.fWidth = 0;
 	pass->build.fHeight = 0;
+	pass->build.fLayers = 0;
 	pass->build.pass = NULL;
 	pass->vk.pass = VK_NULL_HANDLE;
 
@@ -438,15 +451,21 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		backing = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
 	// Describe all attachments.
+	// We loop over all framebuffer views, which guarantees non-empty
+	// attachments with attachment input/read/write access.
 	// Keep track of all the input/color and depth/stencil attachment counts.
+	const VkAttachmentReference unused = (VkAttachmentReference){
+		.attachment = VK_ATTACHMENT_UNUSED,
+		.layout     = VK_IMAGE_LAYOUT_UNDEFINED
+	};
+
 	size_t numAttachs = pass->vk.views.size > 0 ? pass->vk.views.size : 1;
 	size_t numInputs = 0;
 	size_t numColors = 0;
-	bool hasDepSten = 0;
 	VkAttachmentDescription ad[numAttachs];
 	VkAttachmentReference input[numAttachs];
 	VkAttachmentReference color[numAttachs];
-	VkAttachmentReference depSten;
+	VkAttachmentReference depSten = unused;
 	numAttachs = 0; // We may skip some.
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
@@ -459,11 +478,6 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		// Swapchain.
 		if (at->type == _GFX_ATTACH_WINDOW)
 		{
-			VkAttachmentReference unused = (VkAttachmentReference){
-				.attachment = VK_ATTACHMENT_UNUSED,
-				.layout     = VK_IMAGE_LAYOUT_UNDEFINED
-			};
-
 			// If masked as attachment input,
 			// this shader location is considered unused, not allowed!
 			if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
@@ -492,12 +506,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.flags          = 0,
 				.format         = at->window.window->frame.format,
 				.samples        = VK_SAMPLE_COUNT_1_BIT,
-				.loadOp         =
-					(con->color & _GFX_CONSUME_LOAD) ?
-						VK_ATTACHMENT_LOAD_OP_LOAD :
-					(con->color & _GFX_CONSUME_CLEAR) ?
-						VK_ATTACHMENT_LOAD_OP_CLEAR :
-						VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				.loadOp         = _GFX_GET_VK_LOAD_OP(con->color),
 
 				// All other input ops are ignored for windows.
 				.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -514,7 +523,70 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		// Non-swapchain.
 		else
 		{
-			// TODO: Implement.
+			const bool aspectMatch =
+				GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ?
+					con->view.range.aspect & (GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL) :
+					con->view.range.aspect & GFX_IMAGE_COLOR;
+
+			const _GFXConsumeOps firstOps =
+				!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ?
+					con->color :
+					(GFX_FORMAT_HAS_DEPTH(at->image.base.format) ?
+						con->depth : 0);
+
+			const _GFXConsumeOps secondOps =
+				GFX_FORMAT_HAS_STENCIL(at->image.base.format) ?
+					con->stencil : 0;
+
+			const VkAttachmentReference ref = (VkAttachmentReference){
+				.attachment = (uint32_t)numAttachs,
+				.layout = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, at->image.base.format)
+			};
+
+			// Reference the attachment if appropriate.
+			if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
+				input[numInputs++] = aspectMatch ? ref : unused;
+
+			if (con->mask &
+				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
+			{
+				if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format))
+					color[numColors++] = aspectMatch ? ref : unused;
+
+				// Only set depSten on aspect match.
+				else if (aspectMatch)
+				{
+					depSten = ref;
+
+					// Adjust state enables.
+					pass->state.enabled &= ~(unsigned int)(
+						_GFX_PASS_DEPTH | _GFX_PASS_STENCIL);
+					pass->state.enabled |= (unsigned int)(
+						(GFX_FORMAT_HAS_DEPTH(at->image.base.format) ?
+							_GFX_PASS_DEPTH : 0) |
+						(GFX_FORMAT_HAS_STENCIL(at->image.base.format) ?
+							_GFX_PASS_STENCIL : 0));
+				}
+			}
+
+			// Describe the attachment.
+			ad[numAttachs++] = (VkAttachmentDescription){
+				.flags          = 0,
+				.format         = at->image.vk.format,
+				.samples        = VK_SAMPLE_COUNT_1_BIT,
+				.loadOp         = _GFX_GET_VK_LOAD_OP(firstOps),
+				.storeOp        = _GFX_GET_VK_STORE_OP(firstOps),
+				.stencilLoadOp  = _GFX_GET_VK_LOAD_OP(secondOps),
+				.stencilStoreOp = _GFX_GET_VK_STORE_OP(secondOps),
+
+				// TODO: Figure these out.
+				.finalLayout    = ref.layout,
+				.initialLayout  = (firstOps | secondOps) & _GFX_CONSUME_LOAD ?
+					ref.layout : VK_IMAGE_LAYOUT_UNDEFINED
+			};
+
+			// Set to clear.
+			if ((firstOps | secondOps) & _GFX_CONSUME_CLEAR) clear = 1;
 		}
 
 		// Lastly, if we're not skipped and a clear op is given,
@@ -533,7 +605,8 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		.colorAttachmentCount    = (uint32_t)numColors,
 		.pColorAttachments       = numColors > 0 ? color : NULL,
 		.pResolveAttachments     = NULL,
-		.pDepthStencilAttachment = hasDepSten ? &depSten : NULL,
+		.pDepthStencilAttachment =
+			(depSten.attachment != VK_ATTACHMENT_UNUSED) ? &depSten : NULL,
 		.preserveAttachmentCount = 0,
 		.pPreserveAttachments    = NULL
 	};
@@ -621,13 +694,74 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 		// Non-swapchain.
 		else
 		{
-			// TODO: Implement, don't forget to set `view->view`!
+			// Resolve whole aspect from format,
+			// then fix the consumed aspect as promised by gfx_pass_consume.
+			const GFXFormat fmt = at->image.base.format;
+			const GFXImageAspect aspect =
+				con->view.range.aspect &
+				(GFXImageAspect)(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
+					(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
+					(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
+					GFX_IMAGE_COLOR);
+
+			VkImageViewCreateInfo ivci = {
+				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+
+				.pNext    = NULL,
+				.flags    = 0,
+				.image    = at->image.vk.image,
+				.format   = at->image.vk.format,
+				.viewType = con->viewed ?
+					_GFX_GET_VK_IMAGE_VIEW_TYPE(con->view.type) :
+					// Go head and translate from image to view type inline.
+					(at->image.base.type == GFX_IMAGE_1D ? VK_IMAGE_VIEW_TYPE_1D :
+					at->image.base.type == GFX_IMAGE_2D ? VK_IMAGE_VIEW_TYPE_2D :
+					at->image.base.type == GFX_IMAGE_3D ? VK_IMAGE_VIEW_TYPE_3D :
+					at->image.base.type == GFX_IMAGE_3D_SLICED ? VK_IMAGE_VIEW_TYPE_3D :
+					at->image.base.type == GFX_IMAGE_CUBE ? VK_IMAGE_VIEW_TYPE_CUBE :
+					VK_IMAGE_VIEW_TYPE_2D),
+
+				.components = {
+					.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.a = VK_COMPONENT_SWIZZLE_IDENTITY
+				},
+
+				.subresourceRange = {
+					.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(aspect),
+					.baseMipLevel   = con->view.range.mipmap,
+					.baseArrayLayer = con->view.range.layer,
+
+					.levelCount = con->view.range.numMipmaps == 0 ?
+						VK_REMAINING_MIP_LEVELS : con->view.range.numMipmaps,
+					.layerCount = con->view.range.numLayers == 0 ?
+						VK_REMAINING_ARRAY_LAYERS : con->view.range.numLayers
+				}
+			};
+
+			VkImageView* vkView = &views[numAttachs++];
+			_GFX_VK_CHECK(
+				context->vk.CreateImageView(
+					context->vk.device, &ivci, NULL, vkView),
+				goto clean);
+
+			view->view = *vkView; // So it's made stale later on.
+
+			// Get dimensions.
+			width = at->image.width;
+			height = at->image.height;
+			layers =
+				(con->view.range.numLayers == 0) ?
+				at->image.base.layers - con->view.range.layer :
+				con->view.range.numLayers;
 		}
 	}
 
-	// Remember the width/height for during recording.
+	// Remember the dimensions for during recording.
 	pass->build.fWidth = width;
 	pass->build.fHeight = height;
+	pass->build.fLayers = layers;
 
 	// No dimensions.. just gonna do nothing then.
 	if (width == 0 || height == 0 || layers == 0)
@@ -771,6 +905,20 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 }
 
 /****************************/
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height, uint32_t* layers)
+{
+	assert(pass != NULL);
+	assert(width != NULL);
+	assert(height != NULL);
+	assert(layers != NULL);
+
+	*width = pass->build.fWidth;
+	*height = pass->build.fHeight;
+	*layers = pass->build.fLayers;
+}
+
+/****************************/
 GFX_API void gfx_pass_set_depth(GFXPass* pass, GFXDepthState state)
 {
 	assert(pass != NULL);
@@ -796,18 +944,6 @@ GFX_API void gfx_pass_set_stencil(GFXPass* pass, GFXStencilState state)
 		pass->state.stencil = state;
 		_gfx_pass_gen(pass);
 	}
-}
-
-/****************************/
-GFX_API void gfx_pass_get_size(GFXPass* pass,
-                               uint32_t* width, uint32_t* height)
-{
-	assert(pass != NULL);
-	assert(width != NULL);
-	assert(height != NULL);
-
-	*width = pass->build.fWidth;
-	*height = pass->build.fHeight;
 }
 
 /****************************/

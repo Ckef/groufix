@@ -87,7 +87,8 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 	// Get aspect ratio.
 	uint32_t width;
 	uint32_t height;
-	gfx_recorder_get_size(recorder, &width, &height);
+	uint32_t layers;
+	gfx_recorder_get_size(recorder, &width, &height, &layers);
 
 	float invAspect = (width != 0) ? (float)height / (float)width : 1.0f;
 
@@ -101,9 +102,9 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 
 		// Projection.
 		invAspect, 0.0f, 0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f,
+		0.0f, 1.0f,  0.0f, 0.0f,
+		0.0f, 0.0f, -0.5f, 0.7f,
+		0.0f, 0.0f,  0.0f, 1.0f,
 	};
 
 	// Draw the thing.

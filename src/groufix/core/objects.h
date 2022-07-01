@@ -865,6 +865,7 @@ struct GFXPass
 		size_t   backing; // Window attachment index (or SIZE_MAX).
 		uint32_t fWidth;
 		uint32_t fHeight;
+		uint32_t fLayers;
 
 		_GFXCacheElem* pass;
 

@@ -530,6 +530,20 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
                                        size_t numParents, GFXPass** parents);
 
 /**
+ * Retrieves the virtual frame size associated with a pass.
+ * @param pass   Cannot be NULL.
+ * @param width  Cannot be NULL, output width.
+ * @param height Cannot be NULL, output height.
+ * @param layers Cannot be NULL, output layers.
+ *
+ * Only outputs the _actual_ size, meaning this will only return meaningful
+ * values when called inbetween gfx_frame_start and gfx_frame_submit.
+ * Outputs 0,0,0 if no associated attachments.
+ */
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height, uint32_t* layers);
+
+/**
  * Sets the depth state of a pass.
  * @param pass Cannot be NULL.
  */
@@ -540,19 +554,6 @@ GFX_API void gfx_pass_set_depth(GFXPass* pass, GFXDepthState state);
  * @param pass Cannot be NULL.
  */
 GFX_API void gfx_pass_set_stencil(GFXPass* pass, GFXStencilState state);
-
-/**
- * Retrieves the virtual frame size associated with a pass.
- * @param pass   Cannot be NULL.
- * @param width  Cannot be NULL, output width.
- * @param height Cannot be NULL, output height.
- *
- * Only outputs the _actual_ size, meaning this will only return meaningful
- * values when called inbetween gfx_frame_start and gfx_frame_submit.
- * Outputs 0,0 if no associated attachments.
- */
-GFX_API void gfx_pass_get_size(GFXPass* pass,
-                               uint32_t* width, uint32_t* height);
 
 /**
  * Consume an attachment of a renderer.
@@ -963,11 +964,12 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
  * @param recorder Cannot be NULL.
  * @param width    Cannot be NULL, output width.
  * @param height   Cannot be NULL, output height.
+ * @param layers   Cannot be NULL, output layers.
  *
- * Outputs 0,0 if no associated attachments.
+ * Outputs 0,0,0 if no associated attachments.
  */
 GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
-                                   uint32_t* width, uint32_t* height);
+                                   uint32_t* width, uint32_t* height, uint32_t* layers);
 
 /**
  * Render command to bind a render/descriptor set.
