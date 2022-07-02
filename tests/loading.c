@@ -51,7 +51,7 @@ error:
 /****************************
  * Helper to load some glTF.
  */
-static bool load_gltf(const char* path, const char* uri, GFXGltfResult* result)
+static bool load_gltf(const char* uri, GFXGltfResult* result)
 {
 	// Open file.
 	GFXFile file;
@@ -60,7 +60,7 @@ static bool load_gltf(const char* path, const char* uri, GFXGltfResult* result)
 
 	// Init includer.
 	GFXFileIncluder inc;
-	if (!gfx_file_includer_init(&inc, path))
+	if (!gfx_file_includer_init(&inc, uri))
 		goto clean_file;
 
 	// Load glTF.
@@ -146,11 +146,10 @@ TEST_DESCRIBE(loading, t)
 		goto clean;
 
 	// Load a glTF file.
-	const char* path = "tests/assets/";
 	const char* uri = "tests/assets/DamagedHelmet.gltf";
 	GFXGltfResult result;
 
-	if (!load_gltf(path, uri, &result))
+	if (!load_gltf(uri, &result))
 		goto clean;
 
 	// Grab the first primitive from the glTF.
