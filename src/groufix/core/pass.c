@@ -124,7 +124,7 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsumeElem* elem)
 
 			con->cleared = t.cleared;
 			con->clear = t.clear;
-			return 1;
+			goto invalidate;
 		}
 	}
 
@@ -135,6 +135,7 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsumeElem* elem)
 	if (!gfx_vec_push(&pass->consumes, 1, elem))
 		return 0;
 
+invalidate:
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.
 	_gfx_render_graph_invalidate(pass->renderer);
@@ -425,6 +426,10 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	VkAttachmentReference depSten = unused;
 	numAttachs = 0; // We may skip some.
 
+	// We are always gonna update the clear values.
+	// Do it here and not build so we don't unnecessarily reconstruct this.
+	gfx_vec_release(&pass->clears);
+
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
 		const _GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
@@ -557,6 +562,12 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.finalLayout   = ref.layout,
 			};
 		}
+
+		// Lastly, if we're not skipped,
+		// store the clear value for when we begin the pass.
+		if (!gfx_vec_push(&pass->clears, 1, &con->clear.vk))
+			// Yeah...
+			gfx_log_fatal("Failed to store a clear value for a pass.");
 	}
 
 	// Ok now create the pass.
@@ -631,9 +642,6 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	uint32_t width = 0;
 	uint32_t height = 0;
 	uint32_t layers = 0;
-
-	// We are always gonna update the clear values.
-	gfx_vec_release(&pass->clears);
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
@@ -722,12 +730,6 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 				at->image.base.layers - con->view.range.layer :
 				con->view.range.numLayers;
 		}
-
-		// Lastly, if we're not skipped,
-		// store the clear value for when we begin the pass.
-		if (!gfx_vec_push(&pass->clears, 1, &con->clear.vk))
-			// Yeah...
-			gfx_log_fatal("Failed to store a clear value for a pass.");
 	}
 
 	// Remember the dimensions for during recording.
