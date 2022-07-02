@@ -62,7 +62,7 @@ typedef struct GFXBinReader
 	GFXReader reader;
 	size_t len;
 	size_t pos;
-	const char* bin;
+	const void* bin;
 
 } GFXBinReader;
 
@@ -192,7 +192,7 @@ GFX_API long long gfx_io_vwritef(const GFXWriter* str, const char* fmt, va_list 
  * The data will NOT be copied, the reader is invalidated if
  * bin is freed or otherwise moved.
  */
-GFX_API GFXReader* gfx_bin_reader(GFXBinReader* str, size_t len, const char* bin);
+GFX_API GFXReader* gfx_bin_reader(GFXBinReader* str, size_t len, const void* bin);
 
 /**
  * Initializes a constant string stream.

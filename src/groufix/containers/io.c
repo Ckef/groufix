@@ -47,7 +47,7 @@ static long long _gfx_bin_reader_read(const GFXReader* str, void* data, size_t l
 	// Read all bytes.
 	len = GFX_MIN(len, reader->len - reader->pos);
 
-	memcpy(data, reader->bin + reader->pos, len);
+	memcpy(data, ((char*)reader->bin) + reader->pos, len);
 	reader->pos += len;
 
 	// Reset position.
@@ -268,7 +268,7 @@ error:
 }
 
 /****************************/
-GFX_API GFXReader* gfx_bin_reader(GFXBinReader* str, size_t len, const char* bin)
+GFX_API GFXReader* gfx_bin_reader(GFXBinReader* str, size_t len, const void* bin)
 {
 	assert(str != NULL);
 	assert(len == 0 || bin != NULL);
