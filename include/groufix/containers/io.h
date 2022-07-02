@@ -92,13 +92,12 @@ typedef struct GFXFile
 
 
 /**
- * TODO: Implement.
  * File includer definition.
  */
 typedef struct GFXFileIncluder
 {
 	GFXIncluder includer;
-	const char* path;
+	char* path;
 
 } GFXFileIncluder;
 
@@ -223,6 +222,20 @@ GFX_API bool gfx_file_init(GFXFile* file, const char* name, const char* mode);
  * @param file Cannot be NULL.
  */
 GFX_API void gfx_file_clear(GFXFile* file);
+
+/**
+ * Initializes a file includer.
+ * @param inc  Cannot be NULL.
+ * @param path Path to search in, cannot be NULL, must be NULL-terminated.
+ * @return Non-zero on success.
+ */
+GFX_API bool gfx_file_includer_init(GFXFileIncluder* inc, const char* path);
+
+/**
+ * Clears a file includer.
+ * @param inc Cannot be NULL.
+ */
+GFX_API void gfx_file_includer_clear(GFXFileIncluder* inc);
 
 
 #endif

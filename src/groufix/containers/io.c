@@ -140,6 +140,55 @@ static long long _gfx_file_write(const GFXWriter* str, const void* data, size_t 
 	return ferror(file->handle) ? -1 : (long long)ret;
 }
 
+/****************************
+ * GFXFileIncluder implementation of the resolve function.
+ */
+static const GFXReader* _gfx_file_includer_resolve(const GFXIncluder* inc, const char* uri)
+{
+	GFXFileIncluder* includer = GFX_IO_OBJ(inc, GFXFileIncluder, includer);
+
+	// Append the URI to the includer's path.
+	char* path = malloc(strlen(includer->path) + strlen(uri) + 1);
+	if (path == NULL) return NULL;
+
+	const char* s0 = strrchr(includer->path, '/');
+	const char* s1 = strrchr(includer->path, '\\');
+	const char* s = s0 ? (s1 && s1 > s0 ? s1 : s0) : s1;
+
+	if (!s)
+		strcpy(path, uri);
+	else
+	{
+		size_t prefix = (size_t)(s - includer->path) + 1;
+
+		strncpy(path, includer->path, prefix);
+		strcpy(path + prefix, uri);
+	}
+
+	// Allocate & initialize the file reader stream.
+	GFXFile* file = malloc(sizeof(GFXFile));
+	if (file == NULL || !gfx_file_init(file, path, "r"))
+	{
+		free(file);
+		free(path);
+		return NULL;
+	}
+
+	free(path);
+	return &file->reader;
+}
+
+/****************************
+ * GFXFileIncluder implementation of the release function.
+ */
+static void _gfx_file_includer_release(const GFXIncluder* inc, const GFXReader* str)
+{
+	GFXFile* file = GFX_IO_OBJ(str, GFXFile, reader);
+
+	gfx_file_clear(file);
+	free(file);
+}
+
 
 /****************************/
 const GFXWriter gfx_io_stdout =
@@ -274,5 +323,36 @@ GFX_API void gfx_file_clear(GFXFile* file)
 	{
 		fclose(file->handle);
 		file->handle = NULL;
+	}
+}
+
+/****************************/
+GFX_API bool gfx_file_includer_init(GFXFileIncluder* inc, const char* path)
+{
+	assert(inc != NULL);
+	assert(path != NULL);
+
+	inc->includer.resolve = _gfx_file_includer_resolve;
+	inc->includer.release = _gfx_file_includer_release;
+
+	// Allocate new memory to store the path.
+	inc->path = malloc(strlen(path) + 1);
+	if (inc->path == NULL) return 0;
+
+	// Copy path into it.
+	strcpy(inc->path, path);
+
+	return 1;
+}
+
+/****************************/
+GFX_API void gfx_file_includer_clear(GFXFileIncluder* inc)
+{
+	assert(inc != NULL);
+
+	if (inc->path != NULL)
+	{
+		free(inc->path);
+		inc->path = NULL;
 	}
 }
