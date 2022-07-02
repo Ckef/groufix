@@ -402,9 +402,6 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	if (pass->vk.pass != VK_NULL_HANDLE)
 		return 1;
 
-	// We are always gonna update the clear values.
-	gfx_vec_release(&pass->clears);
-
 	// Get the backing window attachment.
 	const _GFXAttach* backing = NULL;
 	if (pass->build.backing != SIZE_MAX)
@@ -433,7 +430,6 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		const _GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
 		const _GFXConsumeElem* con = view->consume;
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
-		bool clear = 0;
 
 		// Swapchain.
 		if (at->type == _GFX_ATTACH_WINDOW)
@@ -482,9 +478,6 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
 				.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 			};
-
-			// Set to clear.
-			clear = (con->cleared & GFX_IMAGE_COLOR) != 0;
 		}
 
 		// Non-swapchain.
@@ -563,16 +556,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 				.finalLayout   = ref.layout,
 			};
-
-			// Set to clear.
-			clear = firstClear | secondClear;
 		}
-
-		// Lastly, if we're not skipped and a clear op is given,
-		// store the clear value for when we begin the pass.
-		if (clear && !gfx_vec_push(&pass->clears, 1, &con->clear.vk))
-			// Yeah...
-			gfx_log_warn("Failed to store a clear value for a pass.");
 	}
 
 	// Ok now create the pass.
@@ -647,6 +631,9 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	uint32_t width = 0;
 	uint32_t height = 0;
 	uint32_t layers = 0;
+
+	// We are always gonna update the clear values.
+	gfx_vec_release(&pass->clears);
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
@@ -735,6 +722,12 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 				at->image.base.layers - con->view.range.layer :
 				con->view.range.numLayers;
 		}
+
+		// Lastly, if we're not skipped,
+		// store the clear value for when we begin the pass.
+		if (!gfx_vec_push(&pass->clears, 1, &con->clear.vk))
+			// Yeah...
+			gfx_log_fatal("Failed to store a clear value for a pass.");
 	}
 
 	// Remember the dimensions for during recording.
