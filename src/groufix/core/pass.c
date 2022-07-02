@@ -12,58 +12,22 @@
 #include <string.h>
 
 
-// Modifies consumption operations based on a new request.
-#define _GFX_OPS_LOAD(ops) \
-	ops = (ops & _GFX_CONSUME_STORE) | _GFX_CONSUME_LOAD
-
-#define _GFX_OPS_CLEAR(ops) \
-	ops = (ops & _GFX_CONSUME_STORE) | _GFX_CONSUME_CLEAR
-
-#define _GFX_OPS_STORE(ops) \
-	ops |= _GFX_CONSUME_STORE
-
-
-// Get vulkan attachment operations.
-#define _GFX_GET_VK_LOAD_OP(ops) \
-	((ops) & _GFX_CONSUME_LOAD ? VK_ATTACHMENT_LOAD_OP_LOAD : \
-	(ops) & _GFX_CONSUME_CLEAR ? VK_ATTACHMENT_LOAD_OP_CLEAR : \
-	VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-
-#define _GFX_GET_VK_STORE_OP(ops) \
-	((ops) & _GFX_CONSUME_STORE ? VK_ATTACHMENT_STORE_OP_STORE : \
-	VK_ATTACHMENT_STORE_OP_DONT_CARE)
-
-
-/****************************
- * Attachment consumption operations.
- */
-typedef enum _GFXConsumeOps
-{
-	_GFX_CONSUME_LOAD  = 0x0001,
-	_GFX_CONSUME_CLEAR = 0x0002,
-	_GFX_CONSUME_STORE = 0x0004
-
-} _GFXConsumeOps;
-
-
 /****************************
  * Attachment consumption element definition.
  */
 typedef struct _GFXConsumeElem
 {
+	GFXImageAspect cleared;
 	bool           viewed; // Zero to ignore view.type.
+
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
 	GFXView        view; // index used as attachment index.
 
-	_GFXConsumeOps color;
-	_GFXConsumeOps depth;
-	_GFXConsumeOps stencil;
-
 	union {
 		// Identical definitions!
-		VkClearValue vk;
 		GFXClear gfx;
+		VkClearValue vk;
 
 	} clear;
 
@@ -138,7 +102,7 @@ static inline void _gfx_pass_gen(GFXPass* pass)
 
 /****************************
  * Stand-in function for all the gfx_pass_consume* variants.
- * All fields of elem must be set except for color, depth, stencil and clear.
+ * All fields of elem must be set except for `cleared` and `clear`.
  * @see gfx_pass_consume*.
  * @param elem Cannot be NULL.
  */
@@ -154,22 +118,18 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsumeElem* elem)
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == elem->view.index)
 		{
-			// Keep old operation values.
+			// Keep old clear values.
 			_GFXConsumeElem t = *con;
 			*con = *elem;
 
-			con->color = t.color;
-			con->depth = t.depth;
-			con->stencil = t.stencil;
+			con->cleared = t.cleared;
 			con->clear = t.clear;
 			return 1;
 		}
 	}
 
 	// Insert anew with default values.
-	elem->color = 0;
-	elem->depth = 0;
-	elem->stencil = 0;
+	elem->cleared = 0;
 	elem->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
 
 	if (!gfx_vec_push(&pass->consumes, 1, elem))
@@ -506,10 +466,17 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.flags          = 0,
 				.format         = at->window.window->frame.format,
 				.samples        = VK_SAMPLE_COUNT_1_BIT,
-				.loadOp         = _GFX_GET_VK_LOAD_OP(con->color),
+
+				// TODO: Determine whether to load based on parent passes.
+				.loadOp = (con->cleared & GFX_IMAGE_COLOR) ?
+					VK_ATTACHMENT_LOAD_OP_CLEAR :
+					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+
+				.storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
+					VK_ATTACHMENT_STORE_OP_DONT_CARE :
+					VK_ATTACHMENT_STORE_OP_STORE,
 
 				// All other input ops are ignored for windows.
-				.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
 				.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 				.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -517,7 +484,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			};
 
 			// Set to clear.
-			if (con->color & _GFX_CONSUME_CLEAR) clear = 1;
+			clear = (con->cleared & GFX_IMAGE_COLOR) != 0;
 		}
 
 		// Non-swapchain.
@@ -528,15 +495,15 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					con->view.range.aspect & (GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL) :
 					con->view.range.aspect & GFX_IMAGE_COLOR;
 
-			const _GFXConsumeOps firstOps =
+			const bool firstClear =
 				!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ?
-					con->color :
+					con->cleared & GFX_IMAGE_COLOR :
 					(GFX_FORMAT_HAS_DEPTH(at->image.base.format) ?
-						con->depth : 0);
+						con->cleared & GFX_IMAGE_DEPTH : 0);
 
-			const _GFXConsumeOps secondOps =
+			const bool secondClear =
 				GFX_FORMAT_HAS_STENCIL(at->image.base.format) ?
-					con->stencil : 0;
+					con->cleared & GFX_IMAGE_STENCIL : 0;
 
 			const VkAttachmentReference ref = (VkAttachmentReference){
 				.attachment = (uint32_t)numAttachs,
@@ -574,19 +541,31 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.flags          = 0,
 				.format         = at->image.vk.format,
 				.samples        = VK_SAMPLE_COUNT_1_BIT,
-				.loadOp         = _GFX_GET_VK_LOAD_OP(firstOps),
-				.storeOp        = _GFX_GET_VK_STORE_OP(firstOps),
-				.stencilLoadOp  = _GFX_GET_VK_LOAD_OP(secondOps),
-				.stencilStoreOp = _GFX_GET_VK_STORE_OP(secondOps),
 
-				// TODO: Figure these out.
-				.finalLayout    = ref.layout,
-				.initialLayout  = (firstOps | secondOps) & _GFX_CONSUME_LOAD ?
-					ref.layout : VK_IMAGE_LAYOUT_UNDEFINED
+				// TODO: Determine whether to load based on parent passes.
+				.loadOp = (firstClear) ?
+					VK_ATTACHMENT_LOAD_OP_CLEAR :
+					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+
+				.storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
+					VK_ATTACHMENT_STORE_OP_DONT_CARE :
+					VK_ATTACHMENT_STORE_OP_STORE,
+
+				.stencilLoadOp = (secondClear) ?
+					VK_ATTACHMENT_LOAD_OP_CLEAR :
+					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+
+				.stencilStoreOp = (con->mask & GFX_ACCESS_DISCARD) ?
+					VK_ATTACHMENT_STORE_OP_DONT_CARE :
+					VK_ATTACHMENT_STORE_OP_STORE,
+
+				// TODO: Should also be based on parent passes.
+				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+				.finalLayout   = ref.layout,
 			};
 
 			// Set to clear.
-			if ((firstOps | secondOps) & _GFX_CONSUME_CLEAR) clear = 1;
+			clear = firstClear | secondClear;
 		}
 
 		// Lastly, if we're not skipped and a clear op is given,
@@ -1013,53 +992,8 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API void gfx_pass_load(GFXPass* pass, size_t index, GFXImageAspect aspect)
-{
-	assert(pass != NULL);
-	assert(!pass->renderer->recording);
-
-	// Find and set.
-	for (size_t i = pass->consumes.size; i > 0; --i)
-	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == index)
-		{
-			if (aspect & GFX_IMAGE_COLOR) _GFX_OPS_LOAD(con->color);
-			if (aspect & GFX_IMAGE_DEPTH) _GFX_OPS_LOAD(con->depth);
-			if (aspect & GFX_IMAGE_STENCIL) _GFX_OPS_LOAD(con->stencil);
-
-			// May change subpass dependencies, invalidate graph!
-			_gfx_render_graph_invalidate(pass->renderer);
-			break;
-		}
-	}
-}
-
-/****************************/
-GFX_API void gfx_pass_store(GFXPass* pass, size_t index, GFXImageAspect aspect)
-{
-	assert(pass != NULL);
-	assert(!pass->renderer->recording);
-
-	// Find and set.
-	for (size_t i = pass->consumes.size; i > 0; --i)
-	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == index)
-		{
-			if (aspect & GFX_IMAGE_COLOR) _GFX_OPS_STORE(con->color);
-			if (aspect & GFX_IMAGE_DEPTH) _GFX_OPS_STORE(con->depth);
-			if (aspect & GFX_IMAGE_STENCIL) _GFX_OPS_STORE(con->stencil);
-
-			_gfx_render_graph_invalidate(pass->renderer);
-			break;
-		}
-	}
-}
-
-/****************************/
-GFX_API void gfx_pass_clear(GFXPass* pass, size_t index, GFXImageAspect aspect,
-                            GFXClear value)
+GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
+                            GFXImageAspect aspect, GFXClear value)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
@@ -1071,16 +1005,13 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index, GFXImageAspect aspect,
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
-			if (aspect & GFX_IMAGE_COLOR) _GFX_OPS_CLEAR(con->color);
-			if (aspect & GFX_IMAGE_DEPTH) _GFX_OPS_CLEAR(con->depth);
-			if (aspect & GFX_IMAGE_STENCIL) _GFX_OPS_CLEAR(con->stencil);
-
 			// Set clear value, preserve other if only 1 of depth/stencil.
 			if (aspect == GFX_IMAGE_DEPTH)
 				value.stencil = con->clear.gfx.stencil;
-			else if(aspect == GFX_IMAGE_STENCIL)
+			else if (aspect == GFX_IMAGE_STENCIL)
 				value.depth = con->clear.gfx.depth;
 
+			con->cleared = aspect;
 			con->clear.gfx = value; // Type-punned into a VkClearValue!
 
 			_gfx_render_graph_invalidate(pass->renderer);

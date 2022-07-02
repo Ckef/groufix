@@ -585,29 +585,13 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
                                GFXView view);
 
 /**
- * Preserve the contents of a consumed attachment from before the pass.
- * No-op if attachment at index is not consumed!
- * @param pass   Cannot be NULL.
- * @param index  Attachment index to preserve.
- * @param aspect Image aspect to apply the operation to.
- */
-GFX_API void gfx_pass_load(GFXPass* pass, size_t index, GFXImageAspect aspect);
-
-/**
- * Writes the contents of a consumed attachment to memory after the pass.
- * No-op if attachment at index is not consumed!
- * @see gfx_pass_load.
- */
-GFX_API void gfx_pass_store(GFXPass* pass, size_t index, GFXImageAspect aspect);
-
-/**
  * Clears the contents of a consumed attachment before the pass.
  * No-op if attachment at index is not consumed!
  * @param aspect Cannot contain both color AND depth/stencil!
  * @see gfx_pass_load.
  */
-GFX_API void gfx_pass_clear(GFXPass* pass, size_t index, GFXImageAspect aspect,
-                            GFXClear value);
+GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
+                            GFXImageAspect aspect, GFXClear value);
 
 /**
  * Release any consumption of an attachment of the renderer.
