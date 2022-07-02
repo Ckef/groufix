@@ -49,11 +49,13 @@ typedef struct GFXGltfResult
  * @param heap   Heap to allocate resources from, cannot be NULL.
  * @param dep    Dependency to inject signal commands in, cannot be NULL.
  * @param src    Source stream, cannot be NULL.
+ * @param inc    Stream includer, may be NULL.
  * @param result Cannot be NULL, output parsing results.
  * @return Non-zero on success.
  */
 GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
                            const GFXReader* src,
+                           const GFXIncluder* inc,
                            GFXGltfResult* result);
 
 /**

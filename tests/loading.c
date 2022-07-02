@@ -26,25 +26,22 @@ static GFXShader* load_shader(GFXShaderStage stage, const char* uri)
 	// Create shader.
 	GFXShader* shader = gfx_create_shader(stage, TEST_BASE.device);
 	if (shader == NULL)
-	{
-		gfx_file_clear(&file);
-		goto error;
-	}
+		goto clean_file;
 
 	// Compile shader.
 	if (!gfx_shader_compile(shader, GFX_GLSL, 1, &file.reader, NULL, NULL))
-	{
-		gfx_file_clear(&file);
-		gfx_destroy_shader(shader);
-		goto error;
-	}
+		goto clean_shader;
 
 	gfx_file_clear(&file);
 
 	return shader;
 
 
-	// Error on failure.
+	// Cleanup on failure.
+clean_shader:
+	gfx_destroy_shader(shader);
+clean_file:
+	gfx_file_clear(&file);
 error:
 	gfx_log_error("Failed to load '%s'", uri);
 	return NULL;
@@ -54,26 +51,36 @@ error:
 /****************************
  * Helper to load some glTF.
  */
-static bool load_gltf(const char* uri, GFXGltfResult* result)
+static bool load_gltf(const char* path, const char* uri, GFXGltfResult* result)
 {
 	// Open file.
 	GFXFile file;
 	if (!gfx_file_init(&file, uri, "r"))
 		goto error;
 
+	// Init includer.
+	GFXFileIncluder inc;
+	if (!gfx_file_includer_init(&inc, path))
+		goto clean_file;
+
 	// Load glTF.
-	if (!gfx_load_gltf(TEST_BASE.heap, TEST_BASE.dep, &file.reader, result))
+	if (!gfx_load_gltf(
+		TEST_BASE.heap, TEST_BASE.dep, &file.reader, &inc.includer, result))
 	{
-		gfx_file_clear(&file);
-		goto error;
+		goto clean_includer;
 	}
 
+	gfx_file_includer_clear(&inc);
 	gfx_file_clear(&file);
 
 	return 1;
 
 
-	// Error on failure.
+	// Cleanup on failure.
+clean_includer:
+	gfx_file_includer_clear(&inc);
+clean_file:
+	gfx_file_clear(&file);
 error:
 	gfx_log_error("Failed to load '%s'", uri);
 	return 0;
@@ -139,10 +146,11 @@ TEST_DESCRIBE(loading, t)
 		goto clean;
 
 	// Load a glTF file.
+	const char* path = "tests/assets/";
 	const char* uri = "tests/assets/DamagedHelmet.gltf";
 	GFXGltfResult result;
 
-	if (!load_gltf(uri, &result))
+	if (!load_gltf(path, uri, &result))
 		goto clean;
 
 	// Grab the first primitive from the glTF.

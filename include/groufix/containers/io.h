@@ -41,7 +41,7 @@ typedef struct GFXWriter
 
 
 /**
- * Includer definition.
+ * Stream includer definition.
  */
 typedef struct GFXIncluder
 {
@@ -92,7 +92,7 @@ typedef struct GFXFile
 
 
 /**
- * File includer definition.
+ * File stream includer definition.
  */
 typedef struct GFXFileIncluder
 {
@@ -224,7 +224,7 @@ GFX_API bool gfx_file_init(GFXFile* file, const char* name, const char* mode);
 GFX_API void gfx_file_clear(GFXFile* file);
 
 /**
- * Initializes a file includer.
+ * Initializes a file stream includer.
  * @param inc  Cannot be NULL.
  * @param path Path to search in, cannot be NULL, must be NULL-terminated.
  * @return Non-zero on success.
@@ -232,7 +232,7 @@ GFX_API void gfx_file_clear(GFXFile* file);
 GFX_API bool gfx_file_includer_init(GFXFileIncluder* inc, const char* path);
 
 /**
- * Clears a file includer.
+ * Clears a file stream includer.
  * @param inc Cannot be NULL.
  */
 GFX_API void gfx_file_includer_clear(GFXFileIncluder* inc);

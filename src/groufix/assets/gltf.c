@@ -160,6 +160,78 @@ static void* _gfx_gltf_decode_base64(size_t size, const char* src)
 }
 
 /****************************
+ * Resolves and reads a buffer URI.
+ * @param inc  Includer to use, may be NULL.
+ * @param uri  Data URI to resolve, cannot be NULL, must be NULL-terminated.
+ * @param size Outputs the size of the data.
+ * @param out  Outputs the data, must call free() on success!
+ * @return Zero on failure.
+ */
+static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
+                                     size_t* size,  void** out)
+{
+	assert(uri != NULL);
+	assert(size != NULL);
+	assert(out != NULL);
+
+	// Cannot do anything without an includer.
+	if (inc == NULL)
+	{
+		gfx_log_error("Cannot load URIs without an includer.");
+		return 0;
+	}
+
+	// Resolve the URI.
+	const GFXReader* src = gfx_io_resolve(inc, uri);
+	if (src == NULL)
+	{
+		gfx_log_error("Could not resolve buffer URI: %s.", uri);
+		return 0;
+	}
+
+	// Allocate binary buffer.
+	long long len = gfx_io_len(src);
+	if (len <= 0)
+	{
+		gfx_log_error(
+			"Zero or unknown stream length, cannot load URI: %s.", uri);
+
+		gfx_io_release(inc, src);
+		return 0;
+	}
+
+	void* bin = malloc((size_t)len);
+	if (bin == NULL)
+	{
+		gfx_log_error(
+			"Could not allocate buffer to load URI: %s.", uri);
+
+		gfx_io_release(inc, src);
+		return 0;
+	}
+
+	// Read source.
+	len = gfx_io_read(src, bin, (size_t)len);
+	if (len <= 0)
+	{
+		gfx_log_error(
+			"Could not read data from stream to load URI: %s.", uri);
+
+		gfx_io_release(inc, src);
+		free(bin);
+		return 0;
+	}
+
+	// Release the stream & output.
+	gfx_io_release(inc, src);
+
+	*size = (size_t)len;
+	*out = bin;
+
+	return 1;
+}
+
+/****************************
  * Allocates a new buffer and fills it with given data.
  * @param size Must be > 0.
  * @return NULL on failure.
@@ -204,6 +276,7 @@ static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
 /****************************/
 GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
                            const GFXReader* src,
+                           const GFXIncluder* inc,
                            GFXGltfResult* result)
 {
 	assert(heap != NULL);
@@ -315,7 +388,18 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		// Check if actual URI.
 		else if (uri != NULL)
 		{
-			// TODO: Handle file URIs.
+			// Load from URI using the includer.
+			void* bin = NULL;
+			size_t size = 0;
+
+			if (!_gfx_gltf_include_buffer(inc, uri, &size, &bin))
+				goto clean;
+
+			// Allocate buffer.
+			buffer = _gfx_gltf_alloc_buffer(heap, dep, size, bin);
+
+			free(bin);
+			if (buffer == NULL) goto clean;
 		}
 
 		// Insert the buffer.
