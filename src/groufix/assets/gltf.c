@@ -56,6 +56,15 @@
 	(type) == cgltf_component_type_r_32u ? sizeof(uint32_t) : 0)
 
 
+// Decode a hexadecimal digit.
+#define _GFX_UNHEX(digit) \
+	(unsigned char)( \
+		(unsigned)(digit - '0') < 10 ? (digit - '0') : \
+		(unsigned)(digit - 'A') < 6 ? (digit - 'A') + 10 : \
+		(unsigned)(digit - 'a') < 6 ? (digit - 'a') + 10 : \
+		UCHAR_MAX)
+
+
 /****************************
  * Constructs a vertex attribute format from the glTF accessor type,
  * component type and normalized flag.
@@ -109,6 +118,48 @@ static GFXFormat _gfx_gltf_attribute_fmt(cgltf_component_type cType,
 		fType,
 		order
 	};
+}
+
+/****************************
+ * Decodes an encoded URI into a newly allocated string.
+ * @return Must call free() on success!
+ */
+static char* _gfx_gltf_decode_uri(const char* uri)
+{
+	const size_t len = strlen(uri);
+
+	// Make a copy URI.
+	char* buf = malloc(len + 1);
+	if (buf == NULL) return NULL;
+
+	strcpy(buf, uri);
+
+	// Decode all %-encodings inline.
+	char* w = buf;
+	char* i = buf;
+
+	while (*i != '\0')
+	{
+		if (*i == '%')
+		{
+			unsigned char c0 = _GFX_UNHEX(i[1]);
+			if (c0 < 16)
+			{
+				unsigned char c1 = _GFX_UNHEX(i[2]);
+				if (c1 < 16)
+				{
+					*(w++) = (char)(c0 * 16 + c1);
+					i += 3;
+					continue;
+				}
+			}
+		}
+
+		*(w++) = *(i++);
+	}
+
+	*w = '\0';
+	return buf;
 }
 
 /****************************
@@ -182,7 +233,16 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 	}
 
 	// Resolve the URI.
-	const GFXReader* src = gfx_io_resolve(inc, uri);
+	char* dec = _gfx_gltf_decode_uri(uri);
+	if (dec == NULL)
+	{
+		gfx_log_error("Could not decode URI: %s.", uri);
+		return 0;
+	}
+
+	const GFXReader* src = gfx_io_resolve(inc, dec);
+	free(dec); // Immediately free.
+
 	if (src == NULL)
 	{
 		gfx_log_error("Could not resolve buffer URI: %s.", uri);
