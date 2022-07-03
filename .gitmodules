@@ -13,3 +13,6 @@
 [submodule "deps/cgltf"]
 	path = deps/cgltf
 	url = https://github.com/jkuhlmann/cgltf
+[submodule "deps/stb"]
+	path = deps/stb
+	url = https://github.com/nothings/stb

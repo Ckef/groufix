@@ -77,7 +77,8 @@ OFLAGS_ALL = \
  -Ideps/Vulkan-Headers/include \
  -Ideps/shaderc/libshaderc/include \
  -Ideps/SPIRV-Cross \
- -isystem deps/cgltf # All warnings ignored
+ -isystem deps/cgltf \
+ -isystem deps/stb
 
 ifeq ($(OS),Windows_NT)
  OFLAGS = $(OFLAGS_ALL)
@@ -247,6 +248,7 @@ clean-all: clean clean-bin clean-deps
 
 OBJS = \
  $(OUT)$(SUB)/groufix/assets/gltf.o \
+ $(OUT)$(SUB)/groufix/assets/image.o \
  $(OUT)$(SUB)/groufix/containers/deque.o \
  $(OUT)$(SUB)/groufix/containers/io.o \
  $(OUT)$(SUB)/groufix/containers/list.o \
