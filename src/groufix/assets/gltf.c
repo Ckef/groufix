@@ -7,6 +7,7 @@
  */
 
 #include "groufix/assets/gltf.h"
+#include "groufix/assets/image.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/log.h"
 #include <assert.h>
@@ -214,7 +215,7 @@ static void* _gfx_gltf_decode_base64(size_t size, const char* src)
  * Resolves and reads a buffer URI.
  * @param inc  Includer to use, may be NULL.
  * @param uri  Data URI to resolve, cannot be NULL, must be NULL-terminated.
- * @param size Outputs the size of the data.
+ * @param size Outputs the byte size of the data.
  * @param out  Outputs the data, must call free() on success!
  * @return Zero on failure.
  */
@@ -228,7 +229,7 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 	// Cannot do anything without an includer.
 	if (inc == NULL)
 	{
-		gfx_log_error("Cannot load URIs without an includer.");
+		gfx_log_error("Cannot load buffer URIs without an includer.");
 		return 0;
 	}
 
@@ -236,7 +237,7 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 	char* dec = _gfx_gltf_decode_uri(uri);
 	if (dec == NULL)
 	{
-		gfx_log_error("Could not decode URI: %s.", uri);
+		gfx_log_error("Could not decode buffer URI: %s.", uri);
 		return 0;
 	}
 
@@ -289,6 +290,52 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 	*out = bin;
 
 	return 1;
+}
+
+/****************************
+ * Resolves and reads an image URI.
+ * @param inc Includer to use, may be NULL.
+ * @param uri Data URI to resolve, cannot be NULL, must be NULL-terminated.
+ * @return NULL on failure.
+ */
+static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri,
+                                         GFXHeap* heap, GFXDependency* dep)
+{
+	assert(uri != NULL);
+	assert(heap != NULL);
+	assert(dep != NULL);
+
+	// Cannot do anything without an includer.
+	if (inc == NULL)
+	{
+		gfx_log_error("Cannot load image URIs without an includer.");
+		return NULL;
+	}
+
+	// Resolve the URI.
+	char* dec = _gfx_gltf_decode_uri(uri);
+	if (dec == NULL)
+	{
+		gfx_log_error("Could not decode image URI: %s.", uri);
+		return NULL;
+	}
+
+	const GFXReader* src = gfx_io_resolve(inc, dec);
+	free(dec); // Immediately free.
+
+	if (src == NULL)
+	{
+		gfx_log_error("Could not resolve image URI: %s.", uri);
+		return NULL;
+	}
+
+	// Simply load the image.
+	GFXImage* image = gfx_load_image(heap, dep, src);
+
+	// Release the stream & output.
+	gfx_io_release(inc, src);
+
+	return image;
 }
 
 /****************************
@@ -400,12 +447,15 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	// We are going to fill them with groufix equivalents of the glTF.
 	// From this point onwards we need to clean on failure.
 	GFXVec buffers;
+	GFXVec images;
 	GFXVec primitives;
 	GFXVec meshes;
 	gfx_vec_init(&buffers, sizeof(GFXBuffer*));
+	gfx_vec_init(&images, sizeof(GFXImage*));
 	gfx_vec_init(&primitives, sizeof(GFXPrimitive*));
 	gfx_vec_init(&meshes, sizeof(GFXGltfMesh));
 	gfx_vec_reserve(&buffers, data->buffers_count);
+	gfx_vec_reserve(&images, data->images_count);
 	gfx_vec_reserve(&meshes, data->meshes_count);
 
 	// Create all buffers.
@@ -466,6 +516,34 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		if (!gfx_vec_push(&buffers, 1, &buffer))
 		{
 			gfx_free_buffer(buffer);
+			goto clean;
+		}
+	}
+
+	// Create all images.
+	for (size_t i = 0; i < data->images_count; ++i)
+	{
+		GFXImage* image = NULL;
+		const char* uri = data->images[i].uri;
+
+		// Check if data URI.
+		if (uri != NULL && strncmp(uri, "data:", 5) == 0)
+		{
+			gfx_log_error("Data URIs are not allowed for images.");
+			goto clean;
+		}
+
+		// Check if actual URI.
+		else if (uri != NULL)
+		{
+			image = _gfx_gltf_include_image(inc, uri, heap, dep);
+			if (image == NULL) goto clean;
+		}
+
+		// Insert the image.
+		if (!gfx_vec_push(&images, 1, &image))
+		{
+			gfx_free_image(image);
 			goto clean;
 		}
 	}
@@ -582,6 +660,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	result->numBuffers = buffers.size;
 	result->buffers = gfx_vec_claim(&buffers);
 
+	result->numImages = images.size;
+	result->images = gfx_vec_claim(&images);
+
 	result->numPrimitives = primitives.size;
 	result->primitives = gfx_vec_claim(&primitives);
 
@@ -596,10 +677,14 @@ clean:
 	for (size_t b = 0; b < buffers.size; ++b)
 		gfx_free_buffer(*(GFXBuffer**)gfx_vec_at(&buffers, b));
 
+	for (size_t i = 0; i < images.size; ++i)
+		gfx_free_image(*(GFXImage**)gfx_vec_at(&images, i));
+
 	for (size_t p = 0; p < primitives.size; ++p)
 		gfx_free_prim(*(GFXPrimitive**)gfx_vec_at(&primitives, p));
 
 	gfx_vec_clear(&buffers);
+	gfx_vec_clear(&images);
 	gfx_vec_clear(&primitives);
 	gfx_vec_clear(&meshes);
 	cgltf_free(data);
@@ -615,6 +700,7 @@ GFX_API void gfx_release_gltf(GFXGltfResult* result)
 	assert(result != NULL);
 
 	free(result->buffers);
+	free(result->images);
 	free(result->primitives);
 	free(result->meshes);
 

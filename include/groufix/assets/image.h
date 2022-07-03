@@ -18,7 +18,7 @@
 
 /**
  * Parses a JPG/PNG/BMP/TGA/GIF/HDR stream into a groufix image.
- * @param heap Heap to allocate images from, cannot be NULL.
+ * @param heap Heap to allocate the image from, cannot be NULL.
  * @param dep  Dependency to inject signal commands in, cannot be NULL.
  * @param src  Source stream, cannot be NULL.
  * @return NULL on failure.

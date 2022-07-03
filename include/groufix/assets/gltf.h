@@ -35,6 +35,9 @@ typedef struct GFXGltfResult
 	size_t      numBuffers;
 	GFXBuffer** buffers;
 
+	size_t     numImages;
+	GFXImage** images;
+
 	size_t         numPrimitives;
 	GFXPrimitive** primitives;
 
