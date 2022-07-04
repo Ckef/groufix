@@ -93,12 +93,12 @@ static GFXFormat _gfx_gltf_attribute_fmt(cgltf_component_type cType,
 		// Signed integer.
 		(cType == cgltf_component_type_r_8 ||
 		cType == cgltf_component_type_r_16) ?
-			(normalized ? GFX_SNORM : GFX_SINT) :
+			(normalized ? GFX_SNORM : GFX_SSCALED) :
 		// Unsigned integer.
 		(cType == cgltf_component_type_r_8u ||
 		cType == cgltf_component_type_r_16u ||
 		cType == cgltf_component_type_r_32u) ?
-			(normalized ? GFX_UNORM : GFX_UINT) :
+			(normalized ? GFX_UNORM : GFX_USCALED) :
 		// Floating point.
 		cType == cgltf_component_type_r_32f ?
 			GFX_SFLOAT : 0;
@@ -299,7 +299,8 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
  * @return NULL on failure.
  */
 static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri,
-                                         GFXHeap* heap, GFXDependency* dep)
+                                         GFXHeap* heap, GFXDependency* dep,
+                                         GFXImageUsage usage)
 {
 	assert(uri != NULL);
 	assert(heap != NULL);
@@ -330,7 +331,9 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 	}
 
 	// Simply load the image.
-	GFXImage* image = gfx_load_image(heap, dep, src);
+	GFXImage* image = gfx_load_image(heap, dep, usage, src);
+	if (image == NULL)
+		gfx_log_error("Failed to load image URI: %s", uri);
 
 	// Release the stream & output.
 	gfx_io_release(inc, src);
@@ -371,7 +374,7 @@ static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
 
 	if (!gfx_write(bin, gfx_ref_buffer(buffer),
 		GFX_TRANSFER_ASYNC,
-		1, dep != NULL ? 1 : 0, &region, &region, &inject))
+		1, 1, &region, &region, &inject))
 	{
 		gfx_free_buffer(buffer);
 		return NULL;
@@ -382,6 +385,7 @@ static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
 
 /****************************/
 GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
+                           GFXImageUsage usage,
                            const GFXReader* src,
                            const GFXIncluder* inc,
                            GFXGltfResult* result)
@@ -536,7 +540,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		// Check if actual URI.
 		else if (uri != NULL)
 		{
-			image = _gfx_gltf_include_image(inc, uri, heap, dep);
+			image = _gfx_gltf_include_image(inc, uri, heap, dep, usage);
 			if (image == NULL) goto clean;
 		}
 

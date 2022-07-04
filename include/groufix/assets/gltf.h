@@ -51,12 +51,14 @@ typedef struct GFXGltfResult
  * Parses a glTF 2.0 stream into groufix objects.
  * @param heap   Heap to allocate resources from, cannot be NULL.
  * @param dep    Dependency to inject signal commands in, cannot be NULL.
+ * @param usage  Image usage to use for any images.
  * @param src    Source stream, cannot be NULL.
  * @param inc    Stream includer, may be NULL.
  * @param result Cannot be NULL, output parsing results.
  * @return Non-zero on success.
  */
 GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
+                           GFXImageUsage usage,
                            const GFXReader* src,
                            const GFXIncluder* inc,
                            GFXGltfResult* result);

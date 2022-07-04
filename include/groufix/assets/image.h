@@ -24,6 +24,7 @@
  * @return NULL on failure.
  */
 GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
+                                 GFXImageUsage usage,
                                  const GFXReader* src);
 
 
