@@ -678,6 +678,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 	// Cleanup on failure.
 clean:
+	// TODO: Need to flush (and wait?) the heap so all memory transfers have
+	// been completed and the buffers aren't in any command buffers anymore!
+
 	for (size_t b = 0; b < buffers.size; ++b)
 		gfx_free_buffer(*(GFXBuffer**)gfx_vec_at(&buffers, b));
 

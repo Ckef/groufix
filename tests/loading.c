@@ -14,6 +14,17 @@
 
 
 /****************************
+ * Render callback context.
+ */
+typedef struct Context
+{
+	GFXRenderable renderable;
+	GFXSet*       set;
+
+} Context;
+
+
+/****************************
  * Helper to load a shader.
  */
 static GFXShader* load_shader(GFXShaderStage stage, const char* uri)
@@ -125,9 +136,10 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 	};
 
 	// Draw the thing.
-	GFXRenderable* rend = ptr;
-	gfx_cmd_push(recorder, rend->technique, 0, sizeof(push), push);
-	gfx_cmd_draw_indexed(recorder, rend, 0, 0, 0, 0, 1);
+	Context* ctx = ptr;
+	gfx_cmd_push(recorder, ctx->renderable.technique, 0, sizeof(push), push);
+	gfx_cmd_bind(recorder, ctx->renderable.technique, 0, 1, 0, &ctx->set, NULL);
+	gfx_cmd_draw_indexed(recorder, &ctx->renderable, 0, 0, 0, 0, 1);
 }
 
 
@@ -154,22 +166,42 @@ TEST_DESCRIBE(loading, t)
 	if (!load_gltf(uri, &result))
 		goto clean;
 
-	// Grab the first primitive from the glTF.
+	// Grab the first primitive & image from the glTF.
 	GFXPrimitive* prim =
 		result.numPrimitives > 0 ? result.primitives[0] : NULL;
+	GFXImage* image =
+		result.numImages > 0 ? result.images[0] : NULL;
 
 	gfx_release_gltf(&result);
 
-	// Create a technique & lock it.
+	// Create a technique, set immutable & lock it.
 	GFXTechnique* tech = gfx_renderer_add_tech(
 		t->renderer, 2, (GFXShader*[]){ vert, frag });
 
-	if (tech == NULL || !gfx_tech_lock(tech))
+	if (tech == NULL)
 		goto clean;
 
-	// Init a renderable using the above stuff.
-	GFXRenderable rend;
-	gfx_renderable(&rend, t->pass, tech, prim);
+	gfx_tech_immutable(tech, 0, 0); // Warns on fail.
+
+	if (!gfx_tech_lock(tech))
+		goto clean;
+
+	// Init a renderable and set using the above stuff.
+	Context ctx;
+	if (!gfx_renderable(&ctx.renderable, t->pass, tech, prim))
+		goto clean;
+
+	ctx.set = gfx_renderer_add_set(t->renderer, tech, 0,
+		image != NULL ? 1 : 0, 0, 0, 0,
+		(GFXSetResource[]){{
+			.binding = 0,
+			.index = 0,
+			.ref = gfx_ref_image(image)
+		}},
+		NULL, NULL, NULL);
+
+	if (ctx.set == NULL)
+		goto clean;
 
 	// Lastly, setup a depth buffer for our object.
 	if (!gfx_renderer_attach(t->renderer, 1,
@@ -207,7 +239,7 @@ TEST_DESCRIBE(loading, t)
 		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
 		gfx_poll_events();
 		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
-		gfx_recorder_render(t->recorder, t->pass, render, &rend);
+		gfx_recorder_render(t->recorder, t->pass, render, &ctx);
 		gfx_frame_submit(frame);
 		gfx_heap_purge(t->heap);
 	}

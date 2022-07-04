@@ -19,6 +19,38 @@
 #include "stb_image.h"
 
 
+/****************************
+ * Constructs an image format based on:
+ *  - If it is HDR (float).
+ *  - If it is unsigned 16 bits integers.
+ *  - How many components per pixel it has.
+ */
+static GFXFormat _gfx_stb_image_fmt(bool ishdr, bool is16, int comps)
+{
+	const unsigned char depth =
+		ishdr ? 32 : is16 ? 16 : 8;
+
+	const GFXFormatType type =
+		ishdr ? GFX_SFLOAT : GFX_UNORM;
+
+	const GFXOrder order =
+		(comps == 1) ? GFX_ORDER_R :
+		(comps == 2) ? GFX_ORDER_RG :
+		(comps == 3) ? GFX_ORDER_RGB :
+		(comps == 4) ? GFX_ORDER_RGBA : 0;
+
+	return (GFXFormat){
+		{
+			comps > 0 ? depth : 0,
+			comps > 1 ? depth : 0,
+			comps > 2 ? depth : 0,
+			comps > 3 ? depth : 0
+		},
+		type,
+		order
+	};
+}
+
 /****************************/
 GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
                                  GFXImageUsage usage,
@@ -58,19 +90,38 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 		return NULL;
 	}
 
-	// Load/parse the image from memory.
-	const bool ishdr = stbi_is_hdr_from_memory(source, (int)len);
-	const bool is16 = stbi_is_16_bit_from_memory(source, (int)len);
-
+	// Get image properties.
 	int x, y, comps;
+	bool ishdr = stbi_is_hdr_from_memory(source, (int)len);
+	bool is16 = stbi_is_16_bit_from_memory(source, (int)len);
+
+	if (!stbi_info_from_memory(source, (int)len, &x, &y, &comps))
+	{
+		gfx_log_error(
+			"Failed to retrieve image dimensions & components from stream: %s.",
+			stbi_failure_reason());
+
+		free(source);
+		return NULL;
+	}
+
+	// Get appropriate format from properties.
+	// TODO: Currently forced into a required supported format, make dynamic.
+	// TODO: Prolly want to use gfx_format_support to get the format to use.
+	int des = 4;
+	ishdr = 0;
+	is16 = 0;
+	GFXFormat fmt = _gfx_stb_image_fmt(ishdr, is16, des);
+
+	// Load/parse the image from memory.
 	void* img;
 
 	if (ishdr)
-		img = stbi_loadf_from_memory(source, (int)len, &x, &y, &comps, 0);
+		img = stbi_loadf_from_memory(source, (int)len, &x, &y, &comps, des);
 	else if (is16)
-		img = stbi_load_16_from_memory(source, (int)len, &x, &y, &comps, 0);
+		img = stbi_load_16_from_memory(source, (int)len, &x, &y, &comps, des);
 	else
-		img = stbi_load_from_memory(source, (int)len, &x, &y, &comps, 0);
+		img = stbi_load_from_memory(source, (int)len, &x, &y, &comps, des);
 
 	free(source); // Immediately free source buffer.
 
@@ -84,29 +135,6 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 	}
 
 	// Allocate image.
-	const unsigned char depth =
-		ishdr ? 32 : is16 ? 16 : 8;
-
-	const GFXFormatType type =
-		ishdr ? GFX_SFLOAT : GFX_UNORM;
-
-	const GFXOrder order =
-		(comps == 1) ? GFX_ORDER_R :
-		(comps == 2) ? GFX_ORDER_RG :
-		(comps == 3) ? GFX_ORDER_RGB :
-		(comps == 4) ? GFX_ORDER_RGBA : 0;
-
-	const GFXFormat fmt = {
-		{
-			comps > 0 ? depth : 0,
-			comps > 1 ? depth : 0,
-			comps > 2 ? depth : 0,
-			comps > 3 ? depth : 0
-		},
-		type,
-		order
-	};
-
 	GFXImage* image = gfx_alloc_image(heap,
 		GFX_IMAGE_2D, GFX_MEMORY_WRITE,
 		usage, fmt, 1, 1, (uint32_t)x, (uint32_t)y, 1);
