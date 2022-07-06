@@ -68,6 +68,7 @@ GFX_API void gfx_destroy_shader(GFXShader* shader);
  * @param shader   Cannot be NULL.
  * @param optimize Non-zero to enable platform-specific compiler options.
  * @param src      Source stream, cannot be NULL.
+ * @param inc      Optional stream includer.
  * @param out      Optional SPIR-V bytecode output stream.
  * @param err      Optional error/warning output stream.
  * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
@@ -75,7 +76,8 @@ GFX_API void gfx_destroy_shader(GFXShader* shader);
  * Output stream failure is ignored.
  */
 GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
-                                bool optimize, const GFXReader* src,
+                                bool optimize,
+                                const GFXReader* src, const GFXIncluder* inc,
                                 const GFXWriter* out, const GFXWriter* err);
 
 /**

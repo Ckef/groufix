@@ -78,12 +78,134 @@
 
 
 /****************************
+ * Default shaderc include error.
+ */
+const static shaderc_include_result _gfx_shaderc_def_error = {
+	.source_name = "",
+	.source_name_length = 0,
+	.content =
+		"unknown source or failed allocation for #include directive.",
+
+	.content_length = 59 // (!).
+};
+
+
+/****************************
  * Callback for SPIRV-Cross errors.
  */
 void _gfx_spirv_cross_error(void* userData, const char* error)
 {
 	// Just log it as a groufix error.
 	gfx_log_error("SPIRV-Cross: %s", error);
+}
+
+/****************************
+ * Resolve callback for the shaderc includer.
+ */
+shaderc_include_result* _gfx_shaderc_resolve(void* ptr, const char* req,
+                                             int type, const char* src, size_t depth)
+{
+	const GFXIncluder* inc = ptr;
+
+	// Allocate new source name so we can return it.
+	const size_t sourceLen = strlen(req);
+	if (sourceLen == 0)
+		return (shaderc_include_result*)&_gfx_shaderc_def_error;
+
+	char* sourceName = malloc(sourceLen + 1);
+	if (sourceName == NULL)
+		return (shaderc_include_result*)&_gfx_shaderc_def_error;
+
+	strcpy(sourceName, req);
+
+	// Allocate a shaderc result (on error: default error!).
+	shaderc_include_result* result = malloc(sizeof(shaderc_include_result));
+	if (result == NULL)
+	{
+		free(sourceName);
+		return (shaderc_include_result*)&_gfx_shaderc_def_error;
+	}
+
+	// Set it to an error state so we can goto on error!
+	result->source_name = "";
+	result->source_name_length = 0;
+
+	// Resolve the requested source.
+	const GFXReader* str = gfx_io_resolve(inc, req);
+	if (str == NULL)
+	{
+		result->content = "could not resolve #include directive.";
+		goto clean_name;
+	}
+
+	// Allocate content buffer.
+	long long len = gfx_io_len(str);
+	if (len <= 0)
+	{
+		result->content =
+			"zero or unknown stream length, cannot load #include directive.";
+
+		goto clean_stream;
+	}
+
+	char* content = malloc((size_t)len);
+	if (content == NULL)
+	{
+		result->content =
+			"could not allocate buffer to load #include directive.";
+
+		goto clean_stream;
+	}
+
+	// Read content.
+	len = gfx_io_read(str, content, (size_t)len);
+	if (len <= 0)
+	{
+		result->content =
+			"could not read data from stream to load #include directive.";
+
+		goto clean_content;
+	}
+
+	// Release the stream & output.
+	gfx_io_release(inc, str);
+
+	result->source_name = sourceName;
+	result->source_name_length = sourceLen;
+	result->content = content;
+	result->content_length = (size_t)len;
+
+	return result;
+
+
+	// Cleanup on error.
+clean_content:
+	free(content);
+clean_stream:
+	gfx_io_release(inc, str);
+clean_name:
+	free(sourceName);
+
+	result->content_length = strlen(result->content); // (!).
+	return result;
+}
+
+/****************************
+ * Release callback for the shaderc includer.
+ */
+void _gfx_shaderc_release(void* ptr, shaderc_include_result* result)
+{
+	// Nothing to do if it was the default error.
+	if (result != (shaderc_include_result*)&_gfx_shaderc_def_error)
+	{
+		if (result->source_name_length > 0)
+		{
+			free((char*)result->source_name);
+			free((char*)result->content);
+		}
+
+		free(result);
+	}
 }
 
 /****************************
@@ -568,7 +690,8 @@ GFX_API void gfx_destroy_shader(GFXShader* shader)
 
 /****************************/
 GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
-                                bool optimize, const GFXReader* src,
+                                bool optimize,
+                                const GFXReader* src, const GFXIncluder* inc,
                                 const GFXWriter* out, const GFXWriter* err)
 {
 	assert(shader != NULL);
@@ -646,6 +769,14 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	shaderc_compile_options_set_generate_debug_info(
 		options);
 #endif
+
+	// Set includer callbacks if an includer is given.
+	if (inc != NULL)
+		shaderc_compile_options_set_include_callbacks(
+			options,
+			_gfx_shaderc_resolve,
+			_gfx_shaderc_release,
+			(GFXIncluder*)inc);
 
 	// Add all these options only if we compile for this specific platform.
 	// This will enable optimization for the target API and GPU limits.

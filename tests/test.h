@@ -586,13 +586,13 @@ static void _test_init(TestState* _test_state)
 	GFXStringReader str;
 
 	if (!gfx_shader_compile(_test_base.vertex, GFX_GLSL, 1,
-		gfx_string_reader(&str, _test_glsl_vertex), NULL, NULL))
+		gfx_string_reader(&str, _test_glsl_vertex), NULL, NULL, NULL))
 	{
 		TEST_FAIL();
 	}
 
 	if (!gfx_shader_compile(_test_base.fragment, GFX_GLSL, 1,
-		gfx_string_reader(&str, _test_glsl_fragment), NULL, NULL))
+		gfx_string_reader(&str, _test_glsl_fragment), NULL, NULL, NULL))
 	{
 		TEST_FAIL();
 	}

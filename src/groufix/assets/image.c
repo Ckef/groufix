@@ -162,6 +162,7 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 	};
 
 	const GFXInject inject =
+		// TODO: Take into account the usage?
 		gfx_dep_sig(dep, GFX_ACCESS_SAMPLED_READ, 0);
 
 	if (!gfx_write(img, gfx_ref_image(image),

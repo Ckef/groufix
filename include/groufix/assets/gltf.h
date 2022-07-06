@@ -53,7 +53,7 @@ typedef struct GFXGltfResult
  * @param dep    Dependency to inject signal commands in, cannot be NULL.
  * @param usage  Image usage to use for any images.
  * @param src    Source stream, cannot be NULL.
- * @param inc    Stream includer, may be NULL.
+ * @param inc    Optional stream includer.
  * @param result Cannot be NULL, output parsing results.
  * @return Non-zero on success.
  */

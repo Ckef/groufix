@@ -34,15 +34,25 @@ static GFXShader* load_shader(GFXShaderStage stage, const char* uri)
 	if (!gfx_file_init(&file, uri, "r"))
 		goto error;
 
+	// Init includer.
+	GFXFileIncluder inc;
+	if (!gfx_file_includer_init(&inc, uri))
+		goto clean_file;
+
 	// Create shader.
 	GFXShader* shader = gfx_create_shader(stage, TEST_BASE.device);
 	if (shader == NULL)
-		goto clean_file;
+		goto clean_includer;
 
 	// Compile shader.
-	if (!gfx_shader_compile(shader, GFX_GLSL, 1, &file.reader, NULL, NULL))
+	if (!gfx_shader_compile(shader,
+		GFX_GLSL, 1,
+		&file.reader, &inc.includer, NULL, NULL))
+	{
 		goto clean_shader;
+	}
 
+	gfx_file_includer_clear(&inc);
 	gfx_file_clear(&file);
 
 	return shader;
@@ -51,6 +61,8 @@ static GFXShader* load_shader(GFXShaderStage stage, const char* uri)
 	// Cleanup on failure.
 clean_shader:
 	gfx_destroy_shader(shader);
+clean_includer:
+	gfx_file_includer_clear(&inc);
 clean_file:
 	gfx_file_clear(&file);
 error:
@@ -174,7 +186,7 @@ TEST_DESCRIBE(loading, t)
 
 	gfx_release_gltf(&result);
 
-	// Create a technique, set immutable & lock it.
+	// Create a technique and set immutable sampler.
 	GFXTechnique* tech = gfx_renderer_add_tech(
 		t->renderer, 2, (GFXShader*[]){ vert, frag });
 
@@ -183,10 +195,7 @@ TEST_DESCRIBE(loading, t)
 
 	gfx_tech_immutable(tech, 0, 0); // Warns on fail.
 
-	if (!gfx_tech_lock(tech))
-		goto clean;
-
-	// Init a renderable and set using the above stuff.
+	// Init a renderable & set using the above stuff.
 	Context ctx;
 	if (!gfx_renderable(&ctx.renderable, t->pass, tech, prim))
 		goto clean;
