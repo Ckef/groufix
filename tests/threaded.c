@@ -8,7 +8,6 @@
 
 #define TEST_ENABLE_THREADS
 #include "test.h"
-#include <stdatomic.h>
 
 
 /****************************

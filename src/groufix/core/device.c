@@ -889,17 +889,13 @@ bool _gfx_devices_init(void)
 		_groufix.vk.instance, &count, devices), goto terminate);
 
 	// Fill the array of groufix devices.
-	// While doing so, keep track of the primary device,
-	// this to make sure the primary device is at index 0.
+	// While doing so, insert them in order of primary-ness.
+	// This also makes it so the 'primary' device is at index 0.
 	if (!gfx_vec_reserve(&_groufix.devices, (size_t)count))
 		goto terminate;
 
-	GFXDeviceType type = GFX_DEVICE_UNKNOWN;
-	uint32_t ver = 0;
-	bool foundPrim = 0;
-
-	// We keep moving around all the devices to sort the primary one to
-	// the front, so we leave its mutex and name pointer blank.
+	// Because we insert in random places, we keep moving devices around,
+	// so we leave their mutexes and name pointers blank.
 	for (uint32_t i = 0; i < count; ++i)
 	{
 		// Get some Vulkan properties and define a new device.
@@ -953,7 +949,7 @@ bool _gfx_devices_init(void)
 		dev.base = (GFXDevice){
 			.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
 			.name = NULL,
-			.available = dev.api >= _GFX_VK_API_VERSION,
+			.available = available,
 
 			.features = {
 				.indexUint32              = pdf.fullDrawIndexUint32,
@@ -1026,23 +1022,30 @@ bool _gfx_devices_init(void)
 			}
 		};
 
-		// Check if the new device is a better pick as primary.
-		// If the type of device is superior, pick it as primary.
-		// If the type is equal, pick the greater Vulkan version.
-		const bool isPrim = available && (!foundPrim ||
-			dev.base.type < type ||
-			(dev.base.type == type && pdp.apiVersion > ver));
+		// Find position to insert at.
+		size_t j = _groufix.devices.size;
 
-		if (!isPrim)
-			gfx_vec_push(&_groufix.devices, 1, &dev);
-		else
+		while (j > 0)
 		{
-			// If new primary, insert it at index 0.
-			gfx_vec_insert(&_groufix.devices, 1, &dev, 0);
-			type = dev.base.type;
-			ver = pdp.apiVersion;
-			foundPrim = 1;
+			_GFXDevice* d = gfx_vec_at(&_groufix.devices, j-1);
+
+			// Check if the previous position needs to go to the right.
+			// This is true if the new device is a better pick as primary.
+			// If the type of device is superior, pick it as primary.
+			// If the type is equal, pick the greater Vulkan version.
+			const bool prim =
+				dev.base.type < d->base.type ||
+				(dev.base.type == d->base.type && dev.api > d->api);
+			const bool greater =
+				d->base.available ?
+					(available && prim) : (available || prim);
+
+			if (greater) --j;
+			else break;
 		}
+
+		// Actual insert.
+		gfx_vec_insert(&_groufix.devices, 1, &dev, j);
 	}
 
 	// Now loop over 'm again to init its mutex/formats and
