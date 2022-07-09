@@ -212,25 +212,65 @@ static void* _gfx_gltf_decode_base64(size_t size, const char* src)
 }
 
 /****************************
+ * Allocates a new buffer and fills it with given data.
+ * @param size Must be > 0.
+ * @return NULL on failure.
+ */
+static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
+                                         size_t size, const void* bin)
+{
+	assert(heap != NULL);
+	assert(dep != NULL);
+	assert(size > 0);
+	assert(bin != NULL);
+
+	// Allocate.
+	GFXBuffer* buffer = gfx_alloc_buffer(heap,
+		GFX_MEMORY_WRITE,
+		GFX_BUFFER_VERTEX | GFX_BUFFER_INDEX,
+		size);
+
+	if (buffer == NULL) return NULL;
+
+	// Write data.
+	const GFXRegion region = {
+		.offset = 0,
+		.size = size
+	};
+
+	const GFXInject inject =
+		gfx_dep_sig(dep,
+			GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ, 0);
+
+	if (!gfx_write(bin, gfx_ref_buffer(buffer),
+		GFX_TRANSFER_ASYNC,
+		1, 1, &region, &region, &inject))
+	{
+		gfx_free_buffer(buffer);
+		return NULL;
+	}
+
+	return buffer;
+}
+
+/****************************
  * Resolves and reads a buffer URI.
  * @param inc  Includer to use, may be NULL.
  * @param uri  Data URI to resolve, cannot be NULL, must be NULL-terminated.
- * @param size Outputs the byte size of the data.
- * @param out  Outputs the data, must call free() on success!
- * @return Zero on failure.
+ * @return NULL on failure.
  */
-static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
-                                     size_t* size,  void** out)
+static GFXBuffer* _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
+                                           GFXHeap* heap, GFXDependency* dep)
 {
 	assert(uri != NULL);
-	assert(size != NULL);
-	assert(out != NULL);
+	assert(heap != NULL);
+	assert(dep != NULL);
 
 	// Cannot do anything without an includer.
 	if (inc == NULL)
 	{
 		gfx_log_error("Cannot load buffer URIs without an includer.");
-		return 0;
+		return NULL;
 	}
 
 	// Resolve the URI.
@@ -238,7 +278,7 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 	if (dec == NULL)
 	{
 		gfx_log_error("Could not decode buffer URI: %s.", uri);
-		return 0;
+		return NULL;
 	}
 
 	const GFXReader* src = gfx_io_resolve(inc, dec);
@@ -247,7 +287,7 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 	if (src == NULL)
 	{
 		gfx_log_error("Could not resolve buffer URI: %s.", uri);
-		return 0;
+		return NULL;
 	}
 
 	// Allocate binary buffer.
@@ -258,7 +298,7 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 			"Zero or unknown stream length, cannot load URI: %s.", uri);
 
 		gfx_io_release(inc, src);
-		return 0;
+		return NULL;
 	}
 
 	void* bin = malloc((size_t)len);
@@ -268,7 +308,7 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 			"Could not allocate buffer to load URI: %s.", uri);
 
 		gfx_io_release(inc, src);
-		return 0;
+		return NULL;
 	}
 
 	// Read source.
@@ -280,16 +320,20 @@ static bool _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 
 		gfx_io_release(inc, src);
 		free(bin);
-		return 0;
+		return NULL;
 	}
 
-	// Release the stream & output.
+	// Release the stream & allocate buffer.
 	gfx_io_release(inc, src);
 
-	*size = (size_t)len;
-	*out = bin;
+	GFXBuffer* buffer = _gfx_gltf_alloc_buffer(heap, dep, (size_t)len, bin);
+	if (buffer == NULL)
+		gfx_log_error("Failed to load buffer URI: %s", uri);
 
-	return 1;
+	// Free memory & output.
+	free(bin);
+
+	return buffer;
 }
 
 /****************************
@@ -339,48 +383,6 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 	gfx_io_release(inc, src);
 
 	return image;
-}
-
-/****************************
- * Allocates a new buffer and fills it with given data.
- * @param size Must be > 0.
- * @return NULL on failure.
- */
-static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
-                                         size_t size, const void* bin)
-{
-	assert(heap != NULL);
-	assert(dep != NULL);
-	assert(size > 0);
-	assert(bin != NULL);
-
-	// Allocate.
-	GFXBuffer* buffer = gfx_alloc_buffer(heap,
-		GFX_MEMORY_WRITE,
-		GFX_BUFFER_VERTEX | GFX_BUFFER_INDEX,
-		size);
-
-	if (buffer == NULL) return NULL;
-
-	// Write data.
-	const GFXRegion region = {
-		.offset = 0,
-		.size = size
-	};
-
-	const GFXInject inject =
-		gfx_dep_sig(dep,
-			GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ, 0);
-
-	if (!gfx_write(bin, gfx_ref_buffer(buffer),
-		GFX_TRANSFER_ASYNC,
-		1, 1, &region, &region, &inject))
-	{
-		gfx_free_buffer(buffer);
-		return NULL;
-	}
-
-	return buffer;
 }
 
 /****************************/
@@ -502,17 +504,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		// Check if actual URI.
 		else if (uri != NULL)
 		{
-			// Load from URI using the includer.
-			void* bin = NULL;
-			size_t size = 0;
-
-			if (!_gfx_gltf_include_buffer(inc, uri, &size, &bin))
-				goto clean;
-
-			// Allocate buffer.
-			buffer = _gfx_gltf_alloc_buffer(heap, dep, size, bin);
-
-			free(bin);
+			buffer = _gfx_gltf_include_buffer(inc, uri, heap, dep);
 			if (buffer == NULL) goto clean;
 		}
 
