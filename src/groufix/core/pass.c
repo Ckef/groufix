@@ -57,6 +57,19 @@ typedef struct _GFXFrameElem
 
 
 /****************************
+ * Compares two user defined rasterization state descriptions.
+ * @return Non-zero if equal.
+ */
+static inline bool _gfx_cmp_raster(const GFXRasterState* l,
+                                   const GFXRasterState* r)
+{
+	return
+		l->mode == r->mode &&
+		l->front == r->front &&
+		l->cull == r->cull;
+}
+
+/****************************
  * Compares two user defined depth state descriptions.
  * @return Non-zero if equal.
  */
@@ -345,6 +358,12 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	// And finally some default state.
 	pass->state.enabled = 0;
 
+	pass->state.raster = (GFXRasterState){
+		.mode = GFX_RASTER_FILL,
+		.front = GFX_FRONT_FACE_CW,
+		.cull = GFX_CULL_BACK
+	};
+
 	pass->state.depth = (GFXDepthState){
 		.flags = GFX_DEPTH_WRITE,
 		.cmp = GFX_CMP_LESS,
@@ -428,7 +447,9 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 	// We are always gonna update the clear values.
 	// Do it here and not build so we don't unnecessarily reconstruct this.
+	// Same for state enables.
 	gfx_vec_release(&pass->clears);
+	pass->state.enabled = 0;
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
@@ -541,6 +562,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.samples        = VK_SAMPLE_COUNT_1_BIT,
 
 				// TODO: Determine whether to load based on parent passes.
+				// TODO: If no parent pass, base on dependency injections?
 				.loadOp = (firstClear) ?
 					VK_ATTACHMENT_LOAD_OP_CLEAR :
 					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -893,11 +915,24 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 }
 
 /****************************/
-GFX_API void gfx_pass_set_depth(GFXPass* pass, GFXDepthState state)
+GFX_API void gfx_pass_set_raster(GFXPass* pass, GFXRasterState state)
 {
 	assert(pass != NULL);
 
 	// If new values, set & increase generation to invalidate pipelines.
+	if (!_gfx_cmp_raster(&pass->state.raster, &state))
+	{
+		pass->state.raster = state;
+		_gfx_pass_gen(pass);
+	}
+}
+
+/****************************/
+GFX_API void gfx_pass_set_depth(GFXPass* pass, GFXDepthState state)
+{
+	assert(pass != NULL);
+
+	// Ditto gfx_pass_set_raster.
 	if (!_gfx_cmp_depth(&pass->state.depth, &state))
 	{
 		pass->state.depth = state;
@@ -910,7 +945,7 @@ GFX_API void gfx_pass_set_stencil(GFXPass* pass, GFXStencilState state)
 {
 	assert(pass != NULL);
 
-	// Ditto gfx_pass_set_depth.
+	// Ditto gfx_pass_set_raster.
 	if (
 		!_gfx_cmp_stencil(&pass->state.stencil.front, &state.front) ||
 		!_gfx_cmp_stencil(&pass->state.stencil.back, &state.back))

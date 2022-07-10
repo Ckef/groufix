@@ -11,6 +11,49 @@
 #include <stdlib.h>
 
 
+#define _GFX_GET_VK_PRIMITIVE_TOPOLOGY(topo) \
+	((topo) == GFX_TOPO_POINT_LIST ? \
+		VK_PRIMITIVE_TOPOLOGY_POINT_LIST : \
+	(topo) == GFX_TOPO_LINE_LIST ? \
+		VK_PRIMITIVE_TOPOLOGY_LINE_LIST : \
+	(topo) == GFX_TOPO_LINE_STRIP ? \
+		VK_PRIMITIVE_TOPOLOGY_LINE_STRIP : \
+	(topo) == GFX_TOPO_TRIANGLE_LIST ? \
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST : \
+	(topo) == GFX_TOPO_TRIANGLE_STRIP ? \
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP : \
+	(topo) == GFX_TOPO_TRIANGLE_FAN ? \
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN : \
+	(topo) == GFX_TOPO_LINE_LIST_ADJACENT ? \
+		VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY : \
+	(topo) == GFX_TOPO_LINE_STRIP_ADJACENT ? \
+		VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY : \
+	(topo) == GFX_TOPO_TRIANGLE_LIST_ADJACENT ? \
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY : \
+	(topo) == GFX_TOPO_TRIANGLE_STRIP_ADJACENT ? \
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY : \
+	(topo) == GFX_TOPO_PATCH_LIST ? \
+		VK_PRIMITIVE_TOPOLOGY_PATCH_LIST : \
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+
+#define _GFX_GET_VK_POLYGON_MODE(mode) \
+	(((mode) == GFX_RASTER_POINT) ? VK_POLYGON_MODE_POINT : \
+	((mode) == GFX_RASTER_LINE) ? VK_POLYGON_MODE_LINE : \
+	((mode) == GFX_RASTER_FILL) ? VK_POLYGON_MODE_FILL : \
+	VK_POLYGON_MODE_FILL)
+
+#define _GFX_GET_VK_FRONT_FACE(front) \
+	(((front) == GFX_FRONT_FACE_CCW) ? VK_FRONT_FACE_COUNTER_CLOCKWISE : \
+	((front) == GFX_FRONT_FACE_CW) ? VK_FRONT_FACE_CLOCKWISE : \
+	VK_FRONT_FACE_CLOCKWISE)
+
+#define _GFX_GET_VK_CULL_MODE(cull) \
+	(((cull) == GFX_CULL_FRONT ? \
+		VK_CULL_MODE_FRONT_BIT : (VkCullModeFlags)0) | \
+	((cull) == GFX_CULL_BACK ? \
+		VK_CULL_MODE_BACK_BIT : (VkCullModeFlags)0))
+
+
 /****************************
  * Recording command buffer element definition.
  */
@@ -110,6 +153,36 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		return 0;
 	}
 
+	// Build rasterization info.
+	const bool noRaster =
+		pass->state.raster.mode == GFX_RASTER_DISCARD;
+
+	VkPipelineRasterizationStateCreateInfo prsci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+
+		.pNext                   = NULL,
+		.flags                   = 0,
+		.depthClampEnable        = VK_FALSE,
+		.rasterizerDiscardEnable = VK_TRUE,
+		.polygonMode             = VK_POLYGON_MODE_FILL,
+		.cullMode                = VK_CULL_MODE_NONE,
+		.frontFace               = VK_FRONT_FACE_CLOCKWISE,
+		.depthBiasEnable         = VK_FALSE,
+		.depthBiasConstantFactor = 0.0f,
+		.depthBiasClamp          = 0.0f,
+		.depthBiasSlopeFactor    = 0.0f,
+		.lineWidth               = 1.0f
+	};
+
+	if (!noRaster)
+	{
+		prsci.rasterizerDiscardEnable = VK_FALSE;
+
+		prsci.polygonMode = _GFX_GET_VK_POLYGON_MODE(pass->state.raster.mode);
+		prsci.cullMode = _GFX_GET_VK_CULL_MODE(pass->state.raster.cull);
+		prsci.frontFace = _GFX_GET_VK_FRONT_FACE(pass->state.raster.front);
+	}
+
 	// Build depth/stencil info.
 	const VkStencilOpState sos = {
 		.failOp      = VK_STENCIL_OP_KEEP,
@@ -137,7 +210,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		.maxDepthBounds        = 1.0f
 	};
 
-	if (pass->state.enabled & _GFX_PASS_DEPTH)
+	if (!noRaster && (pass->state.enabled & _GFX_PASS_DEPTH))
 	{
 		pdssci.depthTestEnable = VK_TRUE;
 		pdssci.depthCompareOp = _GFX_GET_VK_COMPARE_OP(pass->state.depth.cmp);
@@ -153,7 +226,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		}
 	}
 
-	if (pass->state.enabled & _GFX_PASS_STENCIL)
+	if (!noRaster && (pass->state.enabled & _GFX_PASS_STENCIL))
 	{
 		pdssci.stencilTestEnable = VK_TRUE;
 
@@ -230,17 +303,20 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	VkGraphicsPipelineCreateInfo gpci = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 
-		.pNext              = NULL,
-		.flags              = 0,
-		.stageCount         = numShaders,
-		.pStages            = pstci,
-		.layout             = tech->vk.layout,
-		.renderPass         = pass->vk.pass,
-		.subpass            = 0,
-		.basePipelineHandle = VK_NULL_HANDLE,
-		.basePipelineIndex  = -1,
-		.pTessellationState = NULL,
+		.pNext               = NULL,
+		.flags               = 0,
+		.stageCount          = numShaders,
+		.pStages             = pstci,
+		.layout              = tech->vk.layout,
+		.renderPass          = pass->vk.pass,
+		.subpass             = 0,
+		.basePipelineHandle  = VK_NULL_HANDLE,
+		.basePipelineIndex   = -1,
+		.pRasterizationState = &prsci,
+		.pTessellationState  = NULL,
+
 		.pDepthStencilState =
+			// Even if rasterization is disabled, Vulkan expects this.
 			pass->state.enabled & (_GFX_PASS_DEPTH | _GFX_PASS_STENCIL) ?
 			&pdssci : NULL,
 
@@ -275,24 +351,6 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.pViewports    = NULL,
 			.scissorCount  = 1,
 			.pScissors     = NULL
-		}},
-
-		// TODO: Somehow take as input.
-		.pRasterizationState = (VkPipelineRasterizationStateCreateInfo[]){{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-
-			.pNext                   = NULL,
-			.flags                   = 0,
-			.depthClampEnable        = VK_FALSE,
-			.rasterizerDiscardEnable = VK_FALSE,
-			.polygonMode             = VK_POLYGON_MODE_FILL,
-			.cullMode                = VK_CULL_MODE_BACK_BIT,
-			.frontFace               = VK_FRONT_FACE_CLOCKWISE,
-			.depthBiasEnable         = VK_FALSE,
-			.depthBiasConstantFactor = 0.0f,
-			.depthBiasClamp          = 0.0f,
-			.depthBiasSlopeFactor    = 0.0f,
-			.lineWidth               = 1.0f
 		}},
 
 		// TODO: Somehow take as input.

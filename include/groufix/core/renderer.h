@@ -117,6 +117,20 @@ GFX_BIT_FIELD(GFXSamplerFlags)
 
 
 /**
+ * Primitive face culling mode.
+ */
+typedef enum GFXCullMode
+{
+	GFX_CULL_NONE  = 0x0000,
+	GFX_CULL_FRONT = 0x0001,
+	GFX_CULL_BACK  = 0x0002
+
+} GFXCullMode;
+
+GFX_BIT_FIELD(GFXCullMode)
+
+
+/**
  * Depth paramater flags.
  */
 typedef enum GFXDepthFlags
@@ -128,6 +142,30 @@ typedef enum GFXDepthFlags
 } GFXDepthFlags;
 
 GFX_BIT_FIELD(GFXDepthFlags)
+
+
+/**
+ * Polygon rasterization mode.
+ */
+typedef enum GFXRasterMode
+{
+	GFX_RASTER_DISCARD,
+	GFX_RASTER_POINT,
+	GFX_RASTER_LINE,
+	GFX_RASTER_FILL
+
+} GFXRasterMode;
+
+
+/**
+ * Front face direction.
+ */
+typedef enum GFXFrontFace
+{
+	GFX_FRONT_FACE_CCW,
+	GFX_FRONT_FACE_CW
+
+} GFXFrontFace;
 
 
 /**
@@ -247,6 +285,18 @@ typedef struct GFXSampler
 	GFXCompareOp cmp;
 
 } GFXSampler;
+
+
+/**
+ * Rasterization state description.
+ */
+typedef struct GFXRasterState
+{
+	GFXRasterMode mode;
+	GFXFrontFace  front;
+	GFXCullMode   cull;
+
+} GFXRasterState;
 
 
 /**
@@ -542,6 +592,12 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
  */
 GFX_API void gfx_pass_get_size(GFXPass* pass,
                                uint32_t* width, uint32_t* height, uint32_t* layers);
+
+/**
+ * Sets the rasterization state of a pass.
+ * @param pass Cannot be NULL.
+ */
+GFX_API void gfx_pass_set_raster(GFXPass* pass, GFXRasterState state);
 
 /**
  * Sets the depth state of a pass.
