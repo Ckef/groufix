@@ -124,8 +124,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	pdf->drawIndirectFirstInstance               = VK_FALSE;
 	pdf->depthClamp                              = VK_FALSE;
 	pdf->depthBiasClamp                          = VK_FALSE;
-	pdf->fillModeNonSolid                        = VK_FALSE;
-	pdf->depthBounds                             = VK_FALSE;
 	pdf->wideLines                               = VK_FALSE;
 	pdf->largePoints                             = VK_FALSE;
 	pdf->alphaToOne                              = VK_FALSE;
@@ -956,6 +954,8 @@ bool _gfx_devices_init(void)
 				.cubeArray                = pdf.imageCubeArray,
 				.geometryShader           = pdf.geometryShader,
 				.tessellationShader       = pdf.tessellationShader,
+				.rasterNonSolid           = pdf.fillModeNonSolid,
+				.depthBounds              = pdf.depthBounds,
 				.compressionBC            = pdf.textureCompressionBC,
 				.compressionETC2          = pdf.textureCompressionETC2,
 				.compressionASTC          = pdf.textureCompressionASTC_LDR,
