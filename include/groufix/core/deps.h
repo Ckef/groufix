@@ -43,7 +43,7 @@ typedef enum GFXAccessMask
 	// Modifiers, meaningless without other flags.
 	GFX_ACCESS_COMPUTE_ASYNC  = 0x004000,
 	GFX_ACCESS_TRANSFER_ASYNC = 0x008000,
-	GFX_ACCESS_DISCARD        = 0x010000 // Contents may be discarded.
+	GFX_ACCESS_DISCARD        = 0x010000 // Resulting contents may be discarded.
 	// TODO: Add a modifier for framebuffer local regions?
 
 } GFXAccessMask;

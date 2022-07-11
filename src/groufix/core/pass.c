@@ -499,6 +499,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					VK_ATTACHMENT_STORE_OP_STORE,
 
 				// All other input ops are ignored for windows.
+				// TODO: Determine all this based on parent/child passes.
 				.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 				.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -510,19 +511,33 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		else
 		{
 			const bool aspectMatch =
-				GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ?
-					con->view.range.aspect & (GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL) :
-					con->view.range.aspect & GFX_IMAGE_COLOR;
+				(!GFX_FORMAT_HAS_DEPTH(at->image.base.format) ||
+					con->view.range.aspect & GFX_IMAGE_DEPTH) &&
+				(!GFX_FORMAT_HAS_STENCIL(at->image.base.format) ||
+					con->view.range.aspect & GFX_IMAGE_STENCIL) &&
+				(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ||
+					con->view.range.aspect & GFX_IMAGE_COLOR);
 
 			const bool firstClear =
 				!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ?
 					con->cleared & GFX_IMAGE_COLOR :
-					(GFX_FORMAT_HAS_DEPTH(at->image.base.format) ?
-						con->cleared & GFX_IMAGE_DEPTH : 0);
+					GFX_FORMAT_HAS_DEPTH(at->image.base.format) &&
+						con->cleared & GFX_IMAGE_DEPTH;
+
+			const bool firstLoad =
+				!firstClear &&
+				(!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ||
+				GFX_FORMAT_HAS_DEPTH(at->image.base.format)) &&
+					at->image.base.usage & GFX_IMAGE_LOAD;
 
 			const bool secondClear =
-				GFX_FORMAT_HAS_STENCIL(at->image.base.format) ?
-					con->cleared & GFX_IMAGE_STENCIL : 0;
+				GFX_FORMAT_HAS_STENCIL(at->image.base.format) &&
+					con->cleared & GFX_IMAGE_STENCIL;
+
+			const bool secondLoad =
+				!secondClear &&
+				GFX_FORMAT_HAS_STENCIL(at->image.base.format) &&
+					at->image.base.usage & GFX_IMAGE_LOAD;
 
 			const VkAttachmentReference ref = (VkAttachmentReference){
 				.attachment = (uint32_t)numAttachs,
@@ -562,17 +577,18 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.samples        = VK_SAMPLE_COUNT_1_BIT,
 
 				// TODO: Determine whether to load based on parent passes.
-				// TODO: If no parent pass, base on dependency injections?
-				.loadOp = (firstClear) ?
-					VK_ATTACHMENT_LOAD_OP_CLEAR :
+				.loadOp =
+					(firstClear) ? VK_ATTACHMENT_LOAD_OP_CLEAR :
+					(firstLoad) ? VK_ATTACHMENT_LOAD_OP_LOAD :
 					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 
 				.storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
 					VK_ATTACHMENT_STORE_OP_DONT_CARE :
 					VK_ATTACHMENT_STORE_OP_STORE,
 
-				.stencilLoadOp = (secondClear) ?
-					VK_ATTACHMENT_LOAD_OP_CLEAR :
+				.stencilLoadOp =
+					(secondClear) ? VK_ATTACHMENT_LOAD_OP_CLEAR :
+					(secondLoad) ? VK_ATTACHMENT_LOAD_OP_LOAD :
 					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 
 				.stencilStoreOp = (con->mask & GFX_ACCESS_DISCARD) ?
@@ -580,8 +596,10 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					VK_ATTACHMENT_STORE_OP_STORE,
 
 				// TODO: Should also be based on parent passes.
-				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-				.finalLayout   = ref.layout,
+				.initialLayout = (firstLoad || secondLoad) ?
+					ref.layout : VK_IMAGE_LAYOUT_UNDEFINED,
+
+				.finalLayout = ref.layout,
 			};
 		}
 

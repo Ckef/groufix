@@ -751,7 +751,8 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 
 	// Ignore the host-visibility flag & the attachment usages.
 	flags &= ~(GFXMemoryFlags)GFX_MEMORY_HOST_VISIBLE;
-	usage &= ~(GFXImageUsage)(GFX_IMAGE_INPUT | GFX_IMAGE_BLEND | GFX_IMAGE_TRANSIENT);
+	usage &= ~(GFXImageUsage)(
+		GFX_IMAGE_INPUT | GFX_IMAGE_BLEND | GFX_IMAGE_TRANSIENT | GFX_IMAGE_LOAD);
 
 	// Firstly, resolve the given format.
 	VkFormat vkFmt;
