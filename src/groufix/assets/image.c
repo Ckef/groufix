@@ -19,6 +19,18 @@
 #include "stb_image.h"
 
 
+// Checks if the format has features to support the requested usage.
+#define _GFX_STB_FMT_SUPPORTED(usage, feats) \
+	((feats & GFX_FORMAT_IMAGE_WRITE) && \
+	(usage & GFX_IMAGE_SAMPLED ? feats & GFX_FORMAT_SAMPLED_IMAGE : 1) && \
+	(usage & GFX_IMAGE_SAMPLED_LINEAR ? feats & GFX_FORMAT_SAMPLED_IMAGE_LINEAR : 1) && \
+	(usage & GFX_IMAGE_SAMPLED_MINMAX ? feats & GFX_FORMAT_SAMPLED_IMAGE_MINMAX : 1) && \
+	(usage & GFX_IMAGE_STORAGE ? feats & GFX_FORMAT_STORAGE_IMAGE : 1) && \
+	(usage & GFX_IMAGE_BLEND ? feats & GFX_FORMAT_ATTACHMENT_BLEND : 1) && \
+	(usage & (GFX_IMAGE_INPUT | GFX_IMAGE_TRANSIENT | GFX_IMAGE_LOAD) ? \
+		feats & GFX_FORMAT_ATTACHMENT : 1))
+
+
 /****************************
  * Constructs an image format based on:
  *  - If it is HDR (float).
@@ -53,7 +65,7 @@ static GFXFormat _gfx_stb_image_fmt(bool ishdr, bool is16, int comps)
 
 /****************************/
 GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
-                                 GFXImageUsage usage,
+                                 GFXImageFlags flags, GFXImageUsage usage,
                                  const GFXReader* src)
 {
 	assert(heap != NULL);
@@ -84,18 +96,18 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 	if (len <= 0)
 	{
 		gfx_log_error(
-			"Could not read glTF source from stream.");
+			"Could not read image source from stream.");
 
 		free(source);
 		return NULL;
 	}
 
 	// Get image properties.
-	int x, y, comps;
-	bool ishdr = stbi_is_hdr_from_memory(source, (int)len);
-	bool is16 = stbi_is_16_bit_from_memory(source, (int)len);
+	int x, y, sComps;
+	const bool sIshdr = stbi_is_hdr_from_memory(source, (int)len);
+	const bool sIs16 = stbi_is_16_bit_from_memory(source, (int)len);
 
-	if (!stbi_info_from_memory(source, (int)len, &x, &y, &comps))
+	if (!stbi_info_from_memory(source, (int)len, &x, &y, &sComps))
 	{
 		gfx_log_error(
 			"Failed to retrieve image dimensions & components from stream: %s.",
@@ -106,22 +118,77 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 	}
 
 	// Get appropriate format from properties.
-	// TODO: Currently forced into a required supported format, make dynamic.
-	// TODO: Prolly want to use gfx_format_support to get the format to use.
-	int des = 4;
-	ishdr = 0;
-	is16 = 0;
-	GFXFormat fmt = _gfx_stb_image_fmt(ishdr, is16, des);
+	// We check if it is supported, if not we;
+	// firstly try out bigger orders and secondly try out smaller types.
+	// This will eventually result in an 8-bit format with 4 components,
+	// which is required to be supported by Vulkan!
+	GFXDevice* device = gfx_heap_get_device(heap);
+	GFXFormat fmt = _gfx_stb_image_fmt(sIshdr, sIs16, sComps);
+	GFXFormatFeatures feats = gfx_format_support(fmt, device);
+
+	int comps = sComps;
+	bool ishdr = sIshdr;
+	bool is16 = sIs16;
+
+	while (!_GFX_STB_FMT_SUPPORTED(usage, feats))
+	{
+		// Try smaller type first, then bigger order.
+		if (flags & GFX_IMAGE_TYPE_BEFORE_ORDER)
+		{
+			if ((ishdr || is16) && !(flags & GFX_IMAGE_KEEP_TYPE))
+			{
+				if (ishdr) ishdr = 0, is16 = 1;
+				else is16 = 0;
+			}
+			else if (!(flags & GFX_IMAGE_KEEP_ORDER))
+			{
+				ishdr = sIshdr;
+				is16 = sIs16;
+				if (comps < 4) ++comps;
+				else break; // None found.
+			}
+			else break; // None found.
+		}
+
+		// Try bigger order first, then smaller type (default!).
+		else
+		{
+			if (comps < 4 && !(flags & GFX_IMAGE_KEEP_ORDER))
+			{
+				++comps;
+			}
+			else if (!(flags & GFX_IMAGE_KEEP_TYPE))
+			{
+				comps = sComps;
+				if (ishdr) ishdr = 0, is16 = 1;
+				else if (is16) is16 = 0;
+			}
+			else break; // None found.
+		}
+
+		fmt = _gfx_stb_image_fmt(ishdr, is16, comps);
+		feats = gfx_format_support(fmt, device);
+	}
+
+	// Uh oh.
+	if (!_GFX_STB_FMT_SUPPORTED(usage, feats))
+	{
+		gfx_log_error(
+			"No suitable supported format to load image from stream.");
+
+		free(source);
+		return NULL;
+	}
 
 	// Load/parse the image from memory.
 	void* img;
 
 	if (ishdr)
-		img = stbi_loadf_from_memory(source, (int)len, &x, &y, &comps, des);
+		img = stbi_loadf_from_memory(source, (int)len, &x, &y, &comps, comps);
 	else if (is16)
-		img = stbi_load_16_from_memory(source, (int)len, &x, &y, &comps, des);
+		img = stbi_load_16_from_memory(source, (int)len, &x, &y, &comps, comps);
 	else
-		img = stbi_load_from_memory(source, (int)len, &x, &y, &comps, des);
+		img = stbi_load_from_memory(source, (int)len, &x, &y, &comps, comps);
 
 	free(source); // Immediately free source buffer.
 

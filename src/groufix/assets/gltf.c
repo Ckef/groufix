@@ -7,7 +7,6 @@
  */
 
 #include "groufix/assets/gltf.h"
-#include "groufix/assets/image.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/log.h"
 #include <assert.h>
@@ -344,7 +343,7 @@ static GFXBuffer* _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* u
  */
 static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri,
                                          GFXHeap* heap, GFXDependency* dep,
-                                         GFXImageUsage usage)
+                                         GFXImageFlags flags, GFXImageUsage usage)
 {
 	assert(uri != NULL);
 	assert(heap != NULL);
@@ -375,7 +374,7 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 	}
 
 	// Simply load the image.
-	GFXImage* image = gfx_load_image(heap, dep, usage, src);
+	GFXImage* image = gfx_load_image(heap, dep, flags, usage, src);
 	if (image == NULL)
 		gfx_log_error("Failed to load image URI: %s", uri);
 
@@ -387,7 +386,7 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 
 /****************************/
 GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
-                           GFXImageUsage usage,
+                           GFXImageFlags flags, GFXImageUsage usage,
                            const GFXReader* src,
                            const GFXIncluder* inc,
                            GFXGltfResult* result)
@@ -532,7 +531,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		// Check if actual URI.
 		else if (uri != NULL)
 		{
-			image = _gfx_gltf_include_image(inc, uri, heap, dep, usage);
+			image = _gfx_gltf_include_image(inc, uri, heap, dep, flags, usage);
 			if (image == NULL) goto clean;
 		}
 

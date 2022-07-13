@@ -89,7 +89,7 @@ static bool load_gltf(const char* uri, GFXGltfResult* result)
 	// Load glTF.
 	if (!gfx_load_gltf(
 		TEST_BASE.heap, TEST_BASE.dep,
-		GFX_IMAGE_SAMPLED,
+		GFX_IMAGE_ANY_FORMAT, GFX_IMAGE_SAMPLED,
 		&file.reader, &inc.includer, result))
 	{
 		goto clean_includer;

@@ -10,6 +10,7 @@
 #ifndef GFX_ASSETS_GLTF_H
 #define GFX_ASSETS_GLTF_H
 
+#include "groufix/assets/image.h"
 #include "groufix/containers/io.h"
 #include "groufix/core/deps.h"
 #include "groufix/core/heap.h"
@@ -51,6 +52,7 @@ typedef struct GFXGltfResult
  * Parses a glTF 2.0 stream into groufix objects.
  * @param heap   Heap to allocate resources from, cannot be NULL.
  * @param dep    Dependency to inject signal commands in, cannot be NULL.
+ * @param flags  Flags to influence the format for any allocated image.
  * @param usage  Image usage to use for any images.
  * @param src    Source stream, cannot be NULL.
  * @param inc    Optional stream includer.
@@ -58,7 +60,7 @@ typedef struct GFXGltfResult
  * @return Non-zero on success.
  */
 GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
-                           GFXImageUsage usage,
+                           GFXImageFlags flags, GFXImageUsage usage,
                            const GFXReader* src,
                            const GFXIncluder* inc,
                            GFXGltfResult* result);
