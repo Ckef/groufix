@@ -162,6 +162,7 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 				comps = sComps;
 				if (ishdr) ishdr = 0, is16 = 1;
 				else if (is16) is16 = 0;
+				else break; // None found.
 			}
 			else break; // None found.
 		}
