@@ -22,12 +22,12 @@
 // Checks if the format has features to support the requested usage.
 #define _GFX_STB_FMT_SUPPORTED(usage, feats) \
 	((feats & GFX_FORMAT_IMAGE_WRITE) && \
-	(feats & GFX_FORMAT_SAMPLED_IMAGE || !(usage & GFX_IMAGE_SAMPLED)) && \
-	(feats & GFX_FORMAT_SAMPLED_IMAGE_LINEAR || !(usage & GFX_IMAGE_SAMPLED_LINEAR)) && \
-	(feats & GFX_FORMAT_SAMPLED_IMAGE_MINMAX || !(usage & GFX_IMAGE_SAMPLED_MINMAX)) && \
-	(feats & GFX_FORMAT_STORAGE_IMAGE || !(usage & GFX_IMAGE_STORAGE)) && \
-	(feats & GFX_FORMAT_ATTACHMENT_BLEND || !(usage & GFX_IMAGE_BLEND)) && \
-	(feats & GFX_FORMAT_ATTACHMENT || \
+	((feats & GFX_FORMAT_SAMPLED_IMAGE) || !(usage & GFX_IMAGE_SAMPLED)) && \
+	((feats & GFX_FORMAT_SAMPLED_IMAGE_LINEAR) || !(usage & GFX_IMAGE_SAMPLED_LINEAR)) && \
+	((feats & GFX_FORMAT_SAMPLED_IMAGE_MINMAX) || !(usage & GFX_IMAGE_SAMPLED_MINMAX)) && \
+	((feats & GFX_FORMAT_STORAGE_IMAGE) || !(usage & GFX_IMAGE_STORAGE)) && \
+	((feats & GFX_FORMAT_ATTACHMENT_BLEND) || !(usage & GFX_IMAGE_BLEND)) && \
+	((feats & GFX_FORMAT_ATTACHMENT) || \
 		!((GFX_IMAGE_INPUT | GFX_IMAGE_TRANSIENT | GFX_IMAGE_LOAD) & usage)))
 
 
