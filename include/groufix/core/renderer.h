@@ -473,6 +473,12 @@ GFX_API bool gfx_computable_warmup(GFXComputable* computable);
 GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames);
 
 /**
+ * Returns the device the renderer was created for.
+ * Can be called from any thread.
+ */
+GFX_API GFXDevice* gfx_renderer_get_device(GFXRenderer* renderer);
+
+/**
  * Destroys a renderer.
  * This will forcefully submit and block until rendering is done!
  */

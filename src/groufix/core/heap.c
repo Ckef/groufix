@@ -537,6 +537,12 @@ clean:
 }
 
 /****************************/
+GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap)
+{
+	return heap == NULL ? NULL : (GFXDevice*)heap->device;
+}
+
+/****************************/
 GFX_API void gfx_destroy_heap(GFXHeap* heap)
 {
 	if (heap == NULL)

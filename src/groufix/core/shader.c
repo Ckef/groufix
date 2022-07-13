@@ -671,6 +671,12 @@ clean:
 }
 
 /****************************/
+GFX_API GFXDevice* gfx_shader_get_device(GFXShader* shader)
+{
+	return shader == NULL ? NULL : (GFXDevice*)shader->device;
+}
+
+/****************************/
 GFX_API void gfx_destroy_shader(GFXShader* shader)
 {
 	if (shader == NULL)

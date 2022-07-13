@@ -316,6 +316,12 @@ clean:
 }
 
 /****************************/
+GFX_API GFXDevice* gfx_renderer_get_device(GFXRenderer* renderer)
+{
+	return renderer == NULL ? NULL : (GFXDevice*)renderer->device;
+}
+
+/****************************/
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 {
 	if (renderer == NULL)

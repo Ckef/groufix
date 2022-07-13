@@ -1182,6 +1182,7 @@ typedef struct _GFXSync
  */
 struct GFXDependency
 {
+	_GFXDevice*  device;
 	_GFXContext* context;
 	GFXVec       syncs; // Stores _GFXSync.
 	_GFXMutex    lock;

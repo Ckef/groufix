@@ -433,6 +433,7 @@ GFX_API GFXDependency* gfx_create_dep(GFXDevice* device, unsigned int capacity)
 	if (dep == NULL) goto clean;
 
 	// Get context associated with the device.
+	_GFX_GET_DEVICE(dep->device, device);
 	_GFX_GET_CONTEXT(dep->context, device, goto clean);
 
 	// Initialize things,
@@ -456,6 +457,12 @@ clean:
 	free(dep);
 
 	return NULL;
+}
+
+/****************************/
+GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep)
+{
+	return dep == NULL ? NULL : (GFXDevice*)dep->device;
 }
 
 /****************************/
