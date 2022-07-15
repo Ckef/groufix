@@ -227,6 +227,12 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 
 	GFXRenderer* rend = pass->renderer;
 
+	// TODO: Should get from all next subpasses too and skip if not master.
+	// Literally point to the consume elem of a next pass.
+	// Note that we can still only have one window attachment for
+	// framebuffer creation reasons + we CAN have multiple depth/stencil
+	// attachments now, one per subpass!
+
 	// Keep track of the depth/stencil backing so we can warn :)
 	size_t depSten = SIZE_MAX;
 
@@ -334,6 +340,9 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->gen = 0;
 	pass->numParents = numParents;
 
+	pass->master = NULL;
+	pass->next = NULL;
+
 	if (numParents) memcpy(
 		pass->parents, parents, sizeof(GFXPass*) * numParents);
 
@@ -410,6 +419,12 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	assert(pass != NULL);
 
 	GFXRenderer* rend = pass->renderer;
+
+	// TODO: Somehow do this for all subpasses if this is master.
+	// And skip all this if this is not master.
+	// Need to set the correct state.enabled value for all subpasses.
+	// And somehow propagate the VK pass and subpass index to all subpasses.
+	// Used for creating pipelines, which are still for specific passes.
 
 	// Ok so we need to know about all pass attachments.
 	// Filter them if not done so already.
@@ -655,6 +670,9 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->allocator.context;
 
+	// TODO Skip all this if this is not master.
+	// We somehow want to propagate the dimensions to all subpasses.
+
 	// First we destroy the things we want to recreate.
 	_gfx_pass_destruct_partial(pass, flags);
 
@@ -895,6 +913,8 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 {
 	assert(pass != NULL);
 	assert(frame != NULL);
+
+	// TODO: Get framebuffer from master pass.
 
 	// Just a single framebuffer.
 	if (pass->vk.frames.size == 1)

@@ -811,6 +811,11 @@ struct GFXPass
 	unsigned int order; // Actual submission order.
 	uintmax_t    gen;   // Build generation (to invalidate pipelines).
 
+	// TODO: To compute and use.
+	// TODO: Probably add build.index for the subpass index down below.
+	GFXPass* master; // First subpass, NULL if this.
+	GFXPass* next;   // Next subpass in the chain, NULL if last.
+
 	// Attachment consumptions,
 	// stores {
 	//  GFXImageAspect, bool,

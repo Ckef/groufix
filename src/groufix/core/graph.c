@@ -20,6 +20,7 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 	assert(renderer->graph.state < _GFX_GRAPH_VALIDATED);
 
 	// TODO: Analyze the graph for e.g. pass merging, this should log errors!
+	// TODO: This should set `master` and `next` of each pass.
 
 	// Its now validated!
 	renderer->graph.state = _GFX_GRAPH_VALIDATED;

@@ -430,6 +430,9 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		if (pass->build.pass == NULL)
 			continue;
 
+		// TODO: If a pass is the master, record all its next passes and
+		// handle the whole VK subpass structure like that.
+
 		// Check for the presence of a framebuffer.
 		VkFramebuffer framebuffer = _gfx_pass_framebuffer(pass, frame);
 		if (framebuffer == VK_NULL_HANDLE)
