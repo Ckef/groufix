@@ -811,7 +811,7 @@ struct GFXPass
 	unsigned int order; // Actual submission order.
 	uintmax_t    gen;   // Build generation (to invalidate pipelines).
 
-	// Attachment consumptions, stores:
+	// Attachment consumptions,
 	// stores {
 	//  GFXImageAspect, bool,
 	//  GFXAccessMask, GFXShaderStage, GFXView, GFXClear|VkClearValue
@@ -819,7 +819,7 @@ struct GFXPass
 	GFXVec consumes;
 
 
-	// State input.
+	// Pipeline state input.
 	struct
 	{
 		GFXRasterState  raster;
@@ -830,7 +830,7 @@ struct GFXPass
 			_GFX_PASS_DEPTH   = 0x0001,
 			_GFX_PASS_STENCIL = 0x0002
 
-		} enabled;
+		} enabled; // Set on warmup.
 
 	} state;
 
@@ -843,7 +843,7 @@ struct GFXPass
 		uint32_t fHeight;
 		uint32_t fLayers;
 
-		_GFXCacheElem* pass;
+		_GFXCacheElem* pass; // Built on warmup.
 
 	} build;
 

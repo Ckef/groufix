@@ -676,10 +676,10 @@ static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
 /****************************
  * Outputs a command buffer of a specific submission order.
  * @param recorder Cannot be NULL.
- * @param elem     Command buffer + order to output.
  * @return Zero on failure.
  */
-static bool _gfx_recorder_output(GFXRecorder* recorder, const _GFXCmdElem* elem)
+static bool _gfx_recorder_output(GFXRecorder* recorder,
+                                 unsigned int order, VkCommandBuffer cmd)
 {
 	// Find the right spot to insert at.
 	// We assume the most prevelant way of recording stuff is in submission
@@ -687,15 +687,20 @@ static bool _gfx_recorder_output(GFXRecorder* recorder, const _GFXCmdElem* elem)
 	size_t loc;
 	for (loc = recorder->out.cmds.size; loc > 0; --loc)
 	{
-		unsigned int order =
+		unsigned int cOrder =
 			((_GFXCmdElem*)gfx_vec_at(&recorder->out.cmds, loc-1))->order;
 
-		if (order <= elem->order)
+		if (cOrder <= order)
 			break;
 	}
 
 	// Insert at found position.
-	return gfx_vec_insert(&recorder->out.cmds, 1, elem, loc);
+	_GFXCmdElem elem = {
+		.order = order,
+		.cmd = cmd
+	};
+
+	return gfx_vec_insert(&recorder->out.cmds, 1, &elem, loc);
 }
 
 /****************************/
@@ -1065,12 +1070,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 
 	// Now insert the command buffer in its correct position.
 	// Which is in submission order of the passes.
-	_GFXCmdElem elem = {
-		.order = pass->order,
-		.cmd = cmd
-	};
-
-	if (!_gfx_recorder_output(recorder, &elem))
+	if (!_gfx_recorder_output(recorder, pass->order, cmd))
 		goto error;
 
 	return;
