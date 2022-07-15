@@ -351,7 +351,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->vk.pass = VK_NULL_HANDLE;
 
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
-	gfx_vec_init(&pass->clears, sizeof(VkClearValue));
+	gfx_vec_init(&pass->vk.clears, sizeof(VkClearValue));
 	gfx_vec_init(&pass->vk.views, sizeof(_GFXViewElem));
 	gfx_vec_init(&pass->vk.frames, sizeof(_GFXFrameElem));
 
@@ -398,7 +398,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 
 	// Free all remaining things.
 	gfx_vec_clear(&pass->consumes);
-	gfx_vec_clear(&pass->clears);
+	gfx_vec_clear(&pass->vk.clears);
 	gfx_vec_clear(&pass->vk.views);
 	gfx_vec_clear(&pass->vk.frames);
 	free(pass);
@@ -448,7 +448,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	// We are always gonna update the clear values.
 	// Do it here and not build so we don't unnecessarily reconstruct this.
 	// Same for state enables.
-	gfx_vec_release(&pass->clears);
+	gfx_vec_release(&pass->vk.clears);
 	pass->state.enabled = 0;
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
@@ -605,7 +605,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 		// Lastly, if we're not skipped,
 		// store the clear value for when we begin the pass.
-		if (!gfx_vec_push(&pass->clears, 1, &con->clear.vk))
+		if (!gfx_vec_push(&pass->vk.clears, 1, &con->clear.vk))
 			// Yeah...
 			gfx_log_fatal("Failed to store a clear value for a pass.");
 	}
@@ -885,7 +885,7 @@ void _gfx_pass_destruct(GFXPass* pass)
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
 
 	// Clear memory.
-	gfx_vec_clear(&pass->clears);
+	gfx_vec_clear(&pass->vk.clears);
 	gfx_vec_clear(&pass->vk.views);
 	gfx_vec_clear(&pass->vk.frames);
 }

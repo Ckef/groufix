@@ -817,7 +817,6 @@ struct GFXPass
 	//  GFXAccessMask, GFXShaderStage, GFXView, GFXClear|VkClearValue
 	// }.
 	GFXVec consumes;
-	GFXVec clears; // Stores VkClearValue, updated on pass (re)build.
 
 
 	// State input.
@@ -853,6 +852,7 @@ struct GFXPass
 	struct
 	{
 		VkRenderPass pass;   // For locality.
+		GFXVec       clears; // Stores VkClearValue.
 		GFXVec       views;  // Stores { void* -> `consumes`, VkImageView }.
 		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 

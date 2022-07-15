@@ -442,8 +442,8 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 			.pNext           = NULL,
 			.renderPass      = pass->vk.pass,
 			.framebuffer     = framebuffer,
-			.clearValueCount = (uint32_t)pass->clears.size,
-			.pClearValues    = gfx_vec_at(&pass->clears, 0),
+			.clearValueCount = (uint32_t)pass->vk.clears.size,
+			.pClearValues    = gfx_vec_at(&pass->vk.clears, 0),
 
 			.renderArea = {
 				.offset = { 0, 0 },
