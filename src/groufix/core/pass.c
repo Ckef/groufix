@@ -70,6 +70,21 @@ static inline bool _gfx_cmp_raster(const GFXRasterState* l,
 }
 
 /****************************
+ * Compares two user defined blend state descriptions.
+ * @return Non-zero if equal.
+ */
+static inline bool _gfx_cmp_blend(const GFXBlendState* l,
+                                  const GFXBlendState* r)
+{
+	return
+		l->logic == r->logic &&
+		l->constants[0] == r->constants[0] &&
+		l->constants[1] == r->constants[1] &&
+		l->constants[2] == r->constants[2] &&
+		l->constants[3] == r->constants[3];
+}
+
+/****************************
  * Compares two user defined depth state descriptions.
  * @return Non-zero if equal.
  */
@@ -361,6 +376,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
 	gfx_vec_init(&pass->vk.clears, sizeof(VkClearValue));
+	gfx_vec_init(&pass->vk.blends, sizeof(VkPipelineColorBlendAttachmentState));
 	gfx_vec_init(&pass->vk.views, sizeof(_GFXViewElem));
 	gfx_vec_init(&pass->vk.frames, sizeof(_GFXFrameElem));
 
@@ -371,6 +387,11 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		.mode = GFX_RASTER_FILL,
 		.front = GFX_FRONT_FACE_CW,
 		.cull = GFX_CULL_BACK
+	};
+
+	pass->state.blend = (GFXBlendState){
+		.logic = GFX_LOGIC_NONE,
+		.constants = { 0.0f, 0.0f, 0.0f, 0.0f }
 	};
 
 	pass->state.depth = (GFXDepthState){
@@ -408,6 +429,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 	// Free all remaining things.
 	gfx_vec_clear(&pass->consumes);
 	gfx_vec_clear(&pass->vk.clears);
+	gfx_vec_clear(&pass->vk.blends);
 	gfx_vec_clear(&pass->vk.views);
 	gfx_vec_clear(&pass->vk.frames);
 	free(pass);
@@ -460,10 +482,11 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	VkAttachmentReference depSten = unused;
 	numAttachs = 0; // We may skip some.
 
-	// We are always gonna update the clear values.
+	// We are always gonna update the clear & blend values.
 	// Do it here and not build so we don't unnecessarily reconstruct this.
 	// Same for state enables.
 	gfx_vec_release(&pass->vk.clears);
+	gfx_vec_release(&pass->vk.blends);
 	pass->state.enabled = 0;
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
@@ -623,6 +646,8 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		if (!gfx_vec_push(&pass->vk.clears, 1, &con->clear.vk))
 			// Yeah...
 			gfx_log_fatal("Failed to store a clear value for a pass.");
+
+		// TODO: Add element to pass->vk.blends if appropriate.
 	}
 
 	// Ok now create the pass.
@@ -961,6 +986,19 @@ GFX_API void gfx_pass_set_raster(GFXPass* pass, GFXRasterState state)
 	if (!_gfx_cmp_raster(&pass->state.raster, &state))
 	{
 		pass->state.raster = state;
+		_gfx_pass_gen(pass);
+	}
+}
+
+/****************************/
+GFX_API void gfx_pass_set_blend(GFXPass* pass, GFXBlendState state)
+{
+	assert(pass != NULL);
+
+	// Ditto gfx_pass_set_raster.
+	if (!_gfx_cmp_blend(&pass->state.blend, &state))
+	{
+		pass->state.blend = state;
 		_gfx_pass_gen(pass);
 	}
 }

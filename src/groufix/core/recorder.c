@@ -183,6 +183,45 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		prsci.frontFace = _GFX_GET_VK_FRONT_FACE(pass->state.raster.front);
 	}
 
+	// Build blend info.
+	VkPipelineColorBlendStateCreateInfo pcbsci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+
+		.pNext          = NULL,
+		.flags          = 0,
+		.logicOpEnable  = VK_FALSE,
+		.logicOp        = VK_LOGIC_OP_COPY,
+		.blendConstants = { 0.0f, 0.0f, 0.0f, 0.0f },
+
+		// TODO: These are hardcoded, take from pass->vk.blends!
+		.attachmentCount = 1,
+
+		.pAttachments = (VkPipelineColorBlendAttachmentState[]){{
+			.blendEnable         = VK_FALSE,
+			.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+			.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+			.colorBlendOp        = VK_BLEND_OP_ADD,
+			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+			.alphaBlendOp        = VK_BLEND_OP_ADD,
+			.colorWriteMask      =
+				VK_COLOR_COMPONENT_R_BIT |
+				VK_COLOR_COMPONENT_G_BIT |
+				VK_COLOR_COMPONENT_B_BIT |
+				VK_COLOR_COMPONENT_A_BIT
+		}}
+	};
+
+	if (!noRaster && (pass->state.blend.logic != GFX_LOGIC_NONE))
+	{
+		pcbsci.logicOpEnable = VK_TRUE;
+		pcbsci.logicOp = _GFX_GET_VK_LOGIC_OP(pass->state.blend.logic);
+		pcbsci.blendConstants[0] = pass->state.blend.constants[0];
+		pcbsci.blendConstants[1] = pass->state.blend.constants[1];
+		pcbsci.blendConstants[2] = pass->state.blend.constants[2];
+		pcbsci.blendConstants[3] = pass->state.blend.constants[3];
+	}
+
 	// Build depth/stencil info.
 	const VkStencilOpState sos = {
 		.failOp      = VK_STENCIL_OP_KEEP,
@@ -314,6 +353,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		.basePipelineIndex   = -1,
 		.pRasterizationState = &prsci,
 		.pTessellationState  = NULL,
+		.pColorBlendState    = &pcbsci,
 
 		.pDepthStencilState =
 			// Even if rasterization is disabled, Vulkan expects this.
@@ -365,33 +405,6 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.pSampleMask           = NULL,
 			.alphaToCoverageEnable = VK_FALSE,
 			.alphaToOneEnable      = VK_FALSE
-		}},
-
-		// TODO: Take as input from the pass.
-		.pColorBlendState = (VkPipelineColorBlendStateCreateInfo[]){{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-
-			.pNext           = NULL,
-			.flags           = 0,
-			.logicOpEnable   = VK_FALSE,
-			.logicOp         = VK_LOGIC_OP_COPY,
-			.attachmentCount = 1,
-			.blendConstants  = { 0.0f, 0.0f, 0.0f, 0.0f },
-
-			.pAttachments = (VkPipelineColorBlendAttachmentState[]){{
-				.blendEnable         = VK_FALSE,
-				.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-				.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-				.colorBlendOp        = VK_BLEND_OP_ADD,
-				.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-				.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-				.alphaBlendOp        = VK_BLEND_OP_ADD,
-				.colorWriteMask      =
-					VK_COLOR_COMPONENT_R_BIT |
-					VK_COLOR_COMPONENT_G_BIT |
-					VK_COLOR_COMPONENT_B_BIT |
-					VK_COLOR_COMPONENT_A_BIT
-			}}
 		}},
 
 		.pDynamicState = (VkPipelineDynamicStateCreateInfo[]){{

@@ -206,6 +206,32 @@ typedef enum GFXWrapping
 
 
 /**
+ * Logical 'blending' operation.
+ */
+typedef enum GFXLogicOp
+{
+	GFX_LOGIC_NONE,
+	GFX_LOGIC_KEEP,   // Keep attachment color.
+	GFX_LOGIC_INVERT, // Invert attachment color.
+	GFX_LOGIC_CLEAR,  // All 0.
+	GFX_LOGIC_SET,    // All 1.
+	GFX_LOGIC_COPY,   // Copy fragment color.
+	GFX_LOGIC_COPY_INVERSE,
+	GFX_LOGIC_AND,
+	GFX_LOGIC_AND_INVERSE, // !fragment ^ attachment.
+	GFX_LOGIC_AND_REVERSE, // fragment ^ !attachment.
+	GFX_LOGIC_NAND,
+	GFX_LOGIC_OR,
+	GFX_LOGIC_OR_INVERSE,
+	GFX_LOGIC_OR_REVERSE,
+	GFX_LOGIC_XOR,
+	GFX_LOGIC_NOR,
+	GFX_LOGIC_EQUAL
+
+} GFXLogicOp;
+
+
+/**
  * Depth/stencil comparison operation.
  */
 typedef enum GFXCompareOp
@@ -297,6 +323,18 @@ typedef struct GFXRasterState
 	GFXCullMode   cull;
 
 } GFXRasterState;
+
+
+/**
+ * Blending state description.
+ */
+typedef struct GFXBlendState
+{
+	GFXLogicOp logic;
+
+	float constants[4]; // { RGBA } blending constants.
+
+} GFXBlendState;
 
 
 /**
@@ -604,6 +642,12 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
  * @param pass Cannot be NULL.
  */
 GFX_API void gfx_pass_set_raster(GFXPass* pass, GFXRasterState state);
+
+/**
+ * Sets the blending state of a pass.
+ * @param pass Cannot be NULL.
+ */
+GFX_API void gfx_pass_set_blend(GFXPass* pass, GFXBlendState state);
 
 /**
  * Sets the depth state of a pass.

@@ -97,6 +97,25 @@
 	((usage) & GFX_IMAGE_BLEND ? \
 		VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT : (VkFormatFeatureFlags)0))
 
+#define _GFX_GET_VK_LOGIC_OP(op) \
+	(((op) == GFX_LOGIC_KEEP) ? VK_LOGIC_OP_NO_OP : \
+	((op) == GFX_LOGIC_INVERT) ? VK_LOGIC_OP_INVERT : \
+	((op) == GFX_LOGIC_CLEAR) ? VK_LOGIC_OP_CLEAR : \
+	((op) == GFX_LOGIC_SET) ? VK_LOGIC_OP_SET : \
+	((op) == GFX_LOGIC_COPY) ? VK_LOGIC_OP_COPY : \
+	((op) == GFX_LOGIC_COPY_INVERSE) ? VK_LOGIC_OP_COPY_INVERTED : \
+	((op) == GFX_LOGIC_AND) ? VK_LOGIC_OP_AND : \
+	((op) == GFX_LOGIC_AND_INVERSE) ? VK_LOGIC_OP_AND_INVERTED : \
+	((op) == GFX_LOGIC_AND_REVERSE) ? VK_LOGIC_OP_AND_REVERSE : \
+	((op) == GFX_LOGIC_NAND) ? VK_LOGIC_OP_NAND : \
+	((op) == GFX_LOGIC_OR) ? VK_LOGIC_OP_OR : \
+	((op) == GFX_LOGIC_OR_INVERSE) ? VK_LOGIC_OP_OR_INVERTED : \
+	((op) == GFX_LOGIC_OR_REVERSE) ? VK_LOGIC_OP_OR_REVERSE : \
+	((op) == GFX_LOGIC_XOR) ? VK_LOGIC_OP_XOR : \
+	((op) == GFX_LOGIC_NOR) ? VK_LOGIC_OP_NOR : \
+	((op) == GFX_LOGIC_EQUAL) ? VK_LOGIC_OP_EQUIVALENT : \
+	VK_LOGIC_OP_COPY)
+
 #define _GFX_GET_VK_COMPARE_OP(op) \
 	(((op) == GFX_CMP_NEVER) ?  VK_COMPARE_OP_NEVER : \
 	((op) == GFX_CMP_LESS) ? VK_COMPARE_OP_LESS : \
@@ -828,6 +847,7 @@ struct GFXPass
 	struct
 	{
 		GFXRasterState  raster;
+		GFXBlendState   blend;
 		GFXDepthState   depth;
 		GFXStencilState stencil;
 
@@ -858,6 +878,7 @@ struct GFXPass
 	{
 		VkRenderPass pass;   // For locality.
 		GFXVec       clears; // Stores VkClearValue.
+		GFXVec       blends; // Stores VkPipelineColorBlendAttachmentState.
 		GFXVec       views;  // Stores { void* -> `consumes`, VkImageView }.
 		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 

@@ -256,7 +256,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	if (!_gfx_pool_init(&rend->pool, rend->device, (frames << 2) + 1))
 	{
 		_gfx_cache_clear(&rend->cache);
-		goto clean_lock;
+		goto clean_cache;
 	}
 
 	// Then initialize the allocator, render backing & graph.
@@ -303,9 +303,10 @@ clean_renderer:
 	gfx_deque_clear(&rend->frames);
 	_gfx_render_graph_clear(rend);
 	_gfx_render_backing_clear(rend);
-	_gfx_pool_clear(&rend->pool);
-	_gfx_cache_clear(&rend->cache);
 	_gfx_allocator_clear(&rend->allocator);
+	_gfx_pool_clear(&rend->pool);
+clean_cache:
+	_gfx_cache_clear(&rend->cache);
 clean_lock:
 	_gfx_mutex_clear(&rend->lock);
 clean:
