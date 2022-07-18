@@ -212,14 +212,18 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		}}
 	};
 
-	if (!noRaster && (pass->state.blend.logic != GFX_LOGIC_NONE))
+	if (!noRaster)
 	{
-		pcbsci.logicOpEnable = VK_TRUE;
-		pcbsci.logicOp = _GFX_GET_VK_LOGIC_OP(pass->state.blend.logic);
 		pcbsci.blendConstants[0] = pass->state.blend.constants[0];
 		pcbsci.blendConstants[1] = pass->state.blend.constants[1];
 		pcbsci.blendConstants[2] = pass->state.blend.constants[2];
 		pcbsci.blendConstants[3] = pass->state.blend.constants[3];
+
+		if (pass->state.blend.logic != GFX_LOGIC_NONE)
+		{
+			pcbsci.logicOpEnable = VK_TRUE;
+			pcbsci.logicOp = _GFX_GET_VK_LOGIC_OP(pass->state.blend.logic);
+		}
 	}
 
 	// Build depth/stencil info.
