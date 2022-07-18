@@ -313,6 +313,13 @@ typedef struct GFXSampler
 } GFXSampler;
 
 
+// TODO: Define struct GFXRenderState and but pointers to all
+// GFX*State structs in it so we can leave stuff optional.
+// Use a pointer to render state in GFXRenderable and only use
+// gfx_pass_set_state(*) so we can set it either way ("_state(NULL) = reset).
+// And put this in its own major header just above renderables/computables.
+
+
 /**
  * Rasterization state description.
  */
