@@ -495,6 +495,8 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		const _GFXConsumeElem* con = view->consume;
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
+		bool isColor = 0;
+
 		// Swapchain.
 		if (at->type == _GFX_ATTACH_WINDOW)
 		{
@@ -510,6 +512,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				if (con->mask &
 					(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
 				{
+					isColor = 1;
 					color[numColors++] = unused;
 				}
 
@@ -517,6 +520,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			}
 
 			// Describe the window as attachment and reference it.
+			isColor = 1;
 			color[numColors++] = (VkAttachmentReference){
 				.attachment = (uint32_t)numAttachs,
 				.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
@@ -590,6 +594,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
 			{
 				if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format))
+					isColor = 1,
 					color[numColors++] = aspectMatch ? ref : unused;
 
 				// Only set depSten on aspect match.
@@ -642,12 +647,33 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		}
 
 		// Lastly, if we're not skipped,
-		// store the clear value for when we begin the pass.
+		// store the clear value for when we begin the pass ..
 		if (!gfx_vec_push(&pass->vk.clears, 1, &con->clear.vk))
 			// Yeah...
 			gfx_log_fatal("Failed to store a clear value for a pass.");
 
-		// TODO: Add element to pass->vk.blends if appropriate.
+		// .. and the blend values for building pipelines.
+		if (isColor)
+		{
+			VkPipelineColorBlendAttachmentState pcbas = {
+				.blendEnable         = VK_FALSE,
+				.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+				.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+				.colorBlendOp        = VK_BLEND_OP_ADD,
+				.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+				.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+				.alphaBlendOp        = VK_BLEND_OP_ADD,
+				.colorWriteMask      =
+					VK_COLOR_COMPONENT_R_BIT |
+					VK_COLOR_COMPONENT_G_BIT |
+					VK_COLOR_COMPONENT_B_BIT |
+					VK_COLOR_COMPONENT_A_BIT
+			};
+
+			if (!gfx_vec_push(&pass->vk.blends, 1, &pcbas))
+				// Sad...
+				gfx_log_fatal("Failed to store blend state for a pass.");
+		}
 	}
 
 	// Ok now create the pass.
