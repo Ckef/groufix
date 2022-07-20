@@ -116,10 +116,8 @@ static void _gfx_get_device_features(_GFXDevice* device,
 #if defined (NDEBUG)
 	pdf->robustBufferAccess                      = VK_FALSE;
 #endif
-	pdf->independentBlend                        = VK_FALSE;
 	pdf->sampleRateShading                       = VK_FALSE;
 	pdf->dualSrcBlend                            = VK_FALSE;
-	pdf->logicOp                                 = VK_FALSE;
 	pdf->multiDrawIndirect                       = VK_FALSE;
 	pdf->drawIndirectFirstInstance               = VK_FALSE;
 	pdf->depthClamp                              = VK_FALSE;
@@ -955,6 +953,8 @@ bool _gfx_devices_init(void)
 				.geometryShader           = pdf.geometryShader,
 				.tessellationShader       = pdf.tessellationShader,
 				.rasterNonSolid           = pdf.fillModeNonSolid,
+				.independentBlend         = pdf.independentBlend,
+				.logicOp                  = pdf.logicOp,
 				.depthBounds              = pdf.depthBounds,
 				.compressionBC            = pdf.textureCompressionBC,
 				.compressionETC2          = pdf.textureCompressionETC2,

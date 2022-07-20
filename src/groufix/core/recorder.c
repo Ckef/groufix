@@ -219,7 +219,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		pcbsci.blendConstants[2] = blend->constants[2];
 		pcbsci.blendConstants[3] = blend->constants[3];
 
-		if (blend->logic != GFX_LOGIC_NONE)
+		if (blend->logic != GFX_LOGIC_NO_OP)
 		{
 			pcbsci.logicOpEnable = VK_TRUE;
 			pcbsci.logicOp = _GFX_GET_VK_LOGIC_OP(blend->logic);

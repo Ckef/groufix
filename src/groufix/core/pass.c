@@ -24,6 +24,13 @@ typedef struct _GFXConsumeElem
 	GFXShaderStage stage;
 	GFXView        view; // index used as attachment index.
 
+	GFXBlendFactor srcFactor;
+	GFXBlendFactor dstFactor;
+	GFXBlendOp     op;
+	GFXBlendFactor srcAlphaFactor;
+	GFXBlendFactor dstAlphaFactor;
+	GFXBlendOp     alphaOp;
+
 	union {
 		// Identical definitions!
 		GFXClear gfx;
@@ -130,7 +137,7 @@ static inline void _gfx_pass_gen(GFXPass* pass)
 
 /****************************
  * Stand-in function for all the gfx_pass_consume* variants.
- * All fields of elem must be set except for `cleared` and `clear`.
+ * The `viewed`, `mask`, `stage` and `view` fields of elem must be set.
  * @see gfx_pass_consume*.
  * @param elem Cannot be NULL.
  */
@@ -159,6 +166,14 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsumeElem* elem)
 	// Insert anew with default values.
 	elem->cleared = 0;
 	elem->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
+
+	elem->srcFactor = GFX_FACTOR_ONE;
+	elem->dstFactor = GFX_FACTOR_ZERO;
+	elem->op = GFX_BLEND_NO_OP;
+
+	elem->srcAlphaFactor = GFX_FACTOR_ONE;
+	elem->dstAlphaFactor = GFX_FACTOR_ZERO;
+	elem->alphaOp = GFX_BLEND_NO_OP;
 
 	if (!gfx_vec_push(&pass->consumes, 1, elem))
 		return 0;
@@ -390,7 +405,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	};
 
 	pass->state.blend = (GFXBlendState){
-		.logic = GFX_LOGIC_NONE,
+		.logic = GFX_LOGIC_NO_OP,
 		.constants = { 0.0f, 0.0f, 0.0f, 0.0f }
 	};
 
@@ -669,6 +684,28 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					VK_COLOR_COMPONENT_B_BIT |
 					VK_COLOR_COMPONENT_A_BIT
 			};
+
+			if (con->op != GFX_BLEND_NO_OP)
+			{
+				pcbas.blendEnable = VK_TRUE;
+				pcbas.srcColorBlendFactor =
+					_GFX_GET_VK_BLEND_FACTOR(con->srcFactor);
+				pcbas.dstColorBlendFactor =
+					_GFX_GET_VK_BLEND_FACTOR(con->dstFactor);
+				pcbas.colorBlendOp =
+					_GFX_GET_VK_BLEND_OP(con->op);
+			}
+
+			if (con->alphaOp != GFX_BLEND_NO_OP)
+			{
+				pcbas.blendEnable = VK_TRUE;
+				pcbas.srcAlphaBlendFactor =
+					_GFX_GET_VK_BLEND_FACTOR(con->srcAlphaFactor);
+				pcbas.dstAlphaBlendFactor =
+					_GFX_GET_VK_BLEND_FACTOR(con->dstAlphaFactor);
+				pcbas.alphaBlendOp =
+					_GFX_GET_VK_BLEND_OP(con->alphaOp);
+			}
 
 			if (!gfx_vec_push(&pass->vk.blends, 1, &pcbas))
 				// Sad...
@@ -1125,6 +1162,48 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 			con->cleared = aspect;
 			con->clear.gfx = value; // Type-punned into a VkClearValue!
 
+			// Same as _gfx_pass_consume, invalidate for destruction.
+			_gfx_render_graph_invalidate(pass->renderer);
+			break;
+		}
+	}
+}
+
+/****************************/
+GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
+                            GFXBlendFactor srcFactor,
+                            GFXBlendFactor dstFactor,
+                            GFXBlendOp     op,
+                            GFXBlendFactor srcAlphaFactor,
+                            GFXBlendFactor dstAlphaFactor,
+                            GFXBlendOp     alphaOp)
+{
+	assert(pass != NULL);
+	assert(!pass->renderer->recording);
+
+	// Ignore if no-op.
+	if (op == GFX_BLEND_NO_OP)
+		srcFactor = GFX_FACTOR_ONE,
+		dstFactor = GFX_FACTOR_ZERO;
+
+	if (alphaOp == GFX_BLEND_NO_OP)
+		srcAlphaFactor = GFX_FACTOR_ONE,
+		dstAlphaFactor = GFX_FACTOR_ZERO;
+
+	// Find and set.
+	for (size_t i = pass->consumes.size; i > 0; --i)
+	{
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
+		if (con->view.index == index)
+		{
+			con->srcFactor = srcFactor;
+			con->dstFactor = dstFactor;
+			con->op = op;
+			con->srcAlphaFactor = srcAlphaFactor;
+			con->dstAlphaFactor = dstAlphaFactor;
+			con->alphaOp = alphaOp;
+
+			// Same as _gfx_pass_consume, invalidate for destruction.
 			_gfx_render_graph_invalidate(pass->renderer);
 			break;
 		}

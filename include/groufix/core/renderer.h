@@ -210,13 +210,12 @@ typedef enum GFXWrapping
  */
 typedef enum GFXLogicOp
 {
-	GFX_LOGIC_NONE,
-	GFX_LOGIC_KEEP,   // Keep attachment color.
-	GFX_LOGIC_INVERT, // Invert attachment color.
-	GFX_LOGIC_CLEAR,  // All 0.
-	GFX_LOGIC_SET,    // All 1.
-	GFX_LOGIC_COPY,   // Copy fragment color.
-	GFX_LOGIC_COPY_INVERSE,
+	GFX_LOGIC_NO_OP, // Keep fragment color.
+	GFX_LOGIC_CLEAR, // All 0.
+	GFX_LOGIC_SET,   // All 1.
+	GFX_LOGIC_KEEP,  // Keep attachment color.
+	GFX_LOGIC_KEEP_INVERSE,
+	GFX_LOGIC_INVERSE,
 	GFX_LOGIC_AND,
 	GFX_LOGIC_AND_INVERSE, // !fragment ^ attachment.
 	GFX_LOGIC_AND_REVERSE, // fragment ^ !attachment.
@@ -229,6 +228,45 @@ typedef enum GFXLogicOp
 	GFX_LOGIC_EQUAL
 
 } GFXLogicOp;
+
+
+/**
+ * Blending operation.
+ */
+typedef enum GFXBlendOp
+{
+	GFX_BLEND_NO_OP,
+	GFX_BLEND_ADD,
+	GFX_BLEND_SUBTRACT,         // source - attachment.
+	GFX_BLEND_SUBTRACT_REVERSE, // attachment - fragment.
+	GFX_BLEND_MIN,
+	GFX_BLEND_MAX
+
+} GFXBlendOp;
+
+
+/**
+ * Blending factor.
+ */
+typedef enum GFXBlendFactor
+{
+	GFX_FACTOR_ZERO,
+	GFX_FACTOR_ONE,
+	GFX_FACTOR_SRC,
+	GFX_FACTOR_ONE_MINUS_SRC,
+	GFX_FACTOR_DST,
+	GFX_FACTOR_ONE_MINUS_DST,
+	GFX_FACTOR_SRC_ALPHA,
+	GFX_FACTOR_SRC_ALPHA_SATURATE,
+	GFX_FACTOR_ONE_MINUS_SRC_ALPHA,
+	GFX_FACTOR_DST_ALPHA,
+	GFX_FACTOR_ONE_MINUS_DST_ALPHA,
+	GFX_FACTOR_CONSTANT,
+	GFX_FACTOR_ONE_MINUS_CONSTANT,
+	GFX_FACTOR_CONSTANT_ALPHA,
+	GFX_FACTOR_ONE_MINUS_CONSTANT_ALPHA
+
+} GFXBlendFactor;
 
 
 /**
@@ -674,6 +712,7 @@ GFX_API void gfx_pass_set_state(GFXPass* pass,
  * Shader location is in add-order, calling with the same index twice
  * does _not_ change the shader location, should release first.
  * @param pass  Cannot be NULL.
+ * @param index Attachment index to conusme.
  * @param mask  Access mask to consume the attachment with.
  * @param stage Shader stages with access to the attachment.
  * @return Zero on failure.
@@ -701,11 +740,26 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 /**
  * Clears the contents of a consumed attachment before the pass.
  * No-op if attachment at index is not consumed!
+ * @param pass   Cannot be NULL.
+ * @param index  Attachment index to clear.
  * @param aspect Cannot contain both color AND depth/stencil!
- * @see gfx_pass_load.
  */
 GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
                             GFXImageAspect aspect, GFXClear value);
+
+/**
+ * Sets the blend factors and operation of a consumed attachment.
+ * @param op      (src|dst)Factor are ignored if GFX_BLEND_NO_OP.
+ * @param alphaOp (src|dst)AlphaFactor are ignored if GFX_BLEND_NO_OP.
+ * @see gfx_pass_clear.
+ */
+GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
+                            GFXBlendFactor srcFactor,
+                            GFXBlendFactor dstFactor,
+                            GFXBlendOp     op,
+                            GFXBlendFactor srcAlphaFactor,
+                            GFXBlendFactor dstAlphaFactor,
+                            GFXBlendOp     alphaOp);
 
 /**
  * Release any consumption of an attachment of the renderer.

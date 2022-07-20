@@ -48,6 +48,8 @@ typedef struct GFXDevice
 		bool geometryShader;
 		bool tessellationShader;
 		bool rasterNonSolid;
+		bool independentBlend;
+		bool logicOp;
 		bool depthBounds;
 		bool compressionBC;
 		bool compressionETC2; // Includes EAC compression.
