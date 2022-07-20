@@ -555,8 +555,11 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 
 	// Nothing to rebuild if not resized or nothing is built yet.
 	if (
-		!(flags & _GFX_RESIZE) ||
-		renderer->backing.state == _GFX_BACKING_INVALID)
+		(!(flags & _GFX_RESIZE) ||
+		renderer->backing.state == _GFX_BACKING_INVALID) &&
+		// If the graph is warmed, we'll need to build the backing too,
+		// otherwise the graph rebuild will fail!
+		renderer->graph.state < _GFX_GRAPH_WARMED)
 	{
 		return;
 	}
@@ -570,7 +573,8 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 	if (!_gfx_render_backing_resolve(renderer))
 		return;
 
-	if (built)
+	// Same as above, if the graph is warmed, build the backing too!
+	if (built || renderer->graph.state >= _GFX_GRAPH_WARMED)
 	{
 		// Ok now rebuild all the affected attachments.
 		size_t failed = _gfx_render_backing_alloc(renderer);

@@ -433,9 +433,6 @@ typedef struct GFXFrame GFXFrame;
  * Primitive renderable/computable.
  ****************************/
 
-// TODO: Add a pointer to a GFXRenderState in GFXRenderable?
-// This way we can have optional state that overwrites the pass state.
-
 /**
  * Renderable definition.
  */
@@ -445,6 +442,8 @@ typedef struct GFXRenderable
 	GFXPass*      pass;
 	GFXTechnique* technique;
 	GFXPrimitive* primitive;
+
+	const GFXRenderState* state;
 
 	GFX_ATOMIC(bool) lock;
 
@@ -470,17 +469,24 @@ typedef struct GFXComputable
 /**
  * Initializes a renderable.
  * The object pointed to by renderable _CAN_ be moved or copied!
+ * Any member of state may be NULL to omit setting the associated state.
  * @param renderable Cannot be NULL.
  * @param pass       Cannot be NULL.
  * @param tech       Cannot be NULL.
  * @param prim       May be NULL!
+ * @param state      May be NULL!
  * @return Non-zero on success.
  *
  * Can be called from any thread at any time!
  * Does not need to be cleared, hence no _init postfix.
+ *
+ * The object(s) pointed to by state cannot be moved or copied and must
+ * remain constant as long as the renderable is being used in function calls!
+ * To update state, call this function again.
  */
 GFX_API bool gfx_renderable(GFXRenderable* renderable,
-                            GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim);
+                            GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim,
+                            const GFXRenderState* state);
 
 /**
  * Warms up the internal pipeline cache (technique must be locked).

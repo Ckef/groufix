@@ -197,7 +197,7 @@ TEST_DESCRIBE(loading, t)
 
 	// Init a renderable & set using the above stuff.
 	Context ctx;
-	if (!gfx_renderable(&ctx.renderable, t->pass, tech, prim))
+	if (!gfx_renderable(&ctx.renderable, t->pass, tech, prim, NULL))
 		goto clean;
 
 	ctx.set = gfx_renderer_add_set(t->renderer, tech, 0,

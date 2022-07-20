@@ -56,7 +56,7 @@ TEST_DESCRIBE(windows, t)
 
 	// And of course a second renderable.
 	GFXRenderable renderable2;
-	gfx_renderable(&renderable2, pass2, t->technique, t->primitive);
+	gfx_renderable(&renderable2, pass2, t->technique, t->primitive, NULL);
 
 	// Setup an event loop.
 	// We wait instead of poll, only update when an event was detected.

@@ -625,7 +625,7 @@ static void _test_init(TestState* _test_state)
 
 	// Init the default renderable.
 	gfx_renderable(&_test_base.renderable,
-		_test_base.pass, _test_base.technique, _test_base.primitive);
+		_test_base.pass, _test_base.technique, _test_base.primitive, NULL);
 
 #endif // TEST_SKIP_CREATE_SCENE
 #endif // TEST_SKIP_CREATE_RENDER_GRAPH

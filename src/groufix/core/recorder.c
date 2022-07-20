@@ -153,9 +153,25 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		return 0;
 	}
 
+	// Gather appropriate state data.
+	const GFXRasterState* raster =
+		(renderable->state != NULL && renderable->state->raster != NULL) ?
+		renderable->state->raster : &pass->state.raster;
+
+	const GFXBlendState* blend =
+		(renderable->state != NULL && renderable->state->blend != NULL) ?
+		renderable->state->blend : &pass->state.blend;
+
+	const GFXDepthState* depth =
+		(renderable->state != NULL && renderable->state->depth != NULL) ?
+		renderable->state->depth : &pass->state.depth;
+
+	const GFXStencilState* stencil =
+		(renderable->state != NULL && renderable->state->stencil != NULL) ?
+		renderable->state->stencil : &pass->state.stencil;
+
 	// Build rasterization info.
-	const bool noRaster =
-		pass->state.raster.mode == GFX_RASTER_DISCARD;
+	const bool noRaster = (raster->mode == GFX_RASTER_DISCARD);
 
 	VkPipelineRasterizationStateCreateInfo prsci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -178,9 +194,9 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	{
 		prsci.rasterizerDiscardEnable = VK_FALSE;
 
-		prsci.polygonMode = _GFX_GET_VK_POLYGON_MODE(pass->state.raster.mode);
-		prsci.cullMode = _GFX_GET_VK_CULL_MODE(pass->state.raster.cull);
-		prsci.frontFace = _GFX_GET_VK_FRONT_FACE(pass->state.raster.front);
+		prsci.polygonMode = _GFX_GET_VK_POLYGON_MODE(raster->mode);
+		prsci.cullMode = _GFX_GET_VK_CULL_MODE(raster->cull);
+		prsci.frontFace = _GFX_GET_VK_FRONT_FACE(raster->front);
 	}
 
 	// Build blend info.
@@ -214,15 +230,15 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 	if (!noRaster)
 	{
-		pcbsci.blendConstants[0] = pass->state.blend.constants[0];
-		pcbsci.blendConstants[1] = pass->state.blend.constants[1];
-		pcbsci.blendConstants[2] = pass->state.blend.constants[2];
-		pcbsci.blendConstants[3] = pass->state.blend.constants[3];
+		pcbsci.blendConstants[0] = blend->constants[0];
+		pcbsci.blendConstants[1] = blend->constants[1];
+		pcbsci.blendConstants[2] = blend->constants[2];
+		pcbsci.blendConstants[3] = blend->constants[3];
 
-		if (pass->state.blend.logic != GFX_LOGIC_NONE)
+		if (blend->logic != GFX_LOGIC_NONE)
 		{
 			pcbsci.logicOpEnable = VK_TRUE;
-			pcbsci.logicOp = _GFX_GET_VK_LOGIC_OP(pass->state.blend.logic);
+			pcbsci.logicOp = _GFX_GET_VK_LOGIC_OP(blend->logic);
 		}
 	}
 
@@ -256,16 +272,16 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	if (!noRaster && (pass->state.enabled & _GFX_PASS_DEPTH))
 	{
 		pdssci.depthTestEnable = VK_TRUE;
-		pdssci.depthCompareOp = _GFX_GET_VK_COMPARE_OP(pass->state.depth.cmp);
+		pdssci.depthCompareOp = _GFX_GET_VK_COMPARE_OP(depth->cmp);
 
-		if (pass->state.depth.flags & GFX_DEPTH_WRITE)
+		if (depth->flags & GFX_DEPTH_WRITE)
 			pdssci.depthWriteEnable = VK_TRUE;
 
-		if (pass->state.depth.flags & GFX_DEPTH_BOUNDED)
+		if (depth->flags & GFX_DEPTH_BOUNDED)
 		{
 			pdssci.depthBoundsTestEnable = VK_TRUE;
-			pdssci.minDepthBounds = pass->state.depth.minDepth;
-			pdssci.maxDepthBounds = pass->state.depth.maxDepth;
+			pdssci.minDepthBounds = depth->minDepth;
+			pdssci.maxDepthBounds = depth->maxDepth;
 		}
 	}
 
@@ -274,23 +290,23 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		pdssci.stencilTestEnable = VK_TRUE;
 
 		pdssci.front = (VkStencilOpState){
-			.failOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.front.fail),
-			.passOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.front.pass),
-			.depthFailOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.front.depthFail),
-			.compareOp = _GFX_GET_VK_COMPARE_OP(pass->state.stencil.front.cmp),
-			.compareMask = pass->state.stencil.front.cmpMask,
-			.writeMask = pass->state.stencil.front.writeMask,
-			.reference = pass->state.stencil.front.reference
+			.failOp = _GFX_GET_VK_STENCIL_OP(stencil->front.fail),
+			.passOp = _GFX_GET_VK_STENCIL_OP(stencil->front.pass),
+			.depthFailOp = _GFX_GET_VK_STENCIL_OP(stencil->front.depthFail),
+			.compareOp = _GFX_GET_VK_COMPARE_OP(stencil->front.cmp),
+			.compareMask = stencil->front.cmpMask,
+			.writeMask = stencil->front.writeMask,
+			.reference = stencil->front.reference
 		};
 
 		pdssci.back = (VkStencilOpState){
-			.failOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.back.fail),
-			.passOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.back.pass),
-			.depthFailOp = _GFX_GET_VK_STENCIL_OP(pass->state.stencil.back.depthFail),
-			.compareOp = _GFX_GET_VK_COMPARE_OP(pass->state.stencil.back.cmp),
-			.compareMask = pass->state.stencil.back.cmpMask,
-			.writeMask = pass->state.stencil.back.writeMask,
-			.reference = pass->state.stencil.back.reference
+			.failOp = _GFX_GET_VK_STENCIL_OP(stencil->back.fail),
+			.passOp = _GFX_GET_VK_STENCIL_OP(stencil->back.pass),
+			.depthFailOp = _GFX_GET_VK_STENCIL_OP(stencil->back.depthFail),
+			.compareOp = _GFX_GET_VK_COMPARE_OP(stencil->back.cmp),
+			.compareMask = stencil->back.cmpMask,
+			.writeMask = stencil->back.writeMask,
+			.reference = stencil->back.reference
 		};
 	}
 
@@ -792,7 +808,8 @@ void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
 
 /****************************/
 GFX_API bool gfx_renderable(GFXRenderable* renderable,
-                            GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim)
+                            GFXPass* pass, GFXTechnique* tech, GFXPrimitive* prim,
+                            const GFXRenderState* state)
 {
 	assert(renderable != NULL);
 	assert(pass != NULL);
@@ -826,6 +843,7 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 	renderable->pass = pass;
 	renderable->technique = tech;
 	renderable->primitive = prim;
+	renderable->state = state;
 
 	atomic_store_explicit(&renderable->lock, 0, memory_order_relaxed);
 	renderable->pipeline = (uintptr_t)NULL;
