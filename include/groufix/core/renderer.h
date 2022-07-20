@@ -313,13 +313,6 @@ typedef struct GFXSampler
 } GFXSampler;
 
 
-// TODO: Define struct GFXRenderState and but pointers to all
-// GFX*State structs in it so we can leave stuff optional.
-// Use a pointer to render state in GFXRenderable and only use
-// gfx_pass_set_state(*) so we can set it either way ("_state(NULL) = reset).
-// And put this in its own major header just above renderables/computables.
-
-
 /**
  * Rasterization state description.
  */
@@ -387,6 +380,20 @@ typedef struct GFXStencilState
 
 
 /**
+ * Render state description.
+ */
+typedef struct GFXRenderState
+{
+	// All are optional.
+	const GFXRasterState*  raster;
+	const GFXBlendState*   blend;
+	const GFXDepthState*   depth;
+	const GFXStencilState* stencil;
+
+} GFXRenderState;
+
+
+/**
  * Renderer definition.
  */
 typedef struct GFXRenderer GFXRenderer;
@@ -425,6 +432,9 @@ typedef struct GFXFrame GFXFrame;
 /****************************
  * Primitive renderable/computable.
  ****************************/
+
+// TODO: Add a pointer to a GFXRenderState in GFXRenderable?
+// This way we can have optional state that overwrites the pass state.
 
 /**
  * Renderable definition.
@@ -645,28 +655,13 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
                                uint32_t* width, uint32_t* height, uint32_t* layers);
 
 /**
- * Sets the rasterization state of a pass.
- * @param pass Cannot be NULL.
+ * Sets the render state of a pass.
+ * Any member of state may be NULL to omit setting the associated state.
+ * @param pass  Cannot be NULL.
+ * @param state No-op if NULL.
  */
-GFX_API void gfx_pass_set_raster(GFXPass* pass, GFXRasterState state);
-
-/**
- * Sets the blending state of a pass.
- * @param pass Cannot be NULL.
- */
-GFX_API void gfx_pass_set_blend(GFXPass* pass, GFXBlendState state);
-
-/**
- * Sets the depth state of a pass.
- * @param pass Cannot be NULL.
- */
-GFX_API void gfx_pass_set_depth(GFXPass* pass, GFXDepthState state);
-
-/**
- * Sets the stencil state of a pass.
- * @param pass Cannot be NULL.
- */
-GFX_API void gfx_pass_set_stencil(GFXPass* pass, GFXStencilState state);
+GFX_API void gfx_pass_set_state(GFXPass* pass,
+                                const GFXRenderState* state);
 
 /**
  * Consume an attachment of a renderer.

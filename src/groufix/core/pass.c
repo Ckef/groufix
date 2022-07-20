@@ -978,57 +978,36 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 }
 
 /****************************/
-GFX_API void gfx_pass_set_raster(GFXPass* pass, GFXRasterState state)
+GFX_API void gfx_pass_set_state(GFXPass* pass,
+                                const GFXRenderState* state)
 {
 	assert(pass != NULL);
 
-	// If new values, set & increase generation to invalidate pipelines.
-	if (!_gfx_cmp_raster(&pass->state.raster, &state))
-	{
-		pass->state.raster = state;
-		_gfx_pass_gen(pass);
-	}
-}
+	if (state == NULL) return;
 
-/****************************/
-GFX_API void gfx_pass_set_blend(GFXPass* pass, GFXBlendState state)
-{
-	assert(pass != NULL);
+	// Set new values, check if changed.
+	bool gen = 0;
 
-	// Ditto gfx_pass_set_raster.
-	if (!_gfx_cmp_blend(&pass->state.blend, &state))
-	{
-		pass->state.blend = state;
-		_gfx_pass_gen(pass);
-	}
-}
+	if (state->raster != NULL)
+		gen = gen || !_gfx_cmp_raster(&pass->state.raster, state->raster),
+		pass->state.raster = *state->raster;
 
-/****************************/
-GFX_API void gfx_pass_set_depth(GFXPass* pass, GFXDepthState state)
-{
-	assert(pass != NULL);
+	if (state->blend != NULL)
+		gen = gen || !_gfx_cmp_blend(&pass->state.blend, state->blend),
+		pass->state.blend = *state->blend;
 
-	// Ditto gfx_pass_set_raster.
-	if (!_gfx_cmp_depth(&pass->state.depth, &state))
-	{
-		pass->state.depth = state;
-		_gfx_pass_gen(pass);
-	}
-}
+	if (state->depth != NULL)
+		gen = gen || !_gfx_cmp_depth(&pass->state.depth, state->depth),
+		pass->state.depth = *state->depth;
 
-/****************************/
-GFX_API void gfx_pass_set_stencil(GFXPass* pass, GFXStencilState state)
-{
-	assert(pass != NULL);
+	if (state->stencil != NULL)
+		gen = gen ||
+			!_gfx_cmp_stencil(&pass->state.stencil.front, &state->stencil->front) ||
+			!_gfx_cmp_stencil(&pass->state.stencil.back, &state->stencil->back),
+		pass->state.stencil = *state->stencil;
 
-	// Ditto gfx_pass_set_raster.
-	if (
-		!_gfx_cmp_stencil(&pass->state.stencil.front, &state.front) ||
-		!_gfx_cmp_stencil(&pass->state.stencil.back, &state.back))
-	{
-		pass->state.stencil = state;
-		_gfx_pass_gen(pass);
-	}
+	// If changed, increase generation to invalidate pipelines.
+	if (gen) _gfx_pass_gen(pass);
 }
 
 /****************************/
