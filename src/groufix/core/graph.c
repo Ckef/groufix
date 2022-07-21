@@ -159,8 +159,8 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 	assert(renderer != NULL);
 	assert(flags & _GFX_RECREATE);
 
-	// Nothing to rebuild if nothing is built.
-	if (renderer->graph.state < _GFX_GRAPH_WARMED)
+	// Nothing to rebuild if no build attempt was even made.
+	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
 		return;
 
 	// (Re)build all passes.
