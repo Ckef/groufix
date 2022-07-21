@@ -131,7 +131,7 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 
 		// The pass itself should log errors.
 		// No need to worry about destructing, state remains 'validated'.
-		failed += !_gfx_pass_build(pass, 0);
+		failed += !_gfx_pass_build(pass);
 
 		// At this point we also sneakedly set the order of all passes
 		// so the recorders know what's up.
@@ -169,12 +169,12 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 	size_t failed = 0;
 
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		failed += !_gfx_pass_build(
+		failed += !_gfx_pass_rebuild(
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i), flags);
 
 	if (failed > 0)
 	{
-		gfx_log_warn(
+		gfx_log_error(
 			"Failed to rebuild %"GFX_PRIs" pass(es) of the renderer's graph.",
 			failed);
 

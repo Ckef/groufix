@@ -751,7 +751,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 }
 
 /****************************/
-bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
+bool _gfx_pass_build(GFXPass* pass)
 {
 	assert(pass != NULL);
 
@@ -760,9 +760,6 @@ bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags)
 
 	// TODO Skip all this if this is not master.
 	// We somehow want to propagate the dimensions to all subpasses.
-
-	// First we destroy the things we want to recreate.
-	_gfx_pass_destruct_partial(pass, flags);
 
 	// Do a warmup, i.e. make sure the Vulkan render pass is built.
 	// This will log an error for us!
@@ -980,6 +977,28 @@ clean:
 	// Get rid of everything; avoid dangling views.
 	_gfx_pass_destruct(pass);
 	return 0;
+}
+
+/****************************/
+bool _gfx_pass_rebuild(GFXPass* pass, _GFXRecreateFlags flags)
+{
+	assert(pass != NULL);
+	assert(flags & _GFX_RECREATE);
+
+	// Remember if we're warmed or entirely built.
+	const bool warmed = pass->vk.pass != VK_NULL_HANDLE;
+	const bool built = pass->vk.frames.size > 0;
+
+	// Then we destroy the things we want to recreate.
+	_gfx_pass_destruct_partial(pass, flags);
+
+	// Then re-perform the remembered bits :)
+	if (built)
+		return _gfx_pass_build(pass);
+	if (warmed)
+		return _gfx_pass_warmup(pass);
+
+	return 1;
 }
 
 /****************************/

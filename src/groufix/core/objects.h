@@ -1520,12 +1520,12 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer);
 bool _gfx_render_graph_build(GFXRenderer* renderer);
 
 /**
- * (Re)builds all relevant render graph resources.
+ * Rebuilds all relevant render graph resources.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
  * @param flags    Must contain the _GFX_RECREATE bit.
  *
- * This will call the relevant _gfx_pass_build calls.
+ * This will call the relevant _gfx_pass_rebuild calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
 void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags);
@@ -1580,14 +1580,21 @@ void _gfx_destroy_pass(GFXPass* pass);
 bool _gfx_pass_warmup(GFXPass* pass);
 
 /**
- * (Re)builds all Vulkan objects.
- * @param pass  Cannot be NULL.
- * @param flags What resources should be recreated (0 to recreate nothing).
- * @return Non-zero if valid and built.
- *
- * Not thread-safe with respect to pushing stale resources iff flags is not 0!
+ * Builds not yet built Vulkan objects.
+ * @param pass Cannot be NULL.
+ * @return Non-zero if completely valid and built.
  */
-bool _gfx_pass_build(GFXPass* pass, _GFXRecreateFlags flags);
+bool _gfx_pass_build(GFXPass* pass);
+
+/**
+ * Rebuilds Vulkan objects, does NOT build not yet built objects!
+ * @param pass  Cannot be NULL.
+ * @param flags Must contain the _GFX_RECREATE bit.
+ * @return Non-zero if rebuilt successfully.
+ *
+ * Not thread-safe with respect to pushing stale resources!
+ */
+bool _gfx_pass_rebuild(GFXPass* pass, _GFXRecreateFlags flags);
 
 /**
  * Destructs all Vulkan objects, non-recursively.
