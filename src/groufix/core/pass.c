@@ -1011,6 +1011,7 @@ void _gfx_pass_destruct(GFXPass* pass)
 
 	// Clear memory.
 	gfx_vec_clear(&pass->vk.clears);
+	gfx_vec_clear(&pass->vk.blends);
 	gfx_vec_clear(&pass->vk.views);
 	gfx_vec_clear(&pass->vk.frames);
 }
