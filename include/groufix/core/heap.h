@@ -485,6 +485,9 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
                       const GFXInject* deps);
 
+// TODO: Add gfx_blit().
+// TODO: Add gfx_resolve()?
+
 /**
  * Maps a buffer reference to a host virtual address pointer.
  * @param ref Cannot be GFX_REF_NULL.
