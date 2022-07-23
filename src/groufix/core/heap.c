@@ -256,7 +256,6 @@ static bool _gfx_image_alloc(_GFXImage* image)
 		},
 		.mipLevels             = image->base.mipmaps,
 		.arrayLayers           = image->base.layers,
-		// TODO: Make samples user input.
 		.samples               = VK_SAMPLE_COUNT_1_BIT,
 		.tiling                = VK_IMAGE_TILING_OPTIMAL,
 		.usage                 = usage,
