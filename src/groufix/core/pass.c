@@ -220,14 +220,21 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 				_gfx_push_stale(pass->renderer,
 					VK_NULL_HANDLE, elem->view,
 					VK_NULL_HANDLE, VK_NULL_HANDLE);
+
+			// We DO NOT release pass->vk.views.
+			// This because on-swapchain recreate, the consumptions of
+			// attachments have not changed, we just have new images with
+			// potentially new dimensions.
+			// Meaning we do not need to filter all consumptions into
+			// framebuffer views, we only need to recreate the views.
+			elem->view = VK_NULL_HANDLE;
 		}
 
-		pass->build.backing = SIZE_MAX;
+		// We do not need to re-calculate what window is consumed.
 		pass->build.fWidth = 0;
 		pass->build.fHeight = 0;
 		pass->build.fLayers = 0;
-		gfx_vec_release(&pass->vk.views);
-		gfx_vec_release(&pass->vk.frames);
+		gfx_vec_release(&pass->vk.frames); // Force a rebuild.
 	}
 
 	// Second, we check if the render pass needs to be reconstructed.
@@ -1008,6 +1015,9 @@ void _gfx_pass_destruct(GFXPass* pass)
 
 	// Destruct all partial things.
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
+
+	// Need to re-calculate what window is consumed.
+	pass->build.backing = SIZE_MAX;
 
 	// Clear memory.
 	gfx_vec_clear(&pass->vk.clears);
