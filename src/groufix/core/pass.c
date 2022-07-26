@@ -38,6 +38,15 @@ typedef struct _GFXConsumeElem
 
 	} clear;
 
+
+	// Graph output (relative to neighbouring passes).
+	struct
+	{
+		VkImageLayout initial;
+		VkImageLayout final;
+
+	} out;
+
 } _GFXConsumeElem;
 
 
@@ -458,6 +467,70 @@ void _gfx_destroy_pass(GFXPass* pass)
 }
 
 /****************************/
+void _gfx_pass_resolve(GFXPass* pass, void** consumes)
+{
+	assert(pass != NULL);
+	assert(consumes != NULL);
+
+	GFXRenderer* rend = pass->renderer;
+
+	// TODO: If this is the last pass, do this for master and all next passes
+	// and skip if this is not the last.
+	// This because a subpass chain will be submitted at the order of the last.
+
+	// TODO: Probably wanna process & output synchronization data somehow.
+	// This so we can properly insert Vulkan barriers...
+
+	// Start looping over all consumptions & resolve them.
+	for (size_t i = 0; i < pass->consumes.size; ++i)
+	{
+		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+
+		// Validate existence of the attachment.
+		if (
+			con->view.index >= rend->backing.attachs.size ||
+			at->type == _GFX_ATTACH_EMPTY)
+		{
+			continue;
+		}
+
+		// Get previous consumption from the previous resolve calls.
+		_GFXConsumeElem* prev = consumes[con->view.index];
+
+		// Compute initial/final layout based on neighbours.
+		if (at->type == _GFX_ATTACH_WINDOW)
+		{
+			if (prev == NULL)
+				con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
+			else
+				con->out.initial = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				prev->out.final = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+			con->out.final = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		}
+		else
+		{
+			VkImageLayout layout =
+				_GFX_GET_VK_IMAGE_LAYOUT(con->mask, at->image.base.format);
+
+			if (prev == NULL)
+				con->out.initial = (at->image.base.usage & GFX_IMAGE_LOAD) ?
+					layout : VK_IMAGE_LAYOUT_UNDEFINED;
+			else
+				con->out.initial = prev->out.final;
+
+			con->out.final = layout;
+		}
+
+		// Store the consumption for this attachment so the next
+		// resolve calls have this data.
+		// Each index only occurs one for each pass so it's fine.
+		consumes[con->view.index] = con;
+	}
+}
+
+/****************************/
 bool _gfx_pass_warmup(GFXPass* pass)
 {
 	assert(pass != NULL);
@@ -542,6 +615,9 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			}
 
 			// Describe the window as attachment and reference it.
+			const bool clear = con->cleared & GFX_IMAGE_COLOR;
+			const bool load = con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
+
 			isColor = 1;
 			color[numColors++] = (VkAttachmentReference){
 				.attachment = (uint32_t)numAttachs,
@@ -549,63 +625,61 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			};
 
 			ad[numAttachs++] = (VkAttachmentDescription){
-				.flags          = 0,
-				.format         = at->window.window->frame.format,
-				.samples        = VK_SAMPLE_COUNT_1_BIT,
+				.flags   = 0,
+				.format  = at->window.window->frame.format,
+				.samples = VK_SAMPLE_COUNT_1_BIT,
 
-				// TODO: Determine whether to load based on parent passes.
-				.loadOp = (con->cleared & GFX_IMAGE_COLOR) ?
-					VK_ATTACHMENT_LOAD_OP_CLEAR :
+				.loadOp =
+					(clear) ? VK_ATTACHMENT_LOAD_OP_CLEAR :
+					(load) ? VK_ATTACHMENT_LOAD_OP_LOAD :
 					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 
 				.storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
 					VK_ATTACHMENT_STORE_OP_DONT_CARE :
 					VK_ATTACHMENT_STORE_OP_STORE,
 
-				// All other input ops are ignored for windows.
-				// TODO: Determine all this based on parent/child passes.
 				.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-				.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-				.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+				.initialLayout  = con->out.initial,
+				.finalLayout    = con->out.final
 			};
 		}
 
 		// Non-swapchain.
 		else
 		{
+			const GFXFormat fmt = at->image.base.format;
+
 			const bool aspectMatch =
-				(!GFX_FORMAT_HAS_DEPTH(at->image.base.format) ||
+				(!GFX_FORMAT_HAS_DEPTH(fmt) ||
 					con->view.range.aspect & GFX_IMAGE_DEPTH) &&
-				(!GFX_FORMAT_HAS_STENCIL(at->image.base.format) ||
+				(!GFX_FORMAT_HAS_STENCIL(fmt) ||
 					con->view.range.aspect & GFX_IMAGE_STENCIL) &&
-				(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ||
+				(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ||
 					con->view.range.aspect & GFX_IMAGE_COLOR);
 
 			const bool firstClear =
-				!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ?
+				!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
 					con->cleared & GFX_IMAGE_COLOR :
-					GFX_FORMAT_HAS_DEPTH(at->image.base.format) &&
+					GFX_FORMAT_HAS_DEPTH(fmt) &&
 						con->cleared & GFX_IMAGE_DEPTH;
 
 			const bool firstLoad =
-				!firstClear &&
-				(!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) ||
-				GFX_FORMAT_HAS_DEPTH(at->image.base.format)) &&
-					at->image.base.usage & GFX_IMAGE_LOAD;
+				(!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ||
+				GFX_FORMAT_HAS_DEPTH(fmt)) &&
+					con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
 
 			const bool secondClear =
-				GFX_FORMAT_HAS_STENCIL(at->image.base.format) &&
+				GFX_FORMAT_HAS_STENCIL(fmt) &&
 					con->cleared & GFX_IMAGE_STENCIL;
 
 			const bool secondLoad =
-				!secondClear &&
-				GFX_FORMAT_HAS_STENCIL(at->image.base.format) &&
-					at->image.base.usage & GFX_IMAGE_LOAD;
+				GFX_FORMAT_HAS_STENCIL(fmt) &&
+					con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
 
 			const VkAttachmentReference ref = (VkAttachmentReference){
 				.attachment = (uint32_t)numAttachs,
-				.layout = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, at->image.base.format)
+				.layout = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
 			};
 
 			// Reference the attachment if appropriate.
@@ -615,7 +689,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			if (con->mask &
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
 			{
-				if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format))
+				if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt))
 					isColor = 1,
 					color[numColors++] = aspectMatch ? ref : unused;
 
@@ -628,10 +702,8 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					pass->state.enabled &= ~(unsigned int)(
 						_GFX_PASS_DEPTH | _GFX_PASS_STENCIL);
 					pass->state.enabled |= (unsigned int)(
-						(GFX_FORMAT_HAS_DEPTH(at->image.base.format) ?
-							_GFX_PASS_DEPTH : 0) |
-						(GFX_FORMAT_HAS_STENCIL(at->image.base.format) ?
-							_GFX_PASS_STENCIL : 0));
+						(GFX_FORMAT_HAS_DEPTH(fmt) ? _GFX_PASS_DEPTH : 0) |
+						(GFX_FORMAT_HAS_STENCIL(fmt) ? _GFX_PASS_STENCIL : 0));
 				}
 			}
 
@@ -641,7 +713,6 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.format         = at->image.vk.format,
 				.samples        = VK_SAMPLE_COUNT_1_BIT,
 
-				// TODO: Determine whether to load based on parent passes.
 				.loadOp =
 					(firstClear) ? VK_ATTACHMENT_LOAD_OP_CLEAR :
 					(firstLoad) ? VK_ATTACHMENT_LOAD_OP_LOAD :
@@ -660,11 +731,8 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					VK_ATTACHMENT_STORE_OP_DONT_CARE :
 					VK_ATTACHMENT_STORE_OP_STORE,
 
-				// TODO: Should also be based on parent passes.
-				.initialLayout = (firstLoad || secondLoad) ?
-					ref.layout : VK_IMAGE_LAYOUT_UNDEFINED,
-
-				.finalLayout = ref.layout,
+				.initialLayout = con->out.initial,
+				.finalLayout = con->out.final
 			};
 		}
 

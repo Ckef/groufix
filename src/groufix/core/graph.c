@@ -21,6 +21,28 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 
 	// TODO: Analyze the graph for e.g. pass merging, this should log errors!
 	// TODO: This should set `master` and `next` of each pass.
+	// TODO: Does this even produce errors?
+
+	// We loop over all passes in submission order whilst
+	// keeping track of the last consumption of each attachment.
+	// This way we propogate transition and synchronization data per
+	// attachment as we go.
+	const size_t numAttachs = renderer->backing.attachs.size;
+	void* consumes[numAttachs > 0 ? numAttachs : 1];
+	for (size_t i = 0; i < numAttachs; ++i) consumes[i] = NULL;
+
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+	{
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+
+		// Resolve!
+		_gfx_pass_resolve(pass, consumes);
+
+		// At this point we also sneakedly set the order of all passes
+		// so the recorders know what's up.
+		pass->order = (unsigned int)i;
+	}
 
 	// Its now validated!
 	renderer->graph.state = _GFX_GRAPH_VALIDATED;
@@ -126,16 +148,10 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
-
 		// The pass itself should log errors.
 		// No need to worry about destructing, state remains 'validated'.
-		failed += !_gfx_pass_build(pass);
-
-		// At this point we also sneakedly set the order of all passes
-		// so the recorders know what's up.
-		pass->order = (unsigned int)i;
+		failed += !_gfx_pass_build(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
 	}
 
 	if (failed > 0)

@@ -868,7 +868,8 @@ struct GFXPass
 	//  GFXAccessMask, GFXShaderStage, GFXView,
 	//  GFXBlendFactor, GFXBlendFactor, GFXBlendOp,
 	//  GFXBlendFactor, GFXBlendFactor, GFXBlendOp,
-	//  GFXClear|VkClearValue
+	//  GFXClear|VkClearValue,
+	//  VkImageLayout, VkImageLayout
 	// }.
 	GFXVec consumes;
 
@@ -1570,6 +1571,17 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
  * @param pass Cannot be NULL.
  */
 void _gfx_destroy_pass(GFXPass* pass);
+
+/**
+ * Resolves a pass, deriving transition and synchronization data for each
+ * consumption with regard to the neighbouring passes.
+ * consumes must hold `pass->renderer->backing.attachs.size` void* pointers.
+ * @param pass     Cannot be NULL.
+ * @param consumes Cannot be NULL, must be initialized to all NULL on first use.
+ *
+ * MUST be called for all passes in submission order!
+ */
+void _gfx_pass_resolve(GFXPass* pass, void** consumes);
 
 /**
  * Builds the Vulkan render pass if not present yet.
