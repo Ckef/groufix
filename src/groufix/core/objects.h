@@ -432,7 +432,7 @@ typedef struct _GFXTransfer
 typedef struct _GFXTransferPool
 {
 	GFXDeque  transfers; // Stores _GFXTransfer.
-	_GFXQueue queue;
+	_GFXQueue queue;     // Vulkan queue.
 	_GFXMutex lock;
 
 	// #blocking threads.
@@ -1284,7 +1284,9 @@ static inline void _gfx_injection(_GFXInjection* injection)
  * Every injection command passed to _gfx_deps_catch or _gfx_deps_prepare must
  * subsequently be passed to a call to _gfx_deps_abort or _gfx_deps_finish.
  * These subsequent calls MUST take the same injection metadata pointer.
+ *
  * Inbetween calls injection->inp may be altered.
+ * In fact, they must be altered if operation references were given.
  *
  * Right before the first call to _gfx_deps_abort or _gfx_deps_finish,
  * all output arrays in injection may be externally realloc'd,

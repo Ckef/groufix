@@ -69,11 +69,12 @@ typedef struct GFXDependency GFXDependency;
  * same underlying Vulkan queue, internal semaphores are created.
  * (this can happen between async and non-async operations).
  *
- * These internal semaphores are recycled after N (capacity) wait commands.
+ * These internal semaphores are recycled after N (capacity) subsequent
+ * wait commands, at which point the original operations MUST have completed.
  * In other words: the dependency object can hold `capacity` concurrent
  * wait commands of which the operation that the commands are inserted in
  * are not yet completed.
- * Once an operation that waited on this dependency is finished,
+ * Once an operation that waited on this dependency has finished,
  * we are allowed to insert another wait command into this dependency object.
  *
  * capacity can be 0 (infinite) to _never_ recycle any internal semaphores,
