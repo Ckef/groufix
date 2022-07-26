@@ -55,8 +55,8 @@ typedef struct _GFXConsumeElem
  */
 typedef struct _GFXViewElem
 {
-	_GFXConsumeElem* consume;
-	VkImageView      view; // Remains VK_NULL_HANDLE if a swapchain.
+	const _GFXConsumeElem* consume;
+	VkImageView            view; // Remains VK_NULL_HANDLE if a swapchain.
 
 } _GFXViewElem;
 
@@ -289,8 +289,8 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 	// And start looping over all consumptions :)
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
-		_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		const _GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 		// Validate existence of the attachment.
 		if (
@@ -485,7 +485,7 @@ void _gfx_pass_resolve(GFXPass* pass, void** consumes)
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
-		_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 		// Validate existence of the attachment.
 		if (

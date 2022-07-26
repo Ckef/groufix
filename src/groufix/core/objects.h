@@ -1547,6 +1547,7 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer);
  * Invalidates the render graph, forcing it to first destruct everything
  * the next time _gfx_render_graph_(warmup|build) is called.
  * If _gfx_render_graph_rebuild is called before that, it is rendered a no-op.
+ * Suitable for when consumptions have changed.
  * @param renderer Cannot be NULL.
  */
 void _gfx_render_graph_invalidate(GFXRenderer* renderer);
@@ -1579,9 +1580,10 @@ void _gfx_destroy_pass(GFXPass* pass);
  * consumption with regard to the neighbouring passes.
  * consumes must hold `pass->renderer->backing.attachs.size` void* pointers.
  * @param pass     Cannot be NULL.
- * @param consumes Cannot be NULL, must be initialized to all NULL on first use.
+ * @param consumes Cannot be NULL, must be initialized to all NULL on first call.
  *
- * MUST be called for all passes in submission order!
+ * Must be called after its consumptions/attachments are changed!
+ * Must be called for all passes in submission order!
  */
 void _gfx_pass_resolve(GFXPass* pass, void** consumes);
 
@@ -1614,7 +1616,7 @@ bool _gfx_pass_rebuild(GFXPass* pass, _GFXRecreateFlags flags);
  * Destructs all Vulkan objects, non-recursively.
  * @param pass Cannot be NULL.
  *
- * Must be called before its consumptions/attachments are changed!
+ * Must be called before its attachments and after its consumptions are changed!
  * Not thread-safe with respect to pushing stale resources!
  */
 void _gfx_pass_destruct(GFXPass* pass);
