@@ -182,7 +182,7 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsumeElem* elem)
 	// Insert anew with default values.
 	GFXBlendOpState blendOpState = {
 		.srcFactor = GFX_FACTOR_ONE,
-		.dstFactor = GFX_FACTOR_ONE,
+		.dstFactor = GFX_FACTOR_ZERO,
 		.op = GFX_BLEND_NO_OP
 	};
 
@@ -471,6 +471,8 @@ void _gfx_pass_resolve(GFXPass* pass, void** consumes)
 				con->out.initial = (at->image.base.usage & GFX_IMAGE_LOAD) ?
 					layout : VK_IMAGE_LAYOUT_UNDEFINED;
 			else
+				// Keep final layout of the previous consumption,
+				// it is not the responsibility of the pass to transition!
 				con->out.initial = prev->out.final;
 
 			con->out.final = layout;
@@ -710,8 +712,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 						con->cleared & GFX_IMAGE_DEPTH;
 
 			const bool firstLoad =
-				(!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ||
-				GFX_FORMAT_HAS_DEPTH(fmt)) &&
+				(GFX_FORMAT_HAS_DEPTH(fmt) || !GFX_FORMAT_HAS_STENCIL(fmt)) &&
 					con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
 
 			const bool secondClear =
@@ -724,7 +725,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 			const VkAttachmentReference ref = (VkAttachmentReference){
 				.attachment = (uint32_t)numAttachs,
-				.layout = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
+				.layout = con->out.final
 			};
 
 			// Reference the attachment if appropriate.
