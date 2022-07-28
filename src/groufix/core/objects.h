@@ -864,10 +864,9 @@ struct GFXPass
 
 	// Attachment consumptions,
 	// stores {
-	//  GFXImageAspect, bool,
+	//  GFXImageAspect, bool, bool,
+	//  GFXBlendOpState, GFXBlendOpState,
 	//  GFXAccessMask, GFXShaderStage, GFXView,
-	//  GFXBlendFactor, GFXBlendFactor, GFXBlendOp,
-	//  GFXBlendFactor, GFXBlendFactor, GFXBlendOp,
 	//  GFXClear|VkClearValue,
 	//  VkImageLayout, VkImageLayout
 	// }.

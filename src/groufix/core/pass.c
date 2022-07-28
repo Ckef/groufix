@@ -19,17 +19,14 @@ typedef struct _GFXConsumeElem
 {
 	GFXImageAspect cleared;
 	bool           viewed; // Zero to ignore view.type.
+	bool           blend;  // Zero to ignore the blend operation states.
+
+	GFXBlendOpState color;
+	GFXBlendOpState alpha;
 
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
 	GFXView        view; // index used as attachment index.
-
-	GFXBlendFactor srcFactor;
-	GFXBlendFactor dstFactor;
-	GFXBlendOp     op;
-	GFXBlendFactor srcAlphaFactor;
-	GFXBlendFactor dstAlphaFactor;
-	GFXBlendOp     alphaOp;
 
 	union {
 		// Identical definitions!
@@ -94,6 +91,12 @@ static inline bool _gfx_cmp_blend(const GFXBlendState* l,
 {
 	return
 		l->logic == r->logic &&
+		l->color.srcFactor == r->color.srcFactor &&
+		l->color.dstFactor == r->color.dstFactor &&
+		l->color.op == r->color.op &&
+		l->alpha.srcFactor == r->alpha.srcFactor &&
+		l->alpha.dstFactor == r->alpha.dstFactor &&
+		l->alpha.op == r->alpha.op &&
 		l->constants[0] == r->constants[0] &&
 		l->constants[1] == r->constants[1] &&
 		l->constants[2] == r->constants[2] &&
@@ -162,27 +165,33 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsumeElem* elem)
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == elem->view.index)
 		{
-			// Keep old clear values.
+			// Keep old clear & blend values.
 			_GFXConsumeElem t = *con;
 			*con = *elem;
 
 			con->cleared = t.cleared;
 			con->clear = t.clear;
+			con->blend = t.blend;
+			con->color = t.color;
+			con->alpha = t.alpha;
+
 			goto invalidate;
 		}
 	}
 
 	// Insert anew with default values.
+	GFXBlendOpState blendOpState = {
+		.srcFactor = GFX_FACTOR_ONE,
+		.dstFactor = GFX_FACTOR_ONE,
+		.op = GFX_BLEND_NO_OP
+	};
+
 	elem->cleared = 0;
 	elem->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
 
-	elem->srcFactor = GFX_FACTOR_ONE;
-	elem->dstFactor = GFX_FACTOR_ZERO;
-	elem->op = GFX_BLEND_NO_OP;
-
-	elem->srcAlphaFactor = GFX_FACTOR_ONE;
-	elem->dstAlphaFactor = GFX_FACTOR_ZERO;
-	elem->alphaOp = GFX_BLEND_NO_OP;
+	elem->blend = 0;
+	elem->color = blendOpState;
+	elem->alpha = blendOpState;
 
 	if (!gfx_vec_push(&pass->consumes, 1, elem))
 		return 0;
@@ -420,8 +429,16 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		.cull = GFX_CULL_BACK
 	};
 
+	GFXBlendOpState blendOpState = {
+		.srcFactor = GFX_FACTOR_ONE,
+		.dstFactor = GFX_FACTOR_ZERO,
+		.op = GFX_BLEND_NO_OP
+	};
+
 	pass->state.blend = (GFXBlendState){
 		.logic = GFX_LOGIC_NO_OP,
+		.color = blendOpState,
+		.alpha = blendOpState,
 		.constants = { 0.0f, 0.0f, 0.0f, 0.0f }
 	};
 
@@ -430,7 +447,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		.cmp = GFX_CMP_LESS,
 	};
 
-	GFXStencilOpState opState = {
+	GFXStencilOpState stencilOpState = {
 		.fail = GFX_STENCIL_KEEP,
 		.pass = GFX_STENCIL_KEEP,
 		.depthFail = GFX_STENCIL_KEEP,
@@ -442,8 +459,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	};
 
 	pass->state.stencil = (GFXStencilState){
-		.front = opState,
-		.back = opState
+		.front = stencilOpState,
+		.back = stencilOpState
 	};
 
 	return pass;
@@ -760,26 +777,32 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					VK_COLOR_COMPONENT_A_BIT
 			};
 
-			if (con->op != GFX_BLEND_NO_OP)
+			// Use independent blend state if given.
+			const GFXBlendOpState* blendColor =
+				con->blend ? &con->color : &pass->state.blend.color;
+			const GFXBlendOpState* blendAlpha =
+				con->blend ? &con->alpha : &pass->state.blend.alpha;
+
+			if (blendColor->op != GFX_BLEND_NO_OP)
 			{
 				pcbas.blendEnable = VK_TRUE;
 				pcbas.srcColorBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->srcFactor);
+					_GFX_GET_VK_BLEND_FACTOR(blendColor->srcFactor);
 				pcbas.dstColorBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->dstFactor);
+					_GFX_GET_VK_BLEND_FACTOR(blendColor->dstFactor);
 				pcbas.colorBlendOp =
-					_GFX_GET_VK_BLEND_OP(con->op);
+					_GFX_GET_VK_BLEND_OP(blendColor->op);
 			}
 
-			if (con->alphaOp != GFX_BLEND_NO_OP)
+			if (blendAlpha->op != GFX_BLEND_NO_OP)
 			{
 				pcbas.blendEnable = VK_TRUE;
 				pcbas.srcAlphaBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->srcAlphaFactor);
+					_GFX_GET_VK_BLEND_FACTOR(blendAlpha->srcFactor);
 				pcbas.dstAlphaBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->dstAlphaFactor);
+					_GFX_GET_VK_BLEND_FACTOR(blendAlpha->dstFactor);
 				pcbas.alphaBlendOp =
-					_GFX_GET_VK_BLEND_OP(con->alphaOp);
+					_GFX_GET_VK_BLEND_OP(blendAlpha->op);
 			}
 
 			if (!gfx_vec_push(&pass->vk.blends, 1, &pcbas))
@@ -1125,37 +1148,26 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 }
 
 /****************************/
-GFX_API void gfx_pass_get_size(GFXPass* pass,
-                               uint32_t* width, uint32_t* height, uint32_t* layers)
-{
-	assert(pass != NULL);
-	assert(width != NULL);
-	assert(height != NULL);
-	assert(layers != NULL);
-
-	*width = pass->build.fWidth;
-	*height = pass->build.fHeight;
-	*layers = pass->build.fLayers;
-}
-
-/****************************/
-GFX_API void gfx_pass_set_state(GFXPass* pass,
-                                const GFXRenderState* state)
+GFX_API void gfx_pass_set_state(GFXPass* pass, const GFXRenderState* state)
 {
 	assert(pass != NULL);
 
 	if (state == NULL) return;
 
+	// Firstly check blend state, as new blend operations should cause the
+	// `pass->vk.blends` vector to update, we do this by graph invalidation!
+	bool newBlends = 0;
+
+	if (state->blend != NULL)
+		newBlends = !_gfx_cmp_blend(&pass->state.blend, state->blend),
+		pass->state.blend = *state->blend;
+
 	// Set new values, check if changed.
-	bool gen = 0;
+	bool gen = newBlends;
 
 	if (state->raster != NULL)
 		gen = gen || !_gfx_cmp_raster(&pass->state.raster, state->raster),
 		pass->state.raster = *state->raster;
-
-	if (state->blend != NULL)
-		gen = gen || !_gfx_cmp_blend(&pass->state.blend, state->blend),
-		pass->state.blend = *state->blend;
 
 	if (state->depth != NULL)
 		gen = gen || !_gfx_cmp_depth(&pass->state.depth, state->depth),
@@ -1168,7 +1180,37 @@ GFX_API void gfx_pass_set_state(GFXPass* pass,
 		pass->state.stencil = *state->stencil;
 
 	// If changed, increase generation to invalidate pipelines.
-	if (gen) _gfx_pass_gen(pass);
+	// Instead if we invalidate the graph, it implicitly destructs & increases.
+	if (newBlends)
+		_gfx_render_graph_invalidate(pass->renderer);
+	else if (gen)
+		_gfx_pass_gen(pass);
+}
+
+/****************************/
+GFX_API void gfx_pass_get_state(GFXPass* pass, GFXRenderState* state)
+{
+	assert(pass != NULL);
+	assert(state != NULL);
+
+	state->raster = &pass->state.raster;
+	state->blend = &pass->state.blend;
+	state->depth = &pass->state.depth;
+	state->stencil = &pass->state.stencil;
+}
+
+/****************************/
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height, uint32_t* layers)
+{
+	assert(pass != NULL);
+	assert(width != NULL);
+	assert(height != NULL);
+	assert(layers != NULL);
+
+	*width = pass->build.fWidth;
+	*height = pass->build.fHeight;
+	*layers = pass->build.fLayers;
 }
 
 /****************************/
@@ -1269,24 +1311,19 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 
 /****************************/
 GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
-                            GFXBlendFactor srcFactor,
-                            GFXBlendFactor dstFactor,
-                            GFXBlendOp     op,
-                            GFXBlendFactor srcAlphaFactor,
-                            GFXBlendFactor dstAlphaFactor,
-                            GFXBlendOp     alphaOp)
+                            GFXBlendOpState color, GFXBlendOpState alpha)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
 
 	// Ignore if no-op.
-	if (op == GFX_BLEND_NO_OP)
-		srcFactor = GFX_FACTOR_ONE,
-		dstFactor = GFX_FACTOR_ZERO;
+	if (color.op == GFX_BLEND_NO_OP)
+		color.srcFactor = GFX_FACTOR_ONE,
+		color.dstFactor = GFX_FACTOR_ZERO;
 
-	if (alphaOp == GFX_BLEND_NO_OP)
-		srcAlphaFactor = GFX_FACTOR_ONE,
-		dstAlphaFactor = GFX_FACTOR_ZERO;
+	if (alpha.op == GFX_BLEND_NO_OP)
+		alpha.srcFactor = GFX_FACTOR_ONE,
+		alpha.dstFactor = GFX_FACTOR_ZERO;
 
 	// Find and set.
 	for (size_t i = pass->consumes.size; i > 0; --i)
@@ -1294,12 +1331,9 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
-			con->srcFactor = srcFactor;
-			con->dstFactor = dstFactor;
-			con->op = op;
-			con->srcAlphaFactor = srcAlphaFactor;
-			con->dstAlphaFactor = dstAlphaFactor;
-			con->alphaOp = alphaOp;
+			con->blend = 1;
+			con->color = color;
+			con->alpha = alpha;
 
 			// Same as _gfx_pass_consume, invalidate for destruction.
 			_gfx_render_graph_invalidate(pass->renderer);

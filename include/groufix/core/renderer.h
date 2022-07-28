@@ -364,11 +364,25 @@ typedef struct GFXRasterState
 
 
 /**
+ * Blending operation state.
+ */
+typedef struct GFXBlendOpState
+{
+	GFXBlendFactor srcFactor;
+	GFXBlendFactor dstFactor;
+	GFXBlendOp     op;
+
+} GFXBlendOpState;
+
+
+/**
  * Blending state description.
  */
 typedef struct GFXBlendState
 {
-	GFXLogicOp logic;
+	GFXLogicOp      logic;
+	GFXBlendOpState color;
+	GFXBlendOpState alpha;
 
 	float constants[4]; // { RGBA } blending constants.
 
@@ -512,7 +526,7 @@ typedef struct GFXComputable
  * @param pass       Cannot be NULL.
  * @param tech       Cannot be NULL.
  * @param prim       May be NULL!
- * @param state      May be NULL!
+ * @param state      May be NULL, `blend.color` and `blend.alpha` are ignored.
  * @return Non-zero on success.
  *
  * Can be called from any thread at any time!
@@ -685,6 +699,21 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
                                        size_t numParents, GFXPass** parents);
 
 /**
+ * Sets the render state of a pass.
+ * Any member of state may be NULL to omit setting the associated state.
+ * @param pass  Cannot be NULL.
+ * @param state No-op if NULL.
+ */
+GFX_API void gfx_pass_set_state(GFXPass* pass, const GFXRenderState* state);
+
+/**
+ * Retrieves the current render state of a pass.
+ * @param pass  Cannot be NULL.
+ * @param state Cannot be NULL, output state; read-only!
+ */
+GFX_API void gfx_pass_get_state(GFXPass* pass, GFXRenderState* state);
+
+/**
  * Retrieves the virtual frame size associated with a pass.
  * @param pass   Cannot be NULL.
  * @param width  Cannot be NULL, output width.
@@ -697,15 +726,6 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
  */
 GFX_API void gfx_pass_get_size(GFXPass* pass,
                                uint32_t* width, uint32_t* height, uint32_t* layers);
-
-/**
- * Sets the render state of a pass.
- * Any member of state may be NULL to omit setting the associated state.
- * @param pass  Cannot be NULL.
- * @param state No-op if NULL.
- */
-GFX_API void gfx_pass_set_state(GFXPass* pass,
-                                const GFXRenderState* state);
 
 /**
  * Consume an attachment of a renderer.
@@ -752,18 +772,14 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
                             GFXImageAspect aspect, GFXClear value);
 
 /**
- * Sets the blend factors and operation of a consumed attachment.
+ * Sets the blend state of a consumed attachment independently.
+ * The device must support independent blending!
  * @param op      (src|dst)Factor are ignored if GFX_BLEND_NO_OP.
  * @param alphaOp (src|dst)AlphaFactor are ignored if GFX_BLEND_NO_OP.
  * @see gfx_pass_clear.
  */
 GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
-                            GFXBlendFactor srcFactor,
-                            GFXBlendFactor dstFactor,
-                            GFXBlendOp     op,
-                            GFXBlendFactor srcAlphaFactor,
-                            GFXBlendFactor dstAlphaFactor,
-                            GFXBlendOp     alphaOp);
+                            GFXBlendOpState color, GFXBlendOpState alpha);
 
 /**
  * Release any consumption of an attachment of the renderer.
