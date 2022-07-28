@@ -1575,6 +1575,16 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 void _gfx_destroy_pass(GFXPass* pass);
 
 /**
+ * Retrieves the current framebuffer of a pass with respect to a frame.
+ * @param pass  Cannot be NULL.
+ * @param frame Cannot be NULL.
+ * @return VK_NULL_HANDLE if unknown.
+ *
+ * Not thread-safe with respect to frame's refs and syncs!
+ */
+VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
+
+/**
  * Resolves a pass, deriving transition and synchronization data for each
  * consumption with regard to the neighbouring passes.
  * consumes must hold `pass->renderer->backing.attachs.size` void* pointers.
@@ -1619,16 +1629,6 @@ bool _gfx_pass_rebuild(GFXPass* pass, _GFXRecreateFlags flags);
  * Not thread-safe with respect to pushing stale resources!
  */
 void _gfx_pass_destruct(GFXPass* pass);
-
-/**
- * Retrieves the current framebuffer of a pass with respect to a frame.
- * @param pass  Cannot be NULL.
- * @param frame Cannot be NULL.
- * @return VK_NULL_HANDLE if unknown.
- *
- * Not thread-safe with respect to frame's refs and syncs!
- */
-VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
 
 
 /****************************

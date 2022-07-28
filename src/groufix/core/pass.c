@@ -248,7 +248,7 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 			elem->view = VK_NULL_HANDLE;
 		}
 
-		// We do not need to re-calculate what window is consumed.
+		// We do not re-filter, so we must keep `build.backing`!
 		pass->build.fWidth = 0;
 		pass->build.fHeight = 0;
 		pass->build.fLayers = 0;
@@ -266,100 +266,6 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 		// ergo we need to invalidate current pipelines using it.
 		_gfx_pass_gen(pass);
 	}
-}
-
-/****************************
- * Filters all consumed attachments into framebuffer views &
- * a potential window to use as back-buffer, silently logging issues.
- * @param pass Cannot be NULL, must not yet be 'filtered'.
- * @return Zero on failure.
- */
-static bool _gfx_pass_filter_attachments(GFXPass* pass)
-{
-	assert(pass != NULL);
-	assert(pass->build.backing == SIZE_MAX);
-	assert(pass->vk.views.size == 0);
-
-	GFXRenderer* rend = pass->renderer;
-
-	// TODO: Should get from all next subpasses too and skip if not master.
-	// Literally point to the consume elem of a next pass.
-	// Note that we can still only have one window attachment for
-	// framebuffer creation reasons + we CAN have multiple depth/stencil
-	// attachments now, one per subpass!
-
-	// Keep track of the depth/stencil backing so we can warn :)
-	size_t depSten = SIZE_MAX;
-
-	// Reserve as many views as there are attachments, can never be more.
-	if (!gfx_vec_reserve(&pass->vk.views, pass->consumes.size))
-		return 0;
-
-	// And start looping over all consumptions :)
-	for (size_t i = 0; i < pass->consumes.size; ++i)
-	{
-		const _GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
-		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
-
-		// Validate existence of the attachment.
-		if (
-			con->view.index >= rend->backing.attachs.size ||
-			at->type == _GFX_ATTACH_EMPTY)
-		{
-			continue;
-		}
-
-		// Validate that we want to access it as attachment.
-		if (!(con->mask &
-			(GFX_ACCESS_ATTACHMENT_INPUT |
-			GFX_ACCESS_ATTACHMENT_READ |
-			GFX_ACCESS_ATTACHMENT_WRITE)))
-		{
-			continue;
-		}
-
-		// If a window we read/write color to, pick it.
-		if (at->type == _GFX_ATTACH_WINDOW &&
-			(con->view.range.aspect & GFX_IMAGE_COLOR) &&
-			(con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
-		{
-			// Check if we already had a backing window.
-			if (pass->build.backing == SIZE_MAX)
-				pass->build.backing = con->view.index;
-			else
-				gfx_log_warn(
-					"A single pass can only read/write to a single "
-					"window attachment at a time.");
-		}
-
-		// Courtesy warning.
-		else if (at->type == _GFX_ATTACH_WINDOW)
-			gfx_log_warn(
-				"A pass can only read/write to a window attachment.");
-
-		// If a depth/stencil we read/write to, pick it.
-		else if (at->type == _GFX_ATTACH_IMAGE &&
-			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
-			(con->view.range.aspect &
-				(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
-			(con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
-		{
-			if (depSten == SIZE_MAX)
-				depSten = con->view.index;
-			else
-				gfx_log_warn(
-					"A single pass can only read/write to a single "
-					"depth/stencil attachment at a time.");
-		}
-
-		// Add a view element referencing this consumption.
-		_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
-		gfx_vec_push(&pass->vk.views, 1, &elem);
-	}
-
-	return 1;
 }
 
 /****************************/
@@ -484,6 +390,36 @@ void _gfx_destroy_pass(GFXPass* pass)
 }
 
 /****************************/
+VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
+{
+	assert(pass != NULL);
+	assert(frame != NULL);
+
+	// TODO: Get framebuffer from master pass.
+
+	// Just a single framebuffer.
+	if (pass->vk.frames.size == 1)
+		return ((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, 0))->buffer;
+
+	// Query the sync object associated with this pass' swapchain backing.
+	// If no swapchain backing, `build.backing` will be SIZE_MAX.
+	// The sync object knows the swapchain image index!
+	if (frame->refs.size <= pass->build.backing)
+		return VK_NULL_HANDLE;
+
+	// If `build.backing` is a valid index, it MUST be a window.
+	// Meaning it MUST have a synchronization object!
+	const _GFXFrameSync* sync = gfx_vec_at(
+		&frame->syncs,
+		*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
+
+	// Validate & return.
+	return pass->vk.frames.size <= sync->image ?
+		VK_NULL_HANDLE :
+		((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, sync->image))->buffer;
+}
+
+/****************************/
 void _gfx_pass_resolve(GFXPass* pass, void** consumes)
 {
 	assert(pass != NULL);
@@ -547,6 +483,102 @@ void _gfx_pass_resolve(GFXPass* pass, void** consumes)
 	}
 }
 
+/****************************
+ * Filters all consumed attachments into framebuffer views &
+ * a potential window to use as back-buffer, silently logging issues.
+ * @param pass Cannot be NULL.
+ * @return Zero on failure.
+ */
+static bool _gfx_pass_filter_attachments(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	GFXRenderer* rend = pass->renderer;
+
+	// Already filtered.
+	if (pass->vk.views.size > 0)
+		return 1;
+
+	// TODO: Should get from all next subpasses too and skip if not master.
+	// Literally point to the consume elem of a next pass.
+	// Note that we can still only have one window attachment for
+	// framebuffer creation reasons + we CAN have multiple depth/stencil
+	// attachments now, one per subpass!
+
+	// Keep track of the depth/stencil backing so we can warn :)
+	size_t depSten = SIZE_MAX;
+
+	// Reserve as many views as there are attachments, can never be more.
+	if (!gfx_vec_reserve(&pass->vk.views, pass->consumes.size))
+		return 0;
+
+	// And start looping over all consumptions :)
+	for (size_t i = 0; i < pass->consumes.size; ++i)
+	{
+		const _GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+
+		// Validate existence of the attachment.
+		if (
+			con->view.index >= rend->backing.attachs.size ||
+			at->type == _GFX_ATTACH_EMPTY)
+		{
+			continue;
+		}
+
+		// Validate that we want to access it as attachment.
+		if (!(con->mask &
+			(GFX_ACCESS_ATTACHMENT_INPUT |
+			GFX_ACCESS_ATTACHMENT_READ |
+			GFX_ACCESS_ATTACHMENT_WRITE)))
+		{
+			continue;
+		}
+
+		// If a window we read/write color to, pick it.
+		if (at->type == _GFX_ATTACH_WINDOW &&
+			(con->view.range.aspect & GFX_IMAGE_COLOR) &&
+			(con->mask &
+				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
+		{
+			// Check if we already had a backing window.
+			if (pass->build.backing == SIZE_MAX)
+				pass->build.backing = con->view.index;
+			else
+				gfx_log_warn(
+					"A single pass can only read/write to a single "
+					"window attachment at a time.");
+		}
+
+		// Courtesy warning.
+		else if (at->type == _GFX_ATTACH_WINDOW)
+			gfx_log_warn(
+				"A pass can only read/write to a window attachment.");
+
+		// If a depth/stencil we read/write to, pick it.
+		else if (at->type == _GFX_ATTACH_IMAGE &&
+			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
+			(con->view.range.aspect &
+				(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
+			(con->mask &
+				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
+		{
+			if (depSten == SIZE_MAX)
+				depSten = con->view.index;
+			else
+				gfx_log_warn(
+					"A single pass can only read/write to a single "
+					"depth/stencil attachment at a time.");
+		}
+
+		// Add a view element referencing this consumption.
+		_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
+		gfx_vec_push(&pass->vk.views, 1, &elem);
+	}
+
+	return 1;
+}
+
 /****************************/
 bool _gfx_pass_warmup(GFXPass* pass)
 {
@@ -561,10 +593,9 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	// Used for creating pipelines, which are still for specific passes.
 
 	// Ok so we need to know about all pass attachments.
-	// Filter them if not done so already.
-	if (pass->build.backing == SIZE_MAX && pass->vk.views.size == 0)
-		if (!_gfx_pass_filter_attachments(pass))
-			return 0;
+	// Filter consumptions into attachments.
+	if (!_gfx_pass_filter_attachments(pass))
+		return 0;
 
 	// At this point we have all information for _gfx_pass_build to run.
 	// So if we already have a pass, we are done.
@@ -668,12 +699,9 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			const GFXFormat fmt = at->image.base.format;
 
 			const bool aspectMatch =
-				(!GFX_FORMAT_HAS_DEPTH(fmt) ||
-					con->view.range.aspect & GFX_IMAGE_DEPTH) &&
-				(!GFX_FORMAT_HAS_STENCIL(fmt) ||
-					con->view.range.aspect & GFX_IMAGE_STENCIL) &&
-				(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ||
-					con->view.range.aspect & GFX_IMAGE_COLOR);
+				con->view.range.aspect &
+				(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
+					GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL : GFX_IMAGE_COLOR);
 
 			const bool firstClear =
 				!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
@@ -1118,36 +1146,6 @@ void _gfx_pass_destruct(GFXPass* pass)
 }
 
 /****************************/
-VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
-{
-	assert(pass != NULL);
-	assert(frame != NULL);
-
-	// TODO: Get framebuffer from master pass.
-
-	// Just a single framebuffer.
-	if (pass->vk.frames.size == 1)
-		return ((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, 0))->buffer;
-
-	// Query the sync object associated with this pass' swapchain backing.
-	// If no swapchain backing, `build.backing` will be SIZE_MAX.
-	// The sync object knows the swapchain image index!
-	if (frame->refs.size <= pass->build.backing)
-		return VK_NULL_HANDLE;
-
-	// If `build.backing` is a valid index, it MUST be a window.
-	// Meaning it MUST have a synchronization object!
-	const _GFXFrameSync* sync = gfx_vec_at(
-		&frame->syncs,
-		*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
-
-	// Validate & return.
-	return pass->vk.frames.size <= sync->image ?
-		VK_NULL_HANDLE :
-		((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, sync->image))->buffer;
-}
-
-/****************************/
 GFX_API void gfx_pass_set_state(GFXPass* pass, const GFXRenderState* state)
 {
 	assert(pass != NULL);
@@ -1180,7 +1178,7 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, const GFXRenderState* state)
 		pass->state.stencil = *state->stencil;
 
 	// If changed, increase generation to invalidate pipelines.
-	// Instead if we invalidate the graph, it implicitly destructs & increases.
+	// Unless we invalidate the graph, it implicitly destructs & increases.
 	if (newBlends)
 		_gfx_render_graph_invalidate(pass->renderer);
 	else if (gen)
