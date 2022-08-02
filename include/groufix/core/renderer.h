@@ -1156,6 +1156,20 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
 GFX_API void gfx_erase_recorder(GFXRecorder* recorder);
 
 /**
+ * Retrieves the virtual frame size associated with the current pass.
+ * @param recorder Cannot be NULL.
+ * @param width    Cannot be NULL, output width.
+ * @param height   Cannot be NULL, output height.
+ * @param layers   Cannot be NULL, output layers.
+ *
+ * Only outputs the _actual_ size, meaning this will only return meaningful
+ * values when called within a callback of gfx_recorder_(render|compute).
+ * Outputs 0,0,0 if no associated attachments.
+ */
+GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
+                                   uint32_t* width, uint32_t* height, uint32_t* layers);
+
+/**
  * Records render commands within a given pass.
  * The callback takes this recorder and the current virtual frame index.
  * @param recorder Cannot be NULL.
@@ -1184,19 +1198,6 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
                                   GFXPass* pass,
                                   void (*cb)(GFXRecorder*, unsigned int, void*),
                                   void* ptr);
-
-/**
- * Retrieves the virtual frame size associated with the current pass.
- * Can only be called within a callback of gfx_recorder_(render|compute)!
- * @param recorder Cannot be NULL.
- * @param width    Cannot be NULL, output width.
- * @param height   Cannot be NULL, output height.
- * @param layers   Cannot be NULL, output layers.
- *
- * Outputs 0,0,0 if no associated attachments.
- */
-GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
-                                   uint32_t* width, uint32_t* height, uint32_t* layers);
 
 /**
  * Render command to bind a render/descriptor set.

@@ -1002,6 +1002,27 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 }
 
 /****************************/
+GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
+                                   uint32_t* width, uint32_t* height, uint32_t* layers)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	assert(width != NULL);
+	assert(height != NULL);
+	assert(layers != NULL);
+
+	// Output 0,0 if no associated pass.
+	if (recorder->inp.pass == NULL)
+		*width = 0,
+		*height = 0,
+		*layers = 0;
+	else
+		*width = recorder->inp.pass->build.fWidth,
+		*height = recorder->inp.pass->build.fHeight,
+		*layers = recorder->inp.pass->build.fLayers;
+}
+
+/****************************/
 GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
                                  void (*cb)(GFXRecorder*, unsigned int, void*),
                                  void* ptr)
@@ -1114,27 +1135,6 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 	assert(cb != NULL);
 
 	// TODO: Implement.
-}
-
-/****************************/
-GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
-                                   uint32_t* width, uint32_t* height, uint32_t* layers)
-{
-	assert(recorder != NULL);
-	assert(recorder->inp.cmd != NULL);
-	assert(width != NULL);
-	assert(height != NULL);
-	assert(layers != NULL);
-
-	// Output 0,0 if no associated pass.
-	if (recorder->inp.pass == NULL)
-		*width = 0,
-		*height = 0,
-		*layers = 0;
-	else
-		*width = recorder->inp.pass->build.fWidth,
-		*height = recorder->inp.pass->build.fHeight,
-		*layers = recorder->inp.pass->build.fLayers;
 }
 
 /****************************/
