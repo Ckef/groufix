@@ -853,9 +853,10 @@ struct GFXRenderer
 struct GFXPass
 {
 	GFXRenderer* renderer;
-	unsigned int level; // Determines submission order.
-	unsigned int order; // Actual submission order.
-	uintmax_t    gen;   // Build generation (to invalidate pipelines).
+	unsigned int level;  // Determines submission order.
+	unsigned int order;  // Actual submission order.
+	unsigned int childs; // Number of passes this is a parent of.
+	uintmax_t    gen;    // Build generation (to invalidate pipelines).
 
 	// TODO: To compute and use.
 	// TODO: Probably add build.index for the subpass index down below.
@@ -1505,7 +1506,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
  *
- * This will call the relevant _gfx_pass_(destruct|warmup) calls.
+ * This will call the relevant _gfx_pass_(destruct|resolve|warmup) calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
 bool _gfx_render_graph_warmup(GFXRenderer* renderer);
@@ -1516,7 +1517,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero if the entire graph is in a built state.
  *
- * This will call the relevant _gfx_pass_(destruct|build) calls.
+ * This will call the relevant _gfx_pass_(destruct|resolve|build) calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
 bool _gfx_render_graph_build(GFXRenderer* renderer);
@@ -1563,6 +1564,8 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  * @param numParents Number of parents, 0 for none.
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
+ *
+ * Each parents[*]->childs field will be increased on success.
  */
 GFXPass* _gfx_create_pass(GFXRenderer* renderer,
                           size_t numParents, GFXPass** parents);
@@ -1571,6 +1574,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
  * Destroys a pass, unreferencing all parents.
  * Undefined behaviour if destroying a pass that is referenced by another.
  * @param pass Cannot be NULL.
+ *
+ * Each pass->parents[*]->childs field will be decreased.
  */
 void _gfx_destroy_pass(GFXPass* pass);
 
@@ -1591,7 +1596,8 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
  * @param pass     Cannot be NULL.
  * @param consumes Cannot be NULL, must be initialized to all NULL on first call.
  *
- * Must be called after its consumptions/attachments are changed!
+ * Must be called after its consumptions/attachments are changed,
+ * and once before the initial warmup/build calls!
  * Must be called for all passes in submission order!
  */
 void _gfx_pass_resolve(GFXPass* pass, void** consumes);

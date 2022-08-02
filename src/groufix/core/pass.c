@@ -276,8 +276,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	assert(numParents == 0 || parents != NULL);
 
 	// Check if all parents use this renderer.
-	for (size_t d = 0; d < numParents; ++d)
-		if (parents[d]->renderer != renderer)
+	for (size_t p = 0; p < numParents; ++p)
+		if (parents[p]->renderer != renderer)
 		{
 			gfx_log_error(
 				"Pass cannot be the parent of a pass associated "
@@ -298,6 +298,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->renderer = renderer;
 	pass->level = 0;
 	pass->order = 0;
+	pass->childs = 0;
 	pass->gen = 0;
 	pass->numParents = numParents;
 
@@ -308,9 +309,13 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		pass->parents, parents, sizeof(GFXPass*) * numParents);
 
 	// The level is the highest level of all parents + 1.
-	for (size_t d = 0; d < numParents; ++d)
-		if (parents[d]->level >= pass->level)
-			pass->level = parents[d]->level + 1;
+	for (size_t p = 0; p < numParents; ++p)
+	{
+		if (parents[p]->level >= pass->level)
+			pass->level = parents[p]->level + 1;
+
+		++parents[p]->childs; // (!)
+	}
 
 	// Initialize building stuff.
 	pass->build.backing = SIZE_MAX;
@@ -379,6 +384,10 @@ void _gfx_destroy_pass(GFXPass* pass)
 
 	// Destruct all partial things.
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
+
+	// Decrease child counter of all parents.
+	for (size_t p = 0; p < pass->numParents; ++p)
+		--pass->parents[p]->childs;
 
 	// Free all remaining things.
 	gfx_vec_clear(&pass->consumes);

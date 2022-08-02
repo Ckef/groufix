@@ -267,17 +267,13 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
 
 	// Loop through all sinks, remove if it's now a parent.
 	// Skip the last element, as we just added that.
-	for (size_t t = renderer->graph.sinks.size-1; t > 0; --t)
+	for (size_t s = renderer->graph.sinks.size-1; s > 0; --s)
 	{
 		GFXPass* sink =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.sinks, t-1);
+			*(GFXPass**)gfx_vec_at(&renderer->graph.sinks, s-1);
 
-		size_t d;
-		for (d = 0; d < numParents; ++d)
-			if (sink == parents[d]) break;
-
-		if (d < numParents)
-			gfx_vec_erase(&renderer->graph.sinks, 1, t-1);
+		if (sink->childs > 0)
+			gfx_vec_erase(&renderer->graph.sinks, 1, s-1);
 	}
 
 	// We added a pass, we need to re-analyze
