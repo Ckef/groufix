@@ -957,11 +957,19 @@ bool _gfx_pass_build(GFXPass* pass)
 			backingInd = numAttachs;
 			views[numAttachs++] = VK_NULL_HANDLE;
 
-			// TODO: What to do if 0 dimension (e.g. minimized)?
 			// Get dimensions.
 			pass->build.fWidth = at->window.window->frame.width;
 			pass->build.fHeight = at->window.window->frame.height;
 			pass->build.fLayers = 1;
+
+			if (pass->build.fWidth == 0 || pass->build.fHeight == 0)
+			{
+				gfx_log_warn(
+					"Encountered swapchain dimension of zero during pass "
+					"building, pass destructed & cannot be used...");
+
+				goto destruct;
+			}
 		}
 
 		// Non-swapchain.
@@ -1120,9 +1128,10 @@ bool _gfx_pass_build(GFXPass* pass)
 	// Cleanup on failure.
 clean:
 	gfx_log_error("Could not build framebuffers for a pass.");
-
+destruct:
 	// Get rid of everything; avoid dangling views.
 	_gfx_pass_destruct(pass);
+
 	return 0;
 }
 
