@@ -88,6 +88,10 @@ typedef struct GFXDevice
 		uint32_t maxAttributeOffset;
 		uint32_t maxAttributeStride;
 		uint32_t maxPrimitiveBuffers;
+		uint32_t maxAttachmentWidth;
+		uint32_t maxAttachmentHeight;
+		uint32_t maxAttachmentLayers;
+		uint32_t maxAttachmentOutputs; // Non-depth/stencil r/w attachments.
 
 		uint32_t maxStageUniformBuffers;
 		uint32_t maxStageStorageBuffers;
@@ -130,8 +134,8 @@ GFX_API size_t gfx_get_num_devices(void);
 
 /**
  * Retrieves an initialized device.
- * The primary device is always stored at index 0 and stays constant,
- * as are all subsequent devices sorted from most to least preferred.
+ * The primary device is always stored at index 0, all subsequent devices are
+ * sorted from most to least preferred, unavailable devices are always last.
  * @param index Must be < gfx_get_num_devices().
  *
  * Can be called from any thread.

@@ -913,14 +913,10 @@ bool _gfx_pass_build(GFXPass* pass)
 
 	// We're gonna need to create all image views.
 	// Keep track of the attachment count, we may skip some.
-	// Also somewhere we're gonna need to get the dimensions.
+	// Also in here we're gonna get the dimensions (i.e. size) of the pass.
 	VkImageView views[pass->vk.views.size > 0 ? pass->vk.views.size : 1];
 	size_t numAttachs = 0;
 	size_t backingInd = SIZE_MAX;
-
-	uint32_t width = 0;
-	uint32_t height = 0;
-	uint32_t layers = 0;
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
@@ -938,10 +934,11 @@ bool _gfx_pass_build(GFXPass* pass)
 			backingInd = numAttachs;
 			views[numAttachs++] = VK_NULL_HANDLE;
 
+			// TODO: What to do if 0 dimension (e.g. minimized)?
 			// Get dimensions.
-			width = at->window.window->frame.width;
-			height = at->window.window->frame.height;
-			layers = 1;
+			pass->build.fWidth = at->window.window->frame.width;
+			pass->build.fHeight = at->window.window->frame.height;
+			pass->build.fLayers = 1;
 		}
 
 		// Non-swapchain.
@@ -1002,23 +999,14 @@ bool _gfx_pass_build(GFXPass* pass)
 			view->view = *vkView; // So it's made stale later on.
 
 			// Get dimensions.
-			width = at->image.width;
-			height = at->image.height;
-			layers =
+			pass->build.fWidth = at->image.width;
+			pass->build.fHeight = at->image.height;
+			pass->build.fLayers =
 				(con->view.range.numLayers == 0) ?
 				at->image.base.layers - con->view.range.layer :
 				con->view.range.numLayers;
 		}
 	}
-
-	// Remember the dimensions for during recording.
-	pass->build.fWidth = width;
-	pass->build.fHeight = height;
-	pass->build.fLayers = layers;
-
-	// No dimensions.. just gonna do nothing then.
-	if (width == 0 || height == 0 || layers == 0)
-		return 1;
 
 	// Ok now we need to create all the framebuffers.
 	// We either have one for each window image, or just a single one.
@@ -1084,9 +1072,9 @@ bool _gfx_pass_build(GFXPass* pass)
 			.renderPass      = pass->vk.pass,
 			.attachmentCount = (uint32_t)numAttachs,
 			.pAttachments    = numAttachs > 0 ? views : NULL,
-			.width           = width,
-			.height          = height,
-			.layers          = layers
+			.width           = GFX_MAX(1, pass->build.fWidth),
+			.height          = GFX_MAX(1, pass->build.fHeight),
+			.layers          = GFX_MAX(1, pass->build.fLayers)
 		};
 
 		_GFX_VK_CHECK(

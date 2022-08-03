@@ -990,6 +990,10 @@ bool _gfx_devices_init(void)
 				.maxAttributeOffset    = pdp.limits.maxVertexInputAttributeOffset,
 				.maxAttributeStride    = pdp.limits.maxVertexInputBindingStride,
 				.maxPrimitiveBuffers   = pdp.limits.maxVertexInputBindings,
+				.maxAttachmentWidth    = pdp.limits.maxFramebufferWidth,
+				.maxAttachmentHeight   = pdp.limits.maxFramebufferHeight,
+				.maxAttachmentLayers   = pdp.limits.maxFramebufferLayers,
+				.maxAttachmentOutputs  = pdp.limits.maxColorAttachments,
 
 				.maxStageUniformBuffers   = pdp.limits.maxPerStageDescriptorUniformBuffers,
 				.maxStageStorageBuffers   = pdp.limits.maxPerStageDescriptorStorageBuffers,

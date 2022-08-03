@@ -357,6 +357,7 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 		// that could have postponed a rebuild to now.
 		flags |= at->window.flags;
 
+		// TODO: Make it so we only rebuild once.
 		if (!_gfx_frame_rebuild(renderer, sync->window, flags, &synced))
 			goto error;
 	}
