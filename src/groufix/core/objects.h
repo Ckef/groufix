@@ -1590,6 +1590,15 @@ void _gfx_destroy_pass(GFXPass* pass);
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
 
 /**
+ * Checks if a given parent is a possible merge candidate for the pass.
+ * Meaning its parent _can_ be submitted as subpass before the pass itself,
+ * which might implicitly move it up in submission order.
+ * @param pass   Cannot be NULL.
+ * @param parent Cannot be NULL, must be a parent of pass.
+ */
+bool _gfx_pass_is_merge_candidate(GFXPass* pass, GFXPass* candidate);
+
+/**
  * Resolves a pass, deriving transition and synchronization data for each
  * consumption with regard to the neighbouring passes.
  * consumes must hold `pass->renderer->backing.attachs.size` void* pointers.

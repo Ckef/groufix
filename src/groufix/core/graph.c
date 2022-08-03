@@ -19,9 +19,40 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 	assert(renderer != NULL);
 	assert(renderer->graph.state < _GFX_GRAPH_VALIDATED);
 
-	// TODO: Analyze the graph for e.g. pass merging, this should log errors!
-	// TODO: This should set `master` and `next` of each pass.
 	// TODO: Does this even produce errors?
+
+	// We want to see if we can merge passes into a chain of subpasses.
+	// Useful for tiled renderers n such :)
+	// So for each pass, check its parents for possible merge candidates.
+	// We ignore non-parents, so no merging happens if no connection is
+	// indicated through the user API.
+	// On merge, we set the `master` and `next` of each pass.
+	// We loop in submission order so we can propogate the `master` field,
+	// and also so all parents are processed before their children.
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+	{
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+
+		pass->master = NULL;
+		pass->next = NULL;
+
+		// Take first parent that is a candidate.
+		// TODO: Somehow weigh all candidates?
+		for (size_t p = 0; p < pass->numParents; ++p)
+		{
+			GFXPass* candidate = pass->parents[p];
+			if (_gfx_pass_is_merge_candidate(pass, candidate))
+			{
+				pass->master =
+					(candidate->master == NULL) ?
+					candidate : candidate->master;
+
+				candidate->next = pass;
+				break;
+			}
+		}
+	}
 
 	// We loop over all passes in submission order whilst
 	// keeping track of the last consumption of each attachment.

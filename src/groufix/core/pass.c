@@ -429,6 +429,29 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 }
 
 /****************************/
+bool _gfx_pass_is_merge_candidate(GFXPass* pass, GFXPass* candidate)
+{
+	assert(pass != NULL);
+	assert(candidate != NULL);
+
+	// Must be a parent, i.e. pre-determined earlier in submission order.
+	if (candidate->level >= pass->level) return 0;
+
+	// No other passes may depend on (i.e. be child of) the candidate,
+	// as this would mean the pass may not be moved up in submission order,
+	// which it HAS to do to merge with a child.
+	// After this check pass MUST be the only child of candidate.
+	if (candidate->childs > 1) return 0;
+
+	// The candidate cannot already be merged with one of its children.
+	if (candidate->next != NULL) return 0;
+
+	// TODO: Determine further...
+
+	return 0;
+}
+
+/****************************/
 void _gfx_pass_resolve(GFXPass* pass, void** consumes)
 {
 	assert(pass != NULL);
