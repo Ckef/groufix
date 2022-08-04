@@ -67,6 +67,18 @@ static _GFXPoolBlock* _gfx_alloc_pool_block(_GFXPool* pool)
 
 	// Create descriptor pool.
 	// TODO: Come up with something to determine all the pool sizes.
+	uint32_t sams = 1000;
+	uint32_t combImgSams = 1000;
+	uint32_t samImgs = 1000;
+	uint32_t stoImgs = 1000;
+	uint32_t uniTexBufs = 1000;
+	uint32_t stoTexBufs = 1000;
+	uint32_t uniBufs = 1000;
+	uint32_t stoBufs = 1000;
+	uint32_t uniBufDyns = 1000;
+	uint32_t stoBufDyns = 1000;
+	uint32_t inps = 1000;
+
 	VkDescriptorPoolCreateInfo dpci = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 
@@ -76,17 +88,17 @@ static _GFXPoolBlock* _gfx_alloc_pool_block(_GFXPool* pool)
 		.poolSizeCount = 11,
 
 		.pPoolSizes = (VkDescriptorPoolSize[]){
-			{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+			{ VK_DESCRIPTOR_TYPE_SAMPLER, sams },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, combImgSams },
+			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, samImgs },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, stoImgs },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, uniTexBufs },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, stoTexBufs },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, uniBufs },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stoBufs },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, uniBufDyns },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, stoBufDyns },
+			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, inps }
 		}
 	};
 
@@ -97,6 +109,27 @@ static _GFXPoolBlock* _gfx_alloc_pool_block(_GFXPool* pool)
 	gfx_list_init(&block->elems);
 	block->full = 0;
 	atomic_store_explicit(&block->sets, 0, memory_order_relaxed);
+
+	// Weee.
+	gfx_log_debug(
+		"New Vulkan descriptor pool allocated:\n"
+		"    #samplers: %"PRIu32".\n"
+		"    #combined image samplers: %"PRIu32".\n"
+		"    #sampled images: %"PRIu32".\n"
+		"    #storage images: %"PRIu32".\n"
+		"    #uniform texel buffers: %"PRIu32".\n"
+		"    #storage texel buffers: %"PRIu32".\n"
+		"    #uniform buffers: %"PRIu32".\n"
+		"    #storage buffers: %"PRIu32".\n"
+		"    #dynamic uniform buffers: %"PRIu32".\n"
+		"    #dynamic storage buffers: %"PRIu32".\n"
+		"    #attachment inputs: %"PRIu32".\n",
+		sams, combImgSams,
+		samImgs, stoImgs,
+		uniTexBufs, stoTexBufs,
+		uniBufs, stoBufs,
+		uniBufDyns, stoBufDyns,
+		inps);
 
 	return block;
 
@@ -127,6 +160,8 @@ static void _gfx_free_pool_block(_GFXPool* pool, _GFXPoolBlock* block)
 
 	gfx_list_clear(&block->elems);
 	free(block);
+
+	gfx_log_debug("Freed Vulkan descriptor pool.");
 }
 
 /****************************
