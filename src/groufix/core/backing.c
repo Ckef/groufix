@@ -410,7 +410,7 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 				attach->image.height != height ||
 				attach->image.depth != depth)
 			{
-				// If not, we invalidate the most recent image!
+				// If it is, we invalidate the most recent image!
 				attach->image.vk.image = VK_NULL_HANDLE;
 				attach->image.width = width;
 				attach->image.height = height;

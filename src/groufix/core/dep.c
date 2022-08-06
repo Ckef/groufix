@@ -35,6 +35,8 @@
 
 /****************************
  * TODO: Make this take multiple sync objs and merge them on equal stage masks?
+ * TODO: Write after read does not need a memory barrier (only execution)!
+ * TODO: Read after read does not need any form of barrier (unless ownership)!
  * Injects a pipeline/memory barrier, just as stored in a _GFXSync object.
  * Assumes one of `sync->vk.buffer` or `sync->vk.image` is appropriately set.
  */

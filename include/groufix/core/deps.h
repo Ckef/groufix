@@ -225,6 +225,7 @@ typedef struct GFXInject
 		.ref = GFX_REF_NULL \
 	}
 
+// TODO: Remove.
 #define gfx_dep_waitr(dep_, ref_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_WAIT, \
@@ -232,6 +233,7 @@ typedef struct GFXInject
 		.ref = ref_ \
 	}
 
+// TODO: Remove.
 #define gfx_dep_waita(dep_, range_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_WAIT_RANGE, \
@@ -240,6 +242,7 @@ typedef struct GFXInject
 		.range = range_ \
 	}
 
+// TODO: Remove.
 #define gfx_dep_waitra(dep_, ref_, range_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_WAIT_RANGE, \
