@@ -13,47 +13,12 @@
 
 
 /****************************
- * Attachment consumption element definition.
- */
-typedef struct _GFXConsumeElem
-{
-	GFXImageAspect cleared;
-	bool           viewed; // Zero to ignore view.type.
-	bool           blend;  // Zero to ignore the blend operation states.
-
-	GFXBlendOpState color;
-	GFXBlendOpState alpha;
-
-	GFXAccessMask  mask;
-	GFXShaderStage stage;
-	GFXView        view; // index used as attachment index.
-
-	union {
-		// Identical definitions!
-		GFXClear gfx;
-		VkClearValue vk;
-
-	} clear;
-
-
-	// Graph output (relative to neighbouring passes).
-	struct
-	{
-		VkImageLayout initial;
-		VkImageLayout final;
-
-	} out;
-
-} _GFXConsumeElem;
-
-
-/****************************
  * Image view (for all framebuffers) element definition.
  */
 typedef struct _GFXViewElem
 {
-	const _GFXConsumeElem* consume;
-	VkImageView            view; // Remains VK_NULL_HANDLE if a swapchain.
+	const _GFXConsume* consume;
+	VkImageView        view; // Remains VK_NULL_HANDLE if a swapchain.
 
 } _GFXViewElem;
 
@@ -149,25 +114,25 @@ static inline void _gfx_pass_gen(GFXPass* pass)
 
 /****************************
  * Stand-in function for all the gfx_pass_consume* variants.
- * The `viewed`, `mask`, `stage` and `view` fields of elem must be set.
+ * The `viewed`, `mask`, `stage` and `view` fields of consume must be set.
  * @see gfx_pass_consume*.
- * @param elem Cannot be NULL.
+ * @param consume Cannot be NULL.
  */
-static bool _gfx_pass_consume(GFXPass* pass, _GFXConsumeElem* elem)
+static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
-	assert(elem != NULL);
+	assert(consume != NULL);
 
 	// Try to find it first.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == elem->view.index)
+		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		if (con->view.index == consume->view.index)
 		{
 			// Keep old clear & blend values.
-			_GFXConsumeElem t = *con;
-			*con = *elem;
+			_GFXConsume t = *con;
+			*con = *consume;
 
 			con->cleared = t.cleared;
 			con->clear = t.clear;
@@ -186,14 +151,17 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsumeElem* elem)
 		.op = GFX_BLEND_NO_OP
 	};
 
-	elem->cleared = 0;
-	elem->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
+	consume->cleared = 0;
+	consume->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
 
-	elem->blend = 0;
-	elem->color = blendOpState;
-	elem->alpha = blendOpState;
+	consume->blend = 0;
+	consume->color = blendOpState;
+	consume->alpha = blendOpState;
 
-	if (!gfx_vec_push(&pass->consumes, 1, elem))
+	consume->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
+	consume->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	if (!gfx_vec_push(&pass->consumes, 1, consume))
 		return 0;
 
 invalidate:
@@ -302,9 +270,6 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->gen = 0;
 	pass->numParents = numParents;
 
-	pass->master = NULL;
-	pass->next = NULL;
-
 	if (numParents) memcpy(
 		pass->parents, parents, sizeof(GFXPass*) * numParents);
 
@@ -318,6 +283,10 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	}
 
 	// Initialize building stuff.
+	pass->out.master = NULL;
+	pass->out.next = NULL;
+	pass->out.subpass = 0;
+
 	pass->build.backing = SIZE_MAX;
 	pass->build.fWidth = 0;
 	pass->build.fHeight = 0;
@@ -325,7 +294,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->build.pass = NULL;
 	pass->vk.pass = VK_NULL_HANDLE;
 
-	gfx_vec_init(&pass->consumes, sizeof(_GFXConsumeElem));
+	gfx_vec_init(&pass->consumes, sizeof(_GFXConsume));
 	gfx_vec_init(&pass->vk.clears, sizeof(VkClearValue));
 	gfx_vec_init(&pass->vk.blends, sizeof(VkPipelineColorBlendAttachmentState));
 	gfx_vec_init(&pass->vk.views, sizeof(_GFXViewElem));
@@ -428,95 +397,6 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 		((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, sync->image))->buffer;
 }
 
-/****************************/
-bool _gfx_pass_is_merge_candidate(GFXPass* pass, GFXPass* candidate)
-{
-	assert(pass != NULL);
-	assert(candidate != NULL);
-
-	// Must be a parent, i.e. pre-determined earlier in submission order.
-	if (candidate->level >= pass->level) return 0;
-
-	// No other passes may depend on (i.e. be child of) the candidate,
-	// as this would mean the pass may not be moved up in submission order,
-	// which it HAS to do to merge with a child.
-	// After this check pass MUST be the only child of candidate.
-	if (candidate->childs > 1) return 0;
-
-	// The candidate cannot already be merged with one of its children.
-	if (candidate->next != NULL) return 0;
-
-	// TODO: Determine further...
-
-	return 0;
-}
-
-/****************************/
-void _gfx_pass_resolve(GFXPass* pass, void** consumes)
-{
-	assert(pass != NULL);
-	assert(consumes != NULL);
-
-	GFXRenderer* rend = pass->renderer;
-
-	// TODO: If this is the last pass, do this for master and all next passes
-	// and skip if this is not the last.
-	// This because a subpass chain will be submitted at the order of the last.
-
-	// TODO: Probably wanna process & output synchronization data somehow.
-	// This so we can properly insert Vulkan barriers...
-
-	// Start looping over all consumptions & resolve them.
-	for (size_t i = 0; i < pass->consumes.size; ++i)
-	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
-		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
-
-		// Validate existence of the attachment.
-		if (
-			con->view.index >= rend->backing.attachs.size ||
-			at->type == _GFX_ATTACH_EMPTY)
-		{
-			continue;
-		}
-
-		// Get previous consumption from the previous resolve calls.
-		_GFXConsumeElem* prev = consumes[con->view.index];
-
-		// Compute initial/final layout based on neighbours.
-		if (at->type == _GFX_ATTACH_WINDOW)
-		{
-			if (prev == NULL)
-				con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
-			else
-				con->out.initial = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-				prev->out.final = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-			con->out.final = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		}
-		else
-		{
-			VkImageLayout layout =
-				_GFX_GET_VK_IMAGE_LAYOUT(con->mask, at->image.base.format);
-
-			if (prev == NULL)
-				con->out.initial = (at->image.base.usage & GFX_IMAGE_LOAD) ?
-					layout : VK_IMAGE_LAYOUT_UNDEFINED;
-			else
-				// Keep final layout of the previous consumption,
-				// it is not the responsibility of the pass to transition!
-				con->out.initial = prev->out.final;
-
-			con->out.final = layout;
-		}
-
-		// Store the consumption for this attachment so the next
-		// resolve calls have this data.
-		// Each index only occurs one for each pass so it's fine.
-		consumes[con->view.index] = con;
-	}
-}
-
 /****************************
  * Filters all consumed attachments into framebuffer views &
  * a potential window to use as back-buffer, silently logging issues.
@@ -549,7 +429,7 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 	// And start looping over all consumptions :)
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
-		const _GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i);
+		const _GFXConsume* con = gfx_vec_at(&pass->consumes, i);
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 		// Validate existence of the attachment.
@@ -669,7 +549,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
 		const _GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
-		const _GFXConsumeElem* con = view->consume;
+		const _GFXConsume* con = view->consume;
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 		bool isColor = 0;
@@ -944,7 +824,7 @@ bool _gfx_pass_build(GFXPass* pass)
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
 		_GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
-		const _GFXConsumeElem* con = view->consume;
+		const _GFXConsume* con = view->consume;
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 		// Swapchain.
@@ -1247,7 +1127,7 @@ GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
 {
 	// Relies on stand-in function for asserts.
 
-	_GFXConsumeElem elem = {
+	_GFXConsume consume = {
 		.viewed = 0,
 		.mask = mask,
 		.stage = stage,
@@ -1265,7 +1145,7 @@ GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
 		}
 	};
 
-	return _gfx_pass_consume(pass, &elem);
+	return _gfx_pass_consume(pass, &consume);
 }
 
 /****************************/
@@ -1275,7 +1155,7 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 {
 	// Relies on stand-in function for asserts.
 
-	_GFXConsumeElem elem = {
+	_GFXConsume consume = {
 		.viewed = 0,
 		.mask = mask,
 		.stage = stage,
@@ -1285,7 +1165,7 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 		}
 	};
 
-	return _gfx_pass_consume(pass, &elem);
+	return _gfx_pass_consume(pass, &consume);
 }
 
 /****************************/
@@ -1297,14 +1177,14 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 
 	view.index = index; // Purely for function call consistency.
 
-	_GFXConsumeElem elem = {
+	_GFXConsume consume = {
 		.viewed = 1,
 		.mask = mask,
 		.stage = stage,
 		.view = view
 	};
 
-	return _gfx_pass_consume(pass, &elem);
+	return _gfx_pass_consume(pass, &consume);
 }
 
 /****************************/
@@ -1318,7 +1198,7 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 	// Find and set.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
+		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
 			// Set clear value, preserve other if only 1 of depth/stencil.
@@ -1356,7 +1236,7 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 	// Find and set.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
+		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
 			con->blend = 1;
@@ -1379,7 +1259,7 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 	// Find and erase.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsumeElem* con = gfx_vec_at(&pass->consumes, i-1);
+		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
 			gfx_vec_erase(&pass->consumes, 1, i-1);

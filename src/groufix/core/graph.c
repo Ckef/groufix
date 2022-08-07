@@ -11,7 +11,110 @@
 
 
 /****************************
+ * Checks if a given parent is a possible merge candidate for the pass.
+ * Meaning its parent _can_ be submitted as subpass before the pass itself,
+ * which might implicitly move it up in submission order.
+ * @param pass   Cannot be NULL.
+ * @param parent Cannot be NULL, must be a parent of pass.
+ */
+static bool _gfx_pass_is_merge_candidate(GFXPass* pass, GFXPass* candidate)
+{
+	assert(pass != NULL);
+	assert(candidate != NULL);
+
+	// Must be a parent, i.e. pre-determined earlier in submission order.
+	if (candidate->level >= pass->level) return 0;
+
+	// No other passes may depend on (i.e. be child of) the candidate,
+	// as this would mean the pass may not be moved up in submission order,
+	// which it HAS to do to merge with a child.
+	// After this check pass MUST be the only child of candidate.
+	if (candidate->childs > 1) return 0;
+
+	// The candidate cannot already be merged with one of its children.
+	if (candidate->out.next != NULL) return 0;
+
+	// TODO: Determine further...
+
+	return 0;
+}
+
+/****************************
+ * Resolves a pass, setting the `out` field of all its consumptions.
+ * consumes must hold `pass->renderer->backing.attachs.size` pointers.
+ * @param pass     Cannot be NULL.
+ * @param consumes Cannot be NULL, must be initialized to all NULL on first call.
+ *
+ * Must be called for all passes in submission order!
+ */
+static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
+{
+	assert(pass != NULL);
+	assert(consumes != NULL);
+
+	GFXRenderer* rend = pass->renderer;
+
+	// TODO: If this is the last pass, do this for master and all next passes
+	// and skip if this is not the last.
+	// This because a subpass chain will be submitted at the order of the last.
+
+	// TODO: Probably wanna process & output synchronization data somehow.
+	// This so we can properly insert Vulkan barriers...
+
+	// Start looping over all consumptions & resolve them.
+	for (size_t i = 0; i < pass->consumes.size; ++i)
+	{
+		_GFXConsume* con = gfx_vec_at(&pass->consumes, i);
+		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+
+		// Validate existence of the attachment.
+		if (
+			con->view.index >= rend->backing.attachs.size ||
+			at->type == _GFX_ATTACH_EMPTY)
+		{
+			continue;
+		}
+
+		// Get previous consumption from the previous resolve calls.
+		_GFXConsume* prev = consumes[con->view.index];
+
+		// Compute initial/final layout based on neighbours.
+		if (at->type == _GFX_ATTACH_WINDOW)
+		{
+			if (prev == NULL)
+				con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
+			else
+				con->out.initial = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				prev->out.final = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+			con->out.final = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		}
+		else
+		{
+			VkImageLayout layout =
+				_GFX_GET_VK_IMAGE_LAYOUT(con->mask, at->image.base.format);
+
+			if (prev == NULL)
+				con->out.initial = (at->image.base.usage & GFX_IMAGE_LOAD) ?
+					layout : VK_IMAGE_LAYOUT_UNDEFINED;
+			else
+				// Keep final layout of the previous consumption,
+				// it is not the responsibility of the pass to transition!
+				con->out.initial = prev->out.final;
+
+			con->out.final = layout;
+		}
+
+		// Store the consumption for this attachment so the next
+		// resolve calls have this data.
+		// Each index only occurs one for each pass so it's fine.
+		consumes[con->view.index] = con;
+	}
+}
+
+/****************************
  * Analyzes the render graph to setup all passes for correct builds.
+ * Meaning the `out` field of each pass and all their consumptions are set.
  * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */
 static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
@@ -26,16 +129,16 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// So for each pass, check its parents for possible merge candidates.
 	// We ignore non-parents, so no merging happens if no connection is
 	// indicated through the user API.
-	// On merge, we set the `master` and `next` of each pass.
-	// We loop in submission order so we can propogate the `master` field,
+	// We loop in submission order so we can propogate the master pass,
 	// and also so all parents are processed before their children.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
 		GFXPass* pass =
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 
-		pass->master = NULL;
-		pass->next = NULL;
+		pass->out.master = NULL;
+		pass->out.next = NULL;
+		pass->out.subpass = 0;
 
 		// Take first parent that is a candidate.
 		// TODO: Somehow weigh all candidates?
@@ -44,11 +147,12 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 			GFXPass* candidate = pass->parents[p];
 			if (_gfx_pass_is_merge_candidate(pass, candidate))
 			{
-				pass->master =
-					(candidate->master == NULL) ?
-					candidate : candidate->master;
+				pass->out.master =
+					(candidate->out.master == NULL) ?
+					candidate : candidate->out.master;
 
-				candidate->next = pass;
+				candidate->out.next = pass;
+				pass->out.subpass = candidate->out.subpass + 1;
 				break;
 			}
 		}
@@ -59,7 +163,8 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// This way we propogate transition and synchronization data per
 	// attachment as we go.
 	const size_t numAttachs = renderer->backing.attachs.size;
-	void* consumes[numAttachs > 0 ? numAttachs : 1];
+
+	_GFXConsume* consumes[numAttachs > 0 ? numAttachs : 1];
 	for (size_t i = 0; i < numAttachs; ++i) consumes[i] = NULL;
 
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)

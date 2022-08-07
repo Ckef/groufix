@@ -848,6 +848,41 @@ struct GFXRenderer
 
 
 /**
+ * Internal attachment consumption.
+ */
+typedef struct _GFXConsume
+{
+	GFXImageAspect cleared;
+	bool           viewed; // Zero to ignore view.type.
+	bool           blend;  // Zero to ignore the blend operation states.
+
+	GFXBlendOpState color;
+	GFXBlendOpState alpha;
+
+	GFXAccessMask  mask;
+	GFXShaderStage stage;
+	GFXView        view; // index used as attachment index.
+
+	union {
+		// Identical definitions!
+		GFXClear gfx;
+		VkClearValue vk;
+
+	} clear;
+
+
+	// Graph output (relative to neighbouring passes).
+	struct
+	{
+		VkImageLayout initial;
+		VkImageLayout final;
+
+	} out;
+
+} _GFXConsume;
+
+
+/**
  * Internal pass (i.e. render/compute pass).
  */
 struct GFXPass
@@ -858,20 +893,7 @@ struct GFXPass
 	unsigned int childs; // Number of passes this is a parent of.
 	uintmax_t    gen;    // Build generation (to invalidate pipelines).
 
-	// TODO: To compute and use.
-	// TODO: Probably add build.index for the subpass index down below.
-	GFXPass* master; // First subpass, NULL if this.
-	GFXPass* next;   // Next subpass in the chain, NULL if last.
-
-	// Attachment consumptions,
-	// stores {
-	//  GFXImageAspect, bool, bool,
-	//  GFXBlendOpState, GFXBlendOpState,
-	//  GFXAccessMask, GFXShaderStage, GFXView,
-	//  GFXClear|VkClearValue,
-	//  VkImageLayout, VkImageLayout
-	// }.
-	GFXVec consumes;
+	GFXVec consumes; // Stores _GFXConsume.
 
 
 	// Pipeline state input.
@@ -889,6 +911,16 @@ struct GFXPass
 		} enabled; // Set on warmup.
 
 	} state;
+
+
+	// Graph output (relative to neighbouring passes).
+	struct
+	{
+		GFXPass* master;  // First subpass, NULL if this.
+		GFXPass* next;    // Next subpass in the chain, NULL if last.
+		uint32_t subpass; // Subpass index.
+
+	} out;
 
 
 	// Building output (can be invalidated).
@@ -910,7 +942,7 @@ struct GFXPass
 		VkRenderPass pass;   // For locality.
 		GFXVec       clears; // Stores VkClearValue.
 		GFXVec       blends; // Stores VkPipelineColorBlendAttachmentState.
-		GFXVec       views;  // Stores { void* -> `consumes`, VkImageView }.
+		GFXVec       views;  // Stores { _GFXConsume*, VkImageView }.
 		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 
 	} vk;
@@ -1506,7 +1538,7 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
  *
- * This will call the relevant _gfx_pass_(destruct|resolve|warmup) calls.
+ * This will call the relevant _gfx_pass_(destruct|warmup) calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
 bool _gfx_render_graph_warmup(GFXRenderer* renderer);
@@ -1517,7 +1549,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero if the entire graph is in a built state.
  *
- * This will call the relevant _gfx_pass_(destruct|resolve|build) calls.
+ * This will call the relevant _gfx_pass_(destruct|build) calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
 bool _gfx_render_graph_build(GFXRenderer* renderer);
@@ -1590,32 +1622,15 @@ void _gfx_destroy_pass(GFXPass* pass);
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
 
 /**
- * Checks if a given parent is a possible merge candidate for the pass.
- * Meaning its parent _can_ be submitted as subpass before the pass itself,
- * which might implicitly move it up in submission order.
- * @param pass   Cannot be NULL.
- * @param parent Cannot be NULL, must be a parent of pass.
- */
-bool _gfx_pass_is_merge_candidate(GFXPass* pass, GFXPass* candidate);
-
-/**
- * Resolves a pass, deriving transition and synchronization data for each
- * consumption with regard to the neighbouring passes.
- * consumes must hold `pass->renderer->backing.attachs.size` void* pointers.
- * @param pass     Cannot be NULL.
- * @param consumes Cannot be NULL, must be initialized to all NULL on first call.
- *
- * Must be called after its consumptions/attachments are changed,
- * and once before the initial warmup/build calls!
- * Must be called for all passes in submission order!
- */
-void _gfx_pass_resolve(GFXPass* pass, void** consumes);
-
-/**
  * Builds the Vulkan render pass if not present yet.
  * Can be used for potential pipeline warmups.
  * @param pass Cannot be NULL.
  * @param Non-zero on success.
+ *
+ * Before the initial call to _gfx_pass_(warmup|build), or once after a call
+ * to _gfx_pass_destruct, the following MUST be set to influence the build:
+ *  pass->out.*
+ *  pass->consumes[*]->out.*
  */
 bool _gfx_pass_warmup(GFXPass* pass);
 
@@ -1623,6 +1638,8 @@ bool _gfx_pass_warmup(GFXPass* pass);
  * Builds not yet built Vulkan objects.
  * @param pass Cannot be NULL.
  * @return Non-zero if completely valid and built.
+ *
+ * @see _gfx_pass_warmup for influencing the build.
  */
 bool _gfx_pass_build(GFXPass* pass);
 
@@ -1658,25 +1675,6 @@ void _gfx_pass_destruct(GFXPass* pass);
  */
 _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
                                 const GFXSampler* sampler);
-
-/**
- * Resets a recording pool, i.e. resets all command buffers
- * and sets the current recording pool to use for recording commands.
- * @param recorder Cannot be NULL.
- * @param frame    Index of the frame to reset buffers of.
- * @return Non-zero if successfully reset.
- */
-bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame);
-
-/**
- * Records the recording output of a recorder into a given command buffer.
- * The command buffer must be in the recording state (!).
- * @param recorder  Cannot be NULL.
- * @param order     Buffers that were output with this order will be recorded.
- * @param cmd       Cannot be NULL, must be in the render pass of `order` (!).
- */
-void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
-                          VkCommandBuffer cmd);
 
 /**
  * Retrieves all Vulkan specialization constant info and map entries.
@@ -1723,6 +1721,25 @@ bool _gfx_tech_get_set_binding(GFXTechnique* technique,
  * However, can never run concurrently with other set functions.
  */
 _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub);
+
+/**
+ * Resets a recording pool, i.e. resets all command buffers
+ * and sets the current recording pool to use for recording commands.
+ * @param recorder Cannot be NULL.
+ * @param frame    Index of the frame to reset buffers of.
+ * @return Non-zero if successfully reset.
+ */
+bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame);
+
+/**
+ * Records the recording output of a recorder into a given command buffer.
+ * The command buffer must be in the recording state (!).
+ * @param recorder  Cannot be NULL.
+ * @param order     Buffers that were output with this order will be recorded.
+ * @param cmd       Cannot be NULL, must be in the render pass of `order` (!).
+ */
+void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
+                          VkCommandBuffer cmd);
 
 
 #endif
