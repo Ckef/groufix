@@ -812,10 +812,7 @@ struct GFXRenderer
 	{
 		GFXVec attachs; // Stores _GFXAttach.
 
-
-		// Backing state.
-		enum
-		{
+		enum {
 			_GFX_BACKING_INVALID,
 			_GFX_BACKING_VALIDATED,
 			_GFX_BACKING_BUILT
@@ -831,10 +828,7 @@ struct GFXRenderer
 		GFXVec sinks;  // Stores GFXPass* (sink passes, tree roots).
 		GFXVec passes; // Stores GFXPass* (in submission order).
 
-
-		// Graph state.
-		enum
-		{
+		enum {
 			_GFX_GRAPH_EMPTY,
 			_GFX_GRAPH_INVALID, // Needs to purge.
 			_GFX_GRAPH_VALIDATED,
@@ -852,16 +846,19 @@ struct GFXRenderer
  */
 typedef struct _GFXConsume
 {
-	GFXImageAspect cleared;
-	bool           viewed; // Zero to ignore view.type.
-	bool           blend;  // Zero to ignore the blend operation states.
-
-	GFXBlendOpState color;
-	GFXBlendOpState alpha;
-
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
 	GFXView        view; // index used as attachment index.
+
+	GFXImageAspect  cleared;
+	GFXBlendOpState color;
+	GFXBlendOpState alpha;
+
+	enum {
+		_GFX_CONSUME_VIEWED = 0x0001, // Set to use view.type.
+		_GFX_CONSUME_BLEND  = 0x0002  // Set to use blend operation states.
+
+	} flags;
 
 	union {
 		// Identical definitions!
@@ -1008,14 +1005,12 @@ typedef struct _GFXSetEntry
 	{
 		VkFormat format; // For texel buffers.
 
-		// Named for addressability.
-		union
-		{
+		union {
 			VkDescriptorBufferInfo buffer;
 			VkDescriptorImageInfo  image;
 			VkBufferView           view;
 
-		} update;
+		} update; // Named for addressability.
 
 	} vk;
 
@@ -1627,7 +1622,7 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
  * @param pass Cannot be NULL.
  * @param Non-zero on success.
  *
- * Before the initial call to _gfx_pass_(warmup|build), or once after a call
+ * Before the initial call to _gfx_pass_(warmup|build) and once after a call
  * to _gfx_pass_destruct, the following MUST be set to influence the build:
  *  pass->out.*
  *  pass->consumes[*]->out.*

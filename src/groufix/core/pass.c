@@ -114,7 +114,7 @@ static inline void _gfx_pass_gen(GFXPass* pass)
 
 /****************************
  * Stand-in function for all the gfx_pass_consume* variants.
- * The `viewed`, `mask`, `stage` and `view` fields of consume must be set.
+ * The `flags`, `mask`, `stage` and `view` fields of consume must be set.
  * @see gfx_pass_consume*.
  * @param consume Cannot be NULL.
  */
@@ -134,9 +134,11 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 			_GFXConsume t = *con;
 			*con = *consume;
 
+			if (t.flags & _GFX_CONSUME_BLEND)
+				con->flags |= _GFX_CONSUME_BLEND;
+
 			con->cleared = t.cleared;
 			con->clear = t.clear;
-			con->blend = t.blend;
 			con->color = t.color;
 			con->alpha = t.alpha;
 
@@ -153,18 +155,17 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 
 	consume->cleared = 0;
 	consume->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
-
-	consume->blend = 0;
 	consume->color = blendOpState;
 	consume->alpha = blendOpState;
-
-	consume->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
-	consume->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	if (!gfx_vec_push(&pass->consumes, 1, consume))
 		return 0;
 
 invalidate:
+	// Always reset graph output.
+	consume->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
+	consume->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
+
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.
 	_gfx_render_graph_invalidate(pass->renderer);
@@ -719,10 +720,15 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			};
 
 			// Use independent blend state if given.
-			const GFXBlendOpState* blendColor =
-				con->blend ? &con->color : &pass->state.blend.color;
-			const GFXBlendOpState* blendAlpha =
-				con->blend ? &con->alpha : &pass->state.blend.alpha;
+			const GFXBlendOpState* blendColor;
+			const GFXBlendOpState* blendAlpha;
+
+			if (con->flags & _GFX_CONSUME_BLEND)
+				blendColor = &con->color,
+				blendAlpha = &con->alpha;
+			else
+				blendColor = &pass->state.blend.color,
+				blendAlpha = &pass->state.blend.alpha;
 
 			if (blendColor->op != GFX_BLEND_NO_OP)
 			{
@@ -872,7 +878,7 @@ bool _gfx_pass_build(GFXPass* pass)
 				.flags    = 0,
 				.image    = at->image.vk.image,
 				.format   = at->image.vk.format,
-				.viewType = con->viewed ?
+				.viewType = (con->flags & _GFX_CONSUME_VIEWED) ?
 					_GFX_GET_VK_IMAGE_VIEW_TYPE(con->view.type) :
 					// Go head and translate from image to view type inline.
 					(at->image.base.type == GFX_IMAGE_1D ? VK_IMAGE_VIEW_TYPE_1D :
@@ -1128,7 +1134,7 @@ GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
 	// Relies on stand-in function for asserts.
 
 	_GFXConsume consume = {
-		.viewed = 0,
+		.flags = 0,
 		.mask = mask,
 		.stage = stage,
 		// Take the entire reference.
@@ -1156,7 +1162,7 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 	// Relies on stand-in function for asserts.
 
 	_GFXConsume consume = {
-		.viewed = 0,
+		.flags = 0,
 		.mask = mask,
 		.stage = stage,
 		.view = {
@@ -1178,7 +1184,7 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 	view.index = index; // Purely for function call consistency.
 
 	_GFXConsume consume = {
-		.viewed = 1,
+		.flags = _GFX_CONSUME_VIEWED,
 		.mask = mask,
 		.stage = stage,
 		.view = view
@@ -1239,7 +1245,7 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
-			con->blend = 1;
+			con->flags |= _GFX_CONSUME_BLEND;
 			con->color = color;
 			con->alpha = alpha;
 

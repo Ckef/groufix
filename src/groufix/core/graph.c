@@ -115,6 +115,7 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 /****************************
  * Analyzes the render graph to setup all passes for correct builds.
  * Meaning the `out` field of each pass and all their consumptions are set.
+ * Also sets the `order` field of all passes :)
  * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */
 static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
