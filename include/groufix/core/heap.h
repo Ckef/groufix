@@ -262,16 +262,16 @@ typedef struct GFXGroup
 GFX_API GFXHeap* gfx_create_heap(GFXDevice* device);
 
 /**
- * Returns the device the heap was created for.
- * Can be called from any thread.
- */
-GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
-
-/**
  * Destroys a memory heap, freeing all resources allocated from it.
  * This will block until all associated memory operations are done!
  */
 GFX_API void gfx_destroy_heap(GFXHeap* heap);
+
+/**
+ * Returns the device the heap was created for.
+ * Can be called from any thread.
+ */
+GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
 
 /**
  * Purges all resources of operations that have finished.

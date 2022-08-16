@@ -462,12 +462,6 @@ clean:
 }
 
 /****************************/
-GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep)
-{
-	return dep == NULL ? NULL : (GFXDevice*)dep->device;
-}
-
-/****************************/
 GFX_API void gfx_destroy_dep(GFXDependency* dep)
 {
 	if (dep == NULL)
@@ -486,6 +480,15 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep)
 	_gfx_mutex_clear(&dep->lock);
 
 	free(dep);
+}
+
+/****************************/
+GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep)
+{
+	if (dep == NULL)
+		return NULL;
+
+	return (GFXDevice*)dep->device;
 }
 
 /****************************/

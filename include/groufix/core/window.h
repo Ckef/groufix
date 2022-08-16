@@ -180,16 +180,16 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
                                      const char* title);
 
 /**
- * Returns the device the heap was created for.
- * Can be called from any thread.
- */
-GFX_API GFXDevice* gfx_window_get_device(GFXWindow* window);
-
-/**
  * Destroys a window.
  * Must NOT be called from within a window event.
  */
 GFX_API void gfx_destroy_window(GFXWindow* window);
+
+/**
+ * Returns the device the heap was created for.
+ * Can be called from any thread.
+ */
+GFX_API GFXDevice* gfx_window_get_device(GFXWindow* window);
 
 /**
  * Retrieves the current flags of a window.

@@ -474,13 +474,6 @@ clean:
 }
 
 /****************************/
-GFX_API GFXDevice* gfx_window_get_device(GFXWindow* window)
-{
-	_GFXWindow* win = (_GFXWindow*)window;
-	return window == NULL ? NULL : (GFXDevice*)win->device;
-}
-
-/****************************/
 GFX_API void gfx_destroy_window(GFXWindow* window)
 {
 	if (window == NULL)
@@ -506,6 +499,15 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 
 	glfwDestroyWindow(win->handle);
 	free(window);
+}
+
+/****************************/
+GFX_API GFXDevice* gfx_window_get_device(GFXWindow* window)
+{
+	if (window == NULL)
+		return NULL;
+
+	return (GFXDevice*)((_GFXWindow*)window)->device;
 }
 
 /****************************/

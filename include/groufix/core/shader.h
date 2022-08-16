@@ -59,15 +59,15 @@ typedef struct GFXShader GFXShader;
 GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device);
 
 /**
+ * Destroys a shader.
+ */
+GFX_API void gfx_destroy_shader(GFXShader* shader);
+
+/**
  * Returns the device the shader was created for.
  * Can be called from any thread.
  */
 GFX_API GFXDevice* gfx_shader_get_device(GFXShader* shader);
-
-/**
- * Destroys a shader.
- */
-GFX_API void gfx_destroy_shader(GFXShader* shader);
 
 /**
  * Compiles a shader from GLSL/HLSL source into SPIR-V bytecode for use.

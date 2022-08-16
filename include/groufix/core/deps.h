@@ -83,17 +83,17 @@ typedef struct GFXDependency GFXDependency;
 GFX_API GFXDependency* gfx_create_dep(GFXDevice* device, unsigned int capacity);
 
 /**
- * Returns the device the dependency object was created for.
- * Can be called from any thread.
- */
-GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep);
-
-/**
  * Destroys a dependency object.
  * Undefined behaviour if destroyed when it holds metadata
  * about pairs of GPU operations that have not yet completed!
  */
 GFX_API void gfx_destroy_dep(GFXDependency* dep);
+
+/**
+ * Returns the device the dependency object was created for.
+ * Can be called from any thread.
+ */
+GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep);
 
 
 /****************************
