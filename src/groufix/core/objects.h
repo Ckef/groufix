@@ -393,6 +393,7 @@ struct GFXShader
  */
 typedef struct _GFXStaging
 {
+	GFXListNode  list;  // Base-type.
 	_GFXMemAlloc alloc; // Stores the size.
 
 
@@ -412,7 +413,7 @@ typedef struct _GFXStaging
  */
 typedef struct _GFXTransfer
 {
-	_GFXStaging* staging; // Automatically freed, may be NULL.
+	GFXList stagings; // References _GFXStaging, automatically freed.
 
 
 	// Vulkan fields.
@@ -1374,6 +1375,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
  * @return NULL on failure.
  *
  * Thread-safe with respect to the heap!
+ * leaves the `list` base-type uninitialized!
  */
 _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
                                 VkBufferUsageFlags usage, uint64_t size);
@@ -1384,8 +1386,19 @@ _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
  * @param staging Cannot be NULL.
  *
  * Thread-safe with respect to the heap!
+ * Does not unlink itself from anything!
  */
 void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
+
+/**
+ * Frees all staging buffers of a transfer operation.
+ * @param heap     Cannot be NULL.
+ * @param transfer Cannot be NULL.
+ *
+ * Thread-safe with respect to the heap!
+ * Leaves `transfer->stagings` cleared.
+ */
+void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer);
 
 
 /****************************

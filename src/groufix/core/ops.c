@@ -236,16 +236,12 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, GFXTransferFlags flags,
 		if (result == VK_SUCCESS)
 		{
 			// If recycling, firstly pop it from the deque,
-			// Then free the staging buffer and reset the fence.
+			// Then free the staging buffers and reset the fence.
 			// The command buffer will be implicitly reset during recording.
 			_GFXTransfer newTransfer = *transfer;
 			gfx_deque_pop_front(&(*pool)->transfers, 1);
 
-			if (newTransfer.staging != NULL)
-			{
-				_gfx_free_staging(heap, newTransfer.staging);
-				newTransfer.staging = NULL;
-			}
+			_gfx_free_stagings(heap, &newTransfer);
 
 			_GFX_VK_CHECK(
 				context->vk.ResetFences(
@@ -280,7 +276,6 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, GFXTransferFlags flags,
 
 	// At this point we apparently need to create a new transfer object.
 	_GFXTransfer newTransfer = {
-		.staging = NULL,
 		.vk = { .cmd = NULL, .done = VK_NULL_HANDLE }
 	};
 
@@ -311,8 +306,12 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, GFXTransferFlags flags,
 	if (!gfx_deque_push(&(*pool)->transfers, 1, &newTransfer))
 		goto clean;
 
-	return gfx_deque_at(
+	_GFXTransfer* transfer = gfx_deque_at(
 		&(*pool)->transfers, (*pool)->transfers.size - 1);
+
+	gfx_list_init(&transfer->stagings);
+
+	return transfer;
 
 
 	// Cleanup on failure.
@@ -330,7 +329,8 @@ clean:
  * @param heap  Cannot be NULL.
  * @param flags Must be the same as was passed to the push call!
  *
- * This call should only be called to cleanup on failure.
+ * This call should only be called to cleanup on failure,
+ * as such it will NOT free any staging buffers!
  * Note: _STILL_ leaves the mutex locked!
  */
 static void _gfx_pop_transfer(GFXHeap* heap, GFXTransferFlags flags)
@@ -349,7 +349,10 @@ static void _gfx_pop_transfer(GFXHeap* heap, GFXTransferFlags flags)
 		&pool->transfers, pool->transfers.size - 1);
 
 	// Destroy its resources.
-	// We ignore staging here, as this is only used for cleanup on failure!
+	// We do not free any staging buffers because this
+	// call is only used for cleanup on failure!
+	gfx_list_clear(&transfer->stagings);
+
 	context->vk.FreeCommandBuffers(
 		context->vk.device, pool->vk.pool, 1, &transfer->vk.cmd);
 	context->vk.DestroyFence(
@@ -438,6 +441,10 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 
 	_GFXContext* context = heap->allocator.context;
 
+	// TODO: Here we probably want to pick the 'current' transfer and just
+	// append to the stagings list, also not popping it on failure.
+	// That way we pool multiple commands into a single command buffer.
+
 	// First get us transfer operation resources.
 	// Note that this will lock `pool->lock` for us,
 	// we use this lock for recording as well!
@@ -449,10 +456,6 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 		gfx_log_error("Could not initialize transfer operation resources.");
 		goto unlock;
 	}
-
-	// Set the staging buffer if not blocking, so it gets freed at some point.
-	if (staging != NULL && !(flags & GFX_TRANSFER_BLOCK))
-		transfer->staging = staging;
 
 	// Fill in injection metadata family queue & start the injection.
 	injection->inp.family = pool->queue.family;
@@ -711,7 +714,13 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	// Also note: this means we cannot free the transfer object,
 	// as it might not be the last one pushed anymore.
 	VkFence done = transfer->vk.done;
-	if (flags & GFX_TRANSFER_BLOCK) atomic_fetch_add(&pool->blocking, 1);
+	if (flags & GFX_TRANSFER_BLOCK)
+		atomic_fetch_add(&pool->blocking, 1);
+
+	// If not blocking, remember the staging buffer
+	// so it gets freed at some point.
+	else if (staging != NULL)
+		gfx_list_insert_after(&transfer->stagings, &staging->list, NULL);
 
 	_gfx_mutex_unlock(&pool->lock);
 

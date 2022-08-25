@@ -448,6 +448,23 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging)
 }
 
 /****************************/
+void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer)
+{
+	assert(heap != NULL);
+	assert(transfer != NULL);
+
+	// Do as asked, free all staging buffers :)
+	while (transfer->stagings.head != NULL)
+	{
+		_GFXStaging* staging = (_GFXStaging*)transfer->stagings.head;
+		gfx_list_erase(&transfer->stagings, &staging->list);
+		_gfx_free_staging(heap, staging);
+	}
+
+	gfx_list_clear(&transfer->stagings);
+}
+
+/****************************/
 GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 {
 	// Allocate a new heap & init.
@@ -561,8 +578,7 @@ destroy_pool:
 		context->vk.DestroyFence(
 			context->vk.device, transfer->vk.done, NULL);
 
-		if (transfer->staging != NULL)
-			_gfx_free_staging(heap, transfer->staging);
+		_gfx_free_stagings(heap, transfer);
 	}
 
 	// Destroy pool, transfers deque & lock.
@@ -658,9 +674,9 @@ purge:
 		context->vk.DestroyFence(
 			context->vk.device, transfer->vk.done, NULL);
 
-		if (transfer->staging != NULL)
-			_gfx_free_staging(heap, transfer->staging);
+		_gfx_free_stagings(heap, transfer);
 
+		// And pop it.
 		gfx_deque_pop_front(&pool->transfers, 1);
 	}
 
