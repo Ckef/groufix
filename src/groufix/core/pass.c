@@ -125,9 +125,11 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 	assert(consume != NULL);
 
 	// Try to find it first.
+	_GFXConsume* con;
+
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == consume->view.index)
 		{
 			// Keep old clear & blend values.
@@ -146,25 +148,28 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 		}
 	}
 
-	// Insert anew with default values.
+	// Insert anew.
+	if (!gfx_vec_push(&pass->consumes, 1, consume))
+		return 0;
+
+	con = gfx_vec_at(&pass->consumes, pass->consumes.size - 1);
+
+	// With some default values.
 	GFXBlendOpState blendOpState = {
 		.srcFactor = GFX_FACTOR_ONE,
 		.dstFactor = GFX_FACTOR_ZERO,
 		.op = GFX_BLEND_NO_OP
 	};
 
-	consume->cleared = 0;
-	consume->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
-	consume->color = blendOpState;
-	consume->alpha = blendOpState;
-
-	if (!gfx_vec_push(&pass->consumes, 1, consume))
-		return 0;
+	con->cleared = 0;
+	con->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
+	con->color = blendOpState;
+	con->alpha = blendOpState;
 
 invalidate:
 	// Always reset graph output.
-	consume->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
-	consume->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
+	con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
+	con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.
