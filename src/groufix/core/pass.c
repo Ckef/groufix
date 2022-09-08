@@ -17,7 +17,6 @@
 	do { \
 		if ((width) == 0 || (height) == 0 || (layers) == 0) \
 		{ \
-			_gfx_pass_destruct_partial(pass, _GFX_RECREATE); \
 			gfx_log_debug( /* Not an error if e.g. minimized. */ \
 				"Encountered framebuffer dimensions " \
 				"(%"PRIu32"x%"PRIu32"x%"PRIu32") " \
@@ -30,7 +29,6 @@
 			(pass->build.fHeight && (height) != pass->build.fHeight) || \
 			(pass->build.fLayers && (layers) != pass->build.fLayers)) \
 		{ \
-			_gfx_pass_destruct_partial(pass, _GFX_RECREATE); \
 			gfx_log_warn( \
 				"Encountered mismatching framebuffer dimensions " \
 				"(%"PRIu32"x%"PRIu32"x%"PRIu32") " \
@@ -888,7 +886,7 @@ bool _gfx_pass_build(GFXPass* pass)
 			_GFX_VALIDATE_DIMS(pass,
 				at->window.window->frame.width,
 				at->window.window->frame.height, 1,
-				return 1);
+				goto skip);
 		}
 
 		// Non-swapchain.
@@ -901,7 +899,7 @@ bool _gfx_pass_build(GFXPass* pass)
 				(con->view.range.numLayers == 0) ?
 					at->image.base.layers - con->view.range.layer :
 					con->view.range.numLayers,
-				return 1);
+				goto skip);
 
 			// Resolve whole aspect from format,
 			// then fix the consumed aspect as promised by gfx_pass_consume.
@@ -1051,8 +1049,13 @@ clean:
 
 	// Get rid of built things; avoid dangling views.
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE);
-
 	return 0;
+
+
+	// Identical cleanup on skip.
+skip:
+	_gfx_pass_destruct_partial(pass, _GFX_RECREATE);
+	return 1;
 }
 
 /****************************/
