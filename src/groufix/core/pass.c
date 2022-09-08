@@ -12,6 +12,42 @@
 #include <string.h>
 
 
+// Auto log on any zero or mismatching framebuffer dimensions.
+#define _GFX_VALIDATE_DIMS(pass, width, height, layers, action) \
+	do { \
+		if ((width) == 0 || (height) == 0 || (layers) == 0) \
+		{ \
+			_gfx_pass_destruct_partial(pass, _GFX_RECREATE); \
+			gfx_log_debug( /* Not an error if e.g. minimized. */ \
+				"Encountered framebuffer dimensions " \
+				"(%"PRIu32"x%"PRIu32"x%"PRIu32") " \
+				"of zero during pass building, pass skipped.", \
+				width, height, layers); \
+			action; \
+		} \
+		else if ( \
+			(pass->build.fWidth && (width) != pass->build.fWidth) || \
+			(pass->build.fHeight && (height) != pass->build.fHeight) || \
+			(pass->build.fLayers && (layers) != pass->build.fLayers)) \
+		{ \
+			_gfx_pass_destruct_partial(pass, _GFX_RECREATE); \
+			gfx_log_warn( \
+				"Encountered mismatching framebuffer dimensions " \
+				"(%"PRIu32"x%"PRIu32"x%"PRIu32") " \
+				"(%"PRIu32"x%"PRIu32"x%"PRIu32") " \
+				"during pass building, pass skipped.", \
+				pass->build.fWidth, pass->build.fHeight, pass->build.fLayers, \
+				width, height, layers); \
+			action; \
+		} \
+		else { \
+			pass->build.fWidth = width; \
+			pass->build.fHeight = height; \
+			pass->build.fLayers = layers; \
+		} \
+	} while (0);
+
+
 /****************************
  * Image view (for all framebuffers) element definition.
  */
@@ -848,19 +884,11 @@ bool _gfx_pass_build(GFXPass* pass)
 			backingInd = numAttachs;
 			views[numAttachs++] = VK_NULL_HANDLE;
 
-			// Get dimensions.
-			pass->build.fWidth = at->window.window->frame.width;
-			pass->build.fHeight = at->window.window->frame.height;
-			pass->build.fLayers = 1;
-
-			if (pass->build.fWidth == 0 || pass->build.fHeight == 0)
-			{
-				gfx_log_warn(
-					"Encountered swapchain dimension of zero during pass "
-					"building, pass destructed & cannot be used...");
-
-				goto destruct;
-			}
+			// Validate dimensions.
+			_GFX_VALIDATE_DIMS(pass,
+				at->window.window->frame.width,
+				at->window.window->frame.height, 1,
+				return 1);
 		}
 
 		// Non-swapchain.
@@ -920,13 +948,13 @@ bool _gfx_pass_build(GFXPass* pass)
 
 			view->view = *vkView; // So it's made stale later on.
 
-			// Get dimensions.
-			pass->build.fWidth = at->image.width;
-			pass->build.fHeight = at->image.height;
-			pass->build.fLayers =
+			// Validate dimensions.
+			_GFX_VALIDATE_DIMS(pass,
+				at->image.width, at->image.height,
 				(con->view.range.numLayers == 0) ?
-				at->image.base.layers - con->view.range.layer :
-				con->view.range.numLayers;
+					at->image.base.layers - con->view.range.layer :
+					con->view.range.numLayers,
+				return 1);
 		}
 	}
 
@@ -1019,9 +1047,9 @@ bool _gfx_pass_build(GFXPass* pass)
 	// Cleanup on failure.
 clean:
 	gfx_log_error("Could not build framebuffers for a pass.");
-destruct:
-	// Get rid of everything; avoid dangling views.
-	_gfx_pass_destruct(pass);
+
+	// Get rid of built things; avoid dangling views.
+	_gfx_pass_destruct_partial(pass, _GFX_RECREATE);
 
 	return 0;
 }
