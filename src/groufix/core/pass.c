@@ -884,7 +884,7 @@ bool _gfx_pass_build(GFXPass* pass)
 			backingInd = numAttachs;
 			views[numAttachs++] = VK_NULL_HANDLE;
 
-			// Validate dimensions.
+			// Also validate dimensions.
 			_GFX_VALIDATE_DIMS(pass,
 				at->window.window->frame.width,
 				at->window.window->frame.height, 1,
@@ -894,6 +894,15 @@ bool _gfx_pass_build(GFXPass* pass)
 		// Non-swapchain.
 		else
 		{
+			// Validate dimensions.
+			// Do this first to avoid creating a non-existing image view.
+			_GFX_VALIDATE_DIMS(pass,
+				at->image.width, at->image.height,
+				(con->view.range.numLayers == 0) ?
+					at->image.base.layers - con->view.range.layer :
+					con->view.range.numLayers,
+				return 1);
+
 			// Resolve whole aspect from format,
 			// then fix the consumed aspect as promised by gfx_pass_consume.
 			const GFXFormat fmt = at->image.base.format;
@@ -947,14 +956,6 @@ bool _gfx_pass_build(GFXPass* pass)
 				goto clean);
 
 			view->view = *vkView; // So it's made stale later on.
-
-			// Validate dimensions.
-			_GFX_VALIDATE_DIMS(pass,
-				at->image.width, at->image.height,
-				(con->view.range.numLayers == 0) ?
-					at->image.base.layers - con->view.range.layer :
-					con->view.range.numLayers,
-				return 1);
 		}
 	}
 
