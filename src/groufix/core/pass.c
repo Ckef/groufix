@@ -12,6 +12,12 @@
 #include <string.h>
 
 
+// Detect whether a pass is warmed.
+#define _GFX_PASS_IS_WARMED(pass) (pass->vk.pass != VK_NULL_HANDLE)
+
+// Detect whether a pass is built.
+#define _GFX_PASS_IS_BUILT(pass) (pass->vk.frames.size > 0)
+
 // Auto log on any zero or mismatching framebuffer dimensions.
 #define _GFX_VALIDATE_DIMS(pass, width, height, layers, action) \
 	do { \
@@ -546,15 +552,14 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	// And somehow propagate the VK pass and subpass index to all subpasses.
 	// Used for creating pipelines, which are still for specific passes.
 
+	// Already warmed.
+	if (_GFX_PASS_IS_WARMED(pass))
+		return 1;
+
 	// Ok so we need to know about all pass attachments.
 	// Filter consumptions into attachments.
 	if (!_gfx_pass_filter_attachments(pass))
 		return 0;
-
-	// At this point we have all information for _gfx_pass_build to run.
-	// So if we already have a pass, we are done.
-	if (pass->vk.pass != VK_NULL_HANDLE)
-		return 1;
 
 	// Get the backing window attachment.
 	const _GFXAttach* backing = NULL;
@@ -845,14 +850,14 @@ bool _gfx_pass_build(GFXPass* pass)
 	// TODO Skip all this if this is not master.
 	// We somehow want to propagate the dimensions to all subpasses.
 
+	// Already built.
+	if (_GFX_PASS_IS_BUILT(pass))
+		return 1;
+
 	// Do a warmup, i.e. make sure the Vulkan render pass is built.
 	// This will log an error for us!
 	if (!_gfx_pass_warmup(pass))
 		return 0;
-
-	// If we already have frames, we're done.
-	if (pass->vk.frames.size > 0)
-		return 1;
 
 	// Get the backing window attachment.
 	const _GFXAttach* backing = NULL;
@@ -1065,8 +1070,8 @@ bool _gfx_pass_rebuild(GFXPass* pass, _GFXRecreateFlags flags)
 	assert(flags & _GFX_RECREATE);
 
 	// Remember if we're warmed or entirely built.
-	const bool warmed = pass->vk.pass != VK_NULL_HANDLE;
-	const bool built = pass->vk.frames.size > 0;
+	const bool warmed = _GFX_PASS_IS_WARMED(pass);
+	const bool built = _GFX_PASS_IS_BUILT(pass);
 
 	// Then we destroy the things we want to recreate.
 	_gfx_pass_destruct_partial(pass, flags);
