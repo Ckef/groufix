@@ -101,7 +101,7 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
  *
  * @see _gfx_dep_unpack and _gfx_dep_validate for retrieving 'unpacked' ranges.
  */
-static bool _gfx_ranges_overlap(const _GFXUnpackRef* ref,
+/*static bool _gfx_ranges_overlap(const _GFXUnpackRef* ref,
                                 const GFXRange* rangea, const GFXRange* rangeb)
 {
 	assert(ref != NULL);
@@ -139,7 +139,7 @@ static bool _gfx_ranges_overlap(const _GFXUnpackRef* ref,
 
 	// Check if aspect overlaps.
 	return (rangea->aspect & rangeb->aspect) != 0 && mips && lays;
-}
+}*/
 
 /****************************
  * Computes the 'unpacked' range, access/stage flags and image layout
@@ -171,8 +171,10 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
 	// Note that we always pass 0 for shader stage flags.
 	// This function is only used to compute metadata of resources known by
 	// the operation that we are injecting dependencies into.
-	// For now we do not have any operations with associated resources
-	// that operates on a specific shader stage (only the renderer does so).
+
+	// Luckily we do not have any operations with associated resources
+	// that ALSO operates on a specific shader stage for now.
+	// Only the renderer operates on shader stages, but it never has resources.
 
 	if (ref->obj.buffer != NULL)
 	{
@@ -249,7 +251,7 @@ static GFXRange _gfx_dep_unpack(const _GFXUnpackRef* ref,
  * All output arrays must be at least of size injection->inp.numRefs.
  * Outputs index of SIZE_MAX if not an operation reference.
  */
-static bool _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
+/*static bool _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
                               size_t* numRefs,
                               const _GFXUnpackRef** refs,
                               size_t* indices,
@@ -351,7 +353,7 @@ static bool _gfx_dep_validate(const GFXInject* inj, const _GFXUnpackRef* injRef,
 	}
 
 	return 1;
-}
+}*/
 
 /****************************
  * TODO: Maybe do an insertion-sort like thing to batch barriers.
@@ -516,7 +518,162 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			return 0;
 		}
 
-	// Keep track of related resources & metadata for each injection.
+	// We keep track of whether all operation references have been
+	// transitioned. So we can do initial layout transitions for images.
+	const size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
+	unsigned char transitioned[vlaRefs];
+	memset(transitioned, 0, injection->inp.numRefs);
+
+	// During a catch, we loop over all injections and filter out the
+	// wait commands. For each wait command, we match against all pending
+	// synchronization objects and 'catch' them with a potential barrier.
+	for (size_t i = 0; i < numInjs; ++i)
+	{
+		if (injs[i].type != GFX_DEP_WAIT)
+			continue;
+
+		// Now the bit where we match against all pending sync objects.
+		// We lock for each command individually.
+		_gfx_mutex_lock(&injs[i].dep->lock);
+
+		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
+		{
+			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
+
+			// Before matching,
+			// we quickly check if we can recycle any used objs!
+			if (sync->stage == _GFX_SYNC_USED && sync->waits > 0)
+				if ((--sync->waits) == 0)
+					sync->stage = _GFX_SYNC_UNUSED;
+
+			// Match on queue family.
+			if (sync->vk.dstFamily != injection->inp.family)
+				continue;
+
+			// Match against pending signals.
+			if (
+				sync->stage != _GFX_SYNC_PENDING &&
+				// Catch prepared signals from the same injection too!
+				(sync->stage != _GFX_SYNC_PREPARE || injection != sync->inj))
+			{
+				continue;
+			}
+
+			// TODO: For attachments: check if it was changed since the
+			// signal command (i.e. resized or smth) and throw a
+			// "dangling dependency signal command" error/warning.
+			// We could do this by adding a `generation` to each attachment,
+			// if it is only 1 generation old, do smth special?
+			// Maybe let the renderer keep allocations 1 generation old
+			// around if they were signaled for use outside the render loop?
+
+			// We have a matching synchronization object, in other words,
+			// we are going to catch a signal command with this wait command.
+			// First put the object in the catch stage.
+			sync->inj = injection;
+			sync->stage = (sync->stage == _GFX_SYNC_PREPARE) ?
+				_GFX_SYNC_PREPARE_CATCH : _GFX_SYNC_CATCH;
+
+			// TODO: Merge barriers.
+			// TODO: Maybe do something special with host read/write flags?
+			// Insert barrier to acquire ownership if necessary.
+			if (sync->flags & _GFX_SYNC_ACQUIRE)
+				_gfx_inject_barrier(cmd, sync, context);
+
+			// Output the wait semaphore and stage if necessary.
+			if (sync->flags & _GFX_SYNC_SEMAPHORE)
+			{
+				size_t numWaits = injection->out.numWaits; // Placeholder.
+
+				_GFX_INJ_OUTPUT(
+					injection->out.numWaits, injection->out.waits,
+					sizeof(VkSemaphore), sync->vk.signaled,
+					{
+						_gfx_mutex_unlock(&injs[i].dep->lock);
+						return 0;
+					});
+
+				_GFX_INJ_OUTPUT(
+					numWaits, injection->out.stages,
+					sizeof(VkPipelineStageFlagBits), sync->vk.dstStage,
+					{
+						_gfx_mutex_unlock(&injs[i].dep->lock);
+						return 0;
+					});
+			}
+
+			// Check if this was perhaps an operation reference,
+			// if so, signal that it has been transitioned.
+			size_t r;
+			for (r = 0; r < injection->inp.numRefs; ++r)
+				if (_GFX_UNPACK_REF_IS_EQUAL(sync->ref, injection->inp.refs[r]))
+					break;
+
+			if (r < injection->inp.numRefs)
+				transitioned[r] = 1;
+		}
+
+		_gfx_mutex_unlock(&injs[i].dep->lock);
+	}
+
+	// At this point we have processed all wait commands.
+	// For each operation reference, check if it has been transitioned.
+	// If not, insert an initial layout transition for images.
+	for (size_t r = 0; r < injection->inp.numRefs; ++r)
+	{
+		// If transitioned or a buffer, nothing to do.
+		if (transitioned[r] || injection->inp.refs[r].obj.buffer != NULL)
+			continue;
+
+		// Get unpacked metadata & inject barrier manually,
+		VkAccessFlags flags;
+		VkImageLayout layout;
+		VkPipelineStageFlags stages;
+
+		GFXRange range = _gfx_dep_unpack(
+			injection->inp.refs + r, NULL,
+			injection->inp.sizes[r], injection->inp.masks[r],
+			&flags, &layouts, &stages);
+
+		VkImageMemoryBarrier imb = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = 0,
+			.dstAccessMask       = flags,
+			.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout           = layout,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+
+			.image = (injection->inp.refs[r].obj.image != NULL) ?
+				injection->inp.refs[r].obj.image->vk.image :
+				_GFX_UNPACK_REF_ATTACH(injection->inp.refs[r])->vk.image,
+
+			.subresourceRange = {
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(range.aspect),
+				.baseMipLevel   = range.mipmap,
+				.baseArrayLayer = range.layer,
+
+				.levelCount = range.numMipmaps == 0 ?
+					VK_REMAINING_MIP_LEVELS : range.numMipmaps,
+				.layerCount = range.numLayers == 0 ?
+					VK_REMAINING_ARRAY_LAYERS : range.numLayers
+			},
+		};
+
+		// TODO: Merge barriers.
+		context->vk.CmdPipelineBarrier(cmd,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			stages,
+			0, 0, NULL, 0, NULL, 1, &imb);
+	}
+
+	return 1;
+
+
+
+	/*// Keep track of related resources & metadata for each injection.
 	// If there are no operation refs, make VLAs of size 1 for legality.
 	const size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
 	const _GFXUnpackRef* refs;
@@ -724,7 +881,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			0, 0, NULL, 0, NULL, 1, &imb);
 	}
 
-	return 1;
+	return 1;*/
 }
 
 /****************************/

@@ -1176,8 +1176,6 @@ typedef struct _GFXInjection
 		const GFXAccessMask* masks;
 		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
 
-		GFXRenderer* renderer; // Only allow attachments of, may be NULL.
-
 	} inp;
 
 

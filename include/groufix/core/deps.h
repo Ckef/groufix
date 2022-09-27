@@ -107,8 +107,7 @@ typedef enum GFXInjectType
 {
 	GFX_DEP_SIGNAL,
 	GFX_DEP_SIGNAL_RANGE,
-	GFX_DEP_WAIT,
-	GFX_DEP_WAIT_RANGE
+	GFX_DEP_WAIT
 
 } GFXInjectType;
 
@@ -142,6 +141,7 @@ typedef struct GFXInject
 // and cannot wait for specific resources, only for entire queue destinations.
 // This makes it so we can pool semaphores and not use one for every resource.
 // Makes heap pooling much smoother also.
+// TODO: Rewrite the docs below.
 
 /**
  * Injection macros. Dependency objects can be signaled or waited upon
@@ -223,32 +223,6 @@ typedef struct GFXInject
 		.type = GFX_DEP_WAIT, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL \
-	}
-
-// TODO: Remove.
-#define gfx_dep_waitr(dep_, ref_) \
-	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_WAIT, \
-		.dep = dep_, \
-		.ref = ref_ \
-	}
-
-// TODO: Remove.
-#define gfx_dep_waita(dep_, range_) \
-	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_WAIT_RANGE, \
-		.dep = dep_, \
-		.ref = GFX_REF_NULL, \
-		.range = range_ \
-	}
-
-// TODO: Remove.
-#define gfx_dep_waitra(dep_, ref_, range_) \
-	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_WAIT_RANGE, \
-		.dep = dep_, \
-		.ref = ref_, \
-		.range = range_ \
 	}
 
 
