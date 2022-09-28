@@ -175,85 +175,125 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
 			unpacked->numLayers = 0;
 		else
 			// Fix aspect, cause we're nice :)
-			unpaked->aspect = range->aspect & aspect,
-			unpaked->mipmap = range->mipmap,
-			unpaked->numMipmaps = range->numMipmaps,
-			unpaked->layer = range->layer,
-			unpaked->numLayers = range->numLayers;
+			unpacked->aspect = range->aspect & aspect,
+			unpacked->mipmap = range->mipmap,
+			unpacked->numMipmaps = range->numMipmaps,
+			unpacked->layer = range->layer,
+			unpacked->numLayers = range->numLayers;
 	}
 }
 
 /****************************
- * TODO: Rewrite.
- * TODO: Maybe do an insertion-sort like thing to batch barriers.
  * Claims (creates) a synchronization object to use for an injection.
  * _WITHOUT_ locking the dependency object!
  * @param semaphore Non-zero to indicate we need a VkSemaphore.
+ * @param family    If semaphore, the destination family index.
+ * @param injection If semaphore, the current injection metadata pointer.
  * @return NULL on failure.
  */
-static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore)
+static _GFXSync* _gfx_dep_claim(GFXDependency* dep,
+                                bool semaphore, uint32_t family,
+                                const _GFXInjection* injection)
 {
 	assert(dep != NULL);
 
-	// Loop over all sync objects and find ones we can use.
-	_GFXSync* semSync = NULL;
-	_GFXSync* noSemSync = NULL;
+	_GFXContext* context = dep->context;
 
-	for (size_t s = 0; s < dep->syncs.size; ++s)
+	// If we need a semaphore, we need a sync object with:
+	// - A semaphore.
+	// - A destination family of which another sync object has a semaphore.
+	// The latter will need to be of the same injection,
+	// meaning this semaphore will already be written to the metadata.
+	if (semaphore)
 	{
-		_GFXSync* sync = gfx_vec_at(&dep->syncs, s);
-		if (sync->stage != _GFX_SYNC_UNUSED)
-			continue;
+		_GFXSync* shared = NULL;
+		_GFXSync* unused = NULL;
 
-		// Only overwrite semSync/noSemSync if they're NULL,
-		// this way we select the earliest match, which allows us
-		// to free stale memory at the end of the vector :)
-		if (sync->vk.signaled != VK_NULL_HANDLE)
+		// See if there is an unused semaphore.
+		// Also see if there are any sync objects with the same family.
+		// They need to be of the same injection too, such that they can
+		// share the semaphore :)
+		for (size_t s = 0; s < dep->sems; ++s)
 		{
-			if (semSync == NULL) semSync = sync;
-			if (semaphore) break;
+			_GFXSync* sync = gfx_deque_at(&dep->syncs, s);
+
+			// Never break, always prefer objects closer to the center,
+			// such that shrinking is easier.
+			if (sync->stage == _GFX_SYNC_UNUSED)
+				unused = sync;
+
+			// We know it has a semaphore because of its position in syncs.
+			if (sync->stage == _GFX_SYNC_PREPARE &&
+				sync->inj == injection &&
+				sync->vk.dstFamily == family)
+			{
+				shared = sync;
+			}
 		}
-		else
+
+		// If we found none to share, but did find an unused one, claim it.
+		if (shared == NULL && unused != NULL)
+			return unused;
+
+		// Still none to share, create one & claim it.
+		if (shared == NULL)
 		{
-			if (noSemSync == NULL) noSemSync = sync;
-			if (!semaphore) break;
+			if (!gfx_deque_push_front(&dep->syncs, 1, NULL))
+				return NULL;
+
+			// Initialize it & create a semaphore.
+			unused = gfx_deque_at(&dep->syncs, 0);
+			unused->stage = _GFX_SYNC_UNUSED;
+			unused->flags = _GFX_SYNC_SEMAPHORE;
+
+			VkSemaphoreCreateInfo sci = {
+				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+				.pNext = NULL,
+				.flags = 0
+			};
+
+			_GFX_VK_CHECK(
+				context->vk.CreateSemaphore(
+					context->vk.device, &sci, NULL, &unused->vk.signaled),
+				{
+					gfx_deque_pop_front(&dep->syncs, 1);
+					return NULL;
+				});
+
+			// Don't forget to increase the semaphore count!
+			++dep->sems;
+
+			return unused;
 		}
+
+		// At this point we have a shared semaphore.
+		// It is not the job of preparing signals to also shrink the deque.
+		// This might entail destroying semaphores, which might still be of
+		// use later. Only clean on finish/abort.
+
+		// We can just fall through to the logic to claim
+		// a non-semaphore sync object.
 	}
 
-	// Determine which object we want,
-	// based upon whether we have and need a semaphore.
-	_GFXSync* sync = semaphore ?
-		(semSync != NULL ? semSync : noSemSync) :
-		(noSemSync != NULL ? noSemSync : semSync);
-
-	// Create a new synchronization object if none was found.
-	if (sync == NULL)
+	// So we have a shared semaphore, or we don't need a semaphore at all.
+	// Go see if we have an unused non-semaphore sync object.
+	for (size_t s = dep->sems; s < dep->syncs.size; ++s)
 	{
-		if (!gfx_vec_push(&dep->syncs, 1, NULL))
-			return NULL;
-
-		// Initialize with the bare minimum so it's valid.
-		sync = gfx_vec_at(&dep->syncs, dep->syncs.size - 1);
-		sync->stage = _GFX_SYNC_UNUSED;
-		sync->vk.signaled = VK_NULL_HANDLE;
+		// Return immediately so we are closest to the center,
+		// again for easier shrinking.
+		_GFXSync* sync = gfx_deque_at(&dep->syncs, s);
+		if (sync->stage == _GFX_SYNC_UNUSED)
+			return sync;
 	}
 
-	// Create a semaphore if we need one and don't have one.
-	if (semaphore && sync->vk.signaled == VK_NULL_HANDLE)
-	{
-		_GFXContext* context = dep->context;
+	// Apparently not, insert anew.
+	if (!gfx_deque_push(&dep->syncs, 1, NULL))
+		return NULL;
 
-		VkSemaphoreCreateInfo sci = {
-			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			.pNext = NULL,
-			.flags = 0
-		};
-
-		_GFX_VK_CHECK(
-			context->vk.CreateSemaphore(
-				context->vk.device, &sci, NULL, &sync->vk.signaled),
-			return NULL);
-	}
+	_GFXSync* sync = gfx_deque_at(&dep->syncs, dep->syncs.size - 1);
+	sync->stage = _GFX_SYNC_UNUSED;
+	sync->flags = 0;
+	sync->vk.signaled = VK_NULL_HANDLE;
 
 	return sync;
 }
@@ -377,10 +417,6 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				if ((--sync->waits) == 0)
 					sync->stage = _GFX_SYNC_UNUSED;
 
-			// Match on queue family.
-			if (sync->vk.dstFamily != injection->inp.family)
-				continue;
-
 			// Match against pending signals.
 			if (
 				sync->stage != _GFX_SYNC_PENDING &&
@@ -389,6 +425,10 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			{
 				continue;
 			}
+
+			// Match on queue family.
+			if (sync->vk.dstFamily != injection->inp.family)
+				continue;
 
 			// TODO: For attachments: check if it was changed since the
 			// signal command (i.e. resized or smth) and throw a
@@ -621,17 +661,12 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				&range, &flags, &layout, &stages);
 
 			// TODO: Continue implementing...
-			// TODO: For claiming a synchronization objects, we want to
-			// check if there is already a semaphore for the wanted queue
-			// destination (if we even need a semaphore).
 		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);
 	}
 
 	return 1;
-
-
 
 
 	/*// Keep track of related resources & metadata for each injection.
@@ -870,7 +905,7 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
 
 		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
 		{
-			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
+			_GFXSync* sync = gfx_deque_at(&injs[i].dep->syncs, s);
 			if (sync->inj == injection)
 			{
 				sync->stage = (sync->stage == _GFX_SYNC_CATCH) ?
@@ -913,7 +948,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 
 		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
 		{
-			_GFXSync* sync = gfx_vec_at(&injs[i].dep->syncs, s);
+			_GFXSync* sync = gfx_deque_at(&injs[i].dep->syncs, s);
 			if (sync->inj == injection)
 			{
 				// If the object was only prepared, it is now pending.

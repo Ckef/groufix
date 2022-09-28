@@ -699,6 +699,25 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
                                        size_t numParents, GFXPass** parents);
 
 /**
+ * Retrieves the number of sink passes of a renderer.
+ * A sink pass is one that is not a parent of any pass (last in the path).
+ * @param renderer Cannot be NULL.
+ *
+ * This number may change when a new pass is added.
+ */
+GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
+
+/**
+ * Retrieves a sink pass of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
+ *
+ * The index of each sink may change when a new pass is added, however
+ * their relative order remains fixed during the lifetime of the renderer.
+ */
+GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
+
+/**
  * Sets the render state of a pass.
  * Any member of state may be NULL to omit setting the associated state.
  * @param pass  Cannot be NULL.
@@ -774,8 +793,8 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 /**
  * Sets the blend state of a consumed attachment independently.
  * The device must support independent blending!
- * @param op      (src|dst)Factor are ignored if GFX_BLEND_NO_OP.
- * @param alphaOp (src|dst)AlphaFactor are ignored if GFX_BLEND_NO_OP.
+ * @param color (src|dst)Factor are ignored if GFX_BLEND_NO_OP.
+ * @param alpha (src|dst)AlphaFactor are ignored if GFX_BLEND_NO_OP.
  * @see gfx_pass_clear.
  */
 GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
@@ -787,25 +806,6 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
  * @param index Attachment index to release.
  */
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
-
-/**
- * Retrieves the number of sink passes of a renderer.
- * A sink pass is one that is not a parent of any pass (last in the path).
- * @param renderer Cannot be NULL.
- *
- * This number may change when a new pass is added.
- */
-GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
-
-/**
- * Retrieves a sink pass of a renderer.
- * @param renderer Cannot be NULL.
- * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
- *
- * The index of each sink may change when a new pass is added,
- * however their order remains fixed during the lifetime of the renderer.
- */
-GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
 
 /**
  * Retrieves the number of parents of a pass.

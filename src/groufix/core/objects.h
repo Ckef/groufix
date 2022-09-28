@@ -1214,7 +1214,7 @@ typedef struct _GFXSync
 	// Stage in the object's lifecycle.
 	enum
 	{
-		_GFX_SYNC_UNUSED, // Everything but `vk.signaled` is undefined.
+		_GFX_SYNC_UNUSED, // Only `flags` and `vk.signaled` are defined.
 		_GFX_SYNC_PREPARE,
 		_GFX_SYNC_PREPARE_CATCH, // Within the same injection.
 		_GFX_SYNC_PENDING,
@@ -1236,7 +1236,7 @@ typedef struct _GFXSync
 	// Vulkan fields.
 	struct
 	{
-		VkSemaphore signaled; // May be VK_NULL_HANDLE, may be recycled.
+		VkSemaphore signaled; // May be VK_NULL_HANDLE.
 
 		// Barrier metadata.
 		VkAccessFlags srcAccess;
