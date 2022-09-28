@@ -577,7 +577,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			_GFX_UNPACK_REF_CONTEXT(unp) != injs[i].dep->context)
 		{
 			gfx_log_warn(
-				"Dependency injection command ignored, given underlying "
+				"Dependency signal command ignored, given underlying "
 				"resource must be built on the same logical Vulkan device.");
 
 			continue;
@@ -607,7 +607,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			else
 			{
 				gfx_log_warn(
-					"Dependency injection command ignored, "
+					"Dependency signal command ignored, "
 					"given underlying resource not used by operation.");
 
 				continue;
