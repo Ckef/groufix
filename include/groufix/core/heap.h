@@ -274,7 +274,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap);
 GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
 
 /**
- * Flushes all pending operations down the pipeline.
+ * Flushes (i.e. submits) all pending operations to the device.
  * @param Cannot be NULL.
  *
  * Thread-safe with respect to heap!
