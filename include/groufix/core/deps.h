@@ -137,12 +137,6 @@ typedef struct GFXInject
 } GFXInject;
 
 
-// TODO: Someday in the future change it so we only have gfx_dep_wait,
-// and cannot wait for specific resources, only for entire queue destinations.
-// This makes it so we can pool semaphores and not use one for every resource.
-// Makes heap pooling much smoother also.
-// TODO: Rewrite the docs below.
-
 /**
  * Injection macros. Dependency objects can be signaled or waited upon
  * with respect to (a set of) resources on the GPU, the CPU is never blocked!
@@ -152,21 +146,27 @@ typedef struct GFXInject
  * If this is ignored, caches might not be flushed or invalidated, or worse,
  * the contents may be discarded by the engine and/or GPU when they see fit.
  *
- * A dependency is formed by a matching pair of signal/wait commands, where a
- * signal command can only match with one wait command, but a wait command can
- * match with any number of signal commands.
- * Wait and signal commands match iff they reference the same underlying
- * resource with an overlapping range (unspecified range = entire resource) AND
- * the access mask of the signal command matches the waiting operation.
+ * A dependency is formed by a pair of signal/wait commands, where a signal
+ * command matches with exactly one wait command, but a wait commad can match
+ * with any number of signal commands.
+ * Signal commands are accumulated in dependency objects, until a wait command
+ * matches (and waits for) all signal commands with equal queue destinations.
+ *
+ * There are three queue destinations:
+ *  -graphics, -compute, -transfer
+ *
+ * Operations (i.e. wait commands) and signal commands normally address
+ * the graphics queue, but they can address the other two with the respective
+ * *_(COMPUTE|TRANSFER)_ASYNC flags and access mask modifiers.
  *
  * To force the dependency on a specific resource, use
- *  `gfx_dep_sigr` and `gfx_dep_waitr`
+ *  `gfx_dep_sigr`
  *
  * To limit the dependency to a range (area) of a resource, use
- *  `gfx_dep_siga` and `gfx_dep_waita`
+ *  `gfx_dep_siga`
  *
  * To apply both of the above simultaneously, use
- *  `gfx_dep_sigra` and `gfx_dep_waitra`
+ *  `gfx_dep_sigra`
  *
  * Resources are considered referenced by the dependency object as long as it
  * has not formed a valid signal/wait pair, meaning the resources in question
