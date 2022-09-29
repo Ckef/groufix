@@ -108,6 +108,14 @@
 
 
 /**
+ * Describe union member as both anonymous and named.
+ */
+#define GFX_UNION_ANONYMOUS(member, name) \
+	struct member; \
+	struct member name;
+
+
+/**
  * Platform agnostic size_t print format.
  */
 #if defined (GFX_WIN32)

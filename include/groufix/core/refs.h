@@ -18,14 +18,6 @@
  ****************************/
 
 /**
- * Describe union member as both anonymous and named.
- */
-#define GFX_UNION_ANONYMOUS(member, name) \
-	struct member; \
-	struct member name;
-
-
-/**
  * Image aspect (i.e. interpreted sub-image).
  */
 typedef enum GFXImageAspect
