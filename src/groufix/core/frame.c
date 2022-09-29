@@ -394,8 +394,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	_GFXInjection injection = {
 		.inp = {
 			.family = renderer->graphics.family,
-			.numRefs = 0,
-			.renderer = renderer
+			.numRefs = 0
 		}
 	};
 

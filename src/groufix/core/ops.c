@@ -856,8 +856,7 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 				.numRefs = 1,
 				.refs = (_GFXUnpackRef[]){ unp },
 				.masks = (GFXAccessMask[]){ GFX_ACCESS_TRANSFER_READ },
-				.sizes = (uint64_t[]){ _gfx_ref_size(src) },
-				.renderer = NULL
+				.sizes = (uint64_t[]){ _gfx_ref_size(src) }
 			}
 		};
 
@@ -995,8 +994,7 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 				.numRefs = 1,
 				.refs = (_GFXUnpackRef[]){ unp },
 				.masks = (GFXAccessMask[]){ GFX_ACCESS_TRANSFER_WRITE },
-				.sizes = (uint64_t[]){ _gfx_ref_size(dst) },
-				.renderer = NULL
+				.sizes = (uint64_t[]){ _gfx_ref_size(dst) }
 			}
 		};
 
@@ -1054,8 +1052,7 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 			.sizes = (uint64_t[]){
 				_gfx_ref_size(src),
 				_gfx_ref_size(dst)
-			},
-			.renderer = NULL
+			}
 		}
 	};
 

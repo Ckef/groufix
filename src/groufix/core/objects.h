@@ -1176,8 +1176,6 @@ typedef struct _GFXInjection
 		const GFXAccessMask* masks;
 		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
 
-		GFXRenderer* renderer; // Only allow attachments of, may be NULL.
-
 	} inp;
 
 
@@ -1216,7 +1214,7 @@ typedef struct _GFXSync
 	// Stage in the object's lifecycle.
 	enum
 	{
-		_GFX_SYNC_UNUSED, // Everything but `vk.signaled` is undefined.
+		_GFX_SYNC_UNUSED, // Only `flags` and `vk.signaled` are defined.
 		_GFX_SYNC_PREPARE,
 		_GFX_SYNC_PREPARE_CATCH, // Within the same injection.
 		_GFX_SYNC_PENDING,
@@ -1230,7 +1228,7 @@ typedef struct _GFXSync
 	enum
 	{
 		_GFX_SYNC_SEMAPHORE = 0x0001, // If `vk.signaled` is used.
-		_GFX_SYNC_ACQUIRE   = 0x0002
+		_GFX_SYNC_BARRIER   = 0x0002  // Set to inject barrier on catch.
 
 	} flags;
 
@@ -1238,7 +1236,7 @@ typedef struct _GFXSync
 	// Vulkan fields.
 	struct
 	{
-		VkSemaphore signaled; // May be VK_NULL_HANDLE, may be recycled.
+		VkSemaphore signaled; // May be VK_NULL_HANDLE.
 
 		// Barrier metadata.
 		VkAccessFlags srcAccess;
@@ -1250,6 +1248,7 @@ typedef struct _GFXSync
 
 		VkPipelineStageFlags srcStage;
 		VkPipelineStageFlags dstStage;
+		VkPipelineStageFlags semStages; // Only set if `signaled` is used.
 
 		// Unpacked for locality.
 		union {
@@ -1269,10 +1268,12 @@ struct GFXDependency
 {
 	_GFXDevice*  device;
 	_GFXContext* context;
-	GFXVec       syncs; // Stores _GFXSync.
-	_GFXMutex    lock;
 
 	unsigned int waitCapacity;
+
+	size_t    sems;  // #semaphores at the start front of `syncs`.
+	GFXDeque  syncs; // Stores _GFXSync.
+	_GFXMutex lock;
 
 	// Vulkan family indices.
 	uint32_t graphics;
