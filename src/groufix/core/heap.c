@@ -629,6 +629,14 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap)
 }
 
 /****************************/
+GFX_API void gfx_heap_flush(GFXHeap* heap)
+{
+	assert(heap != NULL);
+
+	// TODO: Implement.
+}
+
+/****************************/
 GFX_API void gfx_heap_purge(GFXHeap* heap)
 {
 	assert(heap != NULL);

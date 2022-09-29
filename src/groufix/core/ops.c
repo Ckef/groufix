@@ -196,6 +196,7 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 }
 
 /****************************
+ * TODO: Possibly rewrite?
  * Pushes a new transfer operation object and returns the transfer pool to use.
  * @param heap Cannot be NULL.
  * @param pool Cannot be NULL, outputs on failure as well.
@@ -325,6 +326,7 @@ clean:
 }
 
 /****************************
+ * TODO: Possibly rewrite?
  * Cleans up resources from the last call to _gfx_push_transfer.
  * @param heap  Cannot be NULL.
  * @param flags Must be the same as was passed to the push call!
@@ -403,6 +405,7 @@ static void _gfx_copy_host(void* ptr, void* ref, bool rev, size_t numRegions,
 }
 
 /****************************
+ * TODO: Rewrite for flushing!
  * Copies data from a resource or staging buffer to another resource.
  * @param heap       Cannot be NULL.
  * @param rev        Non-zero to reverse the operation (dst -> staging).

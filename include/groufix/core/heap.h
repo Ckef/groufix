@@ -274,6 +274,14 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap);
 GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
 
 /**
+ * Flushes all pending operations down the pipeline.
+ * @param Cannot be NULL.
+ *
+ * Thread-safe with respect to heap!
+ */
+GFX_API void gfx_heap_flush(GFXHeap* heap);
+
+/**
  * Purges all resources of operations that have finished.
  * Will _NOT_ block for operations to be done!
  * @param heap Cannot be NULL.
@@ -425,12 +433,10 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
  */
 typedef enum GFXTransferFlags
 {
-	// TODO: Introduce GFX_TRANSFER_POOL, for pooling into 1 command buffer.
-	// TODO: We could reverse meaning and call it GFX_TRANSFER_FLUSH instead c:
-	// TODO: Then add gfx_pool_flush(), so no flushing is automatically done.
 	GFX_TRANSFER_NONE  = 0x0000,
 	GFX_TRANSFER_ASYNC = 0x0001,
-	GFX_TRANSFER_BLOCK = 0x0002
+	GFX_TRANSFER_FLUSH = 0x0002,
+	GFX_TRANSFER_BLOCK = 0x0004 // Implies GFX_TRANSFER_FLUSH.
 
 } GFXTransferFlags;
 
@@ -452,12 +458,17 @@ GFX_BIT_FIELD(GFXTransferFlags)
  * which means operations can run in parallel as long as they operate on
  * different resources (or non-overlapping regions thereof)!
  *
+ * If GFX_TRANSFER_FLUSH is not passed, the operation is recorded but not yet
+ * flushed. One can flush the heap after operations using gfx_heap_flush.
+ * Flushing is expensive, it is a good idea to batch operations.
+ *
  * Undefined behaviour if size/width/height/depth of (src|dst)Regions do not match.
  *  One of a pair can have a size of zero and it will be ignored.
  *  Likewise, with two images, one can have a width/height/depth of zero.
  *
  * gfx_read only:
  *  Will act as if GFX_TRANSFER_BLOCK is always passed!
+ *  Note this means gfx_read will _always_ trigger a flush.
  */
 GFX_API bool gfx_read(GFXReference src, void* dst,
                       GFXTransferFlags flags,
