@@ -1072,7 +1072,7 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 		return 0;
 	}
 
-	// We need a heap.
+	// We need a heap, always prefer the heap from src.
 	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(*srcUnp);
 	if (heap == NULL) heap = _GFX_UNPACK_REF_HEAP(*dstUnp);
 

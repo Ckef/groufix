@@ -278,6 +278,18 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
  * @param Cannot be NULL.
  *
  * Thread-safe with respect to heap!
+ *
+ * All dependency objects given by any memory resource operation are referenced
+ * until the heap is flushed. Normally, all signal commands only become visible
+ * after a flush and wait commands see all signal commands before a flush.
+ *
+ * Except for memory operations performed within (resources of) the same heap.
+ * These are divided in the set of synchronous operations, and the set of
+ * asynchronous operations (where the `GFX_TRANSFER_ASYNC` flag was given).
+ *
+ * All signal commands injected in operations in one of those sets become
+ * immediately visible to wait commands within the same set, but not the other
+ * or any commands injected elsewhere.
  */
 GFX_API void gfx_heap_flush(GFXHeap* heap);
 
@@ -461,6 +473,7 @@ GFX_BIT_FIELD(GFXTransferFlags)
  * If GFX_TRANSFER_FLUSH is not passed, the operation is recorded but not yet
  * flushed. One can flush the heap after operations using gfx_heap_flush.
  * Flushing is expensive, it is a good idea to batch operations.
+ * @see gfx_heap_flush for details on dependency injection visibility.
  *
  * Undefined behaviour if size/width/height/depth of (src|dst)Regions do not match.
  *  One of a pair can have a size of zero and it will be ignored.
@@ -489,6 +502,11 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 /**
  * Copies data from one memory resource reference to another.
  * @see gfx_read.
+ *
+ * If the two resources are allocated from two separate heaps,
+ * the heap from `src` is seen as the one 'performing' the operation.
+ * @see gfx_heap_flush.
+ *
  */
 GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
                       GFXTransferFlags flags,
