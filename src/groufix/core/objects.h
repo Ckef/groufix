@@ -432,8 +432,11 @@ typedef struct _GFXTransfer
  */
 typedef struct _GFXTransferPool
 {
-	GFXDeque  transfers; // Stores _GFXTransfer.
-	_GFXQueue queue;     // Vulkan queue.
+	GFXDeque    transfers; // Stores _GFXTransfer.
+	GFXVec      deps;      // Stores GFXInject.
+	const void* inj;       // _GFXInjection object.
+
+	_GFXQueue queue; // Vulkan queue.
 	_GFXMutex lock;
 
 	// #blocking threads.
@@ -1366,7 +1369,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 
 
 /****************************
- * Staging buffer allocation.
+ * Staging buffers & transfer flushing.
  ****************************/
 
 /**
@@ -1400,6 +1403,16 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
  * Leaves `transfer->stagings` cleared.
  */
 void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer);
+
+/**
+ * Flushes the last (current) transfer operation of a transfer pool.
+ * @param heap Cannot be NULL.
+ * @param pool Cannot be NULL, must be of heap.
+ * @return Zero on failure, current transfer is lost.
+ *
+ * Not thread-safe with respect to the heap or pool!
+ */
+bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool);
 
 
 /****************************

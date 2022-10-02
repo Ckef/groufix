@@ -276,6 +276,7 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
 /**
  * Flushes (i.e. submits) all pending operations to the device.
  * @param Cannot be NULL.
+ * @return Zero on failure, may have lost operations.
  *
  * Thread-safe with respect to heap!
  *
@@ -291,7 +292,7 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
  * immediately visible to wait commands within the same set, but not the other
  * or any commands injected elsewhere.
  */
-GFX_API void gfx_heap_flush(GFXHeap* heap);
+GFX_API bool gfx_heap_flush(GFXHeap* heap);
 
 /**
  * Purges all resources of operations that have finished.

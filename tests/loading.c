@@ -179,7 +179,8 @@ TEST_DESCRIBE(loading, t)
 		goto clean;
 
 	// Flush all memory writes.
-	gfx_heap_flush(t->heap);
+	if (!gfx_heap_flush(t->heap))
+		goto clean;
 
 	// Grab the first primitive & image from the glTF.
 	GFXPrimitive* prim =

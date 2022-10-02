@@ -573,7 +573,8 @@ static void _test_init(TestState* _test_state)
 
 	// We've allocated & populated all GPU memory,
 	// flush all the currently pending operations.
-	gfx_heap_flush(_test_base.heap);
+	if (!gfx_heap_flush(_test_base.heap))
+		TEST_FAIL();
 
 	// Create some shaders.
 	_test_base.vertex =

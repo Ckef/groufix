@@ -525,8 +525,12 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	gfx_list_init(&heap->groups);
 
 	// Initialize operation things.
+	heap->ops.graphics.inj = NULL;
+	heap->ops.transfer.inj = NULL;
 	gfx_deque_init(&heap->ops.graphics.transfers, sizeof(_GFXTransfer));
 	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(_GFXTransfer));
+	gfx_vec_init(&heap->ops.graphics.deps, sizeof(GFXInject));
+	gfx_vec_init(&heap->ops.transfer.deps, sizeof(GFXInject));
 	atomic_store(&heap->ops.graphics.blocking, 0);
 	atomic_store(&heap->ops.transfer.blocking, 0);
 
@@ -565,6 +569,9 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	_GFXTransferPool* pool = &heap->ops.graphics;
 
 destroy_pool:
+	// Oh uh, just flush it first to make sure all is done.
+	_gfx_flush_transfer(heap, pool);
+
 	// Note we loop from front to back, in the same order we purge/recycle.
 	// We wait for each operation individually, to gradually release memory.
 	// Command buffers are implicitly freed down below.
@@ -586,6 +593,7 @@ destroy_pool:
 		context->vk.device, pool->vk.pool, NULL);
 
 	gfx_deque_clear(&pool->transfers);
+	gfx_vec_clear(&pool->deps);
 	_gfx_mutex_clear(&pool->lock);
 
 	// Then destroy transfer queue pool.
@@ -629,11 +637,31 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap)
 }
 
 /****************************/
-GFX_API void gfx_heap_flush(GFXHeap* heap)
+GFX_API bool gfx_heap_flush(GFXHeap* heap)
 {
 	assert(heap != NULL);
 
-	// TODO: Implement.
+	bool success = 1;
+
+	// First flush the graphics queue pool.
+	_GFXTransferPool* pool = &heap->ops.graphics;
+
+flush:
+	// Lock, because _gfx_flush_transfer does not.
+	_gfx_mutex_lock(&pool->lock);
+
+	success = success && _gfx_flush_transfer(heap, pool);
+
+	_gfx_mutex_unlock(&pool->lock);
+
+	// Then purge transfer queue pool.
+	if (pool == &heap->ops.graphics)
+	{
+		pool = &heap->ops.transfer;
+		goto flush;
+	}
+
+	return success;
 }
 
 /****************************/
