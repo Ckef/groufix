@@ -149,8 +149,10 @@ typedef struct GFXInject
  * A dependency is formed by a pair of signal/wait commands, where a signal
  * command matches with exactly one wait command, but a wait commad can match
  * with any number of signal commands.
- * Signal commands are accumulated in dependency objects, until a wait command
- * matches (and waits for) all signal commands with equal queue destinations.
+ * Signal commands are accumulated in dependency objects and are made visible
+ * by the operation they were injected in. After being made visible,
+ * a wait command can match (and wait for) a signal command if they have
+ * equal queue destinations.
  *
  * There are three queue destinations:
  *  -graphics, -compute, -transfer

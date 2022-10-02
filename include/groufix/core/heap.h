@@ -281,10 +281,10 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
  *
  * All dependency objects given by any memory resource operation are referenced
  * until the heap is flushed. Normally, all signal commands only become visible
- * after a flush and wait commands see all signal commands before a flush.
+ * to subsequent wait commands after the signaling heap is flushed.
  *
  * Except for memory operations performed within (resources of) the same heap.
- * These are divided in the set of synchronous operations, and the set of
+ * These are divided into the set of synchronous operations, and the set of
  * asynchronous operations (where the `GFX_TRANSFER_ASYNC` flag was given).
  *
  * All signal commands injected in operations in one of those sets become
@@ -465,7 +465,7 @@ GFX_BIT_FIELD(GFXTransferFlags)
  * @param deps       Cannot be NULL if numDeps > 0.
  * @return Non-zero on success.
  *
- * For any operation, at least one resource must be allocated from a heap!
+ * For all operations, at least one resource must be allocated from a heap!
  * All memory operations are thread-safe with respect to any associated heap,
  * which means operations can run in parallel as long as they operate on
  * different resources (or non-overlapping regions thereof)!

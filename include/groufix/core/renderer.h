@@ -853,8 +853,9 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
  * modified after this call until gfx_frame_submit has returned!
  *
  * All given dependency objects are referenced until gfx_frame_submit has
- * returned. Signal commands only become visible after gfx_frame_submit and
- * wait commands see all signal commands up until gfx_frame_submit.
+ * returned. All signal commands are only made visible to wait commands
+ * submitted elsewhere after gfx_frame_submit. However, all wait commands can
+ * match visible signal commands submitted elsewhere up until gfx_frame_submit.
  *
  * Failure during starting cannot be recovered from,
  * any such failure is appropriately logged.
