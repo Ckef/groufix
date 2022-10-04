@@ -351,7 +351,7 @@ static void _gfx_pop_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	_GFXContext* context = heap->allocator.context;
 
 	// Get the transfer object to pop.
-	// As per requirements, transfer->flushed will be false!
+	// As per requirements, transfer->flushed will be zero!
 	_GFXTransfer* transfer = gfx_deque_at(
 		&pool->transfers, pool->transfers.size - 1);
 
@@ -385,6 +385,10 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	_GFXContext* context = heap->allocator.context;
 
 	// See if we have any injection metadata to flush with & finish.
+	// Given `pool->injection` is always set to NULL whenever a transfer
+	// operation was flagged as flushed,
+	// We know `transfer->flushed` to be zero in the next bit because we
+	// check for `pool->injection` to be non-NULL.
 	_GFXInjection* injection = pool->injection;
 
 	if (injection != NULL && pool->transfers.size > 0)
@@ -392,38 +396,37 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 		_GFXTransfer* transfer =
 			gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
 
-		if (!transfer->flushed)
-		{
-			// Lock queue and submit.
-			VkSubmitInfo si = {
-				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		// Lock queue and submit.
+		VkSubmitInfo si = {
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
-				.pNext                = NULL,
-				.waitSemaphoreCount   = (uint32_t)injection->out.numWaits,
-				.pWaitSemaphores      = injection->out.waits,
-				.pWaitDstStageMask    = injection->out.stages,
-				.commandBufferCount   = 1,
-				.pCommandBuffers      = &transfer->vk.cmd,
-				.signalSemaphoreCount = (uint32_t)injection->out.numSigs,
-				.pSignalSemaphores    = injection->out.sigs
-			};
+			.pNext                = NULL,
+			.waitSemaphoreCount   = (uint32_t)injection->out.numWaits,
+			.pWaitSemaphores      = injection->out.waits,
+			.pWaitDstStageMask    = injection->out.stages,
+			.commandBufferCount   = 1,
+			.pCommandBuffers      = &transfer->vk.cmd,
+			.signalSemaphoreCount = (uint32_t)injection->out.numSigs,
+			.pSignalSemaphores    = injection->out.sigs
+		};
 
-			_gfx_mutex_lock(pool->queue.lock);
+		_gfx_mutex_lock(pool->queue.lock);
 
-			_GFX_VK_CHECK(
-				context->vk.QueueSubmit(
-					pool->queue.vk.queue, 1, &si, transfer->vk.done),
-				{
-					_gfx_mutex_unlock(pool->queue.lock);
-					_gfx_pop_transfer(heap, pool);
+		_GFX_VK_CHECK(
+			context->vk.QueueSubmit(
+				pool->queue.vk.queue, 1, &si, transfer->vk.done),
+			{
+				_gfx_mutex_unlock(pool->queue.lock);
+				_gfx_pop_transfer(heap, pool);
 
-					return 0;
-				});
+				return 0;
+			});
 
-			_gfx_mutex_unlock(pool->queue.lock);
+		_gfx_mutex_unlock(pool->queue.lock);
 
-			transfer->flushed = 1;
-		}
+		// After this we free `pool->injection` and set it to NULL,
+		// making the above guarantee hold.
+		transfer->flushed = 1;
 	}
 
 	// Make all commands visible for future operations.
