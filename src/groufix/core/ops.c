@@ -9,6 +9,7 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <limits.h>
+#include <stdlib.h>
 #include <string.h>
 
 
@@ -321,38 +322,47 @@ clean:
 }
 
 /****************************
- * TODO: Possibly rewrite?
  * Cleans up resources from the last call to _gfx_push_transfer.
  * @param heap Cannot be NULL.
  * @param pool Cannot be NULL, must be of heap.
  *
  * This call should only be called to cleanup on failure,
- * as such it will NOT free any staging buffers!
- * Note: _STILL_ leaves the mutex locked!
+ * the last pushed transfer MUST NOT be flushed yet!
  */
 static void _gfx_pop_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 {
 	assert(heap != NULL);
 	assert(pool != NULL);
+	assert(pool->transfers.size > 0);
 
 	_GFXContext* context = heap->allocator.context;
 
 	// Get the transfer object to pop.
-	// Note that size MUST be > 0, otherwise this call must not be called!
 	_GFXTransfer* transfer = gfx_deque_at(
 		&pool->transfers, pool->transfers.size - 1);
 
 	// Destroy its resources.
-	// We do not free any staging buffers because this
-	// call is only used for cleanup on failure!
-	gfx_list_clear(&transfer->stagings);
-
 	context->vk.FreeCommandBuffers(
 		context->vk.device, pool->vk.pool, 1, &transfer->vk.cmd);
 	context->vk.DestroyFence(
 		context->vk.device, transfer->vk.done, NULL);
 
-	// Pop it!
+	_gfx_free_stagings(heap, transfer);
+
+	// And abort all injections made into it.
+	if (pool->injection != NULL)
+	{
+		_gfx_deps_abort(
+			pool->deps.size, gfx_vec_at(&pool->deps, 0),
+			pool->injection);
+
+		gfx_vec_clear(&pool->deps);
+		free(pool->injection);
+
+		pool->injection = NULL;
+	}
+
+	// Then pop the transfer!
 	gfx_deque_pop(&pool->transfers, 1);
 }
 
@@ -362,9 +372,40 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	assert(heap != NULL);
 	assert(pool != NULL);
 
-	// TODO: Implement.
+	_GFXContext* context = heap->allocator.context;
+
+	// See if we have any injection metadata to flush with & finish.
+	// Checking for non-NULL should be enough, but you never know..
+	if (pool->injection != NULL && pool->transfers.size > 0)
+	{
+		_GFXTransfer* transfer =
+			gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
+
+		// TODO: Continue implementing...
+	}
+
+	// Make all commands visible for future operations.
+	// This must be last so visibility happens exactly on return!
+	if (pool->injection != NULL)
+	{
+		_gfx_deps_finish(
+			pool->deps.size, gfx_vec_at(&pool->deps, 0),
+			pool->injection);
+
+		gfx_vec_clear(&pool->deps);
+		free(pool->injection);
+
+		pool->injection = NULL;
+	}
 
 	return 1;
+
+
+	// Cleanup on failure.
+clean:
+	_gfx_pop_transfer(heap, pool);
+
+	return 0;
 }
 
 /****************************

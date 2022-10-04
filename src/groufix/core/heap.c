@@ -525,8 +525,9 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	gfx_list_init(&heap->groups);
 
 	// Initialize operation things.
-	heap->ops.graphics.inj = NULL;
-	heap->ops.transfer.inj = NULL;
+	heap->ops.graphics.injection = NULL;
+	heap->ops.transfer.injection = NULL;
+
 	gfx_deque_init(&heap->ops.graphics.transfers, sizeof(_GFXTransfer));
 	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(_GFXTransfer));
 	gfx_vec_init(&heap->ops.graphics.deps, sizeof(GFXInject));

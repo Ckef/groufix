@@ -389,6 +389,12 @@ struct GFXShader
  ****************************/
 
 /**
+ * Injection metadata declaration for memory transfers.
+ */
+typedef struct _GFXInjection _GFXInjection;
+
+
+/**
  * Staging buffer.
  */
 typedef struct _GFXStaging
@@ -432,12 +438,12 @@ typedef struct _GFXTransfer
  */
 typedef struct _GFXTransferPool
 {
-	GFXDeque    transfers; // Stores _GFXTransfer.
-	GFXVec      deps;      // Stores GFXInject.
-	const void* inj;       // _GFXInjection object.
-
-	_GFXQueue queue; // Vulkan queue.
+	GFXDeque  transfers; // Stores _GFXTransfer.
+	_GFXQueue queue;
 	_GFXMutex lock;
+
+	_GFXInjection* injection; // NULL if flushed.
+	GFXVec         deps;      // Stores GFXInject.
 
 	// #blocking threads.
 	atomic_uintmax_t blocking;
@@ -1167,7 +1173,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 /**
  * Dependency injection metadata.
  */
-typedef struct _GFXInjection
+struct _GFXInjection
 {
 	// Operation input, must be pre-initialized!
 	struct
@@ -1196,7 +1202,7 @@ typedef struct _GFXInjection
 
 	} out;
 
-} _GFXInjection;
+};
 
 
 /**
