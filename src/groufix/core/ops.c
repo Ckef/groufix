@@ -234,6 +234,7 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	// Note we check if the host is blocking for any transfers,
 	// if so, we cannot reset the fence, so skip recycling...
 	const bool isBlocking = atomic_load(&pool->blocking) > 0;
+	_GFXTransfer newTransfer;
 
 	if (!isBlocking && pool->transfers.size > 0)
 	{
@@ -247,7 +248,7 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 			// If recycling, firstly pop it from the deque,
 			// Then free the staging buffers and reset the fence.
 			// The command buffer will be implicitly reset during recording.
-			_GFXTransfer newTransfer = *transfer;
+			newTransfer = *transfer;
 			gfx_deque_pop_front(&pool->transfers, 1);
 
 			_gfx_free_stagings(heap, &newTransfer);
@@ -256,23 +257,13 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 			_GFX_VK_CHECK(
 				context->vk.ResetFences(
 					context->vk.device, 1, &newTransfer.vk.done),
-				goto clean_recycle);
+				goto clean);
 
 			// Then push it right back into the round-robin situation.
 			if (!gfx_deque_push(&pool->transfers, 1, &newTransfer))
-				goto clean_recycle;
+				goto clean;
 
 			return gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
-
-
-			// Clean the thing (at least it is purged now).
-		clean_recycle:
-			context->vk.FreeCommandBuffers(
-				context->vk.device, pool->vk.pool, 1, &newTransfer.vk.cmd);
-			context->vk.DestroyFence(
-				context->vk.device, newTransfer.vk.done, NULL);
-
-			return NULL;
 		}
 
 		if (result != VK_NOT_READY)
@@ -284,11 +275,9 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	}
 
 	// At this point we apparently need to create a new transfer object.
-	_GFXTransfer newTransfer = {
-		.flushed = 0,
-		.vk = { .cmd = NULL, .done = VK_NULL_HANDLE }
-	};
-
+	newTransfer.flushed = 0;
+	newTransfer.vk.cmd = NULL;
+	newTransfer.vk.done = VK_NULL_HANDLE;
 	gfx_list_init(&newTransfer.stagings);
 
 	// Allocate a command buffer.
@@ -302,7 +291,7 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	};
 
 	_GFX_VK_CHECK(context->vk.AllocateCommandBuffers(
-		context->vk.device, &cbai, &newTransfer.vk.cmd), goto clean_new);
+		context->vk.device, &cbai, &newTransfer.vk.cmd), goto clean);
 
 	// And create fence.
 	VkFenceCreateInfo fci = {
@@ -312,17 +301,17 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	};
 
 	_GFX_VK_CHECK(context->vk.CreateFence(
-		context->vk.device, &fci, NULL, &newTransfer.vk.done), goto clean_new);
+		context->vk.device, &fci, NULL, &newTransfer.vk.done), goto clean);
 
 	// Aaand push it into the deque.
 	if (!gfx_deque_push(&pool->transfers, 1, &newTransfer))
-		goto clean_new;
+		goto clean;
 
 	return gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
 
 
 	// Cleanup on failure.
-clean_new:
+clean:
 	gfx_list_clear(&newTransfer.stagings);
 
 	context->vk.FreeCommandBuffers(
