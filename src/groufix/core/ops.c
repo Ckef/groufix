@@ -323,6 +323,7 @@ clean:
 
 /****************************
  * Cleans up resources from the last call to _gfx_push_transfer.
+ * The `injection` and `deps` fields of pool will be freed after this call.
  * @param heap Cannot be NULL.
  * @param pool Cannot be NULL, must be of heap.
  *
@@ -349,21 +350,19 @@ static void _gfx_pop_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 
 	_gfx_free_stagings(heap, transfer);
 
+	// Then pop the transfer!
+	gfx_deque_pop(&pool->transfers, 1);
+
 	// And abort all injections made into it.
 	if (pool->injection != NULL)
-	{
 		_gfx_deps_abort(
 			pool->deps.size, gfx_vec_at(&pool->deps, 0),
 			pool->injection);
 
-		gfx_vec_clear(&pool->deps);
-		free(pool->injection);
+	gfx_vec_clear(&pool->deps);
+	free(pool->injection);
 
-		pool->injection = NULL;
-	}
-
-	// Then pop the transfer!
-	gfx_deque_pop(&pool->transfers, 1);
+	pool->injection = NULL;
 }
 
 /****************************/
@@ -376,36 +375,55 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 
 	// See if we have any injection metadata to flush with & finish.
 	// Checking for non-NULL should be enough, but you never know..
-	if (pool->injection != NULL && pool->transfers.size > 0)
+	_GFXInjection* injection = pool->injection;
+
+	if (injection != NULL && pool->transfers.size > 0)
 	{
 		_GFXTransfer* transfer =
 			gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
 
-		// TODO: Continue implementing...
+		// Lock queue and submit.
+		VkSubmitInfo si = {
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+
+			.pNext                = NULL,
+			.waitSemaphoreCount   = (uint32_t)injection->out.numWaits,
+			.pWaitSemaphores      = injection->out.waits,
+			.pWaitDstStageMask    = injection->out.stages,
+			.commandBufferCount   = 1,
+			.pCommandBuffers      = &transfer->vk.cmd,
+			.signalSemaphoreCount = (uint32_t)injection->out.numSigs,
+			.pSignalSemaphores    = injection->out.sigs
+		};
+
+		_gfx_mutex_lock(pool->queue.lock);
+
+		_GFX_VK_CHECK(
+			context->vk.QueueSubmit(
+				pool->queue.vk.queue, 1, &si, transfer->vk.done),
+			{
+				_gfx_mutex_unlock(pool->queue.lock);
+				_gfx_pop_transfer(heap, pool);
+
+				return 0;
+			});
+
+		_gfx_mutex_unlock(pool->queue.lock);
 	}
 
 	// Make all commands visible for future operations.
 	// This must be last so visibility happens exactly on return!
-	if (pool->injection != NULL)
-	{
+	if (injection != NULL)
 		_gfx_deps_finish(
 			pool->deps.size, gfx_vec_at(&pool->deps, 0),
-			pool->injection);
+			injection);
 
-		gfx_vec_clear(&pool->deps);
-		free(pool->injection);
+	gfx_vec_clear(&pool->deps);
+	free(pool->injection);
 
-		pool->injection = NULL;
-	}
+	pool->injection = NULL;
 
 	return 1;
-
-
-	// Cleanup on failure.
-clean:
-	_gfx_pop_transfer(heap, pool);
-
-	return 0;
 }
 
 /****************************

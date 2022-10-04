@@ -571,6 +571,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 
 destroy_pool:
 	// Oh uh, just flush it first to make sure all is done.
+	// This will get rid of the `injection` and `deps` fields for us.
 	_gfx_flush_transfer(heap, pool);
 
 	// Note we loop from front to back, in the same order we purge/recycle.
@@ -594,7 +595,6 @@ destroy_pool:
 		context->vk.device, pool->vk.pool, NULL);
 
 	gfx_deque_clear(&pool->transfers);
-	gfx_vec_clear(&pool->deps);
 	_gfx_mutex_clear(&pool->lock);
 
 	// Then destroy transfer queue pool.

@@ -1412,6 +1412,7 @@ void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer);
 
 /**
  * Flushes the last (current) transfer operation of a transfer pool.
+ * The `injection` and `deps` fields of pool will be freed after this call.
  * @param heap Cannot be NULL.
  * @param pool Cannot be NULL, must be of heap.
  * @return Zero on failure, current transfer is lost.
