@@ -197,8 +197,8 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 }
 
 /****************************
- * TODO: Possibly rewrite?
- * Pushes a new transfer operation object to a transfer pool.
+ * Claims (creates) a transfer operation object of a transfer pool.
+ * Does not allocate injection metadata, must be done manually!
  * @param heap Cannot be NULL.
  * @param pool Cannot be NULL, must be of heap.
  * @return NULL on failure.
@@ -207,7 +207,7 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
  * To cleanup the last call to this function when something else failed,
  * call _gfx_pop_transfer.
  */
-static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, _GFXTransferPool* pool)
+static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 {
 	assert(heap != NULL);
 	assert(pool != NULL);
@@ -218,12 +218,24 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	// This will be left locked no matter what.
 	_gfx_mutex_lock(&pool->lock);
 
-	// Then check if it has any elements.
+	// If there is an unflushed transfer, simply return it.
+	// TODO: Uncomment.
+	/*if (pool->transfers.size > 0)
+	{
+		_GFXTransfer* transfer =
+			gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
+
+		if (!transfer->flushed) return transfer;
+	}*/
+
+	// Then check if it has any other elements.
 	// If it does, see if we can recycle the front-most transfer op.
 	// This way we end up with round-robin like behaviour :)
 	// Note we check if the host is blocking for any transfers,
 	// if so, we cannot reset the fence, so skip recycling...
-	if (atomic_load(&pool->blocking) == 0 && pool->transfers.size > 0)
+	const bool isBlocking = atomic_load(&pool->blocking) > 0;
+
+	if (!isBlocking && pool->transfers.size > 0)
 	{
 		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, 0);
 
@@ -239,6 +251,7 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 			gfx_deque_pop_front(&pool->transfers, 1);
 
 			_gfx_free_stagings(heap, &newTransfer);
+			newTransfer.flushed = 0;
 
 			_GFX_VK_CHECK(
 				context->vk.ResetFences(
@@ -249,11 +262,10 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 			if (!gfx_deque_push(&pool->transfers, 1, &newTransfer))
 				goto clean_recycle;
 
-			return gfx_deque_at(
-				&pool->transfers, pool->transfers.size - 1);
+			return gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
 
 
-		// Clean the thing we tried to recycle (at least it is purged now).
+			// Clean the thing (at least it is purged now).
 		clean_recycle:
 			context->vk.FreeCommandBuffers(
 				context->vk.device, pool->vk.pool, 1, &newTransfer.vk.cmd);
@@ -273,8 +285,11 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 
 	// At this point we apparently need to create a new transfer object.
 	_GFXTransfer newTransfer = {
+		.flushed = 0,
 		.vk = { .cmd = NULL, .done = VK_NULL_HANDLE }
 	};
+
+	gfx_list_init(&newTransfer.stagings);
 
 	// Allocate a command buffer.
 	VkCommandBufferAllocateInfo cbai = {
@@ -287,7 +302,7 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	};
 
 	_GFX_VK_CHECK(context->vk.AllocateCommandBuffers(
-		context->vk.device, &cbai, &newTransfer.vk.cmd), goto clean);
+		context->vk.device, &cbai, &newTransfer.vk.cmd), goto clean_new);
 
 	// And create fence.
 	VkFenceCreateInfo fci = {
@@ -297,22 +312,19 @@ static _GFXTransfer* _gfx_push_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	};
 
 	_GFX_VK_CHECK(context->vk.CreateFence(
-		context->vk.device, &fci, NULL, &newTransfer.vk.done), goto clean);
+		context->vk.device, &fci, NULL, &newTransfer.vk.done), goto clean_new);
 
 	// Aaand push it into the deque.
 	if (!gfx_deque_push(&pool->transfers, 1, &newTransfer))
-		goto clean;
+		goto clean_new;
 
-	_GFXTransfer* transfer = gfx_deque_at(
-		&pool->transfers, pool->transfers.size - 1);
-
-	gfx_list_init(&transfer->stagings);
-
-	return transfer;
+	return gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
 
 
 	// Cleanup on failure.
-clean:
+clean_new:
+	gfx_list_clear(&newTransfer.stagings);
+
 	context->vk.FreeCommandBuffers(
 		context->vk.device, pool->vk.pool, 1, &newTransfer.vk.cmd);
 	context->vk.DestroyFence(
@@ -322,7 +334,7 @@ clean:
 }
 
 /****************************
- * Cleans up resources from the last call to _gfx_push_transfer.
+ * Cleans up resources from the last (current) transfer operation of a pool.
  * The `injection` and `deps` fields of pool will be freed after this call.
  * @param heap Cannot be NULL.
  * @param pool Cannot be NULL, must be of heap.
@@ -339,18 +351,17 @@ static void _gfx_pop_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	_GFXContext* context = heap->allocator.context;
 
 	// Get the transfer object to pop.
+	// As per requirements, transfer->flushed will be false!
 	_GFXTransfer* transfer = gfx_deque_at(
 		&pool->transfers, pool->transfers.size - 1);
 
-	// Destroy its resources.
+	// Destroy its resources & pop it.
 	context->vk.FreeCommandBuffers(
 		context->vk.device, pool->vk.pool, 1, &transfer->vk.cmd);
 	context->vk.DestroyFence(
 		context->vk.device, transfer->vk.done, NULL);
 
 	_gfx_free_stagings(heap, transfer);
-
-	// Then pop the transfer!
 	gfx_deque_pop(&pool->transfers, 1);
 
 	// And abort all injections made into it.
@@ -374,7 +385,6 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	_GFXContext* context = heap->allocator.context;
 
 	// See if we have any injection metadata to flush with & finish.
-	// Checking for non-NULL should be enough, but you never know..
 	_GFXInjection* injection = pool->injection;
 
 	if (injection != NULL && pool->transfers.size > 0)
@@ -382,33 +392,38 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 		_GFXTransfer* transfer =
 			gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
 
-		// Lock queue and submit.
-		VkSubmitInfo si = {
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		if (!transfer->flushed)
+		{
+			// Lock queue and submit.
+			VkSubmitInfo si = {
+				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
-			.pNext                = NULL,
-			.waitSemaphoreCount   = (uint32_t)injection->out.numWaits,
-			.pWaitSemaphores      = injection->out.waits,
-			.pWaitDstStageMask    = injection->out.stages,
-			.commandBufferCount   = 1,
-			.pCommandBuffers      = &transfer->vk.cmd,
-			.signalSemaphoreCount = (uint32_t)injection->out.numSigs,
-			.pSignalSemaphores    = injection->out.sigs
-		};
+				.pNext                = NULL,
+				.waitSemaphoreCount   = (uint32_t)injection->out.numWaits,
+				.pWaitSemaphores      = injection->out.waits,
+				.pWaitDstStageMask    = injection->out.stages,
+				.commandBufferCount   = 1,
+				.pCommandBuffers      = &transfer->vk.cmd,
+				.signalSemaphoreCount = (uint32_t)injection->out.numSigs,
+				.pSignalSemaphores    = injection->out.sigs
+			};
 
-		_gfx_mutex_lock(pool->queue.lock);
+			_gfx_mutex_lock(pool->queue.lock);
 
-		_GFX_VK_CHECK(
-			context->vk.QueueSubmit(
-				pool->queue.vk.queue, 1, &si, transfer->vk.done),
-			{
-				_gfx_mutex_unlock(pool->queue.lock);
-				_gfx_pop_transfer(heap, pool);
+			_GFX_VK_CHECK(
+				context->vk.QueueSubmit(
+					pool->queue.vk.queue, 1, &si, transfer->vk.done),
+				{
+					_gfx_mutex_unlock(pool->queue.lock);
+					_gfx_pop_transfer(heap, pool);
 
-				return 0;
-			});
+					return 0;
+				});
 
-		_gfx_mutex_unlock(pool->queue.lock);
+			_gfx_mutex_unlock(pool->queue.lock);
+
+			transfer->flushed = 1;
+		}
 	}
 
 	// Make all commands visible for future operations.
@@ -518,7 +533,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 		(flags & GFX_TRANSFER_ASYNC) ?
 		&heap->ops.transfer : &heap->ops.graphics;
 
-	_GFXTransfer* transfer = _gfx_push_transfer(heap, pool);
+	_GFXTransfer* transfer = _gfx_claim_transfer(heap, pool);
 	if (transfer == NULL)
 	{
 		gfx_log_error("Could not initialize transfer operation resources.");
@@ -775,7 +790,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 
 	_gfx_mutex_unlock(pool->queue.lock);
 
-	// Manually unlock the lock left locked by _gfx_push_transfer!
+	// Manually unlock the lock left locked by _gfx_claim_transfer!
 	// Make sure to remember the fence in case we want to block AND
 	// increase the block count!
 	// We want to unlock BEFORE blocking, so other operations can start.

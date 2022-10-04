@@ -576,14 +576,19 @@ destroy_pool:
 
 	// Note we loop from front to back, in the same order we purge/recycle.
 	// We wait for each operation individually, to gradually release memory.
-	// Command buffers are implicitly freed down below.
+	// Command buffers are implicitly freed by destroying the command pool.
 	// Also, we don't lock, as we're in the destroy call!
 	for (size_t t = 0; t < pool->transfers.size; ++t)
 	{
 		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, t);
 
-		_GFX_VK_CHECK(context->vk.WaitForFences(
-			context->vk.device, 1, &transfer->vk.done, VK_TRUE, UINT64_MAX), {});
+		if (transfer->flushed)
+			_GFX_VK_CHECK(
+				context->vk.WaitForFences(
+					context->vk.device, 1, &transfer->vk.done,
+					VK_TRUE, UINT64_MAX),
+				{});
+
 		context->vk.DestroyFence(
 			context->vk.device, transfer->vk.done, NULL);
 
@@ -683,12 +688,16 @@ purge:
 	// until one is not done yet, it's a round-robin.
 	// Note we check if the host is blocking for any operations,
 	// if so, we cannot destroy the fences, so skip purging...
-	while (atomic_load(&pool->blocking) == 0 && pool->transfers.size > 0)
-	{
-		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, 0);
+	const bool isBlocking = atomic_load(&pool->blocking) > 0;
 
-		// Check if the transfer is done.
+	while (!isBlocking && pool->transfers.size > 0)
+	{
+		// Check if the transfer is flushed & done.
 		// If it is not, we are done purging.
+		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, 0);
+		if (!transfer->flushed)
+			break;
+
 		VkResult result = context->vk.GetFenceStatus(
 			context->vk.device, transfer->vk.done);
 

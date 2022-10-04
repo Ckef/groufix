@@ -420,6 +420,7 @@ typedef struct _GFXStaging
 typedef struct _GFXTransfer
 {
 	GFXList stagings; // References _GFXStaging, automatically freed.
+	bool    flushed;
 
 
 	// Vulkan fields.
@@ -439,11 +440,11 @@ typedef struct _GFXTransfer
 typedef struct _GFXTransferPool
 {
 	GFXDeque  transfers; // Stores _GFXTransfer.
+	GFXVec    deps;      // Stores GFXInject.
 	_GFXQueue queue;
 	_GFXMutex lock;
 
-	_GFXInjection* injection; // NULL if flushed.
-	GFXVec         deps;      // Stores GFXInject.
+	_GFXInjection* injection;
 
 	// #blocking threads.
 	atomic_uintmax_t blocking;
