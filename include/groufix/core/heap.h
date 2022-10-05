@@ -274,6 +274,27 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap);
 GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
 
 /**
+ * Flushes (i.e. submits) all pending operations to the device.
+ * @param Cannot be NULL.
+ * @return Zero on failure, may have lost operations.
+ *
+ * Thread-safe with respect to heap!
+ *
+ * All dependency objects given by any memory resource operation are referenced
+ * until the heap is flushed. Normally, all signal commands only become visible
+ * to subsequent wait commands after the signaling heap is flushed.
+ *
+ * Except for memory operations performed within (resources of) the same heap.
+ * These are divided into the set of synchronous operations, and the set of
+ * asynchronous operations (where the `GFX_TRANSFER_ASYNC` flag was given).
+ *
+ * All signal commands injected in operations in one of those sets become
+ * immediately visible to wait commands within the same set, but not the other
+ * or any commands injected elsewhere.
+ */
+GFX_API bool gfx_heap_flush(GFXHeap* heap);
+
+/**
  * Purges all resources of operations that have finished.
  * Will _NOT_ block for operations to be done!
  * @param heap Cannot be NULL.
@@ -425,12 +446,10 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
  */
 typedef enum GFXTransferFlags
 {
-	// TODO: Introduce GFX_TRANSFER_POOL, for pooling into 1 command buffer.
-	// TODO: We could reverse meaning and call it GFX_TRANSFER_FLUSH instead c:
-	// TODO: Then add gfx_pool_flush(), so no flushing is automatically done.
 	GFX_TRANSFER_NONE  = 0x0000,
 	GFX_TRANSFER_ASYNC = 0x0001,
-	GFX_TRANSFER_BLOCK = 0x0002
+	GFX_TRANSFER_FLUSH = 0x0002,
+	GFX_TRANSFER_BLOCK = 0x0004 // Implies GFX_TRANSFER_FLUSH.
 
 } GFXTransferFlags;
 
@@ -447,10 +466,15 @@ GFX_BIT_FIELD(GFXTransferFlags)
  * @param deps       Cannot be NULL if numDeps > 0.
  * @return Non-zero on success.
  *
- * For any operation, at least one resource must be allocated from a heap!
+ * For all operations, at least one resource must be allocated from a heap!
  * All memory operations are thread-safe with respect to any associated heap,
  * which means operations can run in parallel as long as they operate on
  * different resources (or non-overlapping regions thereof)!
+ *
+ * If GFX_TRANSFER_FLUSH is not passed, the operation is recorded but not yet
+ * flushed. One can flush the heap after operations using gfx_heap_flush.
+ * Flushing is expensive, it is a good idea to batch operations.
+ * @see gfx_heap_flush for details on dependency injection visibility.
  *
  * Undefined behaviour if size/width/height/depth of (src|dst)Regions do not match.
  *  One of a pair can have a size of zero and it will be ignored.
@@ -458,6 +482,7 @@ GFX_BIT_FIELD(GFXTransferFlags)
  *
  * gfx_read only:
  *  Will act as if GFX_TRANSFER_BLOCK is always passed!
+ *  Note this means gfx_read will _always_ trigger a flush.
  */
 GFX_API bool gfx_read(GFXReference src, void* dst,
                       GFXTransferFlags flags,
@@ -478,6 +503,11 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 /**
  * Copies data from one memory resource reference to another.
  * @see gfx_read.
+ *
+ * If the two resources are allocated from two separate heaps,
+ * the heap from `src` is seen as the one 'performing' the operation.
+ * @see gfx_heap_flush.
+ *
  */
 GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
                       GFXTransferFlags flags,

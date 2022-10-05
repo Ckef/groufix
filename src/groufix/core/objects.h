@@ -389,6 +389,12 @@ struct GFXShader
  ****************************/
 
 /**
+ * Injection metadata declaration for memory transfers.
+ */
+typedef struct _GFXInjection _GFXInjection;
+
+
+/**
  * Staging buffer.
  */
 typedef struct _GFXStaging
@@ -414,6 +420,7 @@ typedef struct _GFXStaging
 typedef struct _GFXTransfer
 {
 	GFXList stagings; // References _GFXStaging, automatically freed.
+	bool    flushed;
 
 
 	// Vulkan fields.
@@ -433,8 +440,11 @@ typedef struct _GFXTransfer
 typedef struct _GFXTransferPool
 {
 	GFXDeque  transfers; // Stores _GFXTransfer.
-	_GFXQueue queue;     // Vulkan queue.
+	GFXVec    deps;      // Stores GFXInject.
+	_GFXQueue queue;
 	_GFXMutex lock;
+
+	_GFXInjection* injection;
 
 	// #blocking threads.
 	atomic_uintmax_t blocking;
@@ -1164,7 +1174,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 /**
  * Dependency injection metadata.
  */
-typedef struct _GFXInjection
+struct _GFXInjection
 {
 	// Operation input, must be pre-initialized!
 	struct
@@ -1193,7 +1203,7 @@ typedef struct _GFXInjection
 
 	} out;
 
-} _GFXInjection;
+};
 
 
 /**
@@ -1366,7 +1376,7 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 
 
 /****************************
- * Staging buffer allocation.
+ * Staging buffers & transfer flushing.
  ****************************/
 
 /**
@@ -1400,6 +1410,17 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
  * Leaves `transfer->stagings` cleared.
  */
 void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer);
+
+/**
+ * Flushes the last (current) transfer operation of a transfer pool.
+ * The `injection` and `deps` fields of pool will be freed after this call.
+ * @param heap Cannot be NULL.
+ * @param pool Cannot be NULL, must be of heap.
+ * @return Zero on failure, current transfer is lost.
+ *
+ * Not thread-safe with respect to the heap or pool!
+ */
+bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool);
 
 
 /****************************

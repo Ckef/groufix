@@ -525,8 +525,13 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	gfx_list_init(&heap->groups);
 
 	// Initialize operation things.
+	heap->ops.graphics.injection = NULL;
+	heap->ops.transfer.injection = NULL;
+
 	gfx_deque_init(&heap->ops.graphics.transfers, sizeof(_GFXTransfer));
 	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(_GFXTransfer));
+	gfx_vec_init(&heap->ops.graphics.deps, sizeof(GFXInject));
+	gfx_vec_init(&heap->ops.transfer.deps, sizeof(GFXInject));
 	atomic_store(&heap->ops.graphics.blocking, 0);
 	atomic_store(&heap->ops.transfer.blocking, 0);
 
@@ -565,16 +570,25 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	_GFXTransferPool* pool = &heap->ops.graphics;
 
 destroy_pool:
+	// Oh uh, just flush it first to make sure all is done.
+	// This will get rid of the `injection` and `deps` fields for us.
+	_gfx_flush_transfer(heap, pool);
+
 	// Note we loop from front to back, in the same order we purge/recycle.
 	// We wait for each operation individually, to gradually release memory.
-	// Command buffers are implicitly freed down below.
+	// Command buffers are implicitly freed by destroying the command pool.
 	// Also, we don't lock, as we're in the destroy call!
 	for (size_t t = 0; t < pool->transfers.size; ++t)
 	{
 		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, t);
 
-		_GFX_VK_CHECK(context->vk.WaitForFences(
-			context->vk.device, 1, &transfer->vk.done, VK_TRUE, UINT64_MAX), {});
+		if (transfer->flushed)
+			_GFX_VK_CHECK(
+				context->vk.WaitForFences(
+					context->vk.device, 1, &transfer->vk.done,
+					VK_TRUE, UINT64_MAX),
+				{});
+
 		context->vk.DestroyFence(
 			context->vk.device, transfer->vk.done, NULL);
 
@@ -629,6 +643,34 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap)
 }
 
 /****************************/
+GFX_API bool gfx_heap_flush(GFXHeap* heap)
+{
+	assert(heap != NULL);
+
+	bool success = 1;
+
+	// First flush the graphics queue pool.
+	_GFXTransferPool* pool = &heap->ops.graphics;
+
+flush:
+	// Lock, because _gfx_flush_transfer does not.
+	_gfx_mutex_lock(&pool->lock);
+
+	success = success && _gfx_flush_transfer(heap, pool);
+
+	_gfx_mutex_unlock(&pool->lock);
+
+	// Then purge transfer queue pool.
+	if (pool == &heap->ops.graphics)
+	{
+		pool = &heap->ops.transfer;
+		goto flush;
+	}
+
+	return success;
+}
+
+/****************************/
 GFX_API void gfx_heap_purge(GFXHeap* heap)
 {
 	assert(heap != NULL);
@@ -646,12 +688,16 @@ purge:
 	// until one is not done yet, it's a round-robin.
 	// Note we check if the host is blocking for any operations,
 	// if so, we cannot destroy the fences, so skip purging...
-	while (atomic_load(&pool->blocking) == 0 && pool->transfers.size > 0)
-	{
-		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, 0);
+	const bool isBlocking = atomic_load(&pool->blocking) > 0;
 
-		// Check if the transfer is done.
+	while (!isBlocking && pool->transfers.size > 0)
+	{
+		// Check if the transfer is flushed & done.
 		// If it is not, we are done purging.
+		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, 0);
+		if (!transfer->flushed)
+			break;
+
 		VkResult result = context->vk.GetFenceStatus(
 			context->vk.device, transfer->vk.done);
 

@@ -178,6 +178,10 @@ TEST_DESCRIBE(loading, t)
 	if (!load_gltf(uri, &result))
 		goto clean;
 
+	// Flush all memory writes.
+	if (!gfx_heap_flush(t->heap))
+		goto clean;
+
 	// Grab the first primitive & image from the glTF.
 	GFXPrimitive* prim =
 		result.numPrimitives > 0 ? result.primitives[0] : NULL;
