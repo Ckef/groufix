@@ -210,6 +210,8 @@ invalidate:
 	// Always reset graph output.
 	con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
+	con->out.prev = NULL;
+	con->out.subpass = 0;
 
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.

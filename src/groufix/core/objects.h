@@ -885,6 +885,12 @@ typedef struct _GFXConsume
 		VkImageLayout initial;
 		VkImageLayout final;
 
+		// Non-NULL to form a dependency.
+		struct _GFXConsume* prev;
+
+		// Subpass index of prev.
+		uint32_t subpass;
+
 	} out;
 
 } _GFXConsume;

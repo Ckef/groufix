@@ -105,6 +105,11 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 			con->out.final = layout;
 		}
 
+		// See if we need to insert a dependency.
+		// TODO: See if we need to insert a dependency.
+		con->out.prev = NULL;
+		con->out.subpass = 0;
+
 		// Store the consumption for this attachment so the next
 		// resolve calls have this data.
 		// Each index only occurs one for each pass so it's fine.
