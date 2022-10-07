@@ -701,6 +701,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			sync->stage = _GFX_SYNC_PREPARE;
 
 			// Unpack VkBuffer & VkImage handles for locality.
+			// TODO: What if the attachment isn't built yet?
 			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(sync->ref);
 			GFXMemoryFlags mFlags = 0;
 			GFXFormat fmt = GFX_FORMAT_EMPTY;
@@ -722,7 +723,6 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				fmt            = attach->base.format;
 
 			// Set all destination values.
-			// TODO: What if the attachment isn't built yet?
 			sync->vk.dstAccess =
 				_GFX_GET_VK_ACCESS_FLAGS(injs[i].mask, fmt);
 			sync->vk.dstStage =

@@ -52,6 +52,23 @@ GFX_BIT_FIELD(GFXAccessMask)
 
 
 /**
+ * Access read/write checkers.
+ */
+#define GFX_ACCESS_READS(mask) \
+	((mask) & \
+		(GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ | \
+		GFX_ACCESS_UNIFORM_READ | GFX_ACCESS_INDIRECT_READ | \
+		GFX_ACCESS_SAMPLED_READ | GFX_ACCESS_STORAGE_READ | \
+		GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_ATTACHMENT_READ | \
+		GFX_ACCESS_TRANSFER_READ | GFX_ACCESS_HOST_READ))
+
+#define GFX_ACCESS_WRITES(mask) \
+	((mask) & \
+		(GFX_ACCESS_STORAGE_WRITE | GFX_ACCESS_ATTACHMENT_WRITE | \
+		GFX_ACCESS_TRANSFER_WRITE | GFX_ACCESS_HOST_WRITE))
+
+
+/**
  * Dependency object definition.
  * Stores transition & synchronization metadata.
  */

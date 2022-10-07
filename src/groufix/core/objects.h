@@ -389,7 +389,7 @@ struct GFXShader
  ****************************/
 
 /**
- * Injection metadata declaration for memory transfers.
+ * Injection metadata declaration.
  */
 typedef struct _GFXInjection _GFXInjection;
 
@@ -1287,7 +1287,7 @@ struct GFXDependency
 
 	unsigned int waitCapacity;
 
-	size_t    sems;  // #semaphores at the start front of `syncs`.
+	size_t    sems;  // #semaphores at the front of `syncs`.
 	GFXDeque  syncs; // Stores _GFXSync.
 	_GFXMutex lock;
 
