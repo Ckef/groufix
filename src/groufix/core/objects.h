@@ -1243,8 +1243,9 @@ typedef struct _GFXSync
 	// Synchronization flags.
 	enum
 	{
-		_GFX_SYNC_SEMAPHORE = 0x0001, // If `vk.signaled` is used.
-		_GFX_SYNC_BARRIER   = 0x0002  // Set to inject barrier on catch.
+		_GFX_SYNC_SEMAPHORE  = 0x0001, // If `vk.signaled` is used.
+		_GFX_SYNC_BARRIER    = 0x0002, // Set to inject barrier on catch.
+		_GFX_SYNC_MEM_HAZARD = 0x0004  // Memory barrier required if set.
 
 	} flags;
 

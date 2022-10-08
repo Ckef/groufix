@@ -35,14 +35,24 @@
 
 /****************************
  * TODO: Make this take multiple sync objs and merge them on equal stage masks?
- * TODO: Write after read does not need a memory barrier (only execution)!
- * TODO: Read after read does not need any form of barrier (unless ownership)!
- * Injects a pipeline/memory barrier, just as stored in a _GFXSync object.
+ * Injects an execution/memory barrier, just as stored in a _GFXSync object.
  * Assumes one of `sync->vk.buffer` or `sync->vk.image` is appropriately set.
  */
 static void _gfx_inject_barrier(VkCommandBuffer cmd,
                                 const _GFXSync* sync, _GFXContext* context)
 {
+	// If no memory hazard, just inject an execution barrier...
+	if (!(sync->flags & _GFX_SYNC_MEM_HAZARD))
+	{
+		context->vk.CmdPipelineBarrier(cmd,
+			sync->vk.srcStage, sync->vk.dstStage,
+			0, 0, NULL, 0, NULL, 0, NULL);
+
+		// ... and be done with it.
+		return;
+	}
+
+	// Otherwise, inject full memory barrier.
 	// We always set dstFamily to be able to match, undo this.
 	const uint32_t dstFamily =
 		(sync->vk.srcFamily == VK_QUEUE_FAMILY_IGNORED) ?
@@ -683,6 +693,8 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			VkAccessFlags flags;
 			VkImageLayout layout;
 			VkPipelineStageFlags stages;
+			GFXAccessMask mask =
+				(refs == &unp) ? injMask : injection->inp.masks[r];
 
 			_gfx_dep_unpack(refs + r,
 				// If given a range but not a reference,
@@ -690,7 +702,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				// Passing a mask of 0 yields an undefined image layout.
 				(injs[i].type == GFX_DEP_SIGNAL_RANGE) ? &injs[i].range : NULL,
 				(refs == &unp) ? _gfx_ref_size(injs[i].ref) : injection->inp.sizes[r],
-				(refs == &unp) ? injMask : injection->inp.masks[r],
+				mask,
 				&range, &flags, &layout, &stages);
 
 			// Now 'claim' it & put it in the prepare stage.
@@ -699,6 +711,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			sync->waits = injs[i].dep->waitCapacity; // Preemptively set.
 			sync->inj = injection;
 			sync->stage = _GFX_SYNC_PREPARE;
+			sync->flags &= _GFX_SYNC_SEMAPHORE; // Remove all other flags.
 
 			// Unpack VkBuffer & VkImage handles for locality.
 			// TODO: What if the attachment isn't built yet?
@@ -768,21 +781,35 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			sync->vk.dstFamily = discard || concurrent ?
 				VK_QUEUE_FAMILY_IGNORED : family;
 
-			// Insert barrier @catch if necessary:
-			// - Equal queues, always postpone barriers to the catch.
-			// - Not discarding & not concurrent, need an acquire operation.
+			// Insert execution barrier @catch if necessary:
+			// - Equal queues & either source or target writes,
+			//   always postpone barriers to the catch.
+			// - Inequal queues & not discarding & not concurrent.
 			// - Inequal layouts, need layout transition.
-			if (
-				!ownership || (!discard && !concurrent) ||
-				sync->vk.oldLayout != sync->vk.newLayout)
+			const bool srcWrites = GFX_ACCESS_WRITES(mask);
+			const bool dstWrites = GFX_ACCESS_WRITES(injs[i].mask);
+			const bool transfer = ownership && !discard && !concurrent;
+			const bool transition = sync->vk.oldLayout != sync->vk.newLayout;
+
+			if ((!ownership && (srcWrites || dstWrites)) || transfer || transition)
 			{
 				sync->flags |= _GFX_SYNC_BARRIER;
 			}
 
-			// Insert barrier @prepare (here) if necessary:
+			// Insert memory barrier @catch if necessary:
+			// - Equal queues & source writes.
+			// - Inequal queues & not discarding & not concurrent,
+			//   need an acquire operation.
+			// - Inequal layouts, need layout transition.
+			if ((!ownership && srcWrites) || transfer || transition)
+			{
+				sync->flags |= _GFX_SYNC_MEM_HAZARD;
+			}
+
+			// Insert exeuction AND memory barrier @prepare if necessary:
 			// - Inequal queus & not discarding & not concurrent,
 			//   need a release operation.
-			if (ownership && !discard && !concurrent)
+			if (transfer)
 			{
 				// We are transferring ownership.
 				// Zero out destination access/stage for the release.
@@ -793,6 +820,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				sync->vk.dstAccess = 0,
 				sync->vk.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
+				// Note: `sync->flags` is always set in the above if statements.
 				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 
 				sync->vk.srcAccess = 0,
