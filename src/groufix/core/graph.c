@@ -103,8 +103,20 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 		}
 
 		// See if we need to insert a dependency.
-		// TODO: See if we need to insert a dependency.
-		con->out.prev = NULL;
+		if (prev == NULL)
+			con->out.prev = NULL;
+		else
+		{
+			// Insert dependency (i.e. execution barrier) if necessary:
+			// - Either source or target writes.
+			// - Inequal layouts, need layout transition.
+			const bool srcWrites = GFX_ACCESS_WRITES(prev->mask);
+			const bool dstWrites = GFX_ACCESS_WRITES(con->mask);
+			const bool transition = prev->out.final != con->out.initial;
+
+			con->out.prev =
+				(srcWrites || dstWrites || transition) ? prev : NULL;
+		}
 
 		// Store the consumption for this attachment so the next
 		// resolve calls have this data.

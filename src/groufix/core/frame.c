@@ -426,6 +426,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// Record all passes.
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
 	{
+		// Check if it is built.
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 		if (pass->build.pass == NULL)
 			continue;
@@ -434,6 +435,9 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		// and handle the whole VK subpass structure like that.
 		// Note: this means a subpass chain cannot have passes in it,
 		// except for the last, that are a child pass of another.
+
+		// TODO: Somehow inject barriers for all the dependencies as
+		// defined in the consumptions of a pass, as analyzed by the graph.
 
 		// Check for the presence of a framebuffer.
 		VkFramebuffer framebuffer = _gfx_pass_framebuffer(pass, frame);
