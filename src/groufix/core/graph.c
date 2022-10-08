@@ -75,9 +75,6 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 		// Get previous consumption from the previous resolve calls.
 		_GFXConsume* prev = consumes[con->view.index];
 
-		// Set subpass index.
-		con->out.subpass = pass->out.subpass;
-
 		// Compute initial/final layout based on neighbours.
 		if (at->type == _GFX_ATTACH_WINDOW)
 		{

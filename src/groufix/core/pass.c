@@ -201,6 +201,7 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 		.op = GFX_BLEND_NO_OP
 	};
 
+	con->pass = pass;
 	con->cleared = 0;
 	con->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
 	con->color = blendOpState;
@@ -208,7 +209,6 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 
 invalidate:
 	// Always reset graph output.
-	con->out.subpass = 0;
 	con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.prev = NULL;

@@ -857,6 +857,7 @@ struct GFXRenderer
  */
 typedef struct _GFXConsume
 {
+	GFXPass*       pass;
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
 	GFXView        view; // index used as attachment index.
@@ -882,12 +883,11 @@ typedef struct _GFXConsume
 	// Graph output (relative to neighbouring passes).
 	struct
 	{
-		uint32_t      subpass;
 		VkImageLayout initial;
 		VkImageLayout final;
 
 		// Non-NULL to form a dependency.
-		struct _GFXConsume* prev;
+		const struct _GFXConsume* prev;
 
 	} out;
 
