@@ -58,9 +58,6 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 	// and skip if this is not the last.
 	// This because a subpass chain will be submitted at the order of the last.
 
-	// TODO: Probably wanna process & output synchronization data somehow.
-	// This so we can properly insert Vulkan barriers...
-
 	// Start looping over all consumptions & resolve them.
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
@@ -77,6 +74,9 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 
 		// Get previous consumption from the previous resolve calls.
 		_GFXConsume* prev = consumes[con->view.index];
+
+		// Set subpass index.
+		con->out.subpass = pass->out.subpass;
 
 		// Compute initial/final layout based on neighbours.
 		if (at->type == _GFX_ATTACH_WINDOW)
@@ -108,7 +108,6 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 		// See if we need to insert a dependency.
 		// TODO: See if we need to insert a dependency.
 		con->out.prev = NULL;
-		con->out.subpass = 0;
 
 		// Store the consumption for this attachment so the next
 		// resolve calls have this data.

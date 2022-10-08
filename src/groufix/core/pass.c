@@ -208,10 +208,10 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 
 invalidate:
 	// Always reset graph output.
+	con->out.subpass = 0;
 	con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.prev = NULL;
-	con->out.subpass = 0;
 
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.

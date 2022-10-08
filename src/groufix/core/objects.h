@@ -882,14 +882,12 @@ typedef struct _GFXConsume
 	// Graph output (relative to neighbouring passes).
 	struct
 	{
+		uint32_t      subpass;
 		VkImageLayout initial;
 		VkImageLayout final;
 
 		// Non-NULL to form a dependency.
 		struct _GFXConsume* prev;
-
-		// Subpass index of prev.
-		uint32_t subpass;
 
 	} out;
 
