@@ -34,13 +34,16 @@
 
 
 /****************************
- * TODO: Make this take multiple sync objs and merge them on equal stage masks?
+ * TODO: Make this take multiple sync objs and merge them?
  * Injects an execution/memory barrier, just as stored in a _GFXSync object.
  * Assumes one of `sync->vk.buffer` or `sync->vk.image` is appropriately set.
  */
 static void _gfx_inject_barrier(VkCommandBuffer cmd,
                                 const _GFXSync* sync, _GFXContext* context)
 {
+	assert(sync != NULL);
+	assert(sync->flags & _GFX_SYNC_BARRIER);
+
 	// If no memory hazard, just inject an execution barrier...
 	if (!(sync->flags & _GFX_SYNC_MEM_HAZARD))
 	{
@@ -213,6 +216,8 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep,
                                 _GFXSync** shared)
 {
 	assert(dep != NULL);
+	assert(!semaphore || injection != NULL);
+	assert(shared != NULL);
 
 	_GFXContext* context = dep->context;
 

@@ -64,6 +64,9 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 		_GFXConsume* con = gfx_vec_at(&pass->consumes, i);
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
+		// Default of NULL (no dependency) in case we skip this consumption.
+		con->out.prev = NULL;
+
 		// Validate existence of the attachment.
 		if (
 			con->view.index >= rend->backing.attachs.size ||
@@ -103,9 +106,7 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 		}
 
 		// See if we need to insert a dependency.
-		if (prev == NULL)
-			con->out.prev = NULL;
-		else
+		if (prev != NULL)
 		{
 			// Insert dependency (i.e. execution barrier) if necessary:
 			// - Either source or target writes.

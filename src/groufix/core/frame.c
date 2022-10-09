@@ -25,6 +25,120 @@
 
 
 /****************************
+ * TODO: Make this take multiple consumptiosn and merge them?
+ * Injects an execution/memory barrier, just as stored in a _GFXConsume object.
+ * Assumes `con` and `con->out.prev` to be fully initialized.
+ */
+static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
+                                const _GFXConsume* con)
+{
+	assert(con != NULL);
+	assert(con->out.prev != NULL);
+
+	_GFXContext* context = renderer->allocator.context;
+	const _GFXConsume* prev = con->out.prev;
+	const _GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, con->view.index);
+
+	GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
+		// Pick empty format for windows, which results in non-depth/stencil
+		// access flags and pipeline stages, which is what we want :)
+		at->image.base.format : GFX_FORMAT_EMPTY;
+
+	// If no memory hazard, just inject an execution barrier...
+	const bool srcWrites = GFX_ACCESS_WRITES(prev->mask);
+	const bool transition = prev->out.final != con->out.initial;
+
+	if (!srcWrites && !transition)
+	{
+		context->vk.CmdPipelineBarrier(frame->vk.cmd,
+			_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt),
+			_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt),
+			0, 0, NULL, 0, NULL, 0, NULL);
+
+		// ... and be done with it.
+		return;
+	}
+
+	// Otherwise, inject full memory barrier.
+	// To do this, get us the Vulkan image handle first...
+	VkImage image;
+
+	if (at->type == _GFX_ATTACH_IMAGE)
+		image = at->image.vk.image;
+	else
+	{
+		// TODO: Generalize this (see _gfx_pass_framebuffer)?
+		// ... which is annoying for windows.
+		// Query the sync object associated with this attachment index.
+		if (frame->refs.size <= con->view.index)
+			return;
+
+		// When the index is valid, it MUST be a window (otherwise this
+		// consumption would not have been flagged for a dependency).
+		// Meaning it MUST have a synchronization object!
+		const _GFXFrameSync* sync = gfx_vec_at(
+			&frame->syncs,
+			*(size_t*)gfx_vec_at(&frame->refs, con->view.index));
+
+		// Validate & set.
+		if (at->window.window->frame.images.size <= sync->image)
+			return;
+
+		image = *(VkImage*)gfx_vec_at(
+			&at->window.window->frame.images, sync->image);
+	}
+
+	VkImageMemoryBarrier imb = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+		.pNext               = NULL,
+		.srcAccessMask       = _GFX_GET_VK_ACCESS_FLAGS(prev->mask, fmt),
+		.dstAccessMask       = _GFX_GET_VK_ACCESS_FLAGS(con->mask, fmt),
+		.oldLayout           = prev->out.final,
+		.newLayout           = con->out.initial,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image               = image,
+
+		// TODO: Not merge ranges? (check overlap while analyzing the graph?)
+		// We deal with two ranges from both consumptions,
+		// for now we assume they overlap and merge the ranges.
+		.subresourceRange = {
+			.aspectMask =
+				_GFX_GET_VK_IMAGE_ASPECT(prev->view.range.aspect) |
+				_GFX_GET_VK_IMAGE_ASPECT(con->view.range.aspect),
+			.baseMipLevel =
+				GFX_MIN(prev->view.range.mipmap, con->view.range.mipmap),
+			.baseArrayLayer =
+				GFX_MIN(prev->view.range.layer, con->view.range.layer),
+		}
+	};
+
+	// Compute `levelCount` and `layerCount`.
+	imb.subresourceRange.levelCount =
+		(prev->view.range.numMipmaps == 0 || con->view.range.numMipmaps == 0) ?
+		VK_REMAINING_MIP_LEVELS : GFX_MAX(
+			prev->view.range.numMipmaps +
+			(prev->view.range.mipmap - imb.subresourceRange.baseMipLevel),
+			con->view.range.numMipmaps +
+			(con->view.range.mipmap - imb.subresourceRange.baseMipLevel));
+
+	imb.subresourceRange.layerCount =
+		(prev->view.range.numLayers == 0 || con->view.range.numLayers == 0) ?
+		VK_REMAINING_ARRAY_LAYERS : GFX_MAX(
+			prev->view.range.numLayers +
+			(prev->view.range.layer - imb.subresourceRange.baseArrayLayer),
+			con->view.range.numLayers +
+			(con->view.range.layer - imb.subresourceRange.baseArrayLayer));
+
+	context->vk.CmdPipelineBarrier(frame->vk.cmd,
+		_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt),
+		_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt),
+		0, 0, NULL, 0, NULL,
+		1, &imb);
+}
+
+/****************************
  * Recreates swapchain-dependent resources associated with a window.
  * @param synced Input AND Output of whether we already synchronized all frames.
  * @return Zero on failure.
@@ -426,18 +540,25 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// Record all passes.
 	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
 	{
-		// Check if it is built.
-		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
-		if (pass->build.pass == NULL)
-			continue;
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 
 		// TODO: If a pass is the last, record master and all next passes
 		// and handle the whole VK subpass structure like that.
 		// Note: this means a subpass chain cannot have passes in it,
 		// except for the last, that are a child pass of another.
 
-		// TODO: Somehow inject barriers for all the dependencies as
-		// defined in the consumptions of a pass, as analyzed by the graph.
+		// Regardless of whether we actually record, inject barriers.
+		for (size_t c = 0; c < pass->consumes.size; ++c)
+		{
+			const _GFXConsume* con = gfx_vec_at(&pass->consumes, c);
+			if (con->out.prev != NULL)
+				_gfx_inject_barrier(renderer, frame, con);
+		}
+
+		// Check if it is built.
+		if (pass->build.pass == NULL)
+			continue;
 
 		// Check for the presence of a framebuffer.
 		VkFramebuffer framebuffer = _gfx_pass_framebuffer(pass, frame);
