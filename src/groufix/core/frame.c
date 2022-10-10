@@ -88,6 +88,13 @@ static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
 			&at->window.window->frame.images, sync->image);
 	}
 
+	// ... and resolve whole aspect from the format.
+	const GFXImageAspect aspect =
+		GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
+			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
+			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
+			GFX_IMAGE_COLOR;
+
 	VkImageMemoryBarrier imb = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 
@@ -105,8 +112,9 @@ static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
 		// for now we assume they overlap and merge the ranges.
 		.subresourceRange = {
 			.aspectMask =
-				_GFX_GET_VK_IMAGE_ASPECT(prev->view.range.aspect) |
-				_GFX_GET_VK_IMAGE_ASPECT(con->view.range.aspect),
+				// Fix aspect, cause we're nice :)
+				(_GFX_GET_VK_IMAGE_ASPECT(prev->view.range.aspect) |
+				_GFX_GET_VK_IMAGE_ASPECT(con->view.range.aspect)) & aspect,
 			.baseMipLevel =
 				GFX_MIN(prev->view.range.mipmap, con->view.range.mipmap),
 			.baseArrayLayer =
@@ -114,7 +122,7 @@ static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
 		}
 	};
 
-	// Compute `levelCount` and `layerCount`.
+	// ... compute `levelCount` and `layerCount`.
 	imb.subresourceRange.levelCount =
 		(prev->view.range.numMipmaps == 0 || con->view.range.numMipmaps == 0) ?
 		VK_REMAINING_MIP_LEVELS : GFX_MAX(

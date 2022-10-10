@@ -629,6 +629,7 @@ GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer,
  * Describes the properties of an image attachment of a renderer.
  * If the attachment already exists, it will be detached and overwritten.
  * @param renderer Cannot be NULL.
+ * @param index    Attachment index.
  * @return Zero on failure.
  *
  * The GFX_MEMORY_HOST_VISIBLE flag is ignored, images cannot be mapped!
@@ -641,6 +642,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
  * Attaches a window to an attachment index of a renderer.
  * If the attachment already exists, it will be detached and overwritten.
  * @param renderer Cannot be NULL.
+ * @param index    Attachment index.
  * @param window   Cannot be NULL.
  * @return Zero on failure.
  *
@@ -751,7 +753,7 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
  * Shader location is in add-order, calling with the same index twice
  * does _not_ change the shader location, should release first.
  * @param pass  Cannot be NULL.
- * @param index Attachment index to conusme.
+ * @param index Attachment index to consume.
  * @param mask  Access mask to consume the attachment with.
  * @param stage Shader stages with access to the attachment.
  * @return Zero on failure.

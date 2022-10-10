@@ -383,7 +383,9 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.pNext    = NULL,
 			.flags    = 0,
 			.topology = prim != NULL ?
-				_GFX_GET_VK_PRIMITIVE_TOPOLOGY(prim->base.topology) : 0,
+				_GFX_GET_VK_PRIMITIVE_TOPOLOGY(prim->base.topology) :
+				// TODO: Figure out a way to pass this without a primitive?
+				VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 
 			.primitiveRestartEnable = VK_FALSE
 		}},
