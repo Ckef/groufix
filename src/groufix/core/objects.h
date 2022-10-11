@@ -628,7 +628,6 @@ typedef struct _GFXImageAttach
 {
 	GFXAttachment base;
 	GFXList       backings; // References _GFXBacking.
-	uintmax_t     gen;      // Build generation (to update set entries).
 
 	// Resolved size.
 	uint32_t width;
@@ -665,6 +664,10 @@ typedef struct _GFXWindowAttach
  */
 typedef struct _GFXAttach
 {
+	// Build generation (to update set entries).
+	uintmax_t gen;
+
+
 	// Attachment type.
 	enum
 	{
