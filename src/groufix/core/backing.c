@@ -43,6 +43,18 @@ static inline bool _gfx_cmp_attachments(const GFXAttachment* l,
 }
 
 /****************************
+ * Increases the attachment 'generation'; invalidating any set entries
+ * that reference this attachment.
+ */
+static inline void _gfx_attach_gen(_GFXImageAttach* attach)
+{
+	if (++attach->gen == 0) gfx_log_warn(
+		"Attachment build generation reached maximum (%"PRIuMAX") and overflowed; "
+		"may cause old set entries to not reference the new attachment image.",
+		UINTMAX_MAX);
+}
+
+/****************************
  * Allocates a new backing image and links it into an attachment.
  * @param attach Must be an image attachment of non-zero size.
  * @return Non-zero on success.
@@ -416,6 +428,10 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 				attach->image.height = height;
 				attach->image.depth = depth;
 
+				// Increase generation; image may be used in set entries,
+				// ergo we need to invalidate those entries.
+				_gfx_attach_gen(&attach->image);
+
 				// TODO: In case this attachment was used in a dependency
 				// that reaches outside this renderer, this would be the
 				// place to calculate when the previously most recent image
@@ -617,14 +633,15 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 
 	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
 
+	// If it was already an image attachment, remember its generation.
+	// This way we keep counting and current references are properly updated.
+	const bool wasImg = (attach->type == _GFX_ATTACH_IMAGE);
+	const uintmax_t gen = wasImg ? attach->image.gen : 0;
+
 	// Check if the new attachment is equal to what is already stored.
 	// If so, nothing to do here.
-	if (
-		attach->type == _GFX_ATTACH_IMAGE &&
-		_gfx_cmp_attachments(&attachment, &attach->image.base))
-	{
+	if (wasImg && _gfx_cmp_attachments(&attachment, &attach->image.base))
 		return 1;
-	}
 
 	// Detach the current attachment.
 	_gfx_detach_attachment(renderer, index);
@@ -634,6 +651,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 		.type = _GFX_ATTACH_IMAGE,
 		.image = {
 			.base = attachment,
+			.gen = gen,
 			.width = 0,
 			.height = 0,
 			.depth = 0,
@@ -645,6 +663,9 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 	};
 
 	gfx_list_init(&attach->image.backings);
+
+	// Increase its generation if it was already an image attachment!
+	if (wasImg) _gfx_attach_gen(&attach->image);
 
 	// New attachment is not yet resolved.
 	renderer->backing.state = _GFX_BACKING_INVALID;
