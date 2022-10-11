@@ -66,7 +66,7 @@ typedef union _GFXSetKey
  * destruction when they are no longer used by any virtual frames.
  * NOT thread-safe with respect to the virtual frame deque!
  */
-static void _gfx_make_stale(GFXSet* set,
+static void _gfx_make_stale(GFXSet* set, bool lock,
                             VkImageView imageView, VkBufferView bufferView)
 {
 	// _gfx_push_stale expects at least one resource!
@@ -77,12 +77,12 @@ static void _gfx_make_stale(GFXSet* set,
 		// alike are always prefered to updating sets.
 		// So aggressive locking is fine.
 		GFXRenderer* renderer = set->renderer;
-		_gfx_mutex_lock(&renderer->lock);
+		if (lock) _gfx_mutex_lock(&renderer->lock);
 
 		_gfx_push_stale(renderer,
 			VK_NULL_HANDLE, imageView, bufferView, VK_NULL_HANDLE);
 
-		_gfx_mutex_unlock(&renderer->lock);
+		if (lock) _gfx_mutex_unlock(&renderer->lock);
 	}
 }
 
@@ -116,7 +116,7 @@ static void _gfx_set_update(GFXSet* set,
 		_GFXContext* context = set->renderer->allocator.context;
 
 		// Make the previous image view stale.
-		_gfx_make_stale(set, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+		_gfx_make_stale(set, 1, entry->vk.update.image.imageView, VK_NULL_HANDLE);
 		entry->vk.update.image.imageView = VK_NULL_HANDLE;
 		entry->vk.update.image.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -214,7 +214,7 @@ static void _gfx_set_update(GFXSet* set,
 		_GFXContext* context = set->renderer->allocator.context;
 
 		// Make the previous buffer view stale.
-		_gfx_make_stale(set, VK_NULL_HANDLE, entry->vk.update.view);
+		_gfx_make_stale(set, 1, VK_NULL_HANDLE, entry->vk.update.view);
 		entry->vk.update.view = VK_NULL_HANDLE;
 
 		// Create a new buffer view.
@@ -246,6 +246,152 @@ static void _gfx_set_update(GFXSet* set,
 				});
 
 			entry->vk.update.view = view;
+		}
+	}
+}
+
+/****************************
+ * Check if any Vulkan update info has become outdated because the referenced
+ * attachment got rebuilt, and overwrites the current groufix update info.
+ * @see _gfx_set_update, equivalent assumptions.
+ */
+static void _gfx_set_update_attachs(GFXSet* set)
+{
+	GFXRenderer* renderer = set->renderer;
+	_GFXContext* context = renderer->allocator.context;
+
+	// Super early exit!
+	if (set->numAttachs == 0)
+		return;
+
+	// Keep track of the number of attachments we encountered
+	// so we can early exit slightly further on.
+	size_t attachCount = 0;
+
+	// Loop over all descriptors and filter out the attachment images.
+	// We want to do as little work as possible here because this happens
+	// every time we bind a set to a recorder.
+	for (size_t b = 0; b < set->numBindings; ++b)
+	{
+		_GFXSetBinding* binding = &set->bindings[b];
+
+		if (!_GFX_DESCRIPTOR_IS_IMAGE(binding->type))
+			continue;
+
+		if (binding->entries == NULL)
+			continue;
+
+		for (size_t e = 0; e < binding->count; ++e)
+		{
+			// Early exit when all attachments are found!
+			if (attachCount >= set->numAttachs)
+				return;
+
+			// We check against the packed reference type,
+			// so we do not unnecessarily unpack.
+			_GFXSetEntry* entry = &binding->entries[e];
+			if (entry->ref.type != GFX_REF_ATTACHMENT)
+				continue;
+
+			// Ok we have an attachment descriptor.
+			++attachCount;
+
+			// Go check if we need to update.
+			_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
+			_GFXAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+
+			if (attach == NULL)
+				continue;
+
+			if (atomic_load(&entry->gen) == attach->gen)
+				continue;
+
+			// Ok at this point we have an attachment that is to be updated.
+			// So let's first create a new image view, before locking.
+			// TODO: Generalize this image view creating bit (see _gfx_update)?
+			const GFXFormat fmt =
+				attach->image.base.format;
+
+			const GFXViewType viewType =
+				// Only read the given view type if an attachment input!
+				binding->type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT ?
+					entry->viewType : binding->viewType;
+
+			const GFXImageAspect aspect =
+				GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
+					(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
+					(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
+					GFX_IMAGE_COLOR;
+
+			VkImageLayout layout =
+				// Guess the layout from the descriptor type.
+				// TODO: Make some input somewhere so we can force a general layout?
+				binding->type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ?
+					VK_IMAGE_LAYOUT_GENERAL :
+					GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
+						VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
+						VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			VkImageViewCreateInfo ivci = {
+				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+
+				.pNext    = NULL,
+				.flags    = 0,
+				.image    = attach->image.vk.image,
+				.viewType = _GFX_GET_VK_IMAGE_VIEW_TYPE(viewType),
+				.format   = attach->image.vk.format,
+
+				.components = {
+					.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+					.a = VK_COMPONENT_SWIZZLE_IDENTITY
+				},
+
+				.subresourceRange = {
+					// Fix aspect, cause we're nice :)
+					.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(entry->range.aspect & aspect),
+					.baseMipLevel   = entry->range.mipmap,
+					.baseArrayLayer = entry->range.layer,
+
+					.levelCount = entry->range.numMipmaps == 0 ?
+						VK_REMAINING_MIP_LEVELS : entry->range.numMipmaps,
+					.layerCount = entry->range.numLayers == 0 ?
+						VK_REMAINING_ARRAY_LAYERS : entry->range.numLayers
+				}
+			};
+
+			VkImageView view;
+			bool success = 1;
+
+			_GFX_VK_CHECK(
+				context->vk.CreateImageView(
+					context->vk.device, &ivci, NULL, &view),
+				{
+					gfx_log_error("Could not create attachment view for a set.");
+
+					view = VK_NULL_HANDLE;
+					layout = VK_IMAGE_LAYOUT_UNDEFINED;
+					success = 0;
+				});
+
+			// Immediately update the stored build generation!
+			atomic_store(&entry->gen, success ? attach->gen : 0);
+
+			// Ok we created a view, now we want to write it to the
+			// Vulkan update info of the set.
+			// Unfortunately multiple recorders could be recording with this
+			// set that all try to simultaneously update attachments...
+			// So we use the renderer's lock.
+			// This is why we use the atomic generation, to skip this lock!
+			_gfx_mutex_lock(&renderer->lock);
+
+			// Let's first make the previous image view stale.
+			_gfx_make_stale(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+			entry->vk.update.image.imageView = view;
+			entry->vk.update.image.imageLayout = layout;
+
+			_gfx_mutex_unlock(&renderer->lock);
 		}
 	}
 }
@@ -389,12 +535,14 @@ static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
 		}
 
 		// Update the `numAttachs` field of the set.
-		if (cur.obj.renderer != NULL) --set->numAttachs;
-		if (new.obj.renderer != NULL) ++set->numAttachs;
+		// Check the packed reference just like in _gfx_set_update_attachs.
+		if (entry->ref.type == GFX_REF_ATTACHMENT) --set->numAttachs;
+		if (res->ref.type == GFX_REF_ATTACHMENT) ++set->numAttachs;
 
 		// Set the new reference & update.
 		*changed = 1;
 		entry->ref = res->ref;
+		atomic_store_explicit(&entry->gen, 0, memory_order_relaxed);
 
 		if (update)
 			_gfx_set_update(set, binding, entry),
@@ -503,6 +651,7 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
 		*changed = 1;
 		entry->range = view->range;
 		entry->viewType = view->type;
+		atomic_store_explicit(&entry->gen, 0, memory_order_relaxed);
 
 		if (update)
 			_gfx_set_update(set, binding, entry),
@@ -732,7 +881,8 @@ _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
 	assert(set != NULL);
 	assert(sub != NULL);
 
-	// TODO: Update referenced renderer attachments!
+	// Update referenced renderer attachments!
+	_gfx_set_update_attachs(set);
 
 	// Create a set key.
 	_GFXSetKey key;
@@ -835,6 +985,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 			entry->viewType = GFX_VIEW_2D;
 			entry->sampler = NULL;
 			entry->vk.format = VK_FORMAT_UNDEFINED;
+			atomic_store_explicit(&entry->gen, 0, memory_order_relaxed);
 
 			// Set range, leave undefined if only a sampler.
 			if (_GFX_BINDING_IS_BUFFER(binding->type))
@@ -920,14 +1071,15 @@ GFX_API void gfx_erase_set(GFXSet* set)
 
 	GFXRenderer* renderer = set->renderer;
 
-	// Unlink itself from the renderer.
 	// Modifying the renderer, lock!
 	_gfx_mutex_lock(&renderer->lock);
+
+	// Unlink itself from the renderer.
 	gfx_list_erase(&renderer->sets, &set->list);
-	_gfx_mutex_unlock(&renderer->lock);
 
 	// We have to loop over all descriptors and
 	// make the image and buffer views stale.
+	// Keep the lock so _gfx_make_stale doesn't repeatedly re-acquire.
 	for (size_t b = 0; b < set->numBindings; ++b)
 	{
 		_GFXSetBinding* binding = &set->bindings[b];
@@ -935,11 +1087,13 @@ GFX_API void gfx_erase_set(GFXSet* set)
 		{
 			_GFXSetEntry* entry = &binding->entries[e];
 			if (_GFX_DESCRIPTOR_IS_IMAGE(binding->type))
-				_gfx_make_stale(set, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+				_gfx_make_stale(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
 			else if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
-				_gfx_make_stale(set, VK_NULL_HANDLE, entry->vk.update.view);
+				_gfx_make_stale(set, 0, VK_NULL_HANDLE, entry->vk.update.view);
 		}
 	}
+
+	_gfx_mutex_unlock(&renderer->lock);
 
 	// And recycle all matching descriptor sets,
 	// none of the resources may be referenced anymore!

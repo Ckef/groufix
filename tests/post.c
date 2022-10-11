@@ -162,8 +162,7 @@ TEST_DESCRIBE(post, t)
 	{
 		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
 		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
-		// TODO: This will trigger errors, see _gfx_set_get()!
-		//gfx_recorder_render(t->recorder, post, post_process, &ctx);
+		gfx_recorder_render(t->recorder, post, post_process, &ctx);
 		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
 		gfx_heap_purge(t->heap);

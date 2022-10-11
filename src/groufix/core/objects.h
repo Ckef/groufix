@@ -664,7 +664,7 @@ typedef struct _GFXWindowAttach
  */
 typedef struct _GFXAttach
 {
-	// Build generation (to update set entries).
+	// Build generation (to update set entries), never 0!
 	uintmax_t gen;
 
 
@@ -1016,7 +1016,8 @@ typedef struct _GFXSetEntry
 	GFXViewType    viewType; // For attachment inputs ONLY!.
 	_GFXCacheElem* sampler;  // May be NULL.
 
-	// TODO: Keep track of current attachment `generation` to limit updates?
+	// For attachment references.
+	atomic_uintmax_t gen;
 
 
 	// Vulkan fields.
@@ -1125,8 +1126,8 @@ typedef struct _GFXUnpackRef
 
 #define _GFX_UNPACK_REF_ATTACH(ref) \
 	((ref).obj.renderer == NULL ? NULL : \
-		&((_GFXAttach*)gfx_vec_at(&(ref).obj.renderer->backing.attachs, \
-			(ref).value))->image)
+		(_GFXAttach*)gfx_vec_at( \
+			&(ref).obj.renderer->backing.attachs, (ref).value))
 
 /**
  * Retrieves the memory flags associated with an unpacked reference.
@@ -1142,7 +1143,7 @@ typedef struct _GFXUnpackRef
 		(ref).obj.image != NULL ? \
 			(ref).obj.image->base.flags : \
 		(ref).obj.renderer != NULL ? \
-			_GFX_UNPACK_REF_ATTACH(ref)->base.flags : 0)
+			_GFX_UNPACK_REF_ATTACH(ref)->image.base.flags : 0)
 #endif
 
 

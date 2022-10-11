@@ -48,10 +48,17 @@ static inline bool _gfx_cmp_attachments(const GFXAttachment* l,
  */
 static inline void _gfx_attach_gen(_GFXAttach* attach)
 {
-	if (++attach->gen == 0) gfx_log_warn(
-		"Attachment build generation reached maximum (%"PRIuMAX") and overflowed; "
-		"may cause old set entries to not reference the new attachment image.",
-		UINTMAX_MAX);
+	if (++attach->gen == 0)
+	{
+		gfx_log_warn(
+			"Attachment build generation reached maximum (%"PRIuMAX") and "
+			"overflowed; may cause old set entries to not reference "
+			"the new attachment image.",
+			UINTMAX_MAX);
+
+		// Keep 0 reserved for 'uninitialized'-like uses.
+		attach->gen = 1;
+	}
 }
 
 /****************************
@@ -247,7 +254,7 @@ static _GFXAttach* _gfx_alloc_attachment(GFXRenderer* renderer, size_t index)
 	for (size_t i = 0; i < elems; ++i)
 	{
 		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index - i);
-		attach->gen = 0;
+		attach->gen = 1;
 		attach->type = _GFX_ATTACH_EMPTY;
 	}
 
@@ -431,10 +438,6 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 				attach->image.height = height;
 				attach->image.depth = depth;
 
-				// Increase generation; image may be used in set entries,
-				// ergo we need to invalidate those entries.
-				_gfx_attach_gen(attach);
-
 				// TODO: In case this attachment was used in a dependency
 				// that reaches outside this renderer, this would be the
 				// place to calculate when the previously most recent image
@@ -447,6 +450,10 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 				if (attach->image.backings.tail != NULL)
 					_gfx_free_backing(renderer, attach,
 						(_GFXBacking*)attach->image.backings.tail);
+
+				// Increase generation; image may be used in set entries,
+				// ergo we need to invalidate those entries.
+				_gfx_attach_gen(attach);
 			}
 
 			resolved[i] = 1;

@@ -78,16 +78,16 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 	// To calculate any region size when referencing an image,
 	// we need to get the type and format block size, width and height.
 	// We use GFX_FORMAT_EMPTY to indicate we're not dealing with an image.
-	_GFXImageAttach* attach =
+	_GFXAttach* attach =
 		_GFX_UNPACK_REF_ATTACH(*ref);
 
 	VkImageType type = _GFX_GET_VK_IMAGE_TYPE(
 		(ref->obj.image != NULL) ? ref->obj.image->base.type :
-		(ref->obj.renderer != NULL) ? attach->base.type : 0);
+		(ref->obj.renderer != NULL) ? attach->image.base.type : 0);
 
 	GFXFormat fmt =
 		(ref->obj.image != NULL) ? ref->obj.image->base.format :
-		(ref->obj.renderer != NULL) ? attach->base.format :
+		(ref->obj.renderer != NULL) ? attach->image.base.format :
 		GFX_FORMAT_EMPTY;
 
 	const uint32_t blockSize = GFX_FORMAT_BLOCK_SIZE(fmt) / CHAR_BIT; // In bytes.
@@ -621,7 +621,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	const _GFXUnpackRef* dst = (staging != NULL) ? &refs[0] : &refs[1];
 
 	// TODO: What if the attachment isn't built yet?
-	const _GFXImageAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
+	const _GFXAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
 		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
 
 	const VkBuffer srcBuffer =
@@ -636,12 +636,12 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	const VkImage srcImage =
 		(staging != NULL) ? VK_NULL_HANDLE :
 		(src->obj.image != NULL) ? src->obj.image->vk.image :
-		(src->obj.renderer != NULL) ? attach->vk.image :
+		(src->obj.renderer != NULL) ? attach->image.vk.image :
 		VK_NULL_HANDLE;
 
 	const VkImage dstImage =
 		(dst->obj.image != NULL) ? dst->obj.image->vk.image :
-		(dst->obj.renderer != NULL) ? attach->vk.image :
+		(dst->obj.renderer != NULL) ? attach->image.vk.image :
 		VK_NULL_HANDLE;
 
 	// Buffer -> buffer copy.
@@ -684,10 +684,10 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	else if (srcImage != VK_NULL_HANDLE && dstImage != VK_NULL_HANDLE)
 	{
 		const GFXFormat srcFormat = (src->obj.image != NULL) ?
-			src->obj.image->base.format : attach->base.format;
+			src->obj.image->base.format : attach->image.base.format;
 
 		const GFXFormat dstFormat = (dst->obj.image != NULL) ?
-			dst->obj.image->base.format : attach->base.format;
+			dst->obj.image->base.format : attach->image.base.format;
 
 		// Note that rev is only allowed to be non-zero when staging is set.
 		// Meaning if rev is set, image -> image copies cannot happen.

@@ -169,7 +169,7 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
 		// TODO: What if the attachment isn't built yet?
 		const GFXFormat fmt = (ref->obj.image != NULL) ?
 			ref->obj.image->base.format :
-			_GFX_UNPACK_REF_ATTACH(*ref)->base.format;
+			_GFX_UNPACK_REF_ATTACH(*ref)->image.base.format;
 
 		const GFXImageAspect aspect =
 			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
@@ -544,7 +544,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 			.image = (injection->inp.refs[r].obj.image != NULL) ?
 				injection->inp.refs[r].obj.image->vk.image :
-				_GFX_UNPACK_REF_ATTACH(injection->inp.refs[r])->vk.image,
+				_GFX_UNPACK_REF_ATTACH(injection->inp.refs[r])->image.vk.image,
 
 			.subresourceRange = {
 				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(range.aspect),
@@ -720,7 +720,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 
 			// Unpack VkBuffer & VkImage handles for locality.
 			// TODO: What if the attachment isn't built yet?
-			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(sync->ref);
+			_GFXAttach* attach = _GFX_UNPACK_REF_ATTACH(sync->ref);
 			GFXMemoryFlags mFlags = 0;
 			GFXFormat fmt = GFX_FORMAT_EMPTY;
 
@@ -736,9 +736,9 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				fmt            = sync->ref.obj.image->base.format;
 
 			else if (attach != NULL)
-				sync->vk.image = attach->vk.image,
-				mFlags         = attach->base.flags,
-				fmt            = attach->base.format;
+				sync->vk.image = attach->image.vk.image,
+				mFlags         = attach->image.base.flags,
+				fmt            = attach->image.base.format;
 
 			// Set all destination values.
 			sync->vk.dstAccess =
