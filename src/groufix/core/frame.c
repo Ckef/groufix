@@ -147,37 +147,6 @@ static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
 }
 
 /****************************
- * Recreates swapchain-dependent resources associated with a window.
- * @param synced Input AND Output of whether we already synchronized all frames.
- * @return Zero on failure.
- */
-static bool _gfx_frame_rebuild(GFXRenderer* renderer, _GFXWindow* window,
-                               _GFXRecreateFlags flags, bool* synced)
-{
-	if (flags & _GFX_RECREATE)
-	{
-		if (!*synced)
-		{
-			// First try to synchronize all frames.
-			if (!_gfx_sync_frames(renderer)) return 0;
-			*synced = 1;
-
-			// Then reset the pool, no attachments may be referenced!
-			// We could check for the resize flag, but instead we only do it
-			// once when syncing, when we can take the performance hit.
-			_gfx_pool_reset(&renderer->pool);
-		}
-
-		// Then rebuild & purge the swapchain stuff.
-		_gfx_render_backing_rebuild(renderer, flags);
-		_gfx_render_graph_rebuild(renderer, flags);
-		_gfx_swapchain_purge(window);
-	}
-
-	return 1;
-}
-
-/****************************
  * Frees and removes the last num sync objects.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
@@ -441,14 +410,14 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Now set all references to sync objects & init the objects themselves.
 	// This will definitely come across all sync objects again!
-	// In this upcoming loop we can acquire all the swapchain images and
-	// do all the rebuilding too!
+	// In this upcoming loop we can acquire all the swapchain images.
 	gfx_vec_release(&frame->refs);
 
 	if (!gfx_vec_push(&frame->refs, attachs->size, NULL))
 		goto error;
 
-	bool synced = 0; // Sadly we may have to sync all on rebuild.
+	// Remember all recreate flags.
+	_GFXRecreateFlags allFlags = 0;
 
 	for (size_t i = 0, s = 0; i < attachs->size; ++i)
 	{
@@ -477,11 +446,29 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 
 		// Also add in the flags from the previous submission,
 		// that could have postponed a rebuild to now.
-		flags |= at->window.flags;
+		allFlags |= flags | at->window.flags;
+	}
 
-		// TODO: Make it so we only rebuild once.
-		if (!_gfx_frame_rebuild(renderer, sync->window, flags, &synced))
+	// Recreate swapchain-dependent resources as per recreate flags.
+	if (allFlags & _GFX_RECREATE)
+	{
+		// First try to synchronize all frames.
+		if (!_gfx_sync_frames(renderer))
 			goto error;
+
+		// Then reset the pool, no attachments may be referenced!
+		// We check for the resize flag, as only then would a referenceable
+		// attachment be recreated.
+		if (allFlags & _GFX_RESIZE)
+			_gfx_pool_reset(&renderer->pool);
+
+		// Then rebuild & purge the swapchain stuff.
+		_gfx_render_backing_rebuild(renderer, allFlags);
+		_gfx_render_graph_rebuild(renderer, allFlags);
+
+		for (size_t s = 0; s < frame->syncs.size; ++s)
+			_gfx_swapchain_purge(
+				((_GFXFrameSync*)gfx_vec_at(&frame->syncs, s))->window);
 	}
 
 	// Ok so before actually recording stuff we need everything to be built.
@@ -718,10 +705,12 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		// it will rebuild them before acquisition.
 		for (size_t s = 0, p = 0; s < frame->syncs.size; ++s)
 		{
-			_GFXFrameSync* sync =
-				gfx_vec_at(&frame->syncs, s);
+			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
 			_GFXRecreateFlags fl =
 				(sync->image == UINT32_MAX) ? 0 : flags[p++];
+
+			// We don't really have to store them separately,
+			// but just in case, it doesn't cost us any memory.
 			((_GFXAttach*)gfx_vec_at(
 				attachs, sync->backing))->window.flags = fl;
 		}
