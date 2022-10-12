@@ -300,10 +300,10 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
 			_GFXAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
 
-			if (attach == NULL)
-				continue;
+			uintmax_t gen =
+				atomic_load_explicit(&entry->gen, memory_order_relaxed);
 
-			if (atomic_load(&entry->gen) == attach->gen)
+			if (attach == NULL || gen == attach->gen)
 				continue;
 
 			// Ok at this point we have an attachment that is to be updated.
@@ -376,7 +376,8 @@ static void _gfx_set_update_attachs(GFXSet* set)
 				});
 
 			// Immediately update the stored build generation!
-			atomic_store(&entry->gen, success ? attach->gen : 0);
+			gen = success ? attach->gen : 0;
+			atomic_store_explicit(&entry->gen, gen, memory_order_relaxed);
 
 			// Ok we created a view, now we want to write it to the
 			// Vulkan update info of the set.

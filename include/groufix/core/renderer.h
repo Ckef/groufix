@@ -359,6 +359,7 @@ typedef struct GFXRasterState
 	GFXRasterMode mode;
 	GFXFrontFace  front;
 	GFXCullMode   cull;
+	GFXTopology   topo; // Topology when no primitive is given.
 
 } GFXRasterState;
 

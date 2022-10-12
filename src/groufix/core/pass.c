@@ -84,7 +84,8 @@ static inline bool _gfx_cmp_raster(const GFXRasterState* l,
 	return
 		l->mode == r->mode &&
 		l->front == r->front &&
-		l->cull == r->cull;
+		l->cull == r->cull &&
+		l->topo == r->topo;
 }
 
 /****************************
@@ -354,7 +355,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	pass->state.raster = (GFXRasterState){
 		.mode = GFX_RASTER_FILL,
 		.front = GFX_FRONT_FACE_CW,
-		.cull = GFX_CULL_BACK
+		.cull = GFX_CULL_BACK,
+		.topo = GFX_TOPO_TRIANGLE_LIST
 	};
 
 	GFXBlendOpState blendOpState = {
