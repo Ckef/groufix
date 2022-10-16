@@ -382,9 +382,9 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 			.pNext    = NULL,
 			.flags    = 0,
-			.topology =
-				_GFX_GET_VK_PRIMITIVE_TOPOLOGY(
-					prim != NULL ? prim->base.topology : raster->topo),
+			.topology = prim != NULL ?
+				_GFX_GET_VK_PRIMITIVE_TOPOLOGY(prim->base.topology) :
+				_GFX_GET_VK_PRIMITIVE_TOPOLOGY(raster->topo),
 
 			.primitiveRestartEnable = VK_FALSE
 		}},

@@ -87,6 +87,84 @@ static void _gfx_make_stale(GFXSet* set, bool lock,
 }
 
 /****************************
+ * Creates a Vulkan image view for the given image & update info.
+ * Actual image and format are given instead of some reference.
+ * @param view   Output image view, VK_NULL_HANDLE on failure.
+ * @param layout Output image layout, VK_IMAGE_LAYOUT_UNDEFINED on failure.
+ * @return Zero on failure.
+ */
+static bool _gfx_make_view(_GFXContext* context,
+                           const _GFXSetBinding* binding,
+                           const _GFXSetEntry* entry,
+                           VkImage image, VkFormat vkFmt, const GFXFormat* fmt,
+                           VkImageView* view, VkImageLayout* layout)
+{
+	// Yeah go ahead and create an imag view...
+	const GFXViewType viewType =
+		// Only read the given view type if an attachment input!
+		binding->type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT ?
+			entry->viewType : binding->viewType;
+
+	const GFXImageAspect aspect =
+		GFX_FORMAT_HAS_DEPTH_OR_STENCIL(*fmt) ?
+			(GFX_FORMAT_HAS_DEPTH(*fmt) ? GFX_IMAGE_DEPTH : 0) |
+			(GFX_FORMAT_HAS_STENCIL(*fmt) ? GFX_IMAGE_STENCIL : 0) :
+			GFX_IMAGE_COLOR;
+
+	VkImageViewCreateInfo ivci = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+
+		.pNext    = NULL,
+		.flags    = 0,
+		.image    = image,
+		.viewType = _GFX_GET_VK_IMAGE_VIEW_TYPE(viewType),
+		.format   = vkFmt,
+
+		.components = {
+			.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.a = VK_COMPONENT_SWIZZLE_IDENTITY
+		},
+
+		.subresourceRange = {
+			// Fix aspect, cause we're nice :)
+			.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(entry->range.aspect & aspect),
+			.baseMipLevel   = entry->range.mipmap,
+			.baseArrayLayer = entry->range.layer,
+
+			.levelCount = entry->range.numMipmaps == 0 ?
+				VK_REMAINING_MIP_LEVELS : entry->range.numMipmaps,
+			.layerCount = entry->range.numLayers == 0 ?
+				VK_REMAINING_ARRAY_LAYERS : entry->range.numLayers
+		}
+	};
+
+	_GFX_VK_CHECK(
+		context->vk.CreateImageView(
+			context->vk.device, &ivci, NULL, view),
+		{
+			gfx_log_error("Could not create image view for a set.");
+			*view = VK_NULL_HANDLE;
+			*layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+			return 0;
+		});
+
+	// ... and output some appropriate layout.
+	*layout =
+		// Guess the layout from the descriptor type.
+		// TODO: Make some input somewhere so we can force a general layout?
+		binding->type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ?
+			VK_IMAGE_LAYOUT_GENERAL :
+			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(*fmt) ?
+				VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	return 1;
+}
+
+/****************************
  * Overwrites the Vulkan update info with the current groufix update info.
  * Assumes all relevant data is initialized and valid.
  * Will ignore valid empty values in the groufix update info.
@@ -126,69 +204,17 @@ static void _gfx_set_update(GFXSet* set,
 		_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
 		if (unp.obj.image != NULL)
 		{
-			const GFXFormat fmt =
-				unp.obj.image->base.format;
-
-			const GFXViewType viewType =
-				// Only read the given view type if an attachment input!
-				binding->type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT ?
-					entry->viewType : binding->viewType;
-
-			const GFXImageAspect aspect =
-				GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-					(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
-					(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
-					GFX_IMAGE_COLOR;
-
-			const VkImageLayout layout =
-				// Guess the layout from the descriptor type.
-				// TODO: Make some input somewhere so we can force a general layout?
-				binding->type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ?
-					VK_IMAGE_LAYOUT_GENERAL :
-					GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-						VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
-						VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-			VkImageViewCreateInfo ivci = {
-				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-
-				.pNext    = NULL,
-				.flags    = 0,
-				.image    = unp.obj.image->vk.image,
-				.viewType = _GFX_GET_VK_IMAGE_VIEW_TYPE(viewType),
-				.format   = unp.obj.image->vk.format,
-
-				.components = {
-					.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.a = VK_COMPONENT_SWIZZLE_IDENTITY
-				},
-
-				.subresourceRange = {
-					// Fix aspect, cause we're nice :)
-					.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(entry->range.aspect & aspect),
-					.baseMipLevel   = entry->range.mipmap,
-					.baseArrayLayer = entry->range.layer,
-
-					.levelCount = entry->range.numMipmaps == 0 ?
-						VK_REMAINING_MIP_LEVELS : entry->range.numMipmaps,
-					.layerCount = entry->range.numLayers == 0 ?
-						VK_REMAINING_ARRAY_LAYERS : entry->range.numLayers
-				}
-			};
-
 			VkImageView view;
-			_GFX_VK_CHECK(
-				context->vk.CreateImageView(
-					context->vk.device, &ivci, NULL, &view),
-				{
-					gfx_log_error("Could not create image view for a set.");
-					view = VK_NULL_HANDLE;
-				});
+			VkImageLayout layout;
 
-			entry->vk.update.image.imageView = view;
-			entry->vk.update.image.imageLayout = layout;
+			if (_gfx_make_view(context,
+				binding, entry,
+				unp.obj.image->vk.image, unp.obj.image->vk.format,
+				&unp.obj.image->base.format, &view, &layout))
+			{
+				entry->vk.update.image.imageView = view;
+				entry->vk.update.image.imageLayout = layout;
+			}
 		}
 	}
 
@@ -308,72 +334,13 @@ static void _gfx_set_update_attachs(GFXSet* set)
 
 			// Ok at this point we have an attachment that is to be updated.
 			// So let's first create a new image view, before locking.
-			// TODO: Generalize this image view creating bit (see _gfx_update)?
-			const GFXFormat fmt =
-				attach->image.base.format;
-
-			const GFXViewType viewType =
-				// Only read the given view type if an attachment input!
-				binding->type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT ?
-					entry->viewType : binding->viewType;
-
-			const GFXImageAspect aspect =
-				GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-					(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
-					(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
-					GFX_IMAGE_COLOR;
-
-			VkImageLayout layout =
-				// Guess the layout from the descriptor type.
-				// TODO: Make some input somewhere so we can force a general layout?
-				binding->type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ?
-					VK_IMAGE_LAYOUT_GENERAL :
-					GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-						VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
-						VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-			VkImageViewCreateInfo ivci = {
-				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-
-				.pNext    = NULL,
-				.flags    = 0,
-				.image    = attach->image.vk.image,
-				.viewType = _GFX_GET_VK_IMAGE_VIEW_TYPE(viewType),
-				.format   = attach->image.vk.format,
-
-				.components = {
-					.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.a = VK_COMPONENT_SWIZZLE_IDENTITY
-				},
-
-				.subresourceRange = {
-					// Fix aspect, cause we're nice :)
-					.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(entry->range.aspect & aspect),
-					.baseMipLevel   = entry->range.mipmap,
-					.baseArrayLayer = entry->range.layer,
-
-					.levelCount = entry->range.numMipmaps == 0 ?
-						VK_REMAINING_MIP_LEVELS : entry->range.numMipmaps,
-					.layerCount = entry->range.numLayers == 0 ?
-						VK_REMAINING_ARRAY_LAYERS : entry->range.numLayers
-				}
-			};
-
 			VkImageView view;
-			bool success = 1;
+			VkImageLayout layout;
 
-			_GFX_VK_CHECK(
-				context->vk.CreateImageView(
-					context->vk.device, &ivci, NULL, &view),
-				{
-					gfx_log_error("Could not create attachment view for a set.");
-
-					view = VK_NULL_HANDLE;
-					layout = VK_IMAGE_LAYOUT_UNDEFINED;
-					success = 0;
-				});
+			bool success = _gfx_make_view(context,
+				binding, entry,
+				attach->image.vk.image, attach->image.vk.format,
+				&attach->image.base.format, &view, &layout);
 
 			// Immediately update the stored build generation!
 			gen = success ? attach->gen : 0;
@@ -383,7 +350,7 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			// Vulkan update info of the set.
 			// Unfortunately multiple recorders could be recording with this
 			// set that all try to simultaneously update attachments...
-			// So we use the renderer's lock.
+			// So we need to use the renderer's lock.
 			// This is why we use the atomic generation, to skip this lock!
 			_gfx_mutex_lock(&renderer->lock);
 

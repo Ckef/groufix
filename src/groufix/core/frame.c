@@ -25,7 +25,7 @@
 
 
 /****************************
- * TODO: Make this take multiple consumptiosn and merge them?
+ * TODO: Make this take multiple consumptions and merge them?
  * Injects an execution/memory barrier, just as stored in a _GFXConsume object.
  * Assumes `con` and `con->out.prev` to be fully initialized.
  */

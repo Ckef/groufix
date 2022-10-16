@@ -933,8 +933,8 @@ GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique);
 /**
  * Sets specialization constant of the technique.
  * @param technique Cannot be NULL.
- * @param stage     Shader stages to set the specialization constant of.
  * @param id        ID of the specialization constant in SPIR-V.
+ * @param stage     Shader stages to set the specialization constant of.
  * @param size      Must be sizeof(value.(i32|u32|f)) of the correct data-type.
  * @return Zero if failed to set the constant in one or more shaders.
  *
