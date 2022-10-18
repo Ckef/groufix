@@ -1664,8 +1664,6 @@ void _gfx_destroy_pass(GFXPass* pass);
  * @param pass  Cannot be NULL.
  * @param frame Cannot be NULL.
  * @return VK_NULL_HANDLE if unknown.
- *
- * Not thread-safe with respect to frame's refs and syncs!
  */
 VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
 
