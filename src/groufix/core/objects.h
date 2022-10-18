@@ -1488,6 +1488,14 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
+ * Retrieves the swapchain image index associated with an attachment.
+ * @param frame Cannot be NULL.
+ * @param index Attachment index.
+ * @return The swapchain image index, or UINT32_MAX if none associated.
+ */
+uint32_t _gfx_frame_get_swapchain_index(GFXFrame* frame, size_t index);
+
+/**
  * Blocks until all pending submissions of a virtual frame are done
  * and subsequently resets all command pools.
  * @param renderer Cannot be NULL.

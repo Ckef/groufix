@@ -429,22 +429,14 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 	if (pass->vk.frames.size == 1)
 		return ((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, 0))->buffer;
 
-	// Query the sync object associated with this pass' swapchain backing.
-	// If no swapchain backing, `build.backing` will be SIZE_MAX.
-	// The sync object knows the swapchain image index!
-	if (frame->refs.size <= pass->build.backing)
-		return VK_NULL_HANDLE;
-
-	// If `build.backing` is a valid index, it MUST be a window.
-	// Meaning it MUST have a synchronization object!
-	const _GFXFrameSync* sync = gfx_vec_at(
-		&frame->syncs,
-		*(size_t*)gfx_vec_at(&frame->refs, pass->build.backing));
+	// Query the swapchain image index.
+	const uint32_t image =
+		_gfx_frame_get_swapchain_index(frame, pass->build.backing);
 
 	// Validate & return.
-	return pass->vk.frames.size <= sync->image ?
+	return pass->vk.frames.size <= image ?
 		VK_NULL_HANDLE :
-		((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, sync->image))->buffer;
+		((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, image))->buffer;
 }
 
 /****************************

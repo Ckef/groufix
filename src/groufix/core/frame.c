@@ -60,35 +60,26 @@ static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
 	}
 
 	// Otherwise, inject full memory barrier.
-	// To do this, get us the Vulkan image handle first...
+	// To do this, get us the Vulkan image handle first.
 	VkImage image;
 
 	if (at->type == _GFX_ATTACH_IMAGE)
 		image = at->image.vk.image;
 	else
 	{
-		// TODO: Generalize this (see _gfx_pass_framebuffer)?
-		// ... which is annoying for windows.
-		// Query the sync object associated with this attachment index.
-		if (frame->refs.size <= con->view.index)
-			return;
-
-		// When the index is valid, it MUST be a window (otherwise this
-		// consumption would not have been flagged for a dependency).
-		// Meaning it MUST have a synchronization object!
-		const _GFXFrameSync* sync = gfx_vec_at(
-			&frame->syncs,
-			*(size_t*)gfx_vec_at(&frame->refs, con->view.index));
+		// Query the swapchain image index.
+		const uint32_t imageInd =
+			_gfx_frame_get_swapchain_index(frame, con->view.index);
 
 		// Validate & set.
-		if (at->window.window->frame.images.size <= sync->image)
+		if (at->window.window->frame.images.size <= imageInd)
 			return;
 
 		image = *(VkImage*)gfx_vec_at(
-			&at->window.window->frame.images, sync->image);
+			&at->window.window->frame.images, imageInd);
 	}
 
-	// ... and resolve whole aspect from the format.
+	// And resolve whole aspect from the format.
 	const GFXImageAspect aspect =
 		GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
 			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
@@ -122,7 +113,7 @@ static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
 		}
 	};
 
-	// ... compute `levelCount` and `layerCount`.
+	// Compute `levelCount` and `layerCount`.
 	imb.subresourceRange.levelCount =
 		(prev->view.range.numMipmaps == 0 || con->view.range.numMipmaps == 0) ?
 		VK_REMAINING_MIP_LEVELS : GFX_MAX(
@@ -337,6 +328,23 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 	_gfx_free_syncs(renderer, frame, frame->syncs.size);
 	gfx_vec_clear(&frame->refs);
 	gfx_vec_clear(&frame->syncs);
+}
+
+/****************************/
+uint32_t _gfx_frame_get_swapchain_index(GFXFrame* frame, size_t index)
+{
+	assert(frame != NULL);
+
+	// Does the attachment exist?
+	if (frame->refs.size <= index) return UINT32_MAX;
+
+	// Does it have a sync object (i.e. is it a window)?
+	const size_t syncInd = *(size_t*)gfx_vec_at(&frame->refs, index);
+	if (frame->syncs.size <= syncInd) return UINT32_MAX;
+
+	// Return it's swapchain index.
+	const _GFXFrameSync* sync = gfx_vec_at(&frame->syncs, syncInd);
+	return sync->image;
 }
 
 /****************************/
