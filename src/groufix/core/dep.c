@@ -224,7 +224,7 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep,
 	// Default to no sharing.
 	*shared = NULL;
 
-	// If we need a semaphore, we need a sync object with:
+	// If we need a semaphore, we need a sync object with either:
 	// - A semaphore.
 	// - A destination family of which another sync object has a semaphore.
 	// The latter will need to be of the same injection,
@@ -846,9 +846,13 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 	return 1;
 }
 
-/****************************/
-void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
-                     _GFXInjection* injection)
+/****************************
+ * Stand-in function for _gfx_deps_abort and _gfx_deps_finish.
+ * Will also shrink the sync object deque down, reducing semaphores.
+ */
+static void _gfx_deps_finalize(size_t numInjs, const GFXInject* injs,
+                               bool success,
+                               _GFXInjection* injection)
 {
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
@@ -861,61 +865,22 @@ void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
 	injection->out.sigs = NULL;
 	injection->out.stages = NULL;
 
-	// For aborting we loop over all synchronization objects of each
-	// command's dependency object. If it contains objects claimed by the
-	// given injection metadata, revert its stage.
-	// We do not need to worry about undoing any commands, as the operation
-	// has failed and should not submit its command buffers :)
-	for (size_t i = 0; i < numInjs; ++i)
-	{
-		// We lock for each command individually.
-		_gfx_mutex_lock(&injs[i].dep->lock);
-
-		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
-		{
-			_GFXSync* sync = gfx_deque_at(&injs[i].dep->syncs, s);
-			if (sync->inj == injection)
-			{
-				sync->stage = (sync->stage == _GFX_SYNC_CATCH) ?
-					_GFX_SYNC_PENDING :
-					_GFX_SYNC_UNUSED;
-
-				sync->inj = NULL;
-			}
-		}
-
-		// TODO: Shrink dep, i.e. reduce number of sync objects.
-
-		_gfx_mutex_unlock(&injs[i].dep->lock);
-	}
-}
-
-/****************************/
-void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
-                      _GFXInjection* injection)
-{
-	assert(numInjs == 0 || injs != NULL);
-	assert(injection != NULL);
-
-	// Free the injection output (always free() to allow external reallocs!).
-	free(injection->out.waits);
-	free(injection->out.sigs);
-	free(injection->out.stages);
-	injection->out.waits = NULL;
-	injection->out.sigs = NULL;
-	injection->out.stages = NULL;
-
-	// To finish an injection, we loop over all synchronization objects of
+	// To finalize an injection, we loop over all synchronization objects of
 	// each command's dependency object. If it contains objects claimed by the
-	// given injection metadata, advance the stage.
+	// given injection metadata, revert/advance the stage.
+	// On abort, we do not need to worry about undoing any commands, as the
+	// operation has failed and should not submit its command buffers :)
 	for (size_t i = 0; i < numInjs; ++i)
 	{
-		// We lock for each command individually.
-		_gfx_mutex_lock(&injs[i].dep->lock);
+		GFXDependency* dep = injs[i].dep;
+		_GFXContext* context = dep->context;
 
-		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
+		// We lock for each command individually.
+		_gfx_mutex_lock(&dep->lock);
+
+		for (size_t s = 0; s < dep->syncs.size; ++s)
 		{
-			_GFXSync* sync = gfx_deque_at(&injs[i].dep->syncs, s);
+			_GFXSync* sync = gfx_deque_at(&dep->syncs, s);
 			if (sync->inj == injection)
 			{
 				// If the object was only prepared, it is now pending.
@@ -923,19 +888,89 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 				// advance it to used or unused.
 				// It only needs to be used if it has a semaphore,
 				// in which case we cannot reclaim this object yet...
-				sync->stage =
+				if (success) sync->stage =
 					(sync->stage == _GFX_SYNC_PREPARE) ?
 						_GFX_SYNC_PENDING :
 					(sync->flags & _GFX_SYNC_SEMAPHORE) ?
 						_GFX_SYNC_USED :
 						_GFX_SYNC_UNUSED;
 
+				// Unless we abort, in which case we simply revert.
+				else sync->stage =
+					(sync->stage == _GFX_SYNC_CATCH) ?
+						_GFX_SYNC_PENDING :
+						_GFX_SYNC_UNUSED;
+
 				sync->inj = NULL;
 			}
 		}
 
-		// TODO: Shrink dep, i.e. reduce number of sync objects.
+		// Ok now also, this is our chance to shrink the sync object deque!
+		// We strategically do this after all stages have been updated.
+		// First remove all unused non-semaphore sync objects.
+		// Remove all bubbles of unused sync objects, then chop off the end.
+		size_t move = 0;
+		for (size_t s = dep->sems; s < dep->syncs.size; ++s)
+		{
+			_GFXSync* sync = gfx_deque_at(&dep->syncs, s);
+			if (sync->stage == _GFX_SYNC_UNUSED)
+			{
+				++move;
+			}
+			else if (move > 0)
+			{
+				_GFXSync* dest = gfx_deque_at(&dep->syncs, s - move);
+				*dest = *sync;
+			}
+		}
 
-		_gfx_mutex_unlock(&injs[i].dep->lock);
+		if (move > 0) gfx_deque_pop(&dep->syncs, move);
+
+		// And now to the same for all sync objects with a semaphore.
+		// In the opposite direction.
+		move = 0;
+		for (size_t s = dep->sems; s > 0; --s)
+		{
+			_GFXSync* sync = gfx_deque_at(&dep->syncs, s - 1);
+			if (sync->stage == _GFX_SYNC_UNUSED)
+			{
+				// Here we actually destroy the to-be-overwritten semaphore!
+				context->vk.DestroySemaphore(
+					context->vk.device, sync->vk.signaled, NULL);
+
+				// Don't forget to decrease the semaphore count!
+				--dep->sems;
+
+				++move;
+			}
+			else if (move > 0)
+			{
+				_GFXSync* dest = gfx_deque_at(&dep->syncs, s + move - 1);
+				*dest = *sync;
+			}
+		}
+
+		if (move > 0) gfx_deque_pop_front(&dep->syncs, move);
+
+		// Unlock & done for this command.
+		_gfx_mutex_unlock(&dep->lock);
 	}
+}
+
+/****************************/
+void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
+                     _GFXInjection* injection)
+{
+	// Relies on stand-in function for asserts.
+
+	_gfx_deps_finalize(numInjs, injs, 0, injection);
+}
+
+/****************************/
+void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
+                      _GFXInjection* injection)
+{
+	// Relies on stand-in function for asserts.
+
+	_gfx_deps_finalize(numInjs, injs, 1, injection);
 }
