@@ -729,24 +729,35 @@ bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 	assert(frame < recorder->renderer->numFrames);
 
 	_GFXContext* context = recorder->context;
+	_GFXRecorderPool* pool = &recorder->pools[frame];
 
 	// Set new current index & clear output.
 	recorder->current = frame;
 	gfx_vec_release(&recorder->out.cmds);
 
+	// If the pool did not use some command buffers, free them.
+	if (pool->used < pool->vk.cmds.size)
+	{
+		uint32_t unused =
+			(uint32_t)(pool->vk.cmds.size - pool->used);
+
+		context->vk.FreeCommandBuffers(context->vk.device,
+			pool->vk.pool, unused, gfx_vec_at(&pool->vk.cmds, pool->used));
+
+		gfx_vec_pop(&pool->vk.cmds, (size_t)unused);
+	}
+
 	// Try to reset the command pool.
 	_GFX_VK_CHECK(
 		context->vk.ResetCommandPool(
-			context->vk.device, recorder->pools[frame].vk.pool, 0),
+			context->vk.device, pool->vk.pool, 0),
 		{
 			gfx_log_warn("Resetting of recorder failed.");
 			return 0;
 		});
 
-	// TODO: Maybe here or somewhere else; free buffers we're not using.
-
 	// No command buffers are in use anymore.
-	recorder->pools[frame].used = 0;
+	pool->used = 0;
 
 	return 1;
 }

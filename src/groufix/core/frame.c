@@ -342,7 +342,7 @@ uint32_t _gfx_frame_get_swapchain_index(GFXFrame* frame, size_t index)
 	const size_t syncInd = *(size_t*)gfx_vec_at(&frame->refs, index);
 	if (frame->syncs.size <= syncInd) return UINT32_MAX;
 
-	// Return it's swapchain index.
+	// Return its swapchain index.
 	const _GFXFrameSync* sync = gfx_vec_at(&frame->syncs, syncInd);
 	return sync->image;
 }
