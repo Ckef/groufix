@@ -11,41 +11,9 @@
 #include <stdlib.h>
 
 
+// Get pointer to a renderer from a pointer to its pFrame member.
 #define _GFX_RENDERER_FROM_PUBLIC_FRAME(frame) \
 	((GFXRenderer*)((char*)(frame) - offsetof(GFXRenderer, pFrame)))
-
-
-#define _GFX_GET_VK_FILTER(filter) \
-	(((filter) == GFX_FILTER_NEAREST) ? VK_FILTER_NEAREST : \
-	((filter) == GFX_FILTER_LINEAR) ? VK_FILTER_LINEAR : \
-	VK_FILTER_NEAREST)
-
-#define _GFX_GET_VK_MIPMAP_MODE(filter) \
-	(((filter) == GFX_FILTER_NEAREST) ? VK_SAMPLER_MIPMAP_MODE_NEAREST : \
-	((filter) == GFX_FILTER_LINEAR) ? VK_SAMPLER_MIPMAP_MODE_LINEAR : \
-	VK_SAMPLER_MIPMAP_MODE_NEAREST)
-
-#define _GFX_GET_VK_REDUCTION_MODE(mode) \
-	((mode) == GFX_FILTER_MODE_AVERAGE ? \
-		VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE : \
-	(mode) == GFX_FILTER_MODE_MIN ? \
-		VK_SAMPLER_REDUCTION_MODE_MIN : \
-	(mode) == GFX_FILTER_MODE_MAX ? \
-		VK_SAMPLER_REDUCTION_MODE_MAX : \
-		VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE)
-
-#define _GFX_GET_VK_ADDRESS_MODE(wrap) \
-	((wrap) == GFX_WRAP_REPEAT ? \
-		VK_SAMPLER_ADDRESS_MODE_REPEAT : \
-	(wrap) == GFX_WRAP_REPEAT_MIRROR ? \
-		VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT : \
-	(wrap) == GFX_WRAP_CLAMP_TO_EDGE ? \
-		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : \
-	(wrap) == GFX_WRAP_CLAMP_TO_EDGE_MIRROR ? \
-		VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE : \
-	(wrap) == GFX_WRAP_CLAMP_TO_BORDER ? \
-		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER : \
-		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
 
 
 /****************************
@@ -462,8 +430,8 @@ GFX_API void gfx_frame_start(GFXFrame* frame,
 	assert(frame != NULL);
 	assert(numDeps == 0 || deps != NULL);
 
-	// frame == &renderer->pFrame.
-	GFXRenderer* renderer = _GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
+	GFXRenderer* renderer =
+		_GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
 
 	// Skip if already started.
 	if (!renderer->recording)
@@ -497,8 +465,8 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 {
 	assert(frame != NULL);
 
-	// frame == &renderer->pFrame.
-	GFXRenderer* renderer = _GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
+	GFXRenderer* renderer =
+		_GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
 
 	// If not started yet, force start.
 	if (!renderer->recording) gfx_frame_start(frame, 0, NULL);
