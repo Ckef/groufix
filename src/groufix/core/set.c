@@ -309,10 +309,6 @@ static void _gfx_set_update_attachs(GFXSet* set)
 
 		for (size_t e = 0; e < binding->count; ++e)
 		{
-			// Early exit when all attachments are found!
-			if (attachCount >= set->numAttachs)
-				return;
-
 			// We check against the packed reference type,
 			// so we do not unnecessarily unpack.
 			_GFXSetEntry* entry = &binding->entries[e];
@@ -330,7 +326,7 @@ static void _gfx_set_update_attachs(GFXSet* set)
 				atomic_load_explicit(&entry->gen, memory_order_relaxed);
 
 			if (attach == NULL || gen == attach->gen)
-				continue;
+				goto next;
 
 			// Ok at this point we have an attachment that is to be updated.
 			// So let's first create a new image view, before locking.
@@ -342,24 +338,37 @@ static void _gfx_set_update_attachs(GFXSet* set)
 				attach->image.vk.image, attach->image.vk.format,
 				&attach->image.base.format, &view, &layout);
 
-			// Immediately update the stored build generation!
-			gen = success ? attach->gen : 0;
-			atomic_store_explicit(&entry->gen, gen, memory_order_relaxed);
-
 			// Ok we created a view, now we want to write it to the
 			// Vulkan update info of the set.
 			// Unfortunately multiple recorders could be recording with this
 			// set that all try to simultaneously update attachments...
 			// So we need to use the renderer's lock.
-			// This is why we use the atomic generation, to skip this lock!
+			// This is why we use the atomic generation, to skip this lock.
+			// Unfortunately we want the info and generation update to be
+			// one atomic operation, so we need to lock before updating gen.
 			_gfx_mutex_lock(&renderer->lock);
+
+			// Immediately update the stored build generation!
+			gen = success ? attach->gen : 0;
+			atomic_store_explicit(&entry->gen, gen, memory_order_relaxed);
 
 			// Let's first make the previous image view stale.
 			_gfx_make_stale(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
-			entry->vk.update.image.imageView = view;
-			entry->vk.update.image.imageLayout = layout;
+			entry->vk.update.image.imageView = VK_NULL_HANDLE;
+			entry->vk.update.image.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+			if (success)
+			{
+				entry->vk.update.image.imageView = view;
+				entry->vk.update.image.imageLayout = layout;
+			}
 
 			_gfx_mutex_unlock(&renderer->lock);
+
+			// Early exit when all attachments are found!
+		next:
+			if (attachCount >= set->numAttachs)
+				return;
 		}
 	}
 }
