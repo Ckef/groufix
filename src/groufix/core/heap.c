@@ -572,12 +572,12 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 destroy_pool:
 	// Oh uh, just flush it first to make sure all is done.
 	// This will get rid of the `injection` and `deps` fields for us.
+	// Also, we don't lock, as we're in the destroy call!
 	_gfx_flush_transfer(heap, pool);
 
 	// Note we loop from front to back, in the same order we purge/recycle.
 	// We wait for each operation individually, to gradually release memory.
 	// Command buffers are implicitly freed by destroying the command pool.
-	// Also, we don't lock, as we're in the destroy call!
 	for (size_t t = 0; t < pool->transfers.size; ++t)
 	{
 		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, t);
@@ -666,6 +666,81 @@ flush:
 		pool = &heap->ops.transfer;
 		goto flush;
 	}
+
+	return success;
+}
+
+/****************************/
+GFX_API bool gfx_heap_block(GFXHeap* heap)
+{
+	assert(heap != NULL);
+
+	_GFXContext* context = heap->allocator.context;
+
+	// Ok so we are gonna gather ALL the fences and wait on them.
+	// Gonna access all transfer deques, lock all!
+	_gfx_mutex_lock(&heap->ops.graphics.lock);
+	_gfx_mutex_lock(&heap->ops.transfer.lock);
+
+	// Dynamically allocate some mem, no idea how many fences there are..
+	const size_t numFences =
+		heap->ops.graphics.transfers.size +
+		heap->ops.transfer.transfers.size;
+
+	if (numFences == 0)
+	{
+		_gfx_mutex_unlock(&heap->ops.graphics.lock);
+		_gfx_mutex_unlock(&heap->ops.transfer.lock);
+		return 1;
+	}
+
+	VkFence* fences = malloc(sizeof(VkFence) * numFences);
+	if (fences == NULL)
+	{
+		_gfx_mutex_unlock(&heap->ops.graphics.lock);
+		_gfx_mutex_unlock(&heap->ops.transfer.lock);
+		return 0;
+	}
+
+	// Gather all fences for all flushed transfers.
+	size_t gC, tC;
+	for (gC = 0; gC < heap->ops.graphics.transfers.size; ++gC)
+	{
+		_GFXTransfer* transfer = gfx_deque_at(&heap->ops.graphics.transfers, gC);
+		if (transfer->flushed) fences[gC] = transfer->vk.done;
+		else break;
+	}
+
+	for (tC = 0; tC < heap->ops.transfer.transfers.size; ++tC)
+	{
+		_GFXTransfer* transfer = gfx_deque_at(&heap->ops.transfer.transfers, tC);
+		if (transfer->flushed) fences[gC + tC] = transfer->vk.done;
+		else break;
+	}
+
+	// We've read all data, increase the block count of both pools and unlock.
+	// We want to unlock BEFORE blocking, so other operations can start.
+	atomic_fetch_add(&heap->ops.graphics.blocking, 1);
+	atomic_fetch_add(&heap->ops.transfer.blocking, 1);
+
+	_gfx_mutex_unlock(&heap->ops.graphics.lock);
+	_gfx_mutex_unlock(&heap->ops.transfer.lock);
+
+	// Wait for all the fences.
+	bool success = 1;
+
+	if (gC + tC > 0)
+		_GFX_VK_CHECK(
+			context->vk.WaitForFences(
+				context->vk.device, (uint32_t)(gC + tC), fences,
+				VK_TRUE, UINT64_MAX),
+			success = 0);
+
+	free(fences);
+
+	// No need to lock :)
+	atomic_fetch_sub(&heap->ops.graphics.blocking, 1);
+	atomic_fetch_sub(&heap->ops.transfer.blocking, 1);
 
 	return success;
 }

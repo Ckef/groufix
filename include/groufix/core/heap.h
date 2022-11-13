@@ -295,13 +295,23 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
 GFX_API bool gfx_heap_flush(GFXHeap* heap);
 
 /**
+ * Blocks until all operations that have been flushed to the device are done.
+ * Does NOT trigger a flush (unlike passing GFX_TRANSFER_BLOCK to an operation)!
+ * @param heap Cannot be NULL.
+ * @return Non-zero if successfully synchronized.
+ *
+ * Thread-safe with respect to heap!
+ */
+GFX_API bool gfx_heap_block(GFXHeap* heap);
+
+/**
  * Purges all resources of operations that have finished.
  * Will _NOT_ block for operations to be done!
  * @param heap Cannot be NULL.
  *
  * Thread-safe with respect to heap!
- * If any memory operation called with GFX_TRANSFER_BLOCK is
- * blocking the host, this call will resolve to a no-op.
+ * If either gfx_heap_block or any memory operation called with
+ * GFX_TRANSFER_BLOCK is blocking the host, this call will resolve to a no-op.
  */
 GFX_API void gfx_heap_purge(GFXHeap* heap);
 
@@ -475,6 +485,11 @@ GFX_BIT_FIELD(GFXTransferFlags)
  * flushed. One can flush the heap after operations using gfx_heap_flush.
  * Flushing is expensive, it is a good idea to batch operations.
  * @see gfx_heap_flush for details on dependency injection visibility.
+ *
+ * GFX_TRANSFER_BLOCK will only wait for operations that are flushed as a
+ * consequence of this call, any operation that was already flushed before
+ * this call is NOT necessarily guaranteed to be done when this call returns.
+ * @see gfx_heap_block to wait for all flushed operations.
  *
  * Undefined behaviour if size/width/height/depth of (src|dst)Regions do not match.
  *  One of a pair can have a size of zero and it will be ignored.

@@ -818,7 +818,6 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 		// Except from this point onwards our transfer has actually
 		// succeeded, so we cannot error.
 		// Just ignore failure then...
-		// TODO: Don't flush the other pool when passing GFX_TRANSFER_FLUSH?
 		_GFXTransferPool* other = (pool == &heap->ops.transfer) ?
 			&heap->ops.graphics : &heap->ops.transfer;
 
@@ -828,8 +827,8 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	}
 
 	// Manually unlock the lock left locked by _gfx_claim_transfer!
-	// Make sure to remember the fence in case we want to block AND
-	// increase the block count!
+	// Make sure to remember the fence in case we want to block,
+	// at which point we must also increase the block count!
 	// We want to unlock BEFORE blocking, so other operations can start.
 	VkFence done = transfer->vk.done;
 	if (flags & GFX_TRANSFER_BLOCK)
