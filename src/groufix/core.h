@@ -219,6 +219,9 @@ typedef struct _GFXContext
 
 		atomic_uint_fast32_t samplers;
 
+		// Allocated shaders.
+		atomic_uintptr_t shaders;
+
 	} limits;
 
 

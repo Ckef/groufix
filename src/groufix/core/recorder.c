@@ -95,20 +95,20 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	const void* handles[_GFX_NUM_SHADER_STAGES + 2];
 	uint32_t numShaders = 0;
 
-	// TODO: Use other handles so shaders can be destroyed?
 	// Set & validate hashing handles.
 	for (uint32_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
 		if (tech->shaders[s] != NULL)
+			// Shader pointers will be converted to handles down below.
 			handles[numShaders++] = tech->shaders[s];
 
-	handles[numShaders+0] = tech->layout;
-	handles[numShaders+1] = pass->build.pass;
-
-	if (handles[numShaders+0] == NULL || handles[numShaders+1] == NULL)
+	if (tech->layout == NULL || pass->build.pass == NULL)
 	{
 		gfx_log_warn("Invalid renderable; pipeline not built.");
 		return 0;
 	}
+
+	handles[numShaders+0] = tech->layout;
+	handles[numShaders+1] = pass->build.pass;
 
 	// Gather appropriate state data.
 	const GFXRasterState* raster =
@@ -279,6 +279,9 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.pSpecializationInfo =
 				(si[stage].mapEntryCount > 0) ? si + stage : NULL
 		};
+
+		// And convert shaders to handles in the handles array.
+		handles[s] = (void*)shader->handle;
 	}
 
 	// Build create info.
@@ -438,17 +441,18 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 	GFXRenderer* renderer = tech->renderer;
 	const void* handles[2];
 
-	// TODO: Use other shader handle so the shader can be destroyed?
 	// Set & validate hashing handles.
 	const uint32_t stage = _GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE);
-	handles[0] = tech->shaders[stage];
-	handles[1] = tech->layout;
+	const GFXShader* shader = tech->shaders[stage];
 
-	if (handles[0] == NULL || handles[1] == NULL)
+	if (shader == NULL || tech->layout == NULL)
 	{
 		gfx_log_warn("Invalid computable; pipeline not built.");
 		return 0;
 	}
+
+	handles[0] = (void*)shader->handle;
+	handles[1] = tech->layout;
 
 	// Build create info.
 	const size_t numConsts = tech->constants.size;
@@ -472,7 +476,7 @@ static bool _gfx_computable_pipeline(GFXComputable* computable,
 			.pNext  = NULL,
 			.flags  = 0,
 			.stage  = VK_SHADER_STAGE_COMPUTE_BIT,
-			.module = ((GFXShader*)handles[0])->vk.module,
+			.module = shader->vk.module,
 			.pName  = "main",
 
 			// Do not pass anything if no entries; for smaller hashes!

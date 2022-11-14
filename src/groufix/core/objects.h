@@ -427,6 +427,7 @@ struct GFXShader
 {
 	_GFXDevice*  device; // Associated GPU to use as target environment.
 	_GFXContext* context;
+	uintptr_t    handle;
 
 	GFXShaderStage stage;
 

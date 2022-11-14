@@ -659,6 +659,9 @@ static void _gfx_create_context(_GFXDevice* device)
 			goto error;
 		}
 
+		// Shader allocations.
+		atomic_store(&context->limits.shaders, 0);
+
 		// Insert itself in the context list.
 		gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
 		gfx_list_init(&context->sets);

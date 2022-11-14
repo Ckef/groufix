@@ -93,7 +93,7 @@ const static shaderc_include_result _gfx_shaderc_def_error = {
 /****************************
  * Callback for SPIRV-Cross errors.
  */
-void _gfx_spirv_cross_error(void* userData, const char* error)
+static void _gfx_spirv_cross_error(void* userData, const char* error)
 {
 	// Just log it as a groufix error.
 	gfx_log_error("SPIRV-Cross: %s", error);
@@ -102,8 +102,9 @@ void _gfx_spirv_cross_error(void* userData, const char* error)
 /****************************
  * Resolve callback for the shaderc includer.
  */
-shaderc_include_result* _gfx_shaderc_resolve(void* ptr, const char* req,
-                                             int type, const char* src, size_t depth)
+static shaderc_include_result* _gfx_shaderc_resolve(void* ptr, const char* req,
+                                                    int type, const char* src,
+                                                    size_t depth)
 {
 	const GFXIncluder* inc = ptr;
 
@@ -193,7 +194,7 @@ clean_name:
 /****************************
  * Release callback for the shaderc includer.
  */
-void _gfx_shaderc_release(void* ptr, shaderc_include_result* result)
+static void _gfx_shaderc_release(void* ptr, shaderc_include_result* result)
 {
 	// Nothing to do if it was the default error.
 	if (result != (shaderc_include_result*)&_gfx_shaderc_def_error)
@@ -634,6 +635,22 @@ clean_reflect:
 	return 0;
 }
 
+/****************************
+ * Generates a unique-ish 'ID' for the shader to use as hashable cache handles.
+ */
+static inline uintptr_t _gfx_shader_handle(_GFXContext* context)
+{
+	uintptr_t handle = atomic_fetch_add_explicit(
+		&context->limits.shaders, 1, memory_order_relaxed);
+
+	if (handle == UINTPTR_MAX) gfx_log_warn(
+		"Shader handle generation reached maximum (%"PRIuPTR") and "
+		"overflowed; may cause new shaders to be swapped with old shaders.",
+		UINTPTR_MAX);
+
+	return handle;
+}
+
 /****************************/
 GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 {
@@ -649,6 +666,7 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 	_GFX_GET_DEVICE(shader->device, device);
 	_GFX_GET_CONTEXT(shader->context, device, goto clean);
 
+	shader->handle = _gfx_shader_handle(shader->context);
 	shader->stage = stage;
 	shader->vk.module = VK_NULL_HANDLE;
 
