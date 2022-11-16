@@ -486,9 +486,10 @@ GFX_BIT_FIELD(GFXTransferFlags)
  * Flushing is expensive, it is a good idea to batch operations.
  * @see gfx_heap_flush for details on dependency injection visibility.
  *
- * GFX_TRANSFER_BLOCK will only wait for operations that are flushed as a
- * consequence of this call, any operation that was already flushed before
- * this call is NOT necessarily guaranteed to be done when this call returns.
+ * Both GFX_TRANSFER_FLUSH and GFX_TRANSFER_BLOCK operate on the least number
+ * of operations to at least cover this operation. Meaning it will never flush
+ * asynchronous operations when GFX_TRANSFER_ASYNC is not given, and vice versa.
+ * Secondly, it will not block for operations that were already flushed before.
  * @see gfx_heap_block to wait for all flushed operations.
  *
  * Undefined behaviour if size/width/height/depth of (src|dst)Regions do not match.

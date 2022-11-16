@@ -807,24 +807,11 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 		goto clean;
 	}
 
-	// We're done recording, if we want to flush or block, do so.
+	// We're done recording, if we want to flush (or block), do so.
 	if (flags & (GFX_TRANSFER_FLUSH | GFX_TRANSFER_BLOCK))
-	{
 		// If this fails, it will cleanup for us, so only unlock :)
 		if (!_gfx_flush_transfer(heap, pool))
 			goto unlock;
-
-		// We also want to flush the other pool.
-		// Except from this point onwards our transfer has actually
-		// succeeded, so we cannot error.
-		// Just ignore failure then...
-		_GFXTransferPool* other = (pool == &heap->ops.transfer) ?
-			&heap->ops.graphics : &heap->ops.transfer;
-
-		_gfx_mutex_lock(&other->lock);
-		_gfx_flush_transfer(heap, other);
-		_gfx_mutex_unlock(&other->lock);
-	}
 
 	// Manually unlock the lock left locked by _gfx_claim_transfer!
 	// Make sure to remember the fence in case we want to block,
