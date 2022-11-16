@@ -166,7 +166,6 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
 	else
 	{
 		// Resolve whole aspect from format.
-		// TODO: What if the attachment isn't built yet?
 		const GFXFormat fmt = (ref->obj.image != NULL) ?
 			ref->obj.image->base.format :
 			_GFX_UNPACK_REF_ATTACH(*ref)->image.base.format;
@@ -666,7 +665,39 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 
 		for (size_t r = 0; r < numRefs; ++r)
 		{
-			// First get us a synchronization object.
+			// First unpack VkBuffer & VkImage handles for locality.
+			// So we can check them before allocating things.
+			const _GFXAttach* attach = _GFX_UNPACK_REF_ATTACH(refs[r]);
+			VkBuffer buffer = VK_NULL_HANDLE;
+			VkImage image = VK_NULL_HANDLE;
+			GFXMemoryFlags mFlags = 0;
+			GFXFormat fmt = GFX_FORMAT_EMPTY;
+
+			if (refs[r].obj.buffer != NULL)
+				buffer = refs[r].obj.buffer->vk.buffer,
+				mFlags = refs[r].obj.buffer->base.flags;
+
+			else if (refs[r].obj.image != NULL)
+				image  = refs[r].obj.image->vk.image,
+				mFlags = refs[r].obj.image->base.flags,
+				fmt    = refs[r].obj.image->base.format;
+
+			else if (attach != NULL)
+				image  = attach->image.vk.image,
+				mFlags = attach->image.base.flags,
+				fmt    = attach->image.base.format;
+
+			// In case a renderer's attachment hasn't been built yet.
+			if (buffer == VK_NULL_HANDLE && image == VK_NULL_HANDLE)
+			{
+				gfx_log_warn(
+					"Attempted to inject a dependency for "
+					"a memory resource that was not yet allocated.");
+
+				continue;
+			}
+
+			// Now get us a synchronization object.
 			_GFXSync* shared;
 			_GFXSync* sync = _gfx_dep_claim(injs[i].dep,
 				// No need for a semaphore if the client blocks.
@@ -693,8 +724,19 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 						return 0;
 					});
 
+			// Now 'claim' the sync object & put it in the prepare stage.
+			sync->ref = refs[r];
+			sync->waits = injs[i].dep->waitCapacity; // Preemptively set.
+			sync->inj = injection;
+			sync->stage = _GFX_SYNC_PREPARE;
+			sync->flags &= _GFX_SYNC_SEMAPHORE; // Remove all other flags.
+
+			if (image != VK_NULL_HANDLE)
+				sync->vk.image = image;
+			else
+				sync->vk.buffer = buffer;
+
 			// Get unpacked metadata for the resource to signal.
-			GFXRange range;
 			VkAccessFlags flags;
 			VkImageLayout layout;
 			VkPipelineStageFlags stages;
@@ -708,37 +750,23 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				(injs[i].type == GFX_DEP_SIGNAL_RANGE) ? &injs[i].range : NULL,
 				(refs == &unp) ? _gfx_ref_size(injs[i].ref) : injection->inp.sizes[r],
 				mask,
-				&range, &flags, &layout, &stages);
+				&sync->range, &flags, &layout, &stages);
 
-			// Now 'claim' it & put it in the prepare stage.
-			sync->ref = refs[r];
-			sync->range = range;
-			sync->waits = injs[i].dep->waitCapacity; // Preemptively set.
-			sync->inj = injection;
-			sync->stage = _GFX_SYNC_PREPARE;
-			sync->flags &= _GFX_SYNC_SEMAPHORE; // Remove all other flags.
+			// TODO: Make special signal commands that give the source
+			// access/stage/layout if there are no operation references to
+			// get it from.
+			// TODO: Except for attachments, we need to know the last layout they
+			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
+			// Do we need final access/stage flags for attachments?
 
-			// Unpack VkBuffer & VkImage handles for locality.
-			// TODO: What if the attachment isn't built yet?
-			_GFXAttach* attach = _GFX_UNPACK_REF_ATTACH(sync->ref);
-			GFXMemoryFlags mFlags = 0;
-			GFXFormat fmt = GFX_FORMAT_EMPTY;
-
-			sync->vk.buffer = VK_NULL_HANDLE;
-
-			if (sync->ref.obj.buffer != NULL)
-				sync->vk.buffer = sync->ref.obj.buffer->vk.buffer,
-				mFlags          = sync->ref.obj.buffer->base.flags;
-
-			else if (sync->ref.obj.image != NULL)
-				sync->vk.image = sync->ref.obj.image->vk.image,
-				mFlags         = sync->ref.obj.image->base.flags,
-				fmt            = sync->ref.obj.image->base.format;
-
-			else if (attach != NULL)
-				sync->vk.image = attach->image.vk.image,
-				mFlags         = attach->image.base.flags,
-				fmt            = attach->image.base.format;
+			// Set all source operation values.
+			// Undefined layout if we want to discard,
+			// however if no layout transition, don't explicitly discard!
+			sync->vk.srcAccess = flags;
+			sync->vk.srcStage = stages;
+			sync->vk.oldLayout =
+				(discard && sync->vk.newLayout != layout) ?
+					VK_IMAGE_LAYOUT_UNDEFINED : layout;
 
 			// Set all destination values.
 			sync->vk.dstAccess =
@@ -756,23 +784,6 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				shared->vk.semStages |= sync->vk.dstStage;
 
 			sync->vk.semStages = sync->vk.dstStage;
-
-			// TODO: Make special signal commands that give the source
-			// access/stage/layout if there are no operation references to
-			// get it from.
-			// TODO: Except for attachments, we need to know the last layout they
-			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
-			// Do we need final access/stage flags for attachments?
-
-			// Set all source operation values.
-			// Undefined layout if we want to discard,
-			// however if no layout transition, don't explicitly discard!
-			sync->vk.srcAccess = flags;
-			sync->vk.srcStage = stages;
-
-			sync->vk.oldLayout =
-				(discard && sync->vk.newLayout != layout) ?
-				VK_IMAGE_LAYOUT_UNDEFINED : layout;
 
 			// Get families, explicitly ignore if we want to discard.
 			// Also, if the resource is concurrent instead of exclusive,

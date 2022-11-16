@@ -584,7 +584,47 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 
 	_GFXContext* context = heap->allocator.context;
 
-	// First get us transfer operation resources.
+	// First of all, get resources and metadata to copy.
+	// So we can check them before throwing away all previous operations.
+	// Note there can only be one single attachment,
+	// because there must be at least one heap involved!
+	const _GFXUnpackRef* src = (staging != NULL) ? NULL : &refs[0];
+	const _GFXUnpackRef* dst = (staging != NULL) ? &refs[0] : &refs[1];
+	const _GFXAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
+		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
+
+	const VkBuffer srcBuffer =
+		(staging != NULL) ? staging->vk.buffer :
+		(src->obj.buffer != NULL) ? src->obj.buffer->vk.buffer :
+		VK_NULL_HANDLE;
+
+	const VkBuffer dstBuffer =
+		(dst->obj.buffer != NULL) ? dst->obj.buffer->vk.buffer :
+		VK_NULL_HANDLE;
+
+	const VkImage srcImage =
+		(staging != NULL) ? VK_NULL_HANDLE :
+		(src->obj.image != NULL) ? src->obj.image->vk.image :
+		(src->obj.renderer != NULL) ? attach->image.vk.image :
+		VK_NULL_HANDLE;
+
+	const VkImage dstImage =
+		(dst->obj.image != NULL) ? dst->obj.image->vk.image :
+		(dst->obj.renderer != NULL) ? attach->image.vk.image :
+		VK_NULL_HANDLE;
+
+	// In case a renderer's attachment hasn't been built yet.
+	if ((srcBuffer == VK_NULL_HANDLE && srcImage == VK_NULL_HANDLE) ||
+		(dstBuffer == VK_NULL_HANDLE && dstImage == VK_NULL_HANDLE))
+	{
+		gfx_log_warn(
+			"Attempted to perform operation on a memory resource "
+			"that was not yet allocated.");
+
+		return 0;
+	}
+
+	// Now get us transfer operation resources.
 	// Note that this will lock `pool->lock` for us,
 	// we use this lock for recording as well!
 	// Pick transfer pool from the heap.
@@ -614,35 +654,6 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	// Ok now record the commands, we check all src/dst resource type
 	// combinations and perform the appropriate copy command.
 	// For each different copy command, we setup its regions accordingly.
-	// So, get resources and metadata to copy.
-	// Note that there can only be one single attachment,
-	// because there must be at least one heap involved!
-	const _GFXUnpackRef* src = (staging != NULL) ? NULL : &refs[0];
-	const _GFXUnpackRef* dst = (staging != NULL) ? &refs[0] : &refs[1];
-
-	// TODO: What if the attachment isn't built yet?
-	const _GFXAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
-		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
-
-	const VkBuffer srcBuffer =
-		(staging != NULL) ? staging->vk.buffer :
-		(src->obj.buffer != NULL) ? src->obj.buffer->vk.buffer :
-		VK_NULL_HANDLE;
-
-	const VkBuffer dstBuffer =
-		(dst->obj.buffer != NULL) ? dst->obj.buffer->vk.buffer :
-		VK_NULL_HANDLE;
-
-	const VkImage srcImage =
-		(staging != NULL) ? VK_NULL_HANDLE :
-		(src->obj.image != NULL) ? src->obj.image->vk.image :
-		(src->obj.renderer != NULL) ? attach->image.vk.image :
-		VK_NULL_HANDLE;
-
-	const VkImage dstImage =
-		(dst->obj.image != NULL) ? dst->obj.image->vk.image :
-		(dst->obj.renderer != NULL) ? attach->image.vk.image :
-		VK_NULL_HANDLE;
 
 	// Buffer -> buffer copy.
 	if (srcBuffer != VK_NULL_HANDLE && dstBuffer != VK_NULL_HANDLE)
