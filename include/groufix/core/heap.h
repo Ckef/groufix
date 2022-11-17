@@ -180,6 +180,10 @@ typedef struct GFXBinding
 } GFXBinding;
 
 
+/****************************
+ * Heap definition & allocatables.
+ ****************************/
+
 /**
  * Memory heap definition.
  */
