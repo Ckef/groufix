@@ -1068,6 +1068,18 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 GFX_API void gfx_erase_set(GFXSet* set);
 
 /**
+ * Retrieves the number of descriptor bindings of a set.
+ * @param set Cannot be NULL.
+ */
+GFX_API size_t gfx_set_get_num_bindings(GFXSet* set);
+
+/**
+ * Retrieves the number of total dynamic descriptors of all bindings.
+ * @param set Cannot be NULL.
+ */
+GFX_API size_t gfx_set_get_num_dynamics(GFXSet* set);
+
+/**
  * Sets descriptor binding resources of the set.
  * @param set          Cannot be NULL.
  * @param numResources Must be > 0.

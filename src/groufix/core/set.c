@@ -1080,6 +1080,22 @@ GFX_API void gfx_erase_set(GFXSet* set)
 }
 
 /****************************/
+GFX_API size_t gfx_set_get_num_bindings(GFXSet* set)
+{
+	assert(set != NULL);
+
+	return set->numBindings;
+}
+
+/****************************/
+GFX_API size_t gfx_set_get_num_dynamics(GFXSet* set)
+{
+	assert(set != NULL);
+
+	return set->numDynamics;
+}
+
+/****************************/
 GFX_API bool gfx_set_resources(GFXSet* set,
                                size_t numResources, const GFXSetResource* resources)
 {
