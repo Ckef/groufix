@@ -95,8 +95,7 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 				_GFX_GET_VK_IMAGE_LAYOUT(con->mask, at->image.base.format);
 
 			if (prev == NULL)
-				con->out.initial = (at->image.base.usage & GFX_IMAGE_LOAD) ?
-					layout : VK_IMAGE_LAYOUT_UNDEFINED;
+				con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 			else
 				// Keep final layout of the previous consumption,
 				// it is not the responsibility of the pass to transition!

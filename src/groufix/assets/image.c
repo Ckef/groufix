@@ -27,8 +27,7 @@
 	((feats & GFX_FORMAT_SAMPLED_IMAGE_MINMAX) || !(usage & GFX_IMAGE_SAMPLED_MINMAX)) && \
 	((feats & GFX_FORMAT_STORAGE_IMAGE) || !(usage & GFX_IMAGE_STORAGE)) && \
 	((feats & GFX_FORMAT_ATTACHMENT_BLEND) || !(usage & GFX_IMAGE_BLEND)) && \
-	((feats & GFX_FORMAT_ATTACHMENT) || \
-		!((GFX_IMAGE_INPUT | GFX_IMAGE_TRANSIENT | GFX_IMAGE_LOAD) & usage)))
+	((feats & GFX_FORMAT_ATTACHMENT) || !((GFX_IMAGE_INPUT | GFX_IMAGE_TRANSIENT) & usage)))
 
 
 /****************************
