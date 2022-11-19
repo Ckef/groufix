@@ -78,16 +78,16 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 	// To calculate any region size when referencing an image,
 	// we need to get the type and format block size, width and height.
 	// We use GFX_FORMAT_EMPTY to indicate we're not dealing with an image.
-	_GFXAttach* attach =
+	_GFXImageAttach* attach =
 		_GFX_UNPACK_REF_ATTACH(*ref);
 
 	VkImageType type = _GFX_GET_VK_IMAGE_TYPE(
 		(ref->obj.image != NULL) ? ref->obj.image->base.type :
-		(ref->obj.renderer != NULL) ? attach->image.base.type : 0);
+		(ref->obj.renderer != NULL) ? attach->base.type : 0);
 
 	GFXFormat fmt =
 		(ref->obj.image != NULL) ? ref->obj.image->base.format :
-		(ref->obj.renderer != NULL) ? attach->image.base.format :
+		(ref->obj.renderer != NULL) ? attach->base.format :
 		GFX_FORMAT_EMPTY;
 
 	const uint32_t blockSize = GFX_FORMAT_BLOCK_SIZE(fmt) / CHAR_BIT; // In bytes.
@@ -590,7 +590,8 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	// because there must be at least one heap involved!
 	const _GFXUnpackRef* src = (staging != NULL) ? NULL : &refs[0];
 	const _GFXUnpackRef* dst = (staging != NULL) ? &refs[0] : &refs[1];
-	const _GFXAttach* attach = (src != NULL && src->obj.renderer != NULL) ?
+	const _GFXImageAttach* attach =
+		(src != NULL && src->obj.renderer != NULL) ?
 		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
 
 	const VkBuffer srcBuffer =
@@ -605,12 +606,12 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	const VkImage srcImage =
 		(staging != NULL) ? VK_NULL_HANDLE :
 		(src->obj.image != NULL) ? src->obj.image->vk.image :
-		(src->obj.renderer != NULL) ? attach->image.vk.image :
+		(src->obj.renderer != NULL) ? attach->vk.image :
 		VK_NULL_HANDLE;
 
 	const VkImage dstImage =
 		(dst->obj.image != NULL) ? dst->obj.image->vk.image :
-		(dst->obj.renderer != NULL) ? attach->image.vk.image :
+		(dst->obj.renderer != NULL) ? attach->vk.image :
 		VK_NULL_HANDLE;
 
 	// In case a renderer's attachment hasn't been built yet.
@@ -695,10 +696,10 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	else if (srcImage != VK_NULL_HANDLE && dstImage != VK_NULL_HANDLE)
 	{
 		const GFXFormat srcFormat = (src->obj.image != NULL) ?
-			src->obj.image->base.format : attach->image.base.format;
+			src->obj.image->base.format : attach->base.format;
 
 		const GFXFormat dstFormat = (dst->obj.image != NULL) ?
-			dst->obj.image->base.format : attach->image.base.format;
+			dst->obj.image->base.format : attach->base.format;
 
 		// Note that rev is only allowed to be non-zero when staging is set.
 		// Meaning if rev is set, image -> image copies cannot happen.

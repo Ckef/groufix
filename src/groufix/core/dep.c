@@ -168,7 +168,7 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
 		// Resolve whole aspect from format.
 		const GFXFormat fmt = (ref->obj.image != NULL) ?
 			ref->obj.image->base.format :
-			_GFX_UNPACK_REF_ATTACH(*ref)->image.base.format;
+			_GFX_UNPACK_REF_ATTACH(*ref)->base.format;
 
 		const GFXImageAspect aspect =
 			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
@@ -543,7 +543,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 			.image = (injection->inp.refs[r].obj.image != NULL) ?
 				injection->inp.refs[r].obj.image->vk.image :
-				_GFX_UNPACK_REF_ATTACH(injection->inp.refs[r])->image.vk.image,
+				_GFX_UNPACK_REF_ATTACH(injection->inp.refs[r])->vk.image,
 
 			.subresourceRange = {
 				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(range.aspect),
@@ -667,7 +667,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 		{
 			// First unpack VkBuffer & VkImage handles for locality.
 			// So we can check them before allocating things.
-			const _GFXAttach* attach = _GFX_UNPACK_REF_ATTACH(refs[r]);
+			const _GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(refs[r]);
 			VkBuffer buffer = VK_NULL_HANDLE;
 			VkImage image = VK_NULL_HANDLE;
 			GFXMemoryFlags mFlags = 0;
@@ -683,9 +683,9 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				fmt    = refs[r].obj.image->base.format;
 
 			else if (attach != NULL)
-				image  = attach->image.vk.image,
-				mFlags = attach->image.base.flags,
-				fmt    = attach->image.base.format;
+				image  = attach->vk.image,
+				mFlags = attach->base.flags,
+				fmt    = attach->base.format;
 
 			// In case a renderer's attachment hasn't been built yet.
 			if (buffer == VK_NULL_HANDLE && image == VK_NULL_HANDLE)
@@ -759,15 +759,6 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
 			// Do we need final access/stage flags for attachments?
 
-			// Set all source operation values.
-			// Undefined layout if we want to discard,
-			// however if no layout transition, don't explicitly discard!
-			sync->vk.srcAccess = flags;
-			sync->vk.srcStage = stages;
-			sync->vk.oldLayout =
-				(discard && sync->vk.newLayout != layout) ?
-					VK_IMAGE_LAYOUT_UNDEFINED : layout;
-
 			// Set all destination values.
 			sync->vk.dstAccess =
 				_GFX_GET_VK_ACCESS_FLAGS(injs[i].mask, fmt);
@@ -784,6 +775,16 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				shared->vk.semStages |= sync->vk.dstStage;
 
 			sync->vk.semStages = sync->vk.dstStage;
+
+			// Set all source operation values.
+			// Undefined layout if we want to discard,
+			// however if no layout transition, don't explicitly discard!
+			sync->vk.srcAccess = flags;
+			sync->vk.srcStage = stages;
+			sync->vk.oldLayout =
+				// Note: We depend on the destination layout!
+				(discard && sync->vk.newLayout != layout) ?
+					VK_IMAGE_LAYOUT_UNDEFINED : layout;
 
 			// Get families, explicitly ignore if we want to discard.
 			// Also, if the resource is concurrent instead of exclusive,

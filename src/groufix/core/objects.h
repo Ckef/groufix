@@ -678,6 +678,13 @@ typedef struct _GFXGroup
  ****************************/
 
 /**
+ * Retrieve the build generation from a _GFXImageAttach pointer.
+ */
+#define _GFX_ATTACH_GEN(attach) \
+	(((_GFXAttach*)((char*)(attach) - offsetof(_GFXAttach, image)))->gen)
+
+
+/**
  * Attachment backing.
  */
 typedef struct _GFXBacking
@@ -739,7 +746,7 @@ typedef struct _GFXWindowAttach
  */
 typedef struct _GFXAttach
 {
-	// Build generation (to update set entries), never 0!
+	// Build generation (to update set entries), persistent, never 0!
 	uintmax_t gen;
 
 
@@ -1201,8 +1208,8 @@ typedef struct _GFXUnpackRef
 
 #define _GFX_UNPACK_REF_ATTACH(ref) \
 	((ref).obj.renderer == NULL ? NULL : \
-		(_GFXAttach*)gfx_vec_at( \
-			&(ref).obj.renderer->backing.attachs, (ref).value))
+		&((_GFXAttach*)gfx_vec_at( \
+			&(ref).obj.renderer->backing.attachs, (ref).value))->image)
 
 /**
  * Retrieves the memory flags associated with an unpacked reference.
@@ -1218,7 +1225,7 @@ typedef struct _GFXUnpackRef
 		(ref).obj.image != NULL ? \
 			(ref).obj.image->base.flags : \
 		(ref).obj.renderer != NULL ? \
-			_GFX_UNPACK_REF_ATTACH(ref)->image.base.flags : 0)
+			_GFX_UNPACK_REF_ATTACH(ref)->base.flags : 0)
 #endif
 
 

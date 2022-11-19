@@ -320,12 +320,12 @@ static void _gfx_set_update_attachs(GFXSet* set)
 
 			// Go check if we need to update.
 			_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
-			_GFXAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
 
 			uintmax_t gen =
 				atomic_load_explicit(&entry->gen, memory_order_relaxed);
 
-			if (attach == NULL || gen == attach->gen)
+			if (attach == NULL || gen == _GFX_ATTACH_GEN(attach))
 				goto next;
 
 			// Ok at this point we have an attachment that is to be updated.
@@ -335,8 +335,8 @@ static void _gfx_set_update_attachs(GFXSet* set)
 
 			bool success = _gfx_make_view(context,
 				binding, entry,
-				attach->image.vk.image, attach->image.vk.format,
-				&attach->image.base.format, &view, &layout);
+				attach->vk.image, attach->vk.format,
+				&attach->base.format, &view, &layout);
 
 			// Ok we created a view, now we want to write it to the
 			// Vulkan update info of the set.
@@ -349,7 +349,7 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			_gfx_mutex_lock(&renderer->lock);
 
 			// Immediately update the stored build generation!
-			gen = success ? attach->gen : 0;
+			gen = success ? _GFX_ATTACH_GEN(attach) : 0;
 			atomic_store_explicit(&entry->gen, gen, memory_order_relaxed);
 
 			// Let's first make the previous image view stale.
