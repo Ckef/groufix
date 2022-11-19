@@ -75,7 +75,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 	if (
 		renderable->pipeline != (uintptr_t)NULL &&
-		renderable->gen == renderable->pass->gen)
+		renderable->gen == _GFX_PASS_GEN(renderable->pass))
 	{
 		if (!warmup) *elem = (void*)renderable->pipeline;
 		_gfx_renderable_unlock(renderable);
@@ -402,7 +402,7 @@ static bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		_gfx_renderable_lock(renderable);
 
 		renderable->pipeline = (uintptr_t)(void*)*elem;
-		renderable->gen = pass->gen;
+		renderable->gen = _GFX_PASS_GEN(pass);
 
 		_gfx_renderable_unlock(renderable);
 

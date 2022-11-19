@@ -678,10 +678,13 @@ typedef struct _GFXGroup
  ****************************/
 
 /**
- * Retrieve the build generation from a _GFXImageAttach pointer.
+ * Retrieve the build generation from a _GFXImageAttach or GFXPass pointer.
  */
 #define _GFX_ATTACH_GEN(attach) \
 	(((_GFXAttach*)((char*)(attach) - offsetof(_GFXAttach, image)))->gen)
+
+#define _GFX_PASS_GEN(pass) \
+	(((GFXPass*)(pass))->gen)
 
 
 /**
