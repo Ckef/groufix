@@ -221,7 +221,7 @@ TEST_DESCRIBE(loading, t)
 		(GFXAttachment){
 			.type  = GFX_IMAGE_2D,
 			.flags = GFX_MEMORY_NONE,
-			.usage = GFX_IMAGE_TRANSIENT,
+			.usage = GFX_IMAGE_TEST | GFX_IMAGE_TRANSIENT,
 
 			.format  = GFX_FORMAT_D16_UNORM,
 			.mipmaps = 1,

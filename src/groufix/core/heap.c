@@ -239,8 +239,8 @@ static bool _gfx_image_alloc(_GFXImage* image)
 		(image->base.type == GFX_IMAGE_CUBE) ?
 			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
 
-	VkImageUsageFlags usage =
-		_GFX_GET_VK_IMAGE_USAGE(image->base.flags, image->base.usage);
+	VkImageUsageFlags usage = _GFX_GET_VK_IMAGE_USAGE(
+		image->base.flags, image->base.usage, image->base.format);
 
 	VkImageCreateInfo ici = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -896,14 +896,17 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 
 	// Ignore the host-visibility flag & the attachment usages.
 	flags &= ~(GFXMemoryFlags)GFX_MEMORY_HOST_VISIBLE;
-	usage &= ~(GFXImageUsage)(GFX_IMAGE_INPUT | GFX_IMAGE_BLEND | GFX_IMAGE_TRANSIENT);
+	usage &= ~(GFXImageUsage)(
+		GFX_IMAGE_INPUT | GFX_IMAGE_OUTPUT |
+		GFX_IMAGE_BLEND | GFX_IMAGE_TRANSIENT);
 
 	// Firstly, resolve the given format.
 	VkFormat vkFmt;
 	_GFX_RESOLVE_FORMAT(format, vkFmt, heap->device,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
-			.optimalTilingFeatures = _GFX_GET_VK_FORMAT_FEATURES(flags, usage),
+			.optimalTilingFeatures =
+				_GFX_GET_VK_FORMAT_FEATURES(flags, usage, format),
 			.bufferFeatures = 0
 		}), {
 			gfx_log_error("Image format does not support memory flags or image usage.");

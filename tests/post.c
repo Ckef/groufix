@@ -85,7 +85,7 @@ TEST_DESCRIBE(post, t)
 		(GFXAttachment){
 			.type  = GFX_IMAGE_2D,
 			.flags = GFX_MEMORY_NONE,
-			.usage = GFX_IMAGE_INPUT,
+			.usage = GFX_IMAGE_OUTPUT | GFX_IMAGE_INPUT,
 
 			.format  = GFX_FORMAT_B8G8R8A8_SRGB,
 			.mipmaps = 1,

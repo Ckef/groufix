@@ -103,8 +103,10 @@ typedef enum GFXImageUsage
 
 	// For attachments only.
 	GFX_IMAGE_INPUT     = 0x0010,
-	GFX_IMAGE_BLEND     = 0x0020,
-	GFX_IMAGE_TRANSIENT = 0x0040 // May NOT combine with non-attachment usages.
+	GFX_IMAGE_OUTPUT    = 0x0020,
+	GFX_IMAGE_TEST      = 0x0020, // Equivalent to output (depth/stencil testing).
+	GFX_IMAGE_BLEND     = 0x0040,
+	GFX_IMAGE_TRANSIENT = 0x0080  // May NOT combine with non-attachment usages.
 
 } GFXImageUsage;
 

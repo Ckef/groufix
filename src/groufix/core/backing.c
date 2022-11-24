@@ -80,10 +80,9 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 	// Attachments are special, so we add some convenience errors.
 	VkImageUsageFlags usage =
 		_GFX_GET_VK_IMAGE_USAGE(
-			attach->image.base.flags, attach->image.base.usage) |
-		(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(attach->image.base.format) ?
-			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT :
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+			attach->image.base.flags,
+			attach->image.base.usage,
+			attach->image.base.format);
 
 	if ((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) &&
 		(usage & (VkImageUsageFlags)~(
@@ -629,11 +628,8 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 	_GFX_RESOLVE_FORMAT(attachment.format, vkFmt, renderer->device,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
-			.optimalTilingFeatures =
-				_GFX_GET_VK_FORMAT_FEATURES(attachment.flags, attachment.usage) |
-				(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(attachment.format) ?
-					VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT :
-					VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT),
+			.optimalTilingFeatures = _GFX_GET_VK_FORMAT_FEATURES(
+				attachment.flags, attachment.usage, attachment.format),
 			.bufferFeatures = 0
 		}), {
 			gfx_log_error("Renderer attachment format is not supported.");

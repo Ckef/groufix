@@ -202,7 +202,6 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 		.op = GFX_BLEND_NO_OP
 	};
 
-	con->pass = pass;
 	con->cleared = 0;
 	con->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
 	con->color = blendOpState;
@@ -678,7 +677,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 			const VkAttachmentReference ref = (VkAttachmentReference){
 				.attachment = (uint32_t)numAttachs,
-				.layout = con->out.final
+				.layout = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
 			};
 
 			// Reference the attachment if appropriate.

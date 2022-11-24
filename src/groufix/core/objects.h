@@ -63,7 +63,7 @@
 	((aspect) & GFX_IMAGE_STENCIL ? \
 		VK_IMAGE_ASPECT_STENCIL_BIT : (VkImageAspectFlags)0))
 
-#define _GFX_GET_VK_IMAGE_USAGE(flags, usage) \
+#define _GFX_GET_VK_IMAGE_USAGE(flags, usage, fmt) \
 	(((flags) & GFX_MEMORY_READ ? \
 		VK_IMAGE_USAGE_TRANSFER_SRC_BIT : (VkImageUsageFlags)0) | \
 	((flags) & GFX_MEMORY_WRITE ? \
@@ -78,10 +78,14 @@
 		VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlags)0) | \
 	((usage) & GFX_IMAGE_INPUT ? \
 		VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT : (VkImageUsageFlags)0) | \
+	((usage) & GFX_IMAGE_OUTPUT ? \
+		(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ? \
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : \
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) : (VkImageUsageFlags)0) | \
 	((usage) & GFX_IMAGE_TRANSIENT ? \
 		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : (VkImageUsageFlags)0))
 
-#define _GFX_GET_VK_FORMAT_FEATURES(flags, usage) \
+#define _GFX_GET_VK_FORMAT_FEATURES(flags, usage, fmt) \
 	(((flags) & GFX_MEMORY_READ ? \
 		VK_FORMAT_FEATURE_TRANSFER_SRC_BIT : (VkFormatFeatureFlags)0) | \
 	((flags) & GFX_MEMORY_WRITE ? \
@@ -94,6 +98,10 @@
 		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT : (VkFormatFeatureFlags)0) | \
 	((usage) & GFX_IMAGE_STORAGE ? \
 		VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT : (VkFormatFeatureFlags)0) | \
+	((usage) & (GFX_IMAGE_INPUT | GFX_IMAGE_OUTPUT) ? \
+		(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ? \
+			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT : \
+			VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) : (VkFormatFeatureFlags)0) | \
 	((usage) & GFX_IMAGE_BLEND ? \
 		VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT : (VkFormatFeatureFlags)0))
 
@@ -946,7 +954,6 @@ struct GFXRenderer
  */
 typedef struct _GFXConsume
 {
-	GFXPass*       pass;
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
 	GFXView        view; // index used as attachment index.
