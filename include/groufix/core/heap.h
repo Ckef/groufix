@@ -494,7 +494,7 @@ GFX_BIT_FIELD(GFXTransferFlags)
  * Both GFX_TRANSFER_FLUSH and GFX_TRANSFER_BLOCK operate on the least number
  * of operations to at least cover this operation. Meaning it will never flush
  * asynchronous operations when GFX_TRANSFER_ASYNC is not given, and vice versa.
- * Secondly, it will not block for operations that were already flushed before.
+ * Also, it will not block for operations that were already flushed before.
  * @see gfx_heap_block to wait for all flushed operations.
  *
  * Undefined behaviour if size/width/height/depth of (src|dst)Regions do not match.
