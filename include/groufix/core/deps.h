@@ -37,7 +37,7 @@ typedef enum GFXAccessMask
 	GFX_ACCESS_TRANSFER_READ    = 0x000400,
 	GFX_ACCESS_TRANSFER_WRITE   = 0x000800,
 	GFX_ACCESS_HOST_READ        = 0x001000,
-	GFX_ACCESS_HOST_WRITE       = 0x002000,
+	GFX_ACCESS_HOST_WRITE       = 0x002000, // Optional (all writes are implicitly flushed).
 
 	// Modifiers, meaningless without other flags.
 	GFX_ACCESS_COMPUTE_ASYNC  = 0x004000,
@@ -169,8 +169,8 @@ typedef struct GFXInject
  * with any number of signal commands.
  * Signal commands are accumulated in dependency objects and are made visible
  * by the operation they were injected in. After being made visible,
- * a wait command can match (and wait for) a signal command if they have
- * equal queue destinations.
+ * a wait command matches (and waits for) all signal commands that address
+ * the queue of the waiting operation.
  *
  * There are three queue destinations:
  *  -graphics, -compute, -transfer
@@ -196,6 +196,10 @@ typedef struct GFXInject
  * to the renderer it belongs to, not even if referenced implicitly.
  * TODO: Explain that attachments must be operated on before the next acquire
  * and catched by the next submit-like-func?
+ *
+ * When the access mask contains host read/write access, remaining writes are
+ * flushed to host visible memory after the operation. The host must not read or
+ * write to this memory before the operation is waited upon by the host itself.
  *
  * Functions that take injections as an argument are _always_ thread-safe with
  * respect to the dependency objects being referenced!

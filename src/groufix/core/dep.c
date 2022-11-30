@@ -615,7 +615,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			GFX_REF_IS_NULL(injs[i].ref) ? injection->inp.numRefs : 1;
 
 		// Filter command reference against injection refences.
-		// And get the access mask for later unpacking.
+		// And get the associated access mask for later unpacking.
 		GFXAccessMask injMask = 0;
 		if (refs == &unp && injection->inp.numRefs > 0)
 		{
@@ -647,7 +647,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 		}
 
 		// Get queue family to transfer ownership to.
-		// And flag for if we need an ownership transfer or want to discard.
+		// And flags for if we need an ownership transfer or want to discard.
 		const uint32_t family =
 			injs[i].mask & GFX_ACCESS_COMPUTE_ASYNC ?
 				injs[i].dep->compute :
@@ -772,6 +772,13 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// TODO: When host read access is set, and the source operation
 			// writes, make sure to modify the barriers appropriately.
 
+			// TODO: Make special signal commands that give the source
+			// access/stage/layout if there are no operation references to
+			// get it from?
+			// TODO: Except for attachments, we need to know the last layout they
+			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
+			// Do we need final access/stage flags for attachments?
+
 			// and set all source operation values.
 			_gfx_dep_unpack(refs + r,
 				// If given a range but not a reference,
@@ -782,13 +789,6 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				srcMask,
 				&sync->range,
 				&sync->vk.srcAccess, &sync->vk.oldLayout, &sync->vk.srcStage);
-
-			// TODO: Make special signal commands that give the source
-			// access/stage/layout if there are no operation references to
-			// get it from.
-			// TODO: Except for attachments, we need to know the last layout they
-			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
-			// Do we need final access/stage flags for attachments?
 
 			// Set all destination operation values.
 			sync->vk.dstAccess =
