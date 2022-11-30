@@ -36,14 +36,15 @@ typedef enum GFXAccessMask
 	GFX_ACCESS_ATTACHMENT_BLEND = 0x000300, // Both read/write.
 	GFX_ACCESS_TRANSFER_READ    = 0x000400,
 	GFX_ACCESS_TRANSFER_WRITE   = 0x000800,
-	// TODO: How are we even going to handle host access?
 	GFX_ACCESS_HOST_READ        = 0x001000,
 	GFX_ACCESS_HOST_WRITE       = 0x002000,
 
 	// Modifiers, meaningless without other flags.
 	GFX_ACCESS_COMPUTE_ASYNC  = 0x004000,
 	GFX_ACCESS_TRANSFER_ASYNC = 0x008000,
-	GFX_ACCESS_DISCARD        = 0x010000 // Resulting contents may be discarded.
+	GFX_ACCESS_DISCARD        = 0x010000, // Resulting contents may be discarded.
+	GFX_ACCESS_MODIFIERS      = 0x01c000  // All modifiers.
+
 	// TODO: Add a modifier for framebuffer local regions?
 
 } GFXAccessMask;

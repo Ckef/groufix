@@ -165,6 +165,10 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 	assert(!pass->renderer->recording);
 	assert(consume != NULL);
 
+	// Firstly, remove any host access mask, images cannot be mapped!
+	consume->mask &=
+		~(GFXAccessMask)(GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE);
+
 	// Try to find it first.
 	_GFXConsume* con;
 

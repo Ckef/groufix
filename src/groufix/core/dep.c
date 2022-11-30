@@ -469,7 +469,6 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				_GFX_SYNC_PREPARE_CATCH : _GFX_SYNC_CATCH;
 
 			// TODO: Merge barriers, simply postpone till after this loop.
-			// TODO: Maybe do something special with host read/write flags?
 			// Insert barrier if deemed necessary by the command.
 			if (sync->flags & _GFX_SYNC_BARRIER)
 				_gfx_inject_barrier(cmd, sync, context);
@@ -697,6 +696,33 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				continue;
 			}
 
+#if !defined (NDEBUG)
+			// Validate async modifiers.
+			if (((injs[i].mask & GFX_ACCESS_COMPUTE_ASYNC) &&
+				(mFlags & GFX_MEMORY_TRANSFER_CONCURRENT) &&
+				!(mFlags & GFX_MEMORY_COMPUTE_CONCURRENT)) ||
+
+				((injs[i].mask & GFX_ACCESS_TRANSFER_ASYNC) &&
+				!(mFlags & GFX_MEMORY_TRANSFER_CONCURRENT) &&
+				(mFlags & GFX_MEMORY_COMPUTE_CONCURRENT)))
+			{
+				gfx_log_warn(
+					"Not allowed to inject a dependency with asynchronous "
+					"access modifiers for a memory resource with concurrent "
+					"memory flags excluding the relevant ones.");
+			}
+
+			// Validate host visibility.
+			if ((injs[i].mask & (GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE)) &&
+				!(mFlags & GFX_MEMORY_HOST_VISIBLE))
+			{
+				gfx_log_warn(
+					"Not allowed to inject a dependency with host "
+					"read/write access for a memory resource that was "
+					"not created with GFX_MEMORY_HOST_VISIBLE.");
+			}
+#endif
+
 			// Now get us a synchronization object.
 			_GFXSync* shared;
 			_GFXSync* sync = _gfx_dep_claim(injs[i].dep,
@@ -737,20 +763,25 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				sync->vk.buffer = buffer;
 
 			// Get unpacked metadata for the resource to signal.
-			VkAccessFlags flags;
-			VkImageLayout layout;
-			VkPipelineStageFlags stages;
-			GFXAccessMask mask =
+			const GFXAccessMask srcMask =
 				(refs == &unp) ? injMask : injection->inp.masks[r];
+			const GFXAccessMask dstMask =
+				injs[i].mask &
+				~(GFXAccessMask)(GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE);
 
+			// TODO: When host read access is set, and the source operation
+			// writes, make sure to modify the barriers appropriately.
+
+			// and set all source operation values.
 			_gfx_dep_unpack(refs + r,
 				// If given a range but not a reference,
 				// use the same range for all resources...
 				// Passing a mask of 0 yields an undefined image layout.
 				(injs[i].type == GFX_DEP_SIGNAL_RANGE) ? &injs[i].range : NULL,
 				(refs == &unp) ? _gfx_ref_size(injs[i].ref) : injection->inp.sizes[r],
-				mask,
-				&sync->range, &flags, &layout, &stages);
+				srcMask,
+				&sync->range,
+				&sync->vk.srcAccess, &sync->vk.oldLayout, &sync->vk.srcStage);
 
 			// TODO: Make special signal commands that give the source
 			// access/stage/layout if there are no operation references to
@@ -759,16 +790,16 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
 			// Do we need final access/stage flags for attachments?
 
-			// Set all destination values.
+			// Set all destination operation values.
 			sync->vk.dstAccess =
-				_GFX_GET_VK_ACCESS_FLAGS(injs[i].mask, fmt);
+				_GFX_GET_VK_ACCESS_FLAGS(dstMask, fmt);
 			sync->vk.dstStage =
-				_GFX_GET_VK_PIPELINE_STAGE(injs[i].mask, injs[i].stage, fmt);
+				_GFX_GET_VK_PIPELINE_STAGE(dstMask, injs[i].stage, fmt);
 			sync->vk.newLayout =
 				// Undefined layout for buffers.
 				(sync->ref.obj.buffer != NULL) ?
 					VK_IMAGE_LAYOUT_UNDEFINED :
-					_GFX_GET_VK_IMAGE_LAYOUT(injs[i].mask, fmt);
+					_GFX_GET_VK_IMAGE_LAYOUT(dstMask, fmt);
 
 			if (shared != NULL)
 				// OR all stages into the semaphore's scope.
@@ -776,15 +807,10 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 
 			sync->vk.semStages = sync->vk.dstStage;
 
-			// Set all source operation values.
-			// Undefined layout if we want to discard,
+			// Set undefined source layout if we want to discard,
 			// however if no layout transition, don't explicitly discard!
-			sync->vk.srcAccess = flags;
-			sync->vk.srcStage = stages;
-			sync->vk.oldLayout =
-				// Note: We depend on the destination layout!
-				(discard && sync->vk.newLayout != layout) ?
-					VK_IMAGE_LAYOUT_UNDEFINED : layout;
+			if (discard && sync->vk.newLayout != sync->vk.oldLayout)
+				sync->vk.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			// Get families, explicitly ignore if we want to discard.
 			// Also, if the resource is concurrent instead of exclusive,
@@ -803,8 +829,8 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			//   always postpone barriers to the catch.
 			// - Inequal queues & not discarding & not concurrent.
 			// - Inequal layouts, need layout transition.
-			const bool srcWrites = GFX_ACCESS_WRITES(mask);
-			const bool dstWrites = GFX_ACCESS_WRITES(injs[i].mask);
+			const bool srcWrites = GFX_ACCESS_WRITES(srcMask);
+			const bool dstWrites = GFX_ACCESS_WRITES(dstMask);
 			const bool transfer = ownership && !discard && !concurrent;
 			const bool transition = sync->vk.oldLayout != sync->vk.newLayout;
 
