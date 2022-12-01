@@ -762,12 +762,23 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			else
 				sync->vk.buffer = buffer;
 
-			// Get unpacked metadata for the resource to signal.
+			// Get unpacked metadata for the resource to signal
+			// and set all source operation values.
 			const GFXAccessMask srcMask =
 				(refs == &unp) ? injMask : injection->inp.masks[r];
 			const GFXAccessMask dstMask =
 				injs[i].mask &
 				~(GFXAccessMask)(GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE);
+
+			_gfx_dep_unpack(refs + r,
+				// If given a range but not a reference,
+				// use the same range for all resources...
+				// Passing a mask of 0 yields an undefined image layout.
+				(injs[i].type == GFX_DEP_SIGNAL_RANGE) ? &injs[i].range : NULL,
+				(refs == &unp) ? _gfx_ref_size(injs[i].ref) : injection->inp.sizes[r],
+				srcMask,
+				&sync->range,
+				&sync->vk.srcAccess, &sync->vk.oldLayout, &sync->vk.srcStage);
 
 			// TODO: When host read access is set, and the source operation
 			// writes, make sure to modify the barriers appropriately.
@@ -778,17 +789,6 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// TODO: Except for attachments, we need to know the last layout they
 			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
 			// Do we need final access/stage flags for attachments?
-
-			// and set all source operation values.
-			_gfx_dep_unpack(refs + r,
-				// If given a range but not a reference,
-				// use the same range for all resources...
-				// Passing a mask of 0 yields an undefined image layout.
-				(injs[i].type == GFX_DEP_SIGNAL_RANGE) ? &injs[i].range : NULL,
-				(refs == &unp) ? _gfx_ref_size(injs[i].ref) : injection->inp.sizes[r],
-				srcMask,
-				&sync->range,
-				&sync->vk.srcAccess, &sync->vk.oldLayout, &sync->vk.srcStage);
 
 			// Set all destination operation values.
 			sync->vk.dstAccess =
