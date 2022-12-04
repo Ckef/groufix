@@ -113,17 +113,20 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 /****************************
  * Computes the 'unpacked' range, access/stage flags and image layout
  * associated with an injection's ref (normalizes offsets and resolves sizes).
- * @param ref   Must be a non-empty valid unpacked reference.
- * @param range May be NULL to take the entire resource as range.
- * @param size  Must be the value of the associated _gfx_ref_size(<packed-ref>)!
- * @param mask  Access mask to unpack the Vulkan access flags and image layout.
+ * @param ref    Must be a non-empty valid unpacked reference.
+ * @param attach Must be _GFX_UNPACK_REF_ATTACH(*ref).
+ * @param range  May be NULL to take the entire resource as range.
+ * @param size   Must be the value of the associated _gfx_ref_size(<packed-ref>)!
+ * @param mask   Access mask to unpack the Vulkan access flags and image layout.
+ * @param stage  Shader stages to unpack the Vulkan pipeline stage.
  *
  * The returned `unpacked` range is not valid for the unpacked reference anymore,
  * it is only valid for the raw VkBuffer or VkImage handle!
  */
 static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
-                            const GFXRange* range,
-                            uint64_t size, GFXAccessMask mask,
+                            const _GFXImageAttach* attach,
+                            const GFXRange* range, uint64_t size,
+                            GFXAccessMask mask, GFXShaderStage stage,
                             GFXRange* unpacked,
                             VkAccessFlags* flags,
                             VkImageLayout* layout,
@@ -139,21 +142,13 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
 		ref->obj.image != NULL ||
 		ref->obj.renderer != NULL);
 
-	// Note that we always pass 0 for shader stage flags.
-	// This function is only used to compute metadata of resources known by
-	// the operation that we are injecting dependencies into.
-
-	// Luckily we do not have any operations with associated resources
-	// that ALSO operates on a specific shader stage for now.
-	// Only the renderer operates on shader stages, but it never has resources.
-
 	if (ref->obj.buffer != NULL)
 	{
 		// Resolve access flags, image layout and pipeline stage.
 		GFXFormat fmt = GFX_FORMAT_EMPTY;
 		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
 		*layout = VK_IMAGE_LAYOUT_UNDEFINED; // It's a buffer.
-		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, 0, fmt);
+		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt);
 
 		// Normalize offset to be independent of references.
 		unpacked->offset = (range == NULL) ? ref->value :
@@ -167,8 +162,7 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
 	{
 		// Resolve whole aspect from format.
 		const GFXFormat fmt = (ref->obj.image != NULL) ?
-			ref->obj.image->base.format :
-			_GFX_UNPACK_REF_ATTACH(*ref)->base.format;
+			ref->obj.image->base.format : attach->base.format;
 
 		const GFXImageAspect aspect =
 			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
@@ -182,7 +176,7 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
 		// meaning we can use the Vulkan 'remaining mipmaps/layers' flags.
 		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
 		*layout = _GFX_GET_VK_IMAGE_LAYOUT(mask, fmt);
-		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, 0, fmt);
+		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt);
 
 		if (range == NULL)
 			unpacked->aspect = aspect,
@@ -519,14 +513,18 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			continue;
 
 		// Get unpacked metadata & inject barrier manually,
+		const _GFXImageAttach* attach =
+			_GFX_UNPACK_REF_ATTACH(injection->inp.refs[r]);
+
 		GFXRange range;
 		VkAccessFlags flags;
 		VkImageLayout layout;
 		VkPipelineStageFlags stages;
 
 		_gfx_dep_unpack(
-			injection->inp.refs + r, NULL,
-			injection->inp.sizes[r], injection->inp.masks[r],
+			injection->inp.refs + r, attach,
+			NULL, injection->inp.sizes[r],
+			injection->inp.masks[r], GFX_STAGE_ANY,
 			&range, &flags, &layout, &stages);
 
 		VkImageMemoryBarrier imb = {
@@ -542,7 +540,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 			.image = (injection->inp.refs[r].obj.image != NULL) ?
 				injection->inp.refs[r].obj.image->vk.image :
-				_GFX_UNPACK_REF_ATTACH(injection->inp.refs[r])->vk.image,
+				attach->vk.image,
 
 			.subresourceRange = {
 				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(range.aspect),
@@ -666,7 +664,9 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 		{
 			// First unpack VkBuffer & VkImage handles for locality.
 			// So we can check them before allocating things.
-			const _GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(refs[r]);
+			const _GFXImageAttach* attach =
+				_GFX_UNPACK_REF_ATTACH(refs[r]);
+
 			VkBuffer buffer = VK_NULL_HANDLE;
 			VkImage image = VK_NULL_HANDLE;
 			GFXMemoryFlags mFlags = 0;
@@ -762,33 +762,43 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			else
 				sync->vk.buffer = buffer;
 
+			// TODO: When host read access is set, and the source operation
+			// writes, make sure to modify the barriers appropriately.
+
+			// TODO: Make special signal commands that give the source
+			// access/stage/layout if there are no operation references or
+			// attachment to get it from?
+
 			// Get unpacked metadata for the resource to signal
 			// and set all source operation values.
-			const GFXAccessMask srcMask =
-				(refs == &unp) ? injMask : injection->inp.masks[r];
+			const GFXAccessMask srcMask = (refs != &unp) ?
+				injection->inp.masks[r] :
+				// If we have no injection references to get it from,
+				// See if we can get a final mask from attachments!
+				// If `attach->final != NULL`, it must be valid because
+				// only the renderer does not provide injection references,
+				// it will first analyze the graph, setting this pointer!
+				(injection->inp.numRefs == 0 && attach && attach->final) ?
+					attach->final->mask : injMask;
+
+			const GFXShaderStage srcStage =
+				// No injection references, check attachments again!
+				(injection->inp.numRefs == 0 && attach && attach->final) ?
+					attach->final->stage : GFX_STAGE_ANY;
+
 			const GFXAccessMask dstMask =
 				injs[i].mask &
 				~(GFXAccessMask)(GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE);
 
-			_gfx_dep_unpack(refs + r,
+			_gfx_dep_unpack(refs + r, attach,
 				// If given a range but not a reference,
 				// use the same range for all resources...
 				// Passing a mask of 0 yields an undefined image layout.
 				(injs[i].type == GFX_DEP_SIGNAL_RANGE) ? &injs[i].range : NULL,
 				(refs == &unp) ? _gfx_ref_size(injs[i].ref) : injection->inp.sizes[r],
-				srcMask,
+				srcMask, srcStage,
 				&sync->range,
 				&sync->vk.srcAccess, &sync->vk.oldLayout, &sync->vk.srcStage);
-
-			// TODO: When host read access is set, and the source operation
-			// writes, make sure to modify the barriers appropriately.
-
-			// TODO: Make special signal commands that give the source
-			// access/stage/layout if there are no operation references to
-			// get it from?
-			// TODO: Except for attachments, we need to know the last layout they
-			// were in from the operation. Add 'vk.finalLayout' to _GFXImageAttach!
-			// Do we need final access/stage flags for attachments?
 
 			// Set all destination operation values.
 			sync->vk.dstAccess =

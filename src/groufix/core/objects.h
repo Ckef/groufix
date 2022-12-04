@@ -688,6 +688,47 @@ typedef struct _GFXGroup
 
 
 /**
+ * Internal attachment consumption.
+ */
+typedef struct _GFXConsume
+{
+	GFXAccessMask  mask;
+	GFXShaderStage stage;
+	GFXView        view; // index used as attachment index.
+
+	GFXImageAspect  cleared;
+	GFXBlendOpState color;
+	GFXBlendOpState alpha;
+
+	enum {
+		_GFX_CONSUME_VIEWED = 0x0001, // Set to use view.type.
+		_GFX_CONSUME_BLEND  = 0x0002  // Set to use blend operation states.
+
+	} flags;
+
+	union {
+		// Identical definitions!
+		GFXClear gfx;
+		VkClearValue vk;
+
+	} clear;
+
+
+	// Graph output (relative to neighbouring passes).
+	struct
+	{
+		VkImageLayout initial;
+		VkImageLayout final;
+
+		// Non-NULL to form a dependency.
+		const struct _GFXConsume* prev;
+
+	} out;
+
+} _GFXConsume;
+
+
+/**
  * Attachment backing.
  */
 typedef struct _GFXBacking
@@ -718,6 +759,9 @@ typedef struct _GFXImageAttach
 	uint32_t width;
 	uint32_t height;
 	uint32_t depth;
+
+	// Set by render graph, final (last) consumption.
+	const _GFXConsume* final;
 
 
 	// Vulkan fields.
@@ -939,47 +983,6 @@ struct GFXRenderer
 
 	} graph;
 };
-
-
-/**
- * Internal attachment consumption.
- */
-typedef struct _GFXConsume
-{
-	GFXAccessMask  mask;
-	GFXShaderStage stage;
-	GFXView        view; // index used as attachment index.
-
-	GFXImageAspect  cleared;
-	GFXBlendOpState color;
-	GFXBlendOpState alpha;
-
-	enum {
-		_GFX_CONSUME_VIEWED = 0x0001, // Set to use view.type.
-		_GFX_CONSUME_BLEND  = 0x0002  // Set to use blend operation states.
-
-	} flags;
-
-	union {
-		// Identical definitions!
-		GFXClear gfx;
-		VkClearValue vk;
-
-	} clear;
-
-
-	// Graph output (relative to neighbouring passes).
-	struct
-	{
-		VkImageLayout initial;
-		VkImageLayout final;
-
-		// Non-NULL to form a dependency.
-		const struct _GFXConsume* prev;
-
-	} out;
-
-} _GFXConsume;
 
 
 /**
@@ -1698,20 +1701,10 @@ bool _gfx_render_graph_build(GFXRenderer* renderer);
 void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags);
 
 /**
- * Immediately destruct all render graph resources.
- * @param renderer Cannot be NULL.
- *
- * Must be called before detaching any attachment!
- * This will call the relevant _gfx_pass_destruct calls.
- * Thus not thread-safe with respect to pushing stale resources!
- */
-void _gfx_render_graph_destruct(GFXRenderer* renderer);
-
-/**
  * Invalidates the render graph, forcing it to first destruct everything
  * the next time _gfx_render_graph_(warmup|build) is called.
  * If _gfx_render_graph_rebuild is called before that, it is rendered a no-op.
- * Suitable for when consumptions have changed.
+ * Suitable for when attachments or consumptions thereof have changed.
  * @param renderer Cannot be NULL.
  */
 void _gfx_render_graph_invalidate(GFXRenderer* renderer);

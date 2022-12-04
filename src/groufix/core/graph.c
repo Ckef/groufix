@@ -193,10 +193,35 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 		pass->order = (unsigned int)i;
 	}
 
+	// When done resolving, set the `final` field of all image attachments,
+	// we do this separately to properly NULL-ify when necessary.
+	for (size_t i = 0; i < numAttachs; ++i)
+	{
+		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, i);
+		if (at->type == _GFX_ATTACH_IMAGE) at->image.final = consumes[i];
+	}
+
 	// Its now validated!
 	renderer->graph.state = _GFX_GRAPH_VALIDATED;
 
 	return 1;
+}
+
+/****************************
+ * Destructs all resources of all passes.
+ * @param renderer Cannot be NULL, can be in any state.
+ */
+static void _gfx_render_graph_destruct(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// Destruct all passes.
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+		_gfx_pass_destruct(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
+
+	// The graph is now empty.
+	renderer->graph.state = _GFX_GRAPH_EMPTY;
 }
 
 /****************************/
@@ -346,20 +371,6 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 		// The graph is not invalid, but incomplete.
 		renderer->graph.state = _GFX_GRAPH_VALIDATED;
 	}
-}
-
-/****************************/
-void _gfx_render_graph_destruct(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	// Destruct all passes.
-	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		_gfx_pass_destruct(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
-
-	// The graph is now empty.
-	renderer->graph.state = _GFX_GRAPH_EMPTY;
 }
 
 /****************************/
