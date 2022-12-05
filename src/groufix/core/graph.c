@@ -207,24 +207,6 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 	return 1;
 }
 
-/****************************
- * Destructs all resources of all passes.
- * @param renderer Cannot be NULL, it's graph state must be invalidated.
- */
-static void _gfx_render_graph_destruct(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-	assert(renderer->graph.state == _GFX_GRAPH_INVALID);
-
-	// Destruct all passes.
-	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		_gfx_pass_destruct(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
-
-	// The graph is now empty.
-	renderer->graph.state = _GFX_GRAPH_EMPTY;
-}
-
 /****************************/
 void _gfx_render_graph_init(GFXRenderer* renderer)
 {
@@ -372,6 +354,20 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 		// The graph is not invalid, but incomplete.
 		renderer->graph.state = _GFX_GRAPH_VALIDATED;
 	}
+}
+
+/****************************/
+void _gfx_render_graph_destruct(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// Destruct all passes.
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+		_gfx_pass_destruct(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
+
+	// The graph is now empty.
+	renderer->graph.state = _GFX_GRAPH_EMPTY;
 }
 
 /****************************/

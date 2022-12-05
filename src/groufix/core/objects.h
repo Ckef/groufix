@@ -1701,10 +1701,20 @@ bool _gfx_render_graph_build(GFXRenderer* renderer);
 void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags);
 
 /**
+ * Immediately destruct all render graph resources.
+ * @param renderer Cannot be NULL.
+ *
+ * Must be called before detaching any attachment!
+ * This will call the relevant _gfx_pass_destruct calls.
+ * Thus not thread-safe with respect to pushing stale resources!
+ */
+void _gfx_render_graph_destruct(GFXRenderer* renderer);
+
+/**
  * Invalidates the render graph, forcing it to first destruct everything
  * the next time _gfx_render_graph_(warmup|build) is called.
  * If _gfx_render_graph_rebuild is called before that, it is rendered a no-op.
- * Suitable for when attachments or consumptions thereof have changed.
+ * Suitable for consumptions have changed or new attachments are described.
  * @param renderer Cannot be NULL.
  */
 void _gfx_render_graph_invalidate(GFXRenderer* renderer);

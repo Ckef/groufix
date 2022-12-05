@@ -282,16 +282,17 @@ static bool _gfx_detach_attachment(GFXRenderer* renderer, _GFXAttach* attach)
 	// This so we can 'detach' (i.e. destroy) the associated resources.
 	_gfx_sync_frames(renderer);
 
-	// Passes are built using this attachment, i.e. the graph is invalidated.
-	// This makes it so the graph will destruct all passes before anything else.
-	_gfx_render_graph_invalidate(renderer);
+	// Destruct the render graph, it references these images,
+	// so for safety we destruct it all beforehand.
+	// This is not thread-safe at all, so we re-use the renderer's lock.
+	_gfx_mutex_lock(&renderer->lock);
+	_gfx_render_graph_destruct(renderer);
 
 	// Then, if it is an image, reset the descriptor pools,
 	// this image attachment may not be referenced anymore!
 	if (attach->type == _GFX_ATTACH_IMAGE)
 	{
-		// Not thread-safe as sets/recorders could call the pool.
-		_gfx_mutex_lock(&renderer->lock);
+		// Also not thread-safe as sets/recorders could call the pool.
 		_gfx_pool_reset(&renderer->pool);
 		_gfx_mutex_unlock(&renderer->lock);
 
@@ -306,9 +307,12 @@ static bool _gfx_detach_attachment(GFXRenderer* renderer, _GFXAttach* attach)
 		// ergo we need to invalidate those entries.
 		_gfx_attach_gen(attach);
 	}
+	else
+		// If not an image, unlock.
+		_gfx_mutex_unlock(&renderer->lock);
 
 	// Finally, if it is a window, unlock the window.
-	else if (attach->type == _GFX_ATTACH_WINDOW)
+	if (attach->type == _GFX_ATTACH_WINDOW)
 	{
 		_gfx_swapchain_unlock(attach->window.window);
 		attach->window.window = NULL;
@@ -648,7 +652,11 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 	}
 
 	// Detach the current attachment.
-	_gfx_detach_attachment(renderer, attach);
+	if (!_gfx_detach_attachment(renderer, attach))
+	{
+		// In case the attachment was already consumed anyway.
+		_gfx_render_graph_invalidate(renderer);
+	}
 
 	// Newly describe the attachment index.
 	attach->type = _GFX_ATTACH_IMAGE;
@@ -668,9 +676,6 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 
 	// New attachment is not yet resolved.
 	renderer->backing.state = _GFX_BACKING_INVALID;
-
-	// In case the attachment was already consumed, invalidate graph.
-	_gfx_render_graph_invalidate(renderer);
 
 	return 1;
 }
@@ -726,7 +731,11 @@ GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
 	}
 
 	// Detach the current attachment.
-	_gfx_detach_attachment(renderer, attach);
+	if (!_gfx_detach_attachment(renderer, attach))
+	{
+		// Same as in gfx_renderer_attach.
+		_gfx_render_graph_invalidate(renderer);
+	}
 
 	// Initialize new window attachment.
 	attach->type = _GFX_ATTACH_WINDOW;
@@ -737,9 +746,6 @@ GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
 
 	// Other attachment might be relative to this one.
 	renderer->backing.state = _GFX_BACKING_INVALID;
-
-	// Same as gfx_renderer_attach, invalidate graph.
-	_gfx_render_graph_invalidate(renderer);
 
 	return 1;
 }
