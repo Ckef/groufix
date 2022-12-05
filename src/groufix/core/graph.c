@@ -209,11 +209,12 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 
 /****************************
  * Destructs all resources of all passes.
- * @param renderer Cannot be NULL, can be in any state.
+ * @param renderer Cannot be NULL, it's graph state must be invalidated.
  */
 static void _gfx_render_graph_destruct(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
+	assert(renderer->graph.state == _GFX_GRAPH_INVALID);
 
 	// Destruct all passes.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
