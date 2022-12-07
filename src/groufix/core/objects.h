@@ -946,6 +946,7 @@ struct GFXRenderer
 	bool         recording;
 
 	GFXDeque stales; // Stores { unsigned int, (Vk*)+ }.
+	// TODO: Make a static array at end of struct?
 	GFXDeque frames; // Stores GFXFrame.
 	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
 	GFXVec   pDeps;  // Stores GFXInject, from pFrame start.

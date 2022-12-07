@@ -764,6 +764,9 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 
 			// TODO: When host read access is set, and the source operation
 			// writes, make sure to modify the barriers appropriately.
+			// Essentially we allow host reading before the next catch, for
+			// which we need a barrier. Host writing is automatically
+			// flushed when submitting the command buffer.
 
 			// TODO: Make special signal commands that give the source
 			// access/stage/layout if there are no operation references or

@@ -453,15 +453,15 @@ typedef struct GFXRenderer GFXRenderer;
 
 
 /**
- * Pass (i.e. render/compute pass) definition.
- */
-typedef struct GFXPass GFXPass;
-
-
-/**
  * Virtual frame definition.
  */
 typedef struct GFXFrame GFXFrame;
+
+
+/**
+ * Pass (i.e. render/compute pass) definition.
+ */
+typedef struct GFXPass GFXPass;
 
 
 /**
@@ -686,6 +686,62 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
 
 
 /****************************
+ * Frame operations.
+ ****************************/
+
+/**
+ * Acquires the next virtual frame of a renderer, blocks until available!
+ * Implicitly starts and/or submits if not yet done after the previous call.
+ * @param renderer Cannot be NULL.
+ * @return Always returns a valid frame.
+ */
+GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
+
+/**
+ * Retrieves the index of a virtual frame, used to identify the frame.
+ * All frame indices are in the range [0, #frames of the renderer].
+ * They will be acquired in order, starting at 0.
+ * @param frame Cannot be NULL.
+ *
+ * Can be called from any thread.
+ */
+GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
+
+/**
+ * Prepares the acquired virtual frame to start recording,
+ * appends all dependency injections if already started.
+ * @param frame Cannot be NULL.
+ * @param deps  Cannot be NULL if numDeps > 0.
+ *
+ * The renderer (including its attachments, passes and sets) cannot be
+ * modified after this call until gfx_frame_submit has returned!
+ *
+ * All given dependency objects are referenced until gfx_frame_submit has
+ * returned. All signal commands are only made visible to wait commands
+ * submitted elsewhere after gfx_frame_submit. However, all wait commands can
+ * match visible signal commands submitted elsewhere up until gfx_frame_submit.
+ *
+ * Failure during starting cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_frame_start(GFXFrame* frame,
+                             size_t numDeps, const GFXInject* deps);
+
+/**
+ * Submits the acquired virtual frame of a renderer.
+ * Implicitly starts if not yet done so.
+ * @param frame Cannot be NULL, invalidated after this call!
+ *
+ * All memory resources used to render a frame cannot be freed until the next
+ * time this frame is acquired. The frames can be identified by their index.
+ *
+ * Failure during submission cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_frame_submit(GFXFrame* frame);
+
+
+/****************************
  * Pass handling.
  ****************************/
 
@@ -822,62 +878,6 @@ GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
  * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
  */
 GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
-
-
-/****************************
- * Frame operations.
- ****************************/
-
-/**
- * Acquires the next virtual frame of a renderer, blocks until available!
- * Implicitly starts and/or submits if not yet done after the previous call.
- * @param renderer Cannot be NULL.
- * @return Always returns a valid frame.
- */
-GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
-
-/**
- * Retrieves the index of a virtual frame, used to identify the frame.
- * All frame indices are in the range [0, #frames of the renderer].
- * They will be acquired in order, starting at 0.
- * @param frame Cannot be NULL.
- *
- * Can be called from any thread.
- */
-GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
-
-/**
- * Prepares the acquired virtual frame to start recording,
- * appends all dependency injections if already started.
- * @param frame Cannot be NULL.
- * @param deps  Cannot be NULL if numDeps > 0.
- *
- * The renderer (including its attachments, passes and sets) cannot be
- * modified after this call until gfx_frame_submit has returned!
- *
- * All given dependency objects are referenced until gfx_frame_submit has
- * returned. All signal commands are only made visible to wait commands
- * submitted elsewhere after gfx_frame_submit. However, all wait commands can
- * match visible signal commands submitted elsewhere up until gfx_frame_submit.
- *
- * Failure during starting cannot be recovered from,
- * any such failure is appropriately logged.
- */
-GFX_API void gfx_frame_start(GFXFrame* frame,
-                             size_t numDeps, const GFXInject* deps);
-
-/**
- * Submits the acquired virtual frame of a renderer.
- * Implicitly starts if not yet done so.
- * @param frame Cannot be NULL, invalidated after this call!
- *
- * All memory resources used to render a frame cannot be freed until the next
- * time this frame is acquired. The frames can be identified by their index.
- *
- * Failure during submission cannot be recovered from,
- * any such failure is appropriately logged.
- */
-GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 
 /****************************
