@@ -64,7 +64,7 @@ typedef union _GFXSetKey
 /****************************
  * Makes set resources stale, i.e. pushing them to the renderer for
  * destruction when they are no longer used by any virtual frames.
- * NOT thread-safe with respect to the virtual frame deque!
+ * NOT thread-safe with respect gfx_renderer_(acquire|submit)!
  */
 static void _gfx_make_stale(GFXSet* set, bool lock,
                             VkImageView imageView, VkBufferView bufferView)
@@ -1016,8 +1016,8 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		_gfx_set_samplers(aset, 0, numSamplers, samplers);
 
 	// And then loop over all things to manually update them.
-	// Because all current handles are VK_NULL_HANDLE, we do not push stales
-	// and we're thread-safe with respect to the virtual frame deque :)
+	// Because all current handles are VK_NULL_HANDLE,
+	// we do not push stales and we're still thread-safe :)
 	for (size_t b = 0; b < numBindings; ++b)
 	{
 		_GFXSetBinding* binding = &aset->bindings[b];

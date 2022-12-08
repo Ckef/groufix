@@ -919,8 +919,8 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// Ok so we cheat a little by checking if the renderer has a public frame.
 	// If it does, we take its index to set the current pool.
 	// Note that this is not thread-safe with frame operations!
-	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-		rec->current = renderer->pFrame.index;
+	if (renderer->public != NULL)
+		rec->current = renderer->current;
 
 	// Init subordinate & link the recorder into the renderer.
 	// Modifying the renderer, lock!
@@ -958,7 +958,7 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 
 	// Stay locked; we need to make the command pools stale,
 	// as its command buffers might still be in use by pending virtual frames!
-	// Still, NOT thread-safe with respect to the virtual frame deque!
+	// Still, NOT thread-safe with respect to gfx_renderer_(acquire|submit)!
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 		_gfx_push_stale(renderer,
 			VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE,
@@ -1010,7 +1010,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	_GFXContext* context = recorder->context;
 
 	// Check for the presence of a framebuffer.
-	VkFramebuffer framebuffer = _gfx_pass_framebuffer(pass, &rend->pFrame);
+	VkFramebuffer framebuffer = _gfx_pass_framebuffer(pass, rend->public);
 	if (framebuffer == VK_NULL_HANDLE) return;
 
 	// Then, claim a command buffer to use.

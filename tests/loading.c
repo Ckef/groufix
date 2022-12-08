@@ -178,10 +178,6 @@ TEST_DESCRIBE(loading, t)
 	if (!load_gltf(uri, &result))
 		goto clean;
 
-	// Flush all memory writes.
-	if (!gfx_heap_flush(t->heap))
-		goto clean;
-
 	// Grab the first primitive & image from the glTF.
 	GFXPrimitive* prim =
 		result.numPrimitives > 0 ? result.primitives[0] : NULL;
@@ -189,6 +185,10 @@ TEST_DESCRIBE(loading, t)
 		result.numImages > 0 ? result.images[0] : NULL;
 
 	gfx_release_gltf(&result);
+
+	// Flush all memory writes.
+	if (!gfx_heap_flush(t->heap))
+		goto clean;
 
 	// Create a technique and set immutable sampler.
 	GFXTechnique* tech = gfx_renderer_add_tech(

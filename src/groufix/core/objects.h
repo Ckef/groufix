@@ -688,44 +688,9 @@ typedef struct _GFXGroup
 
 
 /**
- * Internal attachment consumption.
+ * Attachment consumption declaration.
  */
-typedef struct _GFXConsume
-{
-	GFXAccessMask  mask;
-	GFXShaderStage stage;
-	GFXView        view; // index used as attachment index.
-
-	GFXImageAspect  cleared;
-	GFXBlendOpState color;
-	GFXBlendOpState alpha;
-
-	enum {
-		_GFX_CONSUME_VIEWED = 0x0001, // Set to use view.type.
-		_GFX_CONSUME_BLEND  = 0x0002  // Set to use blend operation states.
-
-	} flags;
-
-	union {
-		// Identical definitions!
-		GFXClear gfx;
-		VkClearValue vk;
-
-	} clear;
-
-
-	// Graph output (relative to neighbouring passes).
-	struct
-	{
-		VkImageLayout initial;
-		VkImageLayout final;
-
-		// Non-NULL to form a dependency.
-		const struct _GFXConsume* prev;
-
-	} out;
-
-} _GFXConsume;
+typedef struct _GFXConsume _GFXConsume;
 
 
 /**
@@ -941,15 +906,12 @@ struct GFXRenderer
 	GFXList   sets;       // References GFXSet.
 	_GFXMutex lock;       // For recorders, techniques & sets (and stales).
 
-	// Render frame (i.e. collection of virtual frames).
-	unsigned int numFrames;
-	bool         recording;
+	// Current virtual frame state.
+	bool recording;
 
-	GFXDeque stales; // Stores { unsigned int, (Vk*)+ }.
-	// TODO: Make a static array at end of struct?
-	GFXDeque frames; // Stores GFXFrame.
-	GFXFrame pFrame; // Public frame, vk.done is VK_NULL_HANDLE if absent.
-	GFXVec   pDeps;  // Stores GFXInject, from pFrame start.
+	GFXDeque  stales; // Stores { unsigned int, (Vk*)+ }.
+	GFXFrame* public; // Public frame, if not NULL, user has access.
+	GFXVec    deps;   // Stores GFXInject, from public frame start.
 
 
 	// Render backing (i.e. attachments).
@@ -983,6 +945,52 @@ struct GFXRenderer
 		} state;
 
 	} graph;
+
+
+	// Render frame (i.e. collection of virtual frames).
+	unsigned int numFrames;
+	unsigned int current; // Next frame to submit.
+	GFXFrame     frames[];
+};
+
+
+/**
+ * Internal attachment consumption.
+ */
+struct _GFXConsume
+{
+	GFXAccessMask  mask;
+	GFXShaderStage stage;
+	GFXView        view; // index used as attachment index.
+
+	GFXImageAspect  cleared;
+	GFXBlendOpState color;
+	GFXBlendOpState alpha;
+
+	enum {
+		_GFX_CONSUME_VIEWED = 0x0001, // Set to use view.type.
+		_GFX_CONSUME_BLEND  = 0x0002  // Set to use blend operation states.
+
+	} flags;
+
+	union {
+		// Identical definitions!
+		GFXClear gfx;
+		VkClearValue vk;
+
+	} clear;
+
+
+	// Graph output (relative to neighbouring passes).
+	struct
+	{
+		VkImageLayout initial;
+		VkImageLayout final;
+
+		// Non-NULL to form a dependency.
+		const _GFXConsume* prev;
+
+	} out;
 };
 
 
@@ -1299,7 +1307,6 @@ struct _GFXInjection
 		VkPipelineStageFlags* stages;
 
 	} out;
-
 };
 
 
@@ -1522,17 +1529,8 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool);
 
 
 /****************************
- * Virtual frame deque operations.
+ * Render frame operations.
  ****************************/
-
-/**
- * Blocks until all frames in a renderer's virtual frame deque are done.
- * @param renderer Cannot be NULL.
- * @return Non-zero if successfully synchronized.
- *
- * Not reentrant nor thread-safe with respect to the virtual frame deque.
- */
-bool _gfx_sync_frames(GFXRenderer* renderer);
 
 /**
  * Pushes stale resources to the renderer, subsequently
@@ -1540,7 +1538,8 @@ bool _gfx_sync_frames(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero if successfully pushed.
  *
- * Not reentrant nor thread-safe with respect to the virtual frame deque.
+ * Not reentrant nor thread-safe with respect to any call to
+ * either gfx_renderer_acquire or gfx_renderer_submit.
  *
  * Any Vulkan resource handle may be VK_NULL_HANDLE, as long as one is not.
  * All handles are invalidated after this call.
@@ -1551,6 +1550,16 @@ bool _gfx_push_stale(GFXRenderer* renderer,
                      VkImageView imageView,
                      VkBufferView bufferView,
                      VkCommandPool commandPool);
+
+/**
+ * Blocks until all frames in a renderer's render frame are done.
+ * @param renderer Cannot be NULL.
+ * @return Non-zero if successfully synchronized.
+ *
+ * Does not block for the publicly accessible frame!
+ * Not reentrant nor thread-safe with respect to any frame.
+ */
+bool _gfx_sync_frames(GFXRenderer* renderer);
 
 
 /****************************
@@ -1598,14 +1607,12 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame);
 /**
  * Acquires all relevant resources for a virtual frame to be recorded.
  * @param renderer Cannot be NULL.
- * @param frame    Cannot be NULL, may not be in renderer->frames!
+ * @param frame    Cannot be NULL.
  * @return Zero if the frame (or renderer) could not be built.
  *
+ * This may call _gfx_sync_frames internally on-swapchain recreate!
  * Cannot be called again until a call to _gfx_frame_submit has been made.
  * Failure is considered fatal, swapchains could be left in an incomplete state.
- *
- * This may call _gfx_sync_frames internally on-swapchain recreate,
- * meaning frame MUST NOT be in the renderer's frame deque when calling this!
  */
 bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
 
@@ -1616,7 +1623,7 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
  * @param frame    Cannot be NULL.
  * @return Zero if the frame could not be submitted.
  *
- * This will consume (not erase) all elements in renderer->pDeps!
+ * This will consume (not erase) all elements in renderer->deps!
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
 bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);
@@ -1635,8 +1642,6 @@ void _gfx_render_backing_init(GFXRenderer* renderer);
 /**
  * Clears the render backing of a renderer, destroying all images.
  * @param renderer Cannot be NULL.
- *
- * This will call _gfx_sync_frames internally when window attachments exist!
  */
 void _gfx_render_backing_clear(GFXRenderer* renderer);
 

@@ -534,7 +534,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// Inject wait commands.
 	if (!_gfx_deps_catch(
 		context, frame->vk.cmd,
-		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
 		&injection))
 	{
 		goto clean_deps;
@@ -605,7 +605,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// Inject signal commands.
 	if (!_gfx_deps_prepare(
 		frame->vk.cmd, 0,
-		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
 		&injection))
 	{
 		goto clean_deps;
@@ -736,7 +736,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Lastly, make all commands visible for future operations.
 	_gfx_deps_finish(
-		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
 		&injection);
 
 	return 1;
@@ -745,37 +745,10 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// Cleanup on failure.
 clean_deps:
 	_gfx_deps_abort(
-		renderer->pDeps.size, gfx_vec_at(&renderer->pDeps, 0),
+		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
 		&injection);
 error:
 	gfx_log_fatal("Submission of virtual frame failed.");
 
 	return 0;
-}
-
-/****************************/
-bool _gfx_sync_frames(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	_GFXContext* context = renderer->allocator.context;
-
-	// If no frames found, we're done.
-	// This is necessary because this can be called during _gfx_frame_acquire.
-	if (renderer->frames.size == 0)
-		return 1;
-
-	// Get all the 'done rendering' fences of all virtual frames.
-	VkFence fences[renderer->frames.size];
-	for (size_t f = 0; f < renderer->frames.size; ++f)
-		fences[f] = ((GFXFrame*)gfx_deque_at(&renderer->frames, f))->vk.done;
-
-	// Wait for all of them.
-	_GFX_VK_CHECK(
-		context->vk.WaitForFences(
-			context->vk.device, (uint32_t)renderer->frames.size, fences,
-			VK_TRUE, UINT64_MAX),
-		return 0);
-
-	return 1;
 }

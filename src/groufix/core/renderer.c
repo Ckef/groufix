@@ -11,9 +11,11 @@
 #include <stdlib.h>
 
 
-// Get pointer to a renderer from a pointer to its pFrame member.
-#define _GFX_RENDERER_FROM_PUBLIC_FRAME(frame) \
-	((GFXRenderer*)((char*)(frame) - offsetof(GFXRenderer, pFrame)))
+// Get pointer to a renderer from a pointer to one of its frames.
+#define _GFX_RENDERER_FROM_FRAME(frame) \
+	((GFXRenderer*)((char*)(frame) - \
+		(sizeof(GFXFrame) * ((GFXFrame*)(frame))->index) - \
+		offsetof(GFXRenderer, frames)))
 
 
 /****************************
@@ -75,15 +77,11 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 		commandPool != VK_NULL_HANDLE);
 
 	// Get the last submitted frame's index.
-	// If there are no frames, there must be a public frame.
-	// If there's not, we're destroying the renderer so it doesn't matter.
-	const GFXFrame* frame =
-		renderer->frames.size == 0 ?
-		&renderer->pFrame :
-		gfx_deque_at(&renderer->frames, renderer->frames.size - 1);
+	const unsigned int index =
+		renderer->current > 0 ? renderer->current : renderer->numFrames;
 
 	_GFXStale stale = {
-		.frame = frame->index,
+		.frame = index - 1,
 		.vk = {
 			.framebuffer = framebuffer,
 			.imageView = imageView,
@@ -92,9 +90,9 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 		}
 	};
 
-	// If no non-public frames, there are no frames still rendering,
+	// If we have a single frame which is public, nothing is rendering,
 	// thus we can immediately destroy.
-	if (renderer->frames.size == 0)
+	if (renderer->numFrames <= 1 && renderer->public != NULL)
 		_gfx_destroy_stale(renderer, &stale);
 
 	// Try to push the stale resource otherwise.
@@ -107,6 +105,36 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 		_gfx_destroy_stale(renderer, &stale);
 		return 0;
 	}
+
+	return 1;
+}
+
+/****************************/
+bool _gfx_sync_frames(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	_GFXContext* context = renderer->allocator.context;
+
+	// Get all the 'done rendering' fences of all virtual frames.
+	// Skip if it is the public frame, as its fence is not awaitable
+	// inbetween _gfx_frame_Sync and _gfx_frame_submit!
+	const uint32_t numFences =
+		renderer->numFrames - (renderer->public != NULL) ? 1 : 0;
+
+	// If none, we're done.
+	if (numFences == 0) return 1;
+
+	VkFence fences[numFences];
+	for (unsigned int f = 0, i = 0; f < renderer->numFrames; ++f)
+		if (renderer->frames + f != renderer->public)
+			fences[i++] = renderer->frames[f].vk.done;
+
+	// Wait for all of them.
+	_GFX_VK_CHECK(
+		context->vk.WaitForFences(
+			context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX),
+		return 0);
 
 	return 1;
 }
@@ -196,8 +224,12 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	assert(frames > 0);
 
 	// Allocate a new renderer.
-	GFXRenderer* rend = malloc(sizeof(GFXRenderer));
-	if (rend == NULL) goto clean;
+	GFXRenderer* rend = malloc(
+		sizeof(GFXRenderer) +
+		sizeof(GFXFrame) * frames);
+
+	if (rend == NULL)
+		goto clean;
 
 	// Get context associated with the device.
 	_GFXContext* context;
@@ -233,42 +265,32 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
 
-	// And lastly initialize the virtual frames.
-	// Reserve the exact amount as this will never change.
-	gfx_deque_init(&rend->frames, sizeof(GFXFrame));
-	rend->pFrame.vk.done = VK_NULL_HANDLE; // To indicate it is absent.
-
-	if (!gfx_deque_reserve(&rend->frames, frames))
-		goto clean_renderer;
-
-	gfx_deque_push(&rend->frames, frames, NULL);
-
-	// Set increasing indices.
+	// And lastly initialize the virtual frames,
+	// Note each index corresponds to their location in memory.
 	for (unsigned int f = 0; f < frames; ++f)
-		if (!_gfx_frame_init(rend, gfx_deque_at(&rend->frames, f), f))
+		if (!_gfx_frame_init(rend, &rend->frames[f], f))
 		{
-			while (f > 0) _gfx_frame_clear(rend,
-				gfx_deque_at(&rend->frames, --f));
-
+			while (f > 0) _gfx_frame_clear(rend, &rend->frames[--f]);
 			goto clean_renderer;
 		}
 
 	// And uh some remaining stuff.
-	rend->numFrames = frames;
 	rend->recording = 0;
+	rend->public = NULL;
+	rend->numFrames = frames;
+	rend->current = 0;
 
 	gfx_list_init(&rend->recorders);
 	gfx_list_init(&rend->techniques);
 	gfx_list_init(&rend->sets);
 	gfx_deque_init(&rend->stales, sizeof(_GFXStale));
-	gfx_vec_init(&rend->pDeps, sizeof(GFXInject));
+	gfx_vec_init(&rend->deps, sizeof(GFXInject));
 
 	return rend;
 
 
 	// Cleanup on failure.
 clean_renderer:
-	gfx_deque_clear(&rend->frames);
 	_gfx_render_graph_clear(rend);
 	_gfx_render_backing_clear(rend);
 	_gfx_allocator_clear(&rend->allocator);
@@ -292,29 +314,26 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	// Force submit if public frame is dangling.
 	// gfx_frame_submit will also start for us :)
-	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-		gfx_frame_submit(&renderer->pFrame);
+	if (renderer->public != NULL)
+		gfx_frame_submit(renderer->public);
+
+	gfx_vec_clear(&renderer->deps);
 
 	// Clear all frames, will block until rendering is done.
-	for (size_t f = 0; f < renderer->frames.size; ++f)
-		_gfx_frame_clear(renderer, gfx_deque_at(&renderer->frames, f));
+	for (size_t f = 0; f < renderer->numFrames; ++f)
+		_gfx_frame_clear(renderer, &renderer->frames[f]);
 
-	gfx_deque_clear(&renderer->frames);
-	gfx_vec_clear(&renderer->pDeps);
-
-	// Erase all recorders.
+	// Erase all recorders, techniques and sets.
 	while (renderer->recorders.head != NULL)
 		gfx_erase_recorder((GFXRecorder*)renderer->recorders.head);
 
-	gfx_list_clear(&renderer->recorders);
-
-	// Erase all techniques and sets.
 	while (renderer->techniques.head != NULL)
 		gfx_erase_tech((GFXTechnique*)renderer->techniques.head);
 
 	while (renderer->sets.head != NULL)
 		gfx_erase_set((GFXSet*)renderer->sets.head);
 
+	gfx_list_clear(&renderer->recorders);
 	gfx_list_clear(&renderer->techniques);
 	gfx_list_clear(&renderer->sets);
 
@@ -382,22 +401,15 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 
 	// If not submitted yet, force submit.
 	// gfx_frame_submit will also start for us :)
-	if (renderer->pFrame.vk.done != VK_NULL_HANDLE)
-		gfx_frame_submit(&renderer->pFrame);
+	if (renderer->public != NULL)
+		gfx_frame_submit(renderer->public);
 
-	// Pop a frame from the frames deque, this is effectively the oldest frame,
-	// i.e. the one that was submitted the first of all existing frames.
-	// Note: we actually pop it, so we are allowed to call _gfx_sync_frames,
-	// which is super necessary and useful!
-	renderer->pFrame = *(GFXFrame*)gfx_deque_at(&renderer->frames, 0);
-
-	if (renderer->frames.size > 1)
-		gfx_deque_pop_front(&renderer->frames, 1);
-	else
-		gfx_deque_release(&renderer->frames); // So we don't free the memory.
+	// We set the next frame to submit as the publicly accessible frame.
+	// This makes it so _gfx_sync_frames does not block for it anymore!
+	renderer->public = &renderer->frames[renderer->current];
 
 	// Synchronize the frame :)
-	_gfx_frame_sync(renderer, &renderer->pFrame);
+	_gfx_frame_sync(renderer, renderer->public);
 
 	// Destroy all stale resources that were last used by this frame.
 	// All previous frames should have destroyed all indices before the ones
@@ -406,13 +418,13 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	while (renderer->stales.size > 0)
 	{
 		_GFXStale* stale = gfx_deque_at(&renderer->stales, 0);
-		if (stale->frame != renderer->pFrame.index) break;
+		if (stale->frame != renderer->current) break;
 
 		_gfx_destroy_stale(renderer, stale);
 		gfx_deque_pop_front(&renderer->stales, 1);
 	}
 
-	return &renderer->pFrame;
+	return renderer->public;
 }
 
 /****************************/
@@ -428,10 +440,11 @@ GFX_API void gfx_frame_start(GFXFrame* frame,
                              size_t numDeps, const GFXInject* deps)
 {
 	assert(frame != NULL);
+	assert(frame == _GFX_RENDERER_FROM_FRAME(frame)->public);
 	assert(numDeps == 0 || deps != NULL);
 
 	GFXRenderer* renderer =
-		_GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
+		_GFX_RENDERER_FROM_FRAME(frame);
 
 	// Skip if already started.
 	if (!renderer->recording)
@@ -447,13 +460,13 @@ GFX_API void gfx_frame_start(GFXFrame* frame,
 	if (numDeps == 0)
 	{
 		// If none to append, clear memory that was kept by submission.
-		if (renderer->pDeps.size == 0)
-			gfx_vec_clear(&renderer->pDeps);
+		if (renderer->deps.size == 0)
+			gfx_vec_clear(&renderer->deps);
 	}
 	else
 	{
 		// Otherwise, append injection commands.
-		if (!gfx_vec_push(&renderer->pDeps, numDeps, deps))
+		if (!gfx_vec_push(&renderer->deps, numDeps, deps))
 			gfx_log_warn(
 				"Dependency injection failed, "
 				"injection commands could not be stored at frame start.");
@@ -464,9 +477,10 @@ GFX_API void gfx_frame_start(GFXFrame* frame,
 GFX_API void gfx_frame_submit(GFXFrame* frame)
 {
 	assert(frame != NULL);
+	assert(frame == _GFX_RENDERER_FROM_FRAME(frame)->public);
 
 	GFXRenderer* renderer =
-		_GFX_RENDERER_FROM_PUBLIC_FRAME(frame);
+		_GFX_RENDERER_FROM_FRAME(frame);
 
 	// If not started yet, force start.
 	if (!renderer->recording) gfx_frame_start(frame, 0, NULL);
@@ -476,19 +490,16 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 
 	// Erase all dependency injections.
 	// Keep the memory in case we repeatedly inject.
-	gfx_vec_release(&renderer->pDeps);
-
-	// And then stick it in the deque at the other end.
-	if (!gfx_deque_push(&renderer->frames, 1, frame))
-	{
-		// Uuuuuh...
-		gfx_log_fatal("Virtual frame lost during submission...");
-		_gfx_frame_clear(renderer, frame);
-	}
-
-	// Make public frame absent again.
-	renderer->pFrame.vk.done = VK_NULL_HANDLE;
+	gfx_vec_release(&renderer->deps);
 
 	// Signal that we are done recording.
 	renderer->recording = 0;
+
+	// It's not publicly accessible anymore.
+	renderer->public = NULL;
+
+	// And increase the to-be submitted frame index.
+	renderer->current =
+		renderer->current < (renderer->numFrames - 1) ?
+		renderer->current + 1 : 0;
 }

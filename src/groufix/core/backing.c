@@ -264,12 +264,14 @@ static _GFXAttach* _gfx_alloc_attachment(GFXRenderer* renderer, size_t index)
  * Detaches (and implicitly destroys) an attachment, if it is a window
  * attachment it will be unlocked for use at another attachment.
  * @param renderer Cannot be NULL.
+ * @param attach   Cannot be NULL.
  * @return Non-zero if anything was detached.
  *
  * Does not alter the render backing state!
  * Will block until rendering is done if detaching!
  */
-static bool _gfx_detach_attachment(GFXRenderer* renderer, _GFXAttach* attach)
+static bool _gfx_detach_attachment(GFXRenderer* renderer, _GFXAttach* attach,
+                                   bool sync)
 {
 	assert(renderer != NULL);
 	assert(attach != NULL);
@@ -280,7 +282,8 @@ static bool _gfx_detach_attachment(GFXRenderer* renderer, _GFXAttach* attach)
 
 	// Before detaching, we wait until all rendering is done.
 	// This so we can 'detach' (i.e. destroy) the associated resources.
-	_gfx_sync_frames(renderer);
+	if (sync)
+		_gfx_sync_frames(renderer);
 
 	// Destruct the render graph, it references these images,
 	// so for safety we destruct it all beforehand.
@@ -541,7 +544,7 @@ void _gfx_render_backing_clear(GFXRenderer* renderer)
 	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 	{
 		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, i);
-		_gfx_detach_attachment(renderer, attach);
+		_gfx_detach_attachment(renderer, attach, 0);
 	}
 
 	gfx_vec_clear(&renderer->backing.attachs);
@@ -652,7 +655,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 	}
 
 	// Detach the current attachment.
-	if (!_gfx_detach_attachment(renderer, attach))
+	if (!_gfx_detach_attachment(renderer, attach, 1))
 	{
 		// In case the attachment was already consumed anyway.
 		_gfx_render_graph_invalidate(renderer);
@@ -731,7 +734,7 @@ GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
 	}
 
 	// Detach the current attachment.
-	if (!_gfx_detach_attachment(renderer, attach))
+	if (!_gfx_detach_attachment(renderer, attach, 1))
 	{
 		// Same as in gfx_renderer_attach.
 		_gfx_render_graph_invalidate(renderer);
@@ -797,7 +800,7 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index)
 	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Yeah well, detach :)
-	if (_gfx_detach_attachment(renderer, attach))
+	if (_gfx_detach_attachment(renderer, attach, 1))
 		// Who knows what happens now.
 		renderer->backing.state = _GFX_BACKING_INVALID;
 }
