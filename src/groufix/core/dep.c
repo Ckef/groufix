@@ -447,20 +447,36 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			if (sync->vk.dstFamily != injection->inp.family)
 				continue;
 
-			// TODO: For attachments: check if it was changed since the
-			// signal command (i.e. resized or smth) and throw a
-			// "dangling dependency signal command" error/warning.
-			// We could do this by adding a `generation` to each attachment,
-			// if it is only 1 generation old, do smth special?
-			// Maybe let the renderer keep allocations 1 generation old
-			// around if they were signaled for use outside the render loop?
-
 			// We have a matching synchronization object, in other words,
 			// we are going to catch a signal command with this wait command.
 			// First put the object in the catch stage.
 			sync->inj = injection;
 			sync->stage = (sync->stage == _GFX_SYNC_PREPARE) ?
 				_GFX_SYNC_PREPARE_CATCH : _GFX_SYNC_CATCH;
+
+			// Check if this is perhaps an operation reference,
+			// if so, signal that it will be transitioned.
+			size_t r;
+			for (r = 0; r < injection->inp.numRefs; ++r)
+				if (_GFX_UNPACK_REF_IS_EQUAL(sync->ref, injection->inp.refs[r]))
+					break;
+
+			if (r < injection->inp.numRefs)
+				transitioned[r] = 1;
+
+			// If this is an attachment reference, check if it was rebuilt
+			// since the signal command (i.e. resized or smth),
+			// if it was, nothing to be done anymore, image is stale.
+			const _GFXImageAttach* attach;
+			if ((attach = _GFX_UNPACK_REF_ATTACH(sync->ref)) != NULL)
+				if (sync->gen != _GFX_ATTACH_GEN(attach))
+				{
+					gfx_log_warn(
+						"Dangling dependency signal command, caught "
+						"memory resource that does not exist anymore.");
+
+					continue;
+				}
 
 			// TODO: Merge barriers, simply postpone till after this loop.
 			// Insert barrier if deemed necessary by the command.
@@ -488,16 +504,6 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 						return 0;
 					});
 			}
-
-			// Check if this was perhaps an operation reference,
-			// if so, signal that it has been transitioned.
-			size_t r;
-			for (r = 0; r < injection->inp.numRefs; ++r)
-				if (_GFX_UNPACK_REF_IS_EQUAL(sync->ref, injection->inp.refs[r]))
-					break;
-
-			if (r < injection->inp.numRefs)
-				transitioned[r] = 1;
 		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);
@@ -691,7 +697,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			{
 				gfx_log_warn(
 					"Attempted to inject a dependency for "
-					"a memory resource that was not yet allocated.");
+					"a memory resource that is not yet allocated.");
 
 				continue;
 			}
@@ -753,6 +759,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// Now 'claim' the sync object & put it in the prepare stage.
 			sync->ref = refs[r];
 			sync->waits = injs[i].dep->waitCapacity; // Preemptively set.
+			sync->gen = (attach != NULL) ? _GFX_ATTACH_GEN(attach) : 0;
 			sync->inj = injection;
 			sync->stage = _GFX_SYNC_PREPARE;
 			sync->flags &= _GFX_SYNC_SEMAPHORE; // Remove all other flags.

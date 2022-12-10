@@ -1319,7 +1319,8 @@ typedef struct _GFXSync
 	GFXRange      range; // Unpacked, i.e. normalized offset & non-zero size.
 	unsigned int  waits; // #wait commands left to recycle (if used).
 
-	// TODO: Keep track of used attachment `generation`?
+	// For attachment references.
+	uintmax_t gen;
 
 	// Claimed by (injections can be async), may be NULL.
 	const _GFXInjection* inj;

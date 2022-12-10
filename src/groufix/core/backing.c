@@ -228,7 +228,7 @@ static void _gfx_free_backing(GFXRenderer* renderer, _GFXAttach* attach,
  * @param renderer Cannot be NULL.
  * @return The attachment at index, NULL on failure.
  */
-static _GFXAttach* _gfx_alloc_attachment(GFXRenderer* renderer, size_t index)
+static _GFXAttach* _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
 
@@ -445,6 +445,8 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 				// that reaches outside this renderer, this would be the
 				// place to calculate when the previously most recent image
 				// (that is now invalidated) can be destroyed!
+				// Consider that the operation outside the renderer might
+				// still be running when all virtual frames are synced!
 
 				// TODO: Then call _gfx_render_backing_purge every frame to
 				// destroy the backing images that can then be destroyed.
@@ -641,7 +643,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 		});
 
 	// Make sure the attachment exists.
-	_GFXAttach* attach = _gfx_alloc_attachment(renderer, index);
+	_GFXAttach* attach = _gfx_alloc_attachments(renderer, index);
 	if (attach == NULL)
 		return 0;
 
@@ -726,7 +728,7 @@ GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
 
 	// Ready to attach..
 	// Make sure the attachment exists.
-	_GFXAttach* attach = _gfx_alloc_attachment(renderer, index);
+	_GFXAttach* attach = _gfx_alloc_attachments(renderer, index);
 	if (attach == NULL)
 	{
 		_gfx_swapchain_unlock((_GFXWindow*)window);
