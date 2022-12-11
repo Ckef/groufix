@@ -78,10 +78,10 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 
 	// Get the last submitted frame's index.
 	const unsigned int index =
-		renderer->current > 0 ? renderer->current : renderer->numFrames;
+		(renderer->current + renderer->numFrames - 1) % renderer->numFrames;
 
 	_GFXStale stale = {
-		.frame = index - 1,
+		.frame = index,
 		.vk = {
 			.framebuffer = framebuffer,
 			.imageView = imageView,
@@ -500,6 +500,5 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 
 	// And increase the to-be submitted frame index.
 	renderer->current =
-		renderer->current < (renderer->numFrames - 1) ?
-		renderer->current + 1 : 0;
+		(renderer->current + 1) % renderer->numFrames;
 }
