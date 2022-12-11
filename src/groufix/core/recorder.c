@@ -684,17 +684,18 @@ static bool _gfx_recorder_output(GFXRecorder* recorder,
 }
 
 /****************************/
-bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
+bool _gfx_recorder_reset(GFXRecorder* recorder)
 {
 	assert(recorder != NULL);
-	assert(frame < recorder->renderer->numFrames);
 
 	_GFXContext* context = recorder->context;
-	_GFXRecorderPool* pool = &recorder->pools[frame];
 
-	// Set new current index & clear output.
-	recorder->current = frame;
+	// Clear output.
 	gfx_vec_release(&recorder->out.cmds);
+
+	// Set new current recording pool.
+	recorder->current = recorder->renderer->current;
+	_GFXRecorderPool* pool = &recorder->pools[recorder->current];
 
 	// If the pool did not use some command buffers, free them.
 	if (pool->used < pool->vk.cmds.size)
@@ -724,8 +725,8 @@ bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame)
 }
 
 /****************************/
-void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
-                          VkCommandBuffer cmd)
+void _gfx_recorder_record(GFXRecorder* recorder,
+                          unsigned int order, VkCommandBuffer cmd)
 {
 	assert(recorder != NULL);
 	assert(cmd != NULL);

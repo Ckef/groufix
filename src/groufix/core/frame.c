@@ -382,7 +382,7 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 		rec = (GFXRecorder*)rec->list.next)
 	{
 		// Failure can be ignored.
-		_gfx_recorder_reset(rec, frame->index);
+		_gfx_recorder_reset(rec);
 	}
 
 	return 1;

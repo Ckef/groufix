@@ -1817,6 +1817,24 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
                                 const GFXSampler* sampler);
 
 /**
+ * Resets a recording pool, i.e. resets all command buffers
+ * and sets the new current recording pool to use for recording commands.
+ * @param recorder Cannot be NULL.
+ * @return Non-zero if successfully reset.
+ */
+bool _gfx_recorder_reset(GFXRecorder* recorder);
+
+/**
+ * Records the recording output of a recorder into a given command buffer.
+ * The command buffer must be in the recording state (!).
+ * @param recorder Cannot be NULL.
+ * @param order    Buffers that were output with this order will be recorded.
+ * @param cmd      Cannot be NULL, must be in the render pass of `order` (!).
+ */
+void _gfx_recorder_record(GFXRecorder* recorder,
+                          unsigned int order, VkCommandBuffer cmd);
+
+/**
  * Retrieves all Vulkan specialization constant info and map entries.
  * @param technique Cannot be NULL, must be locked.
  * @param infos     `_GFX_NUM_SHADER_STAGES` VkSpecilizationInfo structs.
@@ -1861,25 +1879,6 @@ bool _gfx_tech_get_set_binding(GFXTechnique* technique,
  * However, can never run concurrently with other set functions.
  */
 _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub);
-
-/**
- * Resets a recording pool, i.e. resets all command buffers
- * and sets the current recording pool to use for recording commands.
- * @param recorder Cannot be NULL.
- * @param frame    Index of the frame to reset buffers of.
- * @return Non-zero if successfully reset.
- */
-bool _gfx_recorder_reset(GFXRecorder* recorder, unsigned int frame);
-
-/**
- * Records the recording output of a recorder into a given command buffer.
- * The command buffer must be in the recording state (!).
- * @param recorder  Cannot be NULL.
- * @param order     Buffers that were output with this order will be recorded.
- * @param cmd       Cannot be NULL, must be in the render pass of `order` (!).
- */
-void _gfx_recorder_record(GFXRecorder* recorder, unsigned int order,
-                          VkCommandBuffer cmd);
 
 
 #endif

@@ -622,8 +622,7 @@ void _gfx_pool_recycle(_GFXPool* pool,
  */
 _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
                             const _GFXCacheElem* setLayout,
-                            const _GFXHashKey* key,
-                            const void* update);
+                            const _GFXHashKey* key, const void* update);
 
 
 #endif
