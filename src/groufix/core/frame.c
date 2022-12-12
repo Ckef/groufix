@@ -385,6 +385,10 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 		_gfx_recorder_reset(rec);
 	}
 
+	// We purge the render backing here such that attachments that were
+	// caught by this frame are purged when we've synced that frame again.
+	_gfx_render_backing_purge(renderer);
+
 	return 1;
 
 
@@ -511,6 +515,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	_GFXInjection injection = {
 		.inp = {
 			.family = renderer->graphics.family,
+			.renderer = renderer,
 			.numRefs = 0
 		}
 	};

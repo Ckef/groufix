@@ -701,6 +701,8 @@ typedef struct _GFXBacking
 	GFXListNode  list; // Base-type.
 	_GFXMemAlloc alloc;
 
+	unsigned int purge; // If stale, index of frame to purge at.
+
 
 	// Vulkan fields.
 	struct
@@ -727,6 +729,9 @@ typedef struct _GFXImageAttach
 
 	// Set by render graph, final (last) consumption.
 	const _GFXConsume* final;
+
+	// Set by dependency objects, signaled out of the renderer.
+	bool signaled;
 
 
 	// Vulkan fields.
@@ -1284,8 +1289,9 @@ struct _GFXInjection
 	// Operation input, must be pre-initialized!
 	struct
 	{
-		uint32_t family;
-		size_t   numRefs; // May be zero!
+		uint32_t     family;
+		GFXRenderer* renderer; // To signal attachments.
+		size_t       numRefs;  // May be zero!
 
 		const _GFXUnpackRef* refs;
 		const GFXAccessMask* masks;
@@ -1661,6 +1667,13 @@ bool _gfx_render_backing_build(GFXRenderer* renderer);
  * @param flags    Must contain the _GFX_RECREATE bit.
  */
 void _gfx_render_backing_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags);
+
+/**
+ * Purges all relevant render backing resources.
+ * Use to destroy stale backings to be purged at the current frame index.
+ * @param renderer Cannot be NULL.
+ */
+void _gfx_render_backing_purge(GFXRenderer* renderer);
 
 /**
  * Initializes the render graph of a renderer.

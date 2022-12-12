@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 
 
@@ -101,6 +102,9 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 	// Allocate a new backing image.
 	_GFXBacking* backing = malloc(sizeof(_GFXBacking));
 	if (backing == NULL) goto clean;
+
+	// We set its purge index to UINT_MAX so it never gets purged, yet.
+	backing->purge = UINT_MAX;
 
 	// Get queue families to share with.
 	uint32_t families[3] = {
@@ -333,6 +337,7 @@ static bool _gfx_detach_attachment(GFXRenderer* renderer, _GFXAttach* attach,
  *
  * This will unset (i.e. invalidate) any recent Vulkan image if
  * the associated attachment has been resized.
+ * Will also reset any signaled image attachment.
  */
 static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 {
@@ -371,6 +376,9 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 			attach->image.width = attach->image.base.width;
 			attach->image.height = attach->image.base.height;
 			attach->image.depth = attach->image.base.depth;
+
+			// Reset signaled state, nothing to be done.
+			attach->image.signaled = 0;
 
 			resolved[i] = 1;
 			++totalResolved;
@@ -435,31 +443,36 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 				attach->image.height != height ||
 				attach->image.depth != depth)
 			{
-				// If it is, we invalidate the most recent image!
+				// If it is, check the active backing (i.e. most recent).
+				if (attach->image.backings.head != NULL)
+				{
+					_GFXBacking* backing =
+						(_GFXBacking*)attach->image.backings.head;
+
+					// If it exists and was signaled, we cannot free it yet.
+					// Some operation might still use the resource.
+					// So we set its purge state so it gets purged whenever
+					// not active anymore (i.e. not most recent anymore).
+					if (attach->image.signaled)
+						backing->purge = renderer->current;
+					else
+						// If not signaled, just free the backing.
+						_gfx_free_backing(renderer, attach, backing);
+				}
+
+				// Then we invalidate the most recent image!
 				attach->image.vk.image = VK_NULL_HANDLE;
 				attach->image.width = width;
 				attach->image.height = height;
 				attach->image.depth = depth;
 
-				// TODO: In case this attachment was used in a dependency
-				// that reaches outside this renderer, this would be the
-				// place to calculate when the previously most recent image
-				// (that is now invalidated) can be destroyed!
-				// Consider that the operation outside the renderer might
-				// still be running when all virtual frames are synced!
-
-				// TODO: Then call _gfx_render_backing_purge every frame to
-				// destroy the backing images that can then be destroyed.
-
-				// If there is a backing image, free it.
-				if (attach->image.backings.tail != NULL)
-					_gfx_free_backing(renderer, attach,
-						(_GFXBacking*)attach->image.backings.tail);
-
 				// Increase generation; image may be used in set entries,
 				// ergo we need to invalidate those entries.
 				_gfx_attach_gen(attach);
 			}
+
+			// Reset signaled state, resolved.
+			attach->image.signaled = 0;
 
 			resolved[i] = 1;
 			++totalResolved;
@@ -617,6 +630,35 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 }
 
 /****************************/
+void _gfx_render_backing_purge(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// Loop over all attachments and destroy stale backings.
+	// A backing is stale when it is NOT most recent in the backings list.
+	// i.e. remembered instead of destroyed because it was signaled to be used
+	// in some operation outside the renderer.
+	// We only check the oldest backing, only one can be marked for purging
+	// per frame anyway.
+	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
+	{
+		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, i);
+		if (
+			attach->type == _GFX_ATTACH_IMAGE &&
+			// If head != tail, we have a not-most-recent backing.
+			attach->image.backings.head != attach->image.backings.tail)
+		{
+			_GFXBacking* backing =
+				(_GFXBacking*)attach->image.backings.tail;
+
+			// If its purge index is this frame, free it!
+			if (backing->purge == renderer->current)
+				_gfx_free_backing(renderer, attach, backing);
+		}
+	}
+}
+
+/****************************/
 GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
                                  size_t index, GFXAttachment attachment)
 {
@@ -671,6 +713,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 		.height = 0,
 		.depth = 0,
 		.final = NULL,
+		.signaled = 0,
 		.vk = {
 			.format = vkFmt,
 			.image = VK_NULL_HANDLE

@@ -609,6 +609,19 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			continue;
 		}
 
+		// And its renderer too.
+		if (
+			injection->inp.renderer != NULL &&
+			unp.obj.renderer != NULL &&
+			unp.obj.renderer != injection->inp.renderer)
+		{
+			gfx_log_warn(
+				"Dependency signal command ignored, renderer attachment "
+				"references cannot be used in another renderer.");
+
+			continue;
+		}
+
 		// We need to find out what resources to signal.
 		// If the injection metadata specifies references, take those and
 		// filter the command against that, ignore it on a mismatch.
@@ -941,6 +954,18 @@ static void _gfx_deps_finalize(size_t numInjs, const GFXInject* injs,
 			_GFXSync* sync = gfx_deque_at(&dep->syncs, s);
 			if (sync->inj == injection)
 			{
+				// If we're dealing with an attachment of the renderer
+				// performing the operation, signal it if it is given to
+				// an operation outside of this renderer.
+				// i.e. it is still in the prepare state.
+				if (success &&
+					sync->ref.obj.renderer != NULL &&
+					sync->ref.obj.renderer == injection->inp.renderer &&
+					sync->stage == _GFX_SYNC_PREPARE)
+				{
+					_GFX_UNPACK_REF_ATTACH(sync->ref)->signaled = 1;
+				}
+
 				// If the object was only prepared, it is now pending.
 				// Otherwise it _must_ have been caught, in which case we
 				// advance it to used or unused.
