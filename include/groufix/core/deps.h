@@ -194,8 +194,8 @@ typedef struct GFXInject
  *
  * Injections that reference attachments are _NOT_ thread-safe with respect
  * to the renderer it belongs to, not even if referenced implicitly.
- * TODO: Explain that attachments must be operated on before the next acquire
- * and catched by the next submit-like-func?
+ * When an attachment is signaled out of its renderer and operated on, it must
+ * be immediately waited upon by the next frame of that renderer!
  *
  * When the access mask contains host read/write access, remaining writes are
  * flushed to host visible memory after the operation. The host must not read or

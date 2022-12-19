@@ -955,15 +955,19 @@ static void _gfx_deps_finalize(size_t numInjs, const GFXInject* injs,
 			if (sync->inj == injection)
 			{
 				// If we're dealing with an attachment of the renderer
-				// performing the operation, signal it if it is given to
-				// an operation outside of this renderer.
-				// i.e. it is still in the prepare state.
+				// performing the operation, modify its signaled state.
 				if (success &&
 					sync->ref.obj.renderer != NULL &&
-					sync->ref.obj.renderer == injection->inp.renderer &&
-					sync->stage == _GFX_SYNC_PREPARE)
+					sync->ref.obj.renderer == injection->inp.renderer)
 				{
-					_GFX_UNPACK_REF_ATTACH(sync->ref)->signaled = 1;
+					// If in the prepare state, it might be for an
+					// operation outside this renderer, signal!
+					if (sync->stage == _GFX_SYNC_PREPARE)
+						_GFX_UNPACK_REF_ATTACH(sync->ref)->signaled = 1;
+
+					// If caught from outside this renderer, reset.
+					else if(sync->stage == _GFX_SYNC_CATCH)
+						_GFX_UNPACK_REF_ATTACH(sync->ref)->signaled = 0;
 				}
 
 				// If the object was only prepared, it is now pending.
