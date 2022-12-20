@@ -482,8 +482,9 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 		goto clean_graphics_lock;
 
 	// Get context associated with the device.
+	_GFXDevice* dev;
 	_GFXContext* context;
-	_GFX_GET_DEVICE(heap->device, device);
+	_GFX_GET_DEVICE(dev, device);
 	_GFX_GET_CONTEXT(context, device, goto clean_transfer_lock);
 
 	// Pick the graphics and transfer queues (and compute family).
@@ -518,7 +519,7 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 		goto clean_pools);
 
 	// Initialize allocator things.
-	_gfx_allocator_init(&heap->allocator, heap->device);
+	_gfx_allocator_init(&heap->allocator, dev);
 	gfx_list_init(&heap->buffers);
 	gfx_list_init(&heap->images);
 	gfx_list_init(&heap->primitives);
@@ -639,7 +640,7 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap)
 	if (heap == NULL)
 		return NULL;
 
-	return (GFXDevice*)heap->device;
+	return (GFXDevice*)heap->allocator.device;
 }
 
 /****************************/
@@ -902,7 +903,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 
 	// Firstly, resolve the given format.
 	VkFormat vkFmt;
-	_GFX_RESOLVE_FORMAT(format, vkFmt, heap->device,
+	_GFX_RESOLVE_FORMAT(format, vkFmt, heap->allocator.device,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
 			.optimalTilingFeatures =
@@ -1027,7 +1028,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		attrib->base = attribs[a];
 
 		_GFX_RESOLVE_FORMAT(
-			attrib->base.format, attrib->vk.format, heap->device,
+			attrib->base.format, attrib->vk.format, heap->allocator.device,
 			((VkFormatProperties){
 				.linearTilingFeatures = 0,
 				.optimalTilingFeatures = 0,
@@ -1287,11 +1288,11 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	const uint64_t align =
 		GFX_MAX(GFX_MAX(
 			usage & (GFX_BUFFER_UNIFORM_TEXEL | GFX_BUFFER_STORAGE_TEXEL) ?
-				heap->device->base.limits.minTexelBufferAlign : 1,
+				heap->allocator.device->base.limits.minTexelBufferAlign : 1,
 			usage & GFX_BUFFER_UNIFORM ?
-				heap->device->base.limits.minUniformBufferAlign : 1),
+				heap->allocator.device->base.limits.minUniformBufferAlign : 1),
 			usage & GFX_BUFFER_STORAGE ?
-				heap->device->base.limits.minStorageBufferAlign : 1);
+				heap->allocator.device->base.limits.minStorageBufferAlign : 1);
 
 	GFXReference* refPtr =
 		(GFXReference*)((char*)group + structSize);

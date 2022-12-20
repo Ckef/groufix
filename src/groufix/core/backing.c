@@ -673,7 +673,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 
 	// Firstly, resolve attachment's format.
 	VkFormat vkFmt;
-	_GFX_RESOLVE_FORMAT(attachment.format, vkFmt, renderer->device,
+	_GFX_RESOLVE_FORMAT(attachment.format, vkFmt, renderer->allocator.device,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
 			.optimalTilingFeatures = _GFX_GET_VK_FORMAT_FEATURES(

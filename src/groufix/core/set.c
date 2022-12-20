@@ -597,7 +597,7 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
 		{
 			VkFormat vkFmt = VK_FORMAT_UNDEFINED;
 			GFXFormat gfxFmt = view->format;
-			_GFX_RESOLVE_FORMAT(gfxFmt, vkFmt, renderer->device,
+			_GFX_RESOLVE_FORMAT(gfxFmt, vkFmt, renderer->allocator.device,
 				((VkFormatProperties){
 					.linearTilingFeatures = 0,
 					.optimalTilingFeatures = 0,

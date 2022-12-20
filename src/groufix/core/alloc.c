@@ -35,38 +35,38 @@
 
 
 // Get Vulkan memory property flag bits as a readable string.
-#define _GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, flag) \
-	((flag & (alloc)->vk.properties.memoryTypes[type].propertyFlags) ? \
+#define _GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, flag) \
+	((flag & (pdmp)->memoryTypes[type].propertyFlags) ? \
 		"        "#flag"\n" : "")
 
-#define _GFX_GET_VK_TYPE_EMPTY_STRING(alloc, type) \
-	((alloc)->vk.properties.memoryTypes[type].propertyFlags == 0 ? \
+#define _GFX_GET_VK_TYPE_EMPTY_STRING(pdmp, type) \
+	((pdmp)->memoryTypes[type].propertyFlags == 0 ? \
 		"None." : "")
 
-#define _GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+#define _GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(pdmp, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
 
-#define _GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+#define _GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(pdmp, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
 
-#define _GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+#define _GFX_GET_VK_TYPE_HOST_COHERENT_STRING(pdmp, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
-#define _GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
+#define _GFX_GET_VK_TYPE_HOST_CACHED_STRING(pdmp, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
 
-#define _GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)
+#define _GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(pdmp, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)
 
-#define _GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(alloc, type, VK_MEMORY_PROPERTY_PROTECTED_BIT)
+#define _GFX_GET_VK_TYPE_PROTECTED_STRING(pdmp, type) \
+	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_PROTECTED_BIT)
 
 
 // Gets suitable memory types (auto log when none found) assigned to two lvalue.
-#define _GFX_GET_MEM_TYPES(lreq, lopt, alloc, required, optimal, types, action) \
+#define _GFX_GET_MEM_TYPES(lreq, lopt, pdmp, required, optimal, types, action) \
 	do { \
-		lreq = _gfx_get_mem_type(alloc, required, types); \
-		lopt = _gfx_get_mem_type(alloc, optimal, types); \
+		lreq = _gfx_get_mem_type(pdmp, required, types); \
+		lopt = _gfx_get_mem_type(pdmp, optimal, types); \
 		if (lreq == UINT32_MAX && lopt == UINT32_MAX) { \
 			gfx_log_error( \
 				"Could not find suitable Vulkan memory type for allocation."); \
@@ -94,20 +94,18 @@ static int _gfx_allocator_cmp(const void* l, const void* r)
 
 /****************************
  * Find a memory type that includes all the given memory property flags.
+ * @param pdmp  Cannot be NULL.
  * @param types Supported (i.e. required) memory type bits to choose from.
  * @return UINT32_MAX if none found.
  */
-static uint32_t _gfx_get_mem_type(_GFXAllocator* alloc,
-                                  VkMemoryPropertyFlags flags,
-                                  uint32_t types)
+static uint32_t _gfx_get_mem_type(const VkPhysicalDeviceMemoryProperties* pdmp,
+                                  VkMemoryPropertyFlags flags, uint32_t types)
 {
-	assert(alloc != NULL);
+	assert(pdmp != NULL);
 	assert(types != 0);
 
 	// We search in order, Vulkan orders subsets before supersets,
 	// so we don't have to check for the least flags :)
-	const VkPhysicalDeviceMemoryProperties* pdmp = &alloc->vk.properties;
-
 	for (uint32_t t = 0; t < pdmp->memoryTypeCount; ++t)
 	{
 		// Not a supported type.
@@ -137,11 +135,14 @@ static uint32_t _gfx_get_mem_type(_GFXAllocator* alloc,
  * To allocate Vulkan 'dedicated' memory, a buffer _OR_ image can be passed,
  * these will be passed to Vulkan if and only if minSize == maxSIze.
  */
-static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
+static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
+                                          const VkPhysicalDeviceMemoryProperties* pdmp,
+                                          uint32_t type,
                                           VkDeviceSize minSize, VkDeviceSize maxSize,
                                           VkBuffer buffer, VkImage image)
 {
 	assert(alloc != NULL);
+	assert(pdmp != NULL);
 	assert(minSize <= maxSize);
 	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
 
@@ -172,8 +173,6 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 	_gfx_mutex_unlock(&context->limits.allocLock);
 
 	// Validate that we have enough memory.
-	const VkPhysicalDeviceMemoryProperties* pdmp =
-		&alloc->vk.properties;
 	const VkDeviceSize heapSize =
 		pdmp->memoryHeaps[pdmp->memoryTypes[type].heapIndex].size;
 
@@ -300,13 +299,13 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc, uint32_t type,
 		dedicated ? " (dedicated)" : "",
 		prefBlockSize,
 		heapSize,
-		_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, type),
-		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, type),
-		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, type),
-		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, type),
-		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, type),
-		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, type),
-		_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, type));
+		_GFX_GET_VK_TYPE_EMPTY_STRING(pdmp, type),
+		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(pdmp, type),
+		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(pdmp, type),
+		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(pdmp, type),
+		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(pdmp, type),
+		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(pdmp, type),
+		_GFX_GET_VK_TYPE_PROTECTED_STRING(pdmp, type));
 
 	return block;
 
@@ -356,18 +355,25 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 	gfx_tree_clear(&block->nodes.free);
 	_gfx_mutex_clear(&block->map.lock);
 
+#if !defined (NDEBUG)
+	// Get physical device memory properties if in debug.
+	VkPhysicalDeviceMemoryProperties pdmp;
+	_groufix.vk.GetPhysicalDeviceMemoryProperties(
+		alloc->device->vk.device, &pdmp);
+
 	gfx_log_debug(
 		"Freed Vulkan memory object:\n"
 		"    Memory block size: %"PRIu64" bytes.\n"
 		"    Memory heap flags: %s\n%s%s%s%s%s%s",
 		block->size,
-		_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, block->type),
-		_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, block->type));
+		_GFX_GET_VK_TYPE_EMPTY_STRING(&pdmp, block->type),
+		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(&pdmp, block->type),
+		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(&pdmp, block->type),
+		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(&pdmp, block->type),
+		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(&pdmp, block->type),
+		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(&pdmp, block->type),
+		_GFX_GET_VK_TYPE_PROTECTED_STRING(&pdmp, block->type));
+#endif
 
 	free(block);
 }
@@ -379,7 +385,9 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 	assert(device != NULL);
 	assert(device->context != NULL);
 
+	alloc->device = device;
 	alloc->context = device->context;
+
 	gfx_list_init(&alloc->free);
 	gfx_list_init(&alloc->full);
 
@@ -387,10 +395,6 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 	_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
 	alloc->granularity = pdp.limits.bufferImageGranularity;
-
-	_groufix.vk.GetPhysicalDeviceMemoryProperties(
-		device->vk.device,
-		&alloc->vk.properties);
 }
 
 /****************************/
@@ -424,10 +428,15 @@ bool _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, bool linear,
 	// Alignment of 0 means 1.
 	reqs.alignment = (reqs.alignment > 0) ? reqs.alignment : 1;
 
+	// Get physical device memory properties.
+	VkPhysicalDeviceMemoryProperties pdmp;
+	_groufix.vk.GetPhysicalDeviceMemoryProperties(
+		alloc->device->vk.device, &pdmp);
+
 	// Get memory type index.
 	uint32_t tReq, tOpt;
 	_GFX_GET_MEM_TYPES(
-		tReq, tOpt, alloc, required, optimal, reqs.memoryTypeBits,
+		tReq, tOpt, &pdmp, required, optimal, reqs.memoryTypeBits,
 		return 0);
 
 	// Construct a search key:
@@ -520,7 +529,7 @@ try_search:
 	{
 		// Uh oh the search failed, try to allocate a new memory block.
 		block = _gfx_alloc_mem_block(
-			alloc, type, reqs.size,
+			alloc, &pdmp, type, reqs.size,
 			GFX_MAX(reqs.size, _GFX_DEF_LARGE_HEAP_BLOCK_SIZE),
 			VK_NULL_HANDLE, VK_NULL_HANDLE);
 
@@ -539,13 +548,13 @@ try_search:
 					"Allocation failed, will try to fallback to another "
 					"available memory heap:\n"
 					"    Memory heap flags (failed): %s\n%s%s%s%s%s%s",
-					_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, type),
-					_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, type),
-					_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, type),
-					_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, type),
-					_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, type),
-					_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, type),
-					_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, type));
+					_GFX_GET_VK_TYPE_EMPTY_STRING(&pdmp, type),
+					_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(&pdmp, type),
+					_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(&pdmp, type),
+					_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(&pdmp, type),
+					_GFX_GET_VK_TYPE_HOST_CACHED_STRING(&pdmp, type),
+					_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(&pdmp, type),
+					_GFX_GET_VK_TYPE_PROTECTED_STRING(&pdmp, type));
 
 				type = tReq;
 				goto try_search;
@@ -567,7 +576,7 @@ try_search:
 		.block  = block,
 		.size   = _GFX_KEY_SIZE(key),
 		.offset = _GFX_KEY_OFFSET(key),
-		.flags  = alloc->vk.properties.memoryTypes[block->type].propertyFlags,
+		.flags  = pdmp.memoryTypes[block->type].propertyFlags,
 		.linear = linear,
 		.vk     = { .memory = block->vk.memory }
 	};
@@ -631,10 +640,15 @@ bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	assert(reqs.memoryTypeBits != 0);
 	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
 
+	// Get physical device memory properties.
+	VkPhysicalDeviceMemoryProperties pdmp;
+	_groufix.vk.GetPhysicalDeviceMemoryProperties(
+		alloc->device->vk.device, &pdmp);
+
 	// Get memory type index.
 	uint32_t tReq, tOpt;
 	_GFX_GET_MEM_TYPES(
-		tReq, tOpt, alloc, required, optimal, reqs.memoryTypeBits,
+		tReq, tOpt, &pdmp, required, optimal, reqs.memoryTypeBits,
 		return 0);
 
 	// Allocate a memory block.
@@ -644,7 +658,7 @@ bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// First try the optimal memory type.
 	if (tOpt != UINT32_MAX)
 		block = _gfx_alloc_mem_block(
-			alloc, tOpt, reqs.size, reqs.size, buffer, image);
+			alloc, &pdmp, tOpt, reqs.size, reqs.size, buffer, image);
 
 	// If we failed and there is a defined required type as fallback, try it.
 	// Again this is a bit much logging, but again, it is a situation we
@@ -656,16 +670,16 @@ bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 			"Dedicated allocation failed, will try to fallback to another "
 			"available memory heap:\n"
 			"    Memory heap flags (failed): %s\n%s%s%s%s%s%s",
-			_GFX_GET_VK_TYPE_EMPTY_STRING(alloc, tOpt),
-			_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(alloc, tOpt),
-			_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(alloc, tOpt),
-			_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(alloc, tOpt),
-			_GFX_GET_VK_TYPE_HOST_CACHED_STRING(alloc, tOpt),
-			_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(alloc, tOpt),
-			_GFX_GET_VK_TYPE_PROTECTED_STRING(alloc, tOpt));
+			_GFX_GET_VK_TYPE_EMPTY_STRING(&pdmp, tOpt),
+			_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(&pdmp, tOpt),
+			_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(&pdmp, tOpt),
+			_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(&pdmp, tOpt),
+			_GFX_GET_VK_TYPE_HOST_CACHED_STRING(&pdmp, tOpt),
+			_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(&pdmp, tOpt),
+			_GFX_GET_VK_TYPE_PROTECTED_STRING(&pdmp, tOpt));
 
 		block = _gfx_alloc_mem_block(
-			alloc, tReq, reqs.size, reqs.size, buffer, image);
+			alloc, &pdmp, tReq, reqs.size, reqs.size, buffer, image);
 	}
 
 	if (block == NULL)
@@ -678,7 +692,7 @@ bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 		.block  = block,
 		.size   = reqs.size,
 		.offset = 0,
-		.flags  = alloc->vk.properties.memoryTypes[block->type].propertyFlags,
+		.flags  = pdmp.memoryTypes[block->type].propertyFlags,
 		.linear = 0,
 		.vk     = { .memory = block->vk.memory }
 	};

@@ -540,8 +540,7 @@ typedef struct _GFXTransferPool
  */
 struct GFXHeap
 {
-	_GFXDevice*   device;    // For format operations & alignment.
-	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
+	_GFXAllocator allocator; // Has both _GFXDevice* and _GFXContext*.
 	_GFXMutex     lock;      // For allocation.
 
 	GFXList buffers;    // References _GFXBuffer.
@@ -897,8 +896,7 @@ struct GFXRecorder
  */
 struct GFXRenderer
 {
-	_GFXDevice*   device;    // For format operations.
-	_GFXAllocator allocator; // Its context member is the used _GFXContext*.
+	_GFXAllocator allocator; // Has both _GFXDevice* and _GFXContext*.
 	_GFXCache     cache;
 	_GFXPool      pool;
 	_GFXQueue     graphics;

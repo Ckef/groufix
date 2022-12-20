@@ -232,8 +232,9 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 		goto clean;
 
 	// Get context associated with the device.
+	_GFXDevice* dev;
 	_GFXContext* context;
-	_GFX_GET_DEVICE(rend->device, device);
+	_GFX_GET_DEVICE(dev, device);
 	_GFX_GET_CONTEXT(context, device, goto clean);
 
 	// Pick the graphics and presentation queues.
@@ -248,12 +249,12 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 		goto clean;
 
 	// Initialize the cache and pool second.
-	if (!_gfx_cache_init(&rend->cache, rend->device, sizeof(_GFXSetEntry)))
+	if (!_gfx_cache_init(&rend->cache, dev, sizeof(_GFXSetEntry)))
 		goto clean_lock;
 
 	// Keep descriptor sets 4x the amount of frames we have.
 	// Offset by 1 to account for the first frame using it.
-	if (!_gfx_pool_init(&rend->pool, rend->device, (frames << 2) + 1))
+	if (!_gfx_pool_init(&rend->pool, dev, (frames << 2) + 1))
 	{
 		_gfx_cache_clear(&rend->cache);
 		goto clean_cache;
@@ -261,7 +262,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 
 	// Then initialize the allocator, render backing & graph.
 	// Technically it doesn't matter, but let's do it in dependency order.
-	_gfx_allocator_init(&rend->allocator, rend->device);
+	_gfx_allocator_init(&rend->allocator, dev);
 	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
 
@@ -363,7 +364,7 @@ GFX_API GFXDevice* gfx_renderer_get_device(GFXRenderer* renderer)
 	if (renderer == NULL)
 		return NULL;
 
-	return (GFXDevice*)renderer->device;
+	return (GFXDevice*)renderer->allocator.device;
 }
 
 /****************************/

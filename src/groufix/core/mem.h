@@ -176,6 +176,7 @@ typedef struct _GFXMemAlloc
  */
 typedef struct _GFXAllocator
 {
+	_GFXDevice*  device; // For memory property queries.
 	_GFXContext* context;
 
 	GFXList free; // References _GFXMemBlock.
@@ -183,14 +184,6 @@ typedef struct _GFXAllocator
 
 	// Constant, queried once.
 	VkDeviceSize granularity;
-
-
-	// Vulkan fields.
-	struct
-	{
-		VkPhysicalDeviceMemoryProperties properties; // Queried once.
-
-	} vk;
 
 } _GFXAllocator;
 
