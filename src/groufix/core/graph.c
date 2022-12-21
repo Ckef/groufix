@@ -14,10 +14,11 @@
  * Checks if a given parent is a possible merge candidate for the pass.
  * Meaning its parent _can_ be submitted as subpass before the pass itself,
  * which might implicitly move it up in submission order.
- * @param pass   Cannot be NULL.
- * @param parent Cannot be NULL, must be a parent of pass.
+ * @param pass      Cannot be NULL.
+ * @param candidate Cannot be NULL, must be a parent of pass.
+ * @return Candidate's score, the higher the better, zero if not a candidate.
  */
-static bool _gfx_pass_is_merge_candidate(GFXPass* pass, GFXPass* candidate)
+static uint64_t _gfx_pass_merge_score(GFXPass* pass, GFXPass* candidate)
 {
 	assert(pass != NULL);
 	assert(candidate != NULL);
@@ -34,9 +35,14 @@ static bool _gfx_pass_is_merge_candidate(GFXPass* pass, GFXPass* candidate)
 	// The candidate cannot already be merged with one of its children.
 	if (candidate->out.next != NULL) return 0;
 
-	// TODO: Determine further...
-
+	// TODO: Determine further; reject if incompatible attachments/others.
 	return 0;
+
+	// Hooray we have an actual candidate!
+	// Now to calculate their score...
+	// We are going to use the length of the subpass chain as metric,
+	// the longer the better.
+	return 1 + (uint64_t)candidate->out.subpass;
 }
 
 /****************************
@@ -153,21 +159,27 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 		pass->out.next = NULL;
 		pass->out.subpass = 0;
 
-		// Take first parent that is a candidate.
-		// TODO: Somehow weigh all candidates?
+		// Take the parent with the highest merge score.
+		GFXPass* merge = NULL;
+		uint64_t score = 0;
+
 		for (size_t p = 0; p < pass->numParents; ++p)
 		{
 			GFXPass* candidate = pass->parents[p];
-			if (_gfx_pass_is_merge_candidate(pass, candidate))
-			{
-				pass->out.master =
-					(candidate->out.master == NULL) ?
-					candidate : candidate->out.master;
+			uint64_t pScore = _gfx_pass_merge_score(pass, candidate);
 
-				candidate->out.next = pass;
-				pass->out.subpass = candidate->out.subpass + 1;
-				break;
-			}
+			// Note: if pScore == 0, it will always be rejected!
+			if (pScore > score)
+				merge = candidate, score = pScore;
+		}
+
+		// Link it into the chain.
+		if (merge != NULL)
+		{
+			merge->out.next = pass;
+			pass->out.subpass = merge->out.subpass + 1;
+			pass->out.master =
+				(merge->out.master == NULL) ? merge : merge->out.master;
 		}
 	}
 
