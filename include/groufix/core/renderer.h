@@ -491,7 +491,7 @@ typedef struct GFXRecorder GFXRecorder;
  */
 typedef struct GFXRenderable
 {
-	// All ready-only.
+	// All read-only.
 	GFXPass*      pass;
 	GFXTechnique* technique;
 	GFXPrimitive* primitive;
