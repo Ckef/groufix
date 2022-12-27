@@ -835,9 +835,7 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
                                GFXAccessMask mask, GFXShaderStage stage,
                                GFXView view);
 
-// TODO: Add gfx_pass_copy().
-// TODO: Add gfx_pass_blit().
-// TODO: Add gfx_pass_resolve()?
+// TODO: Add gfx_pass_resolve().
 
 /**
  * Clears the contents of a consumed attachment before the pass.

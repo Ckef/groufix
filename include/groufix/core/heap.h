@@ -537,7 +537,7 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
                       const GFXInject* deps);
 
 // TODO: Add gfx_blit().
-// TODO: Add gfx_resolve()?
+// TODO: Add gfx_resolve().
 
 /**
  * Maps a buffer reference to a host virtual address pointer.
