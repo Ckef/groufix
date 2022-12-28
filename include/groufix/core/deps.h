@@ -170,13 +170,13 @@ typedef struct GFXInject
  * Signal commands are accumulated in dependency objects and are made visible
  * by the operation they were injected in. After being made visible,
  * a wait command matches (and waits for) all signal commands that address
- * the queue of the waiting operation.
+ * the same underlying Vulkan queue.
  *
  * There are three queue destinations:
  *  -graphics, -compute, -transfer
  *
- * Operations (i.e. wait commands) and signal commands normally address
- * the graphics queue, but they can address the other two with the respective
+ * Operations and the commands injected into them normally address the
+ * graphics queue, but they can address the other two with the respective
  * `*_(COMPUTE|TRANSFER)_ASYNC` flags and access mask modifiers.
  *
  * To force the dependency on a specific resource, use

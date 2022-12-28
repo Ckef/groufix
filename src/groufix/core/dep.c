@@ -434,6 +434,10 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				if ((--sync->waits) == 0)
 					sync->stage = _GFX_SYNC_UNUSED;
 
+			// Match on queue family.
+			if (sync->vk.dstFamily != injection->inp.family)
+				continue;
+
 			// Match against pending signals.
 			if (
 				sync->stage != _GFX_SYNC_PENDING &&
@@ -442,10 +446,6 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			{
 				continue;
 			}
-
-			// Match on queue family.
-			if (sync->vk.dstFamily != injection->inp.family)
-				continue;
 
 			// We have a matching synchronization object, in other words,
 			// we are going to catch a signal command with this wait command.
