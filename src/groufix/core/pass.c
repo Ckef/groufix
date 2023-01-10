@@ -1298,6 +1298,15 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 }
 
 /****************************/
+GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolv)
+{
+	assert(pass != NULL);
+	assert(!pass->renderer->recording);
+
+	// TODO: Implement.
+}
+
+/****************************/
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 {
 	assert(pass != NULL);

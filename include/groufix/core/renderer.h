@@ -835,8 +835,6 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
                                GFXAccessMask mask, GFXShaderStage stage,
                                GFXView view);
 
-// TODO: Add gfx_pass_resolve().
-
 /**
  * Clears the contents of a consumed attachment before the pass.
  * No-op if attachment at index is not consumed!
@@ -850,15 +848,27 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 /**
  * Sets the blend state of a consumed attachment independently.
  * The device must support independent blending!
+ * No-op if attachment at index is not consumed!
+ * @param pass  Cannot be NULL.
+ * @param index Attachment index to set the blend state of.
  * @param color (src|dst)Factor are ignored if GFX_BLEND_NO_OP.
  * @param alpha (src|dst)AlphaFactor are ignored if GFX_BLEND_NO_OP.
- * @see gfx_pass_clear.
  */
 GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
                             GFXBlendOpState color, GFXBlendOpState alpha);
 
 /**
+ * Resolves the contents of a consumed attachment to another after the pass.
+ * No-op if attachment at index or resolved is not consumed!
+ * @param pass   Cannot be NULL.
+ * @param index  Multisampled attachment to resolve.
+ * @param resolv Destination attachment to resolve to.
+ */
+GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolv);
+
+/**
  * Release any consumption of an attachment of the renderer.
+ * No-op if attachment at index is not consumed!
  * @param pass  Cannot be NULL.
  * @param index Attachment index to release.
  */
