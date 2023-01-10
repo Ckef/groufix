@@ -161,12 +161,7 @@ TEST_DESCRIBE(post, t)
 	while (!gfx_window_should_close(t->window))
 	{
 		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
-		gfx_frame_start(frame, 2, (GFXInject[]){
-			gfx_dep_wait(t->dep),
-			gfx_dep_sigr(t->dep,
-				GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY,
-				gfx_ref_attach(t->renderer, 1))
-		});
+		gfx_frame_start(frame, 1, (GFXInject[]){ gfx_dep_wait(t->dep), });
 		gfx_recorder_render(t->recorder, post, post_process, &ctx);
 		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
