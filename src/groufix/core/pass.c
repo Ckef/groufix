@@ -177,7 +177,7 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 		con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == consume->view.index)
 		{
-			// Keep old clear & blend values.
+			// Keep old clear, blend & resolve values.
 			_GFXConsume t = *con;
 			*con = *consume;
 
@@ -188,6 +188,7 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 			con->clear = t.clear;
 			con->color = t.color;
 			con->alpha = t.alpha;
+			con->resolve = t.resolve;
 
 			goto invalidate;
 		}
@@ -210,6 +211,7 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 	con->clear.gfx = (GFXClear){ .depth = 0.0f, .stencil = 0 };
 	con->color = blendOpState;
 	con->alpha = blendOpState;
+	con->resolve = SIZE_MAX;
 
 invalidate:
 	// Always reset graph output.
@@ -565,6 +567,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	if (pass->build.backing != SIZE_MAX)
 		backing = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
+	// TODO: Somehow deal with resolve attachments.
 	// Describe all attachments.
 	// We loop over all framebuffer views, which guarantees non-empty
 	// attachments with attachment input/read/write access.
@@ -1298,12 +1301,24 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolv)
+GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
 
-	// TODO: Implement.
+	// Find and set.
+	for (size_t i = pass->consumes.size; i > 0; --i)
+	{
+		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		if (con->view.index == index)
+		{
+			con->resolve = resolve;
+
+			// Same as _gfx_pass_consume, invalidate for destruction.
+			_gfx_render_graph_invalidate(pass->renderer);
+			break;
+		}
+	}
 }
 
 /****************************/

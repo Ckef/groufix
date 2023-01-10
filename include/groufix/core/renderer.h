@@ -859,15 +859,16 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 
 /**
  * Resolves the contents of a consumed attachment to another after the pass.
- * No-op if attachment at index or resolved is not consumed!
- * @param pass   Cannot be NULL.
- * @param index  Multisampled attachment to resolve.
- * @param resolv Destination attachment to resolve to.
+ * No-op if attachment at index is not consumed!
+ * @param pass    Cannot be NULL.
+ * @param index   Multisampled attachment index to resolve.
+ * @param resolve Destination attachment index to resolve to.
  */
-GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolv);
+GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve);
 
 /**
  * Release any consumption of an attachment of the renderer.
+ * This will reset all state once the attachment is consumed again.
  * No-op if attachment at index is not consumed!
  * @param pass  Cannot be NULL.
  * @param index Attachment index to release.

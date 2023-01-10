@@ -969,6 +969,7 @@ struct _GFXConsume
 	GFXImageAspect  cleared;
 	GFXBlendOpState color;
 	GFXBlendOpState alpha;
+	size_t          resolve; // Or SIZE_MAX.
 
 	enum {
 		_GFX_CONSUME_VIEWED = 0x0001, // Set to use view.type.
