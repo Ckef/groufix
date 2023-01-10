@@ -1534,6 +1534,35 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool);
 
 
 /****************************
+ * Pipeline creation & warmup.
+ ****************************/
+
+/**
+ * Retrieves a graphics pipeline from the renderer's cache (or warms it up).
+ * Essentially a wrapper for _gfx_cache_(get|warmup).
+ * @param renderable Cannot be NULL.
+ * @param elem       Output cache element, cannot be NULL if warmup is zero.
+ * @param warmup     Non-zero to only warmup and not retrieve.
+ * @return Zero on failure.
+ *
+ * Completely thread-safe with respect to the renderable!
+ */
+bool _gfx_renderable_pipeline(GFXRenderable* renderable,
+                              _GFXCacheElem** elem, bool warmup);
+
+/**
+ * Retrieves a compute pipeline from the renderer's cache (or warms it up).
+ * Essentially a wrapper for _gfx_cache_(get|warmup).
+ * @param computable Cannot be NULL.
+ * @see _gfx_renderable_pipeline.
+ *
+ * Completely thread-safe with respect to the computable!
+ */
+bool _gfx_computable_pipeline(GFXComputable* computable,
+                              _GFXCacheElem** elem, bool warmup);
+
+
+/****************************
  * Render frame operations.
  ****************************/
 

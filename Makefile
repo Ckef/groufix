@@ -270,6 +270,7 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/monitor.o \
  $(OUT)$(SUB)/groufix/core/ops.o \
  $(OUT)$(SUB)/groufix/core/pass.o \
+ $(OUT)$(SUB)/groufix/core/pipeline.o \
  $(OUT)$(SUB)/groufix/core/pool.o \
  $(OUT)$(SUB)/groufix/core/recorder.o \
  $(OUT)$(SUB)/groufix/core/ref.o \
