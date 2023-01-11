@@ -491,7 +491,8 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 		if (!(con->mask &
 			(GFX_ACCESS_ATTACHMENT_INPUT |
 			GFX_ACCESS_ATTACHMENT_READ |
-			GFX_ACCESS_ATTACHMENT_WRITE)))
+			GFX_ACCESS_ATTACHMENT_WRITE |
+			GFX_ACCESS_ATTACHMENT_RESOLVE)))
 		{
 			continue;
 		}
@@ -604,34 +605,29 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		// Swapchain.
 		if (at->type == _GFX_ATTACH_WINDOW)
 		{
-			// If masked as attachment input,
-			// this shader location is considered unused, not allowed!
+			// Reference the attachment if appropriate.
 			if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
 				input[numInputs++] = unused;
 
-			// If not the picked backing window, same story.
-			if (at != backing)
+			if (con->mask &
+				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
 			{
-				// May not even be masked for read/write.
-				if (con->mask &
-					(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
-				{
-					isColor = 1;
-					color[numColors++] = unused;
-				}
-
-				continue; // Skip.
+				isColor = 1;
+				color[numColors++] = (at != backing) ?
+					// If not the picked backing window, do not use!
+					unused :
+					(VkAttachmentReference){
+						.attachment = (uint32_t)numAttachs,
+						.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+					};
 			}
 
-			// Describe the window as attachment and reference it.
+			// If not the picked backing window, skip attachment!
+			if (at != backing) continue;
+
+			// Describe the attachment.
 			const bool clear = con->cleared & GFX_IMAGE_COLOR;
 			const bool load = con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
-
-			isColor = 1;
-			color[numColors++] = (VkAttachmentReference){
-				.attachment = (uint32_t)numAttachs,
-				.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-			};
 
 			ad[numAttachs++] = (VkAttachmentDescription){
 				.flags   = 0,
@@ -893,7 +889,7 @@ bool _gfx_pass_build(GFXPass* pass)
 			_GFX_VALIDATE_DIMS(pass,
 				at->window.window->frame.width,
 				at->window.window->frame.height, 1,
-				goto skip);
+				goto skip_pass);
 		}
 
 		// Non-swapchain.
@@ -906,7 +902,7 @@ bool _gfx_pass_build(GFXPass* pass)
 				(con->view.range.numLayers == 0) ?
 					at->image.base.layers - con->view.range.layer :
 					con->view.range.numLayers,
-				goto skip);
+				goto skip_pass);
 
 			// Resolve whole aspect from format,
 			// then fix the consumed aspect as promised by gfx_pass_consume.
@@ -1060,7 +1056,7 @@ clean:
 
 
 	// Identical cleanup on skip.
-skip:
+skip_pass:
 	_gfx_pass_destruct_partial(pass, _GFX_RECREATE);
 	return 1;
 }
@@ -1306,8 +1302,17 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
 
-	// Find and set.
-	for (size_t i = pass->consumes.size; i > 0; --i)
+	// Check that resolve is consumed.
+	size_t i;
+	for (i = pass->consumes.size; i > 0; --i)
+	{
+		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		if (con->view.index == resolve)
+			break;
+	}
+
+	// If it is, find and set.
+	if (i > 0) for (i = pass->consumes.size; i > 0; --i)
 	{
 		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
@@ -1326,6 +1331,19 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
+
+	// Find any that resolve to index.
+	for (size_t i = pass->consumes.size; i > 0; --i)
+	{
+		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		if (con->resolve == index)
+		{
+			con->resolve = SIZE_MAX;
+
+			// Same as below, invalidate for destruction.
+			_gfx_render_graph_invalidate(pass->renderer);
+		}
+	}
 
 	// Find and erase.
 	for (size_t i = pass->consumes.size; i > 0; --i)

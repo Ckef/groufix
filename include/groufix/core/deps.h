@@ -27,23 +27,24 @@ typedef enum GFXAccessMask
 	GFX_ACCESS_INDIRECT_READ = 0x000008,
 	GFX_ACCESS_SAMPLED_READ  = 0x000010,
 
-	GFX_ACCESS_STORAGE_READ     = 0x000020,
-	GFX_ACCESS_STORAGE_WRITE    = 0x000040,
-	GFX_ACCESS_ATTACHMENT_INPUT = 0x000080,
-	GFX_ACCESS_ATTACHMENT_READ  = 0x000100, // Necessary for blending/depth/stencil.
-	GFX_ACCESS_ATTACHMENT_WRITE = 0x000200,
-	GFX_ACCESS_ATTACHMENT_TEST  = 0x000300, // Both read/write (depth/stencil testing).
-	GFX_ACCESS_ATTACHMENT_BLEND = 0x000300, // Both read/write.
-	GFX_ACCESS_TRANSFER_READ    = 0x000400,
-	GFX_ACCESS_TRANSFER_WRITE   = 0x000800,
-	GFX_ACCESS_HOST_READ        = 0x001000,
-	GFX_ACCESS_HOST_WRITE       = 0x002000, // Optional (all writes are implicitly flushed).
+	GFX_ACCESS_STORAGE_READ       = 0x000020,
+	GFX_ACCESS_STORAGE_WRITE      = 0x000040,
+	GFX_ACCESS_ATTACHMENT_INPUT   = 0x000080,
+	GFX_ACCESS_ATTACHMENT_READ    = 0x000100, // Necessary for blending/depth/stencil.
+	GFX_ACCESS_ATTACHMENT_WRITE   = 0x000200,
+	GFX_ACCESS_ATTACHMENT_TEST    = 0x000300, // Both read/write (depth/stencil testing).
+	GFX_ACCESS_ATTACHMENT_BLEND   = 0x000300, // Both read/write.
+	GFX_ACCESS_ATTACHMENT_RESOLVE = 0x000400,
+	GFX_ACCESS_TRANSFER_READ      = 0x000800,
+	GFX_ACCESS_TRANSFER_WRITE     = 0x001000,
+	GFX_ACCESS_HOST_READ          = 0x002000,
+	GFX_ACCESS_HOST_WRITE         = 0x004000, // Optional (all writes are implicitly flushed).
 
 	// Modifiers, meaningless without other flags.
-	GFX_ACCESS_COMPUTE_ASYNC  = 0x004000,
-	GFX_ACCESS_TRANSFER_ASYNC = 0x008000,
-	GFX_ACCESS_DISCARD        = 0x010000, // Resulting contents may be discarded.
-	GFX_ACCESS_MODIFIERS      = 0x01c000  // All modifiers.
+	GFX_ACCESS_COMPUTE_ASYNC  = 0x008000,
+	GFX_ACCESS_TRANSFER_ASYNC = 0x010000,
+	GFX_ACCESS_DISCARD        = 0x020000, // Resulting contents may be discarded.
+	GFX_ACCESS_MODIFIERS      = 0x038000  // All modifiers.
 
 	// TODO: Add a modifier for framebuffer local regions?
 

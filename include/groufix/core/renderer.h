@@ -837,10 +837,12 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 
 /**
  * Clears the contents of a consumed attachment before the pass.
- * No-op if attachment at index is not consumed!
  * @param pass   Cannot be NULL.
  * @param index  Attachment index to clear.
  * @param aspect Cannot contain both color AND depth/stencil!
+ *
+ * No-op if attachment at index is not consumed!
+ * Only has effect if consumed with attachment access.
  */
 GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
                             GFXImageAspect aspect, GFXClear value);
@@ -848,28 +850,26 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 /**
  * Sets the blend state of a consumed attachment independently.
  * The device must support independent blending!
- * No-op if attachment at index is not consumed!
- * @param pass  Cannot be NULL.
- * @param index Attachment index to set the blend state of.
  * @param color (src|dst)Factor are ignored if GFX_BLEND_NO_OP.
  * @param alpha (src|dst)AlphaFactor are ignored if GFX_BLEND_NO_OP.
+ * @see gfx_pass_clear.
  */
 GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
                             GFXBlendOpState color, GFXBlendOpState alpha);
 
 /**
  * Resolves the contents of a consumed attachment to another after the pass.
- * No-op if attachment at index is not consumed!
- * @param pass    Cannot be NULL.
- * @param index   Multisampled attachment index to resolve.
- * @param resolve Destination attachment index to resolve to.
+ * @param resolve Attachment index to resolve to.
+ * @see gfx_pass_clear.
+ *
+ * No-op if either attachment at index or resolve is not consumed!
+ * Will be unset if the attachment at either index or resolve is released!
  */
 GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve);
 
 /**
  * Release any consumption of an attachment of the renderer.
  * This will reset all state once the attachment is consumed again.
- * No-op if attachment at index is not consumed!
  * @param pass  Cannot be NULL.
  * @param index Attachment index to release.
  */
