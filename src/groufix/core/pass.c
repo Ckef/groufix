@@ -58,7 +58,8 @@
 typedef struct _GFXViewElem
 {
 	const _GFXConsume* consume;
-	VkImageView        view; // Remains VK_NULL_HANDLE if a swapchain.
+	VkImageView        view;  // Remains VK_NULL_HANDLE if a swapchain.
+	uint32_t           index; // Index into VkRenderPassCreateInfo::pAttachments.
 
 } _GFXViewElem;
 
@@ -466,18 +467,19 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 	// framebuffer creation reasons + we CAN have multiple depth/stencil
 	// attachments now, one per subpass!
 
-	// Keep track of the depth/stencil backing so we can warn :)
-	size_t depSten = SIZE_MAX;
-
 	// Reserve as many views as there are attachments, can never be more.
 	if (!gfx_vec_reserve(&pass->vk.views, pass->consumes.size))
 		return 0;
 
 	// And start looping over all consumptions :)
+	uint32_t currentIndex = 0;
+	size_t depSten = SIZE_MAX;
+
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
 		const _GFXConsume* con = gfx_vec_at(&pass->consumes, i);
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		uint32_t index = VK_ATTACHMENT_UNUSED;
 
 		// Validate existence of the attachment.
 		if (
@@ -505,7 +507,8 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 		{
 			// Check if we already had a backing window.
 			if (pass->build.backing == SIZE_MAX)
-				pass->build.backing = con->view.index;
+				pass->build.backing = con->view.index,
+				index = currentIndex++;
 			else
 				gfx_log_warn(
 					"A single pass can only read/write to a single "
@@ -517,28 +520,66 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 			gfx_log_warn(
 				"A pass can only read/write to a window attachment.");
 
-		// If a depth/stencil we read/write to, pick it.
-		else if (at->type == _GFX_ATTACH_IMAGE &&
-			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
-			(con->view.range.aspect &
-				(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
-			(con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
+		else
 		{
-			if (depSten == SIZE_MAX)
-				depSten = con->view.index;
-			else
-				gfx_log_warn(
-					"A single pass can only read/write to a single "
-					"depth/stencil attachment at a time.");
+			// If a normal image attachment, always reference it!
+			index = currentIndex++;
+
+			// If a depth/stencil we read/write to, warn for duplicates.
+			if (GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
+				(con->view.range.aspect &
+					(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
+				(con->mask &
+					(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
+			{
+				if (depSten == SIZE_MAX)
+					depSten = con->view.index;
+				else
+					gfx_log_warn(
+						"A single pass can only read/write to a single "
+						"depth/stencil attachment at a time.");
+			}
 		}
 
 		// Add a view element referencing this consumption.
-		_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
+		_GFXViewElem elem = {
+			.consume = con,
+			.view = VK_NULL_HANDLE,
+			.index = index
+		};
+
 		gfx_vec_push(&pass->vk.views, 1, &elem);
 	}
 
 	return 1;
+}
+
+/****************************
+ * Finds a filtered attachment based on attachment index.
+ * If not found, will return VK_ATTACHMENT_UNUSED.
+ * @param pass  Cannot be NULL.
+ * @param index Attachment index to find.
+ * @return Index into VkRenderPassCreateInfo::pAttachments.
+ */
+static uint32_t _gfx_pass_find_attachment(GFXPass* pass, size_t index)
+{
+	assert(pass != NULL);
+
+	// Early exit.
+	if (index == SIZE_MAX)
+		return VK_ATTACHMENT_UNUSED;
+
+	// Find the view made for the consumption of the attachment at index.
+	for (size_t i = 0; i < pass->vk.views.size; ++i)
+	{
+		const _GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
+		const _GFXConsume* con = view->consume;
+
+		if (con->view.index == index)
+			return view->index;
+	}
+
+	return VK_ATTACHMENT_UNUSED;
 }
 
 /****************************/
@@ -559,7 +600,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		return 1;
 
 	// Ok so we need to know about all pass attachments.
-	// Filter consumptions into attachments.
+	// Filter consumptions into attachment views.
 	if (!_gfx_pass_filter_attachments(pass))
 		return 0;
 
@@ -568,31 +609,32 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	if (pass->build.backing != SIZE_MAX)
 		backing = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
 
-	// TODO: Somehow deal with resolve attachments.
-	// Describe all attachments.
-	// We loop over all framebuffer views, which guarantees non-empty
-	// attachments with attachment input/read/write access.
-	// Keep track of all the input/color and depth/stencil attachment counts.
-	const VkAttachmentReference unused = (VkAttachmentReference){
-		.attachment = VK_ATTACHMENT_UNUSED,
-		.layout     = VK_IMAGE_LAYOUT_UNDEFINED
-	};
-
-	size_t numAttachs = pass->vk.views.size > 0 ? pass->vk.views.size : 1;
-	size_t numInputs = 0;
-	size_t numColors = 0;
-	VkAttachmentDescription ad[numAttachs];
-	VkAttachmentReference input[numAttachs];
-	VkAttachmentReference color[numAttachs];
-	VkAttachmentReference depSten = unused;
-	numAttachs = 0; // We may skip some.
-
 	// We are always gonna update the clear & blend values.
 	// Do it here and not build so we don't unnecessarily reconstruct this.
 	// Same for state enables.
 	gfx_vec_release(&pass->vk.clears);
 	gfx_vec_release(&pass->vk.blends);
 	pass->state.enabled = 0;
+
+	// Describe all attachments.
+	// We loop over all framebuffer views, which guarantees non-empty
+	// attachments with attachment input/read/write/resolve access.
+	// Keep track of all the input/color and depth/stencil attachment counts.
+	size_t numAttachs = 0;
+	size_t numInputs = 0;
+	size_t numColors = 0;
+
+	const VkAttachmentReference unused = (VkAttachmentReference){
+		.attachment = VK_ATTACHMENT_UNUSED,
+		.layout     = VK_IMAGE_LAYOUT_UNDEFINED
+	};
+
+	const size_t numViews = pass->vk.views.size > 0 ? pass->vk.views.size : 1;
+	VkAttachmentDescription ad[numViews];
+	VkAttachmentReference input[numViews];
+	VkAttachmentReference color[numViews];
+	VkAttachmentReference resolve[numViews];
+	VkAttachmentReference depSten = unused;
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
@@ -613,13 +655,16 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
 			{
 				isColor = 1;
-				color[numColors++] = (at != backing) ?
+				color[numColors] = (at != backing) ?
 					// If not the picked backing window, do not use!
 					unused :
 					(VkAttachmentReference){
-						.attachment = (uint32_t)numAttachs,
+						.attachment = view->index,
 						.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 					};
+
+				resolve[numColors] = unused;
+				numColors++;
 			}
 
 			// If not the picked backing window, skip attachment!
@@ -678,10 +723,22 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				GFX_FORMAT_HAS_STENCIL(fmt) &&
 					con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
 
+			// Build references.
+			uint32_t resolveInd =
+				_gfx_pass_find_attachment(pass, con->resolve);
+
 			const VkAttachmentReference ref = (VkAttachmentReference){
-				.attachment = (uint32_t)numAttachs,
+				.attachment = view->index,
 				.layout = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
 			};
+
+			const VkAttachmentReference refResolve =
+				(resolveInd == VK_ATTACHMENT_UNUSED) ?
+					unused :
+					(VkAttachmentReference){
+						.attachment = resolveInd,
+						.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+					};
 
 			// Reference the attachment if appropriate.
 			if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
@@ -692,7 +749,9 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			{
 				if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt))
 					isColor = 1,
-					color[numColors++] = aspectMatch ? ref : unused;
+					color[numColors] = aspectMatch ? ref : unused,
+					resolve[numColors] = aspectMatch ? refResolve : unused,
+					numColors++;
 
 				// Only set depSten on aspect match.
 				else if (aspectMatch)
@@ -808,7 +867,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		.pInputAttachments       = numInputs > 0 ? input : NULL,
 		.colorAttachmentCount    = (uint32_t)numColors,
 		.pColorAttachments       = numColors > 0 ? color : NULL,
-		.pResolveAttachments     = NULL,
+		.pResolveAttachments     = numColors > 0 ? resolve : NULL,
 		.pDepthStencilAttachment =
 			(depSten.attachment != VK_ATTACHMENT_UNUSED) ? &depSten : NULL,
 		.preserveAttachmentCount = 0,

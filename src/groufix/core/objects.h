@@ -1063,7 +1063,7 @@ struct GFXPass
 		VkRenderPass pass;   // For locality.
 		GFXVec       clears; // Stores VkClearValue.
 		GFXVec       blends; // Stores VkPipelineColorBlendAttachmentState.
-		GFXVec       views;  // Stores { _GFXConsume*, VkImageView }.
+		GFXVec       views;  // Stores { _GFXConsume*, VkImageView, uint32_t }.
 		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 
 	} vk;
