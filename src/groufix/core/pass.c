@@ -615,6 +615,13 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	gfx_vec_release(&pass->vk.blends);
 	pass->state.enabled = 0;
 
+	// Both just need one element per view.
+	if (!gfx_vec_reserve(&pass->vk.clears, pass->vk.views.size))
+		return 0;
+
+	if (!gfx_vec_reserve(&pass->vk.blends, pass->vk.views.size))
+		return 0;
+
 	// Describe all attachments.
 	// We loop over all framebuffer views, which guarantees non-empty
 	// attachments with attachment input/read/write/resolve access.
@@ -627,11 +634,11 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		.layout     = VK_IMAGE_LAYOUT_UNDEFINED
 	};
 
-	const size_t numViews = pass->vk.views.size > 0 ? pass->vk.views.size : 1;
-	VkAttachmentDescription ad[numViews];
-	VkAttachmentReference input[numViews];
-	VkAttachmentReference color[numViews];
-	VkAttachmentReference resolve[numViews];
+	const size_t vlaViews = pass->vk.views.size > 0 ? pass->vk.views.size : 1;
+	VkAttachmentDescription ad[vlaViews];
+	VkAttachmentReference input[vlaViews];
+	VkAttachmentReference color[vlaViews];
+	VkAttachmentReference resolve[vlaViews];
 	VkAttachmentReference depSten = unused;
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
@@ -788,13 +795,11 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			};
 		}
 
-		// Lastly, if we're not skipped,
-		// store the clear value for when we begin the pass ..
-		if (!gfx_vec_push(&pass->vk.clears, 1, &con->clear.vk))
-			// Yeah...
-			gfx_log_fatal("Failed to store a clear value for a pass.");
+		// Lastly, store the clear value for when we begin the pass,
+		// memory is already reserved :)
+		gfx_vec_push(&pass->vk.clears, 1, &con->clear.vk);
 
-		// .. and the blend values for building pipelines.
+		// Same for the blend values for building pipelines.
 		if (isColor)
 		{
 			VkPipelineColorBlendAttachmentState pcbas = {
@@ -845,9 +850,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					_GFX_GET_VK_BLEND_OP(blendAlpha->op);
 			}
 
-			if (!gfx_vec_push(&pass->vk.blends, 1, &pcbas))
-				// Sad...
-				gfx_log_fatal("Failed to store blend state for a pass.");
+			gfx_vec_push(&pass->vk.blends, 1, &pcbas);
 		}
 	}
 
