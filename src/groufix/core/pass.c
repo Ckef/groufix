@@ -58,8 +58,7 @@
 typedef struct _GFXViewElem
 {
 	const _GFXConsume* consume;
-	VkImageView        view;  // Remains VK_NULL_HANDLE if a swapchain.
-	uint32_t           index; // Index into VkRenderPassCreateInfo::pAttachments.
+	VkImageView        view; // Remains VK_NULL_HANDLE if a swapchain.
 
 } _GFXViewElem;
 
@@ -472,20 +471,23 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 		return 0;
 
 	// And start looping over all consumptions :)
-	uint32_t currentIndex = 0;
-	size_t depSten = SIZE_MAX;
+	size_t depSten = SIZE_MAX; // Only to warn for duplicates.
 
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
 		const _GFXConsume* con = gfx_vec_at(&pass->consumes, i);
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
-		uint32_t index = VK_ATTACHMENT_UNUSED;
 
 		// Validate existence of the attachment.
 		if (
 			con->view.index >= rend->backing.attachs.size ||
 			at->type == _GFX_ATTACH_EMPTY)
 		{
+			gfx_log_warn(
+				"Consumption of attachment at index %"GFX_PRIs" ignored, "
+				"attachment not described.",
+				con->view.index);
+
 			continue;
 		}
 
@@ -507,47 +509,49 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 		{
 			// Check if we already had a backing window.
 			if (pass->build.backing == SIZE_MAX)
-				pass->build.backing = con->view.index,
-				index = currentIndex++;
+				pass->build.backing = con->view.index;
 			else
-				gfx_log_warn(
-					"A single pass can only read/write to a single "
-					"window attachment at a time.");
-		}
-
-		// Courtesy warning.
-		else if (at->type == _GFX_ATTACH_WINDOW)
-			gfx_log_warn(
-				"A pass can only read/write to a window attachment.");
-
-		else
-		{
-			// If a normal image attachment, always reference it!
-			index = currentIndex++;
-
-			// If a depth/stencil we read/write to, warn for duplicates.
-			if (GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
-				(con->view.range.aspect &
-					(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
-				(con->mask &
-					(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
 			{
-				if (depSten == SIZE_MAX)
-					depSten = con->view.index;
-				else
-					gfx_log_warn(
-						"A single pass can only read/write to a single "
-						"depth/stencil attachment at a time.");
+				// Skip any other candidate, cannot create a view for it.
+				gfx_log_warn(
+					"Consumption of attachment at index %"GFX_PRIs" "
+					"ignored, a single pass can only read/write to a "
+					"single window attachment at a time.",
+					con->view.index);
+
+				continue;
 			}
 		}
 
-		// Add a view element referencing this consumption.
-		_GFXViewElem elem = {
-			.consume = con,
-			.view = VK_NULL_HANDLE,
-			.index = index
-		};
+		// Skip any other windows too, no view will be created.
+		else if (at->type == _GFX_ATTACH_WINDOW)
+		{
+			gfx_log_warn(
+				"Consumption of attachment at index %"GFX_PRIs" ignored, "
+				"a pass can only read/write to a window attachment.",
+				con->view.index);
 
+			continue;
+		}
+
+		// If a depth/stencil we read/write to, warn for duplicates.
+		else if (
+			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
+			(con->view.range.aspect &
+				(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
+			(con->mask &
+				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
+		{
+			if (depSten == SIZE_MAX)
+				depSten = con->view.index;
+			else
+				gfx_log_warn(
+					"A single pass can only read/write to a single "
+					"depth/stencil attachment at a time.");
+		}
+
+		// Add a view element referencing this consumption.
+		_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
 		gfx_vec_push(&pass->vk.views, 1, &elem);
 	}
 
@@ -576,7 +580,7 @@ static uint32_t _gfx_pass_find_attachment(GFXPass* pass, size_t index)
 		const _GFXConsume* con = view->consume;
 
 		if (con->view.index == index)
-			return view->index;
+			return (uint32_t)i;
 	}
 
 	return VK_ATTACHMENT_UNUSED;
@@ -604,11 +608,6 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	if (!_gfx_pass_filter_attachments(pass))
 		return 0;
 
-	// Get the backing window attachment.
-	const _GFXAttach* backing = NULL;
-	if (pass->build.backing != SIZE_MAX)
-		backing = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
-
 	// We are always gonna update the clear & blend values.
 	// Do it here and not build so we don't unnecessarily reconstruct this.
 	// Same for state enables.
@@ -620,7 +619,6 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	// We loop over all framebuffer views, which guarantees non-empty
 	// attachments with attachment input/read/write/resolve access.
 	// Keep track of all the input/color and depth/stencil attachment counts.
-	size_t numAttachs = 0;
 	size_t numInputs = 0;
 	size_t numColors = 0;
 
@@ -655,26 +653,20 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
 			{
 				isColor = 1;
-				color[numColors] = (at != backing) ?
-					// If not the picked backing window, do not use!
-					unused :
-					(VkAttachmentReference){
-						.attachment = view->index,
-						.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-					};
+				color[numColors] = (VkAttachmentReference){
+					.attachment = (uint32_t)i,
+					.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+				};
 
 				resolve[numColors] = unused;
 				numColors++;
 			}
 
-			// If not the picked backing window, skip attachment!
-			if (at != backing) continue;
-
 			// Describe the attachment.
 			const bool clear = con->cleared & GFX_IMAGE_COLOR;
 			const bool load = con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
 
-			ad[numAttachs++] = (VkAttachmentDescription){
+			ad[i] = (VkAttachmentDescription){
 				.flags   = 0,
 				.format  = at->window.window->frame.format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
@@ -728,7 +720,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				_gfx_pass_find_attachment(pass, con->resolve);
 
 			const VkAttachmentReference ref = (VkAttachmentReference){
-				.attachment = view->index,
+				.attachment = (uint32_t)i,
 				.layout = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
 			};
 
@@ -768,7 +760,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			}
 
 			// Describe the attachment.
-			ad[numAttachs++] = (VkAttachmentDescription){
+			ad[i] = (VkAttachmentDescription){
 				.flags          = 0,
 				.format         = at->image.vk.format,
 				.samples        = VK_SAMPLE_COUNT_1_BIT,
@@ -879,8 +871,8 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 		.pNext           = NULL,
 		.flags           = 0,
-		.attachmentCount = (uint32_t)numAttachs,
-		.pAttachments    = numAttachs > 0 ? ad : NULL,
+		.attachmentCount = (uint32_t)pass->vk.views.size,
+		.pAttachments    = pass->vk.views.size > 0 ? ad : NULL,
 		.subpassCount    = 1,
 		.pSubpasses      = &sd,
 		.dependencyCount = 0,
@@ -916,16 +908,11 @@ bool _gfx_pass_build(GFXPass* pass)
 	if (!_gfx_pass_warmup(pass))
 		return 0;
 
-	// Get the backing window attachment.
-	const _GFXAttach* backing = NULL;
-	if (pass->build.backing != SIZE_MAX)
-		backing = gfx_vec_at(&rend->backing.attachs, pass->build.backing);
-
 	// We're gonna need to create all image views.
-	// Keep track of the attachment count, we may skip some.
+	// Keep track of the window used as backing so we can build framebuffers.
 	// Also in here we're gonna get the dimensions (i.e. size) of the pass.
 	VkImageView views[pass->vk.views.size > 0 ? pass->vk.views.size : 1];
-	size_t numAttachs = 0;
+	const _GFXAttach* backing = NULL;
 	size_t backingInd = SIZE_MAX;
 
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
@@ -937,14 +924,12 @@ bool _gfx_pass_build(GFXPass* pass)
 		// Swapchain.
 		if (at->type == _GFX_ATTACH_WINDOW)
 		{
-			// If not the picked backing window, skip.
-			if (at != backing) continue;
+			// To be filled in below.
+			backing = at;
+			backingInd = i;
+			views[i] = VK_NULL_HANDLE;
 
-			// If it is, to be filled in below.
-			backingInd = numAttachs;
-			views[numAttachs++] = VK_NULL_HANDLE;
-
-			// Also validate dimensions.
+			// Validate dimensions.
 			_GFX_VALIDATE_DIMS(pass,
 				at->window.window->frame.width,
 				at->window.window->frame.height, 1,
@@ -1009,7 +994,7 @@ bool _gfx_pass_build(GFXPass* pass)
 				}
 			};
 
-			VkImageView* vkView = &views[numAttachs++];
+			VkImageView* vkView = views + i;
 			_GFX_VK_CHECK(
 				context->vk.CreateImageView(
 					context->vk.device, &ivci, NULL, vkView),
@@ -1081,8 +1066,8 @@ bool _gfx_pass_build(GFXPass* pass)
 			.pNext           = NULL,
 			.flags           = 0,
 			.renderPass      = pass->vk.pass,
-			.attachmentCount = (uint32_t)numAttachs,
-			.pAttachments    = numAttachs > 0 ? views : NULL,
+			.attachmentCount = (uint32_t)pass->vk.views.size,
+			.pAttachments    = pass->vk.views.size > 0 ? views : NULL,
 			.width           = GFX_MAX(1, pass->build.fWidth),
 			.height          = GFX_MAX(1, pass->build.fHeight),
 			.layers          = GFX_MAX(1, pass->build.fLayers)
