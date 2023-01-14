@@ -34,7 +34,7 @@
 
 
 /****************************
- * TODO: Make this take multiple sync objs and merge them?
+ * TODO:BAR: Make this take multiple sync objs and merge them?
  * Injects an execution/memory barrier, just as stored in a _GFXSync object.
  * Assumes one of `sync->vk.buffer` or `sync->vk.image` is appropriately set.
  */
@@ -478,7 +478,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 					continue;
 				}
 
-			// TODO: Merge barriers, simply postpone till after this loop.
+			// TODO:BAR: Merge barriers, simply postpone till after this loop.
 			// Insert barrier if deemed necessary by the command.
 			if (sync->flags & _GFX_SYNC_BARRIER)
 				_gfx_inject_barrier(cmd, sync, context);
@@ -560,7 +560,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			}
 		};
 
-		// TODO: Merge barriers.
+		// TODO:BAR: Merge barriers.
 		context->vk.CmdPipelineBarrier(cmd,
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 			stages,

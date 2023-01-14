@@ -1213,7 +1213,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
                                  void* ptr);
 
 /**
- * TODO: Draft; probably want to make explicit compute passes (or a pass type).
+ * TODO:COM: Draft; probably want to make explicit compute passes (or a pass type).
  * Records compute commands within a given pass.
  * The callback takes this recorder and the current virtual frame index.
  * @see gfx_recorder_render.

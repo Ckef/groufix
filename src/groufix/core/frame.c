@@ -25,7 +25,7 @@
 
 
 /****************************
- * TODO: Make this take multiple consumptions and merge them?
+ * TODO:BAR: Make this take multiple consumptions and merge them?
  * Injects an execution/memory barrier, just as stored in a _GFXConsume object.
  * Assumes `con` and `con->out.prev` to be fully initialized.
  */
@@ -551,7 +551,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		GFXPass* pass =
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 
-		// TODO: If a pass is the last, record master and all next passes
+		// TODO:GRA: If a pass is the last, record master and all next passes
 		// and handle the whole VK subpass structure like that.
 		// Note: this means a subpass chain cannot have passes in it,
 		// except for the last, that are a child pass of another.

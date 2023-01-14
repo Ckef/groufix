@@ -527,7 +527,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 	assert(pass == NULL || pass->renderer == recorder->renderer);
 	assert(cb != NULL);
 
-	// TODO: Implement.
+	// TODO:COM: Implement.
 }
 
 /****************************/
@@ -738,7 +738,7 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
 {
 	assert(recorder != NULL);
 	assert(recorder->inp.cmd != NULL);
-	// TODO: Check that the input pass is a compute pass?
+	// TODO:COM: Check that the input pass is a compute pass?
 	assert(computable != NULL);
 	assert(computable->technique != NULL);
 	assert(computable->technique->renderer == recorder->renderer);

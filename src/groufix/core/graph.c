@@ -35,7 +35,7 @@ static uint64_t _gfx_pass_merge_score(GFXPass* pass, GFXPass* candidate)
 	// The candidate cannot already be merged with one of its children.
 	if (candidate->out.next != NULL) return 0;
 
-	// TODO: Determine further; reject if incompatible attachments/others.
+	// TODO:GRA: Determine further; reject if incompatible attachments/others.
 	return 0;
 
 	// Hooray we have an actual candidate!
@@ -60,7 +60,7 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 
 	GFXRenderer* rend = pass->renderer;
 
-	// TODO: If this is the last pass, do this for master and all next passes
+	// TODO:GRA: If this is the last pass, do this for master and all next passes
 	// and skip if this is not the last.
 	// This because a subpass chain will be submitted at the order of the last.
 
@@ -141,7 +141,7 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 	assert(renderer != NULL);
 	assert(renderer->graph.state < _GFX_GRAPH_VALIDATED);
 
-	// TODO: Does this even produce errors?
+	// TODO:GRA: Does this even produce errors?
 
 	// We want to see if we can merge passes into a chain of subpasses.
 	// Useful for tiled renderers n such :)

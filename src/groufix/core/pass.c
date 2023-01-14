@@ -430,7 +430,7 @@ VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
 	assert(pass != NULL);
 	assert(frame != NULL);
 
-	// TODO: Get framebuffer from master pass.
+	// TODO:GRA: Get framebuffer from master pass.
 
 	// Just a single framebuffer.
 	if (pass->vk.frames.size == 1)
@@ -462,7 +462,7 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 	if (pass->vk.views.size > 0)
 		return 1;
 
-	// TODO: Should get from all next subpasses too and skip if not master.
+	// TODO:GRA: Should get from all next subpasses too and skip if not master.
 	// Literally point to the consume elem of a next pass.
 	// Note that we can still only have one window attachment for
 	// framebuffer creation reasons + we CAN have multiple depth/stencil
@@ -597,7 +597,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 	GFXRenderer* rend = pass->renderer;
 
-	// TODO: Somehow do this for all subpasses if this is master.
+	// TODO:GRA: Somehow do this for all subpasses if this is master.
 	// And skip all this if this is not master.
 	// Need to set the correct state.enabled value for all subpasses.
 	// And somehow propagate the VK pass and subpass index to all subpasses.
@@ -900,7 +900,7 @@ bool _gfx_pass_build(GFXPass* pass)
 	GFXRenderer* rend = pass->renderer;
 	_GFXContext* context = rend->allocator.context;
 
-	// TODO Skip all this if this is not master.
+	// TODO:GRA: Skip all this if this is not master.
 	// We somehow want to propagate the dimensions to all subpasses.
 
 	// Already built.
