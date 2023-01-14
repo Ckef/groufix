@@ -657,9 +657,6 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		if (at->type == _GFX_ATTACH_WINDOW)
 		{
 			// Reference the attachment if appropriate.
-			if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
-				input[numInputs++] = unused;
-
 			if (con->mask &
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
 			{
