@@ -216,15 +216,27 @@ TEST_DESCRIBE(loading, t)
 	if (ctx.set == NULL)
 		goto clean;
 
-	// Lastly, setup a depth buffer for our object.
+	// Set multisampling state.
+	GFXRasterState state = {
+		.mode = GFX_RASTER_FILL,
+		.front = GFX_FRONT_FACE_CW,
+		.cull = GFX_CULL_BACK,
+		.topo = GFX_TOPO_TRIANGLE_LIST,
+		.samples = 4
+	};
+
+	gfx_pass_set_state(t->pass, (GFXRenderState){
+		.raster = &state, .blend = NULL, .depth = NULL, .stencil = NULL });
+
+	// Setup a multisampled intermediate output attachment.
 	if (!gfx_renderer_attach(t->renderer, 1,
 		(GFXAttachment){
 			.type  = GFX_IMAGE_2D,
 			.flags = GFX_MEMORY_NONE,
-			.usage = GFX_IMAGE_TEST | GFX_IMAGE_TRANSIENT,
+			.usage = GFX_IMAGE_OUTPUT | GFX_IMAGE_TRANSIENT,
 
-			.format  = GFX_FORMAT_D16_UNORM,
-			.samples = 1,
+			.format  = GFX_FORMAT_B8G8R8A8_SRGB,
+			.samples = state.samples,
 			.mipmaps = 1,
 			.layers  = 1,
 
@@ -238,14 +250,56 @@ TEST_DESCRIBE(loading, t)
 		goto clean;
 	}
 
+	// Setup a multisampled depth buffer for our object.
+	if (!gfx_renderer_attach(t->renderer, 2,
+		(GFXAttachment){
+			.type  = GFX_IMAGE_2D,
+			.flags = GFX_MEMORY_NONE,
+			.usage = GFX_IMAGE_TEST | GFX_IMAGE_TRANSIENT,
+
+			.format  = GFX_FORMAT_D16_UNORM,
+			.samples = state.samples,
+			.mipmaps = 1,
+			.layers  = 1,
+
+			.size = GFX_SIZE_RELATIVE,
+			.ref = 0,
+			.xScale = 1.0f,
+			.yScale = 1.0f,
+			.zScale = 1.0f
+		}))
+	{
+		goto clean;
+	}
+
+	// Consume the intermediate as output and the window as resolve.
+	gfx_pass_release(t->pass, 0);
+
 	if (!gfx_pass_consume(t->pass, 1,
+		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
+	{
+		goto clean;
+	}
+
+	if (!gfx_pass_consume(t->pass, 0,
+		GFX_ACCESS_ATTACHMENT_RESOLVE, GFX_STAGE_ANY))
+	{
+		goto clean;
+	}
+
+	if (!gfx_pass_consume(t->pass, 2,
 		GFX_ACCESS_ATTACHMENT_TEST | GFX_ACCESS_DISCARD, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
 	gfx_pass_clear(t->pass, 1,
+		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
+
+	gfx_pass_clear(t->pass, 2,
 		GFX_IMAGE_DEPTH, (GFXClear){ .depth = 1.0f });
+
+	gfx_pass_resolve(t->pass, 1, 0);
 
 	// Setup an event loop.
 	while (!gfx_window_should_close(t->window))
