@@ -338,13 +338,12 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.pScissors     = NULL
 		}},
 
-		// TODO: Somehow take as input.
 		.pMultisampleState = (VkPipelineMultisampleStateCreateInfo[]){{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
 
 			.pNext                 = NULL,
 			.flags                 = 0,
-			.rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
+			.rasterizationSamples  = _GFX_GET_VK_SAMPLE_COUNT(raster->samples),
 			.sampleShadingEnable   = VK_FALSE,
 			.minSampleShading      = 1.0f,
 			.pSampleMask           = NULL,

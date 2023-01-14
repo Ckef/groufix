@@ -88,6 +88,7 @@ TEST_DESCRIBE(post, t)
 			.usage = GFX_IMAGE_OUTPUT | GFX_IMAGE_INPUT,
 
 			.format  = GFX_FORMAT_B8G8R8A8_SRGB,
+			.samples = 1,
 			.mipmaps = 1,
 			.layers  = 1,
 

@@ -70,6 +70,7 @@ typedef struct GFXDevice
 
 	} features;
 
+
 	// Device limits.
 	struct
 	{
@@ -118,6 +119,26 @@ typedef struct GFXDevice
 
 		// Async-transfer image granularity (0,0,0 = only whole mip levels).
 		struct { uint32_t x, y, z; } imageTransferGranularity;
+
+
+		// Supported samples-per-texel count bit-masks.
+		//  Masks: 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40 (1 through 64).
+
+		// Supported sample bit-masks for rendered-to attachments:
+		//  - Output floating-point format.
+		//  - Output integer format.
+		//  - Depth format.
+		//  - Stencil format.
+		//  - No attachments.
+		struct { uint8_t f, i, depth, stencil, empty; } renderSampleCounts;
+
+		// Supported sample bit-masks for sampled/storage attachments:
+		//  - Sampled floating-point format.
+		//  - Sampled integer format.
+		//  - Sampled depth format.
+		//  - Sampled stencil format.
+		//  - Any storage format.
+		struct { uint8_t f, i, depth, stencil, storage; } imageSampleCounts;
 
 	} limits;
 

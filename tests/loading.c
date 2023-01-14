@@ -224,6 +224,7 @@ TEST_DESCRIBE(loading, t)
 			.usage = GFX_IMAGE_TEST | GFX_IMAGE_TRANSIENT,
 
 			.format  = GFX_FORMAT_D16_UNORM,
+			.samples = 1,
 			.mipmaps = 1,
 			.layers  = 1,
 

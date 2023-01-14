@@ -39,6 +39,7 @@ static inline bool _gfx_cmp_attachments(const GFXAttachment* l,
 		(l->flags == r->flags) &&
 		(l->usage == r->usage) &&
 		GFX_FORMAT_IS_EQUAL(l->format, r->format) &&
+		(l->samples == r->samples) &&
 		(l->mipmaps == r->mipmaps) &&
 		(l->layers == r->layers);
 }
@@ -137,8 +138,7 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 		},
 		.mipLevels             = attach->image.base.mipmaps,
 		.arrayLayers           = attach->image.base.layers,
-		// TODO: Make samples user input.
-		.samples               = VK_SAMPLE_COUNT_1_BIT,
+		.samples               = attach->image.base.samples,
 		.tiling                = VK_IMAGE_TILING_OPTIMAL,
 		.usage                 = usage,
 		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -671,7 +671,10 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 	attachment.flags &= ~(GFXMemoryFlags)GFX_MEMORY_HOST_VISIBLE;
 	attachment.flags |= GFX_MEMORY_DEVICE_LOCAL;
 
-	// Firstly, resolve attachment's format.
+	// Fix sample count.
+	attachment.samples = _GFX_GET_VK_SAMPLE_COUNT(attachment.samples);
+
+	// Resolve attachment's format.
 	VkFormat vkFmt;
 	_GFX_RESOLVE_FORMAT(attachment.format, vkFmt, renderer->allocator.device,
 		((VkFormatProperties){
@@ -811,12 +814,13 @@ GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer, size_t inde
 		return attach->image.base;
 
 	return (GFXAttachment){
-		.format = GFX_FORMAT_EMPTY,
-		.layers = 0,
-		.size   = GFX_SIZE_ABSOLUTE,
-		.width  = 0,
-		.height = 0,
-		.depth  = 0
+		.format  = GFX_FORMAT_EMPTY,
+		.samples = 0,
+		.layers  = 0,
+		.size    = GFX_SIZE_ABSOLUTE,
+		.width   = 0,
+		.height  = 0,
+		.depth   = 0
 	};
 }
 

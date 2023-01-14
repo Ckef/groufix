@@ -299,6 +299,7 @@ bool _gfx_vulkan_init(void)
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceFormatProperties);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceMemoryProperties);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties);
+		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties2);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceQueueFamilyProperties);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfaceCapabilitiesKHR);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfaceFormatsKHR);

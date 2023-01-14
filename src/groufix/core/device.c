@@ -898,18 +898,23 @@ bool _gfx_devices_init(void)
 	for (uint32_t i = 0; i < count; ++i)
 	{
 		// Get some Vulkan properties and define a new device.
-		VkPhysicalDeviceProperties pdp;
-		_groufix.vk.GetPhysicalDeviceProperties(devices[i], &pdp);
+		VkPhysicalDeviceProperties2 pdp2 = {
+			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+			.pNext = NULL
+		};
+
+		VkPhysicalDeviceProperties* pdp = &pdp2.properties;
+		_groufix.vk.GetPhysicalDeviceProperties(devices[i], pdp);
 
 		_GFXDevice dev = {
-			.api     = pdp.apiVersion,
+			.api     = pdp->apiVersion,
 			.context = NULL,
 			.index   = 0,
 			.vk      = { .device = devices[i] }
 		};
 
 		memcpy(
-			dev.name, pdp.deviceName,
+			dev.name, pdp->deviceName,
 			VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
 
 		// Get all Vulkan device features as well.
@@ -918,6 +923,20 @@ bool _gfx_devices_init(void)
 		VkPhysicalDeviceVulkan11Features pdv11f;
 		VkPhysicalDeviceVulkan12Features pdv12f;
 		_GFX_GET_DEVICE_FEATURES(&dev, vk11, vk12, pdf, pdv11f, pdv12f);
+
+		// And get us later properties, now that we have the version...
+		VkPhysicalDeviceVulkan12Properties pdv12p = {
+			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES,
+			.pNext = NULL
+		};
+
+		VkPhysicalDeviceVulkan11Properties pdv11p = {
+			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES,
+			.pNext = (vk12 ? (void*)&pdv12p : NULL)
+		};
+
+		pdp2.pNext = (vk11 ? (void*)&pdv11p : (vk12 ? (void*)&pdv12p : NULL));
+		_groufix.vk.GetPhysicalDeviceProperties2(devices[i], &pdp2);
 
 		// Sadly we need to get get queue family properties and find
 		// ourselves the transfer queue as well, this so we can report
@@ -946,7 +965,7 @@ bool _gfx_devices_init(void)
 
 		// Then define the features and limits part of the new device :)
 		dev.base = (GFXDevice){
-			.type = _GFX_GET_DEVICE_TYPE(pdp.deviceType),
+			.type = _GFX_GET_DEVICE_TYPE(pdp->deviceType),
 			.name = NULL,
 			.available = available,
 
@@ -978,53 +997,69 @@ bool _gfx_devices_init(void)
 			},
 
 			.limits = {
-				.maxIndexUint32        = pdp.limits.maxDrawIndexedIndexValue,
-				.maxImageSize1D        = pdp.limits.maxImageDimension1D,
-				.maxImageSize2D        = pdp.limits.maxImageDimension2D,
-				.maxImageSize3D        = pdp.limits.maxImageDimension3D,
-				.maxImageSizeCube      = pdp.limits.maxImageDimensionCube,
-				.maxImageLayers        = pdp.limits.maxImageArrayLayers,
-				.maxBufferTexels       = pdp.limits.maxTexelBufferElements,
-				.maxUniformBufferRange = pdp.limits.maxUniformBufferRange,
-				.maxStorageBufferRange = pdp.limits.maxStorageBufferRange,
-				.maxPushConstantSize   = pdp.limits.maxPushConstantsSize,
-				.maxBoundSets          = pdp.limits.maxBoundDescriptorSets,
-				.maxAttributes         = pdp.limits.maxVertexInputAttributes,
-				.maxAttributeOffset    = pdp.limits.maxVertexInputAttributeOffset,
-				.maxAttributeStride    = pdp.limits.maxVertexInputBindingStride,
-				.maxPrimitiveBuffers   = pdp.limits.maxVertexInputBindings,
-				.maxAttachmentWidth    = pdp.limits.maxFramebufferWidth,
-				.maxAttachmentHeight   = pdp.limits.maxFramebufferHeight,
-				.maxAttachmentLayers   = pdp.limits.maxFramebufferLayers,
-				.maxAttachmentOutputs  = pdp.limits.maxColorAttachments,
+				.maxIndexUint32        = pdp->limits.maxDrawIndexedIndexValue,
+				.maxImageSize1D        = pdp->limits.maxImageDimension1D,
+				.maxImageSize2D        = pdp->limits.maxImageDimension2D,
+				.maxImageSize3D        = pdp->limits.maxImageDimension3D,
+				.maxImageSizeCube      = pdp->limits.maxImageDimensionCube,
+				.maxImageLayers        = pdp->limits.maxImageArrayLayers,
+				.maxBufferTexels       = pdp->limits.maxTexelBufferElements,
+				.maxUniformBufferRange = pdp->limits.maxUniformBufferRange,
+				.maxStorageBufferRange = pdp->limits.maxStorageBufferRange,
+				.maxPushConstantSize   = pdp->limits.maxPushConstantsSize,
+				.maxBoundSets          = pdp->limits.maxBoundDescriptorSets,
+				.maxAttributes         = pdp->limits.maxVertexInputAttributes,
+				.maxAttributeOffset    = pdp->limits.maxVertexInputAttributeOffset,
+				.maxAttributeStride    = pdp->limits.maxVertexInputBindingStride,
+				.maxPrimitiveBuffers   = pdp->limits.maxVertexInputBindings,
+				.maxAttachmentWidth    = pdp->limits.maxFramebufferWidth,
+				.maxAttachmentHeight   = pdp->limits.maxFramebufferHeight,
+				.maxAttachmentLayers   = pdp->limits.maxFramebufferLayers,
+				.maxAttachmentOutputs  = pdp->limits.maxColorAttachments,
 
-				.maxStageUniformBuffers   = pdp.limits.maxPerStageDescriptorUniformBuffers,
-				.maxStageStorageBuffers   = pdp.limits.maxPerStageDescriptorStorageBuffers,
-				.maxStageSampledImages    = pdp.limits.maxPerStageDescriptorSampledImages,
-				.maxStageStorageImages    = pdp.limits.maxPerStageDescriptorStorageImages,
-				.maxStageSamplers         = pdp.limits.maxPerStageDescriptorSamplers,
-				.maxStageAttachmentInputs = pdp.limits.maxPerStageDescriptorInputAttachments,
+				.maxStageUniformBuffers   = pdp->limits.maxPerStageDescriptorUniformBuffers,
+				.maxStageStorageBuffers   = pdp->limits.maxPerStageDescriptorStorageBuffers,
+				.maxStageSampledImages    = pdp->limits.maxPerStageDescriptorSampledImages,
+				.maxStageStorageImages    = pdp->limits.maxPerStageDescriptorStorageImages,
+				.maxStageSamplers         = pdp->limits.maxPerStageDescriptorSamplers,
+				.maxStageAttachmentInputs = pdp->limits.maxPerStageDescriptorInputAttachments,
 
-				.maxSetUniformBuffers        = pdp.limits.maxDescriptorSetUniformBuffers,
-				.maxSetStorageBuffers        = pdp.limits.maxDescriptorSetStorageBuffers,
-				.maxSetUniformBuffersDynamic = pdp.limits.maxDescriptorSetUniformBuffersDynamic,
-				.maxSetStorageBuffersDynamic = pdp.limits.maxDescriptorSetStorageBuffersDynamic,
-				.maxSetSampledImages         = pdp.limits.maxDescriptorSetSampledImages,
-				.maxSetStorageImages         = pdp.limits.maxDescriptorSetStorageImages,
-				.maxSetSamplers              = pdp.limits.maxDescriptorSetSamplers,
-				.maxSetAttachmentInputs      = pdp.limits.maxDescriptorSetInputAttachments,
+				.maxSetUniformBuffers        = pdp->limits.maxDescriptorSetUniformBuffers,
+				.maxSetStorageBuffers        = pdp->limits.maxDescriptorSetStorageBuffers,
+				.maxSetUniformBuffersDynamic = pdp->limits.maxDescriptorSetUniformBuffersDynamic,
+				.maxSetStorageBuffersDynamic = pdp->limits.maxDescriptorSetStorageBuffersDynamic,
+				.maxSetSampledImages         = pdp->limits.maxDescriptorSetSampledImages,
+				.maxSetStorageImages         = pdp->limits.maxDescriptorSetStorageImages,
+				.maxSetSamplers              = pdp->limits.maxDescriptorSetSamplers,
+				.maxSetAttachmentInputs      = pdp->limits.maxDescriptorSetInputAttachments,
 
-				.minTexelBufferAlign   = pdp.limits.minTexelBufferOffsetAlignment,
-				.minUniformBufferAlign = pdp.limits.minUniformBufferOffsetAlignment,
-				.minStorageBufferAlign = pdp.limits.minStorageBufferOffsetAlignment,
+				.minTexelBufferAlign   = pdp->limits.minTexelBufferOffsetAlignment,
+				.minUniformBufferAlign = pdp->limits.minUniformBufferOffsetAlignment,
+				.minStorageBufferAlign = pdp->limits.minStorageBufferOffsetAlignment,
 
-				.maxMipLodBias = pdp.limits.maxSamplerLodBias,
-				.maxAnisotropy = pdp.limits.maxSamplerAnisotropy,
+				.maxMipLodBias = pdp->limits.maxSamplerLodBias,
+				.maxAnisotropy = pdp->limits.maxSamplerAnisotropy,
 
 				.imageTransferGranularity = {
 					.x = available ? props[transfer].minImageTransferGranularity.width : 0,
 					.y = available ? props[transfer].minImageTransferGranularity.height : 0,
 					.z = available ? props[transfer].minImageTransferGranularity.depth : 0
+				},
+
+				.renderSampleCounts = {
+					.f       = (uint8_t)pdp->limits.framebufferColorSampleCounts,
+					.i       = (uint8_t)(vk12 ? pdv12p.framebufferIntegerColorSampleCounts : 0),
+					.depth   = (uint8_t)pdp->limits.framebufferDepthSampleCounts,
+					.stencil = (uint8_t)pdp->limits.framebufferStencilSampleCounts,
+					.empty   = (uint8_t)pdp->limits.framebufferNoAttachmentsSampleCounts
+				},
+
+				.imageSampleCounts = {
+					.f       = (uint8_t)pdp->limits.sampledImageColorSampleCounts,
+					.i       = (uint8_t)pdp->limits.sampledImageIntegerSampleCounts,
+					.depth   = (uint8_t)pdp->limits.sampledImageDepthSampleCounts,
+					.stencil = (uint8_t)pdp->limits.sampledImageStencilSampleCounts,
+					.storage = (uint8_t)pdp->limits.storageImageSampleCounts
 				}
 			}
 		};

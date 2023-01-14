@@ -40,9 +40,10 @@ typedef struct GFXAttachment
 	GFXMemoryFlags flags;
 	GFXImageUsage  usage;
 
-	GFXFormat format;
-	uint32_t  mipmaps;
-	uint32_t  layers;
+	GFXFormat     format;
+	unsigned char samples; // 1 <= 2^n <= 64.
+	uint32_t      mipmaps;
+	uint32_t      layers;
 
 	// Optionally dynamic size.
 	GFXSizeClass size;
@@ -360,6 +361,8 @@ typedef struct GFXRasterState
 	GFXFrontFace  front;
 	GFXCullMode   cull;
 	GFXTopology   topo; // Topology when no primitive is given.
+
+	unsigned char samples; // 1 <= 2^n <= 64.
 
 } GFXRasterState;
 
@@ -778,18 +781,17 @@ GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
 
 /**
  * Sets the render state of a pass.
- * Any member of state may be NULL to omit setting the associated state.
  * @param pass  Cannot be NULL.
- * @param state No-op if NULL.
+ * @param state Any member may be NULL to omit setting the associated state.
  */
-GFX_API void gfx_pass_set_state(GFXPass* pass, const GFXRenderState* state);
+GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
 
 /**
  * Retrieves the current render state of a pass.
- * @param pass  Cannot be NULL.
- * @param state Cannot be NULL, output state; read-only!
+ * @param pass Cannot be NULL.
+ * @return Output state, read-only!
  */
-GFX_API void gfx_pass_get_state(GFXPass* pass, GFXRenderState* state);
+GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
 
 /**
  * Retrieves the virtual frame size associated with a pass.

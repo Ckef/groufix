@@ -85,7 +85,8 @@ static inline bool _gfx_cmp_raster(const GFXRasterState* l,
 		l->mode == r->mode &&
 		l->front == r->front &&
 		l->cull == r->cull &&
-		l->topo == r->topo;
+		l->topo == r->topo &&
+		l->samples == r->samples;
 }
 
 /****************************
@@ -361,7 +362,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		.mode = GFX_RASTER_FILL,
 		.front = GFX_FRONT_FACE_CW,
 		.cull = GFX_CULL_BACK,
-		.topo = GFX_TOPO_TRIANGLE_LIST
+		.topo = GFX_TOPO_TRIANGLE_LIST,
+		.samples = 1
 	};
 
 	GFXBlendOpState blendOpState = {
@@ -505,7 +507,9 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 		if (at->type == _GFX_ATTACH_WINDOW &&
 			(con->view.range.aspect & GFX_IMAGE_COLOR) &&
 			(con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
+				(GFX_ACCESS_ATTACHMENT_READ |
+				GFX_ACCESS_ATTACHMENT_WRITE |
+				GFX_ACCESS_ATTACHMENT_RESOLVE)))
 		{
 			// Check if we already had a backing window.
 			if (pass->build.backing == SIZE_MAX)
@@ -659,14 +663,14 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			if (con->mask &
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
 			{
-				isColor = 1;
+				resolve[numColors] = unused;
 				color[numColors] = (VkAttachmentReference){
 					.attachment = (uint32_t)i,
 					.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 				};
 
-				resolve[numColors] = unused;
 				numColors++;
+				isColor = 1;
 			}
 
 			// Describe the attachment.
@@ -747,10 +751,10 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
 			{
 				if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt))
-					isColor = 1,
-					color[numColors] = aspectMatch ? ref : unused,
 					resolve[numColors] = aspectMatch ? refResolve : unused,
-					numColors++;
+					color[numColors] = aspectMatch ? ref : unused,
+					numColors++,
+					isColor = 1;
 
 				// Only set depSten on aspect match.
 				else if (aspectMatch)
@@ -768,9 +772,9 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 			// Describe the attachment.
 			ad[i] = (VkAttachmentDescription){
-				.flags          = 0,
-				.format         = at->image.vk.format,
-				.samples        = VK_SAMPLE_COUNT_1_BIT,
+				.flags   = 0,
+				.format  = at->image.vk.format,
+				.samples = at->image.base.samples,
 
 				.loadOp =
 					(firstClear) ? VK_ATTACHMENT_LOAD_OP_CLEAR :
@@ -1149,36 +1153,37 @@ void _gfx_pass_destruct(GFXPass* pass)
 }
 
 /****************************/
-GFX_API void gfx_pass_set_state(GFXPass* pass, const GFXRenderState* state)
+GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 {
 	assert(pass != NULL);
-
-	if (state == NULL) return;
 
 	// Firstly check blend state, as new blend operations should cause the
 	// `pass->vk.blends` vector to update, we do this by graph invalidation!
 	bool newBlends = 0;
 
-	if (state->blend != NULL)
-		newBlends = !_gfx_cmp_blend(&pass->state.blend, state->blend),
-		pass->state.blend = *state->blend;
+	if (state.blend != NULL)
+		newBlends = !_gfx_cmp_blend(&pass->state.blend, state.blend),
+		pass->state.blend = *state.blend;
 
 	// Set new values, check if changed.
 	bool gen = newBlends;
 
-	if (state->raster != NULL)
-		gen = gen || !_gfx_cmp_raster(&pass->state.raster, state->raster),
-		pass->state.raster = *state->raster;
+	if (state.raster != NULL)
+		gen = gen || !_gfx_cmp_raster(&pass->state.raster, state.raster),
+		pass->state.raster = *state.raster,
+		// Fix sample count.
+		pass->state.raster.samples =
+			_GFX_GET_VK_SAMPLE_COUNT(pass->state.raster.samples);
 
-	if (state->depth != NULL)
-		gen = gen || !_gfx_cmp_depth(&pass->state.depth, state->depth),
-		pass->state.depth = *state->depth;
+	if (state.depth != NULL)
+		gen = gen || !_gfx_cmp_depth(&pass->state.depth, state.depth),
+		pass->state.depth = *state.depth;
 
-	if (state->stencil != NULL)
+	if (state.stencil != NULL)
 		gen = gen ||
-			!_gfx_cmp_stencil(&pass->state.stencil.front, &state->stencil->front) ||
-			!_gfx_cmp_stencil(&pass->state.stencil.back, &state->stencil->back),
-		pass->state.stencil = *state->stencil;
+			!_gfx_cmp_stencil(&pass->state.stencil.front, &state.stencil->front) ||
+			!_gfx_cmp_stencil(&pass->state.stencil.back, &state.stencil->back),
+		pass->state.stencil = *state.stencil;
 
 	// If changed, increase generation to invalidate pipelines.
 	// Unless we invalidate the graph, it implicitly destructs & increases.
@@ -1189,15 +1194,16 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, const GFXRenderState* state)
 }
 
 /****************************/
-GFX_API void gfx_pass_get_state(GFXPass* pass, GFXRenderState* state)
+GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
 {
 	assert(pass != NULL);
-	assert(state != NULL);
 
-	state->raster = &pass->state.raster;
-	state->blend = &pass->state.blend;
-	state->depth = &pass->state.depth;
-	state->stencil = &pass->state.stencil;
+	return (GFXRenderState){
+		.raster = &pass->state.raster,
+		.blend = &pass->state.blend,
+		.depth = &pass->state.depth,
+		.stencil = &pass->state.stencil
+	};
 }
 
 /****************************/

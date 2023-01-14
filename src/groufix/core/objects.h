@@ -85,6 +85,16 @@
 	((usage) & GFX_IMAGE_TRANSIENT ? \
 		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : (VkImageUsageFlags)0))
 
+#define _GFX_GET_VK_SAMPLE_COUNT(count) \
+	(((count) == 1) ? VK_SAMPLE_COUNT_1_BIT : \
+	((count) == 2) ? VK_SAMPLE_COUNT_2_BIT : \
+	((count) == 4) ? VK_SAMPLE_COUNT_4_BIT : \
+	((count) == 8) ? VK_SAMPLE_COUNT_8_BIT : \
+	((count) == 16) ? VK_SAMPLE_COUNT_16_BIT : \
+	((count) == 32) ? VK_SAMPLE_COUNT_32_BIT : \
+	((count) == 64) ? VK_SAMPLE_COUNT_64_BIT : \
+	VK_SAMPLE_COUNT_1_BIT)
+
 #define _GFX_GET_VK_FORMAT_FEATURES(flags, usage, fmt) \
 	(((flags) & GFX_MEMORY_READ ? \
 		VK_FORMAT_FEATURE_TRANSFER_SRC_BIT : (VkFormatFeatureFlags)0) | \

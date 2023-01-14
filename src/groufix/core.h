@@ -143,6 +143,7 @@ typedef struct _GFXState
 		_GFX_VK_PFN(GetPhysicalDeviceFormatProperties);
 		_GFX_VK_PFN(GetPhysicalDeviceMemoryProperties);
 		_GFX_VK_PFN(GetPhysicalDeviceProperties);
+		_GFX_VK_PFN(GetPhysicalDeviceProperties2);
 		_GFX_VK_PFN(GetPhysicalDeviceQueueFamilyProperties);
 		_GFX_VK_PFN(GetPhysicalDeviceSurfaceCapabilitiesKHR);
 		_GFX_VK_PFN(GetPhysicalDeviceSurfaceFormatsKHR);
