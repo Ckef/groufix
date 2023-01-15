@@ -264,19 +264,19 @@ TEST_DESCRIBE(loading, t)
 	gfx_pass_release(t->pass, 0);
 
 	if (!gfx_pass_consume(t->pass, 1,
-		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
-	{
-		goto clean;
-	}
-
-	if (!gfx_pass_consume(t->pass, 0,
-		GFX_ACCESS_ATTACHMENT_RESOLVE, GFX_STAGE_ANY))
+		GFX_ACCESS_ATTACHMENT_WRITE | GFX_ACCESS_DISCARD, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
 	if (!gfx_pass_consume(t->pass, 2,
 		GFX_ACCESS_ATTACHMENT_TEST | GFX_ACCESS_DISCARD, GFX_STAGE_ANY))
+	{
+		goto clean;
+	}
+
+	if (!gfx_pass_consume(t->pass, 0,
+		GFX_ACCESS_ATTACHMENT_RESOLVE, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
