@@ -216,18 +216,6 @@ TEST_DESCRIBE(loading, t)
 	if (ctx.set == NULL)
 		goto clean;
 
-	// Set multisampling state.
-	GFXRasterState state = {
-		.mode = GFX_RASTER_FILL,
-		.front = GFX_FRONT_FACE_CW,
-		.cull = GFX_CULL_BACK,
-		.topo = GFX_TOPO_TRIANGLE_LIST,
-		.samples = 4
-	};
-
-	gfx_pass_set_state(t->pass, (GFXRenderState){
-		.raster = &state, .blend = NULL, .depth = NULL, .stencil = NULL });
-
 	// Setup a multisampled intermediate output attachment.
 	if (!gfx_renderer_attach(t->renderer, 1,
 		(GFXAttachment){
@@ -236,7 +224,7 @@ TEST_DESCRIBE(loading, t)
 			.usage = GFX_IMAGE_OUTPUT | GFX_IMAGE_TRANSIENT,
 
 			.format  = GFX_FORMAT_B8G8R8A8_SRGB,
-			.samples = state.samples,
+			.samples = 4,
 			.mipmaps = 1,
 			.layers  = 1,
 
@@ -258,7 +246,7 @@ TEST_DESCRIBE(loading, t)
 			.usage = GFX_IMAGE_TEST | GFX_IMAGE_TRANSIENT,
 
 			.format  = GFX_FORMAT_D16_UNORM,
-			.samples = state.samples,
+			.samples = 4,
 			.mipmaps = 1,
 			.layers  = 1,
 

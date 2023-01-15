@@ -1034,6 +1034,7 @@ struct GFXPass
 		GFXBlendState   blend;
 		GFXDepthState   depth;
 		GFXStencilState stencil;
+		unsigned char   samples; // Minimum necesary, set on warmup.
 
 		enum {
 			_GFX_PASS_DEPTH   = 0x0001,

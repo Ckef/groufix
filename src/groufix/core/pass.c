@@ -356,6 +356,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 	gfx_vec_init(&pass->vk.frames, sizeof(_GFXFrameElem));
 
 	// And finally some default state.
+	pass->state.samples = 1;
 	pass->state.enabled = 0;
 
 	pass->state.raster = (GFXRasterState){
@@ -614,9 +615,10 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 	// We are always gonna update the clear & blend values.
 	// Do it here and not build so we don't unnecessarily reconstruct this.
-	// Same for state enables.
+	// Same for state variables & enables.
 	gfx_vec_release(&pass->vk.clears);
 	gfx_vec_release(&pass->vk.blends);
+	pass->state.samples = 1;
 	pass->state.enabled = 0;
 
 	// Both just need one element per view.
@@ -794,6 +796,10 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				.initialLayout = con->out.initial,
 				.finalLayout = con->out.final
 			};
+
+			// Remember the greatest sample count for pipelines.
+			if (ad[i].samples > pass->state.samples)
+				pass->state.samples = ad[i].samples;
 		}
 
 		// Lastly, store the clear value for when we begin the pass,

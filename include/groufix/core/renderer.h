@@ -360,8 +360,7 @@ typedef struct GFXRasterState
 	GFXRasterMode mode;
 	GFXFrontFace  front;
 	GFXCullMode   cull;
-	GFXTopology   topo; // Topology when no primitive is given.
-
+	GFXTopology   topo;    // Topology when no primitive is given.
 	unsigned char samples; // 1 <= 2^n <= 64.
 
 } GFXRasterState;
