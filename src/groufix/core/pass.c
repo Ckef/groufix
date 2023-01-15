@@ -582,10 +582,7 @@ static uint32_t _gfx_pass_find_attachment(GFXPass* pass, size_t index)
 	for (size_t i = 0; i < pass->vk.views.size; ++i)
 	{
 		const _GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
-		const _GFXConsume* con = view->consume;
-
-		if (con->view.index == index)
-			return (uint32_t)i;
+		if (view->consume->view.index == index) return (uint32_t)i;
 	}
 
 	return VK_ATTACHMENT_UNUSED;
