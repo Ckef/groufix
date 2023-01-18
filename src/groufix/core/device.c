@@ -773,6 +773,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CmdBindIndexBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdBindPipeline);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdBindVertexBuffers);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdBlitImage);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdCopyBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdCopyImage);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdCopyBufferToImage);
@@ -784,6 +785,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CmdExecuteCommands);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdPipelineBarrier);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdPushConstants);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdResolveImage);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdSetViewport);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdSetScissor);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);

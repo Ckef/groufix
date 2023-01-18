@@ -170,18 +170,7 @@ typedef enum GFXFrontFace
 
 
 /**
- * Texture lookup filtering.
- */
-typedef enum GFXFilter
-{
-	GFX_FILTER_NEAREST,
-	GFX_FILTER_LINEAR
-
-} GFXFilter;
-
-
-/**
- * Texture lookup filter ('reduction') mode.
+ * Sampling filter ('reduction') mode.
  */
 typedef enum GFXFilterMode
 {
@@ -193,7 +182,7 @@ typedef enum GFXFilterMode
 
 
 /**
- * Texture lookup wrapping.
+ * Sampling wrap behaviour.
  */
 typedef enum GFXWrapping
 {

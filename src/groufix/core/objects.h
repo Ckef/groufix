@@ -86,6 +86,7 @@
 		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : (VkImageUsageFlags)0))
 
 #define _GFX_GET_VK_SAMPLE_COUNT(count) \
+	/* Vulkan sample counts are the hexadecimal equivalent. */ \
 	(((count) == 1) ? VK_SAMPLE_COUNT_1_BIT : \
 	((count) == 2) ? VK_SAMPLE_COUNT_2_BIT : \
 	((count) == 4) ? VK_SAMPLE_COUNT_4_BIT : \

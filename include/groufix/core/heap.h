@@ -472,6 +472,17 @@ GFX_BIT_FIELD(GFXTransferFlags)
 
 
 /**
+ * Sampling filter.
+ */
+typedef enum GFXFilter
+{
+	GFX_FILTER_NEAREST,
+	GFX_FILTER_LINEAR
+
+} GFXFilter;
+
+
+/**
  * Reads data from a memory resource reference.
  * @param src        Cannot be NULL/GFX_REF_NULL.
  * @param dst        Cannot be NULL/GFX_REF_NULL.
@@ -536,8 +547,34 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
                       const GFXInject* deps);
 
-// TODO: Add gfx_blit().
-// TODO: Add gfx_resolve().
+/**
+ * Blits (copy with scaling) data from one image reference to another.
+ * @param filter Sampling filter to apply when scaling.
+ * @see gfx_read.
+ * @see gfx_copy.
+ *
+ * Unlike all other operations, the width/height/depth of (src|dst)Regions must
+ * both be specified and may not be zero. However they may be different from
+ * each other to perform a scaled copy.
+ */
+GFX_API bool gfx_blit(GFXImageRef src, GFXImageRef dst,
+                      GFXTransferFlags flags, GFXFilter filter,
+                      size_t numRegions, size_t numDeps,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                      const GFXInject* deps);
+
+/**
+ * Resolves a multisampled image attachment to an image reference.
+ * @see gfx_read.
+ *
+ * This is the only operation that is allowed to operate on multisampled
+ * image attachments. In fact, it MUST operate on one.
+ */
+GFX_API bool gfx_resolve(GFXImageRef src, GFXImageRef dst,
+                         GFXTransferFlags flags,
+                         size_t numRegions, size_t numDeps,
+                         const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                         const GFXInject* deps);
 
 /**
  * Maps a buffer reference to a host virtual address pointer.

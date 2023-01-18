@@ -44,6 +44,18 @@
 
 
 /****************************
+ * Internal copy flags.
+ */
+typedef enum _GFXCopyFlags
+{
+	_GFX_COPY_REVERSED = 0x0001,
+	_GFX_COPY_SCALED   = 0x0002,
+	_GFX_COPY_RESOLVE  = 0x0004
+
+} _GFXCopyFlags;
+
+
+/****************************
  * Internal stage region (modified host region) definition.
  */
 typedef struct _GFXStageRegion
@@ -503,7 +515,7 @@ clean:
  * Copies data from a host pointer to a mapped resource or staging buffer.
  * @param ptr        Host pointer, cannot be NULL.
  * @param ref        Mapped resource or staging pointer, cannot be NULL.
- * @param rev        Non-zero to reverse the operation (ref -> ptr).
+ * @param cpFlags    All but _GFX_COPY_REVERSED are ignored.
  * @param numRegions Must be > 0.
  * @param ptrRegions Cannot be NULL, regions associated with ptr.
  * @param refRegions Reference regions (assumed to be buffer regions).
@@ -512,7 +524,8 @@ clean:
  * Either one of refRegions and stage must be set, the other must be NULL.
  * This allows use for either a mapped resource or a staging buffer.
  */
-static void _gfx_copy_host(void* ptr, void* ref, bool rev, size_t numRegions,
+static void _gfx_copy_host(void* ptr, void* ref,
+                           _GFXCopyFlags cpFlags, size_t numRegions,
                            const GFXRegion* ptrRegions,
                            const GFXRegion* refRegions,
                            const _GFXStageRegion* stage)
@@ -532,8 +545,8 @@ static void _gfx_copy_host(void* ptr, void* ref, bool rev, size_t numRegions,
 			(stage != NULL ? stage[r].offset : refRegions[r].offset);
 
 		memcpy(
-			rev ? src : dst,
-			rev ? dst : src,
+			cpFlags & _GFX_COPY_REVERSED ? src : dst,
+			cpFlags & _GFX_COPY_REVERSED ? dst : src,
 			stage != NULL ? stage[r].size : (ptrRegions[r].size == 0 ?
 				refRegions[r].size : ptrRegions[r].size));
 	}
@@ -542,7 +555,6 @@ static void _gfx_copy_host(void* ptr, void* ref, bool rev, size_t numRegions,
 /****************************
  * Copies data from a resource or staging buffer to another resource.
  * @param heap       Cannot be NULL.
- * @param rev        Non-zero to reverse the operation (dst -> staging).
  * @param numRefs    Must be >= 1 if staging != NULL, must be >= 2 otherwise.
  * @param numRegions Must be > 0.
  * @param staging    Staging buffer.
@@ -557,9 +569,11 @@ static void _gfx_copy_host(void* ptr, void* ref, bool rev, size_t numRegions,
  *
  * Staging must be set OR numRefs must be >= 2.
  * This allows use of either a memory resource or a staging buffer.
- * If staging is _not_ set, rev must be 0.
+ * If staging is _not_ set, _GFX_COPY_REVERSED must not be set.
+ * If staging is set, _GFX_COPY_(SCALED|RESOLVE) must not be set.
  */
-static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
+static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
+                            _GFXCopyFlags cpFlags, GFXFilter filter,
                             size_t numRefs, size_t numRegions, size_t numDeps,
                             _GFXStaging* staging,
                             const _GFXUnpackRef* refs,
@@ -571,7 +585,10 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
                             const GFXInject* deps)
 {
 	assert(heap != NULL);
-	assert(!rev || staging != NULL);
+	assert(!(cpFlags & _GFX_COPY_REVERSED) || staging != NULL);
+	assert(!(cpFlags & _GFX_COPY_SCALED) || staging == NULL);
+	assert(!(cpFlags & _GFX_COPY_RESOLVE) || staging == NULL);
+	assert(!(cpFlags & _GFX_COPY_SCALED) || !(cpFlags & _GFX_COPY_RESOLVE));
 	assert(numRefs >= 1);
 	assert(numRefs >= 2 || staging != NULL);
 	assert(numRegions > 0);
@@ -584,6 +601,10 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 	assert(numDeps == 0 || deps != NULL);
 
 	_GFXContext* context = heap->allocator.context;
+
+	const bool rev = cpFlags & _GFX_COPY_REVERSED;
+	const bool blit = cpFlags & _GFX_COPY_SCALED;
+	const bool resolve = cpFlags & _GFX_COPY_RESOLVE;
 
 	// First of all, get resources and metadata to copy.
 	// So we can check them before throwing away all previous operations.
@@ -622,6 +643,28 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 		gfx_log_warn(
 			"Attempted to perform operation on a memory resource "
 			"that was not yet allocated.");
+
+		return 0;
+	}
+
+	// Validate we're resolving a multisampled image.
+	if (resolve &&
+		(src->obj.renderer == NULL || attach->base.samples < 2))
+	{
+		gfx_log_warn(
+			"Attempted to perform resolve operation on a memory resource "
+			"that is not multisampled.");
+
+		return 0;
+	}
+
+	// Validate we're not doing anything else on a multisampled image.
+	if (!resolve &&
+		(attach != NULL && attach->base.samples > 1))
+	{
+		gfx_log_warn(
+			"Attempted to perform transfer operation on a memory resource "
+			"that is multisampled.");
 
 		return 0;
 	}
@@ -693,7 +736,61 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 			(uint32_t)numRegions, cRegions);
 	}
 
-	// Image -> image copy.
+	// Image -> image blit.
+	else if (blit && srcImage != VK_NULL_HANDLE && dstImage != VK_NULL_HANDLE)
+	{
+		// Note: _GFX_COPY_REVERSED is only allowed to be set when staging
+		// is set. Meaning if it is set, image -> image copies cannot happen.
+		VkImageBlit cRegions[numRegions];
+		for (size_t r = 0; r < numRegions; ++r)
+		{
+			cRegions[r].srcSubresource = (VkImageSubresourceLayers){
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(srcRegions[r].aspect),
+				.mipLevel       = srcRegions[r].mipmap,
+				.baseArrayLayer = srcRegions[r].layer,
+				.layerCount     = srcRegions[r].numLayers
+			};
+
+			cRegions[r].srcOffsets[0] = (VkOffset3D){
+				.x = (int32_t)srcRegions[r].x,
+				.y = (int32_t)srcRegions[r].y,
+				.z = (int32_t)srcRegions[r].z
+			};
+
+			cRegions[r].srcOffsets[1] = (VkOffset3D){
+				.x = (int32_t)(srcRegions[r].x + srcRegions[r].width),
+				.y = (int32_t)(srcRegions[r].y + srcRegions[r].height),
+				.z = (int32_t)(srcRegions[r].z + srcRegions[r].depth)
+			};
+
+			cRegions[r].dstSubresource = (VkImageSubresourceLayers){
+				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(dstRegions[r].aspect),
+				.mipLevel       = dstRegions[r].mipmap,
+				.baseArrayLayer = dstRegions[r].layer,
+				.layerCount     = dstRegions[r].numLayers
+			};
+
+			cRegions[r].dstOffsets[0] = (VkOffset3D){
+				.x = (int32_t)dstRegions[r].x,
+				.y = (int32_t)dstRegions[r].y,
+				.z = (int32_t)dstRegions[r].z
+			};
+
+			cRegions[r].dstOffsets[1] = (VkOffset3D){
+				.x = (int32_t)(dstRegions[r].x + dstRegions[r].width),
+				.y = (int32_t)(dstRegions[r].y + dstRegions[r].height),
+				.z = (int32_t)(dstRegions[r].z + dstRegions[r].depth)
+			};
+		}
+
+		context->vk.CmdBlitImage(transfer->vk.cmd,
+			srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			(uint32_t)numRegions, cRegions,
+			_GFX_GET_VK_FILTER(filter));
+	}
+
+	// Image -> image copy or resolve.
 	else if (srcImage != VK_NULL_HANDLE && dstImage != VK_NULL_HANDLE)
 	{
 		const GFXFormat srcFormat = (src->obj.image != NULL) ?
@@ -702,8 +799,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 		const GFXFormat dstFormat = (dst->obj.image != NULL) ?
 			dst->obj.image->base.format : attach->base.format;
 
-		// Note that rev is only allowed to be non-zero when staging is set.
-		// Meaning if rev is set, image -> image copies cannot happen.
+		// Note: VkImageCopy and VkImageResolve are identical...
 		VkImageCopy cRegions[numRegions];
 		for (size_t r = 0; r < numRegions; ++r)
 		{
@@ -749,10 +845,16 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 			};
 		}
 
-		context->vk.CmdCopyImage(transfer->vk.cmd,
-			srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			(uint32_t)numRegions, cRegions);
+		if (resolve)
+			context->vk.CmdResolveImage(transfer->vk.cmd,
+				srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				(uint32_t)numRegions, (VkImageResolve*)cRegions);
+		else
+			context->vk.CmdCopyImage(transfer->vk.cmd,
+				srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				(uint32_t)numRegions, cRegions);
 	}
 
 	// Buffer -> image or image -> buffer copy.
@@ -763,8 +865,8 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags, bool rev,
 		const GFXRegion* imgRegions =
 			(srcImage != VK_NULL_HANDLE) ? srcRegions : dstRegions;
 
-		// Note that rev is only allowed to be non-zero when staging is set.
-		// Meaning if rev is set, it is always an image -> buffer copy.
+		// Note: _GFX_COPY_REVERSED is only allowed to be set when staging
+		// is set. Meaning if it is set, it is always an image -> buffer copy.
 		VkBufferImageCopy cRegions[numRegions];
 		for (size_t r = 0; r < numRegions; ++r)
 		{
@@ -967,7 +1069,8 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 		const uint64_t rSize = _gfx_ref_size(src);
 
 		if (!_gfx_copy_device(
-			heap, flags, 1, 1, numRegions, numDeps,
+			heap, flags, _GFX_COPY_REVERSED, GFX_FILTER_NEAREST,
+			1, numRegions, numDeps,
 			staging, &unp, &rMask, &rSize,
 			stage, dstRegions, srcRegions, deps))
 		{
@@ -978,7 +1081,7 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 
 	// Do the staging -> host copy.
 	_gfx_copy_host(
-		dst, ptr, 1, numRegions, dstRegions,
+		dst, ptr, _GFX_COPY_REVERSED, numRegions, dstRegions,
 		(staging == NULL) ? srcRegions : NULL,
 		(staging == NULL) ? NULL : stage);
 
@@ -1100,7 +1203,8 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 		const uint64_t rSize = _gfx_ref_size(dst);
 
 		if (!_gfx_copy_device(
-			heap, flags, 0, 1, numRegions, numDeps,
+			heap, flags, 0, GFX_FILTER_NEAREST,
+			1, numRegions, numDeps,
 			staging, &unp, &rMask, &rSize,
 			stage, srcRegions, dstRegions, deps))
 		{
@@ -1197,9 +1301,10 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 	}
 #endif
 
-	// Do the resource -> resource copy
+	// Do the resource -> resource copy.
 	if (!_gfx_copy_device(
-		heap, flags, 0, 2, numRegions, numDeps,
+		heap, flags, 0, GFX_FILTER_NEAREST,
+		2, numRegions, numDeps,
 		NULL, refs, rMasks, rSizes,
 		NULL, srcRegions, dstRegions, deps))
 	{
@@ -1212,6 +1317,186 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 	// Error on failure.
 error:
 	gfx_log_error("Copy operation failed.");
+
+	return 0;
+}
+
+/****************************/
+GFX_API bool gfx_blit(GFXImageRef src, GFXImageRef dst,
+                      GFXTransferFlags flags, GFXFilter filter,
+                      size_t numRegions, size_t numDeps,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                      const GFXInject* deps)
+{
+	assert(GFX_REF_IS_IMAGE(src));
+	assert(GFX_REF_IS_IMAGE(dst));
+	assert(numRegions > 0);
+	assert(srcRegions != NULL);
+	assert(dstRegions != NULL);
+	assert(numDeps == 0 || deps != NULL);
+
+	// Prepare injection metadata.
+	const _GFXUnpackRef refs[2] =
+		{ _gfx_ref_unpack(src), _gfx_ref_unpack(dst) };
+
+	const GFXAccessMask rMasks[2] =
+		{ GFX_ACCESS_TRANSFER_READ, GFX_ACCESS_TRANSFER_WRITE };
+
+	const uint64_t rSizes[2] = { 0, 0 };
+
+	// Check that the resources share the same context.
+	if (_GFX_UNPACK_REF_CONTEXT(refs[0]) != _GFX_UNPACK_REF_CONTEXT(refs[1]))
+	{
+		gfx_log_error(
+			"When blitting from one image to another they must be "
+			"built on the same logical Vulkan device.");
+
+		return 0;
+	}
+
+	// We need a heap, always prefer the heap from src.
+	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(refs[0]);
+	if (heap == NULL) heap = _GFX_UNPACK_REF_HEAP(refs[1]);
+
+	if (heap == NULL)
+	{
+		gfx_log_error(
+			"Cannot perform blit operation between images of "
+			"which neither was allocated from a heap.");
+
+		return 0;
+	}
+
+#if !defined (NDEBUG)
+	GFXMemoryFlags srcFlags = _GFX_UNPACK_REF_FLAGS(refs[0]);
+	GFXMemoryFlags dstFlags = _GFX_UNPACK_REF_FLAGS(refs[1]);
+
+	// Validate memory flags.
+	if (!(srcFlags & GFX_MEMORY_READ) || !(dstFlags & GFX_MEMORY_WRITE))
+	{
+		gfx_log_warn(
+			"Not allowed to blit from one image to another if they were "
+			"not created with GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
+	}
+
+	// Validate async flag.
+	if ((flags & GFX_TRANSFER_ASYNC) && (
+		((srcFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
+		!(srcFlags & GFX_MEMORY_TRANSFER_CONCURRENT)) ||
+		((dstFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
+		!(dstFlags & GFX_MEMORY_TRANSFER_CONCURRENT))))
+	{
+		gfx_log_warn(
+			"Not allowed to perform asynchronous blit between images "
+			"with concurrent memory flags excluding transfer operations.");
+	}
+#endif
+
+	// Do the image -> image blit.
+	if (!_gfx_copy_device(
+		heap, flags, _GFX_COPY_SCALED, filter,
+		2, numRegions, numDeps,
+		NULL, refs, rMasks, rSizes,
+		NULL, srcRegions, dstRegions, deps))
+	{
+		goto error;
+	}
+
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Blit operation failed.");
+
+	return 0;
+}
+
+/****************************/
+GFX_API bool gfx_resolve(GFXImageRef src, GFXImageRef dst,
+                         GFXTransferFlags flags,
+                         size_t numRegions, size_t numDeps,
+                         const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                         const GFXInject* deps)
+{
+	assert(GFX_REF_IS_IMAGE(src));
+	assert(GFX_REF_IS_IMAGE(dst));
+	assert(numRegions > 0);
+	assert(srcRegions != NULL);
+	assert(dstRegions != NULL);
+	assert(numDeps == 0 || deps != NULL);
+
+	// Prepare injection metadata.
+	const _GFXUnpackRef refs[2] =
+		{ _gfx_ref_unpack(src), _gfx_ref_unpack(dst) };
+
+	const GFXAccessMask rMasks[2] =
+		{ GFX_ACCESS_TRANSFER_READ, GFX_ACCESS_TRANSFER_WRITE };
+
+	const uint64_t rSizes[2] = { 0, 0 };
+
+	// Check that the resources share the same context.
+	if (_GFX_UNPACK_REF_CONTEXT(refs[0]) != _GFX_UNPACK_REF_CONTEXT(refs[1]))
+	{
+		gfx_log_error(
+			"When resolving from an attachment to an image they must be "
+			"built on the same logical Vulkan device.");
+
+		return 0;
+	}
+
+	// We need a heap, but in this case it can only be from dst.
+	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(refs[1]);
+	if (heap == NULL)
+	{
+		gfx_log_error(
+			"Cannot perform resolve operation to an image "
+			"which was not allocated from a heap.");
+
+		return 0;
+	}
+
+#if !defined (NDEBUG)
+	GFXMemoryFlags srcFlags = _GFX_UNPACK_REF_FLAGS(refs[0]);
+	GFXMemoryFlags dstFlags = _GFX_UNPACK_REF_FLAGS(refs[1]);
+
+	// Validate memory flags.
+	if (!(srcFlags & GFX_MEMORY_READ) || !(dstFlags & GFX_MEMORY_WRITE))
+	{
+		gfx_log_warn(
+			"Not allowed to resolve from an attachment to an image if they were "
+			"not created with GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
+	}
+
+	// Validate async flag.
+	if ((flags & GFX_TRANSFER_ASYNC) && (
+		((srcFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
+		!(srcFlags & GFX_MEMORY_TRANSFER_CONCURRENT)) ||
+		((dstFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
+		!(dstFlags & GFX_MEMORY_TRANSFER_CONCURRENT))))
+	{
+		gfx_log_warn(
+			"Not allowed to perform asynchronous resolve between images "
+			"with concurrent memory flags excluding transfer operations.");
+	}
+#endif
+
+	// Do the image (attachment) -> image resolve.
+	if (!_gfx_copy_device(
+		heap, flags, _GFX_COPY_RESOLVE, GFX_FILTER_NEAREST,
+		2, numRegions, numDeps,
+		NULL, refs, rMasks, rSizes,
+		NULL, srcRegions, dstRegions, deps))
+	{
+		goto error;
+	}
+
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Resolve operation failed.");
 
 	return 0;
 }

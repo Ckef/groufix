@@ -243,6 +243,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CmdBindIndexBuffer);
 		_GFX_VK_PFN(CmdBindPipeline);
 		_GFX_VK_PFN(CmdBindVertexBuffers);
+		_GFX_VK_PFN(CmdBlitImage);
 		_GFX_VK_PFN(CmdCopyBuffer);
 		_GFX_VK_PFN(CmdCopyImage);
 		_GFX_VK_PFN(CmdCopyBufferToImage);
@@ -254,6 +255,7 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CmdExecuteCommands);
 		_GFX_VK_PFN(CmdPipelineBarrier);
 		_GFX_VK_PFN(CmdPushConstants);
+		_GFX_VK_PFN(CmdResolveImage);
 		_GFX_VK_PFN(CmdSetViewport);
 		_GFX_VK_PFN(CmdSetScissor);
 		_GFX_VK_PFN(CreateBuffer);
