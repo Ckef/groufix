@@ -550,7 +550,6 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 /**
  * Blits (copy with scaling) data from one image reference to another.
  * @param filter Sampling filter to apply when scaling.
- * @see gfx_read.
  * @see gfx_copy.
  *
  * Unlike all other operations, the width/height/depth of (src|dst)Regions must
