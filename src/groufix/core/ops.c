@@ -799,31 +799,32 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 		const GFXFormat dstFormat = (dst->obj.image != NULL) ?
 			dst->obj.image->base.format : attach->base.format;
 
-		// Note: VkImageCopy and VkImageResolve are identical...
-		VkImageCopy cRegions[numRegions];
+		// VkImageCopy and VkImageResolve are identical...
+		union { VkImageCopy c; VkImageResolve r; } cRegions[numRegions];
+
 		for (size_t r = 0; r < numRegions; ++r)
 		{
-			cRegions[r].srcSubresource = (VkImageSubresourceLayers){
+			cRegions[r].c.srcSubresource = (VkImageSubresourceLayers){
 				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(srcRegions[r].aspect),
 				.mipLevel       = srcRegions[r].mipmap,
 				.baseArrayLayer = srcRegions[r].layer,
 				.layerCount     = srcRegions[r].numLayers
 			};
 
-			cRegions[r].srcOffset = (VkOffset3D){
+			cRegions[r].c.srcOffset = (VkOffset3D){
 				.x = (int32_t)srcRegions[r].x,
 				.y = (int32_t)srcRegions[r].y,
 				.z = (int32_t)srcRegions[r].z
 			};
 
-			cRegions[r].dstSubresource = (VkImageSubresourceLayers){
+			cRegions[r].c.dstSubresource = (VkImageSubresourceLayers){
 				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(dstRegions[r].aspect),
 				.mipLevel       = dstRegions[r].mipmap,
 				.baseArrayLayer = dstRegions[r].layer,
 				.layerCount     = dstRegions[r].numLayers
 			};
 
-			cRegions[r].dstOffset = (VkOffset3D){
+			cRegions[r].c.dstOffset = (VkOffset3D){
 				.x = (int32_t)dstRegions[r].x,
 				.y = (int32_t)dstRegions[r].y,
 				.z = (int32_t)dstRegions[r].z
@@ -832,7 +833,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 			// Have to convert destination extent when mixing
 			// compressed and uncompressed images.
 			// Again block depth is assumed to be 1 in all cases.
-			cRegions[r].extent = (VkExtent3D){
+			cRegions[r].c.extent = (VkExtent3D){
 				.width = (srcRegions[r].width == 0) ?
 					_GFX_VK_WIDTH_DST_TO_SRC(dstRegions[r].width, srcFormat, dstFormat) :
 					srcRegions[r].width,
@@ -849,12 +850,12 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 			context->vk.CmdResolveImage(transfer->vk.cmd,
 				srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 				dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				(uint32_t)numRegions, (VkImageResolve*)cRegions);
+				(uint32_t)numRegions, &cRegions[0].r);
 		else
 			context->vk.CmdCopyImage(transfer->vk.cmd,
 				srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 				dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				(uint32_t)numRegions, cRegions);
+				(uint32_t)numRegions, &cRegions[0].c);
 	}
 
 	// Buffer -> image or image -> buffer copy.
