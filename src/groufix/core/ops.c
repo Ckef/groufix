@@ -962,7 +962,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 
 	// Cleanup on failure.
 clean:
-	gfx_log_error("Transfer operation failed; lost all prior operations.");
+	gfx_log_warn("Transfer operation failed; lost all prior operations.");
 	_gfx_pop_transfer(heap, pool);
 unlock:
 	_gfx_mutex_unlock(&pool->lock);
@@ -1229,15 +1229,20 @@ error:
 	return 0;
 }
 
-/****************************/
-GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
-                      GFXTransferFlags flags,
+/****************************
+ * Stand-in function for gfx_(copy|blit|resolve), wrapper for _gfx_copy_device.
+ * @param cpFlags Internal copy flags that specifies the type of call.
+ * @see gfx_(copy|blit|resolve).
+ *
+ * Does not assert the reference type!
+ */
+static bool _gfx_copy(GFXReference src, GFXReference dst,
+                      GFXTransferFlags flags, _GFXCopyFlags cpFlags, GFXFilter filter,
                       size_t numRegions, size_t numDeps,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
                       const GFXInject* deps)
 {
-	assert(!GFX_REF_IS_NULL(src));
-	assert(!GFX_REF_IS_NULL(dst));
+	assert(!(cpFlags & _GFX_COPY_REVERSED));
 	assert(numRegions > 0);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
@@ -1257,8 +1262,8 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 	if (_GFX_UNPACK_REF_CONTEXT(refs[0]) != _GFX_UNPACK_REF_CONTEXT(refs[1]))
 	{
 		gfx_log_error(
-			"When copying from one memory resource to another they must be "
-			"built on the same logical Vulkan device.");
+			"When transfering from one memory resource to another they "
+			"must be built on the same logical Vulkan device.");
 
 		return 0;
 	}
@@ -1270,8 +1275,8 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 	if (heap == NULL)
 	{
 		gfx_log_error(
-			"Cannot perform copy operation between memory resources of "
-			"which neither was allocated from a heap.");
+			"Cannot perform transfer operation between memory resources "
+			"of which neither was allocated from a heap.");
 
 		return 0;
 	}
@@ -1284,8 +1289,9 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 	if (!(srcFlags & GFX_MEMORY_READ) || !(dstFlags & GFX_MEMORY_WRITE))
 	{
 		gfx_log_warn(
-			"Not allowed to copy from one memory resource to another if they were "
-			"not created with GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
+			"Not allowed to transfer from one memory resource "
+			"to another if they were not created with "
+			"GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
 	}
 
 	// Validate async flag.
@@ -1296,29 +1302,46 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 		!(dstFlags & GFX_MEMORY_TRANSFER_CONCURRENT))))
 	{
 		gfx_log_warn(
-			"Not allowed to perform asynchronous copy between memory resources "
-			"with concurrent memory flags excluding transfer operations.");
+			"Not allowed to perform asynchronous transfer between "
+			"memory resources with concurrent memory flags "
+			"excluding transfer operations.");
 	}
 #endif
 
 	// Do the resource -> resource copy.
 	if (!_gfx_copy_device(
-		heap, flags, 0, GFX_FILTER_NEAREST,
+		heap, flags, cpFlags, filter,
 		2, numRegions, numDeps,
 		NULL, refs, rMasks, rSizes,
 		NULL, srcRegions, dstRegions, deps))
 	{
-		goto error;
+		gfx_log_error(
+			"%s operation failed.",
+			cpFlags & _GFX_COPY_SCALED ? "Blit" :
+			cpFlags & _GFX_COPY_RESOLVE ? "Resolve" :
+			"Copy");
+
+		return 0;
 	}
 
 	return 1;
+}
 
+/****************************/
+GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
+                      GFXTransferFlags flags,
+                      size_t numRegions, size_t numDeps,
+                      const GFXRegion* srcRegions, const GFXRegion* dstRegions,
+                      const GFXInject* deps)
+{
+	// Mostly relies on stand-in function for asserts.
 
-	// Error on failure.
-error:
-	gfx_log_error("Copy operation failed.");
+	assert(!GFX_REF_IS_NULL(src));
+	assert(!GFX_REF_IS_NULL(dst));
 
-	return 0;
+	return _gfx_copy(
+		src, dst, flags, 0, GFX_FILTER_NEAREST,
+		numRegions, numDeps, srcRegions, dstRegions, deps);
 }
 
 /****************************/
@@ -1328,88 +1351,14 @@ GFX_API bool gfx_blit(GFXImageRef src, GFXImageRef dst,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
                       const GFXInject* deps)
 {
+	// Mostly relies on stand-in function for asserts.
+
 	assert(GFX_REF_IS_IMAGE(src));
 	assert(GFX_REF_IS_IMAGE(dst));
-	assert(numRegions > 0);
-	assert(srcRegions != NULL);
-	assert(dstRegions != NULL);
-	assert(numDeps == 0 || deps != NULL);
 
-	// Prepare injection metadata.
-	const _GFXUnpackRef refs[2] =
-		{ _gfx_ref_unpack(src), _gfx_ref_unpack(dst) };
-
-	const GFXAccessMask rMasks[2] =
-		{ GFX_ACCESS_TRANSFER_READ, GFX_ACCESS_TRANSFER_WRITE };
-
-	const uint64_t rSizes[2] = { 0, 0 };
-
-	// Check that the resources share the same context.
-	if (_GFX_UNPACK_REF_CONTEXT(refs[0]) != _GFX_UNPACK_REF_CONTEXT(refs[1]))
-	{
-		gfx_log_error(
-			"When blitting from one image to another they must be "
-			"built on the same logical Vulkan device.");
-
-		return 0;
-	}
-
-	// We need a heap, always prefer the heap from src.
-	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(refs[0]);
-	if (heap == NULL) heap = _GFX_UNPACK_REF_HEAP(refs[1]);
-
-	if (heap == NULL)
-	{
-		gfx_log_error(
-			"Cannot perform blit operation between images of "
-			"which neither was allocated from a heap.");
-
-		return 0;
-	}
-
-#if !defined (NDEBUG)
-	GFXMemoryFlags srcFlags = _GFX_UNPACK_REF_FLAGS(refs[0]);
-	GFXMemoryFlags dstFlags = _GFX_UNPACK_REF_FLAGS(refs[1]);
-
-	// Validate memory flags.
-	if (!(srcFlags & GFX_MEMORY_READ) || !(dstFlags & GFX_MEMORY_WRITE))
-	{
-		gfx_log_warn(
-			"Not allowed to blit from one image to another if they were "
-			"not created with GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
-	}
-
-	// Validate async flag.
-	if ((flags & GFX_TRANSFER_ASYNC) && (
-		((srcFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
-		!(srcFlags & GFX_MEMORY_TRANSFER_CONCURRENT)) ||
-		((dstFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
-		!(dstFlags & GFX_MEMORY_TRANSFER_CONCURRENT))))
-	{
-		gfx_log_warn(
-			"Not allowed to perform asynchronous blit between images "
-			"with concurrent memory flags excluding transfer operations.");
-	}
-#endif
-
-	// Do the image -> image blit.
-	if (!_gfx_copy_device(
-		heap, flags, _GFX_COPY_SCALED, filter,
-		2, numRegions, numDeps,
-		NULL, refs, rMasks, rSizes,
-		NULL, srcRegions, dstRegions, deps))
-	{
-		goto error;
-	}
-
-	return 1;
-
-
-	// Error on failure.
-error:
-	gfx_log_error("Blit operation failed.");
-
-	return 0;
+	return _gfx_copy(
+		src, dst, flags, _GFX_COPY_SCALED, filter,
+		numRegions, numDeps, srcRegions, dstRegions, deps);
 }
 
 /****************************/
@@ -1419,86 +1368,14 @@ GFX_API bool gfx_resolve(GFXImageRef src, GFXImageRef dst,
                          const GFXRegion* srcRegions, const GFXRegion* dstRegions,
                          const GFXInject* deps)
 {
+	// Mostly relies on stand-in function for asserts.
+
 	assert(GFX_REF_IS_IMAGE(src));
 	assert(GFX_REF_IS_IMAGE(dst));
-	assert(numRegions > 0);
-	assert(srcRegions != NULL);
-	assert(dstRegions != NULL);
-	assert(numDeps == 0 || deps != NULL);
 
-	// Prepare injection metadata.
-	const _GFXUnpackRef refs[2] =
-		{ _gfx_ref_unpack(src), _gfx_ref_unpack(dst) };
-
-	const GFXAccessMask rMasks[2] =
-		{ GFX_ACCESS_TRANSFER_READ, GFX_ACCESS_TRANSFER_WRITE };
-
-	const uint64_t rSizes[2] = { 0, 0 };
-
-	// Check that the resources share the same context.
-	if (_GFX_UNPACK_REF_CONTEXT(refs[0]) != _GFX_UNPACK_REF_CONTEXT(refs[1]))
-	{
-		gfx_log_error(
-			"When resolving from an attachment to an image they must be "
-			"built on the same logical Vulkan device.");
-
-		return 0;
-	}
-
-	// We need a heap, but in this case it can only be from dst.
-	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(refs[1]);
-	if (heap == NULL)
-	{
-		gfx_log_error(
-			"Cannot perform resolve operation to an image "
-			"which was not allocated from a heap.");
-
-		return 0;
-	}
-
-#if !defined (NDEBUG)
-	GFXMemoryFlags srcFlags = _GFX_UNPACK_REF_FLAGS(refs[0]);
-	GFXMemoryFlags dstFlags = _GFX_UNPACK_REF_FLAGS(refs[1]);
-
-	// Validate memory flags.
-	if (!(srcFlags & GFX_MEMORY_READ) || !(dstFlags & GFX_MEMORY_WRITE))
-	{
-		gfx_log_warn(
-			"Not allowed to resolve from an attachment to an image if they were "
-			"not created with GFX_MEMORY_READ and GFX_MEMORY_WRITE respectively.");
-	}
-
-	// Validate async flag.
-	if ((flags & GFX_TRANSFER_ASYNC) && (
-		((srcFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
-		!(srcFlags & GFX_MEMORY_TRANSFER_CONCURRENT)) ||
-		((dstFlags & GFX_MEMORY_COMPUTE_CONCURRENT) &&
-		!(dstFlags & GFX_MEMORY_TRANSFER_CONCURRENT))))
-	{
-		gfx_log_warn(
-			"Not allowed to perform asynchronous resolve between images "
-			"with concurrent memory flags excluding transfer operations.");
-	}
-#endif
-
-	// Do the image (attachment) -> image resolve.
-	if (!_gfx_copy_device(
-		heap, flags, _GFX_COPY_RESOLVE, GFX_FILTER_NEAREST,
-		2, numRegions, numDeps,
-		NULL, refs, rMasks, rSizes,
-		NULL, srcRegions, dstRegions, deps))
-	{
-		goto error;
-	}
-
-	return 1;
-
-
-	// Error on failure.
-error:
-	gfx_log_error("Resolve operation failed.");
-
-	return 0;
+	return _gfx_copy(
+		src, dst, flags, _GFX_COPY_RESOLVE, GFX_FILTER_NEAREST,
+		numRegions, numDeps, srcRegions, dstRegions, deps);
 }
 
 /****************************/
