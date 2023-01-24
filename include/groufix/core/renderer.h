@@ -1151,6 +1151,33 @@ GFX_BIT_FIELD(GFXComputeFlags)
 
 
 /**
+ * Indirect draw command parameters.
+ */
+typedef struct GFXDrawCmd
+{
+	uint32_t vertices;  // Must be > 0.
+	uint32_t instances; // Must be > 0.
+	uint32_t firstVertex;
+	uint32_t firstInstance;
+
+} GFXDrawCmd;
+
+
+/**
+ * Indirect indexed draw command parameters.
+ */
+typedef struct GFXDrawIndexedCmd
+{
+	uint32_t indices;   // Must be > 0.
+	uint32_t instances; // Must be > 0.
+	uint32_t firstIndex;
+	int32_t  vertexOffset;
+	uint32_t firstInstance;
+
+} GFXDrawIndexedCmd;
+
+
+/**
  * Adds a new recorder to the renderer.
  * @param renderer Cannot be NULL.
  * @return NULL on failure.
@@ -1274,17 +1301,11 @@ GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderab
  * @param recorder   Cannot be NULL.
  * @param renderable Cannot be NULL.
  * @param count      Number of draws to execute, can be zero.
- * @param stride     Byte offset between sets of params, must be a multiple of 4.
+ * @param stride     Must be a multiple of 4, zero for tight packing.
  * @param ref        Cannot be GFX_REF_NULL.
  *
- * Each parameter set in the buffer is encoded as follows:
- *
- * struct {
- *   uint32_t vertices; // Cannot be zero!
- *   uint32_t instances;
- *   uint32_t firstVertex;
- *   uint32_t firstInstance;
- * };
+ * The buffer must contain count GFXDrawCmd structures
+ * with stride bytes inbetween successive structures.
  */
 GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
                                uint32_t count,
@@ -1296,18 +1317,11 @@ GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
  * @param recorder   Cannot be NULL.
  * @param renderable Cannot be NULL.
  * @param count      Number of draws to execute, can be zero.
- * @param stride     Byte offset between sets of params, must be a multiple of 4.
+ * @param stride     Must be a multiple of 4, zero for tight packing.
  * @param ref        Cannot be GFX_REF_NULL.
  *
- * Each parameter set in the buffer is encoded as follows:
- *
- * struct {
- *   uint32_t indices; // Cannot be zero!
- *   uint32_t instances;
- *   uint32_t firstIndex;
- *   uint32_t vertexOffset;
- *   uint32_t firstInstance;
- * };
+ * The buffer must contain count GFXDrawIndexedCmd structures
+ * with stride bytes inbetween successive structures.
  */
 GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* renderable,
                                        uint32_t count,
