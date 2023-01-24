@@ -1252,8 +1252,8 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
  * @param instances  Must be > 0.
  */
 GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
-                          uint32_t firstVertex, uint32_t vertices,
-                          uint32_t firstInstance, uint32_t instances);
+                          uint32_t vertices, uint32_t instances,
+                          uint32_t firstVertex, uint32_t firstInstance);
 
 /**
  * Render command to record an indexed draw.
@@ -1264,9 +1264,54 @@ GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
  * @param instances  Must be > 0.
  */
 GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderable,
-                                  uint32_t firstIndex, uint32_t indices,
-                                  int32_t vertexOffset,
-                                  uint32_t firstInstance, uint32_t instances);
+                                  uint32_t indices, uint32_t instances,
+                                  uint32_t firstIndex, int32_t vertexOffset,
+                                  uint32_t firstInstance);
+
+/**
+ * Render command to indirectly (from buffer) record a non-indexed draw.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder   Cannot be NULL.
+ * @param renderable Cannot be NULL.
+ * @param count      Number of draws to execute, can be zero.
+ * @param stride     Byte offset between sets of params, must be a multiple of 4.
+ * @param ref        Cannot be GFX_REF_NULL.
+ *
+ * Each parameter set in the buffer is encoded as follows:
+ *
+ * struct {
+ *   uint32_t vertices; // Cannot be zero!
+ *   uint32_t instances;
+ *   uint32_t firstVertex;
+ *   uint32_t firstInstance;
+ * };
+ */
+GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
+                               uint32_t count,
+                               uint32_t stride, GFXBufferRef ref);
+
+/**
+ * Render command to indirectly (from buffer) record an indexed draw.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder   Cannot be NULL.
+ * @param renderable Cannot be NULL.
+ * @param count      Number of draws to execute, can be zero.
+ * @param stride     Byte offset between sets of params, must be a multiple of 4.
+ * @param ref        Cannot be GFX_REF_NULL.
+ *
+ * Each parameter set in the buffer is encoded as follows:
+ *
+ * struct {
+ *   uint32_t indices; // Cannot be zero!
+ *   uint32_t instances;
+ *   uint32_t firstIndex;
+ *   uint32_t vertexOffset;
+ *   uint32_t firstInstance;
+ * };
+ */
+GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* renderable,
+                                       uint32_t count,
+                                       uint32_t stride, GFXBufferRef ref);
 
 /**
  * Compute command to record a compute dispatch.

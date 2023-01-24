@@ -47,7 +47,7 @@ static void post_process(GFXRecorder* recorder, unsigned int frame, void* ptr)
 	// Draw a triangle.
 	Context* ctx = ptr;
 	gfx_cmd_bind(recorder, ctx->renderable.technique, 0, 1, 0, &ctx->set, NULL);
-	gfx_cmd_draw(recorder, &ctx->renderable, 0, 3, 0, 1);
+	gfx_cmd_draw(recorder, &ctx->renderable, 3, 1, 0, 0);
 }
 
 

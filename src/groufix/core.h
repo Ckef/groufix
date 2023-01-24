@@ -251,6 +251,8 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CmdDispatch);
 		_GFX_VK_PFN(CmdDraw);
 		_GFX_VK_PFN(CmdDrawIndexed);
+		_GFX_VK_PFN(CmdDrawIndexedIndirect);
+		_GFX_VK_PFN(CmdDrawIndirect);
 		_GFX_VK_PFN(CmdEndRenderPass);
 		_GFX_VK_PFN(CmdExecuteCommands);
 		_GFX_VK_PFN(CmdPipelineBarrier);

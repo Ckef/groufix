@@ -651,8 +651,8 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
 
 /****************************/
 GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
-                          uint32_t firstVertex, uint32_t vertices,
-                          uint32_t firstInstance, uint32_t instances)
+                          uint32_t vertices, uint32_t instances,
+                          uint32_t firstVertex, uint32_t firstInstance)
 {
 	assert(recorder != NULL);
 	assert(recorder->inp.cmd != NULL);
@@ -692,9 +692,9 @@ GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
 
 /****************************/
 GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderable,
-                                  uint32_t firstIndex, uint32_t indices,
-                                  int32_t vertexOffset,
-                                  uint32_t firstInstance, uint32_t instances)
+                                  uint32_t indices, uint32_t instances,
+                                  uint32_t firstIndex, int32_t vertexOffset,
+                                  uint32_t firstInstance)
 {
 	assert(recorder != NULL);
 	assert(recorder->inp.cmd != NULL);
@@ -730,6 +730,98 @@ GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderab
 	// Record the draw command.
 	context->vk.CmdDrawIndexed(recorder->inp.cmd,
 		indices, instances, firstIndex, vertexOffset, firstInstance);
+}
+
+/****************************/
+GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
+                               uint32_t count,
+                               uint32_t stride, GFXBufferRef ref)
+{
+	assert(GFX_REF_IS_BUFFER(ref));
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	assert(renderable != NULL);
+	assert(renderable->pass == recorder->inp.pass);
+	assert(renderable->technique != NULL);
+	assert(count == 0 ||
+		(stride % 4 == 0 && stride > sizeof(VkDrawIndirectCommand)));
+
+	_GFXContext* context = recorder->context;
+
+	// Unpack reference & validate.
+	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+	if (unp.obj.buffer == NULL)
+	{
+		gfx_log_error(
+			"Failed to retrieve indirect buffer during draw command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Bind pipeline.
+	if (!_gfx_recorder_bind_renderable(recorder, renderable))
+	{
+		gfx_log_error(
+			"Failed to get Vulkan graphics pipeline during draw command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Bind primitive.
+	if (renderable->primitive != NULL)
+		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
+
+	// Record the draw command.
+	context->vk.CmdDrawIndirect(recorder->inp.cmd,
+		unp.obj.buffer->vk.buffer, unp.value, count, stride);
+}
+
+/****************************/
+GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* renderable,
+                                       uint32_t count,
+                                       uint32_t stride, GFXBufferRef ref)
+{
+	assert(GFX_REF_IS_BUFFER(ref));
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	assert(renderable != NULL);
+	assert(renderable->pass == recorder->inp.pass);
+	assert(renderable->technique != NULL);
+	assert(count == 0 ||
+		(stride % 4 == 0 && stride > sizeof(VkDrawIndexedIndirectCommand)));
+
+	_GFXContext* context = recorder->context;
+
+	// Unpack reference & validate.
+	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+	if (unp.obj.buffer == NULL)
+	{
+		gfx_log_error(
+			"Failed to retrieve indirect buffer during draw command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Bind pipeline.
+	if (!_gfx_recorder_bind_renderable(recorder, renderable))
+	{
+		gfx_log_error(
+			"Failed to get Vulkan graphics pipeline during draw command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Bind primitive.
+	if (renderable->primitive != NULL)
+		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
+
+	// Record the draw command.
+	context->vk.CmdDrawIndexedIndirect(recorder->inp.cmd,
+		unp.obj.buffer->vk.buffer, unp.value, count, stride);
 }
 
 /****************************/
