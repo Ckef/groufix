@@ -39,6 +39,85 @@ typedef struct _GFXStale
 } _GFXStale;
 
 
+/****************************/
+_GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
+                                const GFXSampler* sampler)
+{
+	assert(renderer != NULL);
+
+	// Define some defaults.
+	VkSamplerReductionModeCreateInfo srmci = {
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO,
+		.pNext = NULL,
+		.reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE
+	};
+
+	VkSamplerCreateInfo sci = {
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+
+		.pNext            = NULL,
+		.flags            = 0,
+		.magFilter        = VK_FILTER_NEAREST,
+		.minFilter        = VK_FILTER_NEAREST,
+		.mipmapMode       = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		.addressModeU     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeV     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeW     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.mipLodBias       = 0.0f,
+		.anisotropyEnable = VK_FALSE,
+		.maxAnisotropy    = 1.0f,
+		.compareEnable    = VK_FALSE,
+		.compareOp        = VK_COMPARE_OP_ALWAYS,
+		.minLod           = 0.0f,
+		.maxLod           = 1.0f,
+		.borderColor      = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+
+		.unnormalizedCoordinates = VK_FALSE
+	};
+
+	// Set given sampler values.
+	if (sampler != NULL)
+	{
+		// Filter out reduction mode, anisotropy, compare and unnormalized
+		// coordinates if they are not enabled.
+		// This makes it so when disabled, key values in the cache will be
+		// equivalent (!).
+		if (sampler->mode != GFX_FILTER_MODE_AVERAGE)
+		{
+			srmci.pNext = &srmci;
+			srmci.reductionMode = _GFX_GET_VK_REDUCTION_MODE(sampler->mode);
+		}
+
+		if (sampler->flags & GFX_SAMPLER_ANISOTROPY)
+		{
+			sci.anisotropyEnable = VK_TRUE;
+			sci.maxAnisotropy = sampler->maxAnisotropy;
+		}
+
+		if (sampler->flags & GFX_SAMPLER_COMPARE)
+		{
+			sci.compareEnable = VK_TRUE;
+			sci.compareOp = _GFX_GET_VK_COMPARE_OP(sampler->cmp);
+		}
+
+		if (sampler->flags & GFX_SAMPLER_UNNORMALIZED)
+			sci.unnormalizedCoordinates = VK_TRUE;
+
+		sci.magFilter    = _GFX_GET_VK_FILTER(sampler->magFilter);
+		sci.minFilter    = _GFX_GET_VK_FILTER(sampler->minFilter);
+		sci.mipmapMode   = _GFX_GET_VK_MIPMAP_MODE(sampler->mipFilter);
+		sci.addressModeU = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapU);
+		sci.addressModeV = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapV);
+		sci.addressModeW = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapW);
+		sci.mipLodBias   = sampler->mipLodBias;
+		sci.minLod       = sampler->minLod;
+		sci.maxLod       = sampler->maxLod;
+	}
+
+	// Create an actual sampler object.
+	return _gfx_cache_get(&renderer->cache, &sci.sType, NULL);
+}
+
 /****************************
  * Destroys all the resources stored in a stale resource object.
  * @param renderer Cannot be NULL.
@@ -137,85 +216,6 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 		return 0);
 
 	return 1;
-}
-
-/****************************/
-_GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
-                                const GFXSampler* sampler)
-{
-	assert(renderer != NULL);
-
-	// Define some defaults.
-	VkSamplerReductionModeCreateInfo srmci = {
-		.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO,
-		.pNext = NULL,
-		.reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE
-	};
-
-	VkSamplerCreateInfo sci = {
-		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-
-		.pNext            = NULL,
-		.flags            = 0,
-		.magFilter        = VK_FILTER_NEAREST,
-		.minFilter        = VK_FILTER_NEAREST,
-		.mipmapMode       = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-		.addressModeU     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeV     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeW     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.mipLodBias       = 0.0f,
-		.anisotropyEnable = VK_FALSE,
-		.maxAnisotropy    = 1.0f,
-		.compareEnable    = VK_FALSE,
-		.compareOp        = VK_COMPARE_OP_ALWAYS,
-		.minLod           = 0.0f,
-		.maxLod           = 1.0f,
-		.borderColor      = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
-
-		.unnormalizedCoordinates = VK_FALSE
-	};
-
-	// Set given sampler values.
-	if (sampler != NULL)
-	{
-		// Filter out reduction mode, anisotropy, compare and unnormalized
-		// coordinates if they are not enabled.
-		// This makes it so when disabled, key values in the cache will be
-		// equivalent (!).
-		if (sampler->mode != GFX_FILTER_MODE_AVERAGE)
-		{
-			srmci.pNext = &srmci;
-			srmci.reductionMode = _GFX_GET_VK_REDUCTION_MODE(sampler->mode);
-		}
-
-		if (sampler->flags & GFX_SAMPLER_ANISOTROPY)
-		{
-			sci.anisotropyEnable = VK_TRUE;
-			sci.maxAnisotropy = sampler->maxAnisotropy;
-		}
-
-		if (sampler->flags & GFX_SAMPLER_COMPARE)
-		{
-			sci.compareEnable = VK_TRUE;
-			sci.compareOp = _GFX_GET_VK_COMPARE_OP(sampler->cmp);
-		}
-
-		if (sampler->flags & GFX_SAMPLER_UNNORMALIZED)
-			sci.unnormalizedCoordinates = VK_TRUE;
-
-		sci.magFilter    = _GFX_GET_VK_FILTER(sampler->magFilter);
-		sci.minFilter    = _GFX_GET_VK_FILTER(sampler->minFilter);
-		sci.mipmapMode   = _GFX_GET_VK_MIPMAP_MODE(sampler->mipFilter);
-		sci.addressModeU = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapU);
-		sci.addressModeV = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapV);
-		sci.addressModeW = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapW);
-		sci.mipLodBias   = sampler->mipLodBias;
-		sci.minLod       = sampler->minLod;
-		sci.maxLod       = sampler->maxLod;
-	}
-
-	// Create an actual sampler object.
-	return _gfx_cache_get(&renderer->cache, &sci.sType, NULL);
 }
 
 /****************************/
