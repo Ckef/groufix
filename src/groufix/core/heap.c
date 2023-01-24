@@ -1286,13 +1286,15 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	uint64_t size = 0;
 
 	const uint64_t align =
-		GFX_MAX(GFX_MAX(
+		GFX_MAX(GFX_MAX(GFX_MAX(
 			usage & (GFX_BUFFER_UNIFORM_TEXEL | GFX_BUFFER_STORAGE_TEXEL) ?
 				heap->allocator.device->base.limits.minTexelBufferAlign : 1,
 			usage & GFX_BUFFER_UNIFORM ?
 				heap->allocator.device->base.limits.minUniformBufferAlign : 1),
 			usage & GFX_BUFFER_STORAGE ?
-				heap->allocator.device->base.limits.minStorageBufferAlign : 1);
+				heap->allocator.device->base.limits.minStorageBufferAlign : 1),
+			usage & GFX_BUFFER_INDIRECT ?
+				4 : 1);
 
 	GFXReference* refPtr =
 		(GFXReference*)((char*)group + structSize);
