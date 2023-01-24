@@ -79,9 +79,15 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			// Shader pointers will be converted to handles down below.
 			handles[numShaders++] = tech->shaders[s];
 
-	if (tech->layout == NULL || pass->build.pass == NULL)
+	if (tech->layout == NULL)
 	{
-		gfx_log_warn("Invalid renderable; pipeline not built.");
+		gfx_log_warn("Technique not locked while building pipeline.");
+		return 0;
+	}
+
+	if (pass->build.pass == NULL)
+	{
+		gfx_log_warn("Pass not warmed while building pipeline.");
 		return 0;
 	}
 
@@ -416,9 +422,15 @@ bool _gfx_computable_pipeline(GFXComputable* computable,
 	const uint32_t stage = _GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE);
 	const GFXShader* shader = tech->shaders[stage];
 
-	if (shader == NULL || tech->layout == NULL)
+	if (shader == NULL)
 	{
-		gfx_log_warn("Invalid computable; pipeline not built.");
+		gfx_log_warn("Missing compute shader while building pipeline.");
+		return 0;
+	}
+
+	if (tech->layout == NULL)
+	{
+		gfx_log_warn("Technique not locked while building pipeline.");
 		return 0;
 	}
 
@@ -536,10 +548,20 @@ GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable)
 	bool success = _gfx_render_graph_warmup(renderer);
 	_gfx_mutex_unlock(&renderer->lock);
 
-	if (success)
-		return _gfx_renderable_pipeline(renderable, NULL, 1);
+	if (!success)
+	{
+		gfx_log_error("Could not warm renderable; graph warmup failed.");
+		return 0;
+	}
 
-	return 0;
+	// Then build it.
+	if (!_gfx_renderable_pipeline(renderable, NULL, 1))
+	{
+		gfx_log_error("Could not warm renderable; pipeline not built.");
+		return 0;
+	}
+
+	return 1;
 }
 
 /****************************/
@@ -571,5 +593,12 @@ GFX_API bool gfx_computable_warmup(GFXComputable* computable)
 {
 	assert(computable != NULL);
 
-	return _gfx_computable_pipeline(computable, NULL, 1);
+	// Just build it.
+	if (!_gfx_computable_pipeline(computable, NULL, 1))
+	{
+		gfx_log_error("Could not warm computable; pipeline not built.");
+		return 0;
+	}
+
+	return 1;
 }
