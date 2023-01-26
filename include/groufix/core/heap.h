@@ -59,8 +59,10 @@ typedef enum GFXMemoryFlags
 	GFX_MEMORY_NONE         = 0x0000,
 	GFX_MEMORY_HOST_VISIBLE = 0x0001, // i.e. mappable.
 	GFX_MEMORY_DEVICE_LOCAL = 0x0002, // Implied if GFX_MEMORY_HOST_VISIBLE is _not_ set.
-	GFX_MEMORY_READ         = 0x0004,
-	GFX_MEMORY_WRITE        = 0x0008,
+
+	// For memory resource operations.
+	GFX_MEMORY_READ  = 0x0004,
+	GFX_MEMORY_WRITE = 0x0008,
 
 	// To allow concurrent async access.
 	GFX_MEMORY_COMPUTE_CONCURRENT  = 0x0010,
@@ -498,7 +500,7 @@ typedef enum GFXFilter
  * different resources (or non-overlapping regions thereof)!
  *
  * If GFX_TRANSFER_FLUSH is not passed, the operation is recorded but not yet
- * flushed. One can flush the heap after operations using gfx_heap_flush.
+ * submitted to the device. To submit, you flush the heap using gfx_heap_flush.
  * Flushing is expensive, it is a good idea to batch operations.
  * @see gfx_heap_flush for details on dependency injection visibility.
  *

@@ -555,6 +555,7 @@ static void _gfx_copy_host(void* ptr, void* ref,
 /****************************
  * Copies data from a resource or staging buffer to another resource.
  * @param heap       Cannot be NULL.
+ * @param filter     Ignored if cpFlags does not contain _GFX_COPY_SCALED.
  * @param numRefs    Must be >= 1 if staging != NULL, must be >= 2 otherwise.
  * @param numRegions Must be > 0.
  * @param staging    Staging buffer.
@@ -1341,7 +1342,7 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 	assert(!GFX_REF_IS_NULL(dst));
 
 	return _gfx_copy(
-		src, dst, flags, 0, GFX_FILTER_NEAREST,
+		src, dst, flags, 0, 0,
 		numRegions, numDeps, srcRegions, dstRegions, deps);
 }
 
@@ -1375,7 +1376,7 @@ GFX_API bool gfx_resolve(GFXImageRef src, GFXImageRef dst,
 	assert(GFX_REF_IS_IMAGE(dst));
 
 	return _gfx_copy(
-		src, dst, flags, _GFX_COPY_RESOLVE, GFX_FILTER_NEAREST,
+		src, dst, flags, _GFX_COPY_RESOLVE, 0,
 		numRegions, numDeps, srcRegions, dstRegions, deps);
 }
 
