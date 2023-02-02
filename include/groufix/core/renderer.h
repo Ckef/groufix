@@ -570,6 +570,7 @@ GFX_API bool gfx_computable_warmup(GFXComputable* computable);
  ****************************/
 
 /**
+ * TODO: Take a heap instead of device? (from which we allocate attachments?)
  * Creates a renderer.
  * @param device NULL is equivalent to gfx_get_primary_device().
  * @param frames Number of virtual frames, must be > 0 (preferably > 1).
