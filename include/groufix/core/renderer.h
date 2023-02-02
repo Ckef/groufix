@@ -1207,6 +1207,18 @@ typedef struct GFXDrawIndexedCmd
 
 
 /**
+ * Indirect dispatch command parameters.
+ */
+typedef struct GFXDispatchCmd
+{
+	uint32_t x;
+	uint32_t y;
+	uint32_t z;
+
+} GFXDispatchCmd;
+
+
+/**
  * Adds a new recorder to the renderer.
  * @param renderer Cannot be NULL.
  * @return NULL on failure.
@@ -1361,12 +1373,24 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
  * Can only be called within a callback of gfx_recorder_compute!
  * @param recorder   Cannot be NULL.
  * @param computable Cannot be NULL.
- * @param groupX     Must be > 0.
- * @param groupY     Must be > 0.
- * @param groupZ     Must be > 0.
+ * @param x          Must be > 0.
+ * @param y          Must be > 0.
+ * @param z          Must be > 0.
  */
 GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
-                              uint32_t groupX, uint32_t groupY, uint32_t groupZ);
+                              uint32_t x, uint32_t y, uint32_t z);
+
+/**
+ * Compute command to indirectly (from buffer) record a compute dispatch.
+ * Can only be called within a callback of gfx_recorder_compute!
+ * @param recorder   Cannot be NULL.
+ * @param computable Cannot be NULL.
+ * @param ref        Cannot be GFX_REF_NULL.
+ *
+ * The buffer must contain a GFXDispatchCmd structure.
+ */
+GFX_API void gfx_cmd_dispatch_from(GFXRecorder* recorder, GFXComputable* computable,
+                                   GFXBufferRef ref);
 
 
 #endif

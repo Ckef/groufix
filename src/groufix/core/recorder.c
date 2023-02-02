@@ -840,7 +840,7 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
 
 /****************************/
 GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
-                              uint32_t groupX, uint32_t groupY, uint32_t groupZ)
+                              uint32_t x, uint32_t y, uint32_t z)
 {
 	assert(recorder != NULL);
 	assert(recorder->inp.cmd != NULL);
@@ -848,9 +848,9 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
 	assert(computable != NULL);
 	assert(computable->technique != NULL);
 	assert(computable->technique->renderer == recorder->renderer);
-	assert(groupX > 0);
-	assert(groupY > 0);
-	assert(groupZ > 0);
+	assert(x > 0);
+	assert(y > 0);
+	assert(z > 0);
 
 	_GFXContext* context = recorder->context;
 
@@ -865,5 +865,44 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
 	}
 
 	// Record the dispatch command.
-	context->vk.CmdDispatch(recorder->inp.cmd, groupX, groupY, groupZ);
+	context->vk.CmdDispatch(recorder->inp.cmd, x, y, z);
+}
+
+/****************************/
+GFX_API void gfx_cmd_dispatch_from(GFXRecorder* recorder, GFXComputable* computable,
+                                   GFXBufferRef ref)
+{
+	assert(GFX_REF_IS_BUFFER(ref));
+	assert(recorder != NULL);
+	assert(recorder->inp.cmd != NULL);
+	assert(computable != NULL);
+	assert(computable->technique != NULL);
+	assert(computable->technique->renderer == recorder->renderer);
+
+	_GFXContext* context = recorder->context;
+
+	// Unpack reference & validate.
+	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+	if (unp.obj.buffer == NULL)
+	{
+		gfx_log_error(
+			"Failed to retrieve indirect buffer during dispatch command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Bind pipeline.
+	if (!_gfx_recorder_bind_computable(recorder, computable))
+	{
+		gfx_log_error(
+			"Failed to get Vulkan compute pipeline during dispatch command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Record the dispatch command.
+	context->vk.CmdDispatchIndirect(recorder->inp.cmd,
+		unp.obj.buffer->vk.buffer, unp.value);
 }
