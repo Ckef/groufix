@@ -763,25 +763,6 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
                                        size_t numParents, GFXPass** parents);
 
 /**
- * Retrieves the number of sink passes of a renderer.
- * A sink pass is one that is not a parent of any pass (last in the path).
- * @param renderer Cannot be NULL.
- *
- * This number may change when a new pass is added.
- */
-GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
-
-/**
- * Retrieves a sink pass of a renderer.
- * @param renderer Cannot be NULL.
- * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
- *
- * The index of each sink may change when a new pass is added, however
- * their relative order remains fixed during the lifetime of the renderer.
- */
-GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
-
-/**
  * Retrieves the type of a pass.
  * @param pass Cannot be NULL.
  * @return Type of the pass, either render or compute.
@@ -882,18 +863,23 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
 GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
 
 /**
- * Retrieves the virtual frame size associated with a render pass.
- * @param pass   Cannot be NULL.
- * @param width  Cannot be NULL, output width.
- * @param height Cannot be NULL, output height.
- * @param layers Cannot be NULL, output layers.
+ * Retrieves the number of sink passes of a renderer.
+ * A sink pass is one that is not a parent of any pass (last in the path).
+ * @param renderer Cannot be NULL.
  *
- * Only outputs the _actual_ size, meaning this will only return meaningful
- * values when called inbetween gfx_frame_start and gfx_frame_submit.
- * Outputs 0,0,0 if no associated attachments or not a render pass.
+ * This number may change when a new pass is added.
  */
-GFX_API void gfx_pass_get_size(GFXPass* pass,
-                               uint32_t* width, uint32_t* height, uint32_t* layers);
+GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
+
+/**
+ * Retrieves a sink pass of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
+ *
+ * The index of each sink may change when a new pass is added, however
+ * their relative order remains fixed during the lifetime of the renderer.
+ */
+GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
 
 /**
  * Retrieves the number of parents of a pass.
@@ -1170,10 +1156,8 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
  */
 typedef enum GFXComputeFlags
 {
-	GFX_COMPUTE_NONE   = 0x0000,
-	GFX_COMPUTE_ASYNC  = 0x0001,
-	GFX_COMPUTE_BEFORE = 0x0002,
-	GFX_COMPUTE_AFTER  = 0x0004 // Overrules GFX_COMPUTE_BEFORE.
+	GFX_COMPUTE_NONE  = 0x0000,
+	GFX_COMPUTE_ASYNC = 0x0001
 
 } GFXComputeFlags;
 
@@ -1258,11 +1242,11 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 /**
  * Records compute commands within a given pass.
  * The callback takes this recorder and the current virtual frame index.
- * @param pass Cannot be NULL, must be a compute pass.
+ * @param pass Must be a compute pass if set.
  * @see gfx_recorder_render.
  *
- * If GFX_COMPUTE_ASYNC is set, pass is ignored and the submission order
- * is before/after all passes as defined by GFX_COMPUTE_(BEFORE|AFTER).
+ * If GFX_COMPUTE_ASYNC is set, pass is ignored,
+ * however if it is not set, pass cannot be NULL.
  */
 GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
                                   GFXPass* pass,
@@ -1282,6 +1266,20 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
  */
 GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
                                    uint32_t* width, uint32_t* height, uint32_t* layers);
+
+/**
+ * Retrieves the virtual frame size associated with a render pass.
+ * @param pass   Cannot be NULL.
+ * @param width  Cannot be NULL, output width.
+ * @param height Cannot be NULL, output height.
+ * @param layers Cannot be NULL, output layers.
+ *
+ * Only outputs the _actual_ size, meaning this will only return meaningful
+ * values when called inbetween gfx_frame_start and gfx_frame_submit.
+ * Outputs 0,0,0 if no associated attachments or not a render pass.
+ */
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height, uint32_t* layers);
 
 /**
  * Render command to bind a render/descriptor set.

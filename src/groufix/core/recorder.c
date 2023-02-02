@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 
 
@@ -517,7 +518,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 
 	// The pass must be a compute pass.
 	_GFXComputePass* cPass = (_GFXComputePass*)pass;
-	if (pass == NULL || pass->type != GFX_PASS_COMPUTE) goto error;
+	if (pass != NULL && pass->type != GFX_PASS_COMPUTE) goto error;
 
 	// Then, claim a command buffer to use.
 	VkCommandBuffer cmd = _gfx_recorder_claim(recorder);
@@ -549,7 +550,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 		goto error);
 
 	// Set recording input, record, unset input.
-	recorder->inp.pass = &cPass->base;
+	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;
 	recorder->bind.pipeline = NULL;
 	recorder->bind.primitive = NULL;
@@ -565,7 +566,11 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 
 	// Now insert the command buffer in its correct position.
 	// Which is in submission order of the passes.
-	if (!_gfx_recorder_output(recorder, pass->order, cmd))
+	// Or entirely at the end if async (i.e. no pass given).
+	const unsigned int order =
+		cPass != NULL ? cPass->base.order : UINT_MAX;
+
+	if (!_gfx_recorder_output(recorder, order, cmd))
 		goto error;
 
 	return;
@@ -587,12 +592,31 @@ GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
 	assert(height != NULL);
 	assert(layers != NULL);
 
-	if (recorder->inp.pass->type == GFX_PASS_RENDER)
+	if (recorder->inp.pass && recorder->inp.pass->type == GFX_PASS_RENDER)
 		*width = ((_GFXRenderPass*)recorder->inp.pass)->build.fWidth,
 		*height = ((_GFXRenderPass*)recorder->inp.pass)->build.fHeight,
 		*layers = ((_GFXRenderPass*)recorder->inp.pass)->build.fLayers;
 	else
 		// Output 0,0 if no associated pass.
+		*width = 0,
+		*height = 0,
+		*layers = 0;
+}
+
+/****************************/
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height, uint32_t* layers)
+{
+	assert(pass != NULL);
+	assert(width != NULL);
+	assert(height != NULL);
+	assert(layers != NULL);
+
+	if (pass->type == GFX_PASS_RENDER)
+		*width = ((_GFXRenderPass*)pass)->build.fWidth,
+		*height = ((_GFXRenderPass*)pass)->build.fHeight,
+		*layers = ((_GFXRenderPass*)pass)->build.fLayers;
+	else
 		*width = 0,
 		*height = 0,
 		*layers = 0;
@@ -606,7 +630,6 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
                           const uint32_t* offsets)
 {
 	assert(recorder != NULL);
-	assert(recorder->inp.pass != NULL);
 	assert(recorder->inp.cmd != NULL);
 	assert(technique != NULL);
 	assert(technique->renderer == recorder->renderer);
@@ -685,7 +708,6 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
                           uint32_t size, const void* data)
 {
 	assert(recorder != NULL);
-	assert(recorder->inp.pass != NULL);
 	assert(recorder->inp.cmd != NULL);
 	assert(technique != NULL);
 	assert(technique->renderer == recorder->renderer);
@@ -921,8 +943,7 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
                               uint32_t x, uint32_t y, uint32_t z)
 {
 	assert(recorder != NULL);
-	assert(recorder->inp.pass != NULL);
-	assert(recorder->inp.pass->type == GFX_PASS_COMPUTE);
+	assert(recorder->inp.pass == NULL || recorder->inp.pass->type == GFX_PASS_COMPUTE);
 	assert(recorder->inp.cmd != NULL);
 	assert(computable != NULL);
 	assert(computable->technique != NULL);
@@ -953,8 +974,7 @@ GFX_API void gfx_cmd_dispatch_from(GFXRecorder* recorder, GFXComputable* computa
 {
 	assert(GFX_REF_IS_BUFFER(ref));
 	assert(recorder != NULL);
-	assert(recorder->inp.pass != NULL);
-	assert(recorder->inp.pass->type == GFX_PASS_COMPUTE);
+	assert(recorder->inp.pass == NULL || recorder->inp.pass->type == GFX_PASS_COMPUTE);
 	assert(recorder->inp.cmd != NULL);
 	assert(computable != NULL);
 	assert(computable->technique != NULL);

@@ -188,8 +188,8 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 		{
 			merge->out.next = (GFXPass*)rPass;
 			rPass->out.subpass = merge->out.subpass + 1;
-			rPass->out.master =
-				merge->out.master ? merge->out.master : (GFXPass*)merge;
+			rPass->out.master = (merge->out.master == NULL) ?
+				(GFXPass*)merge : merge->out.master;
 		}
 	}
 

@@ -1470,25 +1470,6 @@ GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
 }
 
 /****************************/
-GFX_API void gfx_pass_get_size(GFXPass* pass,
-                               uint32_t* width, uint32_t* height, uint32_t* layers)
-{
-	assert(pass != NULL);
-	assert(width != NULL);
-	assert(height != NULL);
-	assert(layers != NULL);
-
-	if (pass->type == GFX_PASS_RENDER)
-		*width = ((_GFXRenderPass*)pass)->build.fWidth,
-		*height = ((_GFXRenderPass*)pass)->build.fHeight,
-		*layers = ((_GFXRenderPass*)pass)->build.fLayers;
-	else
-		*width = 0,
-		*height = 0,
-		*layers = 0;
-}
-
-/****************************/
 GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
 {
 	assert(pass != NULL);
