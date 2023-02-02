@@ -693,13 +693,13 @@ typedef struct _GFXGroup
  ****************************/
 
 /**
- * Retrieve the build generation from a _GFXImageAttach or GFXPass pointer.
+ * Retrieve build generation from a _GFXImageAttach or _GFXRenderPass pointer.
  */
 #define _GFX_ATTACH_GEN(attach) \
 	(((_GFXAttach*)((char*)(attach) - offsetof(_GFXAttach, image)))->gen)
 
 #define _GFX_PASS_GEN(pass) \
-	(((GFXPass*)(pass))->gen)
+	(((_GFXRenderPass*)(pass))->gen)
 
 
 /**
@@ -887,8 +887,7 @@ struct GFXRecorder
 	// Current bindings.
 	struct
 	{
-		_GFXCacheElem* gPipeline;
-		_GFXCacheElem* cPipeline;
+		_GFXCacheElem* pipeline;
 		_GFXPrimitive* primitive;
 
 	} bind;
@@ -1019,13 +1018,23 @@ struct _GFXConsume
  */
 struct GFXPass
 {
+	GFXPassType  type;
 	GFXRenderer* renderer;
 	unsigned int level;  // Determines submission order.
 	unsigned int order;  // Actual submission order.
 	unsigned int childs; // Number of passes this is a parent of.
-	uintmax_t    gen;    // Build generation (to invalidate pipelines).
 
 	GFXVec consumes; // Stores _GFXConsume.
+};
+
+
+/**
+ * Internal render pass.
+ */
+typedef struct _GFXRenderPass
+{
+	GFXPass   base;
+	uintmax_t gen; // Build generation (to invalidate pipelines).
 
 
 	// Pipeline state input.
@@ -1084,7 +1093,25 @@ struct GFXPass
 	// Parent passes.
 	size_t   numParents;
 	GFXPass* parents[];
-};
+
+} _GFXRenderPass;
+
+
+/**
+ * Internal compute pass.
+ */
+typedef struct _GFXComputePass
+{
+	GFXPass base;
+
+	// Nothing special to do for compute passes.
+
+
+	// Parent passes.
+	size_t   numParents;
+	GFXPass* parents[];
+
+} _GFXComputePass;
 
 
 /**
@@ -1110,12 +1137,7 @@ struct GFXTechnique
 
 
 	// Vulkan fields.
-	struct
-	{
-		VkPipelineLayout layout; // For locality.
-
-	} vk;
-
+	struct { VkPipelineLayout layout; } vk; // For locality.
 
 	// Locking output.
 	_GFXCacheElem* layout;       // Pipeline layout, NULL until locked.
@@ -1765,7 +1787,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  *
  * Each parents[*]->childs field will be increased on success.
  */
-GFXPass* _gfx_create_pass(GFXRenderer* renderer,
+GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
                           size_t numParents, GFXPass** parents);
 
 /**
@@ -1779,52 +1801,52 @@ void _gfx_destroy_pass(GFXPass* pass);
 
 /**
  * Retrieves the current framebuffer of a pass with respect to a frame.
- * @param pass  Cannot be NULL.
+ * @param rPass Cannot be NULL.
  * @param frame Cannot be NULL.
  * @return VK_NULL_HANDLE if unknown.
  */
-VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame);
+VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame);
 
 /**
  * Builds the Vulkan render pass if not present yet.
  * Can be used for potential pipeline warmups.
- * @param pass Cannot be NULL.
+ * @param rPass Cannot be NULL.
  * @param Non-zero on success.
  *
  * Before the initial call to _gfx_pass_(warmup|build) and once after a call
  * to _gfx_pass_destruct, the following MUST be set to influence the build:
- *  pass->out.*
- *  pass->consumes[*]->out.*
+ *  rPass->out.*
+ *  rPass->base.consumes[*]->out.*
  */
-bool _gfx_pass_warmup(GFXPass* pass);
+bool _gfx_pass_warmup(_GFXRenderPass* rPass);
 
 /**
- * Builds not yet built Vulkan objects.
- * @param pass Cannot be NULL.
+ * Builds the Vulkan framebuffer (and others) if not present yet.
+ * @param rPass Cannot be NULL.
  * @return Non-zero if completely valid and built.
  *
  * @see _gfx_pass_warmup for influencing the build.
  */
-bool _gfx_pass_build(GFXPass* pass);
+bool _gfx_pass_build(_GFXRenderPass* rPass);
 
 /**
  * Rebuilds Vulkan objects, does NOT build not yet built objects!
- * @param pass  Cannot be NULL.
+ * @param rPass  Cannot be NULL.
  * @param flags Must contain the _GFX_RECREATE bit.
  * @return Non-zero if rebuilt successfully.
  *
  * Not thread-safe with respect to pushing stale resources!
  */
-bool _gfx_pass_rebuild(GFXPass* pass, _GFXRecreateFlags flags);
+bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags);
 
 /**
  * Destructs all Vulkan objects, non-recursively.
- * @param pass Cannot be NULL.
+ * @param rPass Cannot be NULL.
  *
  * Must be called before its attachments and after its consumptions are changed!
  * Not thread-safe with respect to pushing stale resources!
  */
-void _gfx_pass_destruct(GFXPass* pass);
+void _gfx_pass_destruct(_GFXRenderPass* rPass);
 
 
 /****************************

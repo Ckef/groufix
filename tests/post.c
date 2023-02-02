@@ -104,7 +104,7 @@ TEST_DESCRIBE(post, t)
 
 	// Add post-processing pass.
 	GFXPass* post = gfx_renderer_add_pass(
-		t->renderer, 1, (GFXPass*[]){ t->pass });
+		t->renderer, GFX_PASS_RENDER, 1, (GFXPass*[]){ t->pass });
 
 	if (post == NULL)
 		goto clean;

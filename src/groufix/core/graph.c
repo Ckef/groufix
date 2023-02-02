@@ -11,29 +11,30 @@
 
 
 /****************************
- * Checks if a given parent is a possible merge candidate for the pass.
+ * Checks if a given parent is a possible merge candidate for a render pass.
  * Meaning its parent _can_ be submitted as subpass before the pass itself,
  * which might implicitly move it up in submission order.
- * @param pass      Cannot be NULL.
- * @param candidate Cannot be NULL, must be a parent of pass.
+ * @param rPass      Cannot be NULL.
+ * @param rCandidate Cannot be NULL, must be a parent of pass.
  * @return Candidate's score, the higher the better, zero if not a candidate.
  */
-static uint64_t _gfx_pass_merge_score(GFXPass* pass, GFXPass* candidate)
+static uint64_t _gfx_pass_merge_score(_GFXRenderPass* rPass,
+                                      _GFXRenderPass* rCandidate)
 {
-	assert(pass != NULL);
-	assert(candidate != NULL);
+	assert(rPass != NULL);
+	assert(rCandidate != NULL);
 
 	// Must be a parent, i.e. pre-determined earlier in submission order.
-	if (candidate->level >= pass->level) return 0;
+	if (rCandidate->base.level >= rPass->base.level) return 0;
 
 	// No other passes may depend on (i.e. be child of) the candidate,
 	// as this would mean the pass may not be moved up in submission order,
 	// which it HAS to do to merge with a child.
 	// After this check pass MUST be the only child of candidate.
-	if (candidate->childs > 1) return 0;
+	if (rCandidate->base.childs > 1) return 0;
 
 	// The candidate cannot already be merged with one of its children.
-	if (candidate->out.next != NULL) return 0;
+	if (rCandidate->out.next != NULL) return 0;
 
 	// TODO:GRA: Determine further; reject if incompatible attachments/others.
 	return 0;
@@ -42,7 +43,7 @@ static uint64_t _gfx_pass_merge_score(GFXPass* pass, GFXPass* candidate)
 	// Now to calculate their score...
 	// We are going to use the length of the subpass chain as metric,
 	// the longer the better.
-	return 1 + (uint64_t)candidate->out.subpass;
+	return 1 + (uint64_t)rCandidate->out.subpass;
 }
 
 /****************************
@@ -132,7 +133,7 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 
 /****************************
  * Analyzes the render graph to setup all passes for correct builds.
- * Meaning the `out` field of each pass and all their consumptions are set.
+ * Meaning the `out` field of all consumptions and each render pass are set.
  * Also sets the `order` field of all passes :)
  * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */
@@ -152,34 +153,43 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// and also so all parents are processed before their children.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+		_GFXRenderPass* rPass = (_GFXRenderPass*)(
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
 
-		pass->out.master = NULL;
-		pass->out.next = NULL;
-		pass->out.subpass = 0;
+		// No need to merge non-render passes.
+		if (rPass->base.type != GFX_PASS_RENDER) continue;
+
+		rPass->out.master = NULL;
+		rPass->out.next = NULL;
+		rPass->out.subpass = 0;
 
 		// Take the parent with the highest merge score.
-		GFXPass* merge = NULL;
+		_GFXRenderPass* merge = NULL;
 		uint64_t score = 0;
 
-		for (size_t p = 0; p < pass->numParents; ++p)
+		for (size_t p = 0; p < rPass->numParents; ++p)
 		{
-			GFXPass* candidate = pass->parents[p];
-			uint64_t pScore = _gfx_pass_merge_score(pass, candidate);
+			_GFXRenderPass* rCandidate =
+				(_GFXRenderPass*)rPass->parents[p];
+
+			// Again, ignore non-render passes.
+			if (rCandidate->base.type != GFX_PASS_RENDER) continue;
+
+			// Calculate score.
+			uint64_t pScore = _gfx_pass_merge_score(rPass, rCandidate);
 
 			// Note: if pScore == 0, it will always be rejected!
 			if (pScore > score)
-				merge = candidate, score = pScore;
+				merge = rCandidate, score = pScore;
 		}
 
 		// Link it into the chain.
 		if (merge != NULL)
 		{
-			merge->out.next = pass;
-			pass->out.subpass = merge->out.subpass + 1;
-			pass->out.master =
-				(merge->out.master == NULL) ? merge : merge->out.master;
+			merge->out.next = (GFXPass*)rPass;
+			rPass->out.subpass = merge->out.subpass + 1;
+			rPass->out.master =
+				merge->out.master ? merge->out.master : (GFXPass*)merge;
 		}
 	}
 
@@ -267,14 +277,15 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 		if (!_gfx_render_graph_analyze(renderer))
 			return 0;
 
-	// And then make sure all passes are warmped up!
+	// And then make sure all render passes are warmped up!
 	size_t failed = 0;
 
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
-		// No need to worry about destructing, state remains 'validated'.
-		failed += !_gfx_pass_warmup(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
+		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+		if (pass->type == GFX_PASS_RENDER)
+			// No need to worry about destructing, state remains 'validated'.
+			failed += !_gfx_pass_warmup((_GFXRenderPass*)pass);
 	}
 
 	if (failed > 0)
@@ -312,15 +323,16 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 		if (!_gfx_render_graph_analyze(renderer))
 			return 0;
 
-	// So now make sure all the passes in the graph are built.
+	// So now make sure all the render passes in the graph are built.
 	size_t failed = 0;
 
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
-		// The pass itself should log errors.
-		// No need to worry about destructing, state remains 'validated'.
-		failed += !_gfx_pass_build(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
+		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+		if (pass->type == GFX_PASS_RENDER)
+			// The pass itself should log errors.
+			// No need to worry about destructing, state remains 'validated'.
+			failed += !_gfx_pass_build((_GFXRenderPass*)pass);
 	}
 
 	if (failed > 0)
@@ -348,14 +360,17 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
 		return;
 
-	// (Re)build all passes.
+	// (Re)build all render passes.
 	// If we fail, just ignore and signal we're not built.
 	// Will be tried again in _gfx_render_graph_build.
 	size_t failed = 0;
 
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		failed += !_gfx_pass_rebuild(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i), flags);
+	{
+		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+		if (pass->type == GFX_PASS_RENDER)
+			failed += !_gfx_pass_rebuild((_GFXRenderPass*)pass, flags);
+	}
 
 	if (failed > 0)
 	{
@@ -373,10 +388,13 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	// Destruct all passes.
+	// Destruct all render passes.
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		_gfx_pass_destruct(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
+	{
+		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+		if (pass->type == GFX_PASS_RENDER)
+			_gfx_pass_destruct((_GFXRenderPass*)pass);
+	}
 
 	// The graph is now empty.
 	renderer->graph.state = _GFX_GRAPH_EMPTY;
@@ -394,7 +412,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
+GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
                                        size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
@@ -403,7 +421,7 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
 
 	// Create a new pass.
 	GFXPass* pass =
-		_gfx_create_pass(renderer, numParents, parents);
+		_gfx_create_pass(renderer, type, numParents, parents);
 
 	if (pass == NULL)
 		goto error;

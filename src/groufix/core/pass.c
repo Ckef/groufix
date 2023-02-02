@@ -12,14 +12,14 @@
 #include <string.h>
 
 
-// Detect whether a pass is warmed.
-#define _GFX_PASS_IS_WARMED(pass) (pass->vk.pass != VK_NULL_HANDLE)
+// Detect whether a render pass is warmed.
+#define _GFX_PASS_IS_WARMED(rPass) (rPass->vk.pass != VK_NULL_HANDLE)
 
-// Detect whether a pass is built.
-#define _GFX_PASS_IS_BUILT(pass) (pass->vk.frames.size > 0)
+// Detect whether a render pass is built.
+#define _GFX_PASS_IS_BUILT(rPass) (rPass->vk.frames.size > 0)
 
 // Auto log on any zero or mismatching framebuffer dimensions.
-#define _GFX_VALIDATE_DIMS(pass, width, height, layers, action) \
+#define _GFX_VALIDATE_DIMS(rPass, width, height, layers, action) \
 	do { \
 		if ((width) == 0 || (height) == 0 || (layers) == 0) \
 		{ \
@@ -31,23 +31,23 @@
 			action; \
 		} \
 		else if ( \
-			(pass->build.fWidth && (width) != pass->build.fWidth) || \
-			(pass->build.fHeight && (height) != pass->build.fHeight) || \
-			(pass->build.fLayers && (layers) != pass->build.fLayers)) \
+			(rPass->build.fWidth && (width) != rPass->build.fWidth) || \
+			(rPass->build.fHeight && (height) != rPass->build.fHeight) || \
+			(rPass->build.fLayers && (layers) != rPass->build.fLayers)) \
 		{ \
 			gfx_log_warn( \
 				"Encountered mismatching framebuffer dimensions " \
 				"(%"PRIu32"x%"PRIu32"x%"PRIu32") " \
 				"(%"PRIu32"x%"PRIu32"x%"PRIu32") " \
 				"during pass building, pass skipped.", \
-				pass->build.fWidth, pass->build.fHeight, pass->build.fLayers, \
+				rPass->build.fWidth, rPass->build.fHeight, rPass->build.fLayers, \
 				width, height, layers); \
 			action; \
 		} \
 		else { \
-			pass->build.fWidth = width; \
-			pass->build.fHeight = height; \
-			pass->build.fLayers = layers; \
+			rPass->build.fWidth = width; \
+			rPass->build.fHeight = height; \
+			rPass->build.fLayers = layers; \
 		} \
 	} while (0);
 
@@ -146,9 +146,9 @@ static inline bool _gfx_cmp_stencil(const GFXStencilOpState* l,
  * Increases the pass 'generation'; invalidating any renderable/computable
  * pipeline that references this pass.
  */
-static inline void _gfx_pass_gen(GFXPass* pass)
+static inline void _gfx_pass_gen(_GFXRenderPass* rPass)
 {
-	if (++pass->gen == 0) gfx_log_warn(
+	if (++rPass->gen == 0) gfx_log_warn(
 		"Pass build generation reached maximum (%"PRIuMAX") and overflowed; "
 		"may cause old renderables/computables to not be invalidated.",
 		UINTMAX_MAX);
@@ -229,14 +229,16 @@ invalidate:
 
 /****************************
  * Destructs a subset of all Vulkan objects, non-recursively.
- * @param pass  Cannot be NULL.
+ * @param rPass Cannot be NULL.
  * @param flags What resources should be destroyed (0 to do nothing).
  *
  * Not thread-safe with respect to pushing stale resources!
  */
-static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
+static void _gfx_pass_destruct_partial(_GFXRenderPass* rPass,
+                                       _GFXRecreateFlags flags)
 {
-	assert(pass != NULL);
+	assert(rPass != NULL);
+	assert(rPass->base.type == GFX_PASS_RENDER);
 
 	// The recreate flag is always set if anything is set and signals that
 	// the actual images have been recreated.
@@ -246,23 +248,23 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 		// Note that they might still be in use by pending virtual frames.
 		// NOT locked using the renderer's lock;
 		// the reason that _gfx_pass_(build|destruct) are not thread-safe.
-		for (size_t i = 0; i < pass->vk.frames.size; ++i)
+		for (size_t i = 0; i < rPass->vk.frames.size; ++i)
 		{
-			_GFXFrameElem* elem = gfx_vec_at(&pass->vk.frames, i);
-			_gfx_push_stale(pass->renderer,
+			_GFXFrameElem* elem = gfx_vec_at(&rPass->vk.frames, i);
+			_gfx_push_stale(rPass->base.renderer,
 				elem->buffer, elem->view,
 				VK_NULL_HANDLE, VK_NULL_HANDLE);
 		}
 
-		for (size_t i = 0; i < pass->vk.views.size; ++i)
+		for (size_t i = 0; i < rPass->vk.views.size; ++i)
 		{
-			_GFXViewElem* elem = gfx_vec_at(&pass->vk.views, i);
+			_GFXViewElem* elem = gfx_vec_at(&rPass->vk.views, i);
 			if (elem->view != VK_NULL_HANDLE)
-				_gfx_push_stale(pass->renderer,
+				_gfx_push_stale(rPass->base.renderer,
 					VK_NULL_HANDLE, elem->view,
 					VK_NULL_HANDLE, VK_NULL_HANDLE);
 
-			// We DO NOT release pass->vk.views.
+			// We DO NOT release rPass->vk.views.
 			// This because on-swapchain recreate, the consumptions of
 			// attachments have not changed, we just have new images with
 			// potentially new dimensions.
@@ -272,30 +274,31 @@ static void _gfx_pass_destruct_partial(GFXPass* pass, _GFXRecreateFlags flags)
 		}
 
 		// We do not re-filter, so we must keep `build.backing`!
-		pass->build.fWidth = 0;
-		pass->build.fHeight = 0;
-		pass->build.fLayers = 0;
-		gfx_vec_release(&pass->vk.frames); // Force a rebuild.
+		rPass->build.fWidth = 0;
+		rPass->build.fHeight = 0;
+		rPass->build.fLayers = 0;
+		gfx_vec_release(&rPass->vk.frames); // Force a rebuild.
 	}
 
-	// Second, we check if the render pass needs to be reconstructed.
+	// Second, we check if the Vulkan render pass needs to be reconstructed.
 	// This object is cached, so no need to destroy anything.
 	if (flags & _GFX_REFORMAT)
 	{
-		pass->build.pass = NULL;
-		pass->vk.pass = VK_NULL_HANDLE;
+		rPass->build.pass = NULL;
+		rPass->vk.pass = VK_NULL_HANDLE;
 
-		// Increase generation; the renderpass is used in pipelines,
+		// Increase generation; the render pass is used in pipelines,
 		// ergo we need to invalidate current pipelines using it.
-		_gfx_pass_gen(pass);
+		_gfx_pass_gen(rPass);
 	}
 }
 
 /****************************/
-GFXPass* _gfx_create_pass(GFXRenderer* renderer,
+GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
                           size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
+	assert(type == GFX_PASS_RENDER || type == GFX_PASS_COMPUTE);
 	assert(numParents == 0 || parents != NULL);
 
 	// Check if all parents use this renderer.
@@ -310,23 +313,25 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		}
 
 	// Allocate a new pass.
+	const size_t structSize =
+		(type == GFX_PASS_RENDER) ? sizeof(_GFXRenderPass) :
+		(type == GFX_PASS_COMPUTE) ? sizeof(_GFXComputePass) :
+		0; // Should not happen.
+
 	GFXPass* pass = malloc(
-		sizeof(GFXPass) +
+		structSize +
 		sizeof(GFXPass*) * numParents);
 
 	if (pass == NULL)
 		return NULL;
 
 	// Initialize things.
+	pass->type = type;
 	pass->renderer = renderer;
 	pass->level = 0;
 	pass->order = 0;
 	pass->childs = 0;
-	pass->gen = 0;
-	pass->numParents = numParents;
-
-	if (numParents) memcpy(
-		pass->parents, parents, sizeof(GFXPass*) * numParents);
+	gfx_vec_init(&pass->consumes, sizeof(_GFXConsume));
 
 	// The level is the highest level of all parents + 1.
 	for (size_t p = 0; p < numParents; ++p)
@@ -337,69 +342,89 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer,
 		++parents[p]->childs; // (!)
 	}
 
-	// Initialize building stuff.
-	pass->out.master = NULL;
-	pass->out.next = NULL;
-	pass->out.subpass = 0;
+	// Initialize as render pass.
+	if (type == GFX_PASS_RENDER)
+	{
+		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+		rPass->gen = 0;
 
-	pass->build.backing = SIZE_MAX;
-	pass->build.fWidth = 0;
-	pass->build.fHeight = 0;
-	pass->build.fLayers = 0;
-	pass->build.pass = NULL;
-	pass->vk.pass = VK_NULL_HANDLE;
+		// Set parents.
+		rPass->numParents = numParents;
+		memcpy(rPass->parents, parents, sizeof(GFXPass*) * numParents);
 
-	gfx_vec_init(&pass->consumes, sizeof(_GFXConsume));
-	gfx_vec_init(&pass->vk.clears, sizeof(VkClearValue));
-	gfx_vec_init(&pass->vk.blends, sizeof(VkPipelineColorBlendAttachmentState));
-	gfx_vec_init(&pass->vk.views, sizeof(_GFXViewElem));
-	gfx_vec_init(&pass->vk.frames, sizeof(_GFXFrameElem));
+		// Initialize building stuff.
+		rPass->out.master = NULL;
+		rPass->out.next = NULL;
+		rPass->out.subpass = 0;
 
-	// And finally some default state.
-	pass->state.samples = 1;
-	pass->state.enabled = 0;
+		rPass->build.backing = SIZE_MAX;
+		rPass->build.fWidth = 0;
+		rPass->build.fHeight = 0;
+		rPass->build.fLayers = 0;
+		rPass->build.pass = NULL;
+		rPass->vk.pass = VK_NULL_HANDLE;
 
-	pass->state.raster = (GFXRasterState){
-		.mode = GFX_RASTER_FILL,
-		.front = GFX_FRONT_FACE_CW,
-		.cull = GFX_CULL_BACK,
-		.topo = GFX_TOPO_TRIANGLE_LIST,
-		.samples = 1
-	};
+		gfx_vec_init(&rPass->vk.clears, sizeof(VkClearValue));
+		gfx_vec_init(&rPass->vk.blends, sizeof(VkPipelineColorBlendAttachmentState));
+		gfx_vec_init(&rPass->vk.views, sizeof(_GFXViewElem));
+		gfx_vec_init(&rPass->vk.frames, sizeof(_GFXFrameElem));
 
-	GFXBlendOpState blendOpState = {
-		.srcFactor = GFX_FACTOR_ONE,
-		.dstFactor = GFX_FACTOR_ZERO,
-		.op = GFX_BLEND_NO_OP
-	};
+		// And finally some default state.
+		rPass->state.samples = 1;
+		rPass->state.enabled = 0;
 
-	pass->state.blend = (GFXBlendState){
-		.logic = GFX_LOGIC_NO_OP,
-		.color = blendOpState,
-		.alpha = blendOpState,
-		.constants = { 0.0f, 0.0f, 0.0f, 0.0f }
-	};
+		rPass->state.raster = (GFXRasterState){
+			.mode = GFX_RASTER_FILL,
+			.front = GFX_FRONT_FACE_CW,
+			.cull = GFX_CULL_BACK,
+			.topo = GFX_TOPO_TRIANGLE_LIST,
+			.samples = 1
+		};
 
-	pass->state.depth = (GFXDepthState){
-		.flags = GFX_DEPTH_WRITE,
-		.cmp = GFX_CMP_LESS,
-	};
+		GFXBlendOpState blendOpState = {
+			.srcFactor = GFX_FACTOR_ONE,
+			.dstFactor = GFX_FACTOR_ZERO,
+			.op = GFX_BLEND_NO_OP
+		};
 
-	GFXStencilOpState stencilOpState = {
-		.fail = GFX_STENCIL_KEEP,
-		.pass = GFX_STENCIL_KEEP,
-		.depthFail = GFX_STENCIL_KEEP,
-		.cmp = GFX_CMP_NEVER,
+		rPass->state.blend = (GFXBlendState){
+			.logic = GFX_LOGIC_NO_OP,
+			.color = blendOpState,
+			.alpha = blendOpState,
+			.constants = { 0.0f, 0.0f, 0.0f, 0.0f }
+		};
 
-		.cmpMask = 0,
-		.writeMask = 0,
-		.reference = 0
-	};
+		rPass->state.depth = (GFXDepthState){
+			.flags = GFX_DEPTH_WRITE,
+			.cmp = GFX_CMP_LESS,
+		};
 
-	pass->state.stencil = (GFXStencilState){
-		.front = stencilOpState,
-		.back = stencilOpState
-	};
+		GFXStencilOpState stencilOpState = {
+			.fail = GFX_STENCIL_KEEP,
+			.pass = GFX_STENCIL_KEEP,
+			.depthFail = GFX_STENCIL_KEEP,
+			.cmp = GFX_CMP_NEVER,
+
+			.cmpMask = 0,
+			.writeMask = 0,
+			.reference = 0
+		};
+
+		rPass->state.stencil = (GFXStencilState){
+			.front = stencilOpState,
+			.back = stencilOpState
+		};
+	}
+
+	// Initialize as compute pass.
+	else if (type == GFX_PASS_COMPUTE)
+	{
+		_GFXComputePass* cPass = (_GFXComputePass*)pass;
+
+		// Set parents.
+		cPass->numParents = numParents;
+		memcpy(cPass->parents, parents, sizeof(GFXPass*) * numParents);
+	}
 
 	return pass;
 }
@@ -409,58 +434,78 @@ void _gfx_destroy_pass(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	// Destruct all partial things.
-	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
+	// Destruct as render pass.
+	if (pass->type == GFX_PASS_RENDER)
+	{
+		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 
-	// Decrease child counter of all parents.
-	for (size_t p = 0; p < pass->numParents; ++p)
-		--pass->parents[p]->childs;
+		// Destruct all partial things.
+		_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
 
-	// Free all remaining things.
+		// Free all remaining things.
+		gfx_vec_clear(&rPass->vk.clears);
+		gfx_vec_clear(&rPass->vk.blends);
+		gfx_vec_clear(&rPass->vk.views);
+		gfx_vec_clear(&rPass->vk.frames);
+
+		// Decrease child counter of all parents.
+		for (size_t p = 0; p < rPass->numParents; ++p)
+			--rPass->parents[p]->childs;
+	}
+
+	// Destruct as compute pass.
+	else if (pass->type == GFX_PASS_COMPUTE)
+	{
+		_GFXComputePass* cPass = (_GFXComputePass*)pass;
+
+		// Decrease child counter of all parents.
+		for (size_t p = 0; p < cPass->numParents; ++p)
+			--cPass->parents[p]->childs;
+	}
+
+	// More destruction.
 	gfx_vec_clear(&pass->consumes);
-	gfx_vec_clear(&pass->vk.clears);
-	gfx_vec_clear(&pass->vk.blends);
-	gfx_vec_clear(&pass->vk.views);
-	gfx_vec_clear(&pass->vk.frames);
 	free(pass);
 }
 
 /****************************/
-VkFramebuffer _gfx_pass_framebuffer(GFXPass* pass, GFXFrame* frame)
+VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 {
-	assert(pass != NULL);
+	assert(rPass != NULL);
+	assert(rPass->base.type == GFX_PASS_RENDER);
 	assert(frame != NULL);
 
 	// TODO:GRA: Get framebuffer from master pass.
 
 	// Just a single framebuffer.
-	if (pass->vk.frames.size == 1)
-		return ((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, 0))->buffer;
+	if (rPass->vk.frames.size == 1)
+		return ((_GFXFrameElem*)gfx_vec_at(&rPass->vk.frames, 0))->buffer;
 
 	// Query the swapchain image index.
 	const uint32_t image =
-		_gfx_frame_get_swapchain_index(frame, pass->build.backing);
+		_gfx_frame_get_swapchain_index(frame, rPass->build.backing);
 
 	// Validate & return.
-	return pass->vk.frames.size <= image ?
+	return rPass->vk.frames.size <= image ?
 		VK_NULL_HANDLE :
-		((_GFXFrameElem*)gfx_vec_at(&pass->vk.frames, image))->buffer;
+		((_GFXFrameElem*)gfx_vec_at(&rPass->vk.frames, image))->buffer;
 }
 
 /****************************
  * Filters all consumed attachments into framebuffer views &
  * a potential window to use as back-buffer, silently logging issues.
- * @param pass Cannot be NULL.
+ * @param rPass Cannot be NULL.
  * @return Zero on failure.
  */
-static bool _gfx_pass_filter_attachments(GFXPass* pass)
+static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 {
-	assert(pass != NULL);
+	assert(rPass != NULL);
+	assert(rPass->base.type == GFX_PASS_RENDER);
 
-	GFXRenderer* rend = pass->renderer;
+	GFXRenderer* rend = rPass->base.renderer;
 
 	// Already filtered.
-	if (pass->vk.views.size > 0)
+	if (rPass->vk.views.size > 0)
 		return 1;
 
 	// TODO:GRA: Should get from all next subpasses too and skip if not master.
@@ -470,15 +515,15 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 	// attachments now, one per subpass!
 
 	// Reserve as many views as there are attachments, can never be more.
-	if (!gfx_vec_reserve(&pass->vk.views, pass->consumes.size))
+	if (!gfx_vec_reserve(&rPass->vk.views, rPass->base.consumes.size))
 		return 0;
 
 	// And start looping over all consumptions :)
 	size_t depSten = SIZE_MAX; // Only to warn for duplicates.
 
-	for (size_t i = 0; i < pass->consumes.size; ++i)
+	for (size_t i = 0; i < rPass->base.consumes.size; ++i)
 	{
-		const _GFXConsume* con = gfx_vec_at(&pass->consumes, i);
+		const _GFXConsume* con = gfx_vec_at(&rPass->base.consumes, i);
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 		// Validate existence of the attachment.
@@ -513,8 +558,8 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 				GFX_ACCESS_ATTACHMENT_RESOLVE)))
 		{
 			// Check if we already had a backing window.
-			if (pass->build.backing == SIZE_MAX)
-				pass->build.backing = con->view.index;
+			if (rPass->build.backing == SIZE_MAX)
+				rPass->build.backing = con->view.index;
 			else
 			{
 				// Skip any other candidate, cannot create a view for it.
@@ -557,7 +602,7 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 
 		// Add a view element referencing this consumption.
 		_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
-		gfx_vec_push(&pass->vk.views, 1, &elem);
+		gfx_vec_push(&rPass->vk.views, 1, &elem);
 	}
 
 	return 1;
@@ -566,22 +611,23 @@ static bool _gfx_pass_filter_attachments(GFXPass* pass)
 /****************************
  * Finds a filtered attachment based on attachment index.
  * If not found, will return VK_ATTACHMENT_UNUSED.
- * @param pass  Cannot be NULL.
+ * @param rPass Cannot be NULL.
  * @param index Attachment index to find.
  * @return Index into VkRenderPassCreateInfo::pAttachments.
  */
-static uint32_t _gfx_pass_find_attachment(GFXPass* pass, size_t index)
+static uint32_t _gfx_pass_find_attachment(_GFXRenderPass* rPass, size_t index)
 {
-	assert(pass != NULL);
+	assert(rPass != NULL);
+	assert(rPass->base.type == GFX_PASS_RENDER);
 
 	// Early exit.
 	if (index == SIZE_MAX)
 		return VK_ATTACHMENT_UNUSED;
 
 	// Find the view made for the consumption of the attachment at index.
-	for (size_t i = 0; i < pass->vk.views.size; ++i)
+	for (size_t i = 0; i < rPass->vk.views.size; ++i)
 	{
-		const _GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
+		const _GFXViewElem* view = gfx_vec_at(&rPass->vk.views, i);
 		if (view->consume->view.index == index) return (uint32_t)i;
 	}
 
@@ -589,11 +635,12 @@ static uint32_t _gfx_pass_find_attachment(GFXPass* pass, size_t index)
 }
 
 /****************************/
-bool _gfx_pass_warmup(GFXPass* pass)
+bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 {
-	assert(pass != NULL);
+	assert(rPass != NULL);
+	assert(rPass->base.type == GFX_PASS_RENDER);
 
-	GFXRenderer* rend = pass->renderer;
+	GFXRenderer* rend = rPass->base.renderer;
 
 	// TODO:GRA: Somehow do this for all subpasses if this is master.
 	// And skip all this if this is not master.
@@ -602,27 +649,27 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	// Used for creating pipelines, which are still for specific passes.
 
 	// Already warmed.
-	if (_GFX_PASS_IS_WARMED(pass))
+	if (_GFX_PASS_IS_WARMED(rPass))
 		return 1;
 
 	// Ok so we need to know about all pass attachments.
 	// Filter consumptions into attachment views.
-	if (!_gfx_pass_filter_attachments(pass))
+	if (!_gfx_pass_filter_attachments(rPass))
 		return 0;
 
 	// We are always gonna update the clear & blend values.
 	// Do it here and not build so we don't unnecessarily reconstruct this.
 	// Same for state variables & enables.
-	gfx_vec_release(&pass->vk.clears);
-	gfx_vec_release(&pass->vk.blends);
-	pass->state.samples = 1;
-	pass->state.enabled = 0;
+	gfx_vec_release(&rPass->vk.clears);
+	gfx_vec_release(&rPass->vk.blends);
+	rPass->state.samples = 1;
+	rPass->state.enabled = 0;
 
 	// Both just need one element per view.
-	if (!gfx_vec_reserve(&pass->vk.clears, pass->vk.views.size))
+	if (!gfx_vec_reserve(&rPass->vk.clears, rPass->vk.views.size))
 		return 0;
 
-	if (!gfx_vec_reserve(&pass->vk.blends, pass->vk.views.size))
+	if (!gfx_vec_reserve(&rPass->vk.blends, rPass->vk.views.size))
 		return 0;
 
 	// Describe all attachments.
@@ -637,16 +684,16 @@ bool _gfx_pass_warmup(GFXPass* pass)
 		.layout     = VK_IMAGE_LAYOUT_UNDEFINED
 	};
 
-	const size_t vlaViews = pass->vk.views.size > 0 ? pass->vk.views.size : 1;
+	const size_t vlaViews = rPass->vk.views.size > 0 ? rPass->vk.views.size : 1;
 	VkAttachmentDescription ad[vlaViews];
 	VkAttachmentReference input[vlaViews];
 	VkAttachmentReference color[vlaViews];
 	VkAttachmentReference resolve[vlaViews];
 	VkAttachmentReference depSten = unused;
 
-	for (size_t i = 0; i < pass->vk.views.size; ++i)
+	for (size_t i = 0; i < rPass->vk.views.size; ++i)
 	{
-		const _GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
+		const _GFXViewElem* view = gfx_vec_at(&rPass->vk.views, i);
 		const _GFXConsume* con = view->consume;
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
@@ -724,7 +771,7 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 			// Build references.
 			uint32_t resolveInd =
-				_gfx_pass_find_attachment(pass, con->resolve);
+				_gfx_pass_find_attachment(rPass, con->resolve);
 
 			const VkAttachmentReference ref = (VkAttachmentReference){
 				.attachment = (uint32_t)i,
@@ -758,9 +805,9 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					depSten = ref;
 
 					// Adjust state enables.
-					pass->state.enabled &= ~(unsigned int)(
+					rPass->state.enabled &= ~(unsigned int)(
 						_GFX_PASS_DEPTH | _GFX_PASS_STENCIL);
-					pass->state.enabled |= (unsigned int)(
+					rPass->state.enabled |= (unsigned int)(
 						(GFX_FORMAT_HAS_DEPTH(fmt) ? _GFX_PASS_DEPTH : 0) |
 						(GFX_FORMAT_HAS_STENCIL(fmt) ? _GFX_PASS_STENCIL : 0));
 				}
@@ -795,13 +842,13 @@ bool _gfx_pass_warmup(GFXPass* pass)
 			};
 
 			// Remember the greatest sample count for pipelines.
-			if (ad[i].samples > pass->state.samples)
-				pass->state.samples = ad[i].samples;
+			if (ad[i].samples > rPass->state.samples)
+				rPass->state.samples = ad[i].samples;
 		}
 
 		// Lastly, store the clear value for when we begin the pass,
 		// memory is already reserved :)
-		gfx_vec_push(&pass->vk.clears, 1, &con->clear.vk);
+		gfx_vec_push(&rPass->vk.clears, 1, &con->clear.vk);
 
 		// Same for the blend values for building pipelines.
 		if (isColor)
@@ -829,8 +876,8 @@ bool _gfx_pass_warmup(GFXPass* pass)
 				blendColor = &con->color,
 				blendAlpha = &con->alpha;
 			else
-				blendColor = &pass->state.blend.color,
-				blendAlpha = &pass->state.blend.alpha;
+				blendColor = &rPass->state.blend.color,
+				blendAlpha = &rPass->state.blend.alpha;
 
 			if (blendColor->op != GFX_BLEND_NO_OP)
 			{
@@ -854,11 +901,11 @@ bool _gfx_pass_warmup(GFXPass* pass)
 					_GFX_GET_VK_BLEND_OP(blendAlpha->op);
 			}
 
-			gfx_vec_push(&pass->vk.blends, 1, &pcbas);
+			gfx_vec_push(&rPass->vk.blends, 1, &pcbas);
 		}
 	}
 
-	// Ok now create the pass.
+	// Ok now create the Vulkan render pass.
 	VkSubpassDescription sd = {
 		.flags                   = 0,
 		.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -878,8 +925,8 @@ bool _gfx_pass_warmup(GFXPass* pass)
 
 		.pNext           = NULL,
 		.flags           = 0,
-		.attachmentCount = (uint32_t)pass->vk.views.size,
-		.pAttachments    = pass->vk.views.size > 0 ? ad : NULL,
+		.attachmentCount = (uint32_t)rPass->vk.views.size,
+		.pAttachments    = rPass->vk.views.size > 0 ? ad : NULL,
 		.subpassCount    = 1,
 		.pSubpasses      = &sd,
 		.dependencyCount = 0,
@@ -887,44 +934,45 @@ bool _gfx_pass_warmup(GFXPass* pass)
 	};
 
 	// Remember the cache element for locality!
-	pass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
-	if (pass->build.pass == NULL) return 0;
+	rPass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
+	if (rPass->build.pass == NULL) return 0;
 
-	pass->vk.pass = pass->build.pass->vk.pass;
+	rPass->vk.pass = rPass->build.pass->vk.pass;
 
 	return 1;
 }
 
 /****************************/
-bool _gfx_pass_build(GFXPass* pass)
+bool _gfx_pass_build(_GFXRenderPass* rPass)
 {
-	assert(pass != NULL);
+	assert(rPass != NULL);
+	assert(rPass->base.type == GFX_PASS_RENDER);
 
-	GFXRenderer* rend = pass->renderer;
+	GFXRenderer* rend = rPass->base.renderer;
 	_GFXContext* context = rend->allocator.context;
 
 	// TODO:GRA: Skip all this if this is not master.
 	// We somehow want to propagate the dimensions to all subpasses.
 
 	// Already built.
-	if (_GFX_PASS_IS_BUILT(pass))
+	if (_GFX_PASS_IS_BUILT(rPass))
 		return 1;
 
 	// Do a warmup, i.e. make sure the Vulkan render pass is built.
 	// This will log an error for us!
-	if (!_gfx_pass_warmup(pass))
+	if (!_gfx_pass_warmup(rPass))
 		return 0;
 
 	// We're gonna need to create all image views.
 	// Keep track of the window used as backing so we can build framebuffers.
 	// Also in here we're gonna get the dimensions (i.e. size) of the pass.
-	VkImageView views[pass->vk.views.size > 0 ? pass->vk.views.size : 1];
+	VkImageView views[rPass->vk.views.size > 0 ? rPass->vk.views.size : 1];
 	const _GFXAttach* backing = NULL;
 	size_t backingInd = SIZE_MAX;
 
-	for (size_t i = 0; i < pass->vk.views.size; ++i)
+	for (size_t i = 0; i < rPass->vk.views.size; ++i)
 	{
-		_GFXViewElem* view = gfx_vec_at(&pass->vk.views, i);
+		_GFXViewElem* view = gfx_vec_at(&rPass->vk.views, i);
 		const _GFXConsume* con = view->consume;
 		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
@@ -937,7 +985,7 @@ bool _gfx_pass_build(GFXPass* pass)
 			views[i] = VK_NULL_HANDLE;
 
 			// Validate dimensions.
-			_GFX_VALIDATE_DIMS(pass,
+			_GFX_VALIDATE_DIMS(rPass,
 				at->window.window->frame.width,
 				at->window.window->frame.height, 1,
 				goto skip_pass);
@@ -948,7 +996,7 @@ bool _gfx_pass_build(GFXPass* pass)
 		{
 			// Validate dimensions.
 			// Do this first to avoid creating a non-existing image view.
-			_GFX_VALIDATE_DIMS(pass,
+			_GFX_VALIDATE_DIMS(rPass,
 				at->image.width, at->image.height,
 				(con->view.range.numLayers == 0) ?
 					at->image.base.layers - con->view.range.layer :
@@ -1018,7 +1066,7 @@ bool _gfx_pass_build(GFXPass* pass)
 		(backingInd != SIZE_MAX) ?
 		backing->window.window->frame.images.size : 1;
 
-	if (!gfx_vec_reserve(&pass->vk.frames, frames))
+	if (!gfx_vec_reserve(&rPass->vk.frames, frames))
 		goto clean;
 
 	for (size_t i = 0; i < frames; ++i)
@@ -1066,18 +1114,18 @@ bool _gfx_pass_build(GFXPass* pass)
 			views[backingInd] = elem.view;
 		}
 
-		// Create a framebuffer.
+		// Create a Vulkan framebuffer.
 		VkFramebufferCreateInfo fci = {
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
 
 			.pNext           = NULL,
 			.flags           = 0,
-			.renderPass      = pass->vk.pass,
-			.attachmentCount = (uint32_t)pass->vk.views.size,
-			.pAttachments    = pass->vk.views.size > 0 ? views : NULL,
-			.width           = GFX_MAX(1, pass->build.fWidth),
-			.height          = GFX_MAX(1, pass->build.fHeight),
-			.layers          = GFX_MAX(1, pass->build.fLayers)
+			.renderPass      = rPass->vk.pass,
+			.attachmentCount = (uint32_t)rPass->vk.views.size,
+			.pAttachments    = rPass->vk.views.size > 0 ? views : NULL,
+			.width           = GFX_MAX(1, rPass->build.fWidth),
+			.height          = GFX_MAX(1, rPass->build.fHeight),
+			.layers          = GFX_MAX(1, rPass->build.fLayers)
 		};
 
 		_GFX_VK_CHECK(
@@ -1091,7 +1139,7 @@ bool _gfx_pass_build(GFXPass* pass)
 			});
 
 		// It was already reserved :)
-		gfx_vec_push(&pass->vk.frames, 1, &elem);
+		gfx_vec_push(&rPass->vk.frames, 1, &elem);
 	}
 
 	return 1;
@@ -1102,54 +1150,64 @@ clean:
 	gfx_log_error("Could not build framebuffers for a pass.");
 
 	// Get rid of built things; avoid dangling views.
-	_gfx_pass_destruct_partial(pass, _GFX_RECREATE);
+	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE);
 	return 0;
 
 
 	// Identical cleanup on skip.
 skip_pass:
-	_gfx_pass_destruct_partial(pass, _GFX_RECREATE);
+	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE);
 	return 1;
 }
 
 /****************************/
-bool _gfx_pass_rebuild(GFXPass* pass, _GFXRecreateFlags flags)
+bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags)
 {
-	assert(pass != NULL);
+	assert(rPass != NULL);
+	assert(rPass->base.type == GFX_PASS_RENDER);
 	assert(flags & _GFX_RECREATE);
 
 	// Remember if we're warmed or entirely built.
-	const bool warmed = _GFX_PASS_IS_WARMED(pass);
-	const bool built = _GFX_PASS_IS_BUILT(pass);
+	const bool warmed = _GFX_PASS_IS_WARMED(rPass);
+	const bool built = _GFX_PASS_IS_BUILT(rPass);
 
 	// Then we destroy the things we want to recreate.
-	_gfx_pass_destruct_partial(pass, flags);
+	_gfx_pass_destruct_partial(rPass, flags);
 
 	// Then re-perform the remembered bits :)
 	if (built)
-		return _gfx_pass_build(pass);
+		return _gfx_pass_build(rPass);
 	if (warmed)
-		return _gfx_pass_warmup(pass);
+		return _gfx_pass_warmup(rPass);
 
 	return 1;
 }
 
 /****************************/
-void _gfx_pass_destruct(GFXPass* pass)
+void _gfx_pass_destruct(_GFXRenderPass* rPass)
+{
+	assert(rPass != NULL);
+	assert(rPass->base.type == GFX_PASS_RENDER);
+
+	// Destruct all partial things.
+	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
+
+	// Need to re-calculate what window is consumed.
+	rPass->build.backing = SIZE_MAX;
+
+	// Clear memory.
+	gfx_vec_clear(&rPass->vk.clears);
+	gfx_vec_clear(&rPass->vk.blends);
+	gfx_vec_clear(&rPass->vk.views);
+	gfx_vec_clear(&rPass->vk.frames);
+}
+
+/****************************/
+GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	// Destruct all partial things.
-	_gfx_pass_destruct_partial(pass, _GFX_RECREATE_ALL);
-
-	// Need to re-calculate what window is consumed.
-	pass->build.backing = SIZE_MAX;
-
-	// Clear memory.
-	gfx_vec_clear(&pass->vk.clears);
-	gfx_vec_clear(&pass->vk.blends);
-	gfx_vec_clear(&pass->vk.views);
-	gfx_vec_clear(&pass->vk.frames);
+	return pass->type;
 }
 
 /****************************/
@@ -1350,40 +1408,44 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 {
 	assert(pass != NULL);
 
+	// No-op if not a render pass.
+	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+	if (pass->type != GFX_PASS_RENDER) return;
+
 	// Firstly check blend state, as new blend operations should cause the
 	// `pass->vk.blends` vector to update, we do this by graph invalidation!
 	bool newBlends = 0;
 
 	if (state.blend != NULL)
-		newBlends = !_gfx_cmp_blend(&pass->state.blend, state.blend),
-		pass->state.blend = *state.blend;
+		newBlends = !_gfx_cmp_blend(&rPass->state.blend, state.blend),
+		rPass->state.blend = *state.blend;
 
 	// Set new values, check if changed.
 	bool gen = newBlends;
 
 	if (state.raster != NULL)
-		gen = gen || !_gfx_cmp_raster(&pass->state.raster, state.raster),
-		pass->state.raster = *state.raster,
+		gen = gen || !_gfx_cmp_raster(&rPass->state.raster, state.raster),
+		rPass->state.raster = *state.raster,
 		// Fix sample count.
-		pass->state.raster.samples =
-			_GFX_GET_VK_SAMPLE_COUNT(pass->state.raster.samples);
+		rPass->state.raster.samples =
+			_GFX_GET_VK_SAMPLE_COUNT(rPass->state.raster.samples);
 
 	if (state.depth != NULL)
-		gen = gen || !_gfx_cmp_depth(&pass->state.depth, state.depth),
-		pass->state.depth = *state.depth;
+		gen = gen || !_gfx_cmp_depth(&rPass->state.depth, state.depth),
+		rPass->state.depth = *state.depth;
 
 	if (state.stencil != NULL)
 		gen = gen ||
-			!_gfx_cmp_stencil(&pass->state.stencil.front, &state.stencil->front) ||
-			!_gfx_cmp_stencil(&pass->state.stencil.back, &state.stencil->back),
-		pass->state.stencil = *state.stencil;
+			!_gfx_cmp_stencil(&rPass->state.stencil.front, &state.stencil->front) ||
+			!_gfx_cmp_stencil(&rPass->state.stencil.back, &state.stencil->back),
+		rPass->state.stencil = *state.stencil;
 
 	// If changed, increase generation to invalidate pipelines.
 	// Unless we invalidate the graph, it implicitly destructs & increases.
 	if (newBlends)
 		_gfx_render_graph_invalidate(pass->renderer);
 	else if (gen)
-		_gfx_pass_gen(pass);
+		_gfx_pass_gen(rPass);
 }
 
 /****************************/
@@ -1391,12 +1453,20 @@ GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	return (GFXRenderState){
-		.raster = &pass->state.raster,
-		.blend = &pass->state.blend,
-		.depth = &pass->state.depth,
-		.stencil = &pass->state.stencil
-	};
+	if (pass->type == GFX_PASS_RENDER)
+		return (GFXRenderState){
+			.raster = &((_GFXRenderPass*)pass)->state.raster,
+			.blend = &((_GFXRenderPass*)pass)->state.blend,
+			.depth = &((_GFXRenderPass*)pass)->state.depth,
+			.stencil = &((_GFXRenderPass*)pass)->state.stencil
+		};
+	else
+		return (GFXRenderState){
+			.raster = NULL,
+			.blend = NULL,
+			.depth = NULL,
+			.stencil = NULL
+		};
 }
 
 /****************************/
@@ -1408,9 +1478,14 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 	assert(height != NULL);
 	assert(layers != NULL);
 
-	*width = pass->build.fWidth;
-	*height = pass->build.fHeight;
-	*layers = pass->build.fLayers;
+	if (pass->type == GFX_PASS_RENDER)
+		*width = ((_GFXRenderPass*)pass)->build.fWidth,
+		*height = ((_GFXRenderPass*)pass)->build.fHeight,
+		*layers = ((_GFXRenderPass*)pass)->build.fLayers;
+	else
+		*width = 0,
+		*height = 0,
+		*layers = 0;
 }
 
 /****************************/
@@ -1418,14 +1493,21 @@ GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	return pass->numParents;
+	return
+		(pass->type == GFX_PASS_RENDER) ?
+			((_GFXRenderPass*)pass)->numParents :
+			((_GFXComputePass*)pass)->numParents;
 }
 
 /****************************/
 GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
 {
 	assert(pass != NULL);
-	assert(parent < pass->numParents);
+	assert(pass->type != GFX_PASS_RENDER || parent < ((_GFXRenderPass*)pass)->numParents);
+	assert(pass->type != GFX_PASS_COMPUTE || parent < ((_GFXComputePass*)pass)->numParents);
 
-	return pass->parents[parent];
+	return
+		(pass->type == GFX_PASS_RENDER) ?
+			((_GFXRenderPass*)pass)->parents[parent] :
+			((_GFXComputePass*)pass)->parents[parent];
 }

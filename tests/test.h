@@ -415,7 +415,9 @@ static void _test_init(TestState* _test_state)
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
 	// Add a single pass that writes to the window.
-	_test_base.pass = gfx_renderer_add_pass(_test_base.renderer, 0, NULL);
+	_test_base.pass = gfx_renderer_add_pass(
+		_test_base.renderer, GFX_PASS_RENDER, 0, NULL);
+
 	if (_test_base.pass == NULL)
 		TEST_FAIL();
 
