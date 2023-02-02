@@ -68,6 +68,17 @@ typedef struct GFXAttachment
 
 
 /**
+ * Render/compute pass type.
+ */
+typedef enum GFXPassType
+{
+	GFX_PASS_RENDER,
+	GFX_PASS_COMPUTE
+
+} GFXPassType;
+
+
+/**
  * Attachment clear value.
  */
 typedef union GFXClear
@@ -746,7 +757,7 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
  */
-GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
+GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, // TODO: GFXPassType type,
                                        size_t numParents, GFXPass** parents);
 
 /**
@@ -769,21 +780,32 @@ GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
 GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
 
 /**
- * Sets the render state of a pass.
+ * Retrieves the type of a pass.
+ * @param pass Cannot be NULL.
+ * @return Type of the pass, either render or compute.
+ */
+GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass);
+
+/**
+ * Sets the render state of a render pass.
  * @param pass  Cannot be NULL.
  * @param state Any member may be NULL to omit setting the associated state.
+ *
+ * No-op if not a render pass.
  */
 GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
 
 /**
- * Retrieves the current render state of a pass.
+ * Retrieves the current render state of a render pass.
  * @param pass Cannot be NULL.
  * @return Output state, read-only!
+ *
+ * Returns all NULL's if not a render pass.
  */
 GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
 
 /**
- * Retrieves the virtual frame size associated with a pass.
+ * Retrieves the virtual frame size associated with a render pass.
  * @param pass   Cannot be NULL.
  * @param width  Cannot be NULL, output width.
  * @param height Cannot be NULL, output height.
@@ -798,13 +820,18 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 
 /**
  * Consume an attachment of a renderer.
- * Shader location is in add-order, calling with the same index twice
- * does _not_ change the shader location, should release first.
  * @param pass  Cannot be NULL.
  * @param index Attachment index to consume.
  * @param mask  Access mask to consume the attachment with.
  * @param stage Shader stages with access to the attachment.
  * @return Zero on failure.
+ *
+ * For synchronization purposes it is still necessary to consume an attachment
+ * when said attachment is only used in bound sets while recording.
+ *
+ * For render passes:
+ *  Shader location is in add-order, calling with the same index twice
+ *  does _not_ change the shader location, should release first.
  */
 GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
                               GFXAccessMask mask, GFXShaderStage stage);
@@ -832,7 +859,8 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
  * @param index  Attachment index to clear.
  * @param aspect Cannot contain both color AND depth/stencil!
  *
- * No-op if attachment at index is not consumed!
+ * No-op if not a render pass.
+ * No-op if attachment at index is not consumed.
  * Only has effect if consumed with attachment access.
  */
 GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
