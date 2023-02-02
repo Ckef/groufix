@@ -1153,74 +1153,6 @@ void _gfx_pass_destruct(GFXPass* pass)
 }
 
 /****************************/
-GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
-{
-	assert(pass != NULL);
-
-	// Firstly check blend state, as new blend operations should cause the
-	// `pass->vk.blends` vector to update, we do this by graph invalidation!
-	bool newBlends = 0;
-
-	if (state.blend != NULL)
-		newBlends = !_gfx_cmp_blend(&pass->state.blend, state.blend),
-		pass->state.blend = *state.blend;
-
-	// Set new values, check if changed.
-	bool gen = newBlends;
-
-	if (state.raster != NULL)
-		gen = gen || !_gfx_cmp_raster(&pass->state.raster, state.raster),
-		pass->state.raster = *state.raster,
-		// Fix sample count.
-		pass->state.raster.samples =
-			_GFX_GET_VK_SAMPLE_COUNT(pass->state.raster.samples);
-
-	if (state.depth != NULL)
-		gen = gen || !_gfx_cmp_depth(&pass->state.depth, state.depth),
-		pass->state.depth = *state.depth;
-
-	if (state.stencil != NULL)
-		gen = gen ||
-			!_gfx_cmp_stencil(&pass->state.stencil.front, &state.stencil->front) ||
-			!_gfx_cmp_stencil(&pass->state.stencil.back, &state.stencil->back),
-		pass->state.stencil = *state.stencil;
-
-	// If changed, increase generation to invalidate pipelines.
-	// Unless we invalidate the graph, it implicitly destructs & increases.
-	if (newBlends)
-		_gfx_render_graph_invalidate(pass->renderer);
-	else if (gen)
-		_gfx_pass_gen(pass);
-}
-
-/****************************/
-GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
-{
-	assert(pass != NULL);
-
-	return (GFXRenderState){
-		.raster = &pass->state.raster,
-		.blend = &pass->state.blend,
-		.depth = &pass->state.depth,
-		.stencil = &pass->state.stencil
-	};
-}
-
-/****************************/
-GFX_API void gfx_pass_get_size(GFXPass* pass,
-                               uint32_t* width, uint32_t* height, uint32_t* layers)
-{
-	assert(pass != NULL);
-	assert(width != NULL);
-	assert(height != NULL);
-	assert(layers != NULL);
-
-	*width = pass->build.fWidth;
-	*height = pass->build.fHeight;
-	*layers = pass->build.fLayers;
-}
-
-/****************************/
 GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
                               GFXAccessMask mask, GFXShaderStage stage)
 {
@@ -1411,6 +1343,74 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 			break;
 		}
 	}
+}
+
+/****************************/
+GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
+{
+	assert(pass != NULL);
+
+	// Firstly check blend state, as new blend operations should cause the
+	// `pass->vk.blends` vector to update, we do this by graph invalidation!
+	bool newBlends = 0;
+
+	if (state.blend != NULL)
+		newBlends = !_gfx_cmp_blend(&pass->state.blend, state.blend),
+		pass->state.blend = *state.blend;
+
+	// Set new values, check if changed.
+	bool gen = newBlends;
+
+	if (state.raster != NULL)
+		gen = gen || !_gfx_cmp_raster(&pass->state.raster, state.raster),
+		pass->state.raster = *state.raster,
+		// Fix sample count.
+		pass->state.raster.samples =
+			_GFX_GET_VK_SAMPLE_COUNT(pass->state.raster.samples);
+
+	if (state.depth != NULL)
+		gen = gen || !_gfx_cmp_depth(&pass->state.depth, state.depth),
+		pass->state.depth = *state.depth;
+
+	if (state.stencil != NULL)
+		gen = gen ||
+			!_gfx_cmp_stencil(&pass->state.stencil.front, &state.stencil->front) ||
+			!_gfx_cmp_stencil(&pass->state.stencil.back, &state.stencil->back),
+		pass->state.stencil = *state.stencil;
+
+	// If changed, increase generation to invalidate pipelines.
+	// Unless we invalidate the graph, it implicitly destructs & increases.
+	if (newBlends)
+		_gfx_render_graph_invalidate(pass->renderer);
+	else if (gen)
+		_gfx_pass_gen(pass);
+}
+
+/****************************/
+GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	return (GFXRenderState){
+		.raster = &pass->state.raster,
+		.blend = &pass->state.blend,
+		.depth = &pass->state.depth,
+		.stencil = &pass->state.stencil
+	};
+}
+
+/****************************/
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height, uint32_t* layers)
+{
+	assert(pass != NULL);
+	assert(width != NULL);
+	assert(height != NULL);
+	assert(layers != NULL);
+
+	*width = pass->build.fWidth;
+	*height = pass->build.fHeight;
+	*layers = pass->build.fLayers;
 }
 
 /****************************/

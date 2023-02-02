@@ -787,38 +787,6 @@ GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
 GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass);
 
 /**
- * Sets the render state of a render pass.
- * @param pass  Cannot be NULL.
- * @param state Any member may be NULL to omit setting the associated state.
- *
- * No-op if not a render pass.
- */
-GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
-
-/**
- * Retrieves the current render state of a render pass.
- * @param pass Cannot be NULL.
- * @return Output state, read-only!
- *
- * Returns all NULL's if not a render pass.
- */
-GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
-
-/**
- * Retrieves the virtual frame size associated with a render pass.
- * @param pass   Cannot be NULL.
- * @param width  Cannot be NULL, output width.
- * @param height Cannot be NULL, output height.
- * @param layers Cannot be NULL, output layers.
- *
- * Only outputs the _actual_ size, meaning this will only return meaningful
- * values when called inbetween gfx_frame_start and gfx_frame_submit.
- * Outputs 0,0,0 if no associated attachments.
- */
-GFX_API void gfx_pass_get_size(GFXPass* pass,
-                               uint32_t* width, uint32_t* height, uint32_t* layers);
-
-/**
  * Consume an attachment of a renderer.
  * @param pass  Cannot be NULL.
  * @param index Attachment index to consume.
@@ -893,6 +861,38 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve);
  * @param index Attachment index to release.
  */
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
+
+/**
+ * Sets the render state of a render pass.
+ * @param pass  Cannot be NULL.
+ * @param state Any member may be NULL to omit setting the associated state.
+ *
+ * No-op if not a render pass.
+ */
+GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
+
+/**
+ * Retrieves the current render state of a render pass.
+ * @param pass Cannot be NULL.
+ * @return Output state, read-only!
+ *
+ * Returns all NULL's if not a render pass.
+ */
+GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
+
+/**
+ * Retrieves the virtual frame size associated with a render pass.
+ * @param pass   Cannot be NULL.
+ * @param width  Cannot be NULL, output width.
+ * @param height Cannot be NULL, output height.
+ * @param layers Cannot be NULL, output layers.
+ *
+ * Only outputs the _actual_ size, meaning this will only return meaningful
+ * values when called inbetween gfx_frame_start and gfx_frame_submit.
+ * Outputs 0,0,0 if no associated attachments.
+ */
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height, uint32_t* layers);
 
 /**
  * Retrieves the number of parents of a pass.
