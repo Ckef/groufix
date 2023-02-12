@@ -129,7 +129,9 @@ GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep);
 typedef enum GFXInjectType
 {
 	GFX_DEP_SIGNAL,
+	GFX_DEP_SIGNAL_FROM,
 	GFX_DEP_SIGNAL_RANGE,
+	GFX_DEP_SIGNAL_RANGE_FROM,
 	GFX_DEP_WAIT
 
 } GFXInjectType;
@@ -156,6 +158,12 @@ typedef struct GFXInject
 
 	// Shader stages that will have access.
 	GFXShaderStage stage;
+
+	// Access scope that does the signaling.
+	GFXAccessMask maskf;
+
+	// Shader stages that do the signaling.
+	GFXShaderStage stagef;
 
 } GFXInject;
 
@@ -193,6 +201,9 @@ typedef struct GFXInject
  * To apply both of the above simultaneously, use
  *  `gfx_dep_sigra`
  *
+ * To specify the source access mask and stages of a specific resource, use
+ *  `gfx_dep_sigrf` or `gfx_dep_sigraf`
+ *
  * Resources are considered referenced by the dependency object as long as it
  * has not formed a valid signal/wait pair, meaning the resources in question
  * cannot be freed until its dependencies are waited upon.
@@ -227,6 +238,17 @@ typedef struct GFXInject
 		.stage = stage_ \
 	}
 
+#define gfx_dep_sigrf(dep_, maskf_, stagef_, mask_, stage_, ref_) \
+	GFX_LITERAL(GFXInject){ \
+		.type = GFX_DEP_SIGNAL_FROM, \
+		.dep = dep_, \
+		.ref = ref_, \
+		.mask = mask_, \
+		.stage = stage_, \
+		.maskf = maskf_, \
+		.stagef = stagef_ \
+	}
+
 #define gfx_dep_siga(dep_, mask_, stage_, range_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_DEP_SIGNAL_RANGE, \
@@ -245,6 +267,18 @@ typedef struct GFXInject
 		.range = range_, \
 		.mask = mask_, \
 		.stage = stage_ \
+	}
+
+#define gfx_dep_sigraf(dep_, maskf_, stagef_, mask_, stage_, ref_, range_) \
+	GFX_LITERAL(GFXInject){ \
+		.type = GFX_DEP_SIGNAL_RANGE_FROM, \
+		.dep = dep_, \
+		.ref = ref_, \
+		.range = range_, \
+		.mask = mask_, \
+		.stage = stage_, \
+		.maskf = maskf_, \
+		.stagef = stagef_ \
 	}
 
 #define gfx_dep_wait(dep_) \

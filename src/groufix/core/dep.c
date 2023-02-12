@@ -12,6 +12,24 @@
 #include <string.h>
 
 
+#define _GFX_INJ_IS_SIGNAL(inj) \
+	((inj).type == GFX_DEP_SIGNAL || \
+	(inj).type == GFX_DEP_SIGNAL_FROM || \
+	(inj).type == GFX_DEP_SIGNAL_RANGE || \
+	(inj).type == GFX_DEP_SIGNAL_RANGE_FROM)
+
+#define _GFX_INJ_IS_RANGED(inj) \
+	((inj).type == GFX_DEP_SIGNAL_RANGE || \
+	(inj).type == GFX_DEP_SIGNAL_RANGE_FROM)
+
+#define _GFX_INJ_IS_SOURCED(inj) \
+	((inj).type == GFX_DEP_SIGNAL_FROM || \
+	(inj).type == GFX_DEP_SIGNAL_RANGE_FROM)
+
+#define _GFX_INJ_IS_WAIT(inj) \
+	((inj).type == GFX_DEP_WAIT)
+
+
 // Outputs an injection element & auto log, num and elems are lvalues.
 #define _GFX_INJ_OUTPUT(num, elems, size, insert, action) \
 	do { \
@@ -417,7 +435,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	// synchronization objects and 'catch' them with a potential barrier.
 	for (size_t i = 0; i < numInjs; ++i)
 	{
-		if (injs[i].type != GFX_DEP_WAIT)
+		if (!_GFX_INJ_IS_WAIT(injs[i]))
 			continue;
 
 		// Now the bit where we match against all pending sync objects.
@@ -588,12 +606,8 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 	// them with a potential barrier.
 	for (size_t i = 0; i < numInjs; ++i)
 	{
-		if (
-			injs[i].type != GFX_DEP_SIGNAL &&
-			injs[i].type != GFX_DEP_SIGNAL_RANGE)
-		{
+		if (!_GFX_INJ_IS_SIGNAL(injs[i]))
 			continue;
-		}
 
 		// Check the context the resource was built on.
 		_GFXUnpackRef unp = _gfx_ref_unpack(injs[i].ref);
@@ -651,6 +665,22 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 
 				continue;
 			}
+		}
+
+		// If there were no injection references to filter against,
+		// we must have used a sourced injection command.
+		else if (refs == &unp &&
+			// Except when it is an attachment, we can use its final mask!
+			unp.obj.renderer == NULL && !_GFX_INJ_IS_SOURCED(injs[i]))
+		{
+			gfx_log_warn(
+				"Dependency signal command ignored, "
+				"unable to determine source access mask and stage. "
+				"Try using one of the following commands instead:\n"
+				"    `gfx_dep_sigrf`\n"
+				"    `gfx_dep_sigraf`\n");
+
+			continue;
 		}
 
 		// Not much to do...
@@ -782,29 +812,28 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			else
 				sync->vk.buffer = buffer;
 
-			// TODO:DEP: Make special signal commands that give the source
-			// access/stage/layout if there are no operation references or
-			// attachment to get it from?
-			// TODO:DEP: If it does not know the source access/stage/layout,
-			// log a warning so the user knows!
-
 			// Get all access/stage flags for the resource to signal.
-			const GFXAccessMask srcMask = (refs != &unp) ?
-				injection->inp.masks[r] :
+			const GFXAccessMask srcMask =
+				(refs != &unp) ? injection->inp.masks[r] :
+				(injection->inp.numRefs > 0) ? injMask :
 				// If we have no injection references to get it from,
-				// See if we can get a final mask from attachments!
+				// see if we can get a final mask from attachments!
 				// If `attach->final != NULL`, it must be valid because
 				// the renderer will first analyze the graph, setting this
 				// pointer. All other operations provide injection references!
 				// Important: This is why we cannot use renderer attachments
 				// in other renderers!
-				(injection->inp.numRefs == 0 && attach && attach->final) ?
-					attach->final->mask : injMask;
+				(attach && attach->final) ? attach->final->mask :
+				// If all else fails, check for a sourced injection command.
+				_GFX_INJ_IS_SOURCED(injs[i]) ? injs[i].maskf : 0;
 
 			const GFXShaderStage srcStage =
+				// Check injection reference to not dereference attachments.
+				(refs != &unp || injection->inp.numRefs > 0) ? GFX_STAGE_ANY :
 				// No injection references, check attachments again!
-				(injection->inp.numRefs == 0 && attach && attach->final) ?
-					attach->final->stage : GFX_STAGE_ANY;
+				(attach && attach->final) ? attach->final->stage :
+				// Or sourced injection command!
+				_GFX_INJ_IS_SOURCED(injs[i]) ? injs[i].stagef : GFX_STAGE_ANY;
 
 			const GFXAccessMask hostMask =
 				// Ignore host access if an image, not mappable anyway!
@@ -821,7 +850,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				// If given a range but not a reference,
 				// use the same range for all resources...
 				// Passing a mask of 0 yields an undefined image layout.
-				(injs[i].type == GFX_DEP_SIGNAL_RANGE) ? &injs[i].range : NULL,
+				_GFX_INJ_IS_RANGED(injs[i]) ? &injs[i].range : NULL,
 				(refs == &unp) ? _gfx_ref_size(injs[i].ref) : injection->inp.sizes[r],
 				srcMask, srcStage,
 				&sync->range,

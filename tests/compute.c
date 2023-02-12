@@ -118,9 +118,10 @@ TEST_DESCRIBE(compute, t)
 	// Render a single 'frame'.
 	GFXFrame* frame = gfx_renderer_acquire(t->renderer);
 	gfx_frame_start(frame, 1, (GFXInject[]){
-		// TODO:DEP: Give source access/stage because renderer doesn't know?
-		gfx_dep_sigr(t->dep,
-			GFX_ACCESS_HOST_READ, GFX_STAGE_NONE, gfx_ref_buffer(buffer))
+		gfx_dep_sigrf(t->dep,
+			GFX_ACCESS_STORAGE_READ_WRITE, GFX_STAGE_COMPUTE,
+			GFX_ACCESS_HOST_READ, GFX_STAGE_NONE,
+			gfx_ref_buffer(buffer))
 	});
 
 	gfx_recorder_compute(t->recorder, GFX_COMPUTE_NONE, pass, compute, &ctx);
