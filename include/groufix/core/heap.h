@@ -61,8 +61,9 @@ typedef enum GFXMemoryFlags
 	GFX_MEMORY_DEVICE_LOCAL = 0x0002, // Implied if GFX_MEMORY_HOST_VISIBLE is _not_ set.
 
 	// For memory resource operations.
-	GFX_MEMORY_READ  = 0x0004,
-	GFX_MEMORY_WRITE = 0x0008,
+	GFX_MEMORY_READ       = 0x0004,
+	GFX_MEMORY_WRITE      = 0x0008,
+	GFX_MEMORY_READ_WRITE = 0x000c,
 
 	// To allow concurrent async access.
 	GFX_MEMORY_COMPUTE_CONCURRENT  = 0x0010,

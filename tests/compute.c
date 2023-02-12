@@ -120,7 +120,7 @@ TEST_DESCRIBE(compute, t)
 	gfx_frame_start(frame, 1, (GFXInject[]){
 		// TODO:DEP: Give source access/stage because renderer doesn't know?
 		gfx_dep_sigr(t->dep,
-			GFX_ACCESS_HOST_READ, GFX_STAGE_ANY, gfx_ref_buffer(buffer))
+			GFX_ACCESS_HOST_READ, GFX_STAGE_NONE, gfx_ref_buffer(buffer))
 	});
 
 	gfx_recorder_compute(t->recorder, GFX_COMPUTE_NONE, pass, compute, &ctx);

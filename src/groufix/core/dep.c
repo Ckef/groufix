@@ -794,8 +794,10 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				// If we have no injection references to get it from,
 				// See if we can get a final mask from attachments!
 				// If `attach->final != NULL`, it must be valid because
-				// only the renderer does not provide injection references,
-				// it will first analyze the graph, setting this pointer!
+				// the renderer will first analyze the graph, setting this
+				// pointer. All other operations provide injection references!
+				// Important: This is why we cannot use renderer attachments
+				// in other renderers!
 				(injection->inp.numRefs == 0 && attach && attach->final) ?
 					attach->final->mask : injMask;
 

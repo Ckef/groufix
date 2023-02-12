@@ -1811,7 +1811,7 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame);
  * Builds the Vulkan render pass if not present yet.
  * Can be used for potential pipeline warmups.
  * @param rPass Cannot be NULL.
- * @param Non-zero on success.
+ * @return Non-zero on success.
  *
  * Before the initial call to _gfx_pass_(warmup|build) and once after a call
  * to _gfx_pass_destruct, the following MUST be set to influence the build:
@@ -1831,7 +1831,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass);
 
 /**
  * Rebuilds Vulkan objects, does NOT build not yet built objects!
- * @param rPass  Cannot be NULL.
+ * @param rPass Cannot be NULL.
  * @param flags Must contain the _GFX_RECREATE bit.
  * @return Non-zero if rebuilt successfully.
  *

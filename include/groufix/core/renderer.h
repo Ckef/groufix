@@ -704,7 +704,7 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 
 /**
  * Retrieves the index of a virtual frame, used to identify the frame.
- * All frame indices are in the range [0, #frames of the renderer].
+ * All frame indices are in the range [0, #frames of the renderer - 1].
  * They will be acquired in order, starting at 0.
  * @param frame Cannot be NULL.
  *
