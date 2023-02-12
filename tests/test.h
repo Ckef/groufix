@@ -60,6 +60,9 @@
  *   i.e. no renderables (or associated resources) are created.
  *   To record with the created scene, default render callbacks are defined:
  *    TEST_CALLBACK_RENDER
+ *
+ * Lastly, the created renderer will have 2 virtual render frames by default.
+ * To override this behaviour, TEST_NUM_FRAMES can be defined.
  */
 
 
@@ -153,11 +156,16 @@
 
 /**
  * Global TestBase struct and
- * default event handlers & callbacks.
+ * default event handlers & callbacks and
+ * number of frames to create.
  */
 #define TEST_BASE _test_base
 #define TEST_EVT_KEY_RELEASE _test_key_release
 #define TEST_CALLBACK_RENDER _test_default_render
+
+#ifndef TEST_NUM_FRAMES
+	#define TEST_NUM_FRAMES 2
+#endif
 
 
 /**
@@ -405,12 +413,12 @@ static void _test_init(TestState* _test_state)
 	if (_test_base.heap == NULL)
 		TEST_FAIL();
 
-	_test_base.dep = gfx_create_dep(_test_base.device, 2);
+	_test_base.dep = gfx_create_dep(_test_base.device, TEST_NUM_FRAMES);
 	if (_test_base.dep == NULL)
 		TEST_FAIL();
 
 	// Create a renderer.
-	_test_base.renderer = gfx_create_renderer(_test_base.device, 2);
+	_test_base.renderer = gfx_create_renderer(_test_base.device, TEST_NUM_FRAMES);
 	if (_test_base.renderer == NULL)
 		TEST_FAIL();
 

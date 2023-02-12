@@ -15,7 +15,7 @@
 static void render2(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
 	gfx_cmd_bind(recorder, TEST_BASE.technique, 0, 1, 0, &TEST_BASE.set, NULL);
-	gfx_cmd_draw_indexed(recorder, (GFXRenderable*)ptr, 0, 0, 0, 0, 1);
+	gfx_cmd_draw_indexed(recorder, (GFXRenderable*)ptr, 0, 1, 0, 0, 0);
 }
 
 

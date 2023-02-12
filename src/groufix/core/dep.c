@@ -782,9 +782,11 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			else
 				sync->vk.buffer = buffer;
 
-			// TODO: Make special signal commands that give the source
+			// TODO:DEP: Make special signal commands that give the source
 			// access/stage/layout if there are no operation references or
 			// attachment to get it from?
+			// TODO:DEP: If it does not know the source access/stage/layout,
+			// log a warning so the user knows!
 
 			// Get all access/stage flags for the resource to signal.
 			const GFXAccessMask srcMask = (refs != &unp) ?
@@ -923,6 +925,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				if (transfer)
 					sync->vk.srcAccess = 0,
 					sync->vk.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+					// Reset flags in case flushToHost removed them.
 					sync->flags = flags;
 
 				sync->vk.dstAccess = dstAccess;
