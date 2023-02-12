@@ -425,7 +425,7 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 	// In this upcoming loop we can acquire all the swapchain images.
 	gfx_vec_release(&frame->refs);
 
-	if (!gfx_vec_push(&frame->refs, attachs->size, NULL))
+	if (attachs->size > 0 && !gfx_vec_push(&frame->refs, attachs->size, NULL))
 		goto error;
 
 	// Remember all recreate flags.

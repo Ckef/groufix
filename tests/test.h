@@ -41,6 +41,10 @@
  * default renderer setup. To override default behaviour you can disable some
  * building steps, define one of the following before includng this file:
  *
+ * TEST_SKIP_CREATE_WINDOW
+ *   Do not open a base window to render to.
+ *   Also skips creating a render graph and scene.
+ *
  * TEST_SKIP_EVENT_HANDLERS
  *   Do not register the default event handlers for the base window.
  *   To set event handlers yourself, default event handlers are defined:
@@ -71,6 +75,16 @@
 #endif
 
 
+// Make disable defines cascade.
+#if defined (TEST_SKIP_CREATE_WINDOW)
+	#define TEST_SKIP_CREATE_RENDER_GRAPH
+#endif
+
+#if defined (TEST_SKIP_CREATE_RENDER_GRAPH)
+	#define TEST_SKIP_CREATE_SCENE
+#endif
+
+
 // Failure & success printing.
 #define _TEST_PRINT_FAIL(name) \
 	fprintf(stderr, "\n** %s test failed\n\n", name)
@@ -84,9 +98,11 @@
 	static TestState _test_state_##tName = { .state = TEST_IDLE, .name = #tName }; \
 	void _test_func_##tName(TestBase* base, TestState* _test_state)
 
+
 // Forces the test to fail.
 #define TEST_FAIL() \
 	_test_fail(_test_state)
+
 
 // Runs a test function from within another test function.
 #define TEST_RUN(tName) \
@@ -99,6 +115,7 @@
 		} \
 	} while (0)
 
+
 // Runs a test in a new thread.
 #define TEST_RUN_THREAD(tName) \
 	do { \
@@ -110,6 +127,7 @@
 		} \
 	} while (0)
 
+
 // Joins a threaded test function.
 #define TEST_JOIN(tName) \
 	do { \
@@ -119,6 +137,7 @@
 			_test_state_##tName.state = TEST_IDLE; \
 		} \
 	} while(0)
+
 
 // Main entry point for a test program, runs the given test name.
 #define TEST_MAIN(tName) \
@@ -316,6 +335,8 @@ static void* _test_thrd(void* arg)
 #endif
 
 
+#if !defined (TEST_SKIP_CREATE_WINDOW)
+
 /**
  * Default key release event handler.
  */
@@ -351,6 +372,8 @@ static void _test_key_release(GFXWindow* window,
 	}
 }
 
+#endif
+
 
 #if !defined (TEST_SKIP_CREATE_SCENE)
 
@@ -377,6 +400,26 @@ static void _test_init(TestState* _test_state)
 	if (!gfx_init())
 		TEST_FAIL();
 
+	// Create a heap & dependency.
+	_test_base.heap = gfx_create_heap(_test_base.device);
+	if (_test_base.heap == NULL)
+		TEST_FAIL();
+
+	_test_base.dep = gfx_create_dep(_test_base.device, 2);
+	if (_test_base.dep == NULL)
+		TEST_FAIL();
+
+	// Create a renderer.
+	_test_base.renderer = gfx_create_renderer(_test_base.device, 2);
+	if (_test_base.renderer == NULL)
+		TEST_FAIL();
+
+	// Add a single recorder.
+	_test_base.recorder = gfx_renderer_add_recorder(_test_base.renderer);
+	if (_test_base.recorder == NULL)
+		TEST_FAIL();
+
+#if !defined (TEST_SKIP_CREATE_WINDOW)
 	// Create a window.
 	_test_base.window = gfx_create_window(
 		GFX_WINDOW_RESIZABLE | GFX_WINDOW_DOUBLE_BUFFER,
@@ -391,26 +434,8 @@ static void _test_init(TestState* _test_state)
 	_test_base.window->events.key.release = TEST_EVT_KEY_RELEASE;
 #endif
 
-	// Create a heap & dependency.
-	_test_base.heap = gfx_create_heap(_test_base.device);
-	if (_test_base.heap == NULL)
-		TEST_FAIL();
-
-	_test_base.dep = gfx_create_dep(_test_base.device, 2);
-	if (_test_base.dep == NULL)
-		TEST_FAIL();
-
-	// Create a renderer and attach the window at index 0.
-	_test_base.renderer = gfx_create_renderer(_test_base.device, 2);
-	if (_test_base.renderer == NULL)
-		TEST_FAIL();
-
+	// Attach the window at index 0.
 	if (!gfx_renderer_attach_window(_test_base.renderer, 0, _test_base.window))
-		TEST_FAIL();
-
-	// Add a single recorder.
-	_test_base.recorder = gfx_renderer_add_recorder(_test_base.renderer);
-	if (_test_base.recorder == NULL)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
@@ -636,6 +661,7 @@ static void _test_init(TestState* _test_state)
 
 #endif // TEST_SKIP_CREATE_SCENE
 #endif // TEST_SKIP_CREATE_RENDER_GRAPH
+#endif // TEST_SKIP_CREATE_WINDOW
 }
 
 

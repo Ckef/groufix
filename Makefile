@@ -323,6 +323,7 @@ $(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
 
 # Platform flags
 UNIX_TESTS = \
+ $(BIN)$(SUB)/compute \
  $(BIN)$(SUB)/fps \
  $(BIN)$(SUB)/loading \
  $(BIN)$(SUB)/minimal \
@@ -331,6 +332,7 @@ UNIX_TESTS = \
  $(BIN)$(SUB)/windows
 
 WIN_TESTS = \
+ $(BIN)$(SUB)/compute.exe \
  $(BIN)$(SUB)/fps.exe \
  $(BIN)$(SUB)/loading.exe \
  $(BIN)$(SUB)/minimal.exe \
