@@ -15,7 +15,7 @@
 static void render2(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
 	gfx_cmd_bind(recorder, TEST_BASE.technique, 0, 1, 0, &TEST_BASE.set, NULL);
-	gfx_cmd_draw_indexed(recorder, (GFXRenderable*)ptr, 0, 0, 0, 0, 1);
+	gfx_cmd_draw_indexed(recorder, (GFXRenderable*)ptr, 0, 1, 0, 0, 0);
 }
 
 
@@ -41,7 +41,9 @@ TEST_DESCRIBE(windows, t)
 		TEST_FAIL();
 
 	// And create a pass writing to it.
-	GFXPass* pass2 = gfx_renderer_add_pass(t->renderer, 0, NULL);
+	GFXPass* pass2 = gfx_renderer_add_pass(
+		t->renderer, GFX_PASS_RENDER, 0, NULL);
+
 	if (pass2 == NULL)
 		TEST_FAIL();
 

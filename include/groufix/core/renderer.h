@@ -68,6 +68,17 @@ typedef struct GFXAttachment
 
 
 /**
+ * Render/compute pass type.
+ */
+typedef enum GFXPassType
+{
+	GFX_PASS_RENDER,
+	GFX_PASS_COMPUTE
+
+} GFXPassType;
+
+
+/**
  * Attachment clear value.
  */
 typedef union GFXClear
@@ -515,7 +526,7 @@ typedef struct GFXComputable
  * The object pointed to by renderable _CAN_ be moved or copied!
  * Any member of state may be NULL to omit setting the associated state.
  * @param renderable Cannot be NULL.
- * @param pass       Cannot be NULL.
+ * @param pass       Cannot be NULL, must be a render pass.
  * @param tech       Cannot be NULL.
  * @param prim       May be NULL!
  * @param state      May be NULL, `blend.color` and `blend.alpha` are ignored.
@@ -553,6 +564,8 @@ GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable);
  * The object pointed to by computable _CAN_ be moved or copied!
  * @param computable Cannot be NULL.
  * @see gfx_renderable.
+ *
+ * No need for a pass, computables can be dispatched in any compute pass!
  */
 GFX_API bool gfx_computable(GFXComputable* computable,
                             GFXTechnique* tech);
@@ -746,65 +759,30 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
  */
-GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer,
+GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
                                        size_t numParents, GFXPass** parents);
 
 /**
- * Retrieves the number of sink passes of a renderer.
- * A sink pass is one that is not a parent of any pass (last in the path).
- * @param renderer Cannot be NULL.
- *
- * This number may change when a new pass is added.
- */
-GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
-
-/**
- * Retrieves a sink pass of a renderer.
- * @param renderer Cannot be NULL.
- * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
- *
- * The index of each sink may change when a new pass is added, however
- * their relative order remains fixed during the lifetime of the renderer.
- */
-GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
-
-/**
- * Sets the render state of a pass.
- * @param pass  Cannot be NULL.
- * @param state Any member may be NULL to omit setting the associated state.
- */
-GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
-
-/**
- * Retrieves the current render state of a pass.
+ * Retrieves the type of a pass.
  * @param pass Cannot be NULL.
- * @return Output state, read-only!
+ * @return Type of the pass, either render or compute.
  */
-GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
-
-/**
- * Retrieves the virtual frame size associated with a pass.
- * @param pass   Cannot be NULL.
- * @param width  Cannot be NULL, output width.
- * @param height Cannot be NULL, output height.
- * @param layers Cannot be NULL, output layers.
- *
- * Only outputs the _actual_ size, meaning this will only return meaningful
- * values when called inbetween gfx_frame_start and gfx_frame_submit.
- * Outputs 0,0,0 if no associated attachments.
- */
-GFX_API void gfx_pass_get_size(GFXPass* pass,
-                               uint32_t* width, uint32_t* height, uint32_t* layers);
+GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass);
 
 /**
  * Consume an attachment of a renderer.
- * Shader location is in add-order, calling with the same index twice
- * does _not_ change the shader location, should release first.
  * @param pass  Cannot be NULL.
  * @param index Attachment index to consume.
  * @param mask  Access mask to consume the attachment with.
  * @param stage Shader stages with access to the attachment.
  * @return Zero on failure.
+ *
+ * For synchronization purposes it is still necessary to consume an attachment
+ * when said attachment is only used in bound sets while recording.
+ *
+ * For render passes:
+ *  Shader location is in add-order, calling with the same index twice
+ *  does _not_ change the shader location, should release first.
  */
 GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
                               GFXAccessMask mask, GFXShaderStage stage);
@@ -832,8 +810,8 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
  * @param index  Attachment index to clear.
  * @param aspect Cannot contain both color AND depth/stencil!
  *
- * No-op if attachment at index is not consumed!
- * Only has effect if consumed with attachment access.
+ * No-op if attachment at index is not consumed.
+ * Only has effect if consumed by a render pass, with attachment access.
  */
 GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
                             GFXImageAspect aspect, GFXClear value);
@@ -865,6 +843,43 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve);
  * @param index Attachment index to release.
  */
 GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
+
+/**
+ * Sets the render state of a render pass.
+ * @param pass  Cannot be NULL.
+ * @param state Any member may be NULL to omit setting the associated state.
+ *
+ * No-op if not a render pass.
+ */
+GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
+
+/**
+ * Retrieves the current render state of a render pass.
+ * @param pass Cannot be NULL.
+ * @return Output state, read-only!
+ *
+ * Returns all NULL's if not a render pass.
+ */
+GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
+
+/**
+ * Retrieves the number of sink passes of a renderer.
+ * A sink pass is one that is not a parent of any pass (last in the path).
+ * @param renderer Cannot be NULL.
+ *
+ * This number may change when a new pass is added.
+ */
+GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
+
+/**
+ * Retrieves a sink pass of a renderer.
+ * @param renderer Cannot be NULL.
+ * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
+ *
+ * The index of each sink may change when a new pass is added, however
+ * their relative order remains fixed during the lifetime of the renderer.
+ */
+GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
 
 /**
  * Retrieves the number of parents of a pass.
@@ -1141,10 +1156,8 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
  */
 typedef enum GFXComputeFlags
 {
-	GFX_COMPUTE_NONE   = 0x0000,
-	GFX_COMPUTE_ASYNC  = 0x0001,
-	GFX_COMPUTE_BEFORE = 0x0002,
-	GFX_COMPUTE_AFTER  = 0x0004 // Overrules GFX_COMPUTE_BEFORE.
+	GFX_COMPUTE_NONE  = 0x0000,
+	GFX_COMPUTE_ASYNC = 0x0001
 
 } GFXComputeFlags;
 
@@ -1179,6 +1192,18 @@ typedef struct GFXDrawIndexedCmd
 
 
 /**
+ * Indirect dispatch command parameters.
+ */
+typedef struct GFXDispatchCmd
+{
+	uint32_t x;
+	uint32_t y;
+	uint32_t z;
+
+} GFXDispatchCmd;
+
+
+/**
  * Adds a new recorder to the renderer.
  * @param renderer Cannot be NULL.
  * @return NULL on failure.
@@ -1199,24 +1224,10 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
 GFX_API void gfx_erase_recorder(GFXRecorder* recorder);
 
 /**
- * Retrieves the virtual frame size associated with the current pass.
- * @param recorder Cannot be NULL.
- * @param width    Cannot be NULL, output width.
- * @param height   Cannot be NULL, output height.
- * @param layers   Cannot be NULL, output layers.
- *
- * Only outputs the _actual_ size, meaning this will only return meaningful
- * values when called within a callback of gfx_recorder_(render|compute).
- * Outputs 0,0,0 if no associated attachments.
- */
-GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
-                                   uint32_t* width, uint32_t* height, uint32_t* layers);
-
-/**
  * Records render commands within a given pass.
  * The callback takes this recorder and the current virtual frame index.
  * @param recorder Cannot be NULL.
- * @param pass     Cannot be NULL.
+ * @param pass     Cannot be NULL, must be a render pass.
  * @param cb       Callback, cannot be NULL.
  * @param ptr      User pointer as third argument of cb.
  *
@@ -1229,18 +1240,46 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
                                  void* ptr);
 
 /**
- * TODO:COM: Draft; probably want to make explicit compute passes (or a pass type).
  * Records compute commands within a given pass.
  * The callback takes this recorder and the current virtual frame index.
+ * @param pass Must be a compute pass if set.
  * @see gfx_recorder_render.
  *
- * If GFX_COMPUTE_ASYNC is set, pass is ignored and the submission order
- * is before/after all passes as defined by GFX_COMPUTE_(BEFORE|AFTER).
+ * If GFX_COMPUTE_ASYNC is set, pass is ignored,
+ * however if it is not set, pass cannot be NULL.
  */
 GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
                                   GFXPass* pass,
                                   void (*cb)(GFXRecorder*, unsigned int, void*),
                                   void* ptr);
+
+/**
+ * Retrieves the virtual frame size associated with the current pass.
+ * @param recorder Cannot be NULL.
+ * @param width    Cannot be NULL, output width.
+ * @param height   Cannot be NULL, output height.
+ * @param layers   Cannot be NULL, output layers.
+ *
+ * Only outputs the _actual_ size, meaning this will only return meaningful
+ * values when called within a callback of gfx_recorder_(render|compute).
+ * Outputs 0,0,0 if no associated attachments or not a render pass.
+ */
+GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
+                                   uint32_t* width, uint32_t* height, uint32_t* layers);
+
+/**
+ * Retrieves the virtual frame size associated with a render pass.
+ * @param pass   Cannot be NULL.
+ * @param width  Cannot be NULL, output width.
+ * @param height Cannot be NULL, output height.
+ * @param layers Cannot be NULL, output layers.
+ *
+ * Only outputs the _actual_ size, meaning this will only return meaningful
+ * values when called inbetween gfx_frame_start and gfx_frame_submit.
+ * Outputs 0,0,0 if no associated attachments or not a render pass.
+ */
+GFX_API void gfx_pass_get_size(GFXPass* pass,
+                               uint32_t* width, uint32_t* height, uint32_t* layers);
 
 /**
  * Render command to bind a render/descriptor set.
@@ -1333,12 +1372,24 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
  * Can only be called within a callback of gfx_recorder_compute!
  * @param recorder   Cannot be NULL.
  * @param computable Cannot be NULL.
- * @param groupX     Must be > 0.
- * @param groupY     Must be > 0.
- * @param groupZ     Must be > 0.
+ * @param x          Must be > 0.
+ * @param y          Must be > 0.
+ * @param z          Must be > 0.
  */
 GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
-                              uint32_t groupX, uint32_t groupY, uint32_t groupZ);
+                              uint32_t x, uint32_t y, uint32_t z);
+
+/**
+ * Compute command to indirectly (from buffer) record a compute dispatch.
+ * Can only be called within a callback of gfx_recorder_compute!
+ * @param recorder   Cannot be NULL.
+ * @param computable Cannot be NULL.
+ * @param ref        Cannot be GFX_REF_NULL.
+ *
+ * The buffer must contain a GFXDispatchCmd structure.
+ */
+GFX_API void gfx_cmd_dispatch_from(GFXRecorder* recorder, GFXComputable* computable,
+                                   GFXBufferRef ref);
 
 
 #endif

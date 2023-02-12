@@ -779,6 +779,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CmdCopyBufferToImage);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdCopyImageToBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdDispatch);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdDispatchIndirect);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdDraw);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdDrawIndexed);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdDrawIndexedIndirect);

@@ -47,6 +47,8 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	assert(renderable != NULL);
 	assert(warmup || elem != NULL);
 
+	_GFXRenderPass* rPass = (_GFXRenderPass*)renderable->pass;
+
 	// Firstly, spin-lock the renderable and check if we have an up-to-date
 	// pipeline, if so, we can just return :)
 	// Immediately unlock afterwards for maximum concurrency!
@@ -54,7 +56,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 	if (
 		renderable->pipeline != (uintptr_t)NULL &&
-		renderable->gen == _GFX_PASS_GEN(renderable->pass))
+		renderable->gen == _GFX_PASS_GEN(rPass))
 	{
 		if (!warmup) *elem = (void*)renderable->pipeline;
 		_gfx_renderable_unlock(renderable);
@@ -66,7 +68,6 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	// We do not have a pipeline, create a new one.
 	// Multiple threads could end up creating the same new pipeline, but
 	// this is not expected to be a consistently occuring event so it's fine.
-	GFXPass* pass = renderable->pass;
 	GFXTechnique* tech = renderable->technique;
 	_GFXPrimitive* prim = (_GFXPrimitive*)renderable->primitive;
 
@@ -85,31 +86,31 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		return 0;
 	}
 
-	if (pass->build.pass == NULL)
+	if (rPass->build.pass == NULL)
 	{
 		gfx_log_warn("Pass not warmed while building pipeline.");
 		return 0;
 	}
 
 	handles[numShaders+0] = tech->layout;
-	handles[numShaders+1] = pass->build.pass;
+	handles[numShaders+1] = rPass->build.pass;
 
 	// Gather appropriate state data.
 	const GFXRasterState* raster =
 		(renderable->state != NULL && renderable->state->raster != NULL) ?
-		renderable->state->raster : &pass->state.raster;
+		renderable->state->raster : &rPass->state.raster;
 
 	const GFXBlendState* blend =
 		(renderable->state != NULL && renderable->state->blend != NULL) ?
-		renderable->state->blend : &pass->state.blend;
+		renderable->state->blend : &rPass->state.blend;
 
 	const GFXDepthState* depth =
 		(renderable->state != NULL && renderable->state->depth != NULL) ?
-		renderable->state->depth : &pass->state.depth;
+		renderable->state->depth : &rPass->state.depth;
 
 	const GFXStencilState* stencil =
 		(renderable->state != NULL && renderable->state->stencil != NULL) ?
-		renderable->state->stencil : &pass->state.stencil;
+		renderable->state->stencil : &rPass->state.stencil;
 
 	// Build rasterization info.
 	const bool noRaster = (raster->mode == GFX_RASTER_DISCARD);
@@ -148,8 +149,8 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		.flags           = 0,
 		.logicOpEnable   = VK_FALSE,
 		.logicOp         = VK_LOGIC_OP_COPY,
-		.attachmentCount = (uint32_t)pass->vk.blends.size,
-		.pAttachments    = gfx_vec_at(&pass->vk.blends, 0),
+		.attachmentCount = (uint32_t)rPass->vk.blends.size,
+		.pAttachments    = gfx_vec_at(&rPass->vk.blends, 0),
 		.blendConstants  = { 0.0f, 0.0f, 0.0f, 0.0f }
 	};
 
@@ -196,7 +197,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		.maxDepthBounds        = 1.0f
 	};
 
-	if (!noRaster && (pass->state.enabled & _GFX_PASS_DEPTH))
+	if (!noRaster && (rPass->state.enabled & _GFX_PASS_DEPTH))
 	{
 		pdssci.depthTestEnable = VK_TRUE;
 		pdssci.depthCompareOp = _GFX_GET_VK_COMPARE_OP(depth->cmp);
@@ -212,7 +213,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		}
 	}
 
-	if (!noRaster && (pass->state.enabled & _GFX_PASS_STENCIL))
+	if (!noRaster && (rPass->state.enabled & _GFX_PASS_STENCIL))
 	{
 		pdssci.stencilTestEnable = VK_TRUE;
 
@@ -297,8 +298,8 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		.stageCount          = numShaders,
 		.pStages             = pstci,
 		.layout              = tech->vk.layout,
-		.renderPass          = pass->vk.pass,
-		.subpass             = pass->out.subpass,
+		.renderPass          = rPass->vk.pass,
+		.subpass             = rPass->out.subpass,
 		.basePipelineHandle  = VK_NULL_HANDLE,
 		.basePipelineIndex   = -1,
 		.pRasterizationState = &prsci,
@@ -307,7 +308,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 		.pDepthStencilState =
 			// Even if rasterization is disabled, Vulkan expects this.
-			pass->state.enabled & (_GFX_PASS_DEPTH | _GFX_PASS_STENCIL) ?
+			rPass->state.enabled & (_GFX_PASS_DEPTH | _GFX_PASS_STENCIL) ?
 			&pdssci : NULL,
 
 		.pVertexInputState = (VkPipelineVertexInputStateCreateInfo[]){{
@@ -356,7 +357,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.alphaToOneEnable      = VK_FALSE,
 			.rasterizationSamples  =
 				_GFX_GET_VK_SAMPLE_COUNT(
-					GFX_MAX(raster->samples, pass->state.samples)),
+					GFX_MAX(raster->samples, rPass->state.samples)),
 		}},
 
 		.pDynamicState = (VkPipelineDynamicStateCreateInfo[]){{
@@ -374,11 +375,11 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 	if (warmup)
 		// If asked to warmup, just do that :)
-		return _gfx_cache_warmup(&pass->renderer->cache, &gpci.sType, handles);
+		return _gfx_cache_warmup(&tech->renderer->cache, &gpci.sType, handles);
 	else
 	{
 		// Otherwise, actually retrieve the pipeline.
-		*elem = _gfx_cache_get(&pass->renderer->cache, &gpci.sType, handles);
+		*elem = _gfx_cache_get(&tech->renderer->cache, &gpci.sType, handles);
 
 		// Finally, update the stored pipeline!
 		// Skip this step on failure tho.
@@ -387,7 +388,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		_gfx_renderable_lock(renderable);
 
 		renderable->pipeline = (uintptr_t)(void*)*elem;
-		renderable->gen = _GFX_PASS_GEN(pass);
+		renderable->gen = _GFX_PASS_GEN(rPass);
 
 		_gfx_renderable_unlock(renderable);
 
@@ -508,6 +509,15 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 			"Could not initialize renderable; its pass and technique must "
 			"share a renderer and be built on the same logical Vulkan "
 			"device as its primitive.");
+
+		return 0;
+	}
+
+	// Renderables must be built for a render pass!
+	if (pass->type != GFX_PASS_RENDER)
+	{
+		gfx_log_error(
+			"Could not initialize renderable; pass must be a render pass.");
 
 		return 0;
 	}

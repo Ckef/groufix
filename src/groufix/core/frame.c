@@ -425,7 +425,7 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 	// In this upcoming loop we can acquire all the swapchain images.
 	gfx_vec_release(&frame->refs);
 
-	if (!gfx_vec_push(&frame->refs, attachs->size, NULL))
+	if (attachs->size > 0 && !gfx_vec_push(&frame->refs, attachs->size, NULL))
 		goto error;
 
 	// Remember all recreate flags.
@@ -564,36 +564,42 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 				_gfx_inject_barrier(renderer, frame, con);
 		}
 
-		// Check if it is built.
-		if (pass->build.pass == NULL)
-			continue;
+		// Begin render pass.
+		if (pass->type == GFX_PASS_RENDER)
+		{
+			_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 
-		// Check for the presence of a framebuffer.
-		VkFramebuffer framebuffer = _gfx_pass_framebuffer(pass, frame);
-		if (framebuffer == VK_NULL_HANDLE)
-			continue;
+			// Check if it is built.
+			if (rPass->build.pass == NULL)
+				continue;
 
-		// Gather all necessary render pass info to record.
-		VkRenderPassBeginInfo rpbi = {
-			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+			// Check for the presence of a framebuffer.
+			VkFramebuffer framebuffer = _gfx_pass_framebuffer(rPass, frame);
+			if (framebuffer == VK_NULL_HANDLE)
+				continue;
 
-			.pNext           = NULL,
-			.renderPass      = pass->vk.pass,
-			.framebuffer     = framebuffer,
-			.clearValueCount = (uint32_t)pass->vk.clears.size,
-			.pClearValues    = gfx_vec_at(&pass->vk.clears, 0),
+			// Gather all necessary render pass info to record.
+			VkRenderPassBeginInfo rpbi = {
+				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 
-			.renderArea = {
-				.offset = { 0, 0 },
-				.extent = {
-					pass->build.fWidth,
-					pass->build.fHeight
+				.pNext           = NULL,
+				.renderPass      = rPass->vk.pass,
+				.framebuffer     = framebuffer,
+				.clearValueCount = (uint32_t)rPass->vk.clears.size,
+				.pClearValues    = gfx_vec_at(&rPass->vk.clears, 0),
+
+				.renderArea = {
+					.offset = { 0, 0 },
+					.extent = {
+						rPass->build.fWidth,
+						rPass->build.fHeight
+					}
 				}
-			}
-		};
+			};
 
-		context->vk.CmdBeginRenderPass(frame->vk.cmd,
-			&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+			context->vk.CmdBeginRenderPass(frame->vk.cmd,
+				&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+		}
 
 		// Record all recorders.
 		for (
@@ -604,7 +610,9 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 			_gfx_recorder_record(rec, pass->order, frame->vk.cmd);
 		}
 
-		context->vk.CmdEndRenderPass(frame->vk.cmd);
+		// End render pass.
+		if (pass->type == GFX_PASS_RENDER)
+			context->vk.CmdEndRenderPass(frame->vk.cmd);
 	}
 
 	// Inject signal commands.
