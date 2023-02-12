@@ -782,12 +782,6 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			else
 				sync->vk.buffer = buffer;
 
-			// TODO: When host read access is set, and the source operation
-			// writes, make sure to modify the barriers appropriately.
-			// Essentially we allow host reading before the next catch, for
-			// which we need a barrier. Host writing is automatically
-			// flushed when submitting the command buffer.
-
 			// TODO: Make special signal commands that give the source
 			// access/stage/layout if there are no operation references or
 			// attachment to get it from?
@@ -809,10 +803,6 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				(injection->inp.numRefs == 0 && attach && attach->final) ?
 					attach->final->stage : GFX_STAGE_ANY;
 
-			const GFXAccessMask dstMask =
-				injs[i].mask &
-				~(GFXAccessMask)(GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE);
-
 			_gfx_dep_unpack(refs + r, attach,
 				// If given a range but not a reference,
 				// use the same range for all resources...
@@ -824,6 +814,10 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				&sync->vk.srcAccess, &sync->vk.oldLayout, &sync->vk.srcStage);
 
 			// Set all destination operation values.
+			const GFXAccessMask dstMask =
+				injs[i].mask &
+				~(GFXAccessMask)(GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE);
+
 			sync->vk.dstAccess =
 				_GFX_GET_VK_ACCESS_FLAGS(dstMask, fmt);
 			sync->vk.dstStage =
@@ -885,25 +879,49 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			// Insert exeuction AND memory barrier @prepare if necessary:
 			// - Inequal queus & not discarding & not concurrent,
 			//   need a release operation.
-			if (transfer)
+			// - Host wants to access the data after this operation.
+			//    *Note we do not need this @catch;
+			//     Vulkan automatically flushes host writes on submit!
+			const GFXAccessMask hostMask =
+				// However ignore host access if an image, not mappable anyway!
+				// This way we don't have to worry about layout transitions.
+				image != VK_NULL_HANDLE ? 0 :
+				injs[i].mask & (GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE);
+
+			if (transfer || hostMask)
 			{
-				// We are transferring ownership.
-				// Zero out destination access/stage for the release.
-				// Zero out source access/stage for the acquire.
 				const VkAccessFlags dstAccess = sync->vk.dstAccess;
 				const VkPipelineStageFlags dstStage = sync->vk.dstStage;
+				const int flags = sync->flags;
 
-				sync->vk.dstAccess = 0,
-				sync->vk.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+				// If we are transferring ownership:
+				//  Zero out destination access/stage for the release.
+				//  Zero out source access/stage for the acquire.
+				if (transfer)
+					// Note: `sync->flags` is always already set above.
+					sync->vk.dstAccess = 0,
+					sync->vk.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
-				// Note: `sync->flags` is always set in the above if statements.
+				// If the host wants access:
+				//  And appropriate host flags to destination access/stage.
+				//  Revert back for any barrier at the catch.
+				if (hostMask)
+					sync->vk.dstAccess |=
+						_GFX_GET_VK_ACCESS_FLAGS(hostMask, fmt),
+					sync->vk.dstStage |=
+						_GFX_GET_VK_PIPELINE_STAGE(hostMask, 0, fmt),
+					sync->flags |=
+						_GFX_SYNC_BARRIER | _GFX_SYNC_MEM_HAZARD;
+
 				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
 
-				sync->vk.srcAccess = 0,
-				sync->vk.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+				if (transfer)
+					sync->vk.srcAccess = 0,
+					sync->vk.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
 				sync->vk.dstAccess = dstAccess;
 				sync->vk.dstStage = dstStage;
+				sync->flags = flags;
 			}
 
 			// Always set destination queue family,

@@ -597,7 +597,7 @@ GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
 		*height = ((_GFXRenderPass*)recorder->inp.pass)->build.fHeight,
 		*layers = ((_GFXRenderPass*)recorder->inp.pass)->build.fLayers;
 	else
-		// Output 0,0 if no associated pass.
+		// Output 0,0,0 if no associated pass.
 		*width = 0,
 		*height = 0,
 		*layers = 0;
@@ -835,7 +835,7 @@ GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
 {
 	static_assert(
 		sizeof(GFXDrawCmd) % 4 == 0,
-		"GFXDrawCmd must be a multiple of 4 bytes.");
+		"sizeof(GFXDrawCmd) must be a multiple of 4 bytes.");
 
 	assert(GFX_REF_IS_BUFFER(ref));
 	assert(recorder != NULL);
@@ -890,7 +890,7 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
 {
 	static_assert(
 		sizeof(GFXDrawIndexedCmd) % 4 == 0,
-		"GFXDrawIndexedCmd must be a multiple of 4 bytes.");
+		"sizeof(GFXDrawIndexedCmd) must be a multiple of 4 bytes.");
 
 	assert(GFX_REF_IS_BUFFER(ref));
 	assert(recorder != NULL);
