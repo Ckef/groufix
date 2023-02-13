@@ -1109,13 +1109,14 @@ GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding);
 GFX_API GFXBindingType gfx_set_get_binding_type(GFXSet* set, size_t binding);
 
 /**
- * Retrieves whether a descriptor binding holds immutable samplers.
+ * Retrieves whether a descriptor binding is immutable.
  * @see gfx_set_get_binding_size.
+ * @return Always zero if this binding's type is not GFX_BINDING_SAMPLER.
  */
 GFX_API bool gfx_set_is_binding_immutable(GFXSet* set, size_t binding);
 
 /**
- * Retrieves whether a descriptor binding is a dynamic binding.
+ * Retrieves whether a descriptor binding is dynamic.
  * @see gfx_set_get_binding_size.
  */
 GFX_API bool gfx_set_is_binding_dynamic(GFXSet* set, size_t binding);
