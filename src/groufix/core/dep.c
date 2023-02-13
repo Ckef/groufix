@@ -762,7 +762,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			}
 
 			// Validate host visibility.
-			if ((injs[i].mask & (GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE)) &&
+			if ((injs[i].mask & GFX_ACCESS_HOST_READ_WRITE) &&
 				!(mFlags & GFX_MEMORY_HOST_VISIBLE))
 			{
 				gfx_log_warn(
@@ -839,11 +839,10 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				// Ignore host access if an image, not mappable anyway!
 				// This way we don't have to worry about layout transitions.
 				image != VK_NULL_HANDLE ? 0 :
-				injs[i].mask & (GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE);
+				injs[i].mask & GFX_ACCESS_HOST_READ_WRITE;
 
 			const GFXAccessMask dstMask =
-				injs[i].mask &
-				~(GFXAccessMask)(GFX_ACCESS_HOST_READ | GFX_ACCESS_HOST_WRITE);
+				injs[i].mask & ~(GFXAccessMask)GFX_ACCESS_HOST_READ_WRITE;
 
 			// Set all source operation values.
 			_gfx_dep_unpack(refs + r, attach,
