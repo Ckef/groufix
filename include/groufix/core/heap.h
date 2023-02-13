@@ -134,7 +134,9 @@ typedef enum GFXBindingType
 {
 	GFX_BINDING_BUFFER,
 	GFX_BINDING_BUFFER_TEXEL,
-	GFX_BINDING_IMAGE
+	GFX_BINDING_IMAGE,
+	GFX_BINDING_IMAGE_AND_SAMPLER,
+	GFX_BINDING_SAMPLER
 
 } GFXBindingType;
 
@@ -162,7 +164,7 @@ typedef struct GFXAttribute
  */
 typedef struct GFXBinding
 {
-	GFXBindingType type;
+	GFXBindingType type;  // Cannot be GFX_BINDING_(IMAGE_AND_SAMPLER|SAMPLER)!
 	size_t         count; // Number of bound buffers/images (i.e. shader array size).
 
 	// Buffer format (ignored for images)

@@ -1320,7 +1320,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			goto clean;
 		}
 
-		// Now we check all references.
+		// Get all references based on type.
 		const GFXReference* srcPtr = NULL;
 
 		switch (bind->type)
@@ -1330,6 +1330,15 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			srcPtr = bind->buffers, bind->buffers = refPtr; break;
 		case GFX_BINDING_IMAGE:
 			srcPtr = bind->images, bind->images = refPtr; break;
+
+		// No samplers! Reserved for gfx_set_get_binding_type!
+		case GFX_BINDING_IMAGE_AND_SAMPLER:
+		case GFX_BINDING_SAMPLER:
+			gfx_log_error(
+				"A resource group binding description cannot be of type "
+				"GFX_BINDING_IMAGE_AND_SAMPLER or GFX_BINDING_SAMPLER.");
+
+			goto clean;
 		}
 
 		// We actually copy all the resolved (!) references to the end
@@ -1488,6 +1497,9 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 		bind.buffers = NULL; break;
 	case GFX_BINDING_IMAGE:
 		bind.images = NULL; break;
+	default:
+		// Ignore GFX_BINDING_(IMAGE_AND_SAMPLER|SAMPLER), cannot happen.
+		break;
 	}
 
 	return bind;

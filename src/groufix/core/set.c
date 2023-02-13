@@ -1097,6 +1097,26 @@ GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding)
 }
 
 /****************************/
+GFX_API GFXBindingType gfx_set_get_binding_type(GFXSet* set, size_t binding)
+{
+	assert(set != NULL);
+	assert(binding < set->numBindings);
+
+	VkDescriptorType type = set->bindings[binding].type;
+
+	return
+		_GFX_DESCRIPTOR_IS_BUFFER(type) ?
+			GFX_BINDING_BUFFER :
+		_GFX_DESCRIPTOR_IS_VIEW(type) ?
+			GFX_BINDING_BUFFER_TEXEL :
+		_GFX_DESCRIPTOR_IS_IMAGE(type) && _GFX_DESCRIPTOR_IS_SAMPLER(type) ?
+			GFX_BINDING_IMAGE_AND_SAMPLER :
+		_GFX_DESCRIPTOR_IS_IMAGE(type) ?
+			GFX_BINDING_IMAGE :
+			GFX_BINDING_SAMPLER;
+}
+
+/****************************/
 GFX_API bool gfx_set_is_binding_immutable(GFXSet* set, size_t binding)
 {
 	assert(set != NULL);
@@ -1106,6 +1126,20 @@ GFX_API bool gfx_set_is_binding_immutable(GFXSet* set, size_t binding)
 	return
 		set->bindings[binding].count > 0 &&
 		set->bindings[binding].entries == NULL;
+}
+
+/****************************/
+GFX_API bool gfx_set_is_binding_dynamic(GFXSet* set, size_t binding)
+{
+	assert(set != NULL);
+	assert(binding < set->numBindings);
+
+	// If it is empty, do not report it as dynamic.
+	return
+		// Only place we retrieve this, so just do it inline..
+		set->bindings[binding].count > 0 &&
+		(set->bindings[binding].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
+		set->bindings[binding].type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC);
 }
 
 /****************************/
