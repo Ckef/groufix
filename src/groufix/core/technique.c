@@ -608,6 +608,14 @@ GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique)
 }
 
 /****************************/
+GFX_API GFXShaderStage gfx_tech_get_push_stages(GFXTechnique* technique)
+{
+	assert(technique != NULL);
+
+	return technique->pushStages;
+}
+
+/****************************/
 GFX_API bool gfx_tech_constant(GFXTechnique* technique,
                                uint32_t id, GFXShaderStage stage,
                                size_t size, GFXConstant value)

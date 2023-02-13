@@ -1088,6 +1088,27 @@ GFX_API size_t gfx_set_get_num_bindings(GFXSet* set)
 }
 
 /****************************/
+GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding)
+{
+	assert(set != NULL);
+	assert(binding < set->numBindings);
+
+	return set->bindings[binding].count;
+}
+
+/****************************/
+GFX_API bool gfx_set_is_binding_immutable(GFXSet* set, size_t binding)
+{
+	assert(set != NULL);
+	assert(binding < set->numBindings);
+
+	// If it is empty, do not report it as immutable.
+	return
+		set->bindings[binding].count > 0 &&
+		set->bindings[binding].entries == NULL;
+}
+
+/****************************/
 GFX_API size_t gfx_set_get_num_dynamics(GFXSet* set)
 {
 	assert(set != NULL);

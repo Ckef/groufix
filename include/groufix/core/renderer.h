@@ -946,6 +946,12 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
 GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique);
 
 /**
+ * Retrieves shader stages that access the push constant range of a technique.
+ * @param technique Cannot be NULL.
+ */
+GFX_API GFXShaderStage gfx_tech_get_push_stages(GFXTechnique* technique);
+
+/**
  * Sets specialization constant of the technique.
  * @param technique Cannot be NULL.
  * @param id        ID of the specialization constant in SPIR-V.
@@ -1087,6 +1093,20 @@ GFX_API void gfx_erase_set(GFXSet* set);
  * @param set Cannot be NULL.
  */
 GFX_API size_t gfx_set_get_num_bindings(GFXSet* set);
+
+/**
+ * Retrieves the size (i.e. shader array size) of a descriptor binding of a set.
+ * @param set     Cannot be NULL.
+ * @param binding Must be < gfx_set_get_num_bindings(set).
+ */
+GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding);
+
+/**
+ * Retrieves whether a binding of a set is an immutable sampler binding.
+ * @param set     Cannot be NULL.
+ * @param binding Must be < gfx_set_get_num_bindings(set).
+ */
+GFX_API bool gfx_set_is_binding_immutable(GFXSet* set, size_t binding);
 
 /**
  * Retrieves the number of total dynamic descriptors of all bindings.
