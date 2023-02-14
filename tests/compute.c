@@ -124,7 +124,7 @@ TEST_DESCRIBE(compute, t)
 			gfx_ref_buffer(buffer))
 	});
 
-	gfx_recorder_compute(t->recorder, GFX_COMPUTE_NONE, pass, compute, &ctx);
+	gfx_recorder_compute(t->recorder, GFX_COMPUTE_INLINE, pass, compute, &ctx);
 	gfx_frame_submit(frame);
 
 	// Acquire again to synchronize.

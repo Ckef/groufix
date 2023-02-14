@@ -333,6 +333,73 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
 }
 
 /****************************
+ * Finds all required queue families to use.
+ * @param props Cannot be NULL if count > 0.
+ * @param families Output array storing { graphics, present, compute, transfer }.
+ *
+ * families is overwritten with the Vulkan family indices to use.
+ * Members may have the same output, and any may be UINT32_MAX if not found.
+ */
+static void _gfx_find_queue_families(_GFXDevice* device, uint32_t count,
+                                     const VkQueueFamilyProperties* props,
+                                     uint32_t* families)
+{
+	assert(device != NULL);
+	assert(device->vk.device != NULL); // Only field to access!
+	assert(count == 0 || props != NULL);
+	assert(families != NULL);
+
+	// We need/want a few different queues (families) for different operations.
+	// 1) A general graphics family:
+	//  We use the most optimal family with VK_QUEUE_GRAPHICS_BIT set.
+	//  If we can, it may have VK_QUEUE_COMPUTE_BIT set.
+	// 2) A family that supports presentation to surface:
+	//  Preferably the graphics queue, otherwise another one.
+	//  This has precedence over compute capabilities.
+	// 3) A compute-only family for use when others are stalling.
+	//  We use the most optimal family with VK_QUEUE_COMPUTE_BIT set.
+	// 4) A transfer family:
+	//  We use the most optimal family with VK_QUEUE_TRANSFER_BIT set.
+
+	uint32_t* graphics = families + 0;
+	uint32_t* present = families + 1;
+	uint32_t* compute = families + 2;
+	uint32_t* transfer = families + 3;
+
+	// Start with finding a graphics family,
+	// hopefully with presentation + compute.
+	// And find async (hopefully better) compute & transfer families.
+	*graphics = _gfx_find_queue_family(
+		device, count, props, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 1);
+	*compute = _gfx_find_queue_family(
+		device, count, props, VK_QUEUE_COMPUTE_BIT, 0);
+	*transfer = _gfx_find_queue_family(
+		device, count, props, VK_QUEUE_TRANSFER_BIT, 0);
+
+	// Fallback to a graphics family with only presentation.
+	if (*graphics == UINT32_MAX)
+		*graphics = _gfx_find_queue_family(
+			device, count, props, VK_QUEUE_GRAPHICS_BIT, 1);
+
+	if (*graphics != UINT32_MAX)
+		*present = *graphics;
+	else
+	{
+		// If no graphics family with presentation, find separate families.
+		// Again, hopefully there's a graphics family with only compute.
+		*graphics = _gfx_find_queue_family(
+			device, count, props, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0);
+		*present = _gfx_find_queue_family(
+			device, count, props, 0, 1);
+
+		// Fallback to a graphics-only family.
+		if (*graphics == UINT32_MAX)
+			*graphics = _gfx_find_queue_family(
+				device, count, props, VK_QUEUE_GRAPHICS_BIT, 0);
+	}
+}
+
+/****************************
  * Allocates a new queue set.
  * @param context    Appends created set to its sets member.
  * @param count      Number of queues/mutexes to create, must be > 0.
@@ -404,82 +471,44 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	assert(*createInfos == NULL);
 
 	// So get all queue families.
-	uint32_t families;
+	uint32_t fCount;
 	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-		device->vk.device, &families, NULL);
+		device->vk.device, &fCount, NULL);
 
-	VkQueueFamilyProperties props[families];
+	VkQueueFamilyProperties props[fCount];
 	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-		device->vk.device, &families, props);
+		device->vk.device, &fCount, props);
 
-	// We need/want a few different queues (families) for different operations.
-	// 1) A general graphics family:
-	//  We use the most optimal family with VK_QUEUE_GRAPHICS_BIT set.
-	// 2) A family that supports presentation to surface:
-	//  Preferably the graphics queue, otherwise another one.
-	// 3) A compute-only family for use when others are stalling.
-	//  We use the most optimal family with VK_QUEUE_COMPUTE_BIT set.
-	// 4) A transfer family:
-	//  We use the most optimal family with VK_QUEUE_TRANSFER_BIT set.
+	// Find all queue families as follows:
+	//  { graphics, present, compute, transfer }.
+	uint32_t families[4];
+	_gfx_find_queue_families(device, fCount, props, families);
 
-	// UINT32_MAX means no such queue is found.
-	uint32_t graphics = UINT32_MAX;
-	uint32_t present = UINT32_MAX;
-	uint32_t compute = UINT32_MAX;
-	uint32_t transfer = UINT32_MAX;
-
-	// Start with finding a graphics family,
-	// hopefully with presentation + compute.
-	// Oh and find async (hopefully better) compute & transfer families.
-	graphics = _gfx_find_queue_family(
-		device, families, props, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 1);
-	compute = _gfx_find_queue_family(
-		device, families, props, VK_QUEUE_COMPUTE_BIT, 0);
-	transfer = _gfx_find_queue_family(
-		device, families, props, VK_QUEUE_TRANSFER_BIT, 0);
-
-	// Fallback to a graphics family with only presentation.
-	if (graphics == UINT32_MAX)
-		graphics = _gfx_find_queue_family(
-			device, families, props, VK_QUEUE_GRAPHICS_BIT, 1);
-
-	if (graphics != UINT32_MAX)
-		present = graphics;
-	else
-	{
-		// If no graphics family with presentation, find separate families.
-		// Again, hopefully there's a graphics family with only compute.
-		graphics = _gfx_find_queue_family(
-			device, families, props, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0);
-		present = _gfx_find_queue_family(
-			device, families, props, 0, 1);
-
-		// Fallback to a graphics-only family.
-		if (graphics == UINT32_MAX)
-			graphics = _gfx_find_queue_family(
-				device, families, props, VK_QUEUE_GRAPHICS_BIT, 0);
-	}
+	const uint32_t* graphics = families + 0;
+	const uint32_t* present = families + 1;
+	const uint32_t* compute = families + 2;
+	const uint32_t* transfer = families + 3;
 
 	// Now check if we found a family for all queues (and log for all).
-	if (graphics == UINT32_MAX) gfx_log_error(
+	if (*graphics == UINT32_MAX) gfx_log_error(
 		"[ %s ] lacks a queue family with VK_QUEUE_GRAPHICS_BIT set.",
 		device->name);
 
-	if (present == UINT32_MAX) gfx_log_error(
+	if (*present == UINT32_MAX) gfx_log_error(
 		"[ %s ] lacks a queue family with presentation support.",
 		device->name);
 
-	if (compute == UINT32_MAX) gfx_log_error(
+	if (*compute == UINT32_MAX) gfx_log_error(
 		"[ %s ] lacks a queue family with VK_QUEUE_COMPUTE_BIT set.",
 		device->name);
 
-	if (transfer == UINT32_MAX) gfx_log_error(
+	if (*transfer == UINT32_MAX) gfx_log_error(
 		"[ %s ] lacks a queue family with VK_QUEUE_TRANSFER_BIT set.",
 		device->name);
 
 	if (
-		graphics == UINT32_MAX || present == UINT32_MAX ||
-		compute == UINT32_MAX || transfer == UINT32_MAX)
+		*graphics == UINT32_MAX || *present == UINT32_MAX ||
+		*compute == UINT32_MAX || *transfer == UINT32_MAX)
 	{
 		return 0;
 	}
@@ -495,53 +524,58 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	uint32_t sets = 0;
 	bool success = 1;
 
+	const size_t presentIsGraphics = *present == *graphics ? 1 : 0;
+	const size_t computeIsGraphics = *compute == *graphics ? 1 : 0;
+	const size_t transferIsGraphics = *transfer == *graphics ? 1 : 0;
+	const size_t computeIsPresent = *compute == *present ? 1 : 0;
+	const size_t transferIsPresent = *transfer == *present ? 1 : 0;
+	const size_t transferIsCompute = *transfer == *compute ? 1 : 0;
+
 	// Allocate main (graphics) queue set.
 	{
-		size_t count = GFX_MIN(props[graphics].queueCount, (size_t)1 +
-			(compute == graphics ? 1 : 0) +
-			(transfer == graphics ? 1 : 0));
+		size_t count = GFX_MIN(props[*graphics].queueCount,
+			computeIsGraphics + transferIsGraphics + 1);
 
 		success = success && _gfx_alloc_queue_set(context,
-			(*createInfos) + (sets++), graphics, count, present == graphics,
-			_GFX_QUEUE_FLAGS_ALL(props[graphics].queueFlags),
+			(*createInfos) + (sets++), *graphics, count, presentIsGraphics,
+			_GFX_QUEUE_FLAGS_ALL(props[*graphics].queueFlags),
 			VK_QUEUE_GRAPHICS_BIT |
-				(compute == graphics ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0) |
-				(transfer == graphics ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
+				(computeIsGraphics ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0) |
+				(transferIsGraphics ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
 	}
 
 	// Allocate novel present queue set if necessary.
-	if (present != graphics)
+	if (!presentIsGraphics)
 	{
-		size_t count = GFX_MIN(props[present].queueCount, (size_t)1 +
-			(compute == present ? 1 : 0) +
-			(transfer == present ? 1 : 0));
+		size_t count = GFX_MIN(props[*present].queueCount,
+			computeIsPresent + transferIsPresent + 1);
 
 		success = success && _gfx_alloc_queue_set(context,
-			(*createInfos) + (sets++), present, count, 1,
-			_GFX_QUEUE_FLAGS_ALL(props[present].queueFlags),
-				(compute == present ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0) |
-				(transfer == present ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
+			(*createInfos) + (sets++), *present, count, 1,
+			_GFX_QUEUE_FLAGS_ALL(props[*present].queueFlags),
+				(computeIsPresent ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0) |
+				(transferIsPresent ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
 	}
 
 	// Allocate a novel compute queue set if necessary.
-	if (compute != graphics && compute != present)
+	if (!computeIsGraphics && !computeIsPresent)
 	{
-		size_t count = GFX_MIN(props[compute].queueCount, (size_t)1 +
-			(transfer == compute ? 1 : 0));
+		size_t count = GFX_MIN(props[*compute].queueCount,
+			transferIsCompute + 1);
 
 		success = success && _gfx_alloc_queue_set(context,
-			(*createInfos) + (sets++), compute, count, 0,
-			_GFX_QUEUE_FLAGS_ALL(props[compute].queueFlags),
+			(*createInfos) + (sets++), *compute, count, 0,
+			_GFX_QUEUE_FLAGS_ALL(props[*compute].queueFlags),
 			VK_QUEUE_COMPUTE_BIT |
-				(transfer == compute ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
+				(transferIsCompute ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
 	}
 
 	// Allocate a novel transfer queue set if necessary.
-	if (transfer != graphics && transfer != present && transfer != compute)
+	if (!transferIsGraphics && !transferIsPresent && !transferIsCompute)
 	{
 		success = success && _gfx_alloc_queue_set(context,
-			(*createInfos) + (sets++), transfer, 1, 0,
-			_GFX_QUEUE_FLAGS_ALL(props[transfer].queueFlags),
+			(*createInfos) + (sets++), *transfer, 1, 0,
+			_GFX_QUEUE_FLAGS_ALL(props[*transfer].queueFlags),
 			VK_QUEUE_TRANSFER_BIT);
 	}
 
@@ -943,30 +977,28 @@ bool _gfx_devices_init(void)
 		pdp2.pNext = (vk11 ? (void*)&pdv11p : (vk12 ? (void*)&pdv12p : NULL));
 		_groufix.vk.GetPhysicalDeviceProperties2(devices[i], &pdp2);
 
-		// Sadly we need to get get queue family properties and find
-		// ourselves the transfer queue as well, this so we can report
-		// the transfer's queue image granularity.
-		// While we're at it, check if we have graphics, compute & transfer.
-		uint32_t families;
+		// Sadly we need to get all queue family properties so we can
+		// determine some of the features.
+		// Plus availability is based on the presence of all families.
+		uint32_t fCount;
 		_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-			devices[i], &families, NULL);
+			devices[i], &fCount, NULL);
 
-		VkQueueFamilyProperties props[families];
+		VkQueueFamilyProperties props[fCount];
 		_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-			devices[i], &families, props);
+			devices[i], &fCount, props);
 
-		const uint32_t graphics = _gfx_find_queue_family(
-			&dev, families, props, VK_QUEUE_GRAPHICS_BIT, 0);
-		const uint32_t compute = _gfx_find_queue_family(
-			&dev, families, props, VK_QUEUE_COMPUTE_BIT, 0);
-		const uint32_t transfer = _gfx_find_queue_family(
-			&dev, families, props, VK_QUEUE_TRANSFER_BIT, 0);
+		// Find all queue families as follows:
+		//  { graphics, present, compute, transfer }.
+		uint32_t families[4];
+		_gfx_find_queue_families(&dev, fCount, props, families);
 
 		const bool available =
 			dev.api >= _GFX_VK_API_VERSION &&
-			graphics != UINT32_MAX &&
-			compute != UINT32_MAX &&
-			transfer != UINT32_MAX;
+			families[0] != UINT32_MAX &&
+			families[1] != UINT32_MAX &&
+			families[2] != UINT32_MAX &&
+			families[3] != UINT32_MAX;
 
 		// Then define the features and limits part of the new device :)
 		dev.base = (GFXDevice){
@@ -998,7 +1030,9 @@ bool _gfx_devices_init(void)
 				.shaderInputOutput16      = (vk11 ? pdv11f.storageInputOutput16 : 0),
 				.samplerAnisotropy        = pdf.samplerAnisotropy,
 				.samplerClampToEdgeMirror = (vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
-				.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0)
+				.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0),
+
+				.inlineCompute = available && (props[families[0]].queueFlags & VK_QUEUE_COMPUTE_BIT)
 			},
 
 			.limits = {
@@ -1046,9 +1080,9 @@ bool _gfx_devices_init(void)
 				.maxAnisotropy = pdp->limits.maxSamplerAnisotropy,
 
 				.imageTransferGranularity = {
-					.x = available ? props[transfer].minImageTransferGranularity.width : 0,
-					.y = available ? props[transfer].minImageTransferGranularity.height : 0,
-					.z = available ? props[transfer].minImageTransferGranularity.depth : 0
+					.x = available ? props[families[3]].minImageTransferGranularity.width : 0,
+					.y = available ? props[families[3]].minImageTransferGranularity.height : 0,
+					.z = available ? props[families[3]].minImageTransferGranularity.depth : 0
 				},
 
 				.renderSampleCounts = {

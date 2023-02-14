@@ -47,6 +47,7 @@ typedef struct GFXDevice
 		bool cubeArray;
 		bool geometryShader;
 		bool tessellationShader;
+		bool inlineCompute;
 		bool rasterNonSolid;
 		bool independentBlend;
 		bool logicOp;

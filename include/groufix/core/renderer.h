@@ -1189,8 +1189,8 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
  */
 typedef enum GFXComputeFlags
 {
-	GFX_COMPUTE_NONE  = 0x0000,
-	GFX_COMPUTE_ASYNC = 0x0001
+	GFX_COMPUTE_INLINE = 0x0000,
+	GFX_COMPUTE_ASYNC  = 0x0001
 
 } GFXComputeFlags;
 
