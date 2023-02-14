@@ -512,7 +512,6 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
 	assert(cb != NULL);
 
 	// TODO:COM: flags is completely ignored, implement async compute :)
-	// TODO:COM: Add device features to tell if we can (sync|async)-compute?
 
 	_GFXContext* context = recorder->context;
 
