@@ -803,49 +803,6 @@ typedef struct _GFXAttach
 
 
 /**
- * Frame synchronization (swapchain acquisition) object.
- */
-typedef struct _GFXFrameSync
-{
-	_GFXWindow* window;
-	size_t      backing; // Attachment index.
-	uint32_t    image;   // Swapchain image index (or UINT32_MAX).
-
-
-	// Vulkan fields.
-	struct
-	{
-		VkSemaphore available;
-
-	} vk;
-
-} _GFXFrameSync;
-
-
-/**
- * Internal virtual frame.
- */
-struct GFXFrame
-{
-	unsigned int index;
-
-	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
-	GFXVec syncs; // Stores _GFXFrameSync, one for each window attachment.
-
-
-	// Vulkan fields.
-	struct
-	{
-		VkCommandPool   pool;
-		VkCommandBuffer cmd;
-		VkSemaphore     rendered;
-		VkFence         done; // For resource access.
-
-	} vk;
-};
-
-
-/**
  * Recording command pool.
  */
 typedef struct _GFXRecorderPool
@@ -903,6 +860,49 @@ struct GFXRecorder
 
 	unsigned int     current; // Current virtual frame index.
 	_GFXRecorderPool pools[]; // One for each virtual frame.
+};
+
+
+/**
+ * Frame synchronization (swapchain acquisition) object.
+ */
+typedef struct _GFXFrameSync
+{
+	_GFXWindow* window;
+	size_t      backing; // Attachment index.
+	uint32_t    image;   // Swapchain image index (or UINT32_MAX).
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkSemaphore available;
+
+	} vk;
+
+} _GFXFrameSync;
+
+
+/**
+ * Internal virtual frame.
+ */
+struct GFXFrame
+{
+	unsigned int index;
+
+	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
+	GFXVec syncs; // Stores _GFXFrameSync, one for each window attachment.
+
+
+	// Vulkan fields.
+	struct
+	{
+		VkCommandPool   pool;
+		VkCommandBuffer cmd;
+		VkSemaphore     rendered;
+		VkFence         done; // For resource access.
+
+	} vk;
 };
 
 
