@@ -385,10 +385,6 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 		_gfx_recorder_reset(rec);
 	}
 
-	// Purge render backing MUST happen before acquiring/building,
-	// when (re)building, backings will be made stale with this frame's index.
-	_gfx_render_backing_purge(renderer);
-
 	return 1;
 
 

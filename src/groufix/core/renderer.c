@@ -412,6 +412,11 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	// Synchronize the frame :)
 	_gfx_frame_sync(renderer, renderer->public);
 
+	// Purge render backing, MUST happen before acquiring/building.
+	// When (re)building, backings will be made stale with this frame's index.
+	// Which causes it to fail, as it will only destroy one per frame.
+	_gfx_render_backing_purge(renderer);
+
 	// Destroy all stale resources that were last used by this frame.
 	// All previous frames should have destroyed all indices before the ones
 	// with this frame's index.
