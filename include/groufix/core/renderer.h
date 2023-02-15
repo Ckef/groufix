@@ -79,7 +79,23 @@ typedef enum GFXPassType
 
 
 /**
- * Attachment clear value.
+ * Image view type (interpreted dimensionality).
+ */
+typedef enum GFXViewType
+{
+	GFX_VIEW_1D,
+	GFX_VIEW_1D_ARRAY,
+	GFX_VIEW_2D,
+	GFX_VIEW_2D_ARRAY,
+	GFX_VIEW_CUBE,
+	GFX_VIEW_CUBE_ARRAY,
+	GFX_VIEW_3D
+
+} GFXViewType;
+
+
+/**
+ * Image clear value.
  */
 typedef union GFXClear
 {
@@ -95,22 +111,6 @@ typedef union GFXClear
 	}, test)
 
 } GFXClear;
-
-
-/**
- * Image view type (interpreted dimensionality).
- */
-typedef enum GFXViewType
-{
-	GFX_VIEW_1D,
-	GFX_VIEW_1D_ARRAY,
-	GFX_VIEW_2D,
-	GFX_VIEW_2D_ARRAY,
-	GFX_VIEW_CUBE,
-	GFX_VIEW_CUBE_ARRAY,
-	GFX_VIEW_3D
-
-} GFXViewType;
 
 
 /**
