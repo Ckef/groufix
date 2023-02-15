@@ -510,9 +510,12 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// Prepare injection metadata.
 	_GFXInjection injection = {
 		.inp = {
-			.family = renderer->graphics.family,
 			.renderer = renderer,
-			.numRefs = 0
+			.numRefs = 0,
+			.queue = {
+				.family = renderer->graphics.family,
+				.index = renderer->graphics.index
+			}
 		}
 	};
 

@@ -1327,13 +1327,15 @@ struct _GFXInjection
 	// Operation input, must be pre-initialized!
 	struct
 	{
-		uint32_t     family;
 		GFXRenderer* renderer; // To signal attachments.
 		size_t       numRefs;  // May be zero!
 
 		const _GFXUnpackRef* refs;
 		const GFXAccessMask* masks;
 		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
+
+		// Vulkan family & queue index.
+		struct { uint32_t family, index; } queue;
 
 	} inp;
 
@@ -1403,12 +1405,13 @@ typedef struct _GFXSync
 		VkAccessFlags dstAccess;
 		VkImageLayout oldLayout;
 		VkImageLayout newLayout;
-		uint32_t      srcFamily;
-		uint32_t      dstFamily;
-
 		VkPipelineStageFlags srcStage;
 		VkPipelineStageFlags dstStage;
 		VkPipelineStageFlags semStages; // Only set if `signaled` is used.
+
+		// Family & queue indices.
+		struct { uint32_t family; } srcQueue;
+		struct { uint32_t family, index; } dstQueue;
 
 		// Unpacked for locality.
 		union {
@@ -1435,10 +1438,10 @@ struct GFXDependency
 	GFXDeque  syncs; // Stores _GFXSync.
 	_GFXMutex lock;
 
-	// Vulkan family indices.
-	uint32_t graphics;
-	uint32_t compute;
-	uint32_t transfer;
+	// Vulkan family & queue indices.
+	struct { uint32_t family, index; } graphics;
+	struct { uint32_t family, index; } compute;
+	struct { uint32_t family, index; } transfer;
 };
 
 

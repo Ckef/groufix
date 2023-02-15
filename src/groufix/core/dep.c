@@ -74,10 +74,10 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 	}
 
 	// Otherwise, inject full memory barrier.
-	// We always set dstFamily to be able to match, undo this.
+	// We always set the destination queue family to be able to match, undo!
 	const uint32_t dstFamily =
-		(sync->vk.srcFamily == VK_QUEUE_FAMILY_IGNORED) ?
-		VK_QUEUE_FAMILY_IGNORED : sync->vk.dstFamily;
+		(sync->vk.srcQueue.family == VK_QUEUE_FAMILY_IGNORED) ?
+		VK_QUEUE_FAMILY_IGNORED : sync->vk.dstQueue.family;
 
 	union {
 		VkBufferMemoryBarrier bmb;
@@ -91,7 +91,7 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 			.pNext               = NULL,
 			.srcAccessMask       = sync->vk.srcAccess,
 			.dstAccessMask       = sync->vk.dstAccess,
-			.srcQueueFamilyIndex = sync->vk.srcFamily,
+			.srcQueueFamilyIndex = sync->vk.srcQueue.family,
 			.dstQueueFamilyIndex = dstFamily,
 			.buffer              = sync->vk.buffer,
 			.offset              = sync->range.offset,
@@ -106,7 +106,7 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 			.dstAccessMask       = sync->vk.dstAccess,
 			.oldLayout           = sync->vk.oldLayout,
 			.newLayout           = sync->vk.newLayout,
-			.srcQueueFamilyIndex = sync->vk.srcFamily,
+			.srcQueueFamilyIndex = sync->vk.srcQueue.family,
 			.dstQueueFamilyIndex = dstFamily,
 			.image               = sync->vk.image,
 			.subresourceRange = {
@@ -217,12 +217,13 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
  * _WITHOUT_ locking the dependency object!
  * @param semaphore Non-zero to indicate we need a VkSemaphore.
  * @param family    If semaphore, the destination family index.
+ * @param queue     If semaphore, the destination queue index.
  * @param injection If semaphore, the current injection metadata pointer.
  * @param shared    Output, if non-NULL, the sync object used for its semaphore.
  * @return NULL on failure.
  */
-static _GFXSync* _gfx_dep_claim(GFXDependency* dep,
-                                bool semaphore, uint32_t family,
+static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore,
+                                uint32_t family, uint32_t queue,
                                 const _GFXInjection* injection,
                                 _GFXSync** shared)
 {
@@ -237,7 +238,7 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep,
 
 	// If we need a semaphore, we need a sync object with either:
 	// - A semaphore.
-	// - A destination family of which another sync object has a semaphore.
+	// - A destination queue of which another sync object has a semaphore.
 	// The latter will need to be of the same injection,
 	// meaning this semaphore will already be written to the metadata.
 	if (semaphore)
@@ -245,7 +246,7 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep,
 		_GFXSync* unused = NULL;
 
 		// See if there is an unused semaphore.
-		// Also see if there are any sync objects with the same family.
+		// Also see if there are any sync objects with the same queue.
 		// They need to be of the same injection too, such that they can
 		// share the semaphore :)
 		for (size_t s = 0; s < dep->sems; ++s)
@@ -260,7 +261,8 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep,
 			// We know it has a semaphore because of its position in syncs.
 			if (sync->stage == _GFX_SYNC_PREPARE &&
 				sync->inj == injection &&
-				sync->vk.dstFamily == family)
+				sync->vk.dstQueue.family == family &&
+				sync->vk.dstQueue.index == queue)
 			{
 				*shared = sync;
 			}
@@ -349,9 +351,16 @@ GFX_API GFXDependency* gfx_create_dep(GFXDevice* device, unsigned int capacity)
 	if (!_gfx_mutex_init(&dep->lock))
 		goto clean;
 
-	_gfx_pick_family(dep->context, &dep->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
-	_gfx_pick_family(dep->context, &dep->compute, VK_QUEUE_COMPUTE_BIT, 0);
-	_gfx_pick_family(dep->context, &dep->transfer, VK_QUEUE_TRANSFER_BIT, 0);
+	_GFXQueueSet* graphics = _gfx_pick_family(
+		dep->context, &dep->graphics.family, VK_QUEUE_GRAPHICS_BIT, 0);
+	_GFXQueueSet* compute = _gfx_pick_family(
+		dep->context, &dep->compute.family, VK_QUEUE_COMPUTE_BIT, 0);
+	_GFXQueueSet* transfer = _gfx_pick_family(
+		dep->context, &dep->transfer.family, VK_QUEUE_TRANSFER_BIT, 0);
+
+	dep->graphics.index = _gfx_queue_index(graphics, VK_QUEUE_GRAPHICS_BIT, 0);
+	dep->compute.index = _gfx_queue_index(compute, VK_QUEUE_COMPUTE_BIT, 0);
+	dep->transfer.index = _gfx_queue_index(transfer, VK_QUEUE_TRANSFER_BIT, 0);
 
 	dep->waitCapacity = capacity;
 	dep->sems = 0;
@@ -452,9 +461,13 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 				if ((--sync->waits) == 0)
 					sync->stage = _GFX_SYNC_UNUSED;
 
-			// Match on queue family.
-			if (sync->vk.dstFamily != injection->inp.family)
+			// Match on queue family & index.
+			if (
+				sync->vk.dstQueue.family != injection->inp.queue.family ||
+				sync->vk.dstQueue.index != injection->inp.queue.index)
+			{
 				continue;
+			}
 
 			// Match against pending signals.
 			if (
@@ -693,16 +706,24 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			continue;
 		}
 
-		// Get queue family to transfer ownership to.
+		// Get queue family & index to transfer ownership to.
 		// And flags for if we need an ownership transfer or want to discard.
 		const uint32_t family =
 			injs[i].mask & GFX_ACCESS_COMPUTE_ASYNC ?
-				injs[i].dep->compute :
+				injs[i].dep->compute.family :
 			injs[i].mask & GFX_ACCESS_TRANSFER_ASYNC ?
-				injs[i].dep->transfer :
-				injs[i].dep->graphics;
+				injs[i].dep->transfer.family :
+				injs[i].dep->graphics.family;
 
-		const bool ownership = (family != injection->inp.family);
+		const uint32_t queue =
+			injs[i].mask & GFX_ACCESS_COMPUTE_ASYNC ?
+				injs[i].dep->compute.index :
+			injs[i].mask & GFX_ACCESS_TRANSFER_ASYNC ?
+				injs[i].dep->transfer.index :
+				injs[i].dep->graphics.index;
+
+		const bool ownership = (family != injection->inp.queue.family);
+		const bool semaphore = ownership || (queue != injection->inp.queue.index);
 		const bool discard = (injs[i].mask & GFX_ACCESS_DISCARD) != 0;
 
 		// Aaaand the bit where we prepare all signals.
@@ -776,8 +797,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			_GFXSync* shared;
 			_GFXSync* sync = _gfx_dep_claim(injs[i].dep,
 				// No need for a semaphore if the client blocks.
-				ownership && !blocking,
-				family, injection, &shared);
+				semaphore && !blocking, family, queue, injection, &shared);
 
 			if (sync == NULL)
 			{
@@ -883,11 +903,13 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			const bool concurrent = mFlags &
 				(GFX_MEMORY_COMPUTE_CONCURRENT | GFX_MEMORY_TRANSFER_CONCURRENT);
 
-			sync->vk.srcFamily = discard || concurrent ?
-				VK_QUEUE_FAMILY_IGNORED : injection->inp.family;
+			sync->vk.srcQueue.family = discard || concurrent ?
+				VK_QUEUE_FAMILY_IGNORED : injection->inp.queue.family;
 
-			sync->vk.dstFamily = discard || concurrent ?
+			sync->vk.dstQueue.family = discard || concurrent ?
 				VK_QUEUE_FAMILY_IGNORED : family;
+
+			sync->vk.dstQueue.index = queue;
 
 			// Insert execution barrier @catch if necessary:
 			// - Equal queues & either source or target writes,
@@ -964,7 +986,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 
 			// Always set destination queue family,
 			// so we can match families when catching.
-			sync->vk.dstFamily = family;
+			sync->vk.dstQueue.family = family;
 		}
 
 		_gfx_mutex_unlock(&injs[i].dep->lock);

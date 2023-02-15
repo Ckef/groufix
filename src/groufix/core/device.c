@@ -645,7 +645,14 @@ static void _gfx_create_context(_GFXDevice* device)
 
 	VkDeviceQueueCreateInfo* createInfos = NULL; // Will be explicitly freed.
 
-	// First of all, check Vulkan version.
+	// First of all, check availability &  Vulkan version.
+	if (!device->base.available)
+	{
+		gfx_log_error("[ %s ] is not available.", device->name);
+
+		goto error;
+	}
+
 	if (device->api < _GFX_VK_API_VERSION)
 	{
 		gfx_log_error("[ %s ] does not support Vulkan version %u.%u.%u.",
@@ -1280,36 +1287,11 @@ _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
 	if (set != NULL)
 	{
 		// Pick a queue from the set.
-		// This is done according to the order defined by
-		// _gfx_vk_queue_priorities, every entry is checked for existence.
-		// The graphics and presentation abilities always get the same index,
-		// so hopefully we submit and present on the same queue.
-		uint32_t index =
-			(flags & VK_QUEUE_GRAPHICS_BIT || present) ? 0 :
-			(flags & VK_QUEUE_COMPUTE_BIT) ?
-				// For compute queues,
-				// pick the second if there is a graphics/present queue.
-				// pick the first otherwise.
-				((set->flags & VK_QUEUE_GRAPHICS_BIT || set->present) ?
-				1 : 0) :
-			(flags & VK_QUEUE_TRANSFER_BIT) ?
-				// For transfer queues,
-				// pick the second if there is a graphics/present queue,
-				// pick the third if there is ALSO a compute queue.
-				// pick the second if there is ONLY a compute queue.
-				// pick the first otherwise.
-				((set->flags & VK_QUEUE_GRAPHICS_BIT || set->present) ?
-				(set->flags & VK_QUEUE_COMPUTE_BIT ? 2 : 1) :
-				(set->flags & VK_QUEUE_COMPUTE_BIT ? 1 : 0)) :
-			0; // Nothing matched, hmmm...
-
-		// If the queue does not exist, pick the last queue.
-		// This way we cascade back to higher priority queues.
-		if (index >= set->count)
-			index = (uint32_t)set->count - 1;
+		const uint32_t index = _gfx_queue_index(set, flags, present);
 
 		// Get queue & return it.
 		queue->family = family;
+		queue->index = index;
 		queue->lock = &set->locks[index];
 
 		context->vk.GetDeviceQueue(
@@ -1319,6 +1301,47 @@ _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
 	}
 
 	return NULL;
+}
+
+/****************************/
+uint32_t _gfx_queue_index(_GFXQueueSet* set,
+                          VkQueueFlags flags, bool present)
+{
+	assert(set != NULL);
+	assert(flags != 0 || present);
+	assert((set->flags & flags) == flags);
+	assert(!present || set->present);
+
+	// Pick a queue from the set.
+	// This is done according to the order defined by
+	// _gfx_vk_queue_priorities, every entry is checked for existence.
+	// The graphics and presentation abilities always get the same index,
+	// so hopefully we submit and present on the same queue.
+	uint32_t index =
+		(flags & VK_QUEUE_GRAPHICS_BIT || present) ? 0 :
+		(flags & VK_QUEUE_COMPUTE_BIT) ?
+			// For compute queues,
+			// pick the second if there is a graphics/present queue.
+			// pick the first otherwise.
+			((set->flags & VK_QUEUE_GRAPHICS_BIT || set->present) ?
+			1 : 0) :
+		(flags & VK_QUEUE_TRANSFER_BIT) ?
+			// For transfer queues,
+			// pick the second if there is a graphics/present queue,
+			// pick the third if there is ALSO a compute queue.
+			// pick the second if there is ONLY a compute queue.
+			// pick the first otherwise.
+			((set->flags & VK_QUEUE_GRAPHICS_BIT || set->present) ?
+			(set->flags & VK_QUEUE_COMPUTE_BIT ? 2 : 1) :
+			(set->flags & VK_QUEUE_COMPUTE_BIT ? 1 : 0)) :
+		0; // Nothing matched, hmmm...
+
+	// If the queue does not exist, pick the last queue.
+	// This way we cascade back to higher priority queues.
+	if (index >= set->count)
+		index = (uint32_t)set->count - 1;
+
+	return index;
 }
 
 /****************************/

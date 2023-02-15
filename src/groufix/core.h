@@ -183,6 +183,7 @@ typedef struct _GFXQueueSet
 typedef struct _GFXQueue
 {
 	uint32_t   family; // Vulkan family index.
+	uint32_t   index;  // Vulkan queue index.
 	_GFXMutex* lock;
 
 
@@ -589,6 +590,15 @@ _GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
  */
 _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
                               VkQueueFlags flags, bool present);
+
+/**
+ * Retrieves the index of a queue supporting the given abilities.
+ * Useful when no queue is used, but identification is necessary.
+ * @param set Must support flags and present.
+ * @see _gfx_pick_queue.
+ */
+uint32_t _gfx_queue_index(_GFXQueueSet* set,
+                          VkQueueFlags flags, bool present);
 
 /**
  * Retrieves the Vulkan queue family indices to share with,

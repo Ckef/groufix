@@ -242,12 +242,13 @@ static void _gfx_claim_injection(_GFXTransferPool* pool, size_t numRefs,
 	}
 
 	// Fill it with the new operation input.
-	pool->injection->inp.family = pool->queue.family;
 	pool->injection->inp.renderer = NULL;
 	pool->injection->inp.numRefs = numRefs;
 	pool->injection->inp.refs = refs;
 	pool->injection->inp.masks = masks;
 	pool->injection->inp.sizes = sizes;
+	pool->injection->inp.queue.family = pool->queue.family;
+	pool->injection->inp.queue.index = pool->queue.index;
 }
 
 /****************************
