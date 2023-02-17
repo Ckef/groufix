@@ -112,7 +112,7 @@
 	do { \
 		if (_test_state_##tName.state == TEST_IDLE) { \
 			_test_state_##tName.state = TEST_RUNNING; \
-			_test_func_##tName(&_test_base, &_test_state_##name); \
+			_test_func_##tName(&_test_base, &_test_state_##tName); \
 			_TEST_PRINT_SUCCESS(#tName); \
 			_test_state_##tName.state = TEST_IDLE; \
 		} \
