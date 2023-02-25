@@ -992,6 +992,7 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(src);
+	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(unp);
 
 #if !defined (NDEBUG)
 	GFXMemoryFlags mFlags = _GFX_UNPACK_REF_FLAGS(unp);
@@ -1020,13 +1021,11 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 	void* ptr = NULL;
 	_GFXStaging* staging = NULL;
 	_GFXStageRegion stage[numRegions];
-	GFXHeap* heap = NULL;
 
 	// If it is a host visible buffer, map it.
 	if (unp.obj.buffer != NULL &&
 		(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
 	{
-		heap = unp.obj.buffer->heap;
 		ptr = _gfx_map(&heap->allocator, &unp.obj.buffer->alloc);
 
 		if (ptr == NULL) goto error;
@@ -1039,17 +1038,6 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 	}
 	else
 	{
-		// We need a heap.
-		heap = _GFX_UNPACK_REF_HEAP(unp);
-		if (heap == NULL)
-		{
-			gfx_log_error(
-				"Cannot perform read operation on a memory resource "
-				"that was not allocated from a heap.");
-
-			return 0;
-		}
-
 		// Here we still compact the regions associated with the host,
 		// even though that's not the source of the data being copied.
 		// Therefore this is not necessarily optimal packing, however the
@@ -1120,6 +1108,7 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
+	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(unp);
 
 #if !defined (NDEBUG)
 	GFXMemoryFlags mFlags = _GFX_UNPACK_REF_FLAGS(unp);
@@ -1147,7 +1136,6 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 	void* ptr = NULL;
 	_GFXStaging* staging = NULL;
 	_GFXStageRegion stage[numRegions];
-	GFXHeap* heap = NULL;
 
 	// If it is a host visible buffer, map it.
 	// We cannot map images because we do not allocate linear images (!)
@@ -1155,7 +1143,6 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 	if (unp.obj.buffer != NULL &&
 		(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
 	{
-		heap = unp.obj.buffer->heap;
 		ptr = _gfx_map(&heap->allocator, &unp.obj.buffer->alloc);
 
 		if (ptr == NULL) goto error;
@@ -1168,17 +1155,6 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 	}
 	else
 	{
-		// We need a heap.
-		heap = _GFX_UNPACK_REF_HEAP(unp);
-		if (heap == NULL)
-		{
-			gfx_log_error(
-				"Cannot perform write operation on a memory resource "
-				"that was not allocated from a heap.");
-
-			return 0;
-		}
-
 		// Compact regions associated with the host,
 		// allocate a staging buffer for it :)
 		const uint64_t size = _gfx_stage_compact(
@@ -1271,19 +1247,6 @@ static bool _gfx_copy(GFXReference src, GFXReference dst,
 		return 0;
 	}
 
-	// We need a heap, always prefer the heap from src.
-	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(refs[0]);
-	if (heap == NULL) heap = _GFX_UNPACK_REF_HEAP(refs[1]);
-
-	if (heap == NULL)
-	{
-		gfx_log_error(
-			"Cannot perform transfer operation between memory resources "
-			"of which neither was allocated from a heap.");
-
-		return 0;
-	}
-
 #if !defined (NDEBUG)
 	GFXMemoryFlags srcFlags = _GFX_UNPACK_REF_FLAGS(refs[0]);
 	GFXMemoryFlags dstFlags = _GFX_UNPACK_REF_FLAGS(refs[1]);
@@ -1310,6 +1273,9 @@ static bool _gfx_copy(GFXReference src, GFXReference dst,
 			"excluding transfer operations.");
 	}
 #endif
+
+	// Always take the heap from src.
+	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(refs[0]);
 
 	// Do the resource -> resource copy.
 	if (!_gfx_copy_device(

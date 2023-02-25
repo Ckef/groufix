@@ -418,7 +418,7 @@ static void _test_init(TestState* _test_state)
 		TEST_FAIL();
 
 	// Create a renderer.
-	_test_base.renderer = gfx_create_renderer(_test_base.device, TEST_NUM_FRAMES);
+	_test_base.renderer = gfx_create_renderer(_test_base.heap, TEST_NUM_FRAMES);
 	if (_test_base.renderer == NULL)
 		TEST_FAIL();
 

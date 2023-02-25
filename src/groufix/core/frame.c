@@ -35,7 +35,7 @@ static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
 	assert(con != NULL);
 	assert(con->out.prev != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 	const _GFXConsume* prev = con->out.prev;
 	const _GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, con->view.index);
 
@@ -147,7 +147,7 @@ static void _gfx_free_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
 	assert(renderer != NULL);
 	assert(frame != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 
 	// Well, destroy 'm.
 	if ((num = GFX_MIN(frame->syncs.size, num)) == 0)
@@ -175,7 +175,7 @@ static bool _gfx_alloc_syncs(GFXRenderer* renderer, GFXFrame* frame, size_t num)
 	assert(renderer != NULL);
 	assert(frame != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 	size_t size = frame->syncs.size;
 
 	if (num <= size)
@@ -219,7 +219,7 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 	assert(renderer != NULL);
 	assert(frame != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 
 	// Initialize things.
 	frame->index = index;
@@ -311,7 +311,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 	assert(renderer != NULL);
 	assert(frame != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 
 	// First wait for the frame to be done.
 	_GFX_VK_CHECK(context->vk.WaitForFences(
@@ -353,7 +353,7 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 	assert(frame != NULL);
 	assert(renderer != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 
 	// We wait for the frame to be done, so all its resource are
 	// available for use (including its synchronization objects).
@@ -504,7 +504,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	assert(frame != NULL);
 	assert(renderer != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 	GFXVec* attachs = &renderer->backing.attachs;
 
 	// Prepare injection metadata.

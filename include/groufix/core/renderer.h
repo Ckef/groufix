@@ -583,19 +583,24 @@ GFX_API bool gfx_computable_warmup(GFXComputable* computable);
  ****************************/
 
 /**
- * TODO: Take a heap instead of device? (from which we allocate attachments?)
  * Creates a renderer.
- * @param device NULL is equivalent to gfx_get_primary_device().
+ * @param heap   Cannot be NULL, heap to allocate attachments from.
  * @param frames Number of virtual frames, must be > 0 (preferably > 1).
  * @return NULL on failure.
  */
-GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames);
+GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames);
 
 /**
  * Destroys a renderer.
  * This will forcefully submit and block until rendering is done!
  */
 GFX_API void gfx_destroy_renderer(GFXRenderer* renderer);
+
+/**
+ * Returns the heap the renderer was created with.
+ * Can be called from any thread.
+ */
+GFX_API GFXHeap* gfx_renderer_get_heap(GFXRenderer* renderer);
 
 /**
  * Returns the device the renderer was created for.

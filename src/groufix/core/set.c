@@ -191,7 +191,7 @@ static void _gfx_set_update(GFXSet* set,
 	// Update image info.
 	if (_GFX_DESCRIPTOR_IS_IMAGE(binding->type))
 	{
-		_GFXContext* context = set->renderer->allocator.context;
+		_GFXContext* context = set->renderer->cache.context;
 
 		// Make the previous image view stale.
 		_gfx_make_stale(set, 1, entry->vk.update.image.imageView, VK_NULL_HANDLE);
@@ -237,7 +237,7 @@ static void _gfx_set_update(GFXSet* set,
 	// Update buffer view info.
 	if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
 	{
-		_GFXContext* context = set->renderer->allocator.context;
+		_GFXContext* context = set->renderer->cache.context;
 
 		// Make the previous buffer view stale.
 		_gfx_make_stale(set, 1, VK_NULL_HANDLE, entry->vk.update.view);
@@ -284,7 +284,7 @@ static void _gfx_set_update(GFXSet* set,
 static void _gfx_set_update_attachs(GFXSet* set)
 {
 	GFXRenderer* renderer = set->renderer;
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 
 	// Super early exit!
 	if (set->numAttachs == 0)
@@ -476,7 +476,7 @@ static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
 		_GFXUnpackRef new = _gfx_ref_unpack(res->ref);
 
 		// Also a good place to do a quick context check.
-		if (_GFX_UNPACK_REF_CONTEXT(new) != renderer->allocator.context)
+		if (_GFX_UNPACK_REF_CONTEXT(new) != renderer->cache.context)
 		{
 			gfx_log_warn(
 				"Could not set descriptor resource "
@@ -597,7 +597,7 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
 		{
 			VkFormat vkFmt = VK_FORMAT_UNDEFINED;
 			GFXFormat gfxFmt = view->format;
-			_GFX_RESOLVE_FORMAT(gfxFmt, vkFmt, renderer->allocator.device,
+			_GFX_RESOLVE_FORMAT(gfxFmt, vkFmt, renderer->heap->allocator.device,
 				((VkFormatProperties){
 					.linearTilingFeatures = 0,
 					.optimalTilingFeatures = 0,

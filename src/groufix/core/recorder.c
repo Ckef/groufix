@@ -289,7 +289,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	assert(renderer != NULL);
 	assert(!renderer->recording);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 
 	// Allocate a new recorder.
 	GFXRecorder* rec = malloc(

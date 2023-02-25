@@ -911,13 +911,11 @@ struct GFXFrame
  */
 struct GFXRenderer
 {
-	_GFXAllocator allocator; // Has both _GFXDevice* and _GFXContext*.
-	_GFXCache     cache;
-	_GFXPool      pool;
-	_GFXQueue     graphics;
-	_GFXQueue     present;
-	uint32_t      compute;  // Family index only.
-	uint32_t      transfer; // Family index only.
+	GFXHeap*  heap;  // Has both _GFXDevice* and _GFXContext*.
+	_GFXCache cache; // Has _GFXContext*.
+	_GFXPool  pool;  // Has _GFXContext*.
+	_GFXQueue graphics;
+	_GFXQueue present;
 
 	GFXList   recorders;  // References GFXRecorder.
 	GFXList   techniques; // References GFXTechnique.
@@ -1257,11 +1255,12 @@ typedef struct _GFXUnpackRef
 	(ref).obj.image != NULL ? \
 		(ref).obj.image->heap->allocator.context : \
 	(ref).obj.renderer != NULL ? \
-		(ref).obj.renderer->allocator.context : NULL)
+		(ref).obj.renderer->cache.context : NULL)
 
 #define _GFX_UNPACK_REF_HEAP(ref) \
 	((ref).obj.buffer != NULL ? (ref).obj.buffer->heap : \
-	(ref).obj.image != NULL ? (ref).obj.image->heap : NULL)
+	(ref).obj.image != NULL ? (ref).obj.image->heap : \
+	(ref).obj.renderer != NULL ? (ref).obj.renderer->heap : NULL)
 
 #define _GFX_UNPACK_REF_ATTACH(ref) \
 	((ref).obj.renderer == NULL ? NULL : \
@@ -1529,8 +1528,29 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
 
 
 /****************************
- * Staging buffers & transfer flushing.
+ * Heap allocation & transfer flushing.
  ****************************/
+
+/**
+ * Allocates a backing image from a heap.
+ * @param heap   Cannot be NULL.
+ * @param attach Cannot be NULL, { .width, .height, .depth } > 0.
+ *
+ * Thread-safe with respect to the heap!
+ * Leaves the `purge` index and `list` base-type uninitialized!
+ */
+_GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
+                                const _GFXImageAttach* attach);
+
+/**
+ * Frees a backing image.
+ * @param heap    Cannot be NULL, same heap backing was allocated with.
+ * @param backing Cannot be NULL.
+ *
+ * Thread-safe with respect to the heap!
+ * Does not unlink itself from anything!
+ */
+void _gfx_free_backing(GFXHeap* heap, _GFXBacking* backing);
 
 /**
  * Allocates a staging buffer from a heap.
@@ -1539,14 +1559,14 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
  * @return NULL on failure.
  *
  * Thread-safe with respect to the heap!
- * leaves the `list` base-type uninitialized!
+ * Leaves the `list` base-type uninitialized!
  */
 _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
                                 VkBufferUsageFlags usage, uint64_t size);
 
 /**
  * Frees a staging buffer.
- * @param heap    Cannot be NULL, must be same heap staging was allocated with.
+ * @param heap    Cannot be NULL, same heap staging was allocated with.
  * @param staging Cannot be NULL.
  *
  * Thread-safe with respect to the heap!

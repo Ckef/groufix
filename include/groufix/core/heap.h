@@ -497,7 +497,6 @@ typedef enum GFXFilter
  * @param deps       Cannot be NULL if numDeps > 0.
  * @return Non-zero on success.
  *
- * For all operations, at least one resource must be allocated from a heap!
  * All memory operations are thread-safe with respect to any associated heap,
  * which means operations can run in parallel as long as they operate on
  * different resources (or non-overlapping regions thereof)!
@@ -569,7 +568,7 @@ GFX_API bool gfx_blit(GFXImageRef src, GFXImageRef dst,
 
 /**
  * Resolves a multisampled image attachment to an image reference.
- * @see gfx_read.
+ * @see gfx_copy.
  *
  * This is the only operation that is allowed to operate on multisampled
  * image attachments. In fact, it MUST operate on one.

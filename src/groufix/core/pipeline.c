@@ -503,7 +503,7 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 		pass->renderer != tech->renderer ||
 		(prim != NULL &&
 			((_GFXPrimitive*)prim)->buffer.heap->allocator.context !=
-			pass->renderer->allocator.context))
+			pass->renderer->cache.context))
 	{
 		gfx_log_error(
 			"Could not initialize renderable; its pass and technique must "

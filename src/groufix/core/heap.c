@@ -49,7 +49,8 @@
  * @param dreqs Can be NULL to disallow a dedicated allocation.
  */
 static inline bool _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
-                                  int linear, GFXMemoryFlags flags,
+                                  bool linear, bool transient,
+                                  GFXMemoryFlags flags,
                                   const VkMemoryRequirements* reqs,
                                   const VkMemoryDedicatedRequirements* dreqs,
                                   VkBuffer buffer, VkImage image)
@@ -62,6 +63,8 @@ static inline bool _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	//   Large heap, for any and all GPU-only resources.
 	//  DEVICE_LOCAL | HOST_VISIBLE | HOST_COHERENT
 	//   Probably a smaller heap, for dynamic/streamed resources.
+	//  DEVICE_LOCAL | LAZILY_ALLOCATED
+	//   May never even be allocated, good for backing images.
 	//  HOST_VISIBLE | HOST_COHERENT
 	//   Large heap, for any and all staging resources,
 	//   and also a fallback for dynamic/streamed things.
@@ -74,9 +77,12 @@ static inline bool _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 
 	// Add the device local flag to optimal flags, this way we fallback to
 	// non device-local memory in case it must be host visible memory too :)
+	// Include the lazily allocated bit if possible & transient is requested.
 	VkMemoryPropertyFlags optimal = required |
 		((flags & GFX_MEMORY_DEVICE_LOCAL) ?
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : 0);
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : 0) |
+		(!(flags & GFX_MEMORY_HOST_VISIBLE) && transient ?
+			VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT : 0);
 
 	// Check if the Vulkan implementation wants a dedicated allocation.
 	// Note that we do not check `dreqs->requiresDedicatedAllocation`, this
@@ -155,7 +161,7 @@ static bool _gfx_buffer_alloc(_GFXBuffer* buffer)
 		context->vk.device, &bmri2, &mr2);
 
 	if (!_gfx_alloc_mem(
-		&heap->allocator, &buffer->alloc, 1, buffer->base.flags,
+		&heap->allocator, &buffer->alloc, 1, 0, buffer->base.flags,
 		&mr2.memoryRequirements, &mdr,
 		buffer->vk.buffer, VK_NULL_HANDLE))
 	{
@@ -290,7 +296,7 @@ static bool _gfx_image_alloc(_GFXImage* image)
 		context->vk.device, &imri2, &mr2);
 
 	if (!_gfx_alloc_mem(
-		&heap->allocator, &image->alloc, 0, image->base.flags,
+		&heap->allocator, &image->alloc, 0, 0, image->base.flags,
 		&mr2.memoryRequirements, &mdr,
 		VK_NULL_HANDLE, image->vk.image))
 	{
@@ -342,6 +348,151 @@ static void _gfx_image_free(_GFXImage* image)
 }
 
 /****************************/
+_GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
+                                const _GFXImageAttach* attach)
+{
+	assert(heap != NULL);
+	assert(attach != NULL);
+	assert(attach->width > 0);
+	assert(attach->height > 0);
+	assert(attach->depth > 0);
+
+	_GFXContext* context = heap->allocator.context;
+
+	// Allocate a new backing image.
+	_GFXBacking* backing = malloc(sizeof(_GFXBacking));
+	if (backing == NULL) goto clean;
+
+	// Get queue families to share with.
+	uint32_t families[3] = {
+		heap->ops.graphics.queue.family,
+		heap->ops.compute,
+		heap->ops.transfer.queue.family
+	};
+
+	uint32_t fCount =
+		_gfx_filter_families(attach->base.flags, families);
+
+	// Create a new Vulkan image.
+	VkImageCreateFlags createFlags =
+		(attach->base.type == GFX_IMAGE_3D_SLICED) ?
+			VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT :
+		(attach->base.type == GFX_IMAGE_CUBE) ?
+			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
+
+	VkImageUsageFlags usage = _GFX_GET_VK_IMAGE_USAGE(
+		attach->base.flags, attach->base.usage, attach->base.format);
+
+	VkImageCreateInfo ici = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+
+		.pNext                 = NULL,
+		.flags                 = createFlags,
+		.imageType             = _GFX_GET_VK_IMAGE_TYPE(attach->base.type),
+		.format                = attach->vk.format,
+		.extent                = {
+			.width  = attach->width,
+			.height = attach->height,
+			.depth  = attach->depth
+		},
+		.mipLevels             = attach->base.mipmaps,
+		.arrayLayers           = attach->base.layers,
+		.samples               = attach->base.samples,
+		.tiling                = VK_IMAGE_TILING_OPTIMAL,
+		.usage                 = usage,
+		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
+		.queueFamilyIndexCount = fCount > 1 ? fCount : 0,
+		.pQueueFamilyIndices   = fCount > 1 ? families : NULL,
+		.sharingMode           = fCount > 1 ?
+			VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
+	};
+
+	_GFX_VK_CHECK(context->vk.CreateImage(
+		context->vk.device, &ici, NULL, &backing->vk.image), goto clean);
+
+	// Get memory requirements & do actual allocation.
+	VkImageMemoryRequirementsInfo2 imri2 = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+		.pNext = NULL,
+		.image = backing->vk.image
+	};
+
+	VkMemoryDedicatedRequirements mdr = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
+		.pNext = NULL,
+	};
+
+	VkMemoryRequirements2 mr2 = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+		.pNext = &mdr
+	};
+
+	context->vk.GetImageMemoryRequirements2(
+		context->vk.device, &imri2, &mr2);
+
+	// Allocating a backing, may have requested to be transient!
+	bool transient = usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+
+	// Lock just before the allocation.
+	// Postponed until now because we can, don't block other allocations :)
+	_gfx_mutex_lock(&heap->lock);
+
+	if (!_gfx_alloc_mem(
+		&heap->allocator, &backing->alloc, 0, transient, attach->base.flags,
+		&mr2.memoryRequirements, &mdr,
+		VK_NULL_HANDLE, backing->vk.image))
+	{
+		goto clean_image;
+	}
+
+	// Bind the image to the memory.
+	_GFX_VK_CHECK(
+		context->vk.BindImageMemory(
+			context->vk.device,
+			backing->vk.image,
+			backing->alloc.vk.memory, backing->alloc.offset),
+		goto clean_alloc);
+
+	// Unlock.
+	_gfx_mutex_unlock(&heap->lock);
+
+	return backing;
+
+
+	// Cleanup on failure.
+clean_alloc:
+	_gfx_free(&heap->allocator, &backing->alloc);
+clean_image:
+	context->vk.DestroyImage(
+		context->vk.device, backing->vk.image, NULL);
+clean:
+	free(backing);
+
+	return NULL;
+}
+
+/****************************/
+void _gfx_free_backing(GFXHeap* heap, _GFXBacking* backing)
+{
+	assert(heap != NULL);
+	assert(backing != NULL);
+
+	_GFXAllocator* alloc = &heap->allocator;
+	_GFXContext* context = alloc->context;
+
+	// Destroy Vulkan image.
+	context->vk.DestroyImage(
+		context->vk.device, backing->vk.image, NULL);
+
+	// Lock, free the memory & unlock.
+	_gfx_mutex_lock(&heap->lock);
+	_gfx_free(alloc, &backing->alloc);
+	_gfx_mutex_unlock(&heap->lock);
+
+	free(backing);
+}
+
+/****************************/
 _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
                                 VkBufferUsageFlags usage, uint64_t size)
 {
@@ -383,7 +534,7 @@ _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
 	_gfx_mutex_lock(&heap->lock);
 
 	if (!_gfx_alloc_mem(
-		&heap->allocator, &staging->alloc, 1, GFX_MEMORY_HOST_VISIBLE,
+		&heap->allocator, &staging->alloc, 1, 0, GFX_MEMORY_HOST_VISIBLE,
 		&mr, NULL, VK_NULL_HANDLE, VK_NULL_HANDLE))
 	{
 		goto clean_buffer;

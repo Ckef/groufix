@@ -411,7 +411,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	for (size_t s = 0; s < numShaders; ++s)
 	{
 		// Validate context while we're at it.
-		if (shaders[s]->context != renderer->allocator.context)
+		if (shaders[s]->context != renderer->cache.context)
 		{
 			gfx_log_error(
 				"All shaders of a technique must be built on the same "

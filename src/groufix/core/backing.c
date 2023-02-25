@@ -68,7 +68,7 @@ static inline void _gfx_attach_gen(_GFXAttach* attach)
  * @param attach Must be an image attachment of non-zero size.
  * @return Non-zero on success.
  */
-static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
+static bool _gfx_link_backing(GFXRenderer* renderer, _GFXAttach* attach)
 {
 	assert(renderer != NULL);
 	assert(attach != NULL);
@@ -77,126 +77,18 @@ static bool _gfx_alloc_backing(GFXRenderer* renderer, _GFXAttach* attach)
 	assert(attach->image.height > 0);
 	assert(attach->image.depth > 0);
 
-	_GFXContext* context = renderer->allocator.context;
-
-	// Attachments are special, so we add some convenience errors.
-	VkImageUsageFlags usage =
-		_GFX_GET_VK_IMAGE_USAGE(
-			attach->image.base.flags,
-			attach->image.base.usage,
-			attach->image.base.format);
-
-	if ((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) &&
-		(usage & (VkImageUsageFlags)~(
-			VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)))
-	{
-		gfx_log_error(
-			"When attaching a transient image, no other non-attachment "
-			"usages may be set, nor can the read or write memory flags be set.");
-
-		return 0;
-	}
-
 	// Allocate a new backing image.
-	_GFXBacking* backing = malloc(sizeof(_GFXBacking));
-	if (backing == NULL) goto clean;
+	_GFXBacking* backing = _gfx_alloc_backing(renderer->heap, &attach->image);
+	if (backing == NULL) return 0;
 
 	// We set its purge index to UINT_MAX so it never gets purged, yet.
 	backing->purge = UINT_MAX;
-
-	// Get queue families to share with.
-	uint32_t families[3] = {
-		renderer->graphics.family,
-		renderer->compute,
-		renderer->transfer
-	};
-
-	uint32_t fCount =
-		_gfx_filter_families(attach->image.base.flags, families);
-
-	// Create a new Vulkan image.
-	VkImageCreateFlags createFlags =
-		(attach->image.base.type == GFX_IMAGE_3D_SLICED) ?
-			VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT :
-		(attach->image.base.type == GFX_IMAGE_CUBE) ?
-			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
-
-	VkImageCreateInfo ici = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-
-		.pNext                 = NULL,
-		.flags                 = createFlags,
-		.imageType             = _GFX_GET_VK_IMAGE_TYPE(attach->image.base.type),
-		.format                = attach->image.vk.format,
-		.extent                = {
-			.width  = attach->image.width,
-			.height = attach->image.height,
-			.depth  = attach->image.depth
-		},
-		.mipLevels             = attach->image.base.mipmaps,
-		.arrayLayers           = attach->image.base.layers,
-		.samples               = attach->image.base.samples,
-		.tiling                = VK_IMAGE_TILING_OPTIMAL,
-		.usage                 = usage,
-		.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
-		.queueFamilyIndexCount = fCount > 1 ? fCount : 0,
-		.pQueueFamilyIndices   = fCount > 1 ? families : NULL,
-		.sharingMode           = fCount > 1 ?
-			VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
-	};
-
-	_GFX_VK_CHECK(context->vk.CreateImage(
-		context->vk.device, &ici, NULL, &backing->vk.image), goto clean);
-
-	// Get memory requirements & do actual allocation.
-	// Always perform a dedicated allocation for attachments!
-	// This makes it so we don't hog huge memory blocks on the GPU!
-	VkMemoryRequirements mr;
-	context->vk.GetImageMemoryRequirements(
-		context->vk.device, backing->vk.image, &mr);
-
-	// Include the lazily allocated bit if transient is requested.
-	VkMemoryPropertyFlags optimal =
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-		((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) ?
-			VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT :
-			(VkMemoryPropertyFlags)0);
-
-	if (!_gfx_allocd(&renderer->allocator, &backing->alloc,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, optimal,
-		mr, VK_NULL_HANDLE, backing->vk.image))
-	{
-		goto clean_image;
-	}
-
-	// Bind the image to the memory.
-	_GFX_VK_CHECK(
-		context->vk.BindImageMemory(
-			context->vk.device,
-			backing->vk.image,
-			backing->alloc.vk.memory, backing->alloc.offset),
-		goto clean_alloc);
 
 	// Link the backing into the attachment as most recent.
 	gfx_list_insert_before(&attach->image.backings, &backing->list, NULL);
 	attach->image.vk.image = backing->vk.image;
 
 	return 1;
-
-
-	// Cleanup on failure.
-clean_alloc:
-	_gfx_free(&renderer->allocator, &backing->alloc);
-clean_image:
-	context->vk.DestroyImage(
-		context->vk.device, backing->vk.image, NULL);
-clean:
-	free(backing);
-
-	return 0;
 }
 
 /****************************
@@ -204,27 +96,19 @@ clean:
  * @param attach  Must be an image attachment.
  * @param backing Must be a backing image in attach->image.backings.
  */
-static void _gfx_free_backing(GFXRenderer* renderer, _GFXAttach* attach,
-                              _GFXBacking* backing)
+static void _gfx_unlink_backing(GFXRenderer* renderer, _GFXAttach* attach,
+                                _GFXBacking* backing)
 {
 	assert(renderer != NULL);
 	assert(attach != NULL);
 	assert(attach->type == _GFX_ATTACH_IMAGE);
 	assert(backing != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
-
 	// Unlink it from its attachment.
 	gfx_list_erase(&attach->image.backings, &backing->list);
 
-	// Destroy Vulkan image.
-	context->vk.DestroyImage(
-		context->vk.device, backing->vk.image, NULL);
-
 	// Free the memory.
-	_gfx_free(&renderer->allocator, &backing->alloc);
-
-	free(backing);
+	_gfx_free_backing(renderer->heap, backing);
 }
 
 /****************************
@@ -303,9 +187,9 @@ static bool _gfx_detach_attachment(GFXRenderer* renderer, _GFXAttach* attach,
 		_gfx_pool_reset(&renderer->pool);
 		_gfx_mutex_unlock(&renderer->lock);
 
-		// Ok also just free all images.
+		// Ok also just unlink & free all images.
 		while (attach->image.backings.tail != NULL)
-			_gfx_free_backing(renderer, attach,
+			_gfx_unlink_backing(renderer, attach,
 				(_GFXBacking*)attach->image.backings.tail);
 
 		gfx_list_clear(&attach->image.backings);
@@ -456,8 +340,8 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 					if (attach->image.signaled)
 						backing->purge = renderer->current;
 					else
-						// If not signaled, just free the backing.
-						_gfx_free_backing(renderer, attach, backing);
+						// If not signaled, just unlink & free the backing.
+						_gfx_unlink_backing(renderer, attach, backing);
 				}
 
 				// Then we invalidate the most recent image!
@@ -527,8 +411,8 @@ static size_t _gfx_render_backing_alloc(GFXRenderer* renderer)
 			continue;
 		}
 
-		// Allocate the backing image!
-		failed += !_gfx_alloc_backing(renderer, attach);
+		// Allocate & link the backing image!
+		failed += !_gfx_link_backing(renderer, attach);
 	}
 
 	if (failed == 0)
@@ -651,9 +535,9 @@ void _gfx_render_backing_purge(GFXRenderer* renderer)
 			_GFXBacking* backing =
 				(_GFXBacking*)attach->image.backings.tail;
 
-			// If its purge index is this frame, free it!
+			// If its purge index is this frame, unlink & free it!
 			if (backing->purge == renderer->current)
-				_gfx_free_backing(renderer, attach, backing);
+				_gfx_unlink_backing(renderer, attach, backing);
 		}
 	}
 }
@@ -676,7 +560,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 
 	// Resolve attachment's format.
 	VkFormat vkFmt;
-	_GFX_RESOLVE_FORMAT(attachment.format, vkFmt, renderer->allocator.device,
+	_GFX_RESOLVE_FORMAT(attachment.format, vkFmt, renderer->heap->allocator.device,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
 			.optimalTilingFeatures = _GFX_GET_VK_FORMAT_FEATURES(
@@ -686,6 +570,24 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 			gfx_log_error("Renderer attachment format is not supported.");
 			return 0;
 		});
+
+	// Attachments are special, so we add some convenience errors.
+	VkImageUsageFlags usage = _GFX_GET_VK_IMAGE_USAGE(
+		attachment.flags, attachment.usage, attachment.format);
+
+	if ((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) &&
+		(usage & (VkImageUsageFlags)~(
+			VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)))
+	{
+		gfx_log_error(
+			"When attaching a transient image, no other non-attachment "
+			"usages may be set, nor can the read or write memory flags be set.");
+
+		return 0;
+	}
 
 	// Make sure the attachment exists.
 	_GFXAttach* attach = _gfx_alloc_attachments(renderer, index);
@@ -753,7 +655,7 @@ GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
 	}
 
 	// Check if the renderer and the window share the same context.
-	if (renderer->allocator.context != ((_GFXWindow*)window)->context)
+	if (renderer->cache.context != ((_GFXWindow*)window)->context)
 	{
 		gfx_log_error(
 			"When attaching a window to a renderer they must be built on "

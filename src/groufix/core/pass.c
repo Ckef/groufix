@@ -948,7 +948,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	assert(rPass->base.type == GFX_PASS_RENDER);
 
 	GFXRenderer* rend = rPass->base.renderer;
-	_GFXContext* context = rend->allocator.context;
+	_GFXContext* context = rend->cache.context;
 
 	// TODO:GRA: Skip all this if this is not master.
 	// We somehow want to propagate the dimensions to all subpasses.

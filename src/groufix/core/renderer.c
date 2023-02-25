@@ -128,7 +128,7 @@ static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
 	assert(renderer != NULL);
 	assert(stale != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 
 	// Yep just destroy all resources.
 	context->vk.DestroyFramebuffer(
@@ -193,7 +193,7 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	_GFXContext* context = renderer->allocator.context;
+	_GFXContext* context = renderer->cache.context;
 
 	// Get all the 'done rendering' fences of all virtual frames.
 	// Skip if it is the public frame, as its fence is not awaitable
@@ -219,9 +219,13 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
+GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames)
 {
+	assert(heap != NULL);
 	assert(frames > 0);
+
+	_GFXDevice* device = heap->allocator.device;
+	_GFXContext* context = heap->allocator.context;
 
 	// Allocate a new renderer.
 	GFXRenderer* rend = malloc(
@@ -231,38 +235,29 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 	if (rend == NULL)
 		goto clean;
 
-	// Get context associated with the device.
-	_GFXDevice* dev;
-	_GFXContext* context;
-	_GFX_GET_DEVICE(dev, device);
-	_GFX_GET_CONTEXT(context, device, goto clean);
-
 	// Pick the graphics and presentation queues.
 	// Do this first so all other things know the families!
 	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
 	_gfx_pick_queue(context, &rend->present, 0, 1);
-	_gfx_pick_family(context, &rend->compute, VK_QUEUE_COMPUTE_BIT, 0);
-	_gfx_pick_family(context, &rend->transfer, VK_QUEUE_TRANSFER_BIT, 0);
 
 	// Initialize the technique/set lock first.
 	if (!_gfx_mutex_init(&rend->lock))
 		goto clean;
 
 	// Initialize the cache and pool second.
-	if (!_gfx_cache_init(&rend->cache, dev, sizeof(_GFXSetEntry)))
+	if (!_gfx_cache_init(&rend->cache, device, sizeof(_GFXSetEntry)))
 		goto clean_lock;
 
 	// Keep descriptor sets 4x the amount of frames we have.
 	// Offset by 1 to account for the first frame using it.
-	if (!_gfx_pool_init(&rend->pool, dev, (frames << 2) + 1))
+	if (!_gfx_pool_init(&rend->pool, device, (frames << 2) + 1))
 	{
 		_gfx_cache_clear(&rend->cache);
 		goto clean_cache;
 	}
 
-	// Then initialize the allocator, render backing & graph.
+	// Then initialize the render backing & graph.
 	// Technically it doesn't matter, but let's do it in dependency order.
-	_gfx_allocator_init(&rend->allocator, dev);
 	_gfx_render_backing_init(rend);
 	_gfx_render_graph_init(rend);
 
@@ -276,6 +271,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 		}
 
 	// And uh some remaining stuff.
+	rend->heap = heap;
 	rend->recording = 0;
 	rend->public = NULL;
 	rend->numFrames = frames;
@@ -294,7 +290,6 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXDevice* device, unsigned int frames)
 clean_renderer:
 	_gfx_render_graph_clear(rend);
 	_gfx_render_backing_clear(rend);
-	_gfx_allocator_clear(&rend->allocator);
 	_gfx_pool_clear(&rend->pool);
 clean_cache:
 	_gfx_cache_clear(&rend->cache);
@@ -349,13 +344,21 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	gfx_deque_clear(&renderer->stales);
 
-	// Then clear the allocator, cache & pool.
+	// Then clear the cache & pool.
 	_gfx_pool_clear(&renderer->pool);
 	_gfx_cache_clear(&renderer->cache);
-	_gfx_allocator_clear(&renderer->allocator);
 
 	_gfx_mutex_clear(&renderer->lock);
 	free(renderer);
+}
+
+/****************************/
+GFX_API GFXHeap* gfx_renderer_get_heap(GFXRenderer* renderer)
+{
+	if (renderer == NULL)
+		return NULL;
+
+	return renderer->heap;
 }
 
 /****************************/
@@ -364,7 +367,7 @@ GFX_API GFXDevice* gfx_renderer_get_device(GFXRenderer* renderer)
 	if (renderer == NULL)
 		return NULL;
 
-	return (GFXDevice*)renderer->allocator.device;
+	return (GFXDevice*)renderer->heap->allocator.device;
 }
 
 /****************************/
