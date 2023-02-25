@@ -463,10 +463,15 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
 clean_alloc:
 	_gfx_free(&heap->allocator, &backing->alloc);
 clean_image:
+	_gfx_mutex_unlock(&heap->lock); // Don't forget.
+
 	context->vk.DestroyImage(
 		context->vk.device, backing->vk.image, NULL);
 clean:
 	free(backing);
+	gfx_log_error(
+		"Could not allocate a %"PRIu32"x%"PRIu32"x%"PRIu32" backing image.",
+		attach->width, attach->height, attach->depth);
 
 	return NULL;
 }
