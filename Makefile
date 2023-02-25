@@ -205,11 +205,11 @@ ifeq ($(OS),Windows_NT)
 	$(eval OUTSUB_W = $(subst /,\,$(OUT)$(SUB)))
 	@if not exist $(OUTSUB_W)\groufix\assets\nul mkdir $(OUTSUB_W)\groufix\assets
 	@if not exist $(OUTSUB_W)\groufix\containers\nul mkdir $(OUTSUB_W)\groufix\containers
-	@if not exist $(OUTSUB_W)\groufix\core\nul mkdir $(OUTSUB_W)\groufix\core
+	@if not exist $(OUTSUB_W)\groufix\core\mem\nul mkdir $(OUTSUB_W)\groufix\core\mem
 else
 	@mkdir -p $(OUT)$(SUB)/groufix/assets
 	@mkdir -p $(OUT)$(SUB)/groufix/containers
-	@mkdir -p $(OUT)$(SUB)/groufix/core
+	@mkdir -p $(OUT)$(SUB)/groufix/core/mem
 endif
 
 
@@ -255,15 +255,16 @@ OBJS = \
  $(OUT)$(SUB)/groufix/containers/map.o \
  $(OUT)$(SUB)/groufix/containers/tree.o \
  $(OUT)$(SUB)/groufix/containers/vec.o \
- $(OUT)$(SUB)/groufix/core/alloc.o \
+ $(OUT)$(SUB)/groufix/core/mem/alloc.o \
+ $(OUT)$(SUB)/groufix/core/mem/cache.o \
+ $(OUT)$(SUB)/groufix/core/mem/hash.o \
+ $(OUT)$(SUB)/groufix/core/mem/pool.o \
  $(OUT)$(SUB)/groufix/core/backing.o \
- $(OUT)$(SUB)/groufix/core/cache.o \
  $(OUT)$(SUB)/groufix/core/dep.o \
  $(OUT)$(SUB)/groufix/core/device.o \
  $(OUT)$(SUB)/groufix/core/format.o \
  $(OUT)$(SUB)/groufix/core/frame.o \
  $(OUT)$(SUB)/groufix/core/graph.o \
- $(OUT)$(SUB)/groufix/core/hash.o \
  $(OUT)$(SUB)/groufix/core/heap.o \
  $(OUT)$(SUB)/groufix/core/init.o \
  $(OUT)$(SUB)/groufix/core/log.o \
@@ -271,7 +272,6 @@ OBJS = \
  $(OUT)$(SUB)/groufix/core/ops.o \
  $(OUT)$(SUB)/groufix/core/pass.o \
  $(OUT)$(SUB)/groufix/core/pipeline.o \
- $(OUT)$(SUB)/groufix/core/pool.o \
  $(OUT)$(SUB)/groufix/core/recorder.o \
  $(OUT)$(SUB)/groufix/core/ref.o \
  $(OUT)$(SUB)/groufix/core/renderer.o \
