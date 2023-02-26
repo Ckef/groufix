@@ -248,11 +248,10 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 		{
 			resolved[i] = 1;
 			++totalResolved;
-			continue;
 		}
 
 		// If of absolute size, resolve.
-		if (attach->image.base.size == GFX_SIZE_ABSOLUTE)
+		else if (attach->image.base.size == GFX_SIZE_ABSOLUTE)
 		{
 			// We do not need to check if it is resized,
 			// if it were, the previous attachment would've been detached
@@ -266,11 +265,11 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 
 			resolved[i] = 1;
 			++totalResolved;
-			continue;
 		}
 
 		// If not, yet to be resolved.
-		resolved[i] = 0;
+		else
+			resolved[i] = 0;
 	}
 
 	// Now keep iterating over all attachments until we cannot resolve
