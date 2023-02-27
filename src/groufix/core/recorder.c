@@ -939,7 +939,7 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
 
 /****************************/
 GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
-                              uint32_t x, uint32_t y, uint32_t z)
+                              uint32_t xSize, uint32_t ySize, uint32_t zSize)
 {
 	assert(recorder != NULL);
 	assert(recorder->inp.pass == NULL || recorder->inp.pass->type == GFX_PASS_COMPUTE);
@@ -947,9 +947,9 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
 	assert(computable != NULL);
 	assert(computable->technique != NULL);
 	assert(computable->technique->renderer == recorder->renderer);
-	assert(x > 0);
-	assert(y > 0);
-	assert(z > 0);
+	assert(xSize > 0);
+	assert(ySize > 0);
+	assert(zSize > 0);
 
 	_GFXContext* context = recorder->context;
 
@@ -964,7 +964,39 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
 	}
 
 	// Record the dispatch command.
-	context->vk.CmdDispatch(recorder->inp.cmd, x, y, z);
+	context->vk.CmdDispatch(recorder->inp.cmd, xSize, ySize, zSize);
+}
+
+/****************************/
+GFX_API void gfx_cmd_dispatch_base(GFXRecorder* recorder, GFXComputable * computable,
+                                   uint32_t xBase, uint32_t yBase, uint32_t zBase,
+                                   uint32_t xSize, uint32_t ySize, uint32_t zSize)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.pass == NULL || recorder->inp.pass->type == GFX_PASS_COMPUTE);
+	assert(recorder->inp.cmd != NULL);
+	assert(computable != NULL);
+	assert(computable->technique != NULL);
+	assert(computable->technique->renderer == recorder->renderer);
+	assert(xSize > 0);
+	assert(ySize > 0);
+	assert(zSize > 0);
+
+	_GFXContext* context = recorder->context;
+
+	// Bind pipeline.
+	if (!_gfx_recorder_bind_computable(recorder, computable))
+	{
+		gfx_log_error(
+			"Failed to get Vulkan compute pipeline during dispatch command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Record the dispatch command.
+	context->vk.CmdDispatchBase(recorder->inp.cmd,
+		xBase, yBase, zBase, xSize, ySize, zSize);
 }
 
 /****************************/
