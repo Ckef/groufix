@@ -39,6 +39,14 @@
 
 
 /**
+ * Make Vulkan enumerate portability subset devices (e.g. MoltenVK).
+ */
+#if defined (__APPLE__)
+	#define GFX_USE_VK_SUBSET_DEVICES
+#endif
+
+
+/**
  * Windows XP minimum.
  */
 #if defined (GFX_WIN32)

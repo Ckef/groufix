@@ -738,16 +738,31 @@ static void _gfx_create_context(_GFXDevice* device)
 	VkPhysicalDeviceVulkan12Features pdv12f;
 	_GFX_GET_DEVICE_FEATURES(device, vk11, vk12, pdf, pdv11f, pdv12f);
 
-	// Finally go create the logical Vulkan device.
 	// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
 	// TODO: Enable VK_EXT_memory_budget?
+	const char* extensions[] = {
+		"VK_KHR_swapchain",
+
+		// If a portability subset device, add VK_KHR_portability_subset.
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+		"VK_KHR_portability_subset"
+#endif
+	};
+
+	const size_t extensionCount =
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+		sizeof(extensions)/sizeof(char*) - (device->subset ? 0 : 1);
+#else
+		sizeof(extensions)/sizeof(char*);
+#endif
+
 	// Enable VK_LAYER_KHRONOS_validation if debug,
 	// this is deprecated by now, but for older Vulkan versions.
-	const char* extensions[] = { "VK_KHR_swapchain" };
 #if !defined (NDEBUG)
 	const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 #endif
 
+	// Finally go create the logical Vulkan device.
 	VkDeviceGroupDeviceCreateInfo dgdci = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO,
 
@@ -770,7 +785,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		.enabledLayerCount       = sizeof(layers)/sizeof(char*),
 		.ppEnabledLayerNames     = layers,
 #endif
-		.enabledExtensionCount   = sizeof(extensions)/sizeof(char*),
+		.enabledExtensionCount   = (uint32_t)extensionCount,
 		.ppEnabledExtensionNames = extensions,
 		.pEnabledFeatures        = &pdf
 	};
@@ -921,13 +936,12 @@ bool _gfx_devices_init(void)
 	// The number or order of devices never changes after initialization,
 	// nor is there a user pointer for callbacks, as there are no callbacks.
 	// This means we do not have to dynamically allocate the devices.
-	uint32_t count = 0;
-	bool success = 1;
+	uint32_t count;
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
-		_groufix.vk.instance, &count, NULL), success = 0);
+		_groufix.vk.instance, &count, NULL), count = 0);
 
 	VkPhysicalDevice devices[count > 0 ? count : 1];
-	if (!success || count == 0) goto terminate;
+	if (count == 0) goto terminate;
 
 	// Enumerate all devices.
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
@@ -962,6 +976,41 @@ bool _gfx_devices_init(void)
 		memcpy(
 			dev.name, pdp->deviceName,
 			VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
+
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+		// If we're including portability subset devices, we need to check if
+		// the device exposes VK_KHR_portability_subset.
+		// If it does, we need to enable the extension in the device.
+		dev.subset = 0;
+
+		uint32_t extCount;
+		_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
+			devices[i], NULL, &extCount, NULL), extCount = 0);
+
+		if (extCount > 0)
+		{
+			// May be many extensions, allocate on heap!
+			VkExtensionProperties* extProps =
+				calloc(extCount, sizeof(VkExtensionProperties));
+
+			if (extProps != NULL)
+			{
+				_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
+					devices[i], NULL, &extCount, extProps), extCount = 0);
+
+				for (uint32_t e = 0; e < extCount; ++e)
+					if (strcmp(
+						extProps[e].extensionName,
+						"VK_KHR_portability_subset") == 0)
+					{
+						dev.subset = 1;
+						break;
+					}
+
+				free(extProps);
+			}
+		}
+#endif
 
 		// Get all Vulkan device features as well.
 		bool vk11, vk12;
@@ -1111,6 +1160,7 @@ bool _gfx_devices_init(void)
 		};
 
 		// Find position to insert at.
+		// This is the part where we essentially decide the primary device.
 		size_t j = _groufix.devices.size;
 
 		while (j > 0)
@@ -1121,9 +1171,16 @@ bool _gfx_devices_init(void)
 			// This is true if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.
 			// If the type is equal, pick the greater Vulkan version.
+			// If the version is equal or lesser, pick the non-subset device.
 			const bool prim =
 				dev.base.type < d->base.type ||
-				(dev.base.type == d->base.type && dev.api > d->api);
+				(dev.base.type == d->base.type && dev.api > d->api) ||
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+				(dev.base.type == d->base.type && dev.api == d->api &&
+					!dev.subset && d->subset);
+#else
+				0;
+#endif
 			const bool greater =
 				d->base.available ?
 					(available && prim) : (available || prim);

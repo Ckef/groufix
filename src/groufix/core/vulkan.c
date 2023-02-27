@@ -177,19 +177,29 @@ bool _gfx_vulkan_init(void)
 	if (glfwExtensions == NULL)
 		goto clean;
 
+	// TODO: Enable VK_EXT_swapchain_colorspace?
+	const char* extraExtensions[] = {
+		// VK_EXT_debug_utils so we can log Vulkan debug messages.
+#if !defined (NDEBUG)
+		"VK_EXT_debug_utils",
+#endif
+		// VK_KHR_portability_subset for e.g. MoltenVK.
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+		"VK_KHR_portability_enumeration",
+#endif
+		NULL // Cannot have empty arrays.
+	};
+
 	// We use a scope here so the goto above is allowed.
 	{
-		// TODO: Enable VK_EXT_swapchain_colorspace?
-		// Add our own extensions and layers if in debug mode.
-#if !defined (NDEBUG)
-		const uint32_t count = glfwCount + 1;
-		const char* extensions[count];
+		const uint32_t extraCount = sizeof(extraExtensions)/sizeof(char*) - 1;
+		const uint32_t count = glfwCount + extraCount;
+		const char* extensions[count > 0 ? count : 1];
 		memcpy(extensions, glfwExtensions, sizeof(char*) * glfwCount);
-
-		// VK_EXT_debug_utils so we can log Vulkan debug messages.
-		extensions[glfwCount] = "VK_EXT_debug_utils";
+		memcpy(extensions + glfwCount, extraExtensions, sizeof(char*) * extraCount);
 
 		// Enable VK_LAYER_KHRONOS_validation if debug.
+#if !defined (NDEBUG)
 		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 #endif
 
@@ -242,20 +252,23 @@ bool _gfx_vulkan_init(void)
 		VkInstanceCreateInfo ici = {
 			.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 
-			.flags                   = 0,
 			.pApplicationInfo        = &ai,
 #if defined (NDEBUG)
 			.pNext                   = NULL,
 			.enabledLayerCount       = 0,
 			.ppEnabledLayerNames     = NULL,
-			.enabledExtensionCount   = glfwCount,
-			.ppEnabledExtensionNames = glfwExtensions
 #else
 			.pNext                   = &dumci,
 			.enabledLayerCount       = sizeof(layers)/sizeof(char*),
 			.ppEnabledLayerNames     = layers,
+#endif
 			.enabledExtensionCount   = count,
-			.ppEnabledExtensionNames = extensions
+			.ppEnabledExtensionNames = extensions,
+
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+			.flags = 0x00000001 // VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR
+#else
+			.flags = 0
 #endif
 		};
 
@@ -291,6 +304,9 @@ bool _gfx_vulkan_init(void)
 #endif
 		_GFX_GET_INSTANCE_PROC_ADDR(CreateDevice);
 		_GFX_GET_INSTANCE_PROC_ADDR(DestroySurfaceKHR);
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+		_GFX_GET_INSTANCE_PROC_ADDR(EnumerateDeviceExtensionProperties);
+#endif
 		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDeviceGroups);
 		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDevices);
 		_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);

@@ -233,8 +233,7 @@ static TestBase _test_base =
 	.vertex = NULL,
 	.fragment = NULL,
 	.technique = NULL,
-	.set = NULL,
-	.renderable = { NULL, NULL, NULL }
+	.set = NULL
 };
 
 
