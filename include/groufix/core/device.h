@@ -14,8 +14,13 @@
 
 
 /**
- * Physical device type.
- * From most preferred to least preferred.
+ * Environment variable name to set the primary device.
+ */
+#define GFX_ENV_PRIMARY_VK_DEVICE "GROUFIX_PRIMARY_VK_DEVICE"
+
+
+/**
+ * Physical device type (from most preferred to least preferred).
  */
 typedef enum GFXDeviceType
 {

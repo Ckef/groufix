@@ -8,6 +8,7 @@
 
 #include "groufix/core.h"
 #include <assert.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -67,6 +68,39 @@
  */
 static const float _gfx_vk_queue_priorities[] = { 1.0f, 0.5f, 0.5f };
 
+
+/****************************
+ * Finds whether or not substr occurs in str.
+ * All inputs must be NULL-terminated or NULL.
+ * Comparison is case insensitive.
+ */
+static bool _gfx_contains_substr(const char* str, const char* substr)
+{
+	if (str == NULL || substr == NULL) return 0;
+
+	const char* haystack = str;
+	const char* needle = substr;
+	const char* found = NULL;
+
+	while (*haystack != '\0' && *needle != '\0')
+	{
+		if (tolower(*haystack) == tolower(*needle))
+		{
+			if (found == NULL) found = haystack;
+			++needle;
+		}
+		else
+		{
+			if (found != NULL) haystack = found;
+			needle = substr;
+			found = NULL;
+		}
+
+		++haystack;
+	}
+
+	return *needle == '\0';
+}
 
 /****************************
  * Fills a VkPhysicalDeviceFeatures struct with features to enable,
@@ -932,10 +966,7 @@ bool _gfx_devices_init(void)
 	assert(_groufix.vk.instance != NULL);
 	assert(_groufix.devices.size == 0);
 
-	// Reserve and create groufix devices.
-	// The number or order of devices never changes after initialization,
-	// nor is there a user pointer for callbacks, as there are no callbacks.
-	// This means we do not have to dynamically allocate the devices.
+	// Enumerate all devices.
 	uint32_t count;
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
 		_groufix.vk.instance, &count, NULL), count = 0);
@@ -943,18 +974,22 @@ bool _gfx_devices_init(void)
 	VkPhysicalDevice devices[count > 0 ? count : 1];
 	if (count == 0) goto terminate;
 
-	// Enumerate all devices.
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
 		_groufix.vk.instance, &count, devices), goto terminate);
 
-	// Fill the array of groufix devices.
-	// While doing so, insert them in order of primary-ness.
-	// This also makes it so the 'primary' device is at index 0.
+	// Reserve and create groufix devices.
+	// The number or order of devices never changes after initialization,
+	// nor is there a user pointer for callbacks, as there are no callbacks.
+	// This means we do not have to dynamically allocate the devices.
 	if (!gfx_vec_reserve(&_groufix.devices, (size_t)count))
 		goto terminate;
 
+	// Once before looping, get the env var for the primary device.
+	const char* envPrimDevice = getenv(GFX_ENV_PRIMARY_VK_DEVICE);
+	bool envChosen = 0;
+
 	// Because we insert in random places, we keep moving devices around,
-	// so we leave their mutexes and name pointers blank.
+	// so we leave their mutexes and name pointers blank until after this loop.
 	for (uint32_t i = 0; i < count; ++i)
 	{
 		// Get some Vulkan properties and define a new device.
@@ -976,41 +1011,6 @@ bool _gfx_devices_init(void)
 		memcpy(
 			dev.name, pdp->deviceName,
 			VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
-
-#if defined (GFX_USE_VK_SUBSET_DEVICES)
-		// If we're including portability subset devices, we need to check if
-		// the device exposes VK_KHR_portability_subset.
-		// If it does, we need to enable the extension in the device.
-		dev.subset = 0;
-
-		uint32_t extCount;
-		_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
-			devices[i], NULL, &extCount, NULL), extCount = 0);
-
-		if (extCount > 0)
-		{
-			// May be many extensions, allocate on heap!
-			VkExtensionProperties* extProps =
-				calloc(extCount, sizeof(VkExtensionProperties));
-
-			if (extProps != NULL)
-			{
-				_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
-					devices[i], NULL, &extCount, extProps), extCount = 0);
-
-				for (uint32_t e = 0; e < extCount; ++e)
-					if (strcmp(
-						extProps[e].extensionName,
-						"VK_KHR_portability_subset") == 0)
-					{
-						dev.subset = 1;
-						break;
-					}
-
-				free(extProps);
-			}
-		}
-#endif
 
 		// Get all Vulkan device features as well.
 		bool vk11, vk12;
@@ -1159,12 +1159,50 @@ bool _gfx_devices_init(void)
 			}
 		};
 
-		// TODO: Pick a primary device through an env var?
-		// Find position to insert at.
-		// This is the part where we essentially decide the primary device.
-		size_t j = _groufix.devices.size;
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+		// If we're including portability subset devices, we need to check if
+		// the device exposes VK_KHR_portability_subset.
+		// If it does, we need to enable the extension in the device.
+		dev.subset = 0;
 
-		while (j > 0)
+		uint32_t extCount;
+		_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
+			devices[i], NULL, &extCount, NULL), extCount = 0);
+
+		if (extCount > 0)
+		{
+			// May be many extensions, allocate on heap!
+			VkExtensionProperties* extProps =
+				calloc(extCount, sizeof(VkExtensionProperties));
+
+			if (extProps != NULL)
+			{
+				_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
+					devices[i], NULL, &extCount, extProps), extCount = 0);
+
+				for (uint32_t e = 0; e < extCount; ++e)
+					if (strcmp(
+						extProps[e].extensionName,
+						"VK_KHR_portability_subset") == 0)
+					{
+						dev.subset = 1;
+						break;
+					}
+
+				free(extProps);
+			}
+		}
+#endif
+
+		// Find position to insert at, insert them in order of primary-ness.
+		// This makes it so the 'primary' device is at index 0.
+		// Except when the environment variable for the primary device is set.
+		// Then we just stick it at the front if it is the first match.
+		const bool isEnv = !envChosen && _gfx_contains_substr(dev.name, envPrimDevice);
+		size_t j = isEnv ? 0 : _groufix.devices.size;
+		size_t k = envChosen ? 1 : 0;
+
+		while (j > k)
 		{
 			_GFXDevice* d = gfx_vec_at(&_groufix.devices, j-1);
 
@@ -1174,7 +1212,7 @@ bool _gfx_devices_init(void)
 			// If the type is equal, pick the greater Vulkan version.
 			// If the version is equal, pick the non-subset device.
 			const bool prim =
-				dev.base.type < d->base.type ||
+				(dev.base.type < d->base.type) ||
 				(dev.base.type == d->base.type && dev.api > d->api) ||
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
 				(dev.base.type == d->base.type && dev.api == d->api &&
@@ -1192,6 +1230,9 @@ bool _gfx_devices_init(void)
 
 		// Actual insert.
 		gfx_vec_insert(&_groufix.devices, 1, &dev, j);
+
+		// Make sure to not override if chosen by the environment variable.
+		if (isEnv) envChosen = 1;
 	}
 
 	// Now loop over 'm again to init its mutex/formats and
