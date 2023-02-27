@@ -939,7 +939,7 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
 
 /****************************/
 GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
-                              uint32_t xSize, uint32_t ySize, uint32_t zSize)
+                              uint32_t xCount, uint32_t yCount, uint32_t zCount)
 {
 	assert(recorder != NULL);
 	assert(recorder->inp.pass == NULL || recorder->inp.pass->type == GFX_PASS_COMPUTE);
@@ -947,9 +947,9 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
 	assert(computable != NULL);
 	assert(computable->technique != NULL);
 	assert(computable->technique->renderer == recorder->renderer);
-	assert(xSize > 0);
-	assert(ySize > 0);
-	assert(zSize > 0);
+	assert(xCount > 0);
+	assert(yCount > 0);
+	assert(zCount > 0);
 
 	_GFXContext* context = recorder->context;
 
@@ -964,13 +964,13 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
 	}
 
 	// Record the dispatch command.
-	context->vk.CmdDispatch(recorder->inp.cmd, xSize, ySize, zSize);
+	context->vk.CmdDispatch(recorder->inp.cmd, xCount, yCount, zCount);
 }
 
 /****************************/
 GFX_API void gfx_cmd_dispatch_base(GFXRecorder* recorder, GFXComputable * computable,
                                    uint32_t xBase, uint32_t yBase, uint32_t zBase,
-                                   uint32_t xSize, uint32_t ySize, uint32_t zSize)
+                                   uint32_t xCount, uint32_t yCount, uint32_t zCount)
 {
 	assert(recorder != NULL);
 	assert(recorder->inp.pass == NULL || recorder->inp.pass->type == GFX_PASS_COMPUTE);
@@ -978,9 +978,9 @@ GFX_API void gfx_cmd_dispatch_base(GFXRecorder* recorder, GFXComputable * comput
 	assert(computable != NULL);
 	assert(computable->technique != NULL);
 	assert(computable->technique->renderer == recorder->renderer);
-	assert(xSize > 0);
-	assert(ySize > 0);
-	assert(zSize > 0);
+	assert(xCount > 0);
+	assert(yCount > 0);
+	assert(zCount > 0);
 
 	_GFXContext* context = recorder->context;
 
@@ -996,7 +996,7 @@ GFX_API void gfx_cmd_dispatch_base(GFXRecorder* recorder, GFXComputable * comput
 
 	// Record the dispatch command.
 	context->vk.CmdDispatchBase(recorder->inp.cmd,
-		xBase, yBase, zBase, xSize, ySize, zSize);
+		xBase, yBase, zBase, xCount, yCount, zCount);
 }
 
 /****************************/

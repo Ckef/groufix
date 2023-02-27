@@ -1234,9 +1234,9 @@ typedef struct GFXDrawIndexedCmd
  */
 typedef struct GFXDispatchCmd
 {
-	uint32_t xSize;
-	uint32_t ySize;
-	uint32_t zSize;
+	uint32_t xCount;
+	uint32_t yCount;
+	uint32_t zCount;
 
 } GFXDispatchCmd;
 
@@ -1410,12 +1410,12 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
  * Can only be called within a callback of gfx_recorder_compute!
  * @param recorder   Cannot be NULL.
  * @param computable Cannot be NULL.
- * @param xSize      Must be > 0.
- * @param ySize      Must be > 0.
- * @param zSize      Must be > 0.
+ * @param xCount     Must be > 0.
+ * @param yCount     Must be > 0.
+ * @param zCount     Must be > 0.
  */
 GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
-                              uint32_t xSize, uint32_t ySize, uint32_t zSize);
+                              uint32_t xCount, uint32_t yCount, uint32_t zCount);
 
 /**
  * Compute command to record a compute dispatch with non-zero base workgroups.
@@ -1424,7 +1424,7 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
  */
 GFX_API void gfx_cmd_dispatch_base(GFXRecorder* recorder, GFXComputable * computable,
                                    uint32_t xBase, uint32_t yBase, uint32_t zBase,
-                                   uint32_t xSize, uint32_t ySize, uint32_t zSize);
+                                   uint32_t xCount, uint32_t yCount, uint32_t zCount);
 
 /**
  * Compute command to indirectly (from buffer) record a compute dispatch.

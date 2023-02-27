@@ -1103,6 +1103,7 @@ bool _gfx_devices_init(void)
 				.maxStorageBufferRange = pdp->limits.maxStorageBufferRange,
 				.maxPushConstantSize   = pdp->limits.maxPushConstantsSize,
 				.maxBoundSets          = pdp->limits.maxBoundDescriptorSets,
+				.maxComputeMemorySize  = pdp->limits.maxComputeSharedMemorySize,
 				.maxAttributes         = pdp->limits.maxVertexInputAttributes,
 				.maxAttributeOffset    = pdp->limits.maxVertexInputAttributeOffset,
 				.maxAttributeStride    = pdp->limits.maxVertexInputBindingStride,
@@ -1134,6 +1135,19 @@ bool _gfx_devices_init(void)
 
 				.maxMipLodBias = pdp->limits.maxSamplerLodBias,
 				.maxAnisotropy = pdp->limits.maxSamplerAnisotropy,
+
+				.computeWorkGroupCount = {
+					.x = pdp->limits.maxComputeWorkGroupCount[0],
+					.y = pdp->limits.maxComputeWorkGroupCount[1],
+					.z = pdp->limits.maxComputeWorkGroupCount[2]
+				},
+
+				.computeWorkGroupSize = {
+					.x = pdp->limits.maxComputeWorkGroupSize[0],
+					.y = pdp->limits.maxComputeWorkGroupSize[1],
+					.z = pdp->limits.maxComputeWorkGroupSize[2],
+					.total = pdp->limits.maxComputeWorkGroupInvocations
+				},
 
 				.imageTransferGranularity = {
 					.x = available ? props[families[3]].minImageTransferGranularity.width : 0,

@@ -91,6 +91,7 @@ typedef struct GFXDevice
 		uint32_t maxStorageBufferRange;
 		uint32_t maxPushConstantSize;
 		uint32_t maxBoundSets;
+		uint32_t maxComputeMemorySize;
 		uint32_t maxAttributes;
 		uint32_t maxAttributeOffset;
 		uint32_t maxAttributeStride;
@@ -122,6 +123,10 @@ typedef struct GFXDevice
 
 		float maxMipLodBias;
 		float maxAnisotropy;
+
+		// Compute workgroup limits.
+		struct { uint32_t x, y, z; } computeWorkGroupCount;
+		struct { uint32_t x, y, z, total; } computeWorkGroupSize;
 
 		// Async-transfer image granularity (0,0,0 = only whole mip levels).
 		struct { uint32_t x, y, z; } imageTransferGranularity;
