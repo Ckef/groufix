@@ -55,7 +55,7 @@ Usage
 
 Once _groufix_ is built and used by an executable, the following environment variables can be set:
 
-- `GROUFIX_PRIMARY_VK_DEVICE` is used to set the primary device. The first physical Vulkan device that matches against the value is picked. A device matches if the set value is a substring of its name, case insensitive.
+- `GROUFIX_PRIMARY_VK_DEVICE` : used to influence the primary device selection. It will prioritize matching physical Vulkan devices. A device matches if the set value is a substring of its name, case insensitive.
 
 
 All core functionality can be included in your code with `#include <groufix.h>`. To use the engine, it must be initialized with a call to `gfx_init`. The thread that initializes the engine is considered the _main thread_. Any other function of _groufix_ cannot be called before `gfx_init` has returned succesfully, the only exceptions being `gfx_terminate`, `gfx_attach`, `gfx_detach` and the `gfx_log_*` function family. When the engine will not be used anymore, it must be terminated by the main thread with a call to `gfx_terminate`. Once the engine is terminated, it behaves exactly the same as before initialization.

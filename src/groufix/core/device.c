@@ -679,7 +679,7 @@ static void _gfx_create_context(_GFXDevice* device)
 
 	VkDeviceQueueCreateInfo* createInfos = NULL; // Will be explicitly freed.
 
-	// First of all, check availability &  Vulkan version.
+	// First of all, check availability & Vulkan version.
 	if (!device->base.available)
 	{
 		gfx_log_error("[ %s ] is not available.", device->name);
@@ -986,7 +986,6 @@ bool _gfx_devices_init(void)
 
 	// Once before looping, get the env var for the primary device.
 	const char* envPrimDevice = getenv(GFX_ENV_PRIMARY_VK_DEVICE);
-	bool envChosen = 0;
 
 	// Because we insert in random places, we keep moving devices around,
 	// so we leave their mutexes and name pointers blank until after this loop.
@@ -1196,43 +1195,45 @@ bool _gfx_devices_init(void)
 
 		// Find position to insert at, insert them in order of primary-ness.
 		// This makes it so the 'primary' device is at index 0.
-		// Except when the environment variable for the primary device is set.
-		// Then we just stick it at the front if it is the first match.
-		const bool isEnv = !envChosen && _gfx_contains_substr(dev.name, envPrimDevice);
-		size_t j = isEnv ? 0 : _groufix.devices.size;
-		size_t k = envChosen ? 1 : 0;
+		// We also check if the env variable for the primary device is set.
+		const bool matchEnv = _gfx_contains_substr(dev.name, envPrimDevice);
+		size_t j;
 
-		while (j > k)
+		for (j = 0; j < _groufix.devices.size; ++j)
 		{
-			_GFXDevice* d = gfx_vec_at(&_groufix.devices, j-1);
+			_GFXDevice* d = gfx_vec_at(&_groufix.devices, j);
+			const bool dEnv = _gfx_contains_substr(d->name, envPrimDevice);
 
-			// Check if the previous position needs to go to the right.
-			// This is true if the new device is a better pick as primary.
-			// If the type of device is superior, pick it as primary.
-			// If the type is equal, pick the greater Vulkan version.
-			// If the version is equal, pick the non-subset device.
-			const bool prim =
-				(dev.base.type < d->base.type) ||
-				(dev.base.type == d->base.type && dev.api > d->api) ||
+			// Compare the device against the current in the vector
+			// and check if we found the position or need to move on.
+
+			// All matches against the primary env variable go to the left.
+			// Even if not available, so we get a proper error/warning
+			// instead of silently not picking the picked device!
+			if (matchEnv && !dEnv) break;
+			if (!matchEnv && dEnv) continue;
+
+			// All available devices to the left.
+			if (available && !d->base.available) break;
+			if (!available && d->base.available) continue;
+
+			// Compare against superior device type.
+			if (dev.base.type < d->base.type) break;
+			if (dev.base.type > d->base.type) continue;
+
+			// Compare vulkan versions.
+			if (dev.api > d->api) break;
+			if (dev.api < d->api) continue;
+
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
-				(dev.base.type == d->base.type && dev.api == d->api &&
-					!dev.subset && d->subset);
-#else
-				0;
+			// If all else fails, pick the non-subset device,
+			// i.e. the Vulkan implementation that is fully conformant!
+			if (!dev.subset || d->subset) break;
 #endif
-			const bool greater =
-				d->base.available ?
-					(available && prim) : (available || prim);
-
-			if (greater) --j;
-			else break;
 		}
 
 		// Actual insert.
 		gfx_vec_insert(&_groufix.devices, 1, &dev, j);
-
-		// Make sure to not override if chosen by the environment variable.
-		if (isEnv) envChosen = 1;
 	}
 
 	// Now loop over 'm again to init its mutex/formats and
