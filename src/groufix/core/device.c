@@ -1159,6 +1159,7 @@ bool _gfx_devices_init(void)
 			}
 		};
 
+		// TODO: Pick a primary device through an env var?
 		// Find position to insert at.
 		// This is the part where we essentially decide the primary device.
 		size_t j = _groufix.devices.size;
@@ -1171,7 +1172,7 @@ bool _gfx_devices_init(void)
 			// This is true if the new device is a better pick as primary.
 			// If the type of device is superior, pick it as primary.
 			// If the type is equal, pick the greater Vulkan version.
-			// If the version is equal or lesser, pick the non-subset device.
+			// If the version is equal, pick the non-subset device.
 			const bool prim =
 				dev.base.type < d->base.type ||
 				(dev.base.type == d->base.type && dev.api > d->api) ||

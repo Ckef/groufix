@@ -12,8 +12,9 @@
 
 help:
 	@echo " Clean"
-	@echo "  $(MAKE) clean      - Clean temporary files."
-	@echo "  $(MAKE) clean-bin  - Clean build files."
+	@echo "  $(MAKE) clean      - Clean build files."
+	@echo "  $(MAKE) clean-temp - Clean temporary build files only."
+	@echo "  $(MAKE) clean-bin  - Clean output build files only."
 	@echo "  $(MAKE) clean-deps - Clean dependency builds."
 	@echo "  $(MAKE) clean-all  - Clean all files make produced."
 	@echo ""
@@ -214,7 +215,7 @@ endif
 
 
 # Cleaning directories
-clean:
+clean-temp:
 ifeq ($(OS),Windows_NT)
 	$(eval OUT_W = $(subst /,\,$(OUT)))
 	@if exist $(OUT_W)\nul rmdir /s /q $(OUT_W)
@@ -239,8 +240,12 @@ else
 endif
 
 
+# Nuke build files
+clean: clean-temp clean-bin
+
+
 # Nuke everything
-clean-all: clean clean-bin clean-deps
+clean-all: clean-temp clean-bin clean-deps
 
 
 ##############################
