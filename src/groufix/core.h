@@ -435,6 +435,36 @@ typedef struct _GFXWindow
 
 
 /****************************
+ * String manipulation helpers.
+ ****************************/
+
+/**
+ * Joins (i.e. concatenates) a number of strings, separated by a delimiter.
+ * @param dest  Output string, must hold >= _gfx_str_join_len(...) characters.
+ * @param num   Number of strings in strs.
+ * @param strs  Cannot be NULL if num > 0, must all be NULL-terminated.
+ * @param delim Delimiter to insert, may be NULL, must be NULL-terminated.
+ * @return dest.
+ */
+char* _gfx_str_join(char* dest, size_t num, const char** strs, const char* delim);
+
+/**
+ * Calculates the number of characters needed to output a number of strings
+ * as if called with _gfx_str_join.
+ * @see _gfx_str_join.
+ * @return Number of characters necessary to hold _gfx_str_join's output.
+ */
+size_t _gfx_str_join_len(size_t num, const char** strs, const char* delim);
+
+/**
+ * Joins (i.e. concatenates) a number of strings into a newly allocated string.
+ * @see _gfx_str_join.
+ * @return NULL if empty, NULL-terminated if not, must call free() if not empty.
+ */
+char* _gfx_str_join_alloc(size_t num, const char** strs, const char* delim);
+
+
+/****************************
  * Global and thread local state.
  ****************************/
 

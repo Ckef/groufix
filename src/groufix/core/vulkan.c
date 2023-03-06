@@ -8,6 +8,7 @@
 
 #include "groufix/core.h"
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 
@@ -193,8 +194,8 @@ bool _gfx_vulkan_init(void)
 	// We use a scope here so the goto above is allowed.
 	{
 		const uint32_t extraCount = sizeof(extraExtensions)/sizeof(char*) - 1;
-		const uint32_t count = glfwCount + extraCount;
-		const char* extensions[count > 0 ? count : 1];
+		const uint32_t extensionCount = glfwCount + extraCount;
+		const char* extensions[extensionCount > 0 ? extensionCount : 1];
 		memcpy(extensions, glfwExtensions, sizeof(char*) * glfwCount);
 		memcpy(extensions + glfwCount, extraExtensions, sizeof(char*) * extraCount);
 
@@ -205,7 +206,7 @@ bool _gfx_vulkan_init(void)
 
 		// Ok now go create a Vulkan instance.
 		// But check for the supported version first.
-		uint32_t version;
+		uint32_t version = 0;
 		_groufix.vk.EnumerateInstanceVersion(&version);
 
 		if (version < _GFX_VK_API_VERSION)
@@ -262,7 +263,7 @@ bool _gfx_vulkan_init(void)
 			.enabledLayerCount       = sizeof(layers)/sizeof(char*),
 			.ppEnabledLayerNames     = layers,
 #endif
-			.enabledExtensionCount   = count,
+			.enabledExtensionCount   = extensionCount,
 			.ppEnabledExtensionNames = extensions,
 
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
@@ -288,11 +289,23 @@ bool _gfx_vulkan_init(void)
 			goto clean;
 		}
 
-		// Knowing the Vulkan version is always useful.
-		gfx_log_debug("Vulkan instance of version %u.%u.%u created.",
+#if !defined (NDEBUG)
+		// Traditional moment to celebrate.
+		char* extensionString =
+			_gfx_str_join_alloc(extensionCount, extensions, "\n        ");
+
+		gfx_log_debug(
+			"Vulkan instance created:\n"
+			"    API version: %u.%u.%u\n"
+			"    Enabled extensions: %s%s\n",
 			(unsigned int)VK_API_VERSION_MAJOR(version),
 			(unsigned int)VK_API_VERSION_MINOR(version),
-			(unsigned int)VK_API_VERSION_PATCH(version));
+			(unsigned int)VK_API_VERSION_PATCH(version),
+			extensionString ? "\n        " : "None.",
+			extensionString ? extensionString : "");
+
+		free(extensionString);
+#endif
 
 
 		// Now load all instance level Vulkan functions.

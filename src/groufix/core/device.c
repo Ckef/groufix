@@ -783,7 +783,7 @@ static void _gfx_create_context(_GFXDevice* device)
 #endif
 	};
 
-	const size_t extensionCount =
+	const uint32_t extensionCount =
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
 		sizeof(extensions)/sizeof(char*) - (device->subset ? 0 : 1);
 #else
@@ -819,7 +819,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		.enabledLayerCount       = sizeof(layers)/sizeof(char*),
 		.ppEnabledLayerNames     = layers,
 #endif
-		.enabledExtensionCount   = (uint32_t)extensionCount,
+		.enabledExtensionCount   = extensionCount,
 		.ppEnabledExtensionNames = extensions,
 		.pEnabledFeatures        = &pdf
 	};
@@ -834,16 +834,25 @@ static void _gfx_create_context(_GFXDevice* device)
 	for (GFXListNode* k = context->sets.head; k != NULL; k = k->next)
 		queueCount += ((_GFXQueueSet*)k)->count;
 
+	char* extensionString =
+		_gfx_str_join_alloc(extensionCount, extensions, "\n        ");
+
 	gfx_log_debug(
-		"Logical Vulkan device of version %u.%u.%u created:\n"
+		"Logical Vulkan device created:\n"
+		"    API version: %u.%u.%u\n"
 		"    Contains at least: [ %s ].\n"
 		"    #physical devices: %"GFX_PRIs".\n"
 		"    #queue sets: %"PRIu32".\n"
-		"    #queues (total): %"GFX_PRIs".\n",
+		"    #queues (total): %"GFX_PRIs".\n"
+		"    Enabled extensions: %s%s\n",
 		(unsigned int)VK_API_VERSION_MAJOR(device->api),
 		(unsigned int)VK_API_VERSION_MINOR(device->api),
 		(unsigned int)VK_API_VERSION_PATCH(device->api),
-		device->name, context->numDevices, sets, queueCount);
+		device->name, context->numDevices, sets, queueCount,
+		extensionString ? "\n        " : "None.",
+		extensionString ? extensionString : "");
+
+	free(extensionString);
 #endif
 
 	// Now load all device level Vulkan functions.
@@ -1243,7 +1252,7 @@ bool _gfx_devices_init(void)
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
 			// If all else fails, pick the non-subset device,
 			// i.e. the Vulkan implementation that is fully conformant!
-			if (!dev.subset || d->subset) break;
+			if (!dev.subset && d->subset) break;
 #endif
 		}
 
