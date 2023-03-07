@@ -322,7 +322,7 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
 			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
 
-			uintmax_t gen =
+			uint_least32_t gen =
 				atomic_load_explicit(&entry->gen, memory_order_relaxed);
 
 			if (attach == NULL || gen == _GFX_ATTACH_GEN(attach))

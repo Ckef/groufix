@@ -779,7 +779,7 @@ typedef struct _GFXWindowAttach
 typedef struct _GFXAttach
 {
 	// Build generation (to update set entries), persistent, never 0!
-	uintmax_t gen;
+	uint32_t gen;
 
 
 	// Attachment type.
@@ -1031,8 +1031,8 @@ struct GFXPass
  */
 typedef struct _GFXRenderPass
 {
-	GFXPass   base;
-	uintmax_t gen; // Build generation (to invalidate pipelines).
+	GFXPass  base;
+	uint32_t gen; // Build generation (to invalidate pipelines).
 
 
 	// Pipeline state input.
@@ -1154,7 +1154,7 @@ typedef struct _GFXSetEntry
 	_GFXCacheElem* sampler;  // May be NULL.
 
 	// For attachment references.
-	atomic_uintmax_t gen;
+	atomic_uint_least32_t gen;
 
 
 	// Vulkan fields.
@@ -1365,7 +1365,7 @@ typedef struct _GFXSync
 	unsigned int  waits; // #wait commands left to recycle (if used).
 
 	// For attachment references.
-	uintmax_t gen;
+	uint32_t gen;
 
 	// Claimed by (injections can be async), may be NULL.
 	const _GFXInjection* inj;

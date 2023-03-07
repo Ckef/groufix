@@ -149,9 +149,9 @@ static inline bool _gfx_cmp_stencil(const GFXStencilOpState* l,
 static inline void _gfx_pass_gen(_GFXRenderPass* rPass)
 {
 	if (++rPass->gen == 0) gfx_log_warn(
-		"Pass build generation reached maximum (%"PRIuMAX") and overflowed; "
+		"Pass build generation reached maximum (%"PRIu32") and overflowed; "
 		"may cause old renderables/computables to not be invalidated.",
-		UINTMAX_MAX);
+		UINT32_MAX);
 }
 
 /****************************

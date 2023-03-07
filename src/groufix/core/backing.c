@@ -53,10 +53,10 @@ static inline void _gfx_attach_gen(_GFXAttach* attach)
 	if (++attach->gen == 0)
 	{
 		gfx_log_warn(
-			"Attachment build generation reached maximum (%"PRIuMAX") and "
+			"Attachment build generation reached maximum (%"PRIu32") and "
 			"overflowed; may cause old set entries to not reference "
 			"the new attachment image.",
-			UINTMAX_MAX);
+			UINT32_MAX);
 
 		// Keep 0 reserved for 'uninitialized'-like uses.
 		attach->gen = 1;

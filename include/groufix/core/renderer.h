@@ -503,7 +503,7 @@ typedef struct GFXRenderable
 	GFX_ATOMIC(bool) lock;
 
 	uintptr_t pipeline;
-	uintmax_t gen;
+	uint32_t  gen;
 
 } GFXRenderable;
 
@@ -1190,6 +1190,7 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
  ****************************/
 
 /**
+ * TODO:COM: Remove this and move COMPUTE_(INLINE|ASYNC) to GFXPassType?
  * Compute command flags.
  */
 typedef enum GFXComputeFlags
