@@ -859,7 +859,7 @@ struct GFXRecorder
 
 
 	unsigned int     current; // Current virtual frame index.
-	_GFXRecorderPool pools[]; // One for each virtual frame.
+	_GFXRecorderPool pools[]; // Two { graphics, compute } for each virtual frame.
 };
 
 
@@ -916,6 +916,7 @@ struct GFXRenderer
 	_GFXPool  pool;  // Has _GFXContext*.
 	_GFXQueue graphics;
 	_GFXQueue present;
+	_GFXQueue compute;
 
 	GFXList   recorders;  // References GFXRecorder.
 	GFXList   techniques; // References GFXTechnique.
@@ -1327,6 +1328,7 @@ struct _GFXInjection
 	// Operation input, must be pre-initialized!
 	struct
 	{
+		// TODO:INJ: GFXPass* instead so we can search the consumes.
 		GFXRenderer* renderer; // To signal attachments.
 		size_t       numRefs;  // May be zero!
 
@@ -1917,7 +1919,7 @@ bool _gfx_sync_frames(GFXRenderer* renderer);
 
 /**
  * Resets a recording pool, i.e. resets all command buffers
- * and sets the new current recording pool to use for recording commands.
+ * and sets the new current recording pool(s) to use for recording commands.
  * @param recorder Cannot be NULL.
  * @return Non-zero if successfully reset.
  */

@@ -832,6 +832,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			else
 				sync->vk.buffer = buffer;
 
+			// TODO:INJ: Search the consumes of a pass.
 			// Get all access/stage flags for the resource to signal.
 			const GFXAccessMask srcMask =
 				(refs != &unp) ? injection->inp.masks[r] :

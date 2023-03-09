@@ -27,14 +27,21 @@ typedef struct _GFXCmdElem
  * Claims (or creates) a command buffer from the current recording pool.
  * To unclaim, the current pool's used count should be decreased.
  * @param recorder Cannot be NULL.
+ * @param type     Type of the pass, to inform pool selection.
  * @return The command buffer, NULL on failure.
  */
-static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder)
+static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder,
+                                           GFXPassType type)
 {
 	assert(recorder != NULL);
 
 	_GFXContext* context = recorder->context;
-	_GFXRecorderPool* pool = &recorder->pools[recorder->current];
+
+	// Select recorder pool.
+	_GFXRecorderPool* pool = &recorder->pools[
+		type != GFX_PASS_COMPUTE_ASYNC ?
+			recorder->current * 2 :
+			recorder->current * 2];// + 1]; TODO:COM: Undo when frame uses other pool.
 
 	// If we still have enough command buffers, return the next one.
 	if (pool->used < pool->vk.cmds.size)
@@ -211,33 +218,34 @@ bool _gfx_recorder_reset(GFXRecorder* recorder)
 	// Clear output.
 	gfx_vec_release(&recorder->out.cmds);
 
-	// Set new current recording pool.
+	// Set new current recording pools.
 	recorder->current = recorder->renderer->current;
-	_GFXRecorderPool* pool = &recorder->pools[recorder->current];
 
-	// If the pool did not use some command buffers, free them.
-	if (pool->used < pool->vk.cmds.size)
+	// Then reset both graphics & compute.
+	_GFXRecorderPool* pools = &recorder->pools[recorder->current * 2];
+
+	for (unsigned int p = 0; p < 2; ++p)
 	{
-		uint32_t unused =
-			(uint32_t)(pool->vk.cmds.size - pool->used);
-
-		context->vk.FreeCommandBuffers(context->vk.device,
-			pool->vk.pool, unused, gfx_vec_at(&pool->vk.cmds, pool->used));
-
-		gfx_vec_pop(&pool->vk.cmds, (size_t)unused);
-	}
-
-	// Try to reset the command pool.
-	_GFX_VK_CHECK(
-		context->vk.ResetCommandPool(
-			context->vk.device, pool->vk.pool, 0),
+		// If the pool did not use some command buffers, free them.
+		if (pools[p].used < pools[p].vk.cmds.size)
 		{
-			gfx_log_warn("Resetting of recorder failed.");
-			return 0;
-		});
+			uint32_t unused =
+				(uint32_t)(pools[p].vk.cmds.size - pools[p].used);
 
-	// No command buffers are in use anymore.
-	pool->used = 0;
+			context->vk.FreeCommandBuffers(context->vk.device,
+				pools[p].vk.pool, unused,
+				gfx_vec_at(&pools[p].vk.cmds, pools[p].used));
+
+			gfx_vec_pop(&pools[p].vk.cmds, (size_t)unused);
+		}
+
+		// Try to reset the command pool.
+		_GFX_VK_CHECK(context->vk.ResetCommandPool(
+			context->vk.device, pools[p].vk.pool, 0), return 0);
+
+		// No command buffers are in use anymore.
+		pools[p].used = 0;
+	}
 
 	return 1;
 }
@@ -294,14 +302,14 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// Allocate a new recorder.
 	GFXRecorder* rec = malloc(
 		sizeof(GFXRecorder) +
-		sizeof(_GFXRecorderPool) * renderer->numFrames);
+		sizeof(_GFXRecorderPool) * renderer->numFrames * 2);
 
 	if (rec == NULL)
 		goto error;
 
-	// TODO:COM: Add more pools for async compute?
-	// Create one command pool for each frame.
-	VkCommandPoolCreateInfo cpci = {
+	// Create two command pools for each frame.
+	// One for the graphics family and one for the compute family.
+	VkCommandPoolCreateInfo gcpci = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 
 		.pNext            = NULL,
@@ -309,19 +317,50 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 		.queueFamilyIndex = renderer->graphics.family
 	};
 
+	VkCommandPoolCreateInfo ccpci = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+
+		.pNext            = NULL,
+		.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+		.queueFamilyIndex = renderer->compute.family
+	};
+
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
+		// Graphics pool.
 		_GFX_VK_CHECK(
 			context->vk.CreateCommandPool(
-				context->vk.device, &cpci, NULL, &rec->pools[i].vk.pool),
+				context->vk.device, &gcpci, NULL, &rec->pools[i*2].vk.pool),
 			{
-				// Destroy all pools on failure.
-				while (i > 0) context->vk.DestroyCommandPool(
-					context->vk.device, rec->pools[--i].vk.pool, NULL);
-
-				free(rec);
-				goto error;
+				goto destroy_prev_pools;
 			});
+
+		// Compute pool.
+		_GFX_VK_CHECK(
+			context->vk.CreateCommandPool(
+				context->vk.device, &ccpci, NULL, &rec->pools[i*2+1].vk.pool),
+			{
+				// Destroy graphics, then clean the rest.
+				context->vk.DestroyCommandPool(
+					context->vk.device, rec->pools[i*2].vk.pool, NULL);
+
+				goto destroy_prev_pools;
+			});
+
+		continue; // Success!
+
+	destroy_prev_pools:
+		// If it failed, destroy all previous pools.
+		for (; i > 0; --i)
+		{
+			context->vk.DestroyCommandPool(
+				context->vk.device, rec->pools[i*2-1].vk.pool, NULL);
+			context->vk.DestroyCommandPool(
+				context->vk.device, rec->pools[i*2-2].vk.pool, NULL);
+		}
+
+		free(rec);
+		goto error;
 	}
 
 	// Initialize the rest of the pools.
@@ -334,8 +373,10 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
-		rec->pools[i].used = 0;
-		gfx_vec_init(&rec->pools[i].vk.cmds, sizeof(VkCommandBuffer));
+		rec->pools[i*2].used = 0;
+		rec->pools[i*2+1].used = 0;
+		gfx_vec_init(&rec->pools[i*2].vk.cmds, sizeof(VkCommandBuffer));
+		gfx_vec_init(&rec->pools[i*2+1].vk.cmds, sizeof(VkCommandBuffer));
 	}
 
 	// Ok so we cheat a little by checking if the renderer has a public frame.
@@ -382,15 +423,24 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 	// as its command buffers might still be in use by pending virtual frames!
 	// Still, NOT thread-safe with respect to gfx_renderer_(acquire|submit)!
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
+	{
+		// Graphics & compute pools.
 		_gfx_push_stale(renderer,
 			VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE,
-			recorder->pools[i].vk.pool);
+			recorder->pools[i*2].vk.pool);
+		_gfx_push_stale(renderer,
+			VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE,
+			recorder->pools[i*2+1].vk.pool);
+	}
 
 	_gfx_mutex_unlock(&renderer->lock);
 
 	// Free all the memory.
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
-		gfx_vec_clear(&recorder->pools[i].vk.cmds);
+	{
+		gfx_vec_clear(&recorder->pools[i*2].vk.cmds);
+		gfx_vec_clear(&recorder->pools[i*2+1].vk.cmds);
+	}
 
 	gfx_vec_clear(&recorder->out.cmds);
 	free(recorder);
@@ -419,7 +469,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	if (framebuffer == VK_NULL_HANDLE) goto error;
 
 	// Then, claim a command buffer to use.
-	VkCommandBuffer cmd = _gfx_recorder_claim(recorder);
+	VkCommandBuffer cmd = _gfx_recorder_claim(recorder, pass->type);
 	if (cmd == NULL) goto error;
 
 	// Start recording with it.
@@ -512,13 +562,12 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 
 	_GFXContext* context = recorder->context;
 
-	// TODO:COM: Type of compute pass is ignored, implement async compute :)
 	// The pass must be a compute pass.
 	_GFXComputePass* cPass = (_GFXComputePass*)pass;
 	if (pass->type == GFX_PASS_RENDER) goto error;
 
 	// Then, claim a command buffer to use.
-	VkCommandBuffer cmd = _gfx_recorder_claim(recorder);
+	VkCommandBuffer cmd = _gfx_recorder_claim(recorder, pass->type);
 	if (cmd == NULL) goto error;
 
 	// Start recording with it.

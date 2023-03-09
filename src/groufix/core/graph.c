@@ -218,7 +218,7 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 		pass->order = (unsigned int)i;
 	}
 
-	// TODO:COM: Probably need to remove, as this is invalidated by async compute passes?
+	// TODO:INJ: Probably need to remove, as we'll inject on pass basis.
 	// When done resolving, set the `final` field of all image attachments,
 	// we do this separately to properly NULL-ify when necessary.
 	for (size_t i = 0; i < numAttachs; ++i)

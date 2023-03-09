@@ -381,8 +381,8 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 		rec != NULL;
 		rec = (GFXRecorder*)rec->list.next)
 	{
-		// Failure can be ignored.
-		_gfx_recorder_reset(rec);
+		if (!_gfx_recorder_reset(rec))
+			goto error;
 	}
 
 	return 1;
@@ -521,6 +521,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 	_gfx_injection(&injection);
 
+	// TODO:COM: Need to record separately for async compute!!
 	// Go and record all passes in submission order.
 	// We wrap a loop over all passes inbetween a begin and end command.
 	VkCommandBufferBeginInfo cbbi = {

@@ -235,10 +235,11 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames)
 	if (rend == NULL)
 		goto clean;
 
-	// Pick the graphics and presentation queues.
+	// Pick the graphics, presentation and compute queues.
 	// Do this first so all other things know the families!
 	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
 	_gfx_pick_queue(context, &rend->present, 0, 1);
+	_gfx_pick_queue(context, &rend->compute, VK_QUEUE_COMPUTE_BIT, 0);
 
 	// Initialize the technique/set lock first.
 	if (!_gfx_mutex_init(&rend->lock))

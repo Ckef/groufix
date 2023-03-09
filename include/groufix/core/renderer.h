@@ -688,7 +688,7 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
 
 /**
- * TODO:COM: Remove injections from here and add gfx_frame_inject(frame, pass, ...).
+ * TODO:INJ: Remove injections from here and add gfx_frame_inject(frame, pass, ...).
  * Prepares the acquired virtual frame to start recording,
  * appends all dependency injections if already started.
  * @param frame Cannot be NULL.
