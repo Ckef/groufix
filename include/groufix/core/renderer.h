@@ -68,17 +68,6 @@ typedef struct GFXAttachment
 
 
 /**
- * Render/compute pass type.
- */
-typedef enum GFXPassType
-{
-	GFX_PASS_RENDER,
-	GFX_PASS_COMPUTE
-
-} GFXPassType;
-
-
-/**
  * Image view type (interpreted dimensionality).
  */
 typedef enum GFXViewType
@@ -92,25 +81,6 @@ typedef enum GFXViewType
 	GFX_VIEW_3D
 
 } GFXViewType;
-
-
-/**
- * Image clear value.
- */
-typedef union GFXClear
-{
-	float    f[4];
-	int32_t  i32[4];
-	uint32_t u32[4];
-
-	GFX_UNION_ANONYMOUS(
-	{
-		float    depth;
-		uint32_t stencil;
-
-	}, test)
-
-} GFXClear;
 
 
 /**
@@ -157,30 +127,6 @@ GFX_BIT_FIELD(GFXDepthFlags)
 
 
 /**
- * Polygon rasterization mode.
- */
-typedef enum GFXRasterMode
-{
-	GFX_RASTER_DISCARD,
-	GFX_RASTER_POINT,
-	GFX_RASTER_LINE,
-	GFX_RASTER_FILL
-
-} GFXRasterMode;
-
-
-/**
- * Front face direction.
- */
-typedef enum GFXFrontFace
-{
-	GFX_FRONT_FACE_CCW,
-	GFX_FRONT_FACE_CW
-
-} GFXFrontFace;
-
-
-/**
  * Sampling filter ('reduction') mode.
  */
 typedef enum GFXFilterMode
@@ -204,6 +150,30 @@ typedef enum GFXWrapping
 	GFX_WRAP_CLAMP_TO_BORDER
 
 } GFXWrapping;
+
+
+/**
+ * Polygon rasterization mode.
+ */
+typedef enum GFXRasterMode
+{
+	GFX_RASTER_DISCARD,
+	GFX_RASTER_POINT,
+	GFX_RASTER_LINE,
+	GFX_RASTER_FILL
+
+} GFXRasterMode;
+
+
+/**
+ * Front face direction.
+ */
+typedef enum GFXFrontFace
+{
+	GFX_FRONT_FACE_CCW,
+	GFX_FRONT_FACE_CW
+
+} GFXFrontFace;
 
 
 /**
@@ -718,6 +688,7 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
 
 /**
+ * TODO:COM: Remove injections from here and add gfx_frame_inject(frame, pass, ...).
  * Prepares the acquired virtual frame to start recording,
  * appends all dependency injections if already started.
  * @param frame Cannot be NULL.
@@ -756,6 +727,37 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  ****************************/
 
 /**
+ * Render/compute pass type.
+ */
+typedef enum GFXPassType
+{
+	GFX_PASS_RENDER,
+	GFX_PASS_COMPUTE_INLINE,
+	GFX_PASS_COMPUTE_ASYNC
+
+} GFXPassType;
+
+
+/**
+ * Image clear value.
+ */
+typedef union GFXClear
+{
+	float    f[4];
+	int32_t  i32[4];
+	uint32_t u32[4];
+
+	GFX_UNION_ANONYMOUS(
+	{
+		float    depth;
+		uint32_t stencil;
+
+	}, test)
+
+} GFXClear;
+
+
+/**
  * Adds a new (sink) pass to the renderer given a set of parent.
  * A pass will be after all its parents in submission order.
  * Each element in parents must be associated with the same renderer.
@@ -763,6 +765,11 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  * @param numParents Number of parents, 0 for none.
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
+ *
+ * Asynchronous compute passes cannot be the parent of any render or inline
+ * compute passes and vice versa. They are separate graphs to allow for
+ * asynchronous execution.
+ * However, in submission order, all asynchronous passes are after all others.
  */
 GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
                                        size_t numParents, GFXPass** parents);
@@ -770,7 +777,7 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 /**
  * Retrieves the type of a pass.
  * @param pass Cannot be NULL.
- * @return Type of the pass, either render or compute.
+ * @return Type of the pass, render, inline compute or async compute.
  */
 GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass);
 
@@ -1190,20 +1197,6 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
  ****************************/
 
 /**
- * TODO:COM: Remove this and move COMPUTE_(INLINE|ASYNC) to GFXPassType?
- * Compute command flags.
- */
-typedef enum GFXComputeFlags
-{
-	GFX_COMPUTE_INLINE = 0x0000,
-	GFX_COMPUTE_ASYNC  = 0x0001
-
-} GFXComputeFlags;
-
-GFX_BIT_FIELD(GFXComputeFlags)
-
-
-/**
  * Indirect draw command parameters.
  */
 typedef struct GFXDrawCmd
@@ -1263,7 +1256,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
 GFX_API void gfx_erase_recorder(GFXRecorder* recorder);
 
 /**
- * Records render commands within a given pass.
+ * Records render commands within a given render pass.
  * The callback takes this recorder and the current virtual frame index.
  * @param recorder Cannot be NULL.
  * @param pass     Cannot be NULL, must be a render pass.
@@ -1279,16 +1272,12 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
                                  void* ptr);
 
 /**
- * Records compute commands within a given pass.
+ * Records compute commands within a given compute pass.
  * The callback takes this recorder and the current virtual frame index.
- * @param pass Must be a compute pass if set.
+ * @param pass Cannot be NULL, must be a compute pass.
  * @see gfx_recorder_render.
- *
- * If GFX_COMPUTE_ASYNC is set, pass is ignored,
- * however if it is not set, pass cannot be NULL.
  */
-GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXComputeFlags flags,
-                                  GFXPass* pass,
+GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
                                   void (*cb)(GFXRecorder*, unsigned int, void*),
                                   void* ptr);
 

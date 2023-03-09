@@ -86,7 +86,7 @@ TEST_DESCRIBE(compute, t)
 
 	// Add compute pass.
 	GFXPass* pass = gfx_renderer_add_pass(
-		t->renderer, GFX_PASS_COMPUTE, 0, NULL);
+		t->renderer, GFX_PASS_COMPUTE_INLINE, 0, NULL);
 
 	if (pass == NULL)
 		goto clean;
@@ -124,7 +124,7 @@ TEST_DESCRIBE(compute, t)
 			gfx_ref_buffer(buffer))
 	});
 
-	gfx_recorder_compute(t->recorder, GFX_COMPUTE_INLINE, pass, compute, &ctx);
+	gfx_recorder_compute(t->recorder, pass, compute, &ctx);
 	gfx_frame_submit(frame);
 
 	// Acquire again to synchronize.

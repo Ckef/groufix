@@ -950,6 +950,7 @@ struct GFXRenderer
 	{
 		GFXVec sinks;  // Stores GFXPass* (sink passes, tree roots).
 		GFXVec passes; // Stores GFXPass* (in submission order).
+		size_t async;  // Number of async compute passes.
 
 		enum {
 			_GFX_GRAPH_EMPTY,

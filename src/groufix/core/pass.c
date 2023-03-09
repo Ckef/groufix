@@ -297,25 +297,38 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
                           size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
-	assert(type == GFX_PASS_RENDER || type == GFX_PASS_COMPUTE);
 	assert(numParents == 0 || parents != NULL);
 
-	// Check if all parents use this renderer.
+	// Check if all parents are compatible.
 	for (size_t p = 0; p < numParents; ++p)
+	{
 		if (parents[p]->renderer != renderer)
 		{
 			gfx_log_error(
-				"Pass cannot be the parent of a pass associated "
-				"with a different renderer.");
+				"Render/compute passes cannot be the parent of a pass "
+				"associated with a different renderer.");
 
 			return NULL;
 		}
 
+		if (
+			(type == GFX_PASS_COMPUTE_ASYNC &&
+				parents[p]->type != GFX_PASS_COMPUTE_ASYNC) ||
+			(type != GFX_PASS_COMPUTE_ASYNC &&
+				parents[p]->type == GFX_PASS_COMPUTE_ASYNC))
+		{
+			gfx_log_error(
+				"Asynchronous compute passes cannot be the parent of any "
+				"render or inline compute pass and vice versa.");
+
+			return NULL;
+		}
+	}
+
 	// Allocate a new pass.
 	const size_t structSize =
-		(type == GFX_PASS_RENDER) ? sizeof(_GFXRenderPass) :
-		(type == GFX_PASS_COMPUTE) ? sizeof(_GFXComputePass) :
-		0; // Should not happen.
+		(type == GFX_PASS_RENDER) ?
+		sizeof(_GFXRenderPass) : sizeof(_GFXComputePass);
 
 	GFXPass* pass = malloc(
 		structSize +
@@ -416,7 +429,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	}
 
 	// Initialize as compute pass.
-	else if (type == GFX_PASS_COMPUTE)
+	else
 	{
 		_GFXComputePass* cPass = (_GFXComputePass*)pass;
 
@@ -453,7 +466,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 	}
 
 	// Destruct as compute pass.
-	else if (pass->type == GFX_PASS_COMPUTE)
+	else
 	{
 		_GFXComputePass* cPass = (_GFXComputePass*)pass;
 
@@ -1483,8 +1496,9 @@ GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
 GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
 {
 	assert(pass != NULL);
-	assert(pass->type != GFX_PASS_RENDER || parent < ((_GFXRenderPass*)pass)->numParents);
-	assert(pass->type != GFX_PASS_COMPUTE || parent < ((_GFXComputePass*)pass)->numParents);
+	assert(pass->type == GFX_PASS_RENDER ?
+		parent < ((_GFXRenderPass*)pass)->numParents :
+		parent < ((_GFXComputePass*)pass)->numParents);
 
 	return
 		(pass->type == GFX_PASS_RENDER) ?
