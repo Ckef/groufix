@@ -435,15 +435,17 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset)
 				context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX),
 			goto error);
 
+		// Reset fence & submitted flags if asked.
 		if (reset)
+		{
 			_GFX_VK_CHECK(
 				context->vk.ResetFences(
 					context->vk.device, numFences, fences),
 				goto error);
-	}
 
-	// We've waited for all submitted buffers, reset submitted flags.
-	frame->submitted = 0;
+			frame->submitted = 0;
+		}
+	}
 
 	// Reset all command pools too if asked.
 	if (reset)
