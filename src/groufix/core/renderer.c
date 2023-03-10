@@ -198,22 +198,30 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 	// Get all the 'done rendering' fences of all virtual frames.
 	// Skip if it is the public frame, as its fence is not awaitable
 	// inbetween _gfx_frame_Sync and _gfx_frame_submit!
-	const uint32_t numFences =
-		renderer->numFrames - (renderer->public != NULL) ? 1 : 0;
+	uint32_t numFences =
+		(renderer->numFrames - (renderer->public != NULL) ? 1 : 0) * 2;
 
 	// If none, we're done.
 	if (numFences == 0) return 1;
 
 	VkFence fences[numFences];
-	for (unsigned int f = 0, i = 0; f < renderer->numFrames; ++f)
+	unsigned int f;
+
+	for (f = 0, numFences = 0; f < renderer->numFrames; ++f)
 		if (renderer->frames + f != renderer->public)
-			fences[i++] = renderer->frames[f].vk.done;
+		{
+			if (renderer->frames[f].submitted & _GFX_FRAME_GRAPHICS)
+				fences[numFences++] = renderer->frames[f].vk.graphics.done;
+			if (renderer->frames[f].submitted & _GFX_FRAME_COMPUTE)
+				fences[numFences++] = renderer->frames[f].vk.compute.done;
+		}
 
 	// Wait for all of them.
-	_GFX_VK_CHECK(
-		context->vk.WaitForFences(
-			context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX),
-		return 0);
+	if (numFences > 0)
+		_GFX_VK_CHECK(
+			context->vk.WaitForFences(
+				context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX),
+			return 0);
 
 	return 1;
 }
@@ -413,8 +421,8 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	// This makes it so _gfx_sync_frames does not block for it anymore!
 	renderer->public = &renderer->frames[renderer->current];
 
-	// Synchronize the frame :)
-	_gfx_frame_sync(renderer, renderer->public);
+	// Synchronize & reset the frame :)
+	_gfx_frame_sync(renderer, renderer->public, 1);
 
 	// Purge render backing, MUST happen before acquiring/building.
 	// When (re)building, backings will be made stale with this frame's index.
@@ -511,4 +519,22 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 	// And increase the to-be submitted frame index.
 	renderer->current =
 		(renderer->current + 1) % renderer->numFrames;
+}
+
+/****************************/
+GFX_API void gfx_frame_block(GFXFrame* frame)
+{
+	assert(frame != NULL);
+
+	GFXRenderer* renderer =
+		_GFX_RENDERER_FROM_FRAME(frame);
+
+	// If this is the public frame, force submit.
+	// gfx_frame_submit will also start for us :)
+	if (frame == renderer->public)
+		gfx_frame_submit(frame);
+
+	// Synchronize the frame without resetting,
+	// this way we only reset during acquisition.
+	_gfx_frame_sync(renderer, frame, 0);
 }

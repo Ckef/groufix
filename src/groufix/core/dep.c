@@ -846,7 +846,8 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				// in other renderers!
 				(attach && attach->final) ? attach->final->mask :
 				// If all else fails, check for a sourced injection command.
-				_GFX_INJ_IS_SOURCED(injs[i]) ? injs[i].maskf : 0;
+				_GFX_INJ_IS_SOURCED(injs[i]) ?
+					injs[i].maskf & ~(GFXAccessMask)GFX_ACCESS_HOST_READ_WRITE : 0;
 
 			const GFXShaderStage srcStage =
 				// Check injection reference to not dereference attachments.

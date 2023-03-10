@@ -434,6 +434,7 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
                              _GFXWindow** windows, const uint32_t* indices,
                              _GFXRecreateFlags* flags)
 {
+	assert(rendered != VK_NULL_HANDLE);
 	assert(num > 0);
 	assert(windows != NULL);
 	assert(indices != NULL);

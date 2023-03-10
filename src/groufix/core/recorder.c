@@ -41,7 +41,7 @@ static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder,
 	_GFXRecorderPool* pool = &recorder->pools[
 		type != GFX_PASS_COMPUTE_ASYNC ?
 			recorder->current * 2 :
-			recorder->current * 2];// + 1]; TODO:COM: Undo when frame uses other pool.
+			recorder->current * 2 + 1];
 
 	// If we still have enough command buffers, return the next one.
 	if (pool->used < pool->vk.cmds.size)

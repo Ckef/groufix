@@ -29,9 +29,12 @@
  * Injects an execution/memory barrier, just as stored in a _GFXConsume object.
  * Assumes `con` and `con->out.prev` to be fully initialized.
  */
-static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
+static void _gfx_inject_barrier(VkCommandBuffer cmd,
+                                GFXRenderer* renderer, GFXFrame* frame,
                                 const _GFXConsume* con)
 {
+	assert(renderer != NULL);
+	assert(frame != NULL);
 	assert(con != NULL);
 	assert(con->out.prev != NULL);
 
@@ -50,7 +53,7 @@ static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
 
 	if (!srcWrites && !transition)
 	{
-		context->vk.CmdPipelineBarrier(frame->vk.cmd,
+		context->vk.CmdPipelineBarrier(cmd,
 			_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt),
 			_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt),
 			0, 0, NULL, 0, NULL, 0, NULL);
@@ -130,7 +133,7 @@ static void _gfx_inject_barrier(GFXRenderer* renderer, GFXFrame* frame,
 			con->view.range.numLayers +
 			(con->view.range.layer - imb.subresourceRange.baseArrayLayer));
 
-	context->vk.CmdPipelineBarrier(frame->vk.cmd,
+	context->vk.CmdPipelineBarrier(cmd,
 		_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt),
 		_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt),
 		0, 0, NULL, 0, NULL,
@@ -223,13 +226,16 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 
 	// Initialize things.
 	frame->index = index;
+	frame->submitted = 0;
 
 	gfx_vec_init(&frame->refs, sizeof(size_t));
 	gfx_vec_init(&frame->syncs, sizeof(_GFXFrameSync));
 
-	frame->vk.pool = VK_NULL_HANDLE;
 	frame->vk.rendered = VK_NULL_HANDLE;
-	frame->vk.done = VK_NULL_HANDLE;
+	frame->vk.graphics.pool = VK_NULL_HANDLE;
+	frame->vk.graphics.done = VK_NULL_HANDLE;
+	frame->vk.compute.pool = VK_NULL_HANDLE;
+	frame->vk.compute.done = VK_NULL_HANDLE;
 
 	// A semaphore for device synchronization.
 	VkSemaphoreCreateInfo sci = {
@@ -243,21 +249,26 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 			context->vk.device, &sci, NULL, &frame->vk.rendered),
 		goto clean);
 
-	// And a fence for host synchronization.
+	// And two fences for host synchronization.
 	VkFenceCreateInfo fci = {
 		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
 		.pNext = NULL,
-		.flags = VK_FENCE_CREATE_SIGNALED_BIT
+		.flags = 0
 	};
 
 	_GFX_VK_CHECK(
 		context->vk.CreateFence(
-			context->vk.device, &fci, NULL, &frame->vk.done),
+			context->vk.device, &fci, NULL, &frame->vk.graphics.done),
 		goto clean);
 
-	// Create command pool.
+	_GFX_VK_CHECK(
+		context->vk.CreateFence(
+			context->vk.device, &fci, NULL, &frame->vk.compute.done),
+		goto clean);
+
+	// Create command pools.
 	// These buffers will be reset and re-recorded every frame.
-	VkCommandPoolCreateInfo cpci = {
+	VkCommandPoolCreateInfo gcpci = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 
 		.pNext            = NULL,
@@ -265,24 +276,51 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 		.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
 	};
 
+	VkCommandPoolCreateInfo ccpci = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+
+		.pNext            = NULL,
+		.queueFamilyIndex = renderer->compute.family,
+		.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+	};
+
 	_GFX_VK_CHECK(
 		context->vk.CreateCommandPool(
-			context->vk.device, &cpci, NULL, &frame->vk.pool),
+			context->vk.device, &gcpci, NULL, &frame->vk.graphics.pool),
 		goto clean);
 
-	// Lastly, allocate the command buffer for this frame.
-	VkCommandBufferAllocateInfo cbai = {
+	_GFX_VK_CHECK(
+		context->vk.CreateCommandPool(
+			context->vk.device, &ccpci, NULL, &frame->vk.compute.pool),
+		goto clean);
+
+	// Lastly, allocate the command buffers for this frame.
+	VkCommandBufferAllocateInfo gcbai = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 
 		.pNext              = NULL,
-		.commandPool        = frame->vk.pool,
+		.commandPool        = frame->vk.graphics.pool,
+		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+
+	VkCommandBufferAllocateInfo ccbai = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+
+		.pNext              = NULL,
+		.commandPool        = frame->vk.compute.pool,
 		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = 1
 	};
 
 	_GFX_VK_CHECK(
 		context->vk.AllocateCommandBuffers(
-			context->vk.device, &cbai, &frame->vk.cmd),
+			context->vk.device, &gcbai, &frame->vk.graphics.cmd),
+		goto clean);
+
+	_GFX_VK_CHECK(
+		context->vk.AllocateCommandBuffers(
+			context->vk.device, &ccbai, &frame->vk.compute.cmd),
 		goto clean);
 
 	return 1;
@@ -292,12 +330,16 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 clean:
 	gfx_log_error("Could not create virtual frame.");
 
-	context->vk.DestroyCommandPool(
-		context->vk.device, frame->vk.pool, NULL);
-	context->vk.DestroyFence(
-		context->vk.device, frame->vk.done, NULL);
 	context->vk.DestroySemaphore(
 		context->vk.device, frame->vk.rendered, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, frame->vk.graphics.pool, NULL);
+	context->vk.DestroyFence(
+		context->vk.device, frame->vk.graphics.done, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, frame->vk.compute.pool, NULL);
+	context->vk.DestroyFence(
+		context->vk.device, frame->vk.compute.done, NULL);
 
 	gfx_vec_clear(&frame->refs);
 	gfx_vec_clear(&frame->syncs);
@@ -314,16 +356,33 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 	_GFXContext* context = renderer->cache.context;
 
 	// First wait for the frame to be done.
-	_GFX_VK_CHECK(context->vk.WaitForFences(
-		context->vk.device, 1, &frame->vk.done, VK_TRUE, UINT64_MAX), {});
+	const uint32_t numFences =
+		(frame->submitted & _GFX_FRAME_GRAPHICS) ? 1 : 0 +
+		(frame->submitted & _GFX_FRAME_COMPUTE) ? 1 : 0;
+
+	if (numFences > 0)
+	{
+		const VkFence fences[] = {
+			(frame->submitted & _GFX_FRAME_GRAPHICS) ?
+				frame->vk.graphics.done : frame->vk.compute.done,
+			frame->vk.compute.done
+		};
+
+		_GFX_VK_CHECK(context->vk.WaitForFences(
+			context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX), {});
+	}
 
 	// Then destroy.
-	context->vk.DestroyCommandPool(
-		context->vk.device, frame->vk.pool, NULL);
-	context->vk.DestroyFence(
-		context->vk.device, frame->vk.done, NULL);
 	context->vk.DestroySemaphore(
 		context->vk.device, frame->vk.rendered, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, frame->vk.graphics.pool, NULL);
+	context->vk.DestroyFence(
+		context->vk.device, frame->vk.graphics.done, NULL);
+	context->vk.DestroyCommandPool(
+		context->vk.device, frame->vk.compute.pool, NULL);
+	context->vk.DestroyFence(
+		context->vk.device, frame->vk.compute.done, NULL);
 
 	_gfx_free_syncs(renderer, frame, frame->syncs.size);
 	gfx_vec_clear(&frame->refs);
@@ -348,10 +407,10 @@ uint32_t _gfx_frame_get_swapchain_index(GFXFrame* frame, size_t index)
 }
 
 /****************************/
-bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
+bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset)
 {
-	assert(frame != NULL);
 	assert(renderer != NULL);
+	assert(frame != NULL);
 
 	_GFXContext* context = renderer->cache.context;
 
@@ -359,30 +418,56 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame)
 	// available for use (including its synchronization objects).
 	// Also immediately reset it, luckily the renderer does not sync this
 	// frame whenever we call _gfx_sync_frames so it's fine.
-	_GFX_VK_CHECK(
-		context->vk.WaitForFences(
-			context->vk.device, 1, &frame->vk.done, VK_TRUE, UINT64_MAX),
-		goto error);
+	const uint32_t numFences =
+		(frame->submitted & _GFX_FRAME_GRAPHICS) ? 1 : 0 +
+		(frame->submitted & _GFX_FRAME_COMPUTE) ? 1 : 0;
 
-	_GFX_VK_CHECK(
-		context->vk.ResetFences(
-			context->vk.device, 1, &frame->vk.done),
-		goto error);
-
-	// Immediately reset the relevant command pool, release the memory!
-	_GFX_VK_CHECK(
-		context->vk.ResetCommandPool(
-			context->vk.device, frame->vk.pool, 0),
-		goto error);
-
-	// This includes all the recording pools.
-	for (
-		GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
-		rec != NULL;
-		rec = (GFXRecorder*)rec->list.next)
+	if (numFences > 0)
 	{
-		if (!_gfx_recorder_reset(rec))
-			goto error;
+		const VkFence fences[] = {
+			(frame->submitted & _GFX_FRAME_GRAPHICS) ?
+				frame->vk.graphics.done : frame->vk.compute.done,
+			frame->vk.compute.done
+		};
+
+		_GFX_VK_CHECK(
+			context->vk.WaitForFences(
+				context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX),
+			goto error);
+
+		if (reset)
+			_GFX_VK_CHECK(
+				context->vk.ResetFences(
+					context->vk.device, numFences, fences),
+				goto error);
+	}
+
+	// We've waited for all submitted buffers, reset submitted flags.
+	frame->submitted = 0;
+
+	// Reset all command pools too if asked.
+	if (reset)
+	{
+		// Immediately reset the relevant command pools, release the memory!
+		_GFX_VK_CHECK(
+			context->vk.ResetCommandPool(
+				context->vk.device, frame->vk.graphics.pool, 0),
+			goto error);
+
+		_GFX_VK_CHECK(
+			context->vk.ResetCommandPool(
+				context->vk.device, frame->vk.compute.pool, 0),
+			goto error);
+
+		// This includes all the recording pools.
+		for (
+			GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
+			rec != NULL;
+			rec = (GFXRecorder*)rec->list.next)
+		{
+			if (!_gfx_recorder_reset(rec))
+				goto error;
+		}
 	}
 
 	return 1;
@@ -398,8 +483,8 @@ error:
 /****************************/
 bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 {
-	assert(frame != NULL);
 	assert(renderer != NULL);
+	assert(frame != NULL);
 
 	GFXVec* attachs = &renderer->backing.attachs;
 
@@ -424,6 +509,9 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 	if (attachs->size > 0 && !gfx_vec_push(&frame->refs, attachs->size, NULL))
 		goto error;
 
+	// Figure out if we are going to acquire swapchains.
+	const bool acquireSwap = renderer->graph.numRender > 0;
+
 	// Remember all recreate flags.
 	_GFXRecreateFlags allFlags = 0;
 
@@ -446,11 +534,15 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame)
 		// We also do this in this loop, before building the render graph,
 		// because otherwise we'd be synchronizing on _gfx_swapchain_acquire
 		// at the most random times.
-		_GFXRecreateFlags flags;
-		sync->image = _gfx_swapchain_acquire(
-			sync->window,
-			sync->vk.available,
-			&flags);
+		_GFXRecreateFlags flags = 0;
+
+		if (acquireSwap)
+			sync->image = _gfx_swapchain_acquire(
+				sync->window,
+				sync->vk.available,
+				&flags);
+		else
+			sync->image = UINT32_MAX;
 
 		// Also add in the flags from the previous submission,
 		// that could have postponed a rebuild to now.
@@ -498,31 +590,29 @@ error:
 	return 0;
 }
 
-/****************************/
-bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
+/****************************
+ * Records all render and inline compute passes of a virtual frame.
+ * @param cmd       To record to, cannot be VK_NULL_HANDLE.
+ * @param renderer  Cannot be NULL.
+ * @param frame     Cannot be NULL.
+ * @param first     First pass to start recording at.
+ * @param num       Number of passes to record.
+ * @param injection Cannot be NULL.
+ * @return Zero if the frame could not be recorded.
+ */
+static bool _gfx_frame_record(VkCommandBuffer cmd,
+                              GFXRenderer* renderer, GFXFrame* frame,
+                              size_t first, size_t num,
+                              _GFXInjection* injection)
 {
-	assert(frame != NULL);
+	assert(cmd != VK_NULL_HANDLE);
 	assert(renderer != NULL);
+	assert(frame != NULL);
+	assert(injection != NULL);
 
 	_GFXContext* context = renderer->cache.context;
-	GFXVec* attachs = &renderer->backing.attachs;
 
-	// Prepare injection metadata.
-	_GFXInjection injection = {
-		.inp = {
-			.renderer = renderer,
-			.numRefs = 0,
-			.queue = {
-				.family = renderer->graphics.family,
-				.index = renderer->graphics.index
-			}
-		}
-	};
-
-	_gfx_injection(&injection);
-
-	// TODO:COM: Need to record separately for async compute!!
-	// Go and record all passes in submission order.
+	// Go and record all render and inline compute passes in submission order.
 	// We wrap a loop over all passes inbetween a begin and end command.
 	VkCommandBufferBeginInfo cbbi = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -533,20 +623,21 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	};
 
 	_GFX_VK_CHECK(
-		context->vk.BeginCommandBuffer(frame->vk.cmd, &cbbi),
-		goto error);
+		context->vk.BeginCommandBuffer(cmd, &cbbi),
+		return 0);
 
+	// TODO:INJ: Remove, use injections per pass.
 	// Inject wait commands.
 	if (!_gfx_deps_catch(
-		context, frame->vk.cmd,
+		context, cmd,
 		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
-		&injection))
+		injection))
 	{
-		goto clean_deps;
+		return 0;
 	}
 
-	// Record all passes.
-	for (size_t p = 0; p < renderer->graph.passes.size; ++p)
+	// Record all render and inline compute passes.
+	for (size_t p = first; p < first + num; ++p)
 	{
 		GFXPass* pass =
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
@@ -561,7 +652,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		{
 			const _GFXConsume* con = gfx_vec_at(&pass->consumes, c);
 			if (con->out.prev != NULL)
-				_gfx_inject_barrier(renderer, frame, con);
+				_gfx_inject_barrier(cmd, renderer, frame, con);
 		}
 
 		// Begin render pass.
@@ -597,7 +688,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 				}
 			};
 
-			context->vk.CmdBeginRenderPass(frame->vk.cmd,
+			context->vk.CmdBeginRenderPass(cmd,
 				&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		}
 
@@ -607,41 +698,71 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 			rec != NULL;
 			rec = (GFXRecorder*)rec->list.next)
 		{
-			_gfx_recorder_record(rec, pass->order, frame->vk.cmd);
+			_gfx_recorder_record(rec, pass->order, cmd);
 		}
 
 		// End render pass.
 		if (pass->type == GFX_PASS_RENDER)
-			context->vk.CmdEndRenderPass(frame->vk.cmd);
+			context->vk.CmdEndRenderPass(cmd);
 	}
 
+	// TODO:INJ: Remove, use injections per pass.
 	// Inject signal commands.
 	if (!_gfx_deps_prepare(
-		frame->vk.cmd, 0,
+		cmd, 0,
 		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
-		&injection))
+		injection))
 	{
-		goto clean_deps;
+		return 0;
 	}
 
 	_GFX_VK_CHECK(
-		context->vk.EndCommandBuffer(frame->vk.cmd),
-		goto clean_deps);
+		context->vk.EndCommandBuffer(cmd),
+		return 0);
 
-	// Get other stuff to be able to submit & present.
-	// We do submission and presentation in one call, making all windows
-	// attached to a renderer as synchronized as possible.
-	// Append available semaphores and stages to the injection output.
-	size_t numWaits = injection.out.numWaits + frame->syncs.size;
+	return 1;
+}
 
-	_GFX_INJ_GROW(injection.out.waits,
-		sizeof(VkSemaphore), numWaits, goto clean_deps);
+/****************************/
+bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
+{
+	assert(renderer != NULL);
+	assert(frame != NULL);
 
-	_GFX_INJ_GROW(injection.out.stages,
-		sizeof(VkPipelineStageFlags), numWaits, goto clean_deps);
+	_GFXContext* context = renderer->cache.context;
 
-	// We use a scope here so the goto's above are allowed.
+	// Figure out what we need to record.
+	const size_t numGraphics =
+		renderer->graph.numRender;
+	const size_t numCompute =
+		renderer->graph.passes.size - renderer->graph.numRender;
+
+	_GFXInjection injection;
+
+	// Record & submit to the graphics queue.
+	if (numGraphics > 0)
 	{
+		// Prepare injection metadata.
+		injection = (_GFXInjection){
+			.inp = {
+				.renderer = renderer,
+				.numRefs = 0,
+				.queue = {
+					.family = renderer->graphics.family,
+					.index = renderer->graphics.index
+				}
+			}
+		};
+
+		_gfx_injection(&injection);
+
+		// Record graphics.
+		if (!_gfx_frame_record(frame->vk.graphics.cmd,
+			renderer, frame, 0, numGraphics, &injection))
+		{
+			goto clean_deps;
+		}
+
 		// Get all the available semaphores & metadata.
 		// If there are no sync objects, make VLAs of size 1 for legality.
 		// Then we count the presentable swapchains and go off of that.
@@ -652,11 +773,24 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		uint32_t indices[vlaSyncs];
 		_GFXRecreateFlags flags[vlaSyncs];
 
+		// Append available semaphores and stages to the injection output.
+		if (frame->syncs.size > 0)
+		{
+			const size_t numWaits = injection.out.numWaits + frame->syncs.size;
+
+			_GFX_INJ_GROW(injection.out.waits,
+				sizeof(VkSemaphore), numWaits,
+				goto clean_deps);
+
+			_GFX_INJ_GROW(injection.out.stages,
+				sizeof(VkPipelineStageFlags), numWaits,
+				goto clean_deps);
+		}
+
 		for (size_t s = 0; s < frame->syncs.size; ++s)
 		{
 			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
-			if (sync->image == UINT32_MAX)
-				continue;
+			if (sync->image == UINT32_MAX) continue;
 
 			injection.out.waits[injection.out.numWaits + presentable] =
 				sync->vk.available;
@@ -666,15 +800,11 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 			windows[presentable] = sync->window;
 			indices[presentable] = sync->image;
+
 			++presentable;
 		}
 
-		// Correct wait semaphore count.
-		numWaits = injection.out.numWaits + presentable;
-
-		// And lastly get the signal semaphores.
-		// Again, append to injection output.
-		size_t numSigs = injection.out.numSigs + (presentable > 0 ? 1 : 0);
+		// Append rendered semaphore to injection output.
 		if (injection.out.numSigs > 0 && presentable > 0)
 		{
 			_GFX_INJ_GROW(injection.out.sigs,
@@ -683,6 +813,16 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 			injection.out.sigs[injection.out.numSigs] = frame->vk.rendered;
 		}
+
+		// Submit & present graphics.
+		// We do submission and presentation in one call,
+		// making all windows as synchronized as possible.
+
+		// Correct wait semaphore count.
+		const size_t numWaits = injection.out.numWaits + presentable;
+
+		// And lastly get the signal semaphores.
+		const size_t numSigs = injection.out.numSigs + (presentable > 0 ? 1 : 0);
 
 		// Lock queue and submit.
 		VkSubmitInfo si = {
@@ -693,7 +833,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 			.pWaitSemaphores      = injection.out.waits,
 			.pWaitDstStageMask    = injection.out.stages,
 			.commandBufferCount   = 1,
-			.pCommandBuffers      = &frame->vk.cmd,
+			.pCommandBuffers      = &frame->vk.graphics.cmd,
 			.signalSemaphoreCount = (uint32_t)numSigs,
 
 			// Take the rendered semaphore if not signaling anything else.
@@ -705,7 +845,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 		_GFX_VK_CHECK(
 			context->vk.QueueSubmit(
-				renderer->graphics.vk.queue, 1, &si, frame->vk.done),
+				renderer->graphics.vk.queue, 1, &si, frame->vk.graphics.done),
 			{
 				_gfx_mutex_unlock(renderer->graphics.lock);
 				goto clean_deps;
@@ -714,16 +854,18 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		_gfx_mutex_unlock(renderer->graphics.lock);
 
 		// And then we present all swapchains :)
-		if (presentable > 0) _gfx_swapchains_present(
-			renderer->present,
-			frame->vk.rendered,
-			presentable,
-			windows, indices, flags);
+		if (presentable > 0)
+			_gfx_swapchains_present(
+				renderer->present, frame->vk.rendered,
+				presentable,
+				windows, indices, flags);
 
 		// Loop over all sync objects to set the recreate flags of all
 		// associated window attachments. We add the results of all
 		// presentation operations to them so the next frame that submits
 		// it will rebuild them before acquisition.
+		GFXVec* attachs = &renderer->backing.attachs;
+
 		for (size_t s = 0, p = 0; s < frame->syncs.size; ++s)
 		{
 			_GFXFrameSync* sync = gfx_vec_at(&frame->syncs, s);
@@ -735,8 +877,76 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 			((_GFXAttach*)gfx_vec_at(
 				attachs, sync->backing))->window.flags = fl;
 		}
+
+		// Lastly, make all commands visible for future operations.
+		_gfx_deps_finish(
+			renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
+			&injection);
+
+		// Succesfully submitted.
+		frame->submitted |= _GFX_FRAME_GRAPHICS;
 	}
 
+	// Record & submit to the compute queue.
+	if (numCompute > 0)
+	{
+		// Prepare injection metadata.
+		injection = (_GFXInjection){
+			.inp = {
+				.renderer = renderer,
+				.numRefs = 0,
+				.queue = {
+					.family = renderer->compute.family,
+					.index = renderer->compute.index
+				}
+			}
+		};
+
+		_gfx_injection(&injection);
+
+		// Record compute.
+		if (!_gfx_frame_record(frame->vk.compute.cmd,
+			renderer, frame, numGraphics, numCompute, &injection))
+		{
+			goto clean_deps;
+		}
+
+		// Lock queue and submit.
+		VkSubmitInfo si = {
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+
+			.pNext                = NULL,
+			.waitSemaphoreCount   = (uint32_t)injection.out.numWaits,
+			.pWaitSemaphores      = injection.out.waits,
+			.pWaitDstStageMask    = injection.out.stages,
+			.commandBufferCount   = 1,
+			.pCommandBuffers      = &frame->vk.compute.cmd,
+			.signalSemaphoreCount = (uint32_t)injection.out.numSigs,
+			.pSignalSemaphores    = injection.out.sigs
+		};
+
+		_gfx_mutex_lock(renderer->compute.lock);
+
+		_GFX_VK_CHECK(
+			context->vk.QueueSubmit(
+				renderer->compute.vk.queue, 1, &si, frame->vk.compute.done),
+			{
+				_gfx_mutex_unlock(renderer->compute.lock);
+				goto clean_deps;
+			});
+
+		_gfx_mutex_unlock(renderer->compute.lock);
+
+		// Lastly, make all commands visible for future operations.
+		_gfx_deps_finish(
+			renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
+			&injection);
+
+		// Succesfully submitted.
+		frame->submitted |= _GFX_FRAME_COMPUTE;
+	}
+
+	// Post submission things:
 	// When all is submitted, spend some time flushing the cache & pool.
 	if (!_gfx_cache_flush(&renderer->cache))
 		gfx_log_warn(
@@ -747,11 +957,6 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// Note: we do not flush the pool after synchronization to spare time!
 	_gfx_pool_flush(&renderer->pool);
 
-	// Lastly, make all commands visible for future operations.
-	_gfx_deps_finish(
-		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
-		&injection);
-
 	return 1;
 
 
@@ -760,7 +965,7 @@ clean_deps:
 	_gfx_deps_abort(
 		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
 		&injection);
-error:
+
 	gfx_log_fatal("Submission of virtual frame failed.");
 
 	return 0;

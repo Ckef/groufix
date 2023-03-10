@@ -86,7 +86,7 @@ TEST_DESCRIBE(compute, t)
 
 	// Add compute pass.
 	GFXPass* pass = gfx_renderer_add_pass(
-		t->renderer, GFX_PASS_COMPUTE_ASYNC, 0, NULL);
+		t->renderer, GFX_PASS_COMPUTE_INLINE, 0, NULL);
 
 	if (pass == NULL)
 		goto clean;
@@ -119,16 +119,16 @@ TEST_DESCRIBE(compute, t)
 	GFXFrame* frame = gfx_renderer_acquire(t->renderer);
 	gfx_frame_start(frame, 1, (GFXInject[]){
 		gfx_dep_sigrf(t->dep,
-			GFX_ACCESS_STORAGE_READ_WRITE, GFX_STAGE_COMPUTE,
-			GFX_ACCESS_HOST_READ, GFX_STAGE_NONE,
+			GFX_ACCESS_STORAGE_READ_WRITE,
+			GFX_STAGE_COMPUTE,
+			GFX_ACCESS_STORAGE_READ_WRITE | GFX_ACCESS_HOST_READ,
+			GFX_STAGE_COMPUTE,
 			gfx_ref_buffer(buffer))
 	});
 
 	gfx_recorder_compute(t->recorder, pass, compute, &ctx);
 	gfx_frame_submit(frame);
-
-	// Acquire again to synchronize.
-	gfx_renderer_acquire(t->renderer);
+	gfx_frame_block(frame);
 
 	// Check results.
 	gfx_log_info("\n"

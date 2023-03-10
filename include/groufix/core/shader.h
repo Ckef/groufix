@@ -31,7 +31,6 @@ typedef enum GFXShaderLanguage
  */
 typedef enum GFXShaderStage
 {
-	GFX_STAGE_NONE            = 0x0000,
 	GFX_STAGE_ANY             = 0x0000,
 	GFX_STAGE_VERTEX          = 0x0001,
 	GFX_STAGE_TESS_CONTROL    = 0x0002,

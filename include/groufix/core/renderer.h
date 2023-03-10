@@ -689,8 +689,9 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
 
 /**
  * TODO:INJ: Remove injections from here and add gfx_frame_inject(frame, pass, ...).
- * Prepares the acquired virtual frame to start recording,
- * appends all dependency injections if already started.
+ * Prepares the acquired virtual frame to start recording.
+ * Can only be called inbetween gfx_renderer_acquire and gfx_frame_submit!
+ * Appends all dependency injections if already started.
  * @param frame Cannot be NULL.
  * @param deps  Cannot be NULL if numDeps > 0.
  *
@@ -710,8 +711,9 @@ GFX_API void gfx_frame_start(GFXFrame* frame,
 
 /**
  * Submits the acquired virtual frame of a renderer.
+ * Can only be called once after gfx_frame_acquire.
  * Implicitly starts if not yet done so.
- * @param frame Cannot be NULL, invalidated after this call!
+ * @param frame Cannot be NULL.
  *
  * All memory resources used to render a frame cannot be freed until the next
  * time this frame is acquired. The frames can be identified by their index.
@@ -720,6 +722,16 @@ GFX_API void gfx_frame_start(GFXFrame* frame,
  * any such failure is appropriately logged.
  */
 GFX_API void gfx_frame_submit(GFXFrame* frame);
+
+/**
+ * Blocks until a virtual frame is done rendering.
+ * Implicitly starts & submits if not yet done so.
+ * @param frame Cannot be NULL.
+ *
+ * Failure during blocking cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_frame_block(GFXFrame* frame);
 
 
 /****************************

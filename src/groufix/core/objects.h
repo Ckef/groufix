@@ -893,14 +893,31 @@ struct GFXFrame
 	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
 	GFXVec syncs; // Stores _GFXFrameSync, one for each window attachment.
 
+	enum {
+		_GFX_FRAME_GRAPHICS = 0x0001,
+		_GFX_FRAME_COMPUTE  = 0x0002
+
+	} submitted;
+
 
 	// Vulkan fields.
 	struct
 	{
-		VkCommandPool   pool;
-		VkCommandBuffer cmd;
-		VkSemaphore     rendered;
-		VkFence         done; // For resource access.
+		VkSemaphore rendered;
+
+		struct {
+			VkCommandPool   pool;
+			VkCommandBuffer cmd;
+			VkFence         done;
+
+		} graphics;
+
+		struct {
+			VkCommandPool   pool;
+			VkCommandBuffer cmd;
+			VkFence         done;
+
+		} compute;
 
 	} vk;
 };
@@ -1663,12 +1680,13 @@ uint32_t _gfx_frame_get_swapchain_index(GFXFrame* frame, size_t index);
  * and subsequently resets all command pools.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
+ * @param reset    Non-zero to also reset command pools.
  * @return Non-zero if successfully synchronized.
  *
  * Cannot be called again until a call to _gfx_frame_submit has been made.
  * Failure is considered fatal, frame cannot be used.
  */
-bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame);
+bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset);
 
 /**
  * Acquires all relevant resources for a virtual frame to be recorded.
