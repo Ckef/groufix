@@ -949,9 +949,9 @@ struct GFXRenderer
 	// Render graph (directed acyclic graph of passes).
 	struct
 	{
-		GFXVec sinks;  // Stores GFXPass* (sink passes, tree roots).
-		GFXVec passes; // Stores GFXPass* (in submission order).
-		size_t async;  // Number of async compute passes.
+		size_t numRender; // Number of render & inline compute passes.
+		GFXVec sinks;     // Stores GFXPass* (sink passes, tree roots).
+		GFXVec passes;    // Stores GFXPass* (in submission order).
 
 		enum {
 			_GFX_GRAPH_EMPTY,

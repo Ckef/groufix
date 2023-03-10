@@ -137,12 +137,10 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
  * Also sets the `order` field of all passes :)
  * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */
-static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
+static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 	assert(renderer->graph.state < _GFX_GRAPH_VALIDATED);
-
-	// TODO:GRA: Does this even produce errors?
 
 	// We want to see if we can merge render passes into a chain of
 	// subpasses, useful for tiled renderers n such :)
@@ -151,10 +149,7 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// indicated through the user API.
 	// We loop in submission order so we can propogate the master pass,
 	// and also so all parents are processed before their children.
-	size_t renderPasses =
-		renderer->graph.passes.size - renderer->graph.async;
-
-	for (size_t i = 0; i < renderPasses; ++i)
+	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
 		_GFXRenderPass* rPass = (_GFXRenderPass*)(
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
@@ -229,8 +224,6 @@ static bool _gfx_render_graph_analyze(GFXRenderer* renderer)
 
 	// Its now validated!
 	renderer->graph.state = _GFX_GRAPH_VALIDATED;
-
-	return 1;
 }
 
 /****************************/
@@ -241,7 +234,7 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 	gfx_vec_init(&renderer->graph.sinks, sizeof(GFXPass*));
 	gfx_vec_init(&renderer->graph.passes, sizeof(GFXPass*));
 
-	renderer->graph.async = 0;
+	renderer->graph.numRender = 0;
 
 	// No graph is a valid graph.
 	renderer->graph.state = _GFX_GRAPH_BUILT;
@@ -280,15 +273,12 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 
 	// If not valid yet, analyze the graph.
 	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
-		if (!_gfx_render_graph_analyze(renderer))
-			return 0;
+		_gfx_render_graph_analyze(renderer);
 
 	// And then make sure all render passes are warmped up!
 	size_t failed = 0;
-	size_t renderPasses =
-		renderer->graph.passes.size - renderer->graph.async;
 
-	for (size_t i = 0; i < renderPasses; ++i)
+	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 		if (pass->type == GFX_PASS_RENDER)
@@ -328,15 +318,12 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 
 	// If not valid yet, analyze the graph.
 	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
-		if (!_gfx_render_graph_analyze(renderer))
-			return 0;
+		_gfx_render_graph_analyze(renderer);
 
 	// So now make sure all the render passes in the graph are built.
 	size_t failed = 0;
-	size_t renderPasses =
-		renderer->graph.passes.size - renderer->graph.async;
 
-	for (size_t i = 0; i < renderPasses; ++i)
+	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 		if (pass->type == GFX_PASS_RENDER)
@@ -374,10 +361,8 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 	// If we fail, just ignore and signal we're not built.
 	// Will be tried again in _gfx_render_graph_build.
 	size_t failed = 0;
-	size_t renderPasses =
-		renderer->graph.passes.size - renderer->graph.async;
 
-	for (size_t i = 0; i < renderPasses; ++i)
+	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 		if (pass->type == GFX_PASS_RENDER)
@@ -401,10 +386,7 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Destruct all render passes.
-	size_t renderPasses =
-		renderer->graph.passes.size - renderer->graph.async;
-
-	for (size_t i = 0; i < renderPasses; ++i)
+	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 		if (pass->type == GFX_PASS_RENDER)
@@ -453,11 +435,10 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	// passes go in the front, with their own leveling.
 	// Backwards linear search is probably in-line with the adding order :p
 	size_t min = pass->type == GFX_PASS_COMPUTE_ASYNC ?
-		renderer->graph.passes.size - renderer->graph.async : 0;
+		renderer->graph.numRender : 0;
 
 	size_t loc = pass->type == GFX_PASS_COMPUTE_ASYNC ?
-		renderer->graph.passes.size :
-		renderer->graph.passes.size - renderer->graph.async;
+		renderer->graph.passes.size : renderer->graph.numRender;
 
 	for (; loc > min; --loc)
 	{
@@ -472,8 +453,8 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 		goto clean;
 	}
 
-	// Increase async compute pass count on success.
-	if (pass->type == GFX_PASS_COMPUTE_ASYNC) ++renderer->graph.async;
+	// Increase render (+inline compute) pass count on success.
+	if (pass->type != GFX_PASS_COMPUTE_ASYNC) ++renderer->graph.numRender;
 
 	// Loop through all sinks, remove if it's now a parent.
 	// Skip the last element, as we just added that.
