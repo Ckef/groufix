@@ -1321,8 +1321,8 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
  * @param pass Cannot be NULL.
  * @param deps Cannot be NULL if numDeps > 0.
  *
- * All given dependency objects are referenced until
- * gfx_frame_submit has returned.
+ * NOT thread-safe with respect to pass!
+ * All dependency objects are referenced until gfx_frame_submit has returned.
  *
  * All signal commands are made visible to wait commands injected in passes
  * later in submission order. They are made visible to wait commands submitted
@@ -1334,7 +1334,6 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
  */
 GFX_API void gfx_pass_inject(GFXPass* pass,
                              size_t numDeps, const GFXInject* deps);
-
 
 /**
  * Render command to bind a render/descriptor set.
