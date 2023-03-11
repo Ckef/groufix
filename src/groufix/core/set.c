@@ -8,7 +8,6 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
-#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -911,7 +910,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	// Allocate a new set.
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(GFXSet) + sizeof(_GFXSetBinding) * numBindings,
-		alignof(_GFXSetEntry));
+		_Alignof(_GFXSetEntry));
 
 	GFXSet* aset = malloc(
 		structSize +

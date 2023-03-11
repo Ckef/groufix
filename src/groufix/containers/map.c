@@ -8,7 +8,6 @@
 
 #include "groufix/containers/map.h"
 #include <assert.h>
-#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,17 +17,17 @@
 // Retrieve the _GFXMapNode from a public element pointer.
 #define _GFX_GET_NODE(map, element) \
 	(_GFXMapNode*)((char*)element - \
-		GFX_ALIGN_UP(sizeof(_GFXMapNode), map->align))
+		GFX_ALIGN_UP(sizeof(_GFXMapNode), _Alignof(max_align_t)))
 
 // Retrieve the element data from a _GFXMapNode.
 #define _GFX_GET_ELEMENT(map, mNode) \
 	(void*)((char*)mNode + \
-		GFX_ALIGN_UP(sizeof(_GFXMapNode), map->align))
+		GFX_ALIGN_UP(sizeof(_GFXMapNode), _Alignof(max_align_t)))
 
 // Retrieve the key from a _GFXMapNode.
 #define _GFX_GET_KEY(map, mNode) \
 	(void*)((char*)_GFX_GET_ELEMENT(map, mNode) + \
-		GFX_ALIGN_UP(map->elementSize, map->align))
+		GFX_ALIGN_UP(map->elementSize, _Alignof(max_align_t)))
 
 
 /****************************
@@ -130,7 +129,6 @@ static bool _gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
 	assert(map != NULL);
 	assert(dst != NULL);
 	assert(map->elementSize == dst->elementSize);
-	assert(map->align == dst->align);
 	assert(node != NULL);
 	assert(key == NULL || keySize > 0);
 	assert(map->capacity > 0);
@@ -195,19 +193,17 @@ static bool _gfx_map_move(GFXMap* map, GFXMap* dst, const void* node,
 }
 
 /****************************/
-GFX_API void gfx_map_init(GFXMap* map, size_t elemSize, size_t align,
+GFX_API void gfx_map_init(GFXMap* map, size_t elemSize,
                           uint64_t (*hash)(const void*),
                           int (*cmp)(const void*, const void*))
 {
 	assert(map != NULL);
-	assert(GFX_IS_POWER_OF_TWO(align));
 	assert(hash != NULL);
 	assert(cmp != NULL);
 
 	map->size = 0;
 	map->capacity = 0;
 	map->elementSize = elemSize;
-	map->align = align == 0 ? alignof(max_align_t) : align;
 	map->buckets = NULL;
 
 	map->hash = hash;
@@ -259,7 +255,6 @@ GFX_API bool gfx_map_merge(GFXMap* map, GFXMap* src)
 	assert(map != NULL);
 	assert(src != NULL);
 	assert(src->elementSize == map->elementSize);
-	assert(src->align == map->align);
 
 	// Firstly, try to grow the destination map.
 	if (!_gfx_map_grow(map, map->size + src->size))
@@ -360,10 +355,10 @@ GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
 
 	// Allocate a new node.
 	// We allocate a _GFXMapNode appended with the element and key data,
-	// make sure to adhere to their alignment requirements!
+	// make sure to align for any scalar type!
 	_GFXMapNode* mNode = malloc(
-		GFX_ALIGN_UP(sizeof(_GFXMapNode), map->align) +
-		GFX_ALIGN_UP(map->elementSize, map->align) +
+		GFX_ALIGN_UP(sizeof(_GFXMapNode), _Alignof(max_align_t)) +
+		GFX_ALIGN_UP(map->elementSize, _Alignof(max_align_t)) +
 		keySize);
 
 	if (mNode == NULL)

@@ -31,7 +31,6 @@ typedef enum GFXTreeMatchType
 typedef struct GFXTree
 {
 	size_t keySize;
-	size_t align;
 	void*  root; // Can be read as a node returned by gfx_tree_insert.
 
 	// Key comparison function.
@@ -46,24 +45,22 @@ typedef struct GFXTree
  */
 static inline const void* gfx_tree_key(GFXTree* tree, const void* node)
 {
-	return (const void*)((const char*)node - GFX_ALIGN_UP(tree->keySize, tree->align));
+	return (const void*)((const char*)node -
+		GFX_ALIGN_UP(tree->keySize, _Alignof(max_align_t)));
 }
 
 /**
  * Initializes a tree.
  * @param tree    Cannot be NULL.
  * @param keySize Must be > 0.
- * @parma align   Must be a power of two, zero for scalar type alignment.
  * @param cmp     Cannot be NULL.
- *
- * 'align' shall be the alignment of both key and element data.
  *
  * 'cmp' takes two keys, l and r, it should return:
  *  < 0 if l < r
  *  > 0 if l > r
  *  0 if l == r
  */
-GFX_API void gfx_tree_init(GFXTree* tree, size_t keySize, size_t align,
+GFX_API void gfx_tree_init(GFXTree* tree, size_t keySize,
                            int (*cmp)(const void*, const void*));
 
 /**

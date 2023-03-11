@@ -8,7 +8,6 @@
 
 #include "groufix/core/mem.h"
 #include <assert.h>
-#include <stdalign.h>
 #include <stdlib.h>
 
 
@@ -262,10 +261,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 	block->map.ptr = NULL;
 
 	gfx_list_init(&block->nodes.list);
-	gfx_tree_init(&block->nodes.free, sizeof(key),
-		// Take the largest alignment of the key and element types.
-		GFX_MAX(alignof(VkDeviceSize[2]), alignof(_GFXMemNode)),
-		_gfx_allocator_cmp);
+	gfx_tree_init(&block->nodes.free, sizeof(key), _gfx_allocator_cmp);
 
 	// If an exact size, link the block into the full list.
 	// As there is no free root node, it will be regarded as full.

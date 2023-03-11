@@ -8,7 +8,6 @@
 
 #include "groufix/core/mem.h"
 #include <assert.h>
-#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -985,18 +984,12 @@ bool _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride
 		context->vk.device, &pcci, NULL, &cache->vk.cache), goto clean);
 
 	// Initialize the hashtables.
-	// Take the largest alignment of the key and element types.
-	const size_t align =
-		GFX_MAX(alignof(_GFXHashKey), alignof(_GFXCacheElem));
-
 	gfx_map_init(&cache->simple,
-		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
-
+		sizeof(_GFXCacheElem), _gfx_hash_murmur3, _gfx_hash_cmp);
 	gfx_map_init(&cache->immutable,
-		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
-
+		sizeof(_GFXCacheElem), _gfx_hash_murmur3, _gfx_hash_cmp);
 	gfx_map_init(&cache->mutable,
-		sizeof(_GFXCacheElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
+		sizeof(_GFXCacheElem), _gfx_hash_murmur3, _gfx_hash_cmp);
 
 	return 1;
 

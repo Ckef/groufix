@@ -8,7 +8,6 @@
 
 #include "groufix/core/mem.h"
 #include <assert.h>
-#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -303,16 +302,12 @@ bool _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes)
 	gfx_list_init(&pool->full);
 	gfx_list_init(&pool->subs);
 
-	// Take the largest alignment of the key and element types.
-	const size_t align =
-		GFX_MAX(alignof(_GFXHashKey), alignof(_GFXPoolElem));
-
 	gfx_map_init(&pool->immutable,
-		sizeof(_GFXPoolElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
+		sizeof(_GFXPoolElem), _gfx_hash_murmur3, _gfx_hash_cmp);
 	gfx_map_init(&pool->stale,
-		sizeof(_GFXPoolElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
+		sizeof(_GFXPoolElem), _gfx_hash_murmur3, _gfx_hash_cmp);
 	gfx_map_init(&pool->recycled,
-		sizeof(_GFXPoolElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
+		sizeof(_GFXPoolElem), _gfx_hash_murmur3, _gfx_hash_cmp);
 
 	return 1;
 }
@@ -492,12 +487,8 @@ void _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub)
 	assert(sub != NULL);
 
 	// Initialize the subordinate.
-	// Same alignment as the pool's hashtables.
-	const size_t align =
-		GFX_MAX(alignof(_GFXHashKey), alignof(_GFXPoolElem));
-
 	gfx_map_init(&sub->mutable,
-		sizeof(_GFXPoolElem), align, _gfx_hash_murmur3, _gfx_hash_cmp);
+		sizeof(_GFXPoolElem), _gfx_hash_murmur3, _gfx_hash_cmp);
 
 	sub->block = NULL;
 

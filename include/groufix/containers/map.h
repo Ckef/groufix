@@ -21,7 +21,6 @@ typedef struct GFXMap
 	size_t size;     // Number of stored elements.
 	size_t capacity; // Number of buckets.
 	size_t elementSize;
-	size_t align;
 
 	void** buckets;
 
@@ -40,18 +39,16 @@ typedef struct GFXMap
  */
 static inline const void* gfx_map_key(GFXMap* map, const void* node)
 {
-	return (const void*)((const char*)node + GFX_ALIGN_UP(map->elementSize, map->align));
+	return (const void*)((const char*)node +
+		GFX_ALIGN_UP(map->elementSize, _Alignof(max_align_t)));
 }
 
 /**
  * Initializes a map.
  * @param map      Cannot be NULL.
  * @param elemSize Can be 0 for truly empty nodes.
- * @parma align    Must be a power of two, zero for scalar type alignment.
  * @param hash     Cannot be NULL.
  * @param cmp      Cannot be NULL.
- *
- * 'align' shall be the alignment of both key and element data.
  *
  * 'hash' takes one key and should return:
  *  a hash code of any value of type uint64_t.
@@ -60,7 +57,7 @@ static inline const void* gfx_map_key(GFXMap* map, const void* node)
  *  0 if l == r
  *  !0 if l != r
  */
-GFX_API void gfx_map_init(GFXMap* map, size_t elemSize, size_t align,
+GFX_API void gfx_map_init(GFXMap* map, size_t elemSize,
                           uint64_t (*hash)(const void*),
                           int (*cmp)(const void*, const void*));
 
@@ -91,7 +88,7 @@ GFX_API void gfx_map_shrink(GFXMap* map);
 /**
  * Merges two maps, emptying the source into the destination.
  * @param map Cannot be NULL.
- * @param src Cannot be NULL, must have the same elemSize and align as map.
+ * @param src Cannot be NULL, must have the same elemSize as map.
  * @return Zero on failure.
  *
  * All node pointers of src remain valid.
@@ -103,7 +100,7 @@ GFX_API bool gfx_map_merge(GFXMap* map, GFXMap* src);
 /**
  * Moves a node from one map to another/itself, optionally updating its key.
  * @param map  Cannot be NULL.
- * @param dst  Cannot be NULL, must have the same elemSize and align as map.
+ * @param dst  Cannot be NULL, must have the same elemSize as map.
  * @param node Must be a non-NULL value returned by gfx_map_(h)insert.
  * @param key  New key data, may be NULL.
  * @return Zero on failure.

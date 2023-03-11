@@ -9,7 +9,6 @@
 #include "groufix/core/objects.h"
 #include <assert.h>
 #include <limits.h>
-#include <stdalign.h>
 #include <stdlib.h>
 
 
@@ -1159,7 +1158,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	// Make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(_GFXPrimitive) + sizeof(_GFXAttribute) * numAttribs,
-		alignof(_GFXPrimBuffer));
+		_Alignof(_GFXPrimBuffer));
 
 	_GFXPrimitive* prim = malloc(
 		structSize +
@@ -1426,7 +1425,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	// make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(_GFXGroup) + sizeof(GFXBinding) * numBindings,
-		alignof(GFXReference));
+		_Alignof(GFXReference));
 
 	_GFXGroup* group = malloc(
 		structSize +
