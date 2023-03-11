@@ -213,15 +213,6 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		pass->order = (unsigned int)i;
 	}
 
-	// TODO:INJ: Probably need to remove, as we'll inject on pass basis.
-	// When done resolving, set the `final` field of all image attachments,
-	// we do this separately to properly NULL-ify when necessary.
-	for (size_t i = 0; i < numAttachs; ++i)
-	{
-		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, i);
-		if (at->type == _GFX_ATTACH_IMAGE) at->image.final = consumes[i];
-	}
-
 	// Its now validated!
 	renderer->graph.state = _GFX_GRAPH_VALIDATED;
 }

@@ -343,7 +343,9 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	pass->level = 0;
 	pass->order = 0;
 	pass->childs = 0;
+
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsume));
+	gfx_vec_init(&pass->deps, sizeof(GFXInject));
 
 	// The level is the highest level of all parents + 1.
 	for (size_t p = 0; p < numParents; ++p)
@@ -477,6 +479,8 @@ void _gfx_destroy_pass(GFXPass* pass)
 
 	// More destruction.
 	gfx_vec_clear(&pass->consumes);
+	gfx_vec_clear(&pass->deps);
+
 	free(pass);
 }
 

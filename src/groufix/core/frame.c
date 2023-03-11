@@ -435,19 +435,14 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset)
 				context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX),
 			goto error);
 
-		// Reset fence & submitted flags if asked.
 		if (reset)
-		{
 			_GFX_VK_CHECK(
 				context->vk.ResetFences(
 					context->vk.device, numFences, fences),
 				goto error);
-
-			frame->submitted = 0;
-		}
 	}
 
-	// Reset all command pools too if asked.
+	// If resetting, reset all resources.
 	if (reset)
 	{
 		// Immediately reset the relevant command pools, release the memory!
@@ -470,6 +465,9 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset)
 			if (!_gfx_recorder_reset(rec))
 				goto error;
 		}
+
+		// And the submitted flags.
+		frame->submitted = 0;
 	}
 
 	return 1;
@@ -594,12 +592,9 @@ error:
 
 /****************************
  * Records all render and inline compute passes of a virtual frame.
- * @param cmd       To record to, cannot be VK_NULL_HANDLE.
- * @param renderer  Cannot be NULL.
- * @param frame     Cannot be NULL.
- * @param first     First pass to start recording at.
- * @param num       Number of passes to record.
- * @param injection Cannot be NULL.
+ * @param cmd   To record to, cannot be VK_NULL_HANDLE.
+ * @param first First pass to start recording at.
+ * @param num   Number of passes to record.
  * @return Zero if the frame could not be recorded.
  */
 static bool _gfx_frame_record(VkCommandBuffer cmd,
@@ -614,7 +609,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 
 	_GFXContext* context = renderer->cache.context;
 
-	// Go and record all render and inline compute passes in submission order.
+	// Go and record all requested passes in submission order.
 	// We wrap a loop over all passes inbetween a begin and end command.
 	VkCommandBufferBeginInfo cbbi = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -628,28 +623,29 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		context->vk.BeginCommandBuffer(cmd, &cbbi),
 		return 0);
 
-	// TODO:INJ: Remove, use injections per pass.
-	// Inject wait commands.
-	if (!_gfx_deps_catch(
-		context, cmd,
-		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
-		injection))
-	{
-		return 0;
-	}
-
-	// Record all render and inline compute passes.
+	// Record all requested passes.
 	for (size_t p = first; p < first + num; ++p)
 	{
 		GFXPass* pass =
 			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+
+		injection->inp.pass = pass; // Update injection.
 
 		// TODO:GRA: If a pass is the last, record master and all next passes
 		// and handle the whole VK subpass structure like that.
 		// Note: this means a subpass chain cannot have passes in it,
 		// except for the last, that are a child pass of another.
 
-		// Regardless of whether we actually record, inject barriers.
+		// Inject wait commands.
+		if (!_gfx_deps_catch(
+			context, cmd,
+			pass->deps.size, gfx_vec_at(&pass->deps, 0),
+			injection))
+		{
+			return 0;
+		}
+
+		// Inject consumption barriers.
 		for (size_t c = 0; c < pass->consumes.size; ++c)
 		{
 			const _GFXConsume* con = gfx_vec_at(&pass->consumes, c);
@@ -706,23 +702,63 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// End render pass.
 		if (pass->type == GFX_PASS_RENDER)
 			context->vk.CmdEndRenderPass(cmd);
+
+		// Inject signal commands.
+		if (!_gfx_deps_prepare(
+			cmd, 0,
+			pass->deps.size, gfx_vec_at(&pass->deps, 0),
+			injection))
+		{
+			return 0;
+		}
 	}
 
-	// TODO:INJ: Remove, use injections per pass.
-	// Inject signal commands.
-	if (!_gfx_deps_prepare(
-		cmd, 0,
-		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
-		injection))
-	{
-		return 0;
-	}
-
+	// End recording.
 	_GFX_VK_CHECK(
 		context->vk.EndCommandBuffer(cmd),
 		return 0);
 
 	return 1;
+}
+
+/****************************
+ * Finalizes dependency injection after a call to _gfx_frame_record.
+ * Will erase all dependency injections in all passes.
+ * @see _gfx_frame_record.
+ */
+static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
+                                size_t first, size_t num,
+                                _GFXInjection* injection)
+{
+	assert(renderer != NULL);
+	assert(injection != NULL);
+
+	// Loop over all passes again to deal with their dependencies.
+	for (size_t p = first; p < first + num; ++p)
+	{
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+
+		injection->inp.pass = pass; // Update injection.
+
+		// Firstly, finalize or abort the dependency injection.
+		if (success)
+			_gfx_deps_finish(
+				pass->deps.size, gfx_vec_at(&pass->deps, 0),
+				injection);
+		else
+			_gfx_deps_abort(
+				pass->deps.size, gfx_vec_at(&pass->deps, 0),
+				injection);
+
+		// Then erase them.
+		// Keep the memory in case we repeatedly inject.
+		// Unless it was already empty, then clear what was kept.
+		if (pass->deps.size == 0)
+			gfx_vec_clear(&pass->deps);
+		else
+			gfx_vec_release(&pass->deps);
+	}
 }
 
 /****************************/
@@ -748,6 +784,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		injection = (_GFXInjection){
 			.inp = {
 				.renderer = renderer,
+				.pass = NULL,
 				.numRefs = 0,
 				.queue = {
 					.family = renderer->graphics.family,
@@ -762,7 +799,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		if (!_gfx_frame_record(frame->vk.graphics.cmd,
 			renderer, frame, 0, numGraphics, &injection))
 		{
-			goto clean_deps;
+			goto clean_graphics;
 		}
 
 		// Get all the available semaphores & metadata.
@@ -782,11 +819,11 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 			_GFX_INJ_GROW(injection.out.waits,
 				sizeof(VkSemaphore), numWaits,
-				goto clean_deps);
+				goto clean_graphics);
 
 			_GFX_INJ_GROW(injection.out.stages,
 				sizeof(VkPipelineStageFlags), numWaits,
-				goto clean_deps);
+				goto clean_graphics);
 		}
 
 		for (size_t s = 0; s < frame->syncs.size; ++s)
@@ -811,7 +848,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		{
 			_GFX_INJ_GROW(injection.out.sigs,
 				sizeof(VkSemaphore), injection.out.numSigs + 1,
-				goto clean_deps);
+				goto clean_graphics);
 
 			injection.out.sigs[injection.out.numSigs] = frame->vk.rendered;
 		}
@@ -850,7 +887,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 				renderer->graphics.vk.queue, 1, &si, frame->vk.graphics.done),
 			{
 				_gfx_mutex_unlock(renderer->graphics.lock);
-				goto clean_deps;
+				goto clean_graphics;
 			});
 
 		_gfx_mutex_unlock(renderer->graphics.lock);
@@ -881,9 +918,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		}
 
 		// Lastly, make all commands visible for future operations.
-		_gfx_deps_finish(
-			renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
-			&injection);
+		_gfx_frame_finalize(renderer, 1, 0, numGraphics, &injection);
 
 		// Succesfully submitted.
 		frame->submitted |= _GFX_FRAME_GRAPHICS;
@@ -896,6 +931,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		injection = (_GFXInjection){
 			.inp = {
 				.renderer = renderer,
+				.pass = NULL,
 				.numRefs = 0,
 				.queue = {
 					.family = renderer->compute.family,
@@ -910,7 +946,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		if (!_gfx_frame_record(frame->vk.compute.cmd,
 			renderer, frame, numGraphics, numCompute, &injection))
 		{
-			goto clean_deps;
+			goto clean_compute;
 		}
 
 		// Lock queue and submit.
@@ -934,15 +970,13 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 				renderer->compute.vk.queue, 1, &si, frame->vk.compute.done),
 			{
 				_gfx_mutex_unlock(renderer->compute.lock);
-				goto clean_deps;
+				goto clean_compute;
 			});
 
 		_gfx_mutex_unlock(renderer->compute.lock);
 
 		// Lastly, make all commands visible for future operations.
-		_gfx_deps_finish(
-			renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
-			&injection);
+		_gfx_frame_finalize(renderer, 1, numGraphics, numCompute, &injection);
 
 		// Succesfully submitted.
 		frame->submitted |= _GFX_FRAME_COMPUTE;
@@ -963,11 +997,17 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 
 	// Cleanup on failure.
-clean_deps:
-	_gfx_deps_abort(
-		renderer->deps.size, gfx_vec_at(&renderer->deps, 0),
-		&injection);
+clean_graphics:
+	_gfx_frame_finalize(renderer, 0, 0, numGraphics, &injection);
+	goto error;
 
+clean_compute:
+	_gfx_frame_finalize(renderer, 0, numGraphics, numCompute, &injection);
+	goto error;
+
+
+	// Error on failure.
+error:
 	gfx_log_fatal("Submission of virtual frame failed.");
 
 	return 0;

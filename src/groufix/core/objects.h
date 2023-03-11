@@ -742,9 +742,6 @@ typedef struct _GFXImageAttach
 	uint32_t height;
 	uint32_t depth;
 
-	// Set by render graph, final (last) consumption.
-	const _GFXConsume* final;
-
 	// Set by dependency objects, signaled out of the renderer.
 	bool signaled;
 
@@ -943,9 +940,8 @@ struct GFXRenderer
 	// Current virtual frame state.
 	bool recording;
 
-	GFXDeque  stales; // Stores { unsigned int, (Vk*)+ }.
 	GFXFrame* public; // Public frame, if not NULL, user has access.
-	GFXVec    deps;   // Stores GFXInject, from public frame start.
+	GFXDeque  stales; // Stores { unsigned int, (Vk*)+ }.
 
 
 	// Render backing (i.e. attachments).
@@ -1041,7 +1037,11 @@ struct GFXPass
 	unsigned int order;  // Actual submission order.
 	unsigned int childs; // Number of passes this is a parent of.
 
-	GFXVec consumes; // Stores _GFXConsume.
+	// Stores _GFXConsume.
+	GFXVec consumes;
+
+	// Stores GFXInject, from public frame inject.
+	GFXVec deps;
 };
 
 
@@ -1345,10 +1345,10 @@ struct _GFXInjection
 	// Operation input, must be pre-initialized!
 	struct
 	{
-		// TODO:INJ: GFXPass* instead so we can search the consumes.
 		GFXRenderer* renderer; // To signal attachments.
-		size_t       numRefs;  // May be zero!
+		GFXPass*     pass;     // To search for access/stage flags.
 
+		size_t               numRefs; // May be zero!
 		const _GFXUnpackRef* refs;
 		const GFXAccessMask* masks;
 		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
@@ -1528,7 +1528,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
  * Thread-safe with respect to all dependency objects!
  * The content of injection is invalidated after this call.
  *
- * Each injection metadata object may only be called with
+ * Each injection metadata object must be called at least once with
  * either _gfx_deps_abort OR _gfx_deps_catch for ALL injection commands.
  * NEVER can both calls be used for the same injection metadata pointer!
  */

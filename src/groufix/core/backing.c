@@ -619,7 +619,6 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 		.width = 0,
 		.height = 0,
 		.depth = 0,
-		.final = NULL,
 		.signaled = 0,
 		.vk = {
 			.format = vkFmt,

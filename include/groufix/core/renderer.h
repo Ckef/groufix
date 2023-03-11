@@ -688,32 +688,25 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
 
 /**
- * TODO:INJ: Remove injections from here and add gfx_frame_inject(frame, pass, ...).
  * Prepares the acquired virtual frame to start recording.
  * Can only be called inbetween gfx_renderer_acquire and gfx_frame_submit!
- * Appends all dependency injections if already started.
  * @param frame Cannot be NULL.
- * @param deps  Cannot be NULL if numDeps > 0.
  *
  * The renderer (including its attachments, passes and sets) cannot be
  * modified after this call until gfx_frame_submit has returned!
  *
- * All given dependency objects are referenced until gfx_frame_submit has
- * returned. All signal commands are only made visible to wait commands
- * submitted elsewhere after gfx_frame_submit. However, all wait commands can
- * match visible signal commands submitted elsewhere up until gfx_frame_submit.
- *
  * Failure during starting cannot be recovered from,
  * any such failure is appropriately logged.
  */
-GFX_API void gfx_frame_start(GFXFrame* frame,
-                             size_t numDeps, const GFXInject* deps);
+GFX_API void gfx_frame_start(GFXFrame* frame);
 
 /**
  * Submits the acquired virtual frame of a renderer.
  * Can only be called once after gfx_frame_acquire.
  * Implicitly starts if not yet done so.
  * @param frame Cannot be NULL.
+ *
+ * All asynchronous passes are after all others in submission order.
  *
  * All memory resources used to render a frame cannot be freed until the next
  * time this frame is acquired. The frames can be identified by their index.
@@ -725,7 +718,7 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 /**
  * Blocks until a virtual frame is done rendering.
- * Implicitly starts & submits if not yet done so.
+ * No-op if the frame is not submitted.
  * @param frame Cannot be NULL.
  *
  * Failure during blocking cannot be recovered from,
@@ -781,7 +774,8 @@ typedef union GFXClear
  * Asynchronous compute passes cannot be the parent of any render or inline
  * compute passes and vice versa. They are separate graphs to allow for
  * asynchronous execution.
- * However, in submission order, all asynchronous passes are after all others.
+ *
+ * All asynchronous passes are after all others in submission order.
  */
 GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
                                        size_t numParents, GFXPass** parents);
@@ -1320,6 +1314,27 @@ GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
  */
 GFX_API void gfx_pass_get_size(GFXPass* pass,
                                uint32_t* width, uint32_t* height, uint32_t* layers);
+
+/**
+ * Appends dependency injections to a given pass.
+ * No-op if not called inbetween gfx_frame_start and gfx_frame_submit.
+ * @param pass Cannot be NULL.
+ * @param deps Cannot be NULL if numDeps > 0.
+ *
+ * All given dependency objects are referenced until
+ * gfx_frame_submit has returned.
+ *
+ * All signal commands are made visible to wait commands injected in passes
+ * later in submission order. They are made visible to wait commands submitted
+ * anywhere else as soon as gfx_frame_submit returns.
+ *
+ * All wait commands only see signal commands injected in passes earlier in
+ * submission order. However, all wait commands can match any visible signal
+ * commands submitted elsewhere up until gfx_frame_submit is called.
+ */
+GFX_API void gfx_pass_inject(GFXPass* pass,
+                             size_t numDeps, const GFXInject* deps);
+
 
 /**
  * Render command to bind a render/descriptor set.

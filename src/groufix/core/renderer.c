@@ -290,7 +290,6 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames)
 	gfx_list_init(&rend->techniques);
 	gfx_list_init(&rend->sets);
 	gfx_deque_init(&rend->stales, sizeof(_GFXStale));
-	gfx_vec_init(&rend->deps, sizeof(GFXInject));
 
 	return rend;
 
@@ -321,8 +320,6 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	// gfx_frame_submit will also start for us :)
 	if (renderer->public != NULL)
 		gfx_frame_submit(renderer->public);
-
-	gfx_vec_clear(&renderer->deps);
 
 	// Clear all frames, will block until rendering is done.
 	for (size_t f = 0; f < renderer->numFrames; ++f)
@@ -454,12 +451,10 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame)
 }
 
 /****************************/
-GFX_API void gfx_frame_start(GFXFrame* frame,
-                             size_t numDeps, const GFXInject* deps)
+GFX_API void gfx_frame_start(GFXFrame* frame)
 {
 	assert(frame != NULL);
 	assert(frame == _GFX_RENDERER_FROM_FRAME(frame)->public);
-	assert(numDeps == 0 || deps != NULL);
 
 	GFXRenderer* renderer =
 		_GFX_RENDERER_FROM_FRAME(frame);
@@ -473,22 +468,6 @@ GFX_API void gfx_frame_start(GFXFrame* frame,
 		// Acquire the frame's swapchain etc :)
 		_gfx_frame_acquire(renderer, frame);
 	}
-
-	// Store dependencies for submission.
-	if (numDeps == 0)
-	{
-		// If none to append, clear memory that was kept by submission.
-		if (renderer->deps.size == 0)
-			gfx_vec_clear(&renderer->deps);
-	}
-	else
-	{
-		// Otherwise, append injection commands.
-		if (!gfx_vec_push(&renderer->deps, numDeps, deps))
-			gfx_log_warn(
-				"Dependency injection failed, "
-				"injection commands could not be stored at frame start.");
-	}
 }
 
 /****************************/
@@ -501,14 +480,10 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 		_GFX_RENDERER_FROM_FRAME(frame);
 
 	// If not started yet, force start.
-	if (!renderer->recording) gfx_frame_start(frame, 0, NULL);
+	if (!renderer->recording) gfx_frame_start(frame);
 
 	// Submit the frame :)
 	_gfx_frame_submit(renderer, frame);
-
-	// Erase all dependency injections.
-	// Keep the memory in case we repeatedly inject.
-	gfx_vec_release(&renderer->deps);
 
 	// Signal that we are done recording.
 	renderer->recording = 0;
@@ -517,8 +492,7 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 	renderer->public = NULL;
 
 	// And increase the to-be submitted frame index.
-	renderer->current =
-		(renderer->current + 1) % renderer->numFrames;
+	renderer->current = (renderer->current + 1) % renderer->numFrames;
 }
 
 /****************************/
@@ -529,12 +503,9 @@ GFX_API void gfx_frame_block(GFXFrame* frame)
 	GFXRenderer* renderer =
 		_GFX_RENDERER_FROM_FRAME(frame);
 
-	// If this is the public frame, force submit.
-	// gfx_frame_submit will also start for us :)
-	if (frame == renderer->public)
-		gfx_frame_submit(frame);
-
-	// Synchronize the frame without resetting,
-	// this way we only reset during acquisition.
-	_gfx_frame_sync(renderer, frame, 0);
+	// If this is the public frame, do nothing.
+	if (frame != renderer->public)
+		// Synchronize the frame without resetting,
+		// this way we only reset during acquisition.
+		_gfx_frame_sync(renderer, frame, 0);
 }
