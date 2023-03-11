@@ -27,16 +27,16 @@ typedef struct Context
 /****************************
  * Helper to load a shader.
  */
-static GFXShader* load_shader(GFXShaderStage stage, const char* uri)
+static GFXShader* load_shader(GFXShaderStage stage, const char* path)
 {
 	// Open file.
 	GFXFile file;
-	if (!gfx_file_init(&file, uri, "r"))
+	if (!gfx_file_init(&file, path, "r"))
 		goto error;
 
 	// Init includer.
 	GFXFileIncluder inc;
-	if (!gfx_file_includer_init(&inc, uri))
+	if (!gfx_file_includer_init(&inc, path))
 		goto clean_file;
 
 	// Create shader.
@@ -66,7 +66,7 @@ clean_includer:
 clean_file:
 	gfx_file_clear(&file);
 error:
-	gfx_log_error("Failed to load '%s'", uri);
+	gfx_log_error("Failed to load '%s'", path);
 	return NULL;
 }
 
@@ -74,16 +74,16 @@ error:
 /****************************
  * Helper to load some glTF.
  */
-static bool load_gltf(const char* uri, GFXGltfResult* result)
+static bool load_gltf(const char* path, GFXGltfResult* result)
 {
 	// Open file.
 	GFXFile file;
-	if (!gfx_file_init(&file, uri, "r"))
+	if (!gfx_file_init(&file, path, "r"))
 		goto error;
 
 	// Init includer.
 	GFXFileIncluder inc;
-	if (!gfx_file_includer_init(&inc, uri))
+	if (!gfx_file_includer_init(&inc, path))
 		goto clean_file;
 
 	// Load glTF.
@@ -107,7 +107,7 @@ clean_includer:
 clean_file:
 	gfx_file_clear(&file);
 error:
-	gfx_log_error("Failed to load '%s'", uri);
+	gfx_log_error("Failed to load '%s'", path);
 	return 0;
 }
 
@@ -163,19 +163,19 @@ TEST_DESCRIBE(loading, t)
 	bool success = 0;
 
 	// Load a vertex and fragment shader.
-	const char* vUri = "tests/shaders/basic.vert";
-	const char* fUri = "tests/shaders/basic.frag";
-	GFXShader* vert = load_shader(GFX_STAGE_VERTEX, vUri);
-	GFXShader* frag = load_shader(GFX_STAGE_FRAGMENT, fUri);
+	const char* vPath = "tests/shaders/basic.vert";
+	const char* fPath = "tests/shaders/basic.frag";
+	GFXShader* vert = load_shader(GFX_STAGE_VERTEX, vPath);
+	GFXShader* frag = load_shader(GFX_STAGE_FRAGMENT, fPath);
 
 	if (vert == NULL || frag == NULL)
 		goto clean;
 
 	// Load a glTF file.
-	const char* uri = "tests/assets/DamagedHelmet.gltf";
+	const char* path = "tests/assets/DamagedHelmet.gltf";
 	GFXGltfResult result;
 
-	if (!load_gltf(uri, &result))
+	if (!load_gltf(path, &result))
 		goto clean;
 
 	// Grab the first primitive & image from the glTF.
