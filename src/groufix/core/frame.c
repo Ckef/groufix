@@ -660,12 +660,12 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 
 			// Check if it is built.
 			if (rPass->build.pass == NULL)
-				continue;
+				goto skip_pass;
 
 			// Check for the presence of a framebuffer.
 			VkFramebuffer framebuffer = _gfx_pass_framebuffer(rPass, frame);
 			if (framebuffer == VK_NULL_HANDLE)
-				continue;
+				goto skip_pass;
 
 			// Gather all necessary render pass info to record.
 			VkRenderPassBeginInfo rpbi = {
@@ -702,6 +702,9 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// End render pass.
 		if (pass->type == GFX_PASS_RENDER)
 			context->vk.CmdEndRenderPass(cmd);
+
+		// Jump to here if for any reason we do not record the pass.
+	skip_pass:
 
 		// Inject signal commands.
 		if (!_gfx_deps_prepare(
