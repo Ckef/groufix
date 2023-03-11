@@ -239,7 +239,7 @@ static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
 
 	const GFXInject inject =
 		gfx_dep_sig(dep,
-			GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ, 0);
+			GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ, GFX_STAGE_ANY);
 
 	if (!gfx_write(bin, gfx_ref_buffer(buffer),
 		GFX_TRANSFER_ASYNC,

@@ -229,9 +229,16 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 		.depth = 1
 	};
 
+	const GFXAccessMask mask =
+		((image->usage & GFX_IMAGE_SAMPLED) ||
+		(image->usage & GFX_IMAGE_SAMPLED_LINEAR) ||
+		(image->usage & GFX_IMAGE_SAMPLED_MINMAX) ?
+			GFX_ACCESS_SAMPLED_READ : 0) |
+		((image->usage & GFX_IMAGE_STORAGE) ?
+			GFX_ACCESS_STORAGE_READ_WRITE : 0);
+
 	const GFXInject inject =
-		// TODO: Take into account the usage?
-		gfx_dep_sig(dep, GFX_ACCESS_SAMPLED_READ, 0);
+		gfx_dep_sig(dep, mask, GFX_STAGE_ANY);
 
 	if (!gfx_write(img, gfx_ref_image(image),
 		GFX_TRANSFER_ASYNC,
