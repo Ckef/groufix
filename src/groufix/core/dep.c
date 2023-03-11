@@ -989,7 +989,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 					sync->vk.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
 				// If we need to flush written data to the host:
-				//  And appropriate host flags to destination access/stage.
+				//  Add appropriate host flags to destination access/stage.
 				//  Remove barrier at the catch if not transferring.
 				if (flushToHost)
 					sync->vk.dstAccess |=
