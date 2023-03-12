@@ -14,7 +14,51 @@
 #include "groufix/containers/io.h"
 #include "groufix/core/deps.h"
 #include "groufix/core/heap.h"
+#include "groufix/core/renderer.h"
 #include "groufix/def.h"
+
+
+/**
+ * glTF texture definition.
+ */
+typedef struct GFXGltfTexture
+{
+	size_t image;
+	size_t sampler;
+
+} GFXGltfTexture;
+
+
+/**
+ * glTF material definition.
+ */
+typedef struct GFXGltfMaterial
+{
+	GFXGltfTexture color;
+	GFXGltfTexture metalicRoughness;
+	GFXGltfTexture normal;
+	GFXGltfTexture occlusion;
+	GFXGltfTexture emissive;
+
+	float colorFactors[4];
+	float metalicFactor;
+	float roughnessFactor;
+	float normalScale;
+	float occlusionStrength;
+	float emissiveFactors[4];
+
+} GFXGltfMaterial;
+
+
+/**
+ * glTF primitive definition.
+ */
+typedef struct GFXGltfPrimitive
+{
+	GFXPrimitive* primitive;
+	size_t        material; // SIZE_MAX for none.
+
+} GFXGltfPrimitive;
 
 
 /**
@@ -39,8 +83,14 @@ typedef struct GFXGltfResult
 	size_t     numImages;
 	GFXImage** images;
 
-	size_t         numPrimitives;
-	GFXPrimitive** primitives;
+	size_t      numSamplers;
+	GFXSampler* samplers;
+
+	size_t           numMaterials;
+	GFXGltfMaterial* materials;
+
+	size_t            numPrimitives;
+	GFXGltfPrimitive* primitives;
 
 	size_t       numMeshes;
 	GFXGltfMesh* meshes;

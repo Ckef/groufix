@@ -191,7 +191,7 @@ TEST_DESCRIBE(loading, t)
 
 	// Grab the first primitive & image from the glTF.
 	GFXPrimitive* prim =
-		result.numPrimitives > 0 ? result.primitives[0] : NULL;
+		result.numPrimitives > 0 ? result.primitives[0].primitive : NULL;
 	GFXImage* image =
 		result.numImages > 0 ? result.images[0] : NULL;
 

@@ -476,7 +476,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	GFXVec meshes;
 	gfx_vec_init(&buffers, sizeof(GFXBuffer*));
 	gfx_vec_init(&images, sizeof(GFXImage*));
-	gfx_vec_init(&primitives, sizeof(GFXPrimitive*));
+	gfx_vec_init(&primitives, sizeof(GFXGltfPrimitive));
 	gfx_vec_init(&meshes, sizeof(GFXGltfMesh));
 	gfx_vec_reserve(&buffers, data->buffers_count);
 	gfx_vec_reserve(&images, data->images_count);
@@ -709,7 +709,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			if (prim == NULL) goto clean;
 
 			// Insert primitive.
-			if (!gfx_vec_push(&primitives, 1, &prim))
+			GFXGltfPrimitive primitive = {
+				.primitive = prim,
+				.material = SIZE_MAX
+			};
+
+			if (!gfx_vec_push(&primitives, 1, &primitive))
 			{
 				gfx_free_prim(prim);
 				goto clean;
@@ -750,7 +755,7 @@ clean:
 		gfx_free_image(*(GFXImage**)gfx_vec_at(&images, i));
 
 	for (size_t p = 0; p < primitives.size; ++p)
-		gfx_free_prim(*(GFXPrimitive**)gfx_vec_at(&primitives, p));
+		gfx_free_prim(((GFXGltfPrimitive*)gfx_vec_at(&primitives, p))->primitive);
 
 	gfx_vec_clear(&buffers);
 	gfx_vec_clear(&images);
