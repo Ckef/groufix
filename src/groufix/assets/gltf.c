@@ -68,17 +68,18 @@
 
 /****************************
  * Compares (case insensitive) two NULL-terminated strings.
+ * Besides '\0', '_' is also treated as a terminating character.
  */
-static bool _gfx_cmp_str(const char* l, const char* r)
+static bool _gfx_gltf_cmp_attributes(const char* l, const char* r)
 {
 	if (l == NULL || r == NULL)
 		return 0;
 
-	while (*l != '\0' && *r != '\0')
+	while (*l != '\0' && *l != '_' && *r != '\0' && *r != '_')
 		if (tolower(*(l++)) != tolower(*(r++)))
 			return 0;
 
-	return *l == *r;
+	return (*l == '\0' || *l == '_') && (*r == '\0' || *r == '_');
 }
 
 /****************************
@@ -625,8 +626,8 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			{
 				// Keep track of used glTF attributes.
 				bool attribUsed[cprim->attributes_count];
-				for (size_t a = 0; a < cprim->attributes_count; ++a)
-					attribUsed[a] = 0;
+				for (size_t ca = 0; ca < cprim->attributes_count; ++ca)
+					attribUsed[ca] = 0;
 
 				// Go over all given attribute order names (in order).
 				size_t a = 0;
@@ -634,23 +635,23 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 					o < options->orderSize && a < numAttributes; ++o)
 				{
 					// See if they match any glTF attributes.
-					for (size_t fo = 0; fo < cprim->attributes_count; ++fo)
-						if (_gfx_cmp_str(
+					for (size_t ca = 0; ca < cprim->attributes_count; ++ca)
+						if (!attribUsed[ca] && _gfx_gltf_cmp_attributes(
 							options->attributeOrder[o],
-							cprim->attributes[fo].name))
+							cprim->attributes[ca].name))
 						{
-							attribOrder[a++] = fo;
-							attribUsed[fo] = 1;
+							attribOrder[a++] = ca;
+							attribUsed[ca] = 1;
 							break;
 						}
 				}
 
 				// Fill in the rest with remaining unused attributes.
-				for (size_t u = 0;
-					u < cprim->attributes_count && a < numAttributes; ++u)
+				for (size_t ca = 0;
+					ca < cprim->attributes_count && a < numAttributes; ++ca)
 				{
-					if (!attribUsed[u])
-						attribOrder[a++] = u;
+					if (!attribUsed[ca])
+						attribOrder[a++] = ca;
 				}
 			}
 

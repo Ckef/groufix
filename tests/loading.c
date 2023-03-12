@@ -89,7 +89,7 @@ static bool load_gltf(const char* path, GFXGltfResult* result)
 	// Load glTF.
 	const char* attributeOrder[] = {
 		"POSITION",
-		"TEXCOORD_0"
+		"TEXCOORD",
 	};
 
 	const GFXGltfOptions opts = {
