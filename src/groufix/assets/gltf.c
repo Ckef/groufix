@@ -68,18 +68,18 @@
 
 /****************************
  * Compares (case insensitive) two NULL-terminated strings.
- * Besides '\0', '_' is also treated as a terminating character.
+ * One of the strings may terminate with '_', its remains will be ignored.
  */
 static bool _gfx_gltf_cmp_attributes(const char* l, const char* r)
 {
 	if (l == NULL || r == NULL)
 		return 0;
 
-	while (*l != '\0' && *l != '_' && *r != '\0' && *r != '_')
+	while (*l != '\0' && *r != '\0')
 		if (tolower(*(l++)) != tolower(*(r++)))
 			return 0;
 
-	return (*l == '\0' || *l == '_') && (*r == '\0' || *r == '_');
+	return *l == *r || *l == '_' || *r == '_';
 }
 
 /****************************
