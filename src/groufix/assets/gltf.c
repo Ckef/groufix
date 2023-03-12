@@ -10,6 +10,7 @@
 #include "groufix/containers/vec.h"
 #include "groufix/core/log.h"
 #include <assert.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -64,6 +65,21 @@
 		(unsigned)(digit - 'a') < 6 ? (digit - 'a') + 10 : \
 		UCHAR_MAX)
 
+
+/****************************
+ * Compares (case insensitive) two NULL-terminated strings.
+ */
+static bool _gfx_cmp_str(const char* l, const char* r)
+{
+	if (l == NULL || r == NULL)
+		return 0;
+
+	while (*l != '\0' && *r != '\0')
+		if (tolower(*(l++)) != tolower(*(r++)))
+			return 0;
+
+	return *l == *r;
+}
 
 /****************************
  * Constructs a vertex attribute format from the glTF accessor type,
@@ -386,6 +402,7 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 
 /****************************/
 GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
+                           const GFXGltfOptions* options,
                            GFXImageFlags flags, GFXImageUsage usage,
                            const GFXReader* src,
                            const GFXIncluder* inc,
@@ -393,6 +410,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 {
 	assert(heap != NULL);
 	assert(dep != NULL);
+	assert(options == NULL || options->orderSize == 0 || options->attributeOrder != NULL);
 	assert(src != NULL);
 	assert(result != NULL);
 
@@ -427,10 +445,10 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	}
 
 	// Parse the glTF source.
-	cgltf_options options = {0};
+	cgltf_options opts = {0};
 	cgltf_data* data = NULL;
 
-	cgltf_result res = cgltf_parse(&options, source, (size_t)len, &data);
+	cgltf_result res = cgltf_parse(&opts, source, (size_t)len, &data);
 	free(source); // Immediately free source buffer.
 
 	// Some extra validation.
@@ -585,37 +603,87 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
+			// Find actual number of attributes to consume & consume them.
+			const size_t numAttributes =
+				options != NULL && options->maxAttributes > 0 ?
+					GFX_MIN(options->maxAttributes, cprim->attributes_count) :
+					cprim->attributes_count;
+
 			size_t numVertices = SIZE_MAX;
-			GFXAttribute attributes[cprim->attributes_count];
+			GFXAttribute attributes[numAttributes];
+
+			// Here we consider that attributes are named in glTF,
+			// so they may not always appear in the same order in a file.
+			// If we have the attributeOrder option, use it to reorder.
+			size_t attribOrder[numAttributes];
+
+			if (options == NULL || options->orderSize == 0)
+				// Keep order if no options are given.
+				for (size_t a = 0; a < numAttributes; ++a)
+					attribOrder[a] = a;
+			else
+			{
+				// Keep track of used glTF attributes.
+				bool attribUsed[cprim->attributes_count];
+				for (size_t a = 0; a < cprim->attributes_count; ++a)
+					attribUsed[a] = 0;
+
+				// Go over all given attribute order names (in order).
+				size_t a = 0;
+				for (size_t o = 0;
+					o < options->orderSize && a < numAttributes; ++o)
+				{
+					// See if they match any glTF attributes.
+					for (size_t fo = 0; fo < cprim->attributes_count; ++fo)
+						if (_gfx_cmp_str(
+							options->attributeOrder[o],
+							cprim->attributes[fo].name))
+						{
+							attribOrder[a++] = fo;
+							attribUsed[fo] = 1;
+							break;
+						}
+				}
+
+				// Fill in the rest with remaining unused attributes.
+				for (size_t u = 0;
+					u < cprim->attributes_count && a < numAttributes; ++u)
+				{
+					if (!attribUsed[u])
+						attribOrder[a++] = u;
+				}
+			}
 
 			// Fill attribute data.
-			for (size_t a = 0; a < cprim->attributes_count; ++a)
+			for (size_t a = 0; a < numAttributes; ++a)
 			{
+				const cgltf_attribute* cattr =
+					&cprim->attributes[attribOrder[a]];
+
 				numVertices = GFX_MIN(
-					numVertices, cprim->attributes[a].data->count);
+					numVertices, cattr->data->count);
 
 				GFXBuffer* buffer = *(GFXBuffer**)gfx_vec_at(&buffers,
 					// Get index into the buffer array.
-					(size_t)(cprim->attributes[a].data->buffer_view->buffer -
-						data->buffers));
+					(size_t)(cattr->data->buffer_view->buffer - data->buffers));
 
 				attributes[a] = (GFXAttribute){
-					.offset = (uint32_t)cprim->attributes[a].data->offset,
+					.offset = (uint32_t)cattr->data->offset,
 					.rate = GFX_RATE_VERTEX,
 
 					.format = _gfx_gltf_attribute_fmt(
-						cprim->attributes[a].data->component_type,
-						cprim->attributes[a].data->type,
-						cprim->attributes[a].data->normalized),
+						cattr->data->component_type,
+						cattr->data->type,
+						cattr->data->normalized),
 
 					.stride = (uint32_t)(
-						cprim->attributes[a].data->buffer_view->stride == 0 ?
-							cprim->attributes[a].data->stride :
-							cprim->attributes[a].data->buffer_view->stride),
+						cattr->data->buffer_view->stride == 0 ?
+							cattr->data->stride :
+							cattr->data->buffer_view->stride),
 
 					.buffer = buffer != NULL ?
-						gfx_ref_buffer_at(buffer,
-							cprim->attributes[a].data->buffer_view->offset) :
+						gfx_ref_buffer_at(
+							buffer, cattr->data->buffer_view->offset) :
 						GFX_REF_NULL
 				};
 			}
@@ -632,10 +700,10 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				(uint32_t)numIndices, indexSize,
 				(uint32_t)numVertices,
 				indexBuffer != NULL ?
-					gfx_ref_buffer_at(indexBuffer,
-						cprim->indices->buffer_view->offset) :
+					gfx_ref_buffer_at(
+						indexBuffer, cprim->indices->buffer_view->offset) :
 					GFX_REF_NULL,
-				cprim->attributes_count, attributes);
+				numAttributes, attributes);
 
 			if (prim == NULL) goto clean;
 

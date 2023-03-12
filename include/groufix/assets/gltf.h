@@ -49,17 +49,31 @@ typedef struct GFXGltfResult
 
 
 /**
+ * glTF 2.0 parsing options.
+ */
+typedef struct GFXGltfOptions
+{
+	size_t       orderSize;      // Size of `attributeOrder`.
+	const char** attributeOrder; // Name index -> attribute location.
+	size_t       maxAttributes;  // Per primitive, 0 for no limit.
+
+} GFXGltfOptions;
+
+
+/**
  * Parses a glTF 2.0 stream into groufix objects.
- * @param heap   Heap to allocate resources from, cannot be NULL.
- * @param dep    Dependency to inject signal commands in, cannot be NULL.
- * @param flags  Flags to influence the format for any allocated image.
- * @param usage  Image usage to use for any images.
- * @param src    Source stream, cannot be NULL.
- * @param inc    Optional stream includer.
- * @param result Cannot be NULL, output parsing results.
+ * @param heap    Heap to allocate resources from, cannot be NULL.
+ * @param dep     Dependency to inject signal commands in, cannot be NULL.
+ * @param options Optional parsing options.
+ * @param flags   Flags to influence the format for any allocated image.
+ * @param usage   Image usage to use for any images.
+ * @param src     Source stream, cannot be NULL.
+ * @param inc     Optional stream includer.
+ * @param result  Cannot be NULL, output parsing results.
  * @return Non-zero on success.
  */
 GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
+                           const GFXGltfOptions* options,
                            GFXImageFlags flags, GFXImageUsage usage,
                            const GFXReader* src,
                            const GFXIncluder* inc,

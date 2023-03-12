@@ -87,8 +87,19 @@ static bool load_gltf(const char* path, GFXGltfResult* result)
 		goto clean_file;
 
 	// Load glTF.
+	const char* attributeOrder[] = {
+		"POSITION",
+		"TEXCOORD_0"
+	};
+
+	const GFXGltfOptions opts = {
+		.orderSize = sizeof(attributeOrder)/sizeof(char*),
+		.attributeOrder = attributeOrder,
+		.maxAttributes = 2
+	};
+
 	if (!gfx_load_gltf(
-		TEST_BASE.heap, TEST_BASE.dep,
+		TEST_BASE.heap, TEST_BASE.dep, &opts,
 		GFX_IMAGE_ANY_FORMAT, GFX_IMAGE_SAMPLED,
 		&file.reader, &inc.includer, result))
 	{
