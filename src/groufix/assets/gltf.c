@@ -35,6 +35,30 @@
 		"legacy glTF" : \
 		"unknown error")
 
+#define _GFX_GET_GLTF_MATERIAL_FLAGS(cmat) \
+	((cmat->has_pbr_metallic_roughness ? \
+		GFX_GLTF_MATERIAL_PBR_METALLIC_ROUGHNESS : 0) | \
+	(cmat->has_pbr_specular_glossiness ? \
+		GFX_GLTF_MATERIAL_PBR_SPECULAR_GLOSSINESS : 0) | \
+	(cmat->has_ior ? \
+		GFX_GLTF_MATERIAL_IOR : 0) | \
+	(cmat->has_emissive_strength ? \
+		GFX_GLTF_MATERIAL_EMISSIVE_STRENGTH : 0) | \
+	(cmat->has_clearcoat ? \
+		GFX_GLTF_MATERIAL_CLEARCOAT : 0) | \
+	(cmat->has_iridescence ? \
+		GFX_GLTF_MATERIAL_IRIDESCENCE : 0) | \
+	(cmat->has_sheen ? \
+		GFX_GLTF_MATERIAL_SHEEN : 0) | \
+	(cmat->has_specular ? \
+		GFX_GLTF_MATERIAL_SPECULAR : 0) | \
+	(cmat->has_transmission ? \
+		GFX_GLTF_MATERIAL_TRANSMISSION : 0) | \
+	(cmat->unlit ? \
+		GFX_GLTF_MATERIAL_UNLIT : 0) | \
+	(cmat->has_volume ? \
+		GFX_GLTF_MATERIAL_VOLUME : 0))
+
 #define _GFX_GET_GLTF_TOPOLOGY(topo) \
 	((topo) == cgltf_primitive_type_points ? \
 		GFX_TOPO_POINT_LIST : \
@@ -82,6 +106,23 @@
 	(wrap) == 0x812f ? GFX_WRAP_CLAMP_TO_EDGE : \
 	(wrap) == 0x8743 ? GFX_WRAP_CLAMP_TO_EDGE_MIRROR : \
 	(wrap) == 0x812d ? GFX_WRAP_CLAMP_TO_BORDER : GFX_WRAP_REPEAT)
+
+
+// Helper to get indices into glTF data arrays.
+#define _GFX_INDEXOF(elem, array) \
+	((elem) != NULL ? (size_t)((elem) - (array)) : SIZE_MAX)
+
+#define _GFX_INDEXOF_BUFFER(pAccessor, pData) \
+	((pAccessor) != NULL && (pAccessor)->buffer_view != NULL ? \
+		_GFX_INDEXOF((pAccessor)->buffer_view->buffer, (pData)->buffers) : SIZE_MAX)
+
+#define _GFX_INDEXOF_TEXTURE(view, pData) \
+	(GFXGltfTexture){ \
+		.image = (view).texture != NULL ? \
+			_GFX_INDEXOF((view).texture->image, (pData)->images) : SIZE_MAX, \
+		.sampler = (view).texture != NULL ? \
+			_GFX_INDEXOF((view).texture->sampler, (pData)->samplers) : SIZE_MAX \
+	}
 
 
 // Decode a hexadecimal digit.
@@ -626,6 +667,29 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			goto clean;
 	}
 
+	// Create all materials.
+	for (size_t m = 0; m < data->materials_count; ++m)
+	{
+		const cgltf_material* cmat = &data->materials[m];
+
+		// Insert material.
+		GFXGltfMaterial material = {
+			.flags = _GFX_GET_GLTF_MATERIAL_FLAGS(cmat),
+
+			.pbr = {
+				.baseColor = _GFX_INDEXOF_TEXTURE(
+					cmat->pbr_metallic_roughness.base_color_texture, data),
+				.metallicRoughness = _GFX_INDEXOF_TEXTURE(
+					cmat->pbr_metallic_roughness.metallic_roughness_texture, data)
+
+				// TODO: Continue..
+			}
+		};
+
+		if (!gfx_vec_push(&materials, 1, &material))
+			goto clean;
+	}
+
 	// Create all meshes and primitives.
 	for (size_t m = 0; m < data->meshes_count; ++m)
 	{
@@ -649,12 +713,11 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				cprim->indices != NULL ?
 				_GFX_GET_GLTF_INDEX_SIZE(cprim->indices->component_type) : 0;
 
+			const size_t indexBufferInd =
+				_GFX_INDEXOF_BUFFER(cprim->indices, data);
 			GFXBuffer* indexBuffer =
-				cprim->indices != NULL ?
-				*(GFXBuffer**)gfx_vec_at(&buffers,
-					// Get index into the buffers array.
-					(size_t)(cprim->indices->buffer_view->buffer -
-						data->buffers)) : NULL;
+				indexBufferInd != SIZE_MAX ?
+				*(GFXBuffer**)gfx_vec_at(&buffers, indexBufferInd) : NULL;
 
 			if (numIndices > 0 && indexSize == 0)
 			{
@@ -728,9 +791,11 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				numVertices = GFX_MIN(
 					numVertices, cattr->data->count);
 
-				GFXBuffer* buffer = *(GFXBuffer**)gfx_vec_at(&buffers,
-					// Get index into the buffer array.
-					(size_t)(cattr->data->buffer_view->buffer - data->buffers));
+				const size_t bufferInd =
+					_GFX_INDEXOF_BUFFER(cattr->data, data);
+				GFXBuffer* buffer =
+					bufferInd != SIZE_MAX ?
+					*(GFXBuffer**)gfx_vec_at(&buffers, bufferInd) : NULL;
 
 				attributes[a] = (GFXAttribute){
 					.offset = (uint32_t)cattr->data->offset,
@@ -742,7 +807,8 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 						cattr->data->normalized),
 
 					.stride = (uint32_t)(
-						cattr->data->buffer_view->stride == 0 ?
+						(cattr->data->buffer_view == NULL ||
+						cattr->data->buffer_view->stride == 0) ?
 							cattr->data->stride :
 							cattr->data->buffer_view->stride),
 
@@ -775,9 +841,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			// Insert primitive.
 			GFXGltfPrimitive primitive = {
 				.primitive = prim,
-				// Get index into the material array.
-				.material = cprim->material != NULL ?
-					(size_t)(cprim->material - data->materials) : SIZE_MAX
+				.material = _GFX_INDEXOF(cprim->material, data->materials)
 			};
 
 			if (!gfx_vec_push(&primitives, 1, &primitive))

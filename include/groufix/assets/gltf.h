@@ -19,22 +19,23 @@
 
 
 /**
- * glTF extension flags.
+ * glTF material feature flags.
  */
-typedef enum GFXGltfExtensions
+typedef enum GFXGltfMaterialFlags
 {
-	GFX_GLTF_MATERIAL_PBR_SPECULAR_GLOSSINESS = 0x0001,
-	GFX_GLTF_MATERIAL_IOR                     = 0x0002,
-	GFX_GLTF_MATERIAL_EMISSIVE_STRENGTH       = 0x0004,
-	GFX_GLTF_MATERIAL_CLEARCOAT               = 0x0008,
-	GFX_GLTF_MATERIAL_IRIDESCENCE             = 0x0010,
-	GFX_GLTF_MATERIAL_SHEEN                   = 0x0020,
-	GFX_GLTF_MATERIAL_SPECULAR                = 0x0040,
-	GFX_GLTF_MATERIAL_TRANSMISSION            = 0x0080,
-	GFX_GLTF_MATERIAL_UNLIT                   = 0x0100,
+	GFX_GLTF_MATERIAL_PBR_METALLIC_ROUGHNESS  = 0x0001,
+	GFX_GLTF_MATERIAL_PBR_SPECULAR_GLOSSINESS = 0x0002,
+	GFX_GLTF_MATERIAL_IOR                     = 0x0004,
+	GFX_GLTF_MATERIAL_EMISSIVE_STRENGTH       = 0x0008,
+	GFX_GLTF_MATERIAL_CLEARCOAT               = 0x0010,
+	GFX_GLTF_MATERIAL_IRIDESCENCE             = 0x0020,
+	GFX_GLTF_MATERIAL_SHEEN                   = 0x0040,
+	GFX_GLTF_MATERIAL_SPECULAR                = 0x0080,
+	GFX_GLTF_MATERIAL_TRANSMISSION            = 0x0100,
+	GFX_GLTF_MATERIAL_UNLIT                   = 0x0200,
 	GFX_GLTF_MATERIAL_VOLUME                  = 0x0400
 
-} GFXGltfExtension;
+} GFXGltfMaterialFlags;
 
 
 /**
@@ -53,8 +54,8 @@ typedef struct GFXGltfTexture
  */
 typedef struct GFXGltfMaterial
 {
-	// All used extensions.
-	GFXGltfExtension extensions;
+	// All used features.
+	GFXGltfMaterialFlags flags;
 
 	// Physically based rendering.
 	struct
@@ -168,6 +169,7 @@ typedef struct GFXGltfResult
 	GFXImage** images;
 
 	size_t      numSamplers;
+	// TODO: Change to GFXGltfSampler? (binding/index is incorrect for use :c)
 	GFXSampler* samplers;
 
 	size_t           numMaterials;
@@ -215,7 +217,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 /**
  * Clears the result structure created by gfx_load_gltf().
- * Does NOT destroy or free any of the stored groufix objects!
+ * Does NOT destroy or free any of the heap-allocated groufix objects!
  * @param result Cannot be NULL.
  *
  * The content of result is invalidated after this call.
