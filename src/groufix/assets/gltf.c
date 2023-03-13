@@ -557,7 +557,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	GFXVec meshes;
 	gfx_vec_init(&buffers, sizeof(GFXBuffer*));
 	gfx_vec_init(&images, sizeof(GFXImage*));
-	gfx_vec_init(&samplers, sizeof(GFXSampler));
+	gfx_vec_init(&samplers, sizeof(GFXGltfSampler));
 	gfx_vec_init(&materials, sizeof(GFXGltfMaterial));
 	gfx_vec_init(&primitives, sizeof(GFXGltfPrimitive));
 	gfx_vec_init(&meshes, sizeof(GFXGltfMesh));
@@ -651,27 +651,13 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	for (size_t s = 0; s < data->samplers_count; ++s)
 	{
 		// Insert sampler.
-		GFXSampler sampler = {
-			.binding = 0,
-			.index = 0,
-
-			.flags = GFX_SAMPLER_NONE,
-			.mode = GFX_FILTER_MODE_AVERAGE,
-
+		GFXGltfSampler sampler = {
 			.minFilter = _GFX_GET_GLTF_MIN_FILTER(data->samplers[s].min_filter),
 			.magFilter = _GFX_GET_GLTF_MAG_FILTER(data->samplers[s].mag_filter),
 			.mipFilter = _GFX_GET_GLTF_MIP_FILTER(data->samplers[s].min_filter),
 
 			.wrapU = _GFX_GET_GLTF_WRAPPING(data->samplers[s].wrap_s),
 			.wrapV = _GFX_GET_GLTF_WRAPPING(data->samplers[s].wrap_t),
-			.wrapW = GFX_WRAP_REPEAT,
-
-			.mipLodBias = 0.0f,
-			.minLod = 0.0f,
-			.maxLod = 1.0f,
-			.maxAnisotropy = 1.0f,
-
-			.cmp = GFX_CMP_ALWAYS
 		};
 
 		if (!gfx_vec_push(&samplers, 1, &sampler))

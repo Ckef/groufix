@@ -65,6 +65,21 @@ typedef struct GFXGltfTexture
 
 
 /**
+ * glTF sampler definition.
+ */
+typedef struct GFXGltfSampler
+{
+	GFXFilter minFilter;
+	GFXFilter magFilter;
+	GFXFilter mipFilter;
+
+	GFXWrapping wrapU;
+	GFXWrapping wrapV;
+
+} GFXGltfSampler;
+
+
+/**
  * glTF material definition.
  */
 typedef struct GFXGltfMaterial
@@ -186,8 +201,8 @@ typedef struct GFXGltfResult
 	size_t     numImages;
 	GFXImage** images;
 
-	size_t      numSamplers;
-	GFXSampler* samplers;
+	size_t          numSamplers;
+	GFXGltfSampler* samplers;
 
 	size_t           numMaterials;
 	GFXGltfMaterial* materials;
