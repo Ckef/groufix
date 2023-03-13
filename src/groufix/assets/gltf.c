@@ -54,10 +54,21 @@
 		GFX_GLTF_MATERIAL_SPECULAR : 0) | \
 	(cmat->has_transmission ? \
 		GFX_GLTF_MATERIAL_TRANSMISSION : 0) | \
+	(cmat->has_volume ? \
+		GFX_GLTF_MATERIAL_VOLUME : 0) | \
 	(cmat->unlit ? \
 		GFX_GLTF_MATERIAL_UNLIT : 0) | \
-	(cmat->has_volume ? \
-		GFX_GLTF_MATERIAL_VOLUME : 0))
+	(cmat->double_sided ? \
+		GFX_GLTF_MATERIAL_DOUBLE_SIDED : 0))
+
+#define _GFX_GET_GLTF_ALPHA_MODE(mode) \
+	((mode) == cgltf_alpha_mode_opaque ? \
+		GFX_GLTF_ALPHA_OPAQUE : \
+	(mode) == cgltf_alpha_mode_mask ? \
+		GFX_GLTF_ALPHA_MASK : \
+	(mode) == cgltf_alpha_mode_blend ? \
+		GFX_GLTF_ALPHA_BLEND : \
+		GFX_GLTF_ALPHA_OPAQUE)
 
 #define _GFX_GET_GLTF_TOPOLOGY(topo) \
 	((topo) == cgltf_primitive_type_points ? \
@@ -677,12 +688,143 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			.flags = _GFX_GET_GLTF_MATERIAL_FLAGS(cmat),
 
 			.pbr = {
+				// Metallic roughness.
 				.baseColor = _GFX_INDEXOF_TEXTURE(
 					cmat->pbr_metallic_roughness.base_color_texture, data),
 				.metallicRoughness = _GFX_INDEXOF_TEXTURE(
-					cmat->pbr_metallic_roughness.metallic_roughness_texture, data)
+					cmat->pbr_metallic_roughness.metallic_roughness_texture, data),
 
-				// TODO: Continue..
+				.baseColorFactors = {
+					cmat->pbr_metallic_roughness.base_color_factor[0],
+					cmat->pbr_metallic_roughness.base_color_factor[1],
+					cmat->pbr_metallic_roughness.base_color_factor[2],
+					cmat->pbr_metallic_roughness.base_color_factor[3]
+				},
+
+				.metallicFactor =
+					cmat->pbr_metallic_roughness.metallic_factor,
+				.roughnessFactor =
+					cmat->pbr_metallic_roughness.roughness_factor,
+				.ior =
+					cmat->ior.ior,
+
+				// Specular glossiness.
+				.diffuse = _GFX_INDEXOF_TEXTURE(
+					cmat->pbr_specular_glossiness.diffuse_texture, data),
+				.specularGlossiness = _GFX_INDEXOF_TEXTURE(
+					cmat->pbr_specular_glossiness.specular_glossiness_texture, data),
+
+				.diffuseFactors = {
+					cmat->pbr_specular_glossiness.diffuse_factor[0],
+					cmat->pbr_specular_glossiness.diffuse_factor[1],
+					cmat->pbr_specular_glossiness.diffuse_factor[2],
+					cmat->pbr_specular_glossiness.diffuse_factor[3]
+				},
+
+				.specularFactors = {
+					cmat->pbr_specular_glossiness.specular_factor[0],
+					cmat->pbr_specular_glossiness.specular_factor[1],
+					cmat->pbr_specular_glossiness.specular_factor[2]
+				},
+
+				.glossinessFactor =
+					cmat->pbr_specular_glossiness.glossiness_factor
+			},
+
+			// Standard.
+			.normal = _GFX_INDEXOF_TEXTURE(cmat->normal_texture, data),
+			.occlusion = _GFX_INDEXOF_TEXTURE(cmat->occlusion_texture, data),
+			.emissive = _GFX_INDEXOF_TEXTURE(cmat->emissive_texture, data),
+
+			.alphaMode = _GFX_GET_GLTF_ALPHA_MODE(cmat->alpha_mode),
+
+			.normalScale = cmat->normal_texture.scale,
+			.occlusionStrength = cmat->occlusion_texture.scale,
+			.emissiveStrength = cmat->emissive_strength.emissive_strength,
+			.alphaCutoff = cmat->alpha_cutoff,
+
+			.emissiveFactors = {
+				cmat->emissive_factor[0],
+				cmat->emissive_factor[1],
+				cmat->emissive_factor[2]
+			},
+
+			// Clearcoat.
+			.clearcoat = _GFX_INDEXOF_TEXTURE(
+				cmat->clearcoat.clearcoat_texture, data),
+			.clearcoatRoughness = _GFX_INDEXOF_TEXTURE(
+				cmat->clearcoat.clearcoat_roughness_texture, data),
+			.clearcoatNormal = _GFX_INDEXOF_TEXTURE(
+				cmat->clearcoat.clearcoat_normal_texture, data),
+
+			.clearcoatFactor =
+				cmat->clearcoat.clearcoat_factor,
+			.clearcoatRoughnessFactor =
+				cmat->clearcoat.clearcoat_roughness_factor,
+
+			// Iridescence.
+			.iridescence = _GFX_INDEXOF_TEXTURE(
+				cmat->iridescence.iridescence_texture, data),
+			.iridescenceThickness = _GFX_INDEXOF_TEXTURE(
+				cmat->iridescence.iridescence_thickness_texture, data),
+
+			.iridescenceFactor =
+				cmat->iridescence.iridescence_factor,
+			.iridescenceIor =
+				cmat->iridescence.iridescence_ior,
+			.iridescenceThicknessMin =
+				cmat->iridescence.iridescence_thickness_min,
+			.iridescenceThicknessMax =
+				cmat->iridescence.iridescence_thickness_max,
+
+			// Sheen.
+			.sheenColor = _GFX_INDEXOF_TEXTURE(
+				cmat->sheen.sheen_color_texture, data),
+			.sheenRoughness = _GFX_INDEXOF_TEXTURE(
+				cmat->sheen.sheen_roughness_texture, data),
+
+			.sheenColorFactors = {
+				cmat->sheen.sheen_color_factor[0],
+				cmat->sheen.sheen_color_factor[1],
+				cmat->sheen.sheen_color_factor[2]
+			},
+
+			.sheenRoughnessFactor =
+				cmat->sheen.sheen_roughness_factor,
+
+			// Specular.
+			.specular = _GFX_INDEXOF_TEXTURE(
+				cmat->specular.specular_texture, data),
+			.specularColor = _GFX_INDEXOF_TEXTURE(
+				cmat->specular.specular_color_texture, data),
+
+			.specularFactor =
+				cmat->specular.specular_factor,
+
+			.specularColorFactors = {
+				cmat->specular.specular_color_factor[0],
+				cmat->specular.specular_color_factor[1],
+				cmat->specular.specular_color_factor[2]
+			},
+
+			// Transmission.
+			.transmission = _GFX_INDEXOF_TEXTURE(
+				cmat->transmission.transmission_texture, data),
+
+			.transmissionFactor =
+				cmat->transmission.transmission_factor,
+
+			// Volume.
+			.thickness = _GFX_INDEXOF_TEXTURE(
+				cmat->volume.thickness_texture, data),
+
+			.thicknessFactor = cmat->volume.thickness_factor,
+			.attenuationDistance = cmat->volume.attenuation_distance,
+
+			.attenuationColors = {
+				cmat->volume.attenuation_color[0],
+				cmat->volume.attenuation_color[1],
+				cmat->volume.attenuation_color[2]
 			}
 		};
 

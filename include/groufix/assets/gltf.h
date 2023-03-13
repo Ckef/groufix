@@ -32,10 +32,25 @@ typedef enum GFXGltfMaterialFlags
 	GFX_GLTF_MATERIAL_SHEEN                   = 0x0040,
 	GFX_GLTF_MATERIAL_SPECULAR                = 0x0080,
 	GFX_GLTF_MATERIAL_TRANSMISSION            = 0x0100,
-	GFX_GLTF_MATERIAL_UNLIT                   = 0x0200,
-	GFX_GLTF_MATERIAL_VOLUME                  = 0x0400
+	GFX_GLTF_MATERIAL_VOLUME                  = 0x0200,
+	GFX_GLTF_MATERIAL_UNLIT                   = 0x0400,
+	GFX_GLTF_MATERIAL_DOUBLE_SIDED            = 0x0800
 
 } GFXGltfMaterialFlags;
+
+GFX_BIT_FIELD(GFXGltfMaterialFlags)
+
+
+/**
+ * glTF material alpha mode.
+ */
+typedef enum GFXGltfAlphaMode
+{
+	GFX_GLTF_ALPHA_OPAQUE,
+	GFX_GLTF_ALPHA_MASK,
+	GFX_GLTF_ALPHA_BLEND
+
+} GFXGltfAlphaMode;
 
 
 /**
@@ -74,7 +89,7 @@ typedef struct GFXGltfMaterial
 		GFXGltfTexture specularGlossiness;
 
 		float diffuseFactors[4];
-		float specularFactors[4];
+		float specularFactors[3];
 		float glossinessFactor;
 
 	} pbr;
@@ -84,10 +99,13 @@ typedef struct GFXGltfMaterial
 	GFXGltfTexture occlusion;
 	GFXGltfTexture emissive;
 
+	GFXGltfAlphaMode alphaMode;
+
 	float normalScale;
 	float occlusionStrength;
 	float emissiveFactors[3];
 	float emissiveStrength;
+	float alphaCutoff;
 
 	// Clearcoat.
 	GFXGltfTexture clearcoat;
@@ -169,7 +187,6 @@ typedef struct GFXGltfResult
 	GFXImage** images;
 
 	size_t      numSamplers;
-	// TODO: Change to GFXGltfSampler? (binding/index is incorrect for use :c)
 	GFXSampler* samplers;
 
 	size_t           numMaterials;
