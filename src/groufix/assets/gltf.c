@@ -56,6 +56,33 @@
 	((type) == cgltf_component_type_r_16u ? sizeof(uint16_t) : \
 	(type) == cgltf_component_type_r_32u ? sizeof(uint32_t) : 0)
 
+#define _GFX_GET_GLTF_MIN_FILTER(minFilter) \
+	((minFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
+	(minFilter) == 0x2601 ? GFX_FILTER_LINEAR : GFX_FILTER_NEAREST)
+
+#define _GFX_GET_GLTF_MAG_FILTER(magFilter) \
+	((magFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
+	(magFilter) == 0x2601 ? GFX_FILTER_LINEAR : \
+	(magFilter) == 0x2700 ? GFX_FILTER_NEAREST : \
+	(magFilter) == 0x2701 ? GFX_FILTER_LINEAR : \
+	(magFilter) == 0x2702 ? GFX_FILTER_NEAREST : \
+	(magFilter) == 0x2703 ? GFX_FILTER_LINEAR : GFX_FILTER_NEAREST)
+
+#define _GFX_GET_GLTF_MIP_FILTER(minFilter) \
+	((minFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
+	(minFilter) == 0x2601 ? GFX_FILTER_NEAREST : \
+	(minFilter) == 0x2700 ? GFX_FILTER_NEAREST : \
+	(minFilter) == 0x2701 ? GFX_FILTER_NEAREST : \
+	(minFilter) == 0x2702 ? GFX_FILTER_LINEAR : \
+	(minFilter) == 0x2703 ? GFX_FILTER_LINEAR : GFX_FILTER_NEAREST)
+
+#define _GFX_GET_GLTF_WRAPPING(wrap) \
+	((wrap) == 0x2901 ? GFX_WRAP_REPEAT : \
+	(wrap) == 0x8370 ? GFX_WRAP_REPEAT_MIRROR : \
+	(wrap) == 0x812f ? GFX_WRAP_CLAMP_TO_EDGE : \
+	(wrap) == 0x8743 ? GFX_WRAP_CLAMP_TO_EDGE_MIRROR : \
+	(wrap) == 0x812d ? GFX_WRAP_CLAMP_TO_BORDER : GFX_WRAP_REPEAT)
+
 
 // Decode a hexadecimal digit.
 #define _GFX_UNHEX(digit) \
@@ -472,14 +499,20 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	// From this point onwards we need to clean on failure.
 	GFXVec buffers;
 	GFXVec images;
+	GFXVec samplers;
+	GFXVec materials;
 	GFXVec primitives;
 	GFXVec meshes;
 	gfx_vec_init(&buffers, sizeof(GFXBuffer*));
 	gfx_vec_init(&images, sizeof(GFXImage*));
+	gfx_vec_init(&samplers, sizeof(GFXSampler));
+	gfx_vec_init(&materials, sizeof(GFXGltfMaterial));
 	gfx_vec_init(&primitives, sizeof(GFXGltfPrimitive));
 	gfx_vec_init(&meshes, sizeof(GFXGltfMesh));
 	gfx_vec_reserve(&buffers, data->buffers_count);
 	gfx_vec_reserve(&images, data->images_count);
+	gfx_vec_reserve(&samplers, data->samplers_count);
+	gfx_vec_reserve(&materials, data->materials_count);
 	gfx_vec_reserve(&meshes, data->meshes_count);
 
 	// Create all buffers.
@@ -560,6 +593,37 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			gfx_free_image(image);
 			goto clean;
 		}
+	}
+
+	// Create all samplers.
+	for (size_t s = 0; s < data->samplers_count; ++s)
+	{
+		// Insert sampler.
+		GFXSampler sampler = {
+			.binding = 0,
+			.index = 0,
+
+			.flags = GFX_SAMPLER_NONE,
+			.mode = GFX_FILTER_MODE_AVERAGE,
+
+			.minFilter = _GFX_GET_GLTF_MIN_FILTER(data->samplers[s].min_filter),
+			.magFilter = _GFX_GET_GLTF_MAG_FILTER(data->samplers[s].mag_filter),
+			.mipFilter = _GFX_GET_GLTF_MIP_FILTER(data->samplers[s].min_filter),
+
+			.wrapU = _GFX_GET_GLTF_WRAPPING(data->samplers[s].wrap_s),
+			.wrapV = _GFX_GET_GLTF_WRAPPING(data->samplers[s].wrap_t),
+			.wrapW = GFX_WRAP_REPEAT,
+
+			.mipLodBias = 0.0f,
+			.minLod = 0.0f,
+			.maxLod = 1.0f,
+			.maxAnisotropy = 1.0f,
+
+			.cmp = GFX_CMP_ALWAYS
+		};
+
+		if (!gfx_vec_push(&samplers, 1, &sampler))
+			goto clean;
 	}
 
 	// Create all meshes and primitives.
@@ -711,7 +775,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			// Insert primitive.
 			GFXGltfPrimitive primitive = {
 				.primitive = prim,
-				.material = SIZE_MAX
+				// Get index into the material array.
+				.material = cprim->material != NULL ?
+					(size_t)(cprim->material - data->materials) : SIZE_MAX
 			};
 
 			if (!gfx_vec_push(&primitives, 1, &primitive))
@@ -731,6 +797,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 	result->numImages = images.size;
 	result->images = gfx_vec_claim(&images);
+
+	result->numSamplers = samplers.size;
+	result->samplers = gfx_vec_claim(&samplers);
+
+	result->numMaterials = materials.size;
+	result->materials = gfx_vec_claim(&materials);
 
 	result->numPrimitives = primitives.size;
 	result->primitives = gfx_vec_claim(&primitives);
@@ -759,6 +831,8 @@ clean:
 
 	gfx_vec_clear(&buffers);
 	gfx_vec_clear(&images);
+	gfx_vec_clear(&samplers);
+	gfx_vec_clear(&materials);
 	gfx_vec_clear(&primitives);
 	gfx_vec_clear(&meshes);
 	cgltf_free(data);
@@ -775,6 +849,8 @@ GFX_API void gfx_release_gltf(GFXGltfResult* result)
 
 	free(result->buffers);
 	free(result->images);
+	free(result->samplers);
+	free(result->materials);
 	free(result->primitives);
 	free(result->meshes);
 

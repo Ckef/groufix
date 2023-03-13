@@ -19,12 +19,31 @@
 
 
 /**
+ * glTF extension flags.
+ */
+typedef enum GFXGltfExtensions
+{
+	GFX_GLTF_MATERIAL_PBR_SPECULAR_GLOSSINESS = 0x0001,
+	GFX_GLTF_MATERIAL_IOR                     = 0x0002,
+	GFX_GLTF_MATERIAL_EMISSIVE_STRENGTH       = 0x0004,
+	GFX_GLTF_MATERIAL_CLEARCOAT               = 0x0008,
+	GFX_GLTF_MATERIAL_IRIDESCENCE             = 0x0010,
+	GFX_GLTF_MATERIAL_SHEEN                   = 0x0020,
+	GFX_GLTF_MATERIAL_SPECULAR                = 0x0040,
+	GFX_GLTF_MATERIAL_TRANSMISSION            = 0x0080,
+	GFX_GLTF_MATERIAL_UNLIT                   = 0x0100,
+	GFX_GLTF_MATERIAL_VOLUME                  = 0x0400
+
+} GFXGltfExtension;
+
+
+/**
  * glTF texture definition.
  */
 typedef struct GFXGltfTexture
 {
-	size_t image;
-	size_t sampler;
+	size_t image;   // SIZE_MAX if none.
+	size_t sampler; // SIZE_MAX if none.
 
 } GFXGltfTexture;
 
@@ -34,18 +53,83 @@ typedef struct GFXGltfTexture
  */
 typedef struct GFXGltfMaterial
 {
-	GFXGltfTexture color;
-	GFXGltfTexture metalicRoughness;
+	// All used extensions.
+	GFXGltfExtension extensions;
+
+	// Physically based rendering.
+	struct
+	{
+		// Metallic roughness.
+		GFXGltfTexture baseColor;
+		GFXGltfTexture metallicRoughness;
+
+		float baseColorFactors[4];
+		float metallicFactor;
+		float roughnessFactor;
+		float ior;
+
+		// Specular glossiness.
+		GFXGltfTexture diffuse;
+		GFXGltfTexture specularGlossiness;
+
+		float diffuseFactors[4];
+		float specularFactors[4];
+		float glossinessFactor;
+
+	} pbr;
+
+	// Standard.
 	GFXGltfTexture normal;
 	GFXGltfTexture occlusion;
 	GFXGltfTexture emissive;
 
-	float colorFactors[4];
-	float metalicFactor;
-	float roughnessFactor;
 	float normalScale;
 	float occlusionStrength;
-	float emissiveFactors[4];
+	float emissiveFactors[3];
+	float emissiveStrength;
+
+	// Clearcoat.
+	GFXGltfTexture clearcoat;
+	GFXGltfTexture clearcoatRoughness;
+	GFXGltfTexture clearcoatNormal;
+
+	float clearcoatFactor;
+	float clearcoatRoughnessFactor;
+
+	// Iridescence
+	GFXGltfTexture iridescence;
+	GFXGltfTexture iridescenceThickness;
+
+	float iridescenceFactor;
+	float iridescenceIor;
+	float iridescenceThicknessMin;
+	float iridescenceThicknessMax;
+
+	// Sheen.
+	GFXGltfTexture sheenColor;
+	GFXGltfTexture sheenRoughness;
+
+	float sheenColorFactors[3];
+	float sheenRoughnessFactor;
+
+	// Specular.
+	GFXGltfTexture specular;
+	GFXGltfTexture specularColor;
+
+	float specularFactor;
+	float specularColorFactors[3];
+
+	// Transmission.
+	GFXGltfTexture transmission;
+
+	float transmissionFactor;
+
+	// Volume.
+	GFXGltfTexture thickness;
+
+	float thicknessFactor;
+	float attenuationColors[3];
+	float attenuationDistance;
 
 } GFXGltfMaterial;
 
@@ -56,7 +140,7 @@ typedef struct GFXGltfMaterial
 typedef struct GFXGltfPrimitive
 {
 	GFXPrimitive* primitive;
-	size_t        material; // SIZE_MAX for none.
+	size_t        material; // SIZE_MAX if none.
 
 } GFXGltfPrimitive;
 
