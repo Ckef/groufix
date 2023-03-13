@@ -18,7 +18,7 @@
 #include "cgltf.h"
 
 
-#define _GFX_GET_GLTF_ERROR_STRING(result) \
+#define _GFX_GLTF_ERROR_STRING(result) \
 	((result) == cgltf_result_success ? \
 		"success" : \
 	(result) == cgltf_result_data_too_short ? \
@@ -35,7 +35,7 @@
 		"legacy glTF" : \
 		"unknown error")
 
-#define _GFX_GET_GLTF_MATERIAL_FLAGS(cmat) \
+#define _GFX_GLTF_MATERIAL_FLAGS(cmat) \
 	((cmat->has_pbr_metallic_roughness ? \
 		GFX_GLTF_MATERIAL_PBR_METALLIC_ROUGHNESS : 0) | \
 	(cmat->has_pbr_specular_glossiness ? \
@@ -61,7 +61,7 @@
 	(cmat->double_sided ? \
 		GFX_GLTF_MATERIAL_DOUBLE_SIDED : 0))
 
-#define _GFX_GET_GLTF_ALPHA_MODE(mode) \
+#define _GFX_GLTF_ALPHA_MODE(mode) \
 	((mode) == cgltf_alpha_mode_opaque ? \
 		GFX_GLTF_ALPHA_OPAQUE : \
 	(mode) == cgltf_alpha_mode_mask ? \
@@ -70,7 +70,7 @@
 		GFX_GLTF_ALPHA_BLEND : \
 		GFX_GLTF_ALPHA_OPAQUE)
 
-#define _GFX_GET_GLTF_TOPOLOGY(topo) \
+#define _GFX_GLTF_TOPOLOGY(topo) \
 	((topo) == cgltf_primitive_type_points ? \
 		GFX_TOPO_POINT_LIST : \
 	(topo) == cgltf_primitive_type_lines ? \
@@ -87,15 +87,15 @@
 		GFX_TOPO_TRIANGLE_FAN : \
 		GFX_TOPO_TRIANGLE_LIST)
 
-#define _GFX_GET_GLTF_INDEX_SIZE(type) \
+#define _GFX_GLTF_INDEX_SIZE(type) \
 	((type) == cgltf_component_type_r_16u ? sizeof(uint16_t) : \
 	(type) == cgltf_component_type_r_32u ? sizeof(uint32_t) : 0)
 
-#define _GFX_GET_GLTF_MIN_FILTER(minFilter) \
+#define _GFX_GLTF_MIN_FILTER(minFilter) \
 	((minFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
 	(minFilter) == 0x2601 ? GFX_FILTER_LINEAR : GFX_FILTER_NEAREST)
 
-#define _GFX_GET_GLTF_MAG_FILTER(magFilter) \
+#define _GFX_GLTF_MAG_FILTER(magFilter) \
 	((magFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
 	(magFilter) == 0x2601 ? GFX_FILTER_LINEAR : \
 	(magFilter) == 0x2700 ? GFX_FILTER_NEAREST : \
@@ -103,7 +103,7 @@
 	(magFilter) == 0x2702 ? GFX_FILTER_NEAREST : \
 	(magFilter) == 0x2703 ? GFX_FILTER_LINEAR : GFX_FILTER_NEAREST)
 
-#define _GFX_GET_GLTF_MIP_FILTER(minFilter) \
+#define _GFX_GLTF_MIP_FILTER(minFilter) \
 	((minFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
 	(minFilter) == 0x2601 ? GFX_FILTER_NEAREST : \
 	(minFilter) == 0x2700 ? GFX_FILTER_NEAREST : \
@@ -111,7 +111,7 @@
 	(minFilter) == 0x2702 ? GFX_FILTER_LINEAR : \
 	(minFilter) == 0x2703 ? GFX_FILTER_LINEAR : GFX_FILTER_NEAREST)
 
-#define _GFX_GET_GLTF_WRAPPING(wrap) \
+#define _GFX_GLTF_WRAPPING(wrap) \
 	((wrap) == 0x2901 ? GFX_WRAP_REPEAT : \
 	(wrap) == 0x8370 ? GFX_WRAP_REPEAT_MIRROR : \
 	(wrap) == 0x812f ? GFX_WRAP_CLAMP_TO_EDGE : \
@@ -119,22 +119,24 @@
 	(wrap) == 0x812d ? GFX_WRAP_CLAMP_TO_BORDER : GFX_WRAP_REPEAT)
 
 
-// Helper to get indices into glTF data arrays.
-#define _GFX_INDEXOF(elem, array) \
-	((elem) != NULL ? (size_t)((elem) - (array)) : SIZE_MAX)
+// Helpers to transform glTF data array pointers to groufix.
+#define _GFX_FROM_GLTF(vec, array, pElem) \
+	((pElem) != NULL ? gfx_vec_at(&(vec), (size_t)((pElem) - (array))) : NULL)
 
-#define _GFX_INDEXOF_BUFFER(pAccessor, pData) \
+#define _GFX_FROM_GLTF_ACCESSOR(pAccessor) \
 	((pAccessor) != NULL && (pAccessor)->buffer_view != NULL ? \
-		_GFX_INDEXOF((pAccessor)->buffer_view->buffer, (pData)->buffers) : SIZE_MAX)
+		*(GFXBuffer**)_GFX_FROM_GLTF( \
+			buffers, data->buffers, (pAccessor)->buffer_view->buffer) : NULL)
 
-#define _GFX_INDEXOF_TEXTURE(view, pData) \
+#define _GFX_FROM_GLTF_TEXVIEW(view) \
 	(GFXGltfTexture){ \
 		.image = (view).texture != NULL ? \
-			_GFX_INDEXOF((view).texture->image, (pData)->images) : SIZE_MAX, \
+			*(GFXImage**)_GFX_FROM_GLTF( \
+				images, data->images, (view).texture->image) : NULL, \
 		.sampler = (view).texture != NULL ? \
-			_GFX_INDEXOF((view).texture->sampler, (pData)->samplers) : SIZE_MAX \
+			_GFX_FROM_GLTF( \
+				samplers, data->samplers, (view).texture->sampler) : NULL \
 	}
-
 
 // Decode a hexadecimal digit.
 #define _GFX_UNHEX(digit) \
@@ -540,7 +542,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	{
 		gfx_log_error(
 			"Failed to load glTF, %s.",
-			_GFX_GET_GLTF_ERROR_STRING(res));
+			_GFX_GLTF_ERROR_STRING(res));
 
 		cgltf_free(data);
 		return 0;
@@ -652,12 +654,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	{
 		// Insert sampler.
 		GFXGltfSampler sampler = {
-			.minFilter = _GFX_GET_GLTF_MIN_FILTER(data->samplers[s].min_filter),
-			.magFilter = _GFX_GET_GLTF_MAG_FILTER(data->samplers[s].mag_filter),
-			.mipFilter = _GFX_GET_GLTF_MIP_FILTER(data->samplers[s].min_filter),
+			.minFilter = _GFX_GLTF_MIN_FILTER(data->samplers[s].min_filter),
+			.magFilter = _GFX_GLTF_MAG_FILTER(data->samplers[s].mag_filter),
+			.mipFilter = _GFX_GLTF_MIP_FILTER(data->samplers[s].min_filter),
 
-			.wrapU = _GFX_GET_GLTF_WRAPPING(data->samplers[s].wrap_s),
-			.wrapV = _GFX_GET_GLTF_WRAPPING(data->samplers[s].wrap_t),
+			.wrapU = _GFX_GLTF_WRAPPING(data->samplers[s].wrap_s),
+			.wrapV = _GFX_GLTF_WRAPPING(data->samplers[s].wrap_t),
 		};
 
 		if (!gfx_vec_push(&samplers, 1, &sampler))
@@ -671,14 +673,14 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 		// Insert material.
 		GFXGltfMaterial material = {
-			.flags = _GFX_GET_GLTF_MATERIAL_FLAGS(cmat),
+			.flags = _GFX_GLTF_MATERIAL_FLAGS(cmat),
 
 			.pbr = {
 				// Metallic roughness.
-				.baseColor = _GFX_INDEXOF_TEXTURE(
-					cmat->pbr_metallic_roughness.base_color_texture, data),
-				.metallicRoughness = _GFX_INDEXOF_TEXTURE(
-					cmat->pbr_metallic_roughness.metallic_roughness_texture, data),
+				.baseColor = _GFX_FROM_GLTF_TEXVIEW(
+					cmat->pbr_metallic_roughness.base_color_texture),
+				.metallicRoughness = _GFX_FROM_GLTF_TEXVIEW(
+					cmat->pbr_metallic_roughness.metallic_roughness_texture),
 
 				.baseColorFactors = {
 					cmat->pbr_metallic_roughness.base_color_factor[0],
@@ -695,10 +697,10 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 					cmat->ior.ior,
 
 				// Specular glossiness.
-				.diffuse = _GFX_INDEXOF_TEXTURE(
-					cmat->pbr_specular_glossiness.diffuse_texture, data),
-				.specularGlossiness = _GFX_INDEXOF_TEXTURE(
-					cmat->pbr_specular_glossiness.specular_glossiness_texture, data),
+				.diffuse = _GFX_FROM_GLTF_TEXVIEW(
+					cmat->pbr_specular_glossiness.diffuse_texture),
+				.specularGlossiness = _GFX_FROM_GLTF_TEXVIEW(
+					cmat->pbr_specular_glossiness.specular_glossiness_texture),
 
 				.diffuseFactors = {
 					cmat->pbr_specular_glossiness.diffuse_factor[0],
@@ -718,11 +720,11 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			},
 
 			// Standard.
-			.normal = _GFX_INDEXOF_TEXTURE(cmat->normal_texture, data),
-			.occlusion = _GFX_INDEXOF_TEXTURE(cmat->occlusion_texture, data),
-			.emissive = _GFX_INDEXOF_TEXTURE(cmat->emissive_texture, data),
+			.normal = _GFX_FROM_GLTF_TEXVIEW(cmat->normal_texture),
+			.occlusion = _GFX_FROM_GLTF_TEXVIEW(cmat->occlusion_texture),
+			.emissive = _GFX_FROM_GLTF_TEXVIEW(cmat->emissive_texture),
 
-			.alphaMode = _GFX_GET_GLTF_ALPHA_MODE(cmat->alpha_mode),
+			.alphaMode = _GFX_GLTF_ALPHA_MODE(cmat->alpha_mode),
 
 			.normalScale = cmat->normal_texture.scale,
 			.occlusionStrength = cmat->occlusion_texture.scale,
@@ -736,12 +738,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			},
 
 			// Clearcoat.
-			.clearcoat = _GFX_INDEXOF_TEXTURE(
-				cmat->clearcoat.clearcoat_texture, data),
-			.clearcoatRoughness = _GFX_INDEXOF_TEXTURE(
-				cmat->clearcoat.clearcoat_roughness_texture, data),
-			.clearcoatNormal = _GFX_INDEXOF_TEXTURE(
-				cmat->clearcoat.clearcoat_normal_texture, data),
+			.clearcoat = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->clearcoat.clearcoat_texture),
+			.clearcoatRoughness = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->clearcoat.clearcoat_roughness_texture),
+			.clearcoatNormal = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->clearcoat.clearcoat_normal_texture),
 
 			.clearcoatFactor =
 				cmat->clearcoat.clearcoat_factor,
@@ -749,10 +751,10 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				cmat->clearcoat.clearcoat_roughness_factor,
 
 			// Iridescence.
-			.iridescence = _GFX_INDEXOF_TEXTURE(
-				cmat->iridescence.iridescence_texture, data),
-			.iridescenceThickness = _GFX_INDEXOF_TEXTURE(
-				cmat->iridescence.iridescence_thickness_texture, data),
+			.iridescence = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->iridescence.iridescence_texture),
+			.iridescenceThickness = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->iridescence.iridescence_thickness_texture),
 
 			.iridescenceFactor =
 				cmat->iridescence.iridescence_factor,
@@ -764,10 +766,10 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				cmat->iridescence.iridescence_thickness_max,
 
 			// Sheen.
-			.sheenColor = _GFX_INDEXOF_TEXTURE(
-				cmat->sheen.sheen_color_texture, data),
-			.sheenRoughness = _GFX_INDEXOF_TEXTURE(
-				cmat->sheen.sheen_roughness_texture, data),
+			.sheenColor = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->sheen.sheen_color_texture),
+			.sheenRoughness = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->sheen.sheen_roughness_texture),
 
 			.sheenColorFactors = {
 				cmat->sheen.sheen_color_factor[0],
@@ -779,10 +781,10 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				cmat->sheen.sheen_roughness_factor,
 
 			// Specular.
-			.specular = _GFX_INDEXOF_TEXTURE(
-				cmat->specular.specular_texture, data),
-			.specularColor = _GFX_INDEXOF_TEXTURE(
-				cmat->specular.specular_color_texture, data),
+			.specular = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->specular.specular_texture),
+			.specularColor = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->specular.specular_color_texture),
 
 			.specularFactor =
 				cmat->specular.specular_factor,
@@ -794,15 +796,15 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			},
 
 			// Transmission.
-			.transmission = _GFX_INDEXOF_TEXTURE(
-				cmat->transmission.transmission_texture, data),
+			.transmission = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->transmission.transmission_texture),
 
 			.transmissionFactor =
 				cmat->transmission.transmission_factor,
 
 			// Volume.
-			.thickness = _GFX_INDEXOF_TEXTURE(
-				cmat->volume.thickness_texture, data),
+			.thickness = _GFX_FROM_GLTF_TEXVIEW(
+				cmat->volume.thickness_texture),
 
 			.thicknessFactor = cmat->volume.thickness_factor,
 			.attenuationDistance = cmat->volume.attenuation_distance,
@@ -818,18 +820,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			goto clean;
 	}
 
-	// Create all meshes and primitives.
+	// Create all primitives.
 	for (size_t m = 0; m < data->meshes_count; ++m)
 	{
-		// Insert mesh.
-		GFXGltfMesh mesh = {
-			.firstPrimitive = primitives.size,
-			.numPrimitives = data->meshes[m].primitives_count
-		};
-
-		if (!gfx_vec_push(&meshes, 1, &mesh))
-			goto clean;
-
 		for (size_t p = 0; p < data->meshes[m].primitives_count; ++p)
 		{
 			// Gather all primitive data.
@@ -839,13 +832,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				cprim->indices != NULL ? cprim->indices->count : 0;
 			const char indexSize =
 				cprim->indices != NULL ?
-				_GFX_GET_GLTF_INDEX_SIZE(cprim->indices->component_type) : 0;
-
-			const size_t indexBufferInd =
-				_GFX_INDEXOF_BUFFER(cprim->indices, data);
+				_GFX_GLTF_INDEX_SIZE(cprim->indices->component_type) : 0;
 			GFXBuffer* indexBuffer =
-				indexBufferInd != SIZE_MAX ?
-				*(GFXBuffer**)gfx_vec_at(&buffers, indexBufferInd) : NULL;
+				_GFX_FROM_GLTF_ACCESSOR(cprim->indices);
 
 			if (numIndices > 0 && indexSize == 0)
 			{
@@ -919,11 +908,8 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				numVertices = GFX_MIN(
 					numVertices, cattr->data->count);
 
-				const size_t bufferInd =
-					_GFX_INDEXOF_BUFFER(cattr->data, data);
 				GFXBuffer* buffer =
-					bufferInd != SIZE_MAX ?
-					*(GFXBuffer**)gfx_vec_at(&buffers, bufferInd) : NULL;
+					_GFX_FROM_GLTF_ACCESSOR(cattr->data);
 
 				attributes[a] = (GFXAttribute){
 					.offset = (uint32_t)cattr->data->offset,
@@ -955,7 +941,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 			// Allocate primitive.
 			GFXPrimitive* prim = gfx_alloc_prim(heap,
-				0, 0, _GFX_GET_GLTF_TOPOLOGY(cprim->type),
+				0, 0, _GFX_GLTF_TOPOLOGY(cprim->type),
 				(uint32_t)numIndices, indexSize,
 				(uint32_t)numVertices,
 				indexBuffer != NULL ?
@@ -969,7 +955,8 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			// Insert primitive.
 			GFXGltfPrimitive primitive = {
 				.primitive = prim,
-				.material = _GFX_INDEXOF(cprim->material, data->materials)
+				.material = _GFX_FROM_GLTF(
+					materials, data->materials, cprim->material)
 			};
 
 			if (!gfx_vec_push(&primitives, 1, &primitive))
@@ -978,6 +965,21 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 		}
+	}
+
+	// Create all meshes.
+	for (size_t m = 0, p = 0; m < data->meshes_count; ++m)
+	{
+		// Insert mesh.
+		GFXGltfMesh mesh = {
+			.numPrimitives = data->meshes[m].primitives_count,
+			.primitives = gfx_vec_at(&primitives, p)
+		};
+
+		if (!gfx_vec_push(&meshes, 1, &mesh))
+			goto clean;
+
+		p += mesh.numPrimitives;
 	}
 
 	// We are done building groufix objects, free gltf things.

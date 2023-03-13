@@ -54,17 +54,6 @@ typedef enum GFXGltfAlphaMode
 
 
 /**
- * glTF texture definition.
- */
-typedef struct GFXGltfTexture
-{
-	size_t image;   // SIZE_MAX if none.
-	size_t sampler; // SIZE_MAX if none.
-
-} GFXGltfTexture;
-
-
-/**
  * glTF sampler definition.
  */
 typedef struct GFXGltfSampler
@@ -77,6 +66,17 @@ typedef struct GFXGltfSampler
 	GFXWrapping wrapV;
 
 } GFXGltfSampler;
+
+
+/**
+ * glTF texture definition.
+ */
+typedef struct GFXGltfTexture
+{
+	GFXImage*       image;
+	GFXGltfSampler* sampler;
+
+} GFXGltfTexture;
 
 
 /**
@@ -173,8 +173,8 @@ typedef struct GFXGltfMaterial
  */
 typedef struct GFXGltfPrimitive
 {
-	GFXPrimitive* primitive;
-	size_t        material; // SIZE_MAX if none.
+	GFXPrimitive*    primitive;
+	GFXGltfMaterial* material;
 
 } GFXGltfPrimitive;
 
@@ -184,8 +184,8 @@ typedef struct GFXGltfPrimitive
  */
 typedef struct GFXGltfMesh
 {
-	size_t firstPrimitive;
-	size_t numPrimitives;
+	size_t            numPrimitives;
+	GFXGltfPrimitive* primitives;
 
 } GFXGltfMesh;
 
