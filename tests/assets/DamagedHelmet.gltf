@@ -34,9 +34,25 @@
                         "POSITION" : 1,
                         "TEXCOORD_0" : 3
                     },
-                    "indices" : 0
+                    "indices" : 0,
+                    "material" : 0
                 }
             ]
+        }
+    ],
+    "materials" : [
+        {
+            "name" : "Material_MR",
+            "pbrMetallicRoughness" : {
+                "baseColorTexture" : {
+                    "index" : 0
+                }
+            }
+        }
+    ],
+    "textures" : [
+        {
+            "source" : 0
         }
     ],
     "accessors" : [

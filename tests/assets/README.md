@@ -18,4 +18,4 @@ Pulled from [glTF Sample Models](https://github.com/KhronosGroup/glTF-Sample-Mod
 
 * The original model was built on an early draft of glTF 2.0 that did not become final. A new model has been imported and re-exported from Blender to bring it into alignment with the final release glTF 2.0 specification.
 
-* Most images, samplers, textures and materials have been removed from the file and all remaining objects have been re-ordered.
+* Some elements have been removed from the file. All remaining elements have been re-ordered.

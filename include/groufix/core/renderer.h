@@ -581,6 +581,8 @@ GFX_API GFXDevice* gfx_renderer_get_device(GFXRenderer* renderer);
 /**
  * Retrieves the number of virtual frames of a renderer.
  * @param renderer Cannot be NULL.
+ *
+ * Can be called from any thread.
  */
 GFX_API unsigned int gfx_renderer_get_num_frames(GFXRenderer* renderer);
 
@@ -953,18 +955,21 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique);
 
 /**
  * Retrieves the number of descriptor sets of a technique.
+ * Can be called from any thread.
  * @param technique Cannot be NULL.
  */
 GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
 
 /**
  * Retrieves the push constant range's size of a technique.
+ * Can be called from any thread.
  * @param technique Cannot be NULL.
  */
 GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique);
 
 /**
  * Retrieves shader stages that access the push constant range of a technique.
+ * Can be called from any thread.
  * @param technique Cannot be NULL.
  */
 GFX_API GFXShaderStage gfx_tech_get_push_stages(GFXTechnique* technique);
@@ -1077,8 +1082,8 @@ typedef struct GFXSetGroup
  * Thread-safe with respect to renderer,
  * as are all other functions related to this set.
  *
- * However, all but this function CANNOT run during gfx_renderer_acquire or
- * during or inbetween gfx_frame_start and gfx_frame_submit.
+ * However, all but this function (and all getters) CANNOT run during
+ * gfx_renderer_acquire or during or inbetween gfx_frame_start and gfx_frame_submit.
  *
  * Thread-safe with respect to technique ONLY IF gfx_tech_lock has
  * succesfully returned (or one call to gfx_renderer_add_set has).
@@ -1108,12 +1113,14 @@ GFX_API void gfx_erase_set(GFXSet* set);
 
 /**
  * Retrieves the number of descriptor bindings of a set.
+ * Can be called from any thread.
  * @param set Cannot be NULL.
  */
 GFX_API size_t gfx_set_get_num_bindings(GFXSet* set);
 
 /**
  * Retrieves the size (i.e. shader array size) of a descriptor binding of a set.
+ * Can be called from any thread.
  * @param set     Cannot be NULL.
  * @param binding Must be < gfx_set_get_num_bindings(set).
  */
@@ -1121,6 +1128,7 @@ GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding);
 
 /**
  * Retrieves the type of a descriptor binding of a set.
+ * Can be called from any thread.
  * @see gfx_set_get_binding_size.
  * @return Undefined if the binding's size is zero.
  */
@@ -1128,6 +1136,7 @@ GFX_API GFXBindingType gfx_set_get_binding_type(GFXSet* set, size_t binding);
 
 /**
  * Retrieves whether a descriptor binding is immutable.
+ * Can be called from any thread.
  * @see gfx_set_get_binding_size.
  * @return Always zero if this binding's type is not GFX_BINDING_SAMPLER.
  */
@@ -1135,12 +1144,14 @@ GFX_API bool gfx_set_is_binding_immutable(GFXSet* set, size_t binding);
 
 /**
  * Retrieves whether a descriptor binding is dynamic.
+ * Can be called from any thread.
  * @see gfx_set_get_binding_size.
  */
 GFX_API bool gfx_set_is_binding_dynamic(GFXSet* set, size_t binding);
 
 /**
  * Retrieves the number of total dynamic descriptors of all bindings.
+ * Can be called from any thread.
  * @param set Cannot be NULL.
  */
 GFX_API size_t gfx_set_get_num_dynamics(GFXSet* set);
