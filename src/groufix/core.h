@@ -209,6 +209,15 @@ typedef struct _GFXContext
 	GFXList     sets; // References _GFXQueueSet.
 
 
+	// Supported feature flags.
+	enum
+	{
+		_GFX_SUPPORT_GEOMETRY_SHADER     = 0x0001,
+		_GFX_SUPPORT_TESSELLATION_SHADER = 0x0002
+
+	} features;
+
+
 	// Allocation limits (queried once).
 	struct
 	{

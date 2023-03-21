@@ -374,6 +374,18 @@
 			VK_IMAGE_LAYOUT_GENERAL)))
 
 
+// Helpers to remove unsupported pipeline stages.
+#define _GFX_MOD_VK_PIPELINE_STAGE(vkStage, context) \
+	((vkStage) & \
+		~((!((context)->features & _GFX_SUPPORT_GEOMETRY_SHADER) ? \
+			VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT : \
+			(VkPipelineStageFlags)0) | \
+		(!((context)->features & _GFX_SUPPORT_TESSELLATION_SHADER) ? \
+			VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | \
+			VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT : \
+			(VkPipelineStageFlags)0)))
+
+
 /****************************
  * Shading objects.
  ****************************/

@@ -42,10 +42,15 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 	const _GFXConsume* prev = con->out.prev;
 	const _GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, con->view.index);
 
-	GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
+	const GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
 		// Pick empty format for windows, which results in non-depth/stencil
 		// access flags and pipeline stages, which is what we want :)
 		at->image.base.format : GFX_FORMAT_EMPTY;
+
+	const VkPipelineStageFlags srcStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);
+	const VkPipelineStageFlags dstStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
 
 	// If no memory hazard, just inject an execution barrier...
 	const bool srcWrites = GFX_ACCESS_WRITES(prev->mask);
@@ -54,8 +59,8 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 	if (!srcWrites && !transition)
 	{
 		context->vk.CmdPipelineBarrier(cmd,
-			_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt),
-			_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt),
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
 			0, 0, NULL, 0, NULL, 0, NULL);
 
 		// ... and be done with it.
@@ -134,8 +139,8 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
 			(con->view.range.layer - imb.subresourceRange.baseArrayLayer));
 
 	context->vk.CmdPipelineBarrier(cmd,
-		_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt),
-		_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt),
+		_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+		_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
 		0, 0, NULL, 0, NULL,
 		1, &imb);
 }

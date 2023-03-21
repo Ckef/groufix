@@ -141,7 +141,8 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
  * The returned `unpacked` range is not valid for the unpacked reference anymore,
  * it is only valid for the raw VkBuffer or VkImage handle!
  */
-static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
+static void _gfx_dep_unpack(_GFXContext* context,
+                            const _GFXUnpackRef* ref,
                             const _GFXImageAttach* attach,
                             const GFXRange* range, uint64_t size,
                             GFXAccessMask mask, GFXShaderStage stage,
@@ -150,6 +151,7 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
                             VkImageLayout* layout,
                             VkPipelineStageFlags* stages)
 {
+	assert(context != NULL);
 	assert(ref != NULL);
 	assert(unpacked != NULL);
 	assert(flags != NULL);
@@ -167,6 +169,7 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
 		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
 		*layout = VK_IMAGE_LAYOUT_UNDEFINED; // It's a buffer.
 		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt);
+		*stages = _GFX_MOD_VK_PIPELINE_STAGE(*stages, context);
 
 		// Normalize offset to be independent of references.
 		unpacked->offset = (range == NULL) ? ref->value :
@@ -195,6 +198,7 @@ static void _gfx_dep_unpack(const _GFXUnpackRef* ref,
 		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
 		*layout = _GFX_GET_VK_IMAGE_LAYOUT(mask, fmt);
 		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt);
+		*stages = _GFX_MOD_VK_PIPELINE_STAGE(*stages, context);
 
 		if (range == NULL)
 			unpacked->aspect = aspect,
@@ -558,7 +562,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		VkImageLayout layout;
 		VkPipelineStageFlags stages;
 
-		_gfx_dep_unpack(
+		_gfx_dep_unpack(context,
 			injection->inp.refs + r, attach,
 			NULL, injection->inp.sizes[r],
 			injection->inp.masks[r], GFX_STAGE_ANY,
@@ -895,7 +899,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				injs[i].mask & ~(GFXAccessMask)GFX_ACCESS_HOST_READ_WRITE;
 
 			// Set all source operation values.
-			_gfx_dep_unpack(refs + r, attach,
+			_gfx_dep_unpack(injs[i].dep->context, refs + r, attach,
 				// If given a range but not a reference,
 				// use the same range for all resources...
 				// Passing a mask of 0 yields an undefined image layout.
@@ -910,6 +914,8 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				_GFX_GET_VK_ACCESS_FLAGS(dstMask, fmt);
 			sync->vk.dstStage =
 				_GFX_GET_VK_PIPELINE_STAGE(dstMask, injs[i].stage, fmt);
+			sync->vk.dstStage =
+				_GFX_MOD_VK_PIPELINE_STAGE(sync->vk.dstStage, injs[i].dep->context);
 			sync->vk.newLayout =
 				// Undefined layout for buffers.
 				(sync->ref.obj.buffer != NULL) ?

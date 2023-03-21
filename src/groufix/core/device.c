@@ -708,6 +708,13 @@ static void _gfx_create_context(_GFXDevice* device)
 	if (context == NULL)
 		goto error;
 
+	// Get supported feature flags.
+	context->features =
+		device->base.features.geometryShader ?
+			_GFX_SUPPORT_GEOMETRY_SHADER : 0 |
+		device->base.features.tessellationShader ?
+			_GFX_SUPPORT_TESSELLATION_SHADER : 0;
+
 	{
 		// Get allocation limits in a scope so pdp gets freed :)
 		VkPhysicalDeviceProperties pdp;
@@ -736,16 +743,16 @@ static void _gfx_create_context(_GFXDevice* device)
 
 		// Shader allocations.
 		atomic_store(&context->limits.shaders, 0);
-
-		// Insert itself in the context list.
-		gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
-		gfx_list_init(&context->sets);
-
-		// From this point on we call _gfx_destroy_context on cleanup.
-		// Set these to NULL so we don't accidentally call garbage on cleanup.
-		context->vk.DestroyDevice = NULL;
-		context->vk.DeviceWaitIdle = NULL;
 	}
+
+	// Insert itself in the context list.
+	gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
+	gfx_list_init(&context->sets);
+
+	// From this point on we call _gfx_destroy_context on cleanup.
+	// Set these to NULL so we don't accidentally call garbage on cleanup.
+	context->vk.DestroyDevice = NULL;
+	context->vk.DeviceWaitIdle = NULL;
 
 	// Now find the device group which this device is part of.
 	// This fills numDevices and devices of context!
