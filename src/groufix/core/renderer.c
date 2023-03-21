@@ -493,6 +493,9 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 
 	// And increase the to-be submitted frame index.
 	renderer->current = (renderer->current + 1) % renderer->numFrames;
+
+	// As promised, purge the associated heap.
+	gfx_heap_purge(renderer->heap);
 }
 
 /****************************/

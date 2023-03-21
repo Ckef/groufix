@@ -29,7 +29,6 @@ TEST_DESCRIBE(fps, t)
 		gfx_pass_inject(t->pass, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
 		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
-		gfx_heap_purge(t->heap);
 	}
 }
 

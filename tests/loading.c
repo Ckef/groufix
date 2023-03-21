@@ -189,7 +189,7 @@ TEST_DESCRIBE(loading, t)
 	if (!load_gltf(path, &result))
 		goto clean;
 
-	// Grab the first primitive & image from the glTF.
+	// Grab the first primitive from the glTF.
 	GFXPrimitive* prim =
 		result.numPrimitives > 0 ?
 			result.primitives[0].primitive : NULL;
@@ -312,7 +312,6 @@ TEST_DESCRIBE(loading, t)
 		gfx_pass_inject(t->pass, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
 		gfx_recorder_render(t->recorder, t->pass, render, &ctx);
 		gfx_frame_submit(frame);
-		gfx_heap_purge(t->heap);
 	}
 
 	success = 1;

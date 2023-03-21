@@ -167,7 +167,6 @@ TEST_DESCRIBE(post, t)
 		gfx_recorder_render(t->recorder, post, post_process, &ctx);
 		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
-		gfx_heap_purge(t->heap);
 		gfx_wait_events();
 	}
 

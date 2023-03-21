@@ -72,7 +72,6 @@ TEST_DESCRIBE(windows, t)
 		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_recorder_render(t->recorder, pass2, render2, &renderable2);
 		gfx_frame_submit(frame);
-		gfx_heap_purge(t->heap);
 		gfx_wait_events();
 	}
 

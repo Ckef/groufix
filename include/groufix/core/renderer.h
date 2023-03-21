@@ -713,6 +713,8 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
  * All memory resources used to render a frame cannot be freed until the next
  * time this frame is acquired. The frames can be identified by their index.
  *
+ * Will call gfx_heap_purge() on the associated heap when done.
+ *
  * Failure during submission cannot be recovered from,
  * any such failure is appropriately logged.
  */
