@@ -364,10 +364,10 @@ typedef struct _GFXDevice
 #endif
 
 	_GFXContext* context;
-	size_t       index; // Index into the device group.
-	_GFXMutex    lock;  // For initial context access.
+	_GFXMutex    lock; // For initial context access.
 
-	GFXVec formats; // Stores { GFXFormat, VkFormat, VkFormatProperties }.
+	// Stores { GFXFormat, VkFormat, VkFormatProperties }.
+	GFXVec formats;
 
 
 	// Vulkan fields.

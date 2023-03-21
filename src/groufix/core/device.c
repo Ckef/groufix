@@ -959,7 +959,6 @@ static void _gfx_create_context(_GFXDevice* device)
 
 	// Set device's reference to this context.
 	device->context = context;
-	device->index = index;
 
 	free(createInfos);
 
@@ -989,6 +988,9 @@ bool _gfx_devices_init(void)
 		_groufix.vk.instance, &count, NULL), count = 0);
 
 	VkPhysicalDevice devices[count > 0 ? count : 1];
+#if !defined (NDEBUG)
+	const char* deviceNames[count > 0 ? count : 1];
+#endif
 	if (count == 0) goto terminate;
 
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
@@ -1020,7 +1022,6 @@ bool _gfx_devices_init(void)
 		_GFXDevice dev = {
 			.api     = pdp->apiVersion,
 			.context = NULL,
-			.index   = 0,
 			.vk      = { .device = devices[i] }
 		};
 
@@ -1275,6 +1276,9 @@ bool _gfx_devices_init(void)
 	{
 		_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
 		dev->base.name = dev->name;
+#if !defined (NDEBUG)
+		deviceNames[i] = dev->name;
+#endif
 
 		// Sneaky goto-based init/clear structure :o
 		if (!_gfx_mutex_init(&dev->lock))
@@ -1290,6 +1294,20 @@ bool _gfx_devices_init(void)
 		gfx_vec_pop(&_groufix.devices, count - i);
 		goto terminate;
 	}
+
+#if !defined (NDEBUG)
+	// I really wanna know the detected devices :)
+	char* namesString =
+		_gfx_str_join_alloc(count, deviceNames, " ]\n    [ ");
+
+	if (namesString)
+		gfx_log_debug(
+			"Detected physical Vulkan devices:\n"
+			"    [ %s ]\n",
+			namesString);
+
+	free(namesString);
+#endif
 
 	return 1;
 
@@ -1350,9 +1368,7 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device)
 			for (size_t j = 0; j < context->numDevices; ++j)
 				if (context->devices[j] == device->vk.device)
 				{
-					device->index = j;
 					device->context = context;
-
 					goto unlock;
 				}
 		}

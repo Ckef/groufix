@@ -374,7 +374,7 @@
 			VK_IMAGE_LAYOUT_GENERAL)))
 
 
-// Helpers to remove unsupported pipeline stages.
+// Helper to remove unsupported pipeline stages.
 #define _GFX_MOD_VK_PIPELINE_STAGE(vkStage, context) \
 	((vkStage) & \
 		~((!((context)->features & _GFX_SUPPORT_GEOMETRY_SHADER) ? \
