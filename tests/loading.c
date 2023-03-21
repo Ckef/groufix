@@ -191,8 +191,10 @@ TEST_DESCRIBE(loading, t)
 
 	// Grab the first primitive & image from the glTF.
 	GFXPrimitive* prim =
-		result.primitives[0].primitive;
+		result.numPrimitives > 0 ?
+			result.primitives[0].primitive : NULL;
 	GFXImage* image =
+		result.numPrimitives > 0 &&
 		result.primitives[0].material != NULL ?
 			result.primitives[0].material->pbr.baseColor.image : NULL;
 
