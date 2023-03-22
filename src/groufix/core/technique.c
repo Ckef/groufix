@@ -906,7 +906,9 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 			if (done) break;
 
 			// If an empty resource, skip it.
-			// TODO: Account for unsized resources?
+			// Do not fret; this does not skip 'unsized' (i.e. variable sized)
+			// storage buffers. The _last element_ of this resource would have
+			// a count of zero, not the resource itself :)
 			if (cur == NULL || cur->count == 0) continue;
 
 			// Push the resource as a binding.
