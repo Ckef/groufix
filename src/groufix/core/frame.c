@@ -650,6 +650,13 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 			return 0;
 		}
 
+		// TODO:BAR: Merge the below barriers with barriers from `injection`?
+		// We could introduce _gfx_injection_push and _gfx_injection_flush.
+		// These would push manual barriers & flush all stored barriers from
+		// _gfx_deps_(catch|prepare) & _gfx_injection_push.
+		// Then, _gfx_deps_(catch|prepare) don't take a VkCommandBuffer
+		// anymore and don't do any actual injections (only store).
+
 		// Inject consumption barriers.
 		for (size_t c = 0; c < pass->consumes.size; ++c)
 		{
