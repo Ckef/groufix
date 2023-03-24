@@ -831,6 +831,8 @@ GFX_API bool gfx_heap_block(GFXHeap* heap)
 {
 	assert(heap != NULL);
 
+	bool success = 1;
+
 	_GFXContext* context = heap->allocator.context;
 
 	// Ok so we are gonna gather ALL the fences and wait on them.
@@ -844,34 +846,34 @@ GFX_API bool gfx_heap_block(GFXHeap* heap)
 		heap->ops.transfer.transfers.size;
 
 	if (numFences == 0)
-	{
-		_gfx_mutex_unlock(&heap->ops.graphics.lock);
-		_gfx_mutex_unlock(&heap->ops.transfer.lock);
-		return 1;
-	}
+		// Nothing to wait for, done.
+		goto early_exit;
 
 	VkFence* fences = malloc(sizeof(VkFence) * numFences);
 	if (fences == NULL)
 	{
-		_gfx_mutex_unlock(&heap->ops.graphics.lock);
-		_gfx_mutex_unlock(&heap->ops.transfer.lock);
-		return 0;
+		// Set to fail & done.
+		success = 0;
+		goto early_exit;
 	}
 
 	// Gather all fences for all flushed transfers.
-	size_t gC, tC;
-	for (gC = 0; gC < heap->ops.graphics.transfers.size; ++gC)
+	// Start with the graphics pool.
+	uint32_t waitFences = 0;
+	GFXDeque* transfers = &heap->ops.graphics.transfers;
+
+gather_fences:
+	for (size_t t = 0; t < transfers->size; ++t)
 	{
-		_GFXTransfer* transfer = gfx_deque_at(&heap->ops.graphics.transfers, gC);
-		if (transfer->flushed) fences[gC] = transfer->vk.done;
-		else break;
+		_GFXTransfer* transfer = gfx_deque_at(transfers, t);
+		if (transfer->flushed) fences[waitFences++] = transfer->vk.done;
 	}
 
-	for (tC = 0; tC < heap->ops.transfer.transfers.size; ++tC)
+	// Then the compute pool.
+	if (transfers == &heap->ops.graphics.transfers)
 	{
-		_GFXTransfer* transfer = gfx_deque_at(&heap->ops.transfer.transfers, tC);
-		if (transfer->flushed) fences[gC + tC] = transfer->vk.done;
-		else break;
+		transfers = &heap->ops.transfer.transfers;
+		goto gather_fences;
 	}
 
 	// We've read all data, increase the block count of both pools and unlock.
@@ -883,12 +885,10 @@ GFX_API bool gfx_heap_block(GFXHeap* heap)
 	_gfx_mutex_unlock(&heap->ops.transfer.lock);
 
 	// Wait for all the fences.
-	bool success = 1;
-
-	if (gC + tC > 0)
+	if (waitFences > 0)
 		_GFX_VK_CHECK(
 			context->vk.WaitForFences(
-				context->vk.device, (uint32_t)(gC + tC), fences,
+				context->vk.device, waitFences, fences,
 				VK_TRUE, UINT64_MAX),
 			success = 0);
 
@@ -897,6 +897,14 @@ GFX_API bool gfx_heap_block(GFXHeap* heap)
 	// No need to lock :)
 	atomic_fetch_sub(&heap->ops.graphics.blocking, 1);
 	atomic_fetch_sub(&heap->ops.transfer.blocking, 1);
+
+	return success;
+
+
+	// Early unlock & exit.
+early_exit:
+	_gfx_mutex_unlock(&heap->ops.graphics.lock);
+	_gfx_mutex_unlock(&heap->ops.transfer.lock);
 
 	return success;
 }
