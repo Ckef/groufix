@@ -52,83 +52,6 @@
 
 
 /****************************
- * TODO:BAR: Make this take multiple sync objs and merge them?
- * Injects an execution/memory barrier, just as stored in a _GFXSync object.
- * Assumes one of `sync->vk.buffer` or `sync->vk.image` is appropriately set.
- */
-static void _gfx_inject_barrier(VkCommandBuffer cmd,
-                                const _GFXSync* sync, _GFXContext* context)
-{
-	assert(sync != NULL);
-	assert(sync->flags & _GFX_SYNC_BARRIER);
-
-	// If no memory hazard, just inject an execution barrier...
-	if (!(sync->flags & _GFX_SYNC_MEM_HAZARD))
-	{
-		context->vk.CmdPipelineBarrier(cmd,
-			sync->vk.srcStage, sync->vk.dstStage,
-			0, 0, NULL, 0, NULL, 0, NULL);
-
-		// ... and be done with it.
-		return;
-	}
-
-	// Otherwise, inject full memory barrier.
-	// We always set the destination queue family to be able to match, undo!
-	const uint32_t dstFamily =
-		(sync->vk.srcQueue.family == VK_QUEUE_FAMILY_IGNORED) ?
-		VK_QUEUE_FAMILY_IGNORED : sync->vk.dstQueue.family;
-
-	union {
-		VkBufferMemoryBarrier bmb;
-		VkImageMemoryBarrier imb;
-	} mb;
-
-	if (sync->ref.obj.buffer != NULL)
-		mb.bmb = (VkBufferMemoryBarrier){
-			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-
-			.pNext               = NULL,
-			.srcAccessMask       = sync->vk.srcAccess,
-			.dstAccessMask       = sync->vk.dstAccess,
-			.srcQueueFamilyIndex = sync->vk.srcQueue.family,
-			.dstQueueFamilyIndex = dstFamily,
-			.buffer              = sync->vk.buffer,
-			.offset              = sync->range.offset,
-			.size                = sync->range.size
-		};
-	else
-		mb.imb = (VkImageMemoryBarrier){
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-
-			.pNext               = NULL,
-			.srcAccessMask       = sync->vk.srcAccess,
-			.dstAccessMask       = sync->vk.dstAccess,
-			.oldLayout           = sync->vk.oldLayout,
-			.newLayout           = sync->vk.newLayout,
-			.srcQueueFamilyIndex = sync->vk.srcQueue.family,
-			.dstQueueFamilyIndex = dstFamily,
-			.image               = sync->vk.image,
-			.subresourceRange = {
-				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(sync->range.aspect),
-				.baseMipLevel   = sync->range.mipmap,
-				.baseArrayLayer = sync->range.layer,
-
-				.levelCount = sync->range.numMipmaps == 0 ?
-					VK_REMAINING_MIP_LEVELS : sync->range.numMipmaps,
-				.layerCount = sync->range.numLayers == 0 ?
-					VK_REMAINING_ARRAY_LAYERS : sync->range.numLayers
-			}
-		};
-
-	context->vk.CmdPipelineBarrier(cmd,
-		sync->vk.srcStage, sync->vk.dstStage,
-		0, 0, NULL,
-		sync->ref.obj.buffer != NULL ? 1 : 0, &mb.bmb,
-		sync->ref.obj.buffer == NULL ? 1 : 0, &mb.imb);
-}
-
-/****************************
  * Computes the 'unpacked' range, access/stage flags and image layout
  * associated with an injection's ref (normalizes offsets and resolves sizes).
  * @param ref    Must be a non-empty valid unpacked reference.
@@ -141,15 +64,15 @@ static void _gfx_inject_barrier(VkCommandBuffer cmd,
  * The returned `unpacked` range is not valid for the unpacked reference anymore,
  * it is only valid for the raw VkBuffer or VkImage handle!
  */
-static void _gfx_dep_unpack(_GFXContext* context,
-                            const _GFXUnpackRef* ref,
-                            const _GFXImageAttach* attach,
-                            const GFXRange* range, uint64_t size,
-                            GFXAccessMask mask, GFXShaderStage stage,
-                            GFXRange* unpacked,
-                            VkAccessFlags* flags,
-                            VkImageLayout* layout,
-                            VkPipelineStageFlags* stages)
+static void _gfx_unpack(_GFXContext* context,
+                        const _GFXUnpackRef* ref,
+                        const _GFXImageAttach* attach,
+                        const GFXRange* range, uint64_t size,
+                        GFXAccessMask mask, GFXShaderStage stage,
+                        GFXRange* unpacked,
+                        VkAccessFlags* flags,
+                        VkImageLayout* layout,
+                        VkPipelineStageFlags* stages)
 {
 	assert(context != NULL);
 	assert(ref != NULL);
@@ -413,6 +336,144 @@ GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep)
 }
 
 /****************************/
+void _gfx_injection_flush(_GFXContext* context, VkCommandBuffer cmd,
+                          _GFXInjection* injection)
+{
+	assert(context != NULL);
+	assert(cmd != VK_NULL_HANDLE);
+	assert(injection != NULL);
+
+	// Cannot do anything without stages.
+	if (injection->bars.srcStage != 0 && injection->bars.dstStage != 0)
+	{
+		// Flush all barriers.
+		context->vk.CmdPipelineBarrier(cmd,
+			injection->bars.srcStage,
+			injection->bars.dstStage,
+			0, 0, NULL,
+			(uint32_t)injection->bars.numBufs, injection->bars.bufs,
+			(uint32_t)injection->bars.numImgs, injection->bars.imgs);
+
+		// And reset for next batch.
+		// Don't free the memory, it'll be realloc'd or free'd later on.
+		injection->bars.srcStage = 0;
+		injection->bars.dstStage = 0;
+		injection->bars.numBufs = 0;
+		injection->bars.numImgs = 0;
+	}
+}
+
+/****************************/
+bool _gfx_injection_push(VkPipelineStageFlags srcStage,
+                         VkPipelineStageFlags dstStage,
+                         const VkBufferMemoryBarrier* bmb,
+                         const VkImageMemoryBarrier* imb,
+                         _GFXInjection* injection)
+{
+	assert(bmb == NULL || imb == NULL);
+	assert(injection != NULL);
+
+	// Push one of the two barriers.
+	if (bmb != NULL)
+		_GFX_INJ_OUTPUT(
+			injection->bars.numBufs, injection->bars.bufs,
+			sizeof(VkBufferMemoryBarrier), *bmb,
+			return 0);
+
+	else if (imb != NULL)
+		_GFX_INJ_OUTPUT(
+			injection->bars.numImgs, injection->bars.imgs,
+			sizeof(VkImageMemoryBarrier), *imb,
+			return 0);
+
+	// Always add pipeline flags.
+	injection->bars.srcStage |= srcStage;
+	injection->bars.dstStage |= dstStage;
+
+	return 1;
+}
+
+/****************************
+ * Pushes an execution/memory barrier as injection metadata.
+ * Assumes one of `sync->vk.buffer` or `sync->vk.image` is appropriately set.
+ * @return Zero on failure.
+ */
+static bool _gfx_dep_push_barrier(const _GFXSync* sync,
+                                  _GFXInjection* injection)
+{
+	assert(sync != NULL);
+	assert(sync->flags & _GFX_SYNC_BARRIER);
+	assert(injection != NULL);
+
+	// If there is a memory hazard, inject full memory barriers.
+	if (sync->flags & _GFX_SYNC_MEM_HAZARD)
+	{
+		// We always set the destination queue family to be able to match, undo!
+		const uint32_t dstFamily =
+			(sync->vk.srcQueue.family == VK_QUEUE_FAMILY_IGNORED) ?
+			VK_QUEUE_FAMILY_IGNORED : sync->vk.dstQueue.family;
+
+		// Output either a buffer or image memory barrier.
+		if (sync->ref.obj.buffer != NULL)
+		{
+			VkBufferMemoryBarrier bmb = {
+				.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+
+				.pNext               = NULL,
+				.srcAccessMask       = sync->vk.srcAccess,
+				.dstAccessMask       = sync->vk.dstAccess,
+				.srcQueueFamilyIndex = sync->vk.srcQueue.family,
+				.dstQueueFamilyIndex = dstFamily,
+				.buffer              = sync->vk.buffer,
+				.offset              = sync->range.offset,
+				.size                = sync->range.size
+			};
+
+			_GFX_INJ_OUTPUT(
+				injection->bars.numBufs, injection->bars.bufs,
+				sizeof(VkBufferMemoryBarrier), bmb,
+				return 0);
+		}
+		else
+		{
+			VkImageMemoryBarrier imb = {
+				.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+				.pNext               = NULL,
+				.srcAccessMask       = sync->vk.srcAccess,
+				.dstAccessMask       = sync->vk.dstAccess,
+				.oldLayout           = sync->vk.oldLayout,
+				.newLayout           = sync->vk.newLayout,
+				.srcQueueFamilyIndex = sync->vk.srcQueue.family,
+				.dstQueueFamilyIndex = dstFamily,
+				.image               = sync->vk.image,
+				.subresourceRange = {
+					.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(sync->range.aspect),
+					.baseMipLevel   = sync->range.mipmap,
+					.baseArrayLayer = sync->range.layer,
+
+					.levelCount = sync->range.numMipmaps == 0 ?
+						VK_REMAINING_MIP_LEVELS : sync->range.numMipmaps,
+					.layerCount = sync->range.numLayers == 0 ?
+						VK_REMAINING_ARRAY_LAYERS : sync->range.numLayers
+				}
+			};
+
+			_GFX_INJ_OUTPUT(
+				injection->bars.numImgs, injection->bars.imgs,
+				sizeof(VkImageMemoryBarrier), imb,
+				return 0);
+		}
+	}
+
+	// In all cases (execution or memory barrier), add pipeline flags.
+	injection->bars.srcStage |= sync->vk.srcStage;
+	injection->bars.dstStage |= sync->vk.dstStage;
+
+	return 1;
+}
+
+/****************************/
 bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
                      size_t numInjs, const GFXInject* injs,
                      _GFXInjection* injection)
@@ -424,18 +485,6 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	assert(injection->inp.numRefs == 0 || injection->inp.refs != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.masks != NULL);
 	assert(injection->inp.numRefs == 0 || injection->inp.sizes != NULL);
-
-	// Context validation of all dependency objects.
-	// Only do this here as all other functions must be called with equal args.
-	for (size_t i = 0; i < numInjs; ++i)
-		if (injs[i].dep->context != context)
-		{
-			gfx_log_error(
-				"When injecting dependencies, the dependency objects must "
-				"be built on the same logical Vulkan device.");
-
-			return 0;
-		}
 
 	// We keep track of whether all operation references have been
 	// transitioned. So we can do initial layout transitions for images.
@@ -450,6 +499,16 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	{
 		if (!_GFX_INJ_IS_WAIT(injs[i]))
 			continue;
+
+		// Check the context of the dependency.
+		if (injs[i].dep->context != context)
+		{
+			gfx_log_warn(
+				"Dependency wait command ignored, dependency objects "
+				"must be built on the same logical Vulkan device.");
+
+			continue;
+		}
 
 		// Now the bit where we match against all pending sync objects.
 		// We lock for each command individually.
@@ -513,10 +572,13 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 					continue;
 				}
 
-			// TODO:BAR: Merge barriers, simply postpone till after this loop.
-			// Insert barrier if deemed necessary by the command.
+			// Output barrier if deemed necessary by the command.
 			if (sync->flags & _GFX_SYNC_BARRIER)
-				_gfx_inject_barrier(cmd, sync, context);
+				if (!_gfx_dep_push_barrier(sync, injection))
+				{
+					_gfx_mutex_unlock(&injs[i].dep->lock);
+					return 0;
+				}
 
 			// Output the wait semaphore and stage if necessary.
 			if (sync->flags & _GFX_SYNC_SEMAPHORE)
@@ -544,16 +606,24 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		_gfx_mutex_unlock(&injs[i].dep->lock);
 	}
 
+	// Then flush all pushed barriers!
+	_gfx_injection_flush(context, cmd, injection);
+
 	// At this point we have processed all wait commands.
 	// For each operation reference, check if it has been transitioned.
-	// If not, insert an initial layout transition for images.
+	// If not, record an initial layout transition for images.
+	// Merge them all into a single pipeline barrier command :)
+	uint32_t numImbs = 0;
+	VkImageMemoryBarrier imbs[vlaRefs];
+	VkPipelineStageFlagBits imbStages = 0;
+
 	for (size_t r = 0; r < injection->inp.numRefs; ++r)
 	{
 		// If transitioned or a buffer, nothing to do.
 		if (transitioned[r] || injection->inp.refs[r].obj.buffer != NULL)
 			continue;
 
-		// Get unpacked metadata & inject barrier manually,
+		// Get unpacked metadata & output barrier manually,
 		const _GFXImageAttach* attach =
 			_GFX_UNPACK_REF_ATTACH(injection->inp.refs[r]);
 
@@ -562,13 +632,13 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		VkImageLayout layout;
 		VkPipelineStageFlags stages;
 
-		_gfx_dep_unpack(context,
+		_gfx_unpack(context,
 			injection->inp.refs + r, attach,
 			NULL, injection->inp.sizes[r],
 			injection->inp.masks[r], GFX_STAGE_ANY,
 			&range, &flags, &layout, &stages);
 
-		VkImageMemoryBarrier imb = {
+		imbs[numImbs++] = (VkImageMemoryBarrier){
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 
 			.pNext               = NULL,
@@ -595,21 +665,25 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 			}
 		};
 
-		// TODO:BAR: Merge barriers.
+		imbStages |= stages;
+	}
+
+	if (numImbs > 0)
 		context->vk.CmdPipelineBarrier(cmd,
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			stages,
-			0, 0, NULL, 0, NULL, 1, &imb);
-	}
+			imbStages,
+			0, 0, NULL, 0, NULL, numImbs, imbs);
 
 	return 1;
 }
 
 /****************************/
-bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
-                      size_t numInjs, const GFXInject* injs,
-                      _GFXInjection* injection)
+bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
+                       bool blocking,
+                       size_t numInjs, const GFXInject* injs,
+                       _GFXInjection* injection)
 {
+	assert(context != NULL);
 	assert(cmd != VK_NULL_HANDLE);
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
@@ -626,12 +700,22 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 		if (!_GFX_INJ_IS_SIGNAL(injs[i]))
 			continue;
 
+		// Check the context of the dependency.
+		if (injs[i].dep->context != context)
+		{
+			gfx_log_warn(
+				"Dependency signal command ignored, dependency objects "
+				"must be built on the same logical Vulkan device.");
+
+			continue;
+		}
+
 		// Check the context the resource was built on.
 		_GFXUnpackRef unp = _gfx_ref_unpack(injs[i].ref);
 
 		if (
 			!GFX_REF_IS_NULL(injs[i].ref) &&
-			_GFX_UNPACK_REF_CONTEXT(unp) != injs[i].dep->context)
+			_GFX_UNPACK_REF_CONTEXT(unp) != context)
 		{
 			gfx_log_warn(
 				"Dependency signal command ignored, given underlying "
@@ -899,7 +983,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 				injs[i].mask & ~(GFXAccessMask)GFX_ACCESS_HOST_READ_WRITE;
 
 			// Set all source operation values.
-			_gfx_dep_unpack(injs[i].dep->context, refs + r, attach,
+			_gfx_unpack(context, refs + r, attach,
 				// If given a range but not a reference,
 				// use the same range for all resources...
 				// Passing a mask of 0 yields an undefined image layout.
@@ -915,7 +999,7 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 			sync->vk.dstStage =
 				_GFX_GET_VK_PIPELINE_STAGE(dstMask, injs[i].stage, fmt);
 			sync->vk.dstStage =
-				_GFX_MOD_VK_PIPELINE_STAGE(sync->vk.dstStage, injs[i].dep->context);
+				_GFX_MOD_VK_PIPELINE_STAGE(sync->vk.dstStage, context);
 			sync->vk.newLayout =
 				// Undefined layout for buffers.
 				(sync->ref.obj.buffer != NULL) ?
@@ -1005,7 +1089,12 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 					sync->flags |=
 						_GFX_SYNC_BARRIER | _GFX_SYNC_MEM_HAZARD;
 
-				_gfx_inject_barrier(cmd, sync, injs[i].dep->context);
+				if (!_gfx_dep_push_barrier(sync, injection))
+				{
+					// Just bail out, _gfx_deps_abort will clean!
+					_gfx_mutex_unlock(&injs[i].dep->lock);
+					return 0;
+				}
 
 				if (flushToHost)
 					sync->flags &= _GFX_SYNC_SEMAPHORE;
@@ -1028,6 +1117,10 @@ bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
 		_gfx_mutex_unlock(&injs[i].dep->lock);
 	}
 
+	// When all is done and nothing failed,
+	// we flush _all_ pushed barriers from this prepare call.
+	_gfx_injection_flush(context, cmd, injection);
+
 	return 1;
 }
 
@@ -1042,10 +1135,14 @@ static void _gfx_deps_finalize(size_t numInjs, const GFXInject* injs,
 	assert(numInjs == 0 || injs != NULL);
 	assert(injection != NULL);
 
-	// Free the injection output (always free() to allow external reallocs!).
+	// Free the injection metadata (always free() to allow external reallocs!).
+	free(injection->bars.bufs);
+	free(injection->bars.imgs);
 	free(injection->out.waits);
 	free(injection->out.sigs);
 	free(injection->out.stages);
+	injection->bars.bufs = NULL;
+	injection->bars.imgs = NULL;
 	injection->out.waits = NULL;
 	injection->out.sigs = NULL;
 	injection->out.stages = NULL;

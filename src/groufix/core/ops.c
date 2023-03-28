@@ -693,8 +693,8 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 		goto clean;
 
 	// Inject wait commands.
-	if (!_gfx_deps_catch(context,
-		transfer->vk.cmd, numDeps, deps, pool->injection))
+	if (!_gfx_deps_catch(
+		context, transfer->vk.cmd, numDeps, deps, pool->injection))
 	{
 		goto clean;
 	}
@@ -920,7 +920,8 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	}
 
 	// Inject signal commands.
-	if (!_gfx_deps_prepare(transfer->vk.cmd,
+	if (!_gfx_deps_prepare(
+		context, transfer->vk.cmd,
 		flags & GFX_TRANSFER_BLOCK, numDeps, deps, pool->injection))
 	{
 		goto clean;

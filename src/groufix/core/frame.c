@@ -25,127 +25,6 @@
 
 
 /****************************
- * TODO:BAR: Make this take multiple consumptions and merge them?
- * Injects an execution/memory barrier, just as stored in a _GFXConsume object.
- * Assumes `con` and `con->out.prev` to be fully initialized.
- */
-static void _gfx_inject_barrier(VkCommandBuffer cmd,
-                                GFXRenderer* renderer, GFXFrame* frame,
-                                const _GFXConsume* con)
-{
-	assert(renderer != NULL);
-	assert(frame != NULL);
-	assert(con != NULL);
-	assert(con->out.prev != NULL);
-
-	_GFXContext* context = renderer->cache.context;
-	const _GFXConsume* prev = con->out.prev;
-	const _GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, con->view.index);
-
-	const GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
-		// Pick empty format for windows, which results in non-depth/stencil
-		// access flags and pipeline stages, which is what we want :)
-		at->image.base.format : GFX_FORMAT_EMPTY;
-
-	const VkPipelineStageFlags srcStageMask =
-		_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);
-	const VkPipelineStageFlags dstStageMask =
-		_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
-
-	// If no memory hazard, just inject an execution barrier...
-	const bool srcWrites = GFX_ACCESS_WRITES(prev->mask);
-	const bool transition = prev->out.final != con->out.initial;
-
-	if (!srcWrites && !transition)
-	{
-		context->vk.CmdPipelineBarrier(cmd,
-			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
-			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-			0, 0, NULL, 0, NULL, 0, NULL);
-
-		// ... and be done with it.
-		return;
-	}
-
-	// Otherwise, inject full memory barrier.
-	// To do this, get us the Vulkan image handle first.
-	VkImage image;
-
-	if (at->type == _GFX_ATTACH_IMAGE)
-		image = at->image.vk.image;
-	else
-	{
-		// Query the swapchain image index.
-		const uint32_t imageInd =
-			_gfx_frame_get_swapchain_index(frame, con->view.index);
-
-		// Validate & set.
-		if (at->window.window->frame.images.size <= imageInd)
-			return;
-
-		image = *(VkImage*)gfx_vec_at(
-			&at->window.window->frame.images, imageInd);
-	}
-
-	// And resolve whole aspect from the format.
-	const GFXImageAspect aspect =
-		GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
-			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
-			GFX_IMAGE_COLOR;
-
-	VkImageMemoryBarrier imb = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-
-		.pNext               = NULL,
-		.srcAccessMask       = _GFX_GET_VK_ACCESS_FLAGS(prev->mask, fmt),
-		.dstAccessMask       = _GFX_GET_VK_ACCESS_FLAGS(con->mask, fmt),
-		.oldLayout           = prev->out.final,
-		.newLayout           = con->out.initial,
-		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.image               = image,
-
-		// TODO: Not merge ranges? (check overlap while analyzing the graph?)
-		// We deal with two ranges from both consumptions,
-		// for now we assume they overlap and merge the ranges.
-		.subresourceRange = {
-			.aspectMask =
-				// Fix aspect, cause we're nice :)
-				(_GFX_GET_VK_IMAGE_ASPECT(prev->view.range.aspect) |
-				_GFX_GET_VK_IMAGE_ASPECT(con->view.range.aspect)) & aspect,
-			.baseMipLevel =
-				GFX_MIN(prev->view.range.mipmap, con->view.range.mipmap),
-			.baseArrayLayer =
-				GFX_MIN(prev->view.range.layer, con->view.range.layer),
-		}
-	};
-
-	// Compute `levelCount` and `layerCount`.
-	imb.subresourceRange.levelCount =
-		(prev->view.range.numMipmaps == 0 || con->view.range.numMipmaps == 0) ?
-		VK_REMAINING_MIP_LEVELS : GFX_MAX(
-			prev->view.range.numMipmaps +
-			(prev->view.range.mipmap - imb.subresourceRange.baseMipLevel),
-			con->view.range.numMipmaps +
-			(con->view.range.mipmap - imb.subresourceRange.baseMipLevel));
-
-	imb.subresourceRange.layerCount =
-		(prev->view.range.numLayers == 0 || con->view.range.numLayers == 0) ?
-		VK_REMAINING_ARRAY_LAYERS : GFX_MAX(
-			prev->view.range.numLayers +
-			(prev->view.range.layer - imb.subresourceRange.baseArrayLayer),
-			con->view.range.numLayers +
-			(con->view.range.layer - imb.subresourceRange.baseArrayLayer));
-
-	context->vk.CmdPipelineBarrier(cmd,
-		_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
-		_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-		0, 0, NULL, 0, NULL,
-		1, &imb);
-}
-
-/****************************
  * Frees and removes the last num sync objects.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
@@ -596,6 +475,125 @@ error:
 }
 
 /****************************
+ * Pushes an execution/memory barrier, just as stored in a _GFXConsume object.
+ * Assumes `con` and `con->out.prev` to be fully initialized.
+ * @return Zero on failure.
+ */
+static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
+                                    const _GFXConsume* con,
+                                    _GFXInjection* injection)
+{
+	assert(renderer != NULL);
+	assert(frame != NULL);
+	assert(con != NULL);
+	assert(con->out.prev != NULL);
+	assert(injection != NULL);
+
+	_GFXContext* context = renderer->cache.context;
+	const _GFXConsume* prev = con->out.prev;
+	const _GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, con->view.index);
+
+	const GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
+		// Pick empty format for windows, which results in non-depth/stencil
+		// access flags and pipeline stages, which is what we want :)
+		at->image.base.format : GFX_FORMAT_EMPTY;
+
+	const VkPipelineStageFlags srcStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);
+	const VkPipelineStageFlags dstStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
+
+	// If no memory hazard, just inject an execution barrier...
+	const bool srcWrites = GFX_ACCESS_WRITES(prev->mask);
+	const bool transition = prev->out.final != con->out.initial;
+
+	if (!srcWrites && !transition)
+	{
+		// ... and be done with it.
+		return _gfx_injection_push(
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+			NULL, NULL, injection);
+	}
+
+	// Otherwise, inject full memory barrier.
+	// To do this, get us the Vulkan image handle first.
+	VkImage image;
+
+	if (at->type == _GFX_ATTACH_IMAGE)
+		image = at->image.vk.image;
+	else
+	{
+		// Query the swapchain image index.
+		const uint32_t imageInd =
+			_gfx_frame_get_swapchain_index(frame, con->view.index);
+
+		// Validate & set, silently ignore non-existent.
+		if (at->window.window->frame.images.size <= imageInd)
+			return 1;
+
+		image = *(VkImage*)gfx_vec_at(
+			&at->window.window->frame.images, imageInd);
+	}
+
+	// And resolve whole aspect from the format.
+	const GFXImageAspect aspect =
+		GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
+			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
+			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
+			GFX_IMAGE_COLOR;
+
+	VkImageMemoryBarrier imb = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+		.pNext               = NULL,
+		.srcAccessMask       = _GFX_GET_VK_ACCESS_FLAGS(prev->mask, fmt),
+		.dstAccessMask       = _GFX_GET_VK_ACCESS_FLAGS(con->mask, fmt),
+		.oldLayout           = prev->out.final,
+		.newLayout           = con->out.initial,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image               = image,
+
+		// TODO: Not merge ranges? (check overlap while analyzing the graph?)
+		// We deal with two ranges from both consumptions,
+		// for now we assume they overlap and merge the ranges.
+		.subresourceRange = {
+			.aspectMask =
+				// Fix aspect, cause we're nice :)
+				(_GFX_GET_VK_IMAGE_ASPECT(prev->view.range.aspect) |
+				_GFX_GET_VK_IMAGE_ASPECT(con->view.range.aspect)) & aspect,
+			.baseMipLevel =
+				GFX_MIN(prev->view.range.mipmap, con->view.range.mipmap),
+			.baseArrayLayer =
+				GFX_MIN(prev->view.range.layer, con->view.range.layer),
+		}
+	};
+
+	// Compute `levelCount` and `layerCount`.
+	imb.subresourceRange.levelCount =
+		(prev->view.range.numMipmaps == 0 || con->view.range.numMipmaps == 0) ?
+		VK_REMAINING_MIP_LEVELS : GFX_MAX(
+			prev->view.range.numMipmaps +
+			(prev->view.range.mipmap - imb.subresourceRange.baseMipLevel),
+			con->view.range.numMipmaps +
+			(con->view.range.mipmap - imb.subresourceRange.baseMipLevel));
+
+	imb.subresourceRange.layerCount =
+		(prev->view.range.numLayers == 0 || con->view.range.numLayers == 0) ?
+		VK_REMAINING_ARRAY_LAYERS : GFX_MAX(
+			prev->view.range.numLayers +
+			(prev->view.range.layer - imb.subresourceRange.baseArrayLayer),
+			con->view.range.numLayers +
+			(con->view.range.layer - imb.subresourceRange.baseArrayLayer));
+
+	return _gfx_injection_push(
+		_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+		_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+		NULL, &imb, injection);
+}
+
+/****************************
  * Records all render and inline compute passes of a virtual frame.
  * @param cmd   To record to, cannot be VK_NULL_HANDLE.
  * @param first First pass to start recording at.
@@ -650,20 +648,20 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 			return 0;
 		}
 
-		// TODO:BAR: Merge the below barriers with barriers from `injection`?
-		// We could introduce _gfx_injection_push and _gfx_injection_flush.
-		// These would push manual barriers & flush all stored barriers from
-		// _gfx_deps_(catch|prepare) & _gfx_injection_push.
-		// Then, _gfx_deps_(catch|prepare) don't take a VkCommandBuffer
-		// anymore and don't do any actual injections (only store).
-
 		// Inject consumption barriers.
 		for (size_t c = 0; c < pass->consumes.size; ++c)
 		{
 			const _GFXConsume* con = gfx_vec_at(&pass->consumes, c);
 			if (con->out.prev != NULL)
-				_gfx_inject_barrier(cmd, renderer, frame, con);
+			{
+				if (!_gfx_frame_push_barrier(renderer, frame, con, injection))
+					return 0;
+			}
 		}
+
+		// Flush consumption barriers.
+		_gfx_injection_flush(
+			context, cmd, injection);
 
 		// Begin render pass.
 		if (pass->type == GFX_PASS_RENDER)
@@ -720,7 +718,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 
 		// Inject signal commands.
 		if (!_gfx_deps_prepare(
-			cmd, 0,
+			context, cmd, 0,
 			pass->deps.size, gfx_vec_at(&pass->deps, 0),
 			injection))
 		{

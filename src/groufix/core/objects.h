@@ -1371,6 +1371,23 @@ struct _GFXInjection
 	} inp;
 
 
+	// Injected (to-be-flushed) barriers.
+	struct
+	{
+		// Barrier metadata.
+		VkPipelineStageFlags srcStage;
+		VkPipelineStageFlags dstStage;
+
+		// Memory barriers.
+		size_t                 numBufs;
+		VkBufferMemoryBarrier* bufs;
+
+		size_t                numImgs;
+		VkImageMemoryBarrier* imgs;
+
+	} bars;
+
+
 	// Synchronization output.
 	struct
 	{
@@ -1477,11 +1494,18 @@ struct GFXDependency
 
 
 /**
- * Starts a new dependency injection (initializes output metadata).
+ * Starts a new dependency injection (initializes metadata).
  * The object pointed to by injection cannot be moved or copied!
  */
 static inline void _gfx_injection(_GFXInjection* injection)
 {
+	injection->bars.srcStage = 0;
+	injection->bars.dstStage = 0;
+	injection->bars.numBufs = 0;
+	injection->bars.bufs = NULL;
+	injection->bars.numImgs = 0;
+	injection->bars.imgs = NULL;
+
 	injection->out.numWaits = 0;
 	injection->out.waits = NULL;
 	injection->out.numSigs = 0;
@@ -1490,9 +1514,35 @@ static inline void _gfx_injection(_GFXInjection* injection)
 }
 
 /**
+ * Flushes all stored barriers injected by _gfx_injection_push.
+ * Automatically flushed by a successful call to _gfx_deps_(catch|prepare).
+ * @param context   Cannot be NULL.
+ * @param cmd       To record all barriers to, cannot be VK_NULL_HANDLE.
+ * @param injection Barrier metadata to flush, cannot be NULL.
+ *
+ * Must be called before _gfx_deps_(abort|finish)!
+ */
+void _gfx_injection_flush(_GFXContext* context, VkCommandBuffer cmd,
+                          _GFXInjection* injection);
+
+/**
+ * Pushes an execution/memory barrier for the next _gfx_injection_flush.
+ * Should be used internally to inject barriers without using dependency objects.
+ * @param injection Barrier metadata to append to, cannot be NULL.
+ * @return Zero on failure.
+ *
+ * Can only set one of `bmb` OR `imb` to non-NULL!
+ */
+bool _gfx_injection_push(VkPipelineStageFlags srcStage,
+                         VkPipelineStageFlags dstStage,
+                         const VkBufferMemoryBarrier* bmb,
+                         const VkImageMemoryBarrier* imb,
+                         _GFXInjection* injection);
+
+/**
  * Completes dependency injections by catching pending signal commands.
  * @param context   Cannot be NULL.
- * @param cmd       To record barriers to, cannot be VK_NULL_HANDLE.
+ * @param cmd       To record some initial barriers to, cannot be VK_NULL_HANDLE.
  * @param numInjs   Number of given injection commands.
  * @param injs      Given injection commands.
  * @param injection Input & output injection metadata, cannot be NULL.
@@ -1504,14 +1554,14 @@ static inline void _gfx_injection(_GFXInjection* injection)
  * However, after the first call to `_gfx_deps_abort` or `_gfx_deps_finish`,
  * neither `_gfx_deps_catch` nor `_gfx_deps_prepare` can be called anymore.
  *
- * Every injection command passed to _gfx_deps_catch or _gfx_deps_prepare must
+ * Every injection command passed to _gfx_deps_(catch|prepare) must
  * subsequently be passed to a call to _gfx_deps_abort or _gfx_deps_finish.
  * These subsequent calls MUST take the same injection metadata pointer.
  *
  * Inbetween calls injection->inp may be altered.
  * In fact, they must be altered if operation references were given.
  *
- * Right before the first call to _gfx_deps_abort or _gfx_deps_finish,
+ * Right before the first call to _gfx_deps_(abort|finish),
  * all output arrays in injection may be externally realloc'd,
  * they will be properly freed when aborted or finished.
  */
@@ -1529,7 +1579,8 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
  * All commands are _always_ already visible to subsequent calls to
  * _gfx_deps_catch taking the same injection metadata pointer.
  */
-bool _gfx_deps_prepare(VkCommandBuffer cmd, bool blocking,
+bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
+                       bool blocking,
                        size_t numInjs, const GFXInject* injs,
                        _GFXInjection* injection);
 
