@@ -320,10 +320,15 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset)
 			goto error);
 
 		if (reset)
+		{
 			_GFX_VK_CHECK(
 				context->vk.ResetFences(
 					context->vk.device, numFences, fences),
 				goto error);
+
+			// We cannot wait for them again, reset flags.
+			frame->submitted = 0;
+		}
 	}
 
 	// If resetting, reset all resources.
@@ -349,9 +354,6 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset)
 			if (!_gfx_recorder_reset(rec))
 				goto error;
 		}
-
-		// And the submitted flags.
-		frame->submitted = 0;
 	}
 
 	return 1;
