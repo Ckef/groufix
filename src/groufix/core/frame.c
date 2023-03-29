@@ -648,7 +648,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 			return 0;
 		}
 
-		// Inject consumption barriers.
+		// Inject & flush consumption barriers.
 		for (size_t c = 0; c < pass->consumes.size; ++c)
 		{
 			const _GFXConsume* con = gfx_vec_at(&pass->consumes, c);
@@ -659,9 +659,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 			}
 		}
 
-		// Flush consumption barriers.
-		_gfx_injection_flush(
-			context, cmd, injection);
+		_gfx_injection_flush(context, cmd, injection);
 
 		// Begin render pass.
 		if (pass->type == GFX_PASS_RENDER)
