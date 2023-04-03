@@ -49,6 +49,7 @@ typedef struct GFXDevice
 	struct
 	{
 		bool indexUint32;
+		bool indirectFirstInstance;
 		bool cubeArray;
 		bool geometryShader;
 		bool tessellationShader;

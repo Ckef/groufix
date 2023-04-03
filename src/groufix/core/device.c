@@ -102,6 +102,51 @@ static bool _gfx_contains_substr(const char* str, const char* substr)
 	return *needle == '\0';
 }
 
+
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+
+/****************************
+ * Checks whether a given physical Vulkan device exposes the
+ * VK_KHR_portability_subset extension.
+ */
+static bool _gfx_device_is_subset(VkPhysicalDevice device)
+{
+	bool subset = 0;
+
+	uint32_t extCount;
+	_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
+		device, NULL, &extCount, NULL), extCount = 0);
+
+	if (extCount > 0)
+	{
+		// May be many extensions, allocate on heap!
+		VkExtensionProperties* extProps =
+			calloc(extCount, sizeof(VkExtensionProperties));
+
+		if (extProps != NULL)
+		{
+			_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
+				device, NULL, &extCount, extProps), extCount = 0);
+
+			for (uint32_t e = 0; e < extCount; ++e)
+				if (strcmp(
+					extProps[e].extensionName,
+					"VK_KHR_portability_subset") == 0)
+				{
+					subset = 1;
+					break;
+				}
+
+			free(extProps);
+		}
+	}
+
+	return subset;
+}
+
+#endif
+
+
 /****************************
  * Fills a VkPhysicalDeviceFeatures struct with features to enable,
  * in other words; it disables feature we don't want.
@@ -153,7 +198,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	pdf->sampleRateShading                       = VK_FALSE;
 	pdf->dualSrcBlend                            = VK_FALSE;
 	pdf->multiDrawIndirect                       = VK_FALSE;
-	pdf->drawIndirectFirstInstance               = VK_FALSE;
 	pdf->depthClamp                              = VK_FALSE;
 	pdf->depthBiasClamp                          = VK_FALSE;
 	pdf->wideLines                               = VK_FALSE;
@@ -842,8 +886,27 @@ static void _gfx_create_context(_GFXDevice* device)
 	// This is like a moment to celebrate, right?
 	// We count the number of actual queues here.
 	size_t queueCount = 0;
-	for (GFXListNode* k = context->sets.head; k != NULL; k = k->next)
-		queueCount += ((_GFXQueueSet*)k)->count;
+
+	// And get the queue indices of each chosen family.
+	// Don't forget:
+	//  { graphics, present, compute, transfer }.
+	uint32_t indices[4];
+
+	for (GFXListNode* s = context->sets.head; s != NULL; s = s->next)
+	{
+		_GFXQueueSet* set = (_GFXQueueSet*)s;
+		queueCount += set->count;
+
+		// Bit ugly, but we don't want extra computation when not debug!
+		if (set->family == families[0])
+			indices[0] = _gfx_queue_index(set, VK_QUEUE_GRAPHICS_BIT, 0);
+		if (set->family == families[1])
+			indices[1] = _gfx_queue_index(set, 0, 1);
+		if (set->family == families[2])
+			indices[2] = _gfx_queue_index(set, VK_QUEUE_COMPUTE_BIT, 0);
+		if (set->family == families[3])
+			indices[3] = _gfx_queue_index(set, VK_QUEUE_TRANSFER_BIT, 0);
+	}
 
 	char* extensionString =
 		_gfx_str_join_alloc(extensionCount, extensions, "\n        ");
@@ -855,18 +918,20 @@ static void _gfx_create_context(_GFXDevice* device)
 		"    #physical devices: %"GFX_PRIs".\n"
 		"    #queue sets: %"PRIu32".\n"
 		"    #queues (total): %"GFX_PRIs".\n"
-		"    Picked queue sets:\n"
-		"        graphics: %"PRIu32".\n"
-		"        presentation: %"PRIu32".\n"
-		"        compute: %"PRIu32".\n"
-		"        transfer: %"PRIu32".\n"
+		"    Picked queues (family,index):\n"
+		"        graphics: (%"PRIu32",%"PRIu32")\n"
+		"        presentation: (%"PRIu32",%"PRIu32")\n"
+		"        compute: (%"PRIu32",%"PRIu32")\n"
+		"        transfer: (%"PRIu32",%"PRIu32")\n"
 		"    Enabled extensions: %s%s\n",
 		(unsigned int)VK_API_VERSION_MAJOR(device->api),
 		(unsigned int)VK_API_VERSION_MINOR(device->api),
 		(unsigned int)VK_API_VERSION_PATCH(device->api),
 		device->name, context->numDevices, sets, queueCount,
-		families[0], families[1],
-		families[2], families[3],
+		families[0], indices[0],
+		families[1], indices[1],
+		families[2], indices[2],
+		families[3], indices[3],
 		extensionString ? "\n        " : "None.",
 		extensionString ? extensionString : "");
 
@@ -1040,6 +1105,13 @@ bool _gfx_devices_init(void)
 			dev.name, pdp->deviceName,
 			VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
 
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+		// If we're including portability subset devices, we need to check if
+		// the device exposes VK_KHR_portability_subset.
+		// If it does, we need to enable the extension in the device.
+		dev.subset = _gfx_device_is_subset(devices[i]);
+#endif
+
 		// Get all Vulkan device features as well.
 		bool vk11, vk12;
 		VkPhysicalDeviceFeatures pdf;
@@ -1092,6 +1164,7 @@ bool _gfx_devices_init(void)
 
 			.features = {
 				.indexUint32              = pdf.fullDrawIndexUint32,
+				.indirectFirstInstance    = pdf.drawIndirectFirstInstance,
 				.cubeArray                = pdf.imageCubeArray,
 				.geometryShader           = pdf.geometryShader,
 				.tessellationShader       = pdf.tessellationShader,
@@ -1200,41 +1273,6 @@ bool _gfx_devices_init(void)
 				}
 			}
 		};
-
-#if defined (GFX_USE_VK_SUBSET_DEVICES)
-		// If we're including portability subset devices, we need to check if
-		// the device exposes VK_KHR_portability_subset.
-		// If it does, we need to enable the extension in the device.
-		dev.subset = 0;
-
-		uint32_t extCount;
-		_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
-			devices[i], NULL, &extCount, NULL), extCount = 0);
-
-		if (extCount > 0)
-		{
-			// May be many extensions, allocate on heap!
-			VkExtensionProperties* extProps =
-				calloc(extCount, sizeof(VkExtensionProperties));
-
-			if (extProps != NULL)
-			{
-				_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
-					devices[i], NULL, &extCount, extProps), extCount = 0);
-
-				for (uint32_t e = 0; e < extCount; ++e)
-					if (strcmp(
-						extProps[e].extensionName,
-						"VK_KHR_portability_subset") == 0)
-					{
-						dev.subset = 1;
-						break;
-					}
-
-				free(extProps);
-			}
-		}
-#endif
 
 		// Find position to insert at, insert them in order of primary-ness.
 		// This makes it so the 'primary' device is at index 0.
