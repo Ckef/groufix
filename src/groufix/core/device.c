@@ -491,18 +491,22 @@ static bool _gfx_alloc_queue_set(_GFXContext* context,
 /****************************
  * Creates an array of VkDeviceQueueCreateInfo structures and fills the
  * _GFXQueueSet list of context, on failure, no list elements are freed!
- * @param createInfos Output create info, must call free() on success.
+ * @param createInfos Output create infos, must call free() on success.
+ * @param families    Output array storing { graphics, present, compute, transfer }.
  * @return Number of created queue sets.
  *
- * Output describe the queue families desired by the groufix implementation.
+ * See _gfx_find_queue_families for the families parameter,
+ * except this function guarantees none are UINT32_MAX if successful.
  */
 static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
-                                       VkDeviceQueueCreateInfo** createInfos)
+                                       VkDeviceQueueCreateInfo** createInfos,
+                                       uint32_t* families)
 {
 	assert(context != NULL);
 	assert(device != NULL);
 	assert(createInfos != NULL);
 	assert(*createInfos == NULL);
+	assert(families != NULL);
 
 	// So get all queue families.
 	uint32_t fCount;
@@ -515,7 +519,6 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 
 	// Find all queue families as follows:
 	//  { graphics, present, compute, transfer }.
-	uint32_t families[4];
 	_gfx_find_queue_families(device, fCount, props, families);
 
 	const uint32_t* graphics = families + 0;
@@ -767,7 +770,8 @@ static void _gfx_create_context(_GFXDevice* device)
 	// If there are any device groups such that this is the case, you
 	// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
 	uint32_t sets;
-	if (!(sets = _gfx_create_queue_sets(context, device, &createInfos)))
+	uint32_t families[4];
+	if (!(sets = _gfx_create_queue_sets(context, device, &createInfos, families)))
 		goto clean;
 
 	// Get desired device feature structs for the next chain.
@@ -851,11 +855,18 @@ static void _gfx_create_context(_GFXDevice* device)
 		"    #physical devices: %"GFX_PRIs".\n"
 		"    #queue sets: %"PRIu32".\n"
 		"    #queues (total): %"GFX_PRIs".\n"
+		"    Picked queue sets:\n"
+		"        graphics: %"PRIu32".\n"
+		"        presentation: %"PRIu32".\n"
+		"        compute: %"PRIu32".\n"
+		"        transfer: %"PRIu32".\n"
 		"    Enabled extensions: %s%s\n",
 		(unsigned int)VK_API_VERSION_MAJOR(device->api),
 		(unsigned int)VK_API_VERSION_MINOR(device->api),
 		(unsigned int)VK_API_VERSION_PATCH(device->api),
 		device->name, context->numDevices, sets, queueCount,
+		families[0], families[1],
+		families[2], families[3],
 		extensionString ? "\n        " : "None.",
 		extensionString ? extensionString : "");
 
