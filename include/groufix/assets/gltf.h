@@ -19,6 +19,20 @@
 
 
 /**
+ * glTF node feature flags.
+ */
+typedef enum GFXGltfNodeFlags
+{
+	GFX_GLTF_NODE_TRANSLATION = 0x0001,
+	GFX_GLTF_NODE_ROTATION    = 0x0002,
+	GFX_GLTF_NODE_SCALE       = 0x0004
+
+} GFXGltfNodeFlags;
+
+GFX_BIT_FIELD(GFXGltfNodeFlags)
+
+
+/**
  * glTF material feature flags.
  */
 typedef enum GFXGltfMaterialFlags
@@ -191,10 +205,46 @@ typedef struct GFXGltfMesh
 
 
 /**
+ * glTF node definition.
+ */
+typedef struct GFXGltfNode
+{
+	// All used features.
+	GFXGltfNodeFlags flags;
+
+	struct GFXGltfNode*  parent;
+	struct GFXGltfNode** children;
+	size_t               numChildren;
+
+	float matrix[16];
+	float translation[3];
+	float rotation[4];
+	float scale[3];
+
+	GFXGltfMesh* mesh;
+
+} GFXGltfNode;
+
+
+/**
+ * glTF scene definition.
+ */
+typedef struct GFXGltfScene
+{
+	size_t        numNodes;
+	GFXGltfNode** nodes;
+
+} GFXGltfScene;
+
+
+/**
  * glTF 2.0 parsing result definition.
  */
 typedef struct GFXGltfResult
 {
+	// Default scene.
+	GFXGltfScene* scene;
+
 	size_t      numBuffers;
 	GFXBuffer** buffers;
 
@@ -212,6 +262,12 @@ typedef struct GFXGltfResult
 
 	size_t       numMeshes;
 	GFXGltfMesh* meshes;
+
+	size_t       numNodes;
+	GFXGltfNode* nodes;
+
+	size_t        numScenes;
+	GFXGltfScene* scenes;
 
 } GFXGltfResult;
 

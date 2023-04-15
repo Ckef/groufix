@@ -11,6 +11,7 @@
 #include "groufix/core/log.h"
 #include <assert.h>
 #include <ctype.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,6 +35,14 @@
 	(result) == cgltf_result_legacy_gltf ? \
 		"legacy glTF" : \
 		"unknown error")
+
+#define _GFX_GLTF_NODE_FLAGS(cnode) \
+	((cnode->has_translation ? \
+		GFX_GLTF_NODE_TRANSLATION : 0) | \
+	(cnode->has_rotation ? \
+		GFX_GLTF_NODE_ROTATION : 0) | \
+	(cnode->has_scale ? \
+		GFX_GLTF_NODE_SCALE : 0))
 
 #define _GFX_GLTF_MATERIAL_FLAGS(cmat) \
 	((cmat->has_pbr_metallic_roughness ? \
@@ -146,6 +155,47 @@
 		(unsigned)(digit - 'a') < 6 ? (digit - 'a') + 10 : \
 		UCHAR_MAX)
 
+
+/****************************
+ * Creates a 4x4 column-major scale-rotate-translate matrix:
+ * m = mat(t) * mat(q) * mat(s)
+ *  where
+ *   t = [x,y,z]   (translation vector)
+ *   q = [x,y,z,w] (rotation quaternion)
+ *   s = [x,y,z]   (scale vector)
+ */
+static void _gfx_gltf_to_mat(float* m,
+                             const float* t, const float* q, const float* s)
+{
+	// Quaternion -> matrix.
+	const float sq0 = q[0] * q[0];
+	const float sq1 = q[1] * q[1];
+	const float sq2 = q[2] * q[2];
+	const float sq3 = q[3] * q[3];
+	const float l = 2.0f / sqrtf(sq0 + sq1 + sq2 + sq3);
+
+	// Scale it as we go.
+	m[0] = s[0] * (1.0f - l * (sq1 - sq2));
+	m[1] = s[0] * l * (q[0] * q[1] + q[2] * q[3]);
+	m[2] = s[0] * l * (q[0] * q[2] - q[1] * q[3]);
+	m[3] = 0.0f;
+
+	m[4] = s[1] * l * (q[0] * q[1] - q[2] * q[3]);
+	m[5] = s[1] * (1.0f - l * (sq0 - sq2));
+	m[6] = s[1] * l * (q[1] * q[2] + q[0] * q[3]);
+	m[7] = 0.0f;
+
+	m[8] = s[2] * l * (q[0] * q[2] + q[1] * q[3]);
+	m[9] = s[2] * l * (q[1] * q[2] - q[0] * q[3]);
+	m[10] = s[2] * (1.0f - l * (sq0 - sq1));
+	m[11] = 0.0f;
+
+	// Stick in translation.
+	m[12] = t[0];
+	m[13] = t[1];
+	m[14] = t[2];
+	m[15] = 1.0f;
+}
 
 /****************************
  * Compares (case insensitive) two NULL-terminated strings.
@@ -551,23 +601,32 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	// Setup some output vectors.
 	// We are going to fill them with groufix equivalents of the glTF.
 	// From this point onwards we need to clean on failure.
+	size_t numNodePtrs = 0;
+	GFXGltfNode** nodePtrs = NULL; // Scene/node children-pointers
+
 	GFXVec buffers;
 	GFXVec images;
 	GFXVec samplers;
 	GFXVec materials;
 	GFXVec primitives;
 	GFXVec meshes;
+	GFXVec nodes;
+	GFXVec scenes;
 	gfx_vec_init(&buffers, sizeof(GFXBuffer*));
 	gfx_vec_init(&images, sizeof(GFXImage*));
 	gfx_vec_init(&samplers, sizeof(GFXGltfSampler));
 	gfx_vec_init(&materials, sizeof(GFXGltfMaterial));
 	gfx_vec_init(&primitives, sizeof(GFXGltfPrimitive));
 	gfx_vec_init(&meshes, sizeof(GFXGltfMesh));
+	gfx_vec_init(&nodes, sizeof(GFXGltfNode));
+	gfx_vec_init(&scenes, sizeof(GFXGltfScene));
 	gfx_vec_reserve(&buffers, data->buffers_count);
 	gfx_vec_reserve(&images, data->images_count);
 	gfx_vec_reserve(&samplers, data->samplers_count);
 	gfx_vec_reserve(&materials, data->materials_count);
 	gfx_vec_reserve(&meshes, data->meshes_count);
+	gfx_vec_reserve(&nodes, data->nodes_count);
+	gfx_vec_reserve(&scenes, data->scenes_count);
 
 	// Create all buffers.
 	for (size_t b = 0; b < data->buffers_count; ++b)
@@ -982,6 +1041,104 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		p += mesh.numPrimitives;
 	}
 
+	// Create all nodes.
+	for (size_t n = 0; n < data->nodes_count; ++n)
+	{
+		const cgltf_node* cnode = &data->nodes[n];
+		numNodePtrs += cnode->children_count; // Keep count!
+
+		// Insert node.
+		GFXGltfNode node = {
+			.flags = _GFX_GLTF_NODE_FLAGS(cnode),
+
+			.parent = NULL,
+			.children = NULL,
+			.numChildren = cnode->children_count,
+
+			.translation = { 0.0f, 0.0f, 0.0f },
+			.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+			.scale = { 1.0f, 1.0f, 1.0f },
+
+			.mesh = _GFX_FROM_GLTF(meshes, data->meshes, cnode->mesh)
+		};
+
+		if (cnode->has_translation)
+			memcpy(node.translation, cnode->translation, sizeof(node.translation));
+
+		if (cnode->has_rotation)
+			memcpy(node.rotation, cnode->rotation, sizeof(node.rotation));
+
+		if (cnode->has_scale)
+			memcpy(node.scale, cnode->scale, sizeof(node.scale));
+
+		if (cnode->has_matrix)
+			memcpy(node.matrix, cnode->matrix, sizeof(node.matrix));
+		else
+			_gfx_gltf_to_mat(node.matrix, node.translation, node.rotation, node.scale);
+
+		if (!gfx_vec_push(&nodes, 1, &node))
+			goto clean;
+	}
+
+	// Create all scenes.
+	for (size_t s = 0; s < data->scenes_count; ++s)
+	{
+		numNodePtrs += data->scenes[s].nodes_count; // Keep count!
+
+		// Insert scene.
+		GFXGltfScene scene = {
+			.numNodes = data->scenes[s].nodes_count,
+			.nodes = NULL
+		};
+
+		if (!gfx_vec_push(&scenes, 1, &scene))
+			goto clean;
+	}
+
+	// Set parent pointers of all nodes.
+	for (size_t n = 0; n < data->nodes_count; ++n)
+	{
+		GFXGltfNode* node = gfx_vec_at(&nodes, n);
+		node->parent = _GFX_FROM_GLTF(
+			nodes, data->nodes, data->nodes[n].parent);
+	}
+
+	// Allocate all scene/node children-pointers.
+	if (numNodePtrs > 0)
+	{
+		nodePtrs = malloc(sizeof(GFXGltfNode*) * numNodePtrs);
+		if (nodePtrs == NULL) goto clean;
+
+		size_t nodePtrsLoc = 0;
+
+		// Set pointers in all nodes.
+		for (size_t n = 0; n < data->nodes_count; ++n)
+		{
+			GFXGltfNode* node = gfx_vec_at(&nodes, n);
+			node->children = nodePtrs + nodePtrsLoc;
+			nodePtrsLoc += node->numChildren;
+
+			for (size_t np = 0; np < node->numChildren; ++np)
+				node->children[np] = _GFX_FROM_GLTF(
+					nodes, data->nodes, data->nodes[n].children[np]);
+		}
+
+		// Set pointers in all scenes.
+		for (size_t s = 0; s < data->scenes_count; ++s)
+		{
+			GFXGltfScene* scene = gfx_vec_at(&scenes, s);
+			scene->nodes = nodePtrs + nodePtrsLoc;
+			nodePtrsLoc += scene->numNodes;
+
+			for (size_t np = 0; np < scene->numNodes; ++np)
+				scene->nodes[np] = _GFX_FROM_GLTF(
+					nodes, data->nodes, data->scenes[s].nodes[np]);
+		}
+	}
+
+	// Set default scene.
+	result->scene = _GFX_FROM_GLTF(scenes, data->scenes, data->scene);
+
 	// We are done building groufix objects, free gltf things.
 	cgltf_free(data);
 
@@ -1004,6 +1161,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	result->numMeshes = meshes.size;
 	result->meshes = gfx_vec_claim(&meshes);
 
+	result->numNodes = nodes.size;
+	result->nodes = gfx_vec_claim(&nodes);
+
+	result->numScenes = scenes.size;
+	result->scenes = gfx_vec_claim(&scenes);
+
 	return 1;
 
 
@@ -1023,12 +1186,15 @@ clean:
 	for (size_t p = 0; p < primitives.size; ++p)
 		gfx_free_prim(((GFXGltfPrimitive*)gfx_vec_at(&primitives, p))->primitive);
 
+	free(nodePtrs);
 	gfx_vec_clear(&buffers);
 	gfx_vec_clear(&images);
 	gfx_vec_clear(&samplers);
 	gfx_vec_clear(&materials);
 	gfx_vec_clear(&primitives);
 	gfx_vec_clear(&meshes);
+	gfx_vec_clear(&nodes);
+	gfx_vec_clear(&scenes);
 	cgltf_free(data);
 
 	gfx_log_error("Failed to load glTF from stream.");
@@ -1041,12 +1207,17 @@ GFX_API void gfx_release_gltf(GFXGltfResult* result)
 {
 	assert(result != NULL);
 
+	// First free all scene/node children-pointers.
+	if (result->numNodes > 0) free(result->nodes[0].children);
+
 	free(result->buffers);
 	free(result->images);
 	free(result->samplers);
 	free(result->materials);
 	free(result->primitives);
 	free(result->meshes);
+	free(result->nodes);
+	free(result->scenes);
 
 	// Leave all values, result is invalidated.
 }
