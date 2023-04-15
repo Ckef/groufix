@@ -68,6 +68,18 @@ typedef enum GFXGltfAlphaMode
 
 
 /**
+ * glTF buffer definition.
+ */
+typedef struct GFXGltfBuffer
+{
+	// Only one is non-NULL.
+	GFXBuffer* buffer;
+	void*      bin;
+
+} GFXGltfBuffer;
+
+
+/**
  * glTF sampler definition.
  */
 typedef struct GFXGltfSampler
@@ -245,8 +257,8 @@ typedef struct GFXGltfResult
 	// Default scene.
 	GFXGltfScene* scene;
 
-	size_t      numBuffers;
-	GFXBuffer** buffers;
+	size_t         numBuffers;
+	GFXGltfBuffer* buffers;
 
 	size_t     numImages;
 	GFXImage** images;
