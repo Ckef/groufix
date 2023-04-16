@@ -157,47 +157,6 @@
 
 
 /****************************
- * Creates a 4x4 column-major scale-rotate-translate matrix:
- * m = mat(t) * mat(q) * mat(s)
- *  where
- *   t = [x,y,z]   (translation vector)
- *   q = [x,y,z,w] (rotation quaternion)
- *   s = [x,y,z]   (scale vector)
- */
-static void _gfx_gltf_to_mat(float* m,
-                             const float* t, const float* q, const float* s)
-{
-	// Quaternion -> matrix.
-	const float sq0 = q[0] * q[0];
-	const float sq1 = q[1] * q[1];
-	const float sq2 = q[2] * q[2];
-	const float sq3 = q[3] * q[3];
-	const float l = 2.0f / sqrtf(sq0 + sq1 + sq2 + sq3);
-
-	// Scale it as we go.
-	m[0] = s[0] * (1.0f - l * (sq1 - sq2));
-	m[1] = s[0] * l * (q[0] * q[1] + q[2] * q[3]);
-	m[2] = s[0] * l * (q[0] * q[2] - q[1] * q[3]);
-	m[3] = 0.0f;
-
-	m[4] = s[1] * l * (q[0] * q[1] - q[2] * q[3]);
-	m[5] = s[1] * (1.0f - l * (sq0 - sq2));
-	m[6] = s[1] * l * (q[1] * q[2] + q[0] * q[3]);
-	m[7] = 0.0f;
-
-	m[8] = s[2] * l * (q[0] * q[2] + q[1] * q[3]);
-	m[9] = s[2] * l * (q[1] * q[2] - q[0] * q[3]);
-	m[10] = s[2] * (1.0f - l * (sq0 - sq1));
-	m[11] = 0.0f;
-
-	// Stick in translation.
-	m[12] = t[0];
-	m[13] = t[1];
-	m[14] = t[2];
-	m[15] = 1.0f;
-}
-
-/****************************
  * Compares (case insensitive) two NULL-terminated strings.
  * One of the strings may terminate with '_', its remains will be ignored.
  */
@@ -269,6 +228,47 @@ static GFXFormat _gfx_gltf_attribute_fmt(cgltf_component_type cType,
 }
 
 /****************************
+ * Creates a 4x4 column-major scale-rotate-translate matrix:
+ * m = mat(t) * mat(q) * mat(s)
+ *  where
+ *   t = [x,y,z]   (translation vector)
+ *   q = [x,y,z,w] (rotation quaternion)
+ *   s = [x,y,z]   (scale vector)
+ */
+static void _gfx_gltf_to_mat(float* m,
+                             const float* t, const float* q, const float* s)
+{
+	// Quaternion -> matrix.
+	const float sq0 = q[0] * q[0];
+	const float sq1 = q[1] * q[1];
+	const float sq2 = q[2] * q[2];
+	const float sq3 = q[3] * q[3];
+	const float l = 2.0f / sqrtf(sq0 + sq1 + sq2 + sq3);
+
+	// Scale it as we go.
+	m[0] = s[0] * (1.0f - l * (sq1 - sq2));
+	m[1] = s[0] * l * (q[0] * q[1] + q[2] * q[3]);
+	m[2] = s[0] * l * (q[0] * q[2] - q[1] * q[3]);
+	m[3] = 0.0f;
+
+	m[4] = s[1] * l * (q[0] * q[1] - q[2] * q[3]);
+	m[5] = s[1] * (1.0f - l * (sq0 - sq2));
+	m[6] = s[1] * l * (q[1] * q[2] + q[0] * q[3]);
+	m[7] = 0.0f;
+
+	m[8] = s[2] * l * (q[0] * q[2] + q[1] * q[3]);
+	m[9] = s[2] * l * (q[1] * q[2] - q[0] * q[3]);
+	m[10] = s[2] * (1.0f - l * (sq0 - sq1));
+	m[11] = 0.0f;
+
+	// Stick in translation.
+	m[12] = t[0];
+	m[13] = t[1];
+	m[14] = t[2];
+	m[15] = 1.0f;
+}
+
+/****************************
  * Decodes an encoded URI into a newly allocated string.
  * @return Must call free() on success!
  */
@@ -308,6 +308,23 @@ static char* _gfx_gltf_decode_uri(const char* uri)
 
 	*w = '\0';
 	return buf;
+}
+
+/****************************
+ * Gets the base64 part from a data URI.
+ * @return NULL if not a base64 data uri, pointer to the base64 data otherwise.
+ */
+static const char* _gfx_gltf_get_base64(const char* uri)
+{
+	const char* comma =
+		strchr(uri, ',');
+
+	const bool isbase64 =
+		comma != NULL &&
+		comma - uri >= 7 &&
+		strncmp(comma - 7, ";base64", 7) == 0;
+
+	return isbase64 ? comma + 1 : NULL;
 }
 
 /****************************
@@ -480,6 +497,46 @@ static void* _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 }
 
 /****************************
+ * Decodes a base64 encoded image URI.
+ * @param src Source to decode, cannot be NULL, must be NULL-terminated.
+ * @return NULL on failure.
+ */
+static GFXImage* _gfx_gltf_decode_image(const char* src,
+                                        GFXHeap* heap, GFXDependency* dep,
+                                        GFXImageFlags flags, GFXImageUsage usage)
+{
+	assert(src != NULL);
+	assert(heap != NULL);
+	assert(dep != NULL);
+
+	// Decode base64.
+	const size_t len = strlen(src);
+	const size_t size =
+		len / 4 * 3 -
+		(src[len-2] == '=' ? 2 : src[len-1] == '=' ? 1 : 0);
+
+	void* bin = _gfx_gltf_decode_base64(size, src);
+	if (bin == NULL)
+	{
+		gfx_log_error("Failed to decode base64 image data URI.");
+		return NULL;
+	}
+
+	// Load image.
+	GFXBinReader reader;
+	GFXImage* image = gfx_load_image(
+		heap, dep, flags, usage, gfx_bin_reader(&reader, size, bin));
+
+	if (image == NULL)
+		gfx_log_error("Failed to load image data URI.");
+
+	// Free the data & output.
+	free(bin);
+
+	return image;
+}
+
+/****************************
  * Resolves and reads an image URI.
  * @param inc Includer to use, may be NULL.
  * @param uri Data URI to resolve, cannot be NULL, must be NULL-terminated.
@@ -520,7 +577,7 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 	// Simply load the image.
 	GFXImage* image = gfx_load_image(heap, dep, flags, usage, src);
 	if (image == NULL)
-		gfx_log_error("Failed to load image URI: %s", uri);
+		gfx_log_error("Failed to load image URI: %s.", uri);
 
 	// Release the stream & output.
 	gfx_io_release(inc, src);
@@ -671,21 +728,18 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		// Check if data URI.
 		if (uri != NULL && strncmp(uri, "data:", 5) == 0)
 		{
-			const char* comma = strchr(uri, ',');
-
-			// Check if base64.
-			if (comma == NULL || comma - uri < 7 ||
-				strncmp(comma - 7, ";base64", 7) != 0)
+			// Decode as base64.
+			const char* base64 = _gfx_gltf_get_base64(uri);
+			if (base64 == NULL)
 			{
-				gfx_log_error("Data URIs can only be base64.");
+				gfx_log_error("Buffer data URIs can only be base64.");
 				goto clean;
 			}
 
-			// Decode base64.
-			buffer->bin = _gfx_gltf_decode_base64(size, comma + 1);
+			buffer->bin = _gfx_gltf_decode_base64(size, base64);
 			if (buffer->bin == NULL)
 			{
-				gfx_log_error("Failed to decode base64 data URI.");
+				gfx_log_error("Failed to decode base64 buffer data URI.");
 				goto clean;
 			}
 		}
@@ -719,8 +773,16 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		// Check if data URI.
 		if (uri != NULL && strncmp(uri, "data:", 5) == 0)
 		{
-			gfx_log_error("Data URIs are not allowed for images.");
-			goto clean;
+			// Decode as base64.
+			const char* base64 = _gfx_gltf_get_base64(uri);
+			if (base64 == NULL)
+			{
+				gfx_log_error("Image data URIs can only be base64.");
+				goto clean;
+			}
+
+			image = _gfx_gltf_decode_image(base64, heap, dep, flags, usage);
+			if (image == NULL) goto clean;
 		}
 
 		// Check if actual URI.
