@@ -511,9 +511,11 @@ static GFXImage* _gfx_gltf_decode_image(const char* src,
 
 	// Decode base64.
 	const size_t len = strlen(src);
-	const size_t size =
-		len / 4 * 3 -
-		(src[len-2] == '=' ? 2 : src[len-1] == '=' ? 1 : 0);
+	const size_t size = len / 4 * 3
+		// Remove to account for padding.
+		- (src[len-2] == '=' ? 2 : src[len-1] == '=' ? 1 : 0)
+		// Add to account for missing padding.
+		+ ((len & 3) == 3 ? 2 : (len & 3) == 2 ? 1 : 0);
 
 	void* bin = _gfx_gltf_decode_base64(size, src);
 	if (bin == NULL)
