@@ -100,11 +100,7 @@
 	((type) == cgltf_component_type_r_16u ? sizeof(uint16_t) : \
 	(type) == cgltf_component_type_r_32u ? sizeof(uint32_t) : 0)
 
-#define _GFX_GLTF_MIN_FILTER(minFilter) \
-	((minFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
-	(minFilter) == 0x2601 ? GFX_FILTER_LINEAR : GFX_FILTER_NEAREST)
-
-#define _GFX_GLTF_MAG_FILTER(magFilter) \
+#define _GFX_GLTF_FILTER(magFilter) \
 	((magFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
 	(magFilter) == 0x2601 ? GFX_FILTER_LINEAR : \
 	(magFilter) == 0x2700 ? GFX_FILTER_NEAREST : \
@@ -807,8 +803,8 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	{
 		// Insert sampler.
 		GFXGltfSampler sampler = {
-			.minFilter = _GFX_GLTF_MIN_FILTER(data->samplers[s].min_filter),
-			.magFilter = _GFX_GLTF_MAG_FILTER(data->samplers[s].mag_filter),
+			.minFilter = _GFX_GLTF_FILTER(data->samplers[s].min_filter),
+			.magFilter = _GFX_GLTF_FILTER(data->samplers[s].mag_filter),
 			.mipFilter = _GFX_GLTF_MIP_FILTER(data->samplers[s].min_filter),
 
 			.wrapU = _GFX_GLTF_WRAPPING(data->samplers[s].wrap_s),
