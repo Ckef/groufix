@@ -72,9 +72,9 @@ typedef enum GFXGltfAlphaMode
  */
 typedef struct GFXGltfBuffer
 {
-	// Only one is non-NULL.
-	GFXBuffer* buffer;
+	size_t     size;
 	void*      bin;
+	GFXBuffer* buffer;
 
 } GFXGltfBuffer;
 

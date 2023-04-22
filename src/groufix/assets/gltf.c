@@ -372,48 +372,6 @@ static void* _gfx_gltf_decode_base64(size_t size, const char* src)
 }
 
 /****************************
- * Allocates a new buffer and fills it with given data.
- * @param size Must be > 0.
- * @return NULL on failure.
- */
-static GFXBuffer* _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
-                                         size_t size, const void* bin)
-{
-	assert(heap != NULL);
-	assert(dep != NULL);
-	assert(size > 0);
-	assert(bin != NULL);
-
-	// Allocate.
-	GFXBuffer* buffer = gfx_alloc_buffer(heap,
-		GFX_MEMORY_WRITE,
-		GFX_BUFFER_VERTEX | GFX_BUFFER_INDEX,
-		size);
-
-	if (buffer == NULL) return NULL;
-
-	// Write data.
-	const GFXRegion region = {
-		.offset = 0,
-		.size = size
-	};
-
-	const GFXInject inject =
-		gfx_dep_sig(dep,
-			GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ, GFX_STAGE_ANY);
-
-	if (!gfx_write(bin, gfx_ref_buffer(buffer),
-		GFX_TRANSFER_ASYNC,
-		1, 1, &region, &region, &inject))
-	{
-		gfx_free_buffer(buffer);
-		return NULL;
-	}
-
-	return buffer;
-}
-
-/****************************
  * Resolves and reads a buffer URI.
  * @param inc  Includer to use, may be NULL.
  * @param uri  Data URI to resolve, cannot be NULL, must be NULL-terminated.
@@ -583,6 +541,54 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 	return image;
 }
 
+/****************************
+ * Allocates a buffer from the data already in a GFXGltfBuffer object.
+ * @param buffer May be NULL, on which it will always fail.
+ * @return Non-zero on success.
+ */
+static bool _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
+                                   GFXGltfBuffer* buffer)
+{
+	assert(heap != NULL);
+	assert(dep != NULL);
+
+	// Nothing to allocate.
+	if (buffer == NULL) return 0;
+
+	// Already done.
+	if (buffer->buffer != NULL) return 1;
+
+	// Allocate.
+	buffer->buffer = gfx_alloc_buffer(heap,
+		GFX_MEMORY_WRITE,
+		GFX_BUFFER_VERTEX | GFX_BUFFER_INDEX,
+		buffer->size);
+
+	if (buffer->buffer == NULL) return 0;
+
+	// Write data.
+	const GFXRegion region = {
+		.offset = 0,
+		.size = buffer->size
+	};
+
+	const GFXInject inject =
+		gfx_dep_sig(dep,
+			GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ, GFX_STAGE_ANY);
+
+	if (!gfx_write(buffer->bin, gfx_ref_buffer(buffer->buffer),
+		GFX_TRANSFER_ASYNC,
+		1, 1, &region, &region, &inject))
+	{
+		gfx_free_buffer(buffer->buffer);
+		buffer->buffer = NULL;
+
+		return 0;
+	}
+
+	return 1;
+}
+
 /****************************/
 GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
                            const GFXGltfOptions* options,
@@ -682,46 +688,13 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	// Create all buffers.
 	for (size_t b = 0; b < data->buffers_count; ++b)
 	{
-		// Insert buffer.
 		GFXGltfBuffer buffer = {
-			.buffer = NULL,
-			.bin = NULL
+			.size = data->buffers[b].size,
+			.bin = NULL,
+			.buffer = NULL
 		};
 
-		if (!gfx_vec_push(&buffers, 1, &buffer))
-			goto clean;
-	}
-
-	// Flag all buffers that needs to be allocated from the given heap.
-	// Set (GFXGltfBuffer*)->buffer to the (void*)(GFXGltfBuffer*) value to flag!
-	for (size_t m = 0; m < data->meshes_count; ++m)
-	{
-		for (size_t p = 0; p < data->meshes[m].primitives_count; ++p)
-		{
-			const cgltf_primitive* cprim = &data->meshes[m].primitives[p];
-
-			// Check index buffer.
-			GFXGltfBuffer* indexBuffer = _GFX_FROM_GLTF_ACCESSOR(cprim->indices);
-			if (indexBuffer != NULL) indexBuffer->buffer = (void*)indexBuffer;
-
-			// Check attribute buffers.
-			for (size_t a = 0; a < cprim->attributes_count; ++a)
-			{
-				const cgltf_attribute* cattr = &cprim->attributes[a];
-
-				GFXGltfBuffer* buffer = _GFX_FROM_GLTF_ACCESSOR(cattr->data);
-				if (buffer != NULL) buffer->buffer = (void*)buffer;
-			}
-		}
-	}
-
-	// Decode & allocate all buffers.
-	for (size_t b = 0; b < data->buffers_count; ++b)
-	{
-		GFXGltfBuffer* buffer = gfx_vec_at(&buffers, b);
-
 		const char* uri = data->buffers[b].uri;
-		size_t size = data->buffers[b].size;
 
 		// Check if data URI.
 		if (uri != NULL && strncmp(uri, "data:", 5) == 0)
@@ -734,8 +707,8 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
-			buffer->bin = _gfx_gltf_decode_base64(size, base64);
-			if (buffer->bin == NULL)
+			buffer.bin = _gfx_gltf_decode_base64(buffer.size, base64);
+			if (buffer.bin == NULL)
 			{
 				gfx_log_error("Failed to decode base64 buffer data URI.");
 				goto clean;
@@ -745,20 +718,15 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		// Check if actual URI.
 		else if (uri != NULL)
 		{
-			buffer->bin = _gfx_gltf_include_buffer(inc, uri, &size);
-			if (buffer->bin == NULL) goto clean;
+			buffer.bin = _gfx_gltf_include_buffer(inc, uri, &buffer.size);
+			if (buffer.bin == NULL) goto clean;
 		}
 
-		// Allocate buffer if flagged.
-		if (buffer->buffer == (void*)buffer)
+		// Insert buffer.
+		if (!gfx_vec_push(&buffers, 1, &buffer))
 		{
-			buffer->buffer =
-				_gfx_gltf_alloc_buffer(heap, dep, size, buffer->bin);
-
-			free(buffer->bin);
-			buffer->bin = NULL;
-
-			if (buffer->buffer == NULL) goto clean;
+			free(buffer.bin);
+			goto clean;
 		}
 	}
 
@@ -766,6 +734,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	for (size_t i = 0; i < data->images_count; ++i)
 	{
 		GFXImage* image = NULL;
+
 		const char* uri = data->images[i].uri;
 
 		// Check if data URI.
@@ -991,6 +960,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
+			if (numIndices > 0 && !_gfx_gltf_alloc_buffer(heap, dep, indexBuffer))
+			{
+				gfx_log_error("Failed to allocate index buffer.");
+				goto clean;
+			}
+
 			if (cprim->attributes_count == 0)
 			{
 				gfx_log_error("Primitives must have attributes.");
@@ -1060,6 +1035,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				GFXGltfBuffer* buffer =
 					_GFX_FROM_GLTF_ACCESSOR(cattr->data);
 
+				if (!_gfx_gltf_alloc_buffer(heap, dep, buffer))
+				{
+					gfx_log_error("Failed to allocate vertex buffer.");
+					goto clean;
+				}
+
 				attributes[a] = (GFXAttribute){
 					.offset = (uint32_t)cattr->data->offset,
 					.rate = GFX_RATE_VERTEX,
@@ -1075,11 +1056,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 							cattr->data->stride :
 							cattr->data->buffer_view->stride),
 
-					.buffer = buffer != NULL && buffer->buffer != NULL ?
-						gfx_ref_buffer_at(
-							buffer->buffer,
-							cattr->data->buffer_view->offset) :
-						GFX_REF_NULL
+					.buffer = gfx_ref_buffer_at(
+						buffer->buffer,
+						cattr->data->buffer_view->offset)
 				};
 			}
 
@@ -1094,11 +1073,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				0, 0, _GFX_GLTF_TOPOLOGY(cprim->type),
 				(uint32_t)numIndices, indexSize,
 				(uint32_t)numVertices,
-				indexBuffer != NULL && indexBuffer->buffer != NULL ?
-					gfx_ref_buffer_at(
-						indexBuffer->buffer,
-						cprim->indices->buffer_view->offset) :
-					GFX_REF_NULL,
+				numIndices > 0 ? gfx_ref_buffer_at(
+					indexBuffer->buffer,
+					cprim->indices->buffer_view->offset) : GFX_REF_NULL,
 				numAttributes, attributes);
 
 			if (prim == NULL) goto clean;
@@ -1273,8 +1250,7 @@ clean:
 	{
 		GFXGltfBuffer* buffer = gfx_vec_at(&buffers, b);
 		free(buffer->bin);
-		// Check if flagged, if so, do not call free!
-		if (buffer->buffer != (void*)buffer) gfx_free_buffer(buffer->buffer);
+		gfx_free_buffer(buffer->buffer);
 	}
 
 	for (size_t i = 0; i < images.size; ++i)
