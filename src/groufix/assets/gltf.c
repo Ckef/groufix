@@ -543,7 +543,7 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 
 /****************************
  * Allocates a buffer from the data already in a GFXGltfBuffer object.
- * @param buffer May be NULL, on which it will always fail.
+ * @param buffer May be NULL, on which it will fail (same if size is 0).
  * @return Non-zero on success.
  */
 static bool _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
@@ -553,7 +553,7 @@ static bool _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
 	assert(dep != NULL);
 
 	// Nothing to allocate.
-	if (buffer == NULL) return 0;
+	if (buffer == NULL || buffer->size == 0) return 0;
 
 	// Already done.
 	if (buffer->buffer != NULL) return 1;
@@ -689,7 +689,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	for (size_t b = 0; b < data->buffers_count; ++b)
 	{
 		GFXGltfBuffer buffer = {
-			.size = data->buffers[b].size,
+			.size = 0,
 			.bin = NULL,
 			.buffer = NULL
 		};
@@ -707,7 +707,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
+			buffer.size = data->buffers[b].size;
 			buffer.bin = _gfx_gltf_decode_base64(buffer.size, base64);
+
 			if (buffer.bin == NULL)
 			{
 				gfx_log_error("Failed to decode base64 buffer data URI.");
