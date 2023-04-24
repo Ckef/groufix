@@ -542,6 +542,7 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 }
 
 /****************************
+ * TODO: This will allocate the ENTIRE buffer, even if e.g. images are stored in it!
  * Allocates a buffer from the data already in a GFXGltfBuffer object.
  * @param buffer May be NULL, on which it will fail (same if size is 0).
  * @return Non-zero on success.
@@ -553,10 +554,12 @@ static bool _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
 	assert(dep != NULL);
 
 	// Nothing to allocate.
-	if (buffer == NULL || buffer->size == 0) return 0;
+	if (buffer == NULL || buffer->size == 0 || buffer->bin == NULL)
+		return 0;
 
 	// Already done.
-	if (buffer->buffer != NULL) return 1;
+	if (buffer->buffer != NULL)
+		return 1;
 
 	// Allocate.
 	buffer->buffer = gfx_alloc_buffer(heap,
@@ -564,7 +567,8 @@ static bool _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
 		GFX_BUFFER_VERTEX | GFX_BUFFER_INDEX,
 		buffer->size);
 
-	if (buffer->buffer == NULL) return 0;
+	if (buffer->buffer == NULL)
+		return 0;
 
 	// Write data.
 	const GFXRegion region = {
@@ -689,7 +693,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	for (size_t b = 0; b < data->buffers_count; ++b)
 	{
 		GFXGltfBuffer buffer = {
-			.size = 0,
+			.size = data->buffers[b].size,
 			.bin = NULL,
 			.buffer = NULL
 		};
@@ -707,9 +711,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
-			buffer.size = data->buffers[b].size;
 			buffer.bin = _gfx_gltf_decode_base64(buffer.size, base64);
-
 			if (buffer.bin == NULL)
 			{
 				gfx_log_error("Failed to decode base64 buffer data URI.");
@@ -722,6 +724,16 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		{
 			buffer.bin = _gfx_gltf_include_buffer(inc, uri, &buffer.size);
 			if (buffer.bin == NULL) goto clean;
+		}
+
+		// Check if it references the GLB-stored BIN chunk.
+		// Only the first buffer can reference it, according to the specs!
+		else if (b == 0 && data->bin_size >= buffer.size && buffer.size > 0)
+		{
+			buffer.bin = malloc(buffer.size);
+			if (buffer.bin == NULL) goto clean;
+
+			memcpy(buffer.bin, data->bin, buffer.size);
 		}
 
 		// Insert buffer.
@@ -738,6 +750,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		GFXImage* image = NULL;
 
 		const char* uri = data->images[i].uri;
+		const cgltf_buffer_view* cview = data->images[i].buffer_view;
 
 		// Check if data URI.
 		if (uri != NULL && strncmp(uri, "data:", 5) == 0)
@@ -759,6 +772,32 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		{
 			image = _gfx_gltf_include_image(inc, uri, heap, dep, flags, usage);
 			if (image == NULL) goto clean;
+		}
+
+		// Check if a buffer view.
+		else if (cview != NULL)
+		{
+			GFXGltfBuffer* buffer =
+				_GFX_FROM_GLTF(buffers, data->buffers, cview->buffer);
+
+			// Load the image.
+			if (cview->offset + cview->size > buffer->size)
+			{
+				gfx_log_error("Image buffer view is out of range.");
+				goto clean;
+			}
+
+			GFXBinReader reader;
+			image = gfx_load_image(heap, dep, flags, usage,
+				gfx_bin_reader(
+					&reader, cview->size,
+					((char*)buffer->bin) + cview->offset));
+
+			if (image == NULL)
+			{
+				gfx_log_error("Failed to load image data from buffer.");
+				goto clean;
+			}
 		}
 
 		// Insert image.
