@@ -781,6 +781,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				_GFX_FROM_GLTF(buffers, data->buffers, cview->buffer);
 
 			// Load the image.
+			if (buffer == NULL || buffer->bin == NULL)
+			{
+				gfx_log_error("Image buffer view has no data.");
+				goto clean;
+			}
+
 			if (cview->offset + cview->size > buffer->size)
 			{
 				gfx_log_error("Image buffer view is out of range.");
