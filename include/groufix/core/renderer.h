@@ -68,6 +68,25 @@ typedef struct GFXAttachment
 
 
 /**
+ * Image clear value.
+ */
+typedef union GFXClear
+{
+	float    f[4];
+	int32_t  i32[4];
+	uint32_t u32[4];
+
+	GFX_UNION_ANONYMOUS(
+	{
+		float    depth;
+		uint32_t stencil;
+
+	}, test)
+
+} GFXClear;
+
+
+/**
  * Image view type (interpreted dimensionality).
  */
 typedef enum GFXViewType
@@ -745,25 +764,6 @@ typedef enum GFXPassType
 	GFX_PASS_COMPUTE_ASYNC
 
 } GFXPassType;
-
-
-/**
- * Image clear value.
- */
-typedef union GFXClear
-{
-	float    f[4];
-	int32_t  i32[4];
-	uint32_t u32[4];
-
-	GFX_UNION_ANONYMOUS(
-	{
-		float    depth;
-		uint32_t stencil;
-
-	}, test)
-
-} GFXClear;
 
 
 /**

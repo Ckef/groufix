@@ -190,7 +190,7 @@ typedef struct GFXInject
  *
  * Operations and the commands injected into them normally address the
  * graphics queue, but they can address the other two with the respective
- * `*_(COMPUTE|TRANSFER)_ASYNC` flags and access mask modifiers.
+ * `*_(COMPUTE|TRANSFER)_ASYNC` type, flag and modifiers.
  *
  * To force the dependency on a specific resource, use
  *  `gfx_dep_sigr`
