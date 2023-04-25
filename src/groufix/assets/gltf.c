@@ -642,7 +642,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	cgltf_data* data = NULL;
 
 	cgltf_result res = cgltf_parse(&opts, source, (size_t)len, &data);
-	free(source); // Immediately free source buffer.
+	// Postpone freeing `source`, cgltf returns pointers to it.
 
 	// Some extra validation.
 	if (res == cgltf_result_success) res = cgltf_validate(data);
@@ -656,6 +656,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			_GFX_GLTF_ERROR_STRING(res));
 
 		cgltf_free(data);
+		free(source);
 		return 0;
 	}
 
@@ -1257,6 +1258,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 	// We are done building groufix objects, free gltf things.
 	cgltf_free(data);
+	free(source);
 
 	// Claim all data and return.
 	result->numBuffers = buffers.size;
@@ -1315,7 +1317,9 @@ clean:
 	gfx_vec_clear(&meshes);
 	gfx_vec_clear(&nodes);
 	gfx_vec_clear(&scenes);
+
 	cgltf_free(data);
+	free(source);
 
 	gfx_log_error("Failed to load glTF from stream.");
 
