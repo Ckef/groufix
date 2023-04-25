@@ -797,7 +797,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			image = gfx_load_image(heap, dep, flags, usage,
 				gfx_bin_reader(
 					&reader, cview->size,
-					((char*)buffer->bin) + cview->offset));
+					((uint8_t*)buffer->bin) + cview->offset));
 
 			if (image == NULL)
 			{

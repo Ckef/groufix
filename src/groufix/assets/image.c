@@ -117,6 +117,16 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 		return NULL;
 	}
 
+	if (x <= 0 || y <= 0 || sComps <= 0 || sComps > 4)
+	{
+		gfx_log_error(
+			"Cannot load image from stream, invalid dimensions: %dx%d:%d",
+			x, y, sComps);
+
+		free(source);
+		return NULL;
+	}
+
 	// Get appropriate format from properties.
 	// We check if it is supported, if not we;
 	// firstly try out bigger orders and secondly try out smaller types.
