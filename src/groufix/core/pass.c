@@ -364,7 +364,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 
 		// Set parents.
 		rPass->numParents = numParents;
-		memcpy(rPass->parents, parents, sizeof(GFXPass*) * numParents);
+		if (numParents > 0)
+			memcpy(rPass->parents, parents, sizeof(GFXPass*) * numParents);
 
 		// Initialize building stuff.
 		rPass->out.master = NULL;
@@ -437,7 +438,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 
 		// Set parents.
 		cPass->numParents = numParents;
-		memcpy(cPass->parents, parents, sizeof(GFXPass*) * numParents);
+		if (numParents > 0)
+			memcpy(cPass->parents, parents, sizeof(GFXPass*) * numParents);
 	}
 
 	return pass;

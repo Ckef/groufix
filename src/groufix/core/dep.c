@@ -163,6 +163,10 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore,
 	// Default to no sharing.
 	*shared = NULL;
 
+	// Keep track of sync obj positions.
+	size_t syncInd = SIZE_MAX;
+	size_t sharedInd = SIZE_MAX;
+
 	// If we need a semaphore, we need a sync object with either:
 	// - A semaphore.
 	// - A destination queue of which another sync object has a semaphore.
@@ -170,8 +174,6 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore,
 	// meaning this semaphore will already be written to the metadata.
 	if (semaphore)
 	{
-		_GFXSync* unused = NULL;
-
 		// See if there is an unused semaphore.
 		// Also see if there are any sync objects with the same queue.
 		// They need to be of the same injection too, such that they can
@@ -183,7 +185,7 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore,
 			// Never break, always prefer objects closer to the center,
 			// such that shrinking is easier.
 			if (sync->stage == _GFX_SYNC_UNUSED)
-				unused = sync;
+				syncInd = s;
 
 			// We know it has a semaphore because of its position in syncs.
 			if (sync->stage == _GFX_SYNC_PREPARE &&
@@ -191,24 +193,24 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore,
 				sync->vk.dstQueue.family == family &&
 				sync->vk.dstQueue.index == queue)
 			{
-				*shared = sync;
+				sharedInd = s;
 			}
 		}
 
 		// If we found none to share, but did find an unused one, claim it.
-		if (*shared == NULL && unused != NULL)
-			return unused;
+		if (sharedInd == SIZE_MAX && syncInd != SIZE_MAX)
+			goto claim;
 
 		// Still none to share, create one & claim it.
-		if (*shared == NULL)
+		if (sharedInd == SIZE_MAX)
 		{
 			if (!gfx_deque_push_front(&dep->syncs, 1, NULL))
 				return NULL;
 
 			// Initialize it & create a semaphore.
-			unused = gfx_deque_at(&dep->syncs, 0);
-			unused->stage = _GFX_SYNC_UNUSED;
-			unused->flags = _GFX_SYNC_SEMAPHORE;
+			_GFXSync* sync = gfx_deque_at(&dep->syncs, 0);
+			sync->stage = _GFX_SYNC_UNUSED;
+			sync->flags = _GFX_SYNC_SEMAPHORE;
 
 			VkSemaphoreCreateInfo sci = {
 				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -218,7 +220,7 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore,
 
 			_GFX_VK_CHECK(
 				context->vk.CreateSemaphore(
-					context->vk.device, &sci, NULL, &unused->vk.signaled),
+					context->vk.device, &sci, NULL, &sync->vk.signaled),
 				{
 					gfx_deque_pop_front(&dep->syncs, 1);
 					return NULL;
@@ -227,7 +229,8 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore,
 			// Don't forget to increase the semaphore count!
 			++dep->sems;
 
-			return unused;
+			syncInd = 0;
+			goto claim;
 		}
 
 		// At this point we have a shared semaphore.
@@ -247,19 +250,29 @@ static _GFXSync* _gfx_dep_claim(GFXDependency* dep, bool semaphore,
 		// again for easier shrinking.
 		_GFXSync* sync = gfx_deque_at(&dep->syncs, s);
 		if (sync->stage == _GFX_SYNC_UNUSED)
-			return sync;
+		{
+			syncInd = s;
+			goto claim;
+		}
 	}
 
 	// Apparently not, insert anew.
+	syncInd = dep->syncs.size;
+
 	if (!gfx_deque_push(&dep->syncs, 1, NULL))
 		return NULL;
 
-	_GFXSync* sync = gfx_deque_at(&dep->syncs, dep->syncs.size - 1);
+	_GFXSync* sync = gfx_deque_at(&dep->syncs, syncInd);
 	sync->stage = _GFX_SYNC_UNUSED;
 	sync->flags = 0;
 	sync->vk.signaled = VK_NULL_HANDLE;
 
-	return sync;
+	// On success!
+claim:
+	if (sharedInd != SIZE_MAX)
+		*shared = gfx_deque_at(&dep->syncs, sharedInd);
+
+	return gfx_deque_at(&dep->syncs, syncInd);
 }
 
 /****************************/
