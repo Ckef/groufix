@@ -93,9 +93,9 @@ static bool load_gltf(const char* path, GFXGltfResult* result)
 	};
 
 	const GFXGltfOptions opts = {
+		.maxAttributes = 2,
 		.orderSize = sizeof(attributeOrder)/sizeof(char*),
-		.attributeOrder = attributeOrder,
-		.maxAttributes = 2
+		.attributeOrder = attributeOrder
 	};
 
 	if (!gfx_load_gltf(

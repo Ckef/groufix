@@ -289,9 +289,10 @@ typedef struct GFXGltfResult
  */
 typedef struct GFXGltfOptions
 {
+	size_t maxAttributes;  // Per primitive, 0 for no limit.
+
 	size_t       orderSize;      // Size of `attributeOrder`.
 	const char** attributeOrder; // Name index -> attribute location.
-	size_t       maxAttributes;  // Per primitive, 0 for no limit.
 
 } GFXGltfOptions;
 

@@ -547,7 +547,7 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
  * @param buffer May be NULL, on which it will fail (same if size is 0).
  * @return Non-zero on success.
  */
-static bool _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
+static bool _gfx_gltf_buffer_alloc(GFXHeap* heap, GFXDependency* dep,
                                    GFXGltfBuffer* buffer)
 {
 	assert(heap != NULL);
@@ -591,6 +591,67 @@ static bool _gfx_gltf_alloc_buffer(GFXHeap* heap, GFXDependency* dep,
 	}
 
 	return 1;
+}
+
+/****************************
+ * Reorders named glTF attributes based on given options.
+ * @param cprim       glTF primitive's attributes to reorder, cannot be NULL.
+ * @param attribOrder Output array of ordered attribute indices, cannot be NULL.
+ * @return Actual number of attributes to consume.
+ *
+ * attribOrder's size must be cprim->attributes_count.
+ */
+static size_t _gfx_gltf_order_attributes(const cgltf_primitive* cprim,
+                                         const GFXGltfOptions* options,
+                                         size_t* attribOrder)
+{
+	assert(cprim != NULL);
+	assert(cprim->attributes_count > 0);
+	assert(attribOrder != NULL);
+
+	const size_t numAttributes =
+		options != NULL && options->maxAttributes > 0 ?
+			GFX_MIN(options->maxAttributes, cprim->attributes_count) :
+			cprim->attributes_count;
+
+	if (options == NULL || options->orderSize == 0)
+		// Keep order if no options are given.
+		for (size_t a = 0; a < numAttributes; ++a)
+			attribOrder[a] = a;
+	else
+	{
+		// Keep track of used glTF attributes.
+		bool attribUsed[cprim->attributes_count];
+		for (size_t ca = 0; ca < cprim->attributes_count; ++ca)
+			attribUsed[ca] = 0;
+
+		// Go over all given attribute order names (in order).
+		size_t a = 0;
+		for (size_t o = 0;
+			o < options->orderSize && a < numAttributes; ++o)
+		{
+			// See if they match any glTF attributes.
+			for (size_t ca = 0; ca < cprim->attributes_count; ++ca)
+				if (!attribUsed[ca] && _gfx_gltf_cmp_attributes(
+					options->attributeOrder[o],
+					cprim->attributes[ca].name))
+				{
+					attribOrder[a++] = ca;
+					attribUsed[ca] = 1;
+					break;
+				}
+		}
+
+		// Fill in the rest with remaining unused attributes.
+		for (size_t ca = 0;
+			ca < cprim->attributes_count && a < numAttributes; ++ca)
+		{
+			if (!attribUsed[ca])
+				attribOrder[a++] = ca;
+		}
+	}
+
+	return numAttributes;
 }
 
 /****************************/
@@ -1002,74 +1063,33 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			GFXGltfBuffer* indexBuffer =
 				_GFX_FROM_GLTF_ACCESSOR(cprim->indices);
 
-			if (numIndices > 0 && indexSize == 0)
-			{
-				gfx_log_error("Index accessors must be sizeof(uint16_t|uint32_t).");
-				goto clean;
-			}
-
-			if (numIndices > 0 && !_gfx_gltf_alloc_buffer(heap, dep, indexBuffer))
-			{
-				gfx_log_error("Failed to allocate index buffer.");
-				goto clean;
-			}
-
 			if (cprim->attributes_count == 0)
 			{
 				gfx_log_error("Primitives must have attributes.");
 				goto clean;
 			}
 
-			// Find actual number of attributes to consume & consume them.
-			const size_t numAttributes =
-				options != NULL && options->maxAttributes > 0 ?
-					GFX_MIN(options->maxAttributes, cprim->attributes_count) :
-					cprim->attributes_count;
+			if (numIndices > 0 && indexSize == 0)
+			{
+				gfx_log_error("Index accessors must be sizeof(uint16_t|uint32_t).");
+				goto clean;
+			}
+
+			if (numIndices > 0 && !_gfx_gltf_buffer_alloc(heap, dep, indexBuffer))
+			{
+				gfx_log_error("Failed to allocate index buffer.");
+				goto clean;
+			}
+
+			// Here we consider that attributes are named in glTF,
+			// and they may not always appear in the same order in a file.
+			// Calculate the actual order to consume the attributes in.
+			size_t attribOrder[cprim->attributes_count];
+			size_t numAttributes =
+				_gfx_gltf_order_attributes(cprim, options, attribOrder);
 
 			size_t numVertices = SIZE_MAX;
 			GFXAttribute attributes[numAttributes];
-
-			// Here we consider that attributes are named in glTF,
-			// so they may not always appear in the same order in a file.
-			// If we have the attributeOrder option, use it to reorder.
-			size_t attribOrder[numAttributes];
-
-			if (options == NULL || options->orderSize == 0)
-				// Keep order if no options are given.
-				for (size_t a = 0; a < numAttributes; ++a)
-					attribOrder[a] = a;
-			else
-			{
-				// Keep track of used glTF attributes.
-				bool attribUsed[cprim->attributes_count];
-				for (size_t ca = 0; ca < cprim->attributes_count; ++ca)
-					attribUsed[ca] = 0;
-
-				// Go over all given attribute order names (in order).
-				size_t a = 0;
-				for (size_t o = 0;
-					o < options->orderSize && a < numAttributes; ++o)
-				{
-					// See if they match any glTF attributes.
-					for (size_t ca = 0; ca < cprim->attributes_count; ++ca)
-						if (!attribUsed[ca] && _gfx_gltf_cmp_attributes(
-							options->attributeOrder[o],
-							cprim->attributes[ca].name))
-						{
-							attribOrder[a++] = ca;
-							attribUsed[ca] = 1;
-							break;
-						}
-				}
-
-				// Fill in the rest with remaining unused attributes.
-				for (size_t ca = 0;
-					ca < cprim->attributes_count && a < numAttributes; ++ca)
-				{
-					if (!attribUsed[ca])
-						attribOrder[a++] = ca;
-				}
-			}
 
 			// Fill attribute data.
 			for (size_t a = 0; a < numAttributes; ++a)
@@ -1083,7 +1103,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				GFXGltfBuffer* buffer =
 					_GFX_FROM_GLTF_ACCESSOR(cattr->data);
 
-				if (!_gfx_gltf_alloc_buffer(heap, dep, buffer))
+				if (!_gfx_gltf_buffer_alloc(heap, dep, buffer))
 				{
 					gfx_log_error("Failed to allocate vertex buffer.");
 					goto clean;
