@@ -249,7 +249,7 @@ clean-all: clean-temp clean-bin clean-deps
 
 
 ##############################
-# Dependency files for all builds
+# Dependency and build files
 
 OBJS = \
  $(OUT)$(SUB)/groufix/assets/gltf.o \
@@ -295,6 +295,15 @@ LIBS = \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a
 
+TESTS = \
+ $(BIN)$(SUB)/compute \
+ $(BIN)$(SUB)/fps \
+ $(BIN)$(SUB)/loading \
+ $(BIN)$(SUB)/minimal \
+ $(BIN)$(SUB)/post \
+ $(BIN)$(SUB)/threaded \
+ $(BIN)$(SUB)/windows
+
 
 # Generated dependency files
 -include $(OBJS:.o=.d)
@@ -319,48 +328,30 @@ $(OUT)$(SUB)/%.o: src/%.c | $(OUT)$(SUB)
 	$(CC) $(OFLAGS) $< -o $@
 
 # Library file
-$(BIN)$(SUB)/libgroufix$(EXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
+$(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
 	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS)
 
 # Test programs
-$(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(EXT)
+$(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
 	$(CC) -Itests $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
-# Platform flags
-UNIX_TESTS = \
- $(BIN)$(SUB)/compute \
- $(BIN)$(SUB)/fps \
- $(BIN)$(SUB)/loading \
- $(BIN)$(SUB)/minimal \
- $(BIN)$(SUB)/post \
- $(BIN)$(SUB)/threaded \
- $(BIN)$(SUB)/windows
-
-WIN_TESTS = \
- $(BIN)$(SUB)/compute.exe \
- $(BIN)$(SUB)/fps.exe \
- $(BIN)$(SUB)/loading.exe \
- $(BIN)$(SUB)/minimal.exe \
- $(BIN)$(SUB)/post.exe \
- $(BIN)$(SUB)/threaded.exe \
- $(BIN)$(SUB)/windows.exe
-
-MFLAGS_ALL  = --no-print-directory
-MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix EXT=.so PTEST=%
-MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win EXT=.dll PTEST=%.exe
-
-.build-unix-tests: $(UNIX_TESTS)
-.build-win-tests: $(WIN_TESTS)
-
-
 # Platform builds
+MFLAGS_ALL  = --no-print-directory
+MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix LIBEXT=.so PTEST=%
+MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win LIBEXT=.dll PTEST=%.exe
+
+.build: $(BIN)$(SUB)/libgroufix$(LIBEXT)
+.build-unix-tests: $(TESTS)
+.build-win-tests: $(TESTS:%=%.exe)
+
+
 unix:
-	@$(MAKE) $(MFLAGS_UNIX) $(BIN)/unix/libgroufix.so
+	@$(MAKE) $(MFLAGS_UNIX) .build
 unix-tests:
 	@$(MAKE) $(MFLAGS_UNIX) .build-unix-tests
 
 win:
-	@$(MAKE) $(MFLAGS_WIN) $(BIN)/win/libgroufix.dll
+	@$(MAKE) $(MFLAGS_WIN) .build
 win-tests:
 	@$(MAKE) $(MFLAGS_WIN) .build-win-tests

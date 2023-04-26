@@ -167,7 +167,7 @@ static const GFXReader* _gfx_file_includer_resolve(const GFXIncluder* inc, const
 
 	// Allocate & initialize the file reader stream.
 	GFXFile* file = malloc(sizeof(GFXFile));
-	if (file == NULL || !gfx_file_init(file, path, "r"))
+	if (file == NULL || !gfx_file_init(file, path, includer->mode))
 	{
 		free(file);
 		free(path);
@@ -327,20 +327,27 @@ GFX_API void gfx_file_clear(GFXFile* file)
 }
 
 /****************************/
-GFX_API bool gfx_file_includer_init(GFXFileIncluder* inc, const char* path)
+GFX_API bool gfx_file_includer_init(GFXFileIncluder* inc, const char* path, const char* mode)
 {
 	assert(inc != NULL);
 	assert(path != NULL);
+	assert(mode != NULL);
 
 	inc->includer.resolve = _gfx_file_includer_resolve;
 	inc->includer.release = _gfx_file_includer_release;
 
-	// Allocate new memory to store the path.
-	inc->path = malloc(strlen(path) + 1);
+	// Allocate new memory to store the path & mode.
+	const size_t pathLen = strlen(path);
+	const size_t modeLen = strlen(mode);
+
+	inc->path = malloc(pathLen + modeLen + 2);
 	if (inc->path == NULL) return 0;
 
-	// Copy path into it.
+	inc->mode = inc->path + pathLen + 1;
+
+	// Copy path & mode into it.
 	strcpy(inc->path, path);
+	strcpy(inc->mode, mode);
 
 	return 1;
 }
@@ -354,5 +361,6 @@ GFX_API void gfx_file_includer_clear(GFXFileIncluder* inc)
 	{
 		free(inc->path);
 		inc->path = NULL;
+		inc->mode = NULL;
 	}
 }

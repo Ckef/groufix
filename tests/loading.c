@@ -31,12 +31,12 @@ static GFXShader* load_shader(GFXShaderStage stage, const char* path)
 {
 	// Open file.
 	GFXFile file;
-	if (!gfx_file_init(&file, path, "r"))
+	if (!gfx_file_init(&file, path, "rb"))
 		goto error;
 
 	// Init includer.
 	GFXFileIncluder inc;
-	if (!gfx_file_includer_init(&inc, path))
+	if (!gfx_file_includer_init(&inc, path, "rb"))
 		goto clean_file;
 
 	// Create shader.
@@ -78,12 +78,12 @@ static bool load_gltf(const char* path, GFXGltfResult* result)
 {
 	// Open file.
 	GFXFile file;
-	if (!gfx_file_init(&file, path, "r"))
+	if (!gfx_file_init(&file, path, "rb"))
 		goto error;
 
 	// Init includer.
 	GFXFileIncluder inc;
-	if (!gfx_file_includer_init(&inc, path))
+	if (!gfx_file_includer_init(&inc, path, "rb"))
 		goto clean_file;
 
 	// Load glTF.

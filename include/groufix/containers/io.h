@@ -98,6 +98,7 @@ typedef struct GFXFileIncluder
 {
 	GFXIncluder includer;
 	char* path;
+	char* mode;
 
 } GFXFileIncluder;
 
@@ -227,9 +228,10 @@ GFX_API void gfx_file_clear(GFXFile* file);
  * Initializes a file stream includer.
  * @param inc  Cannot be NULL.
  * @param path Path to search in, cannot be NULL, must be NULL-terminated.
+ * @param mode File access mode, cannot be NULL, must be NULL-terminated.
  * @return Non-zero on success.
  */
-GFX_API bool gfx_file_includer_init(GFXFileIncluder* inc, const char* path);
+GFX_API bool gfx_file_includer_init(GFXFileIncluder* inc, const char* path, const char* mode);
 
 /**
  * Clears a file stream includer.
