@@ -332,26 +332,25 @@ $(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
 	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS)
 
 # Test programs
-$(BIN)$(SUB)/$(PTEST): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
+$(BIN)$(SUB)/$(TESTPAT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
 	$(CC) -Itests $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
 # Platform builds
 MFLAGS_ALL  = --no-print-directory
-MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix LIBEXT=.so PTEST=%
-MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win LIBEXT=.dll PTEST=%.exe
+MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix LIBEXT=.so TESTPAT=%
+MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win LIBEXT=.dll TESTPAT=%.exe
 
 .build: $(BIN)$(SUB)/libgroufix$(LIBEXT)
-.build-unix-tests: $(TESTS)
-.build-win-tests: $(TESTS:%=%.exe)
+.build-tests: $(TESTS:%=$(TESTPAT))
 
 
 unix:
 	@$(MAKE) $(MFLAGS_UNIX) .build
 unix-tests:
-	@$(MAKE) $(MFLAGS_UNIX) .build-unix-tests
+	@$(MAKE) $(MFLAGS_UNIX) .build-tests
 
 win:
 	@$(MAKE) $(MFLAGS_WIN) .build
 win-tests:
-	@$(MAKE) $(MFLAGS_WIN) .build-win-tests
+	@$(MAKE) $(MFLAGS_WIN) .build-tests
