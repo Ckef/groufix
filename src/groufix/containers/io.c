@@ -228,18 +228,21 @@ GFX_API long long gfx_io_vwritef(const GFXWriter* str, const char* fmt, va_list 
 	va_list args2;
 	va_copy(args2, args);
 
-	// Buffer for small writes.
-	char buf[256];
-
 	// Get length of the data to write.
-	int len = vsnprintf(buf, sizeof(buf), fmt, args);
+	int len = vsnprintf(NULL, 0, fmt, args);
 	if (len < 0) goto error;
 
 	// Write small buffer.
-	if ((size_t)len < sizeof(buf))
+	if (len < 256)
 	{
+		char buf[256];
+
+		len = vsprintf(buf, fmt, args2);
+		if (len < 0) goto error;
+
 		long long ret = gfx_io_write(str, buf, (size_t)len);
 		va_end(args2);
+
 		return ret;
 	}
 
