@@ -30,7 +30,7 @@ help:
 # Build environment
 
 CC    = gcc
-CCPP  = $(subst gcc,g,$(CC))++
+CXX   = $(subst gcc,g,$(CC))++
 DEBUG = ON
 
 BIN   = bin
@@ -116,6 +116,10 @@ endif
 
 
 # Dependency flags
+CMAKE_CC_FLAGS = \
+ -DCMAKE_C_COMPILER=$(CC) \
+ -DCMAKE_CXX_COMPILER=$(CXX)
+
 GLFW_FLAGS_ALL = \
  -DBUILD_SHARED_LIBS=OFF \
  -DGLFW_BUILD_EXAMPLES=OFF \
@@ -168,13 +172,13 @@ ifneq ($(CC_PREFIX),None) # Cross-compile
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(SHADERC_MINGW_TOOLCHAIN) -G "Unix Makefiles"
  SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(SPIRV_CROSS_MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
- GLFW_FLAGS        = $(GLFW_FLAGS_ALL) -DCMAKE_C_COMPILER=$(CC) -G "MinGW Makefiles"
- SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) -G "MinGW Makefiles"
- SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) -G "MinGW Makefiles"
+ GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(CMAKE_CC_FLAGS) -G "MinGW Makefiles"
+ SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_CC_FLAGS) -G "MinGW Makefiles"
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_CC_FLAGS) -G "MinGW Makefiles"
 else
- GLFW_FLAGS        = $(GLFW_FLAGS_UNIX)
- SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) -G "Unix Makefiles"
- SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) -DSPIRV_CROSS_FORCE_PIC=ON
+ GLFW_FLAGS        = $(GLFW_FLAGS_UNIX) $(CMAKE_CC_FLAGS)
+ SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_CC_FLAGS) -G "Unix Makefiles"
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_CC_FLAGS) -DSPIRV_CROSS_FORCE_PIC=ON
 endif
 
 
@@ -329,7 +333,7 @@ $(OUT)$(SUB)/%.o: src/%.c | $(OUT)$(SUB)
 
 # Library file
 $(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
-	$(CCPP) $(OBJS) -o $@ $(LIBS) $(LFLAGS)
+	$(CXX) $(OBJS) -o $@ $(LIBS) $(LFLAGS)
 
 # Test programs
 $(BIN)$(SUB)/$(TESTPAT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
