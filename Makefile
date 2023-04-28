@@ -255,58 +255,21 @@ clean-all: clean-temp clean-bin clean-deps
 ##############################
 # Dependency and build files
 
-OBJS = \
- $(OUT)$(SUB)/groufix/assets/gltf.o \
- $(OUT)$(SUB)/groufix/assets/image.o \
- $(OUT)$(SUB)/groufix/containers/deque.o \
- $(OUT)$(SUB)/groufix/containers/io.o \
- $(OUT)$(SUB)/groufix/containers/list.o \
- $(OUT)$(SUB)/groufix/containers/map.o \
- $(OUT)$(SUB)/groufix/containers/tree.o \
- $(OUT)$(SUB)/groufix/containers/vec.o \
- $(OUT)$(SUB)/groufix/core/mem/alloc.o \
- $(OUT)$(SUB)/groufix/core/mem/cache.o \
- $(OUT)$(SUB)/groufix/core/mem/hash.o \
- $(OUT)$(SUB)/groufix/core/mem/pool.o \
- $(OUT)$(SUB)/groufix/core/backing.o \
- $(OUT)$(SUB)/groufix/core/dep.o \
- $(OUT)$(SUB)/groufix/core/device.o \
- $(OUT)$(SUB)/groufix/core/format.o \
- $(OUT)$(SUB)/groufix/core/frame.o \
- $(OUT)$(SUB)/groufix/core/graph.o \
- $(OUT)$(SUB)/groufix/core/heap.o \
- $(OUT)$(SUB)/groufix/core/init.o \
- $(OUT)$(SUB)/groufix/core/log.o \
- $(OUT)$(SUB)/groufix/core/monitor.o \
- $(OUT)$(SUB)/groufix/core/ops.o \
- $(OUT)$(SUB)/groufix/core/pass.o \
- $(OUT)$(SUB)/groufix/core/pipeline.o \
- $(OUT)$(SUB)/groufix/core/recorder.o \
- $(OUT)$(SUB)/groufix/core/ref.o \
- $(OUT)$(SUB)/groufix/core/renderer.o \
- $(OUT)$(SUB)/groufix/core/set.o \
- $(OUT)$(SUB)/groufix/core/shader.o \
- $(OUT)$(SUB)/groufix/core/str.o \
- $(OUT)$(SUB)/groufix/core/swap.o \
- $(OUT)$(SUB)/groufix/core/technique.o \
- $(OUT)$(SUB)/groufix/core/vulkan.o \
- $(OUT)$(SUB)/groufix/core/window.o \
- $(OUT)$(SUB)/groufix.o
-
 LIBS = \
  $(BUILD)$(SUB)/glfw/src/libglfw3.a \
  $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a
 
-TESTS = \
- $(BIN)$(SUB)/compute \
- $(BIN)$(SUB)/fps \
- $(BIN)$(SUB)/loading \
- $(BIN)$(SUB)/minimal \
- $(BIN)$(SUB)/post \
- $(BIN)$(SUB)/threaded \
- $(BIN)$(SUB)/windows
+
+# Auto expansion of a directory
+recurse = $(foreach d,$(wildcard $1/*),$(call recurse,$d,$2) $(filter $2,$d))
+
+SRCS = $(call recurse,src,%.c)
+OBJS = $(SRCS:src/%.c=$(OUT)$(SUB)/%.o)
+
+TESTSRCS = $(call recurse,tests,%.c)
+TESTS    = $(TESTSRCS:tests/%.c=$(BIN)$(SUB)/%)
 
 
 # Generated dependency files
