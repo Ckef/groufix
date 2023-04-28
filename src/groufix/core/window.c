@@ -124,15 +124,15 @@ static void _gfx_glfw_key(GLFWwindow* handle,
 	{
 	case GLFW_PRESS:
 		if (window->events.key.press != NULL)
-			window->events.key.press(window, key, scancode, mods);
+			window->events.key.press(window, (GFXKey)key, scancode, (GFXModifier)mods);
 		break;
 	case GLFW_RELEASE:
 		if (window->events.key.release != NULL)
-			window->events.key.release(window, key, scancode, mods);
+			window->events.key.release(window, (GFXKey)key, scancode, (GFXModifier)mods);
 		break;
 	case GLFW_REPEAT:
 		if (window->events.key.repeat != NULL)
-			window->events.key.repeat(window, key, scancode, mods);
+			window->events.key.repeat(window, (GFXKey)key, scancode, (GFXModifier)mods);
 		break;
 	}
 }
@@ -190,11 +190,11 @@ static void _gfx_glfw_mouse_button(GLFWwindow* handle,
 	{
 	case GLFW_PRESS:
 		if (window->events.mouse.press != NULL)
-			window->events.mouse.press(window, button, mods);
+			window->events.mouse.press(window, (GFXMouseButton)button, (GFXModifier)mods);
 		break;
 	case GLFW_RELEASE:
 		if (window->events.mouse.release != NULL)
-			window->events.mouse.release(window, button, mods);
+			window->events.mouse.release(window, (GFXMouseButton)button, (GFXModifier)mods);
 		break;
 	}
 }

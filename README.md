@@ -6,7 +6,7 @@ _groufix_ is a cross-platform, thread-friendly and hardware accelerated graphics
 
 The engine currently supports the following targets:
 
-- __Unix__-like ([GCC](https://gcc.gnu.org/))
+- __Unix__-like ([GCC](https://gcc.gnu.org/), [Clang](https://clang.llvm.org/))
 - __Windows__ (XP+) ([Mingw-w64](https://www.mingw-w64.org/))
 - __macOS__ (_experimental_) (_Xcode Command Line Tools_) ([MoltenVK](https://github.com/KhronosGroup/MoltenVK))
 
@@ -38,7 +38,8 @@ Most major dependencies are included as submodules in the repository (see the `d
 To build and run with debug options enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. All other dependencies based on your setup are:
 
 _When building on Linux_:
-- `gcc`, `make`, `cmake` : for building source files.
+- `gcc` _or_ `clang` : for building source files, use the `CC` flag to pick a compiler collection.
+- `make` _and_ `cmake` : for building source files.
 - `xorg-dev` _or_ `libwayland-dev` : for building [GLFW](https://www.glfw.org/).
 - `python3` : for building [Shaderc](https://github.com/google/shaderc).
 

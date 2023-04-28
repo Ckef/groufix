@@ -861,7 +861,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 
 			// Remember the greatest sample count for pipelines.
 			if (ad[i].samples > rPass->state.samples)
-				rPass->state.samples = ad[i].samples;
+				rPass->state.samples = (unsigned char)ad[i].samples;
 		}
 
 		// Lastly, store the clear value for when we begin the pass,

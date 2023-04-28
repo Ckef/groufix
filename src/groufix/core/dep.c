@@ -1081,7 +1081,7 @@ bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
 			{
 				const VkAccessFlags dstAccess = sync->vk.dstAccess;
 				const VkPipelineStageFlags dstStage = sync->vk.dstStage;
-				const int flags = sync->flags;
+				const unsigned int flags = sync->flags;
 
 				// If we are transferring ownership:
 				//  Zero out destination access/stage for the release.

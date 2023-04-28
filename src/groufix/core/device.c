@@ -757,10 +757,10 @@ static void _gfx_create_context(_GFXDevice* device)
 
 	// Get supported feature flags.
 	context->features =
-		device->base.features.geometryShader ?
-			_GFX_SUPPORT_GEOMETRY_SHADER : 0 |
-		device->base.features.tessellationShader ?
-			_GFX_SUPPORT_TESSELLATION_SHADER : 0;
+		(device->base.features.geometryShader ?
+			_GFX_SUPPORT_GEOMETRY_SHADER : 0) |
+		(device->base.features.tessellationShader ?
+			_GFX_SUPPORT_TESSELLATION_SHADER : 0);
 
 	{
 		// Get allocation limits in a scope so pdp gets freed :)

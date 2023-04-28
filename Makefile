@@ -30,7 +30,7 @@ help:
 # Build environment
 
 CC    = gcc
-CCPP  = $(subst gcc,g++,$(CC))
+CCPP  = $(subst gcc,g,$(CC))++
 DEBUG = ON
 
 BIN   = bin
@@ -73,7 +73,7 @@ TFLAGS = $(CFLAGS) -pthread -lm
 
 # Flags for library files only
 OFLAGS_ALL = \
- $(CFLAGS) -c -s -MP -MMD -DGFX_BUILD_LIB -Isrc \
+ $(CFLAGS) -c -MP -MMD -DGFX_BUILD_LIB -Isrc \
  -Ideps/glfw/include \
  -Ideps/Vulkan-Headers/include \
  -Ideps/shaderc/libshaderc/include \

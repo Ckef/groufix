@@ -82,13 +82,13 @@ static bool _gfx_map_realloc(GFXMap* map, size_t capacity)
 static bool _gfx_map_grow(GFXMap* map, size_t minNodes)
 {
 	// Calculate the maximum load we can bare and check against it...
-	if (minNodes <= ((double)map->capacity * _GFX_MAP_LOAD_FACTOR))
+	if (minNodes <= (size_t)((double)map->capacity * _GFX_MAP_LOAD_FACTOR))
 		return 1;
 
 	// Keep multiplying capacity by 2 until we have enough.
 	// We start at enough nodes for a minimum load factor of 1/4th!
 	size_t cap = (map->capacity > 0) ? map->capacity << 1 : 4;
-	while (minNodes > ((double)cap * _GFX_MAP_LOAD_FACTOR)) cap <<= 1;
+	while (minNodes > (size_t)((double)cap * _GFX_MAP_LOAD_FACTOR)) cap <<= 1;
 
 	return _gfx_map_realloc(map, cap);
 }
