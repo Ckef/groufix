@@ -197,7 +197,7 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 
 	// Get all the 'done rendering' fences of all virtual frames.
 	// Skip if it is the public frame, as its fence is not awaitable
-	// inbetween _gfx_frame_Sync and _gfx_frame_submit!
+	// inbetween _gfx_frame_sync and _gfx_frame_submit!
 	uint32_t numFences =
 		(renderer->numFrames - (renderer->public != NULL ? 1 : 0)) * 2;
 
