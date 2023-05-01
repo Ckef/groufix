@@ -72,7 +72,7 @@ TFLAGS = $(CFLAGS) -pthread -lm
 
 
 # Flags for library files only
-OFLAGS_ALL = \
+OFLAGS = \
  $(CFLAGS) -c -MP -MMD -DGFX_BUILD_LIB -Isrc \
  -Ideps/glfw/include \
  -Ideps/Vulkan-Headers/include \
@@ -81,21 +81,18 @@ OFLAGS_ALL = \
  -isystem deps/cgltf \
  -isystem deps/stb
 
-ifeq ($(OS),Windows_NT)
- OFLAGS = $(OFLAGS_ALL)
-else
- OFLAGS = $(OFLAGS_ALL) -fPIC
+ifneq ($(OS),Windows_NT)
+ OFLAGS += -fPIC
 endif
 
 
 # Linker flags
-LFLAGS_ALL = -shared -pthread
-LFLAGS_WIN = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
+LFLAGS_ALL  = -shared -pthread
+LFLAGS_WIN  = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
+LFLAGS_UNIX = $(LFLAGS_ALL) -ldl
 
 ifeq ($(USE_WAYLAND),ON)
- LFLAGS_UNIX = $(LFLAGS_ALL) -ldl -lwayland-client
-else
- LFLAGS_UNIX = $(LFLAGS_ALL) -ldl
+ LFLAGS_UNIX += -lwayland-client
 endif
 
 ifeq ($(MACOS),ON)
@@ -116,10 +113,6 @@ endif
 
 
 # Dependency flags
-CMAKE_CC_FLAGS = \
- -DCMAKE_C_COMPILER=$(CC) \
- -DCMAKE_CXX_COMPILER=$(CXX)
-
 GLFW_FLAGS_ALL = \
  -DBUILD_SHARED_LIBS=OFF \
  -DGLFW_BUILD_EXAMPLES=OFF \
@@ -140,11 +133,6 @@ SHADERC_FLAGS_ALL = \
  -DSPIRV_SKIP_EXECUTABLES=ON \
  -DSPIRV_SKIP_TESTS=ON
 
-SHADERC_MINGW_TOOLCHAIN = \
- -DCMAKE_TOOLCHAIN_FILE=cmake/linux-mingw-toolchain.cmake \
- -DMINGW_COMPILER_PREFIX=$(CC_PREFIX) \
- -Dgtest_disable_pthreads=ON
-
 SPIRV_CROSS_FLAGS_ALL = \
  -DSPIRV_CROSS_STATIC=ON \
  -DSPIRV_CROSS_SHARED=OFF \
@@ -157,10 +145,21 @@ SPIRV_CROSS_FLAGS_ALL = \
  -DSPIRV_CROSS_ENABLE_REFLECT=OFF \
  -DSPIRV_CROSS_ENABLE_UTIL=OFF
 
+CMAKE_TOOLCHAIN = \
+ -DCMAKE_C_COMPILER=$(CC) \
+ -DCMAKE_CXX_COMPILER=$(CXX)
+
+GLFW_MINGW_TOOLCHAIN = \
+ -DCMAKE_TOOLCHAIN_FILE=CMake/$(CC_PREFIX).cmake
+
+SHADERC_MINGW_TOOLCHAIN = \
+ -DCMAKE_TOOLCHAIN_FILE=cmake/linux-mingw-toolchain.cmake \
+ -DMINGW_COMPILER_PREFIX=$(CC_PREFIX) \
+ -Dgtest_disable_pthreads=ON
+
 SPIRV_CROSS_MINGW_TOOLCHAIN = \
+ $(CMAKE_TOOLCHAIN) \
  -DCMAKE_SYSTEM_NAME=Windows \
- -DCMAKE_C_COMPILER=$(CC_PREFIX)-gcc \
- -DCMAKE_CXX_COMPILER=$(CC_PREFIX)-g++ \
  -DCMAKE_RC_COMPILER=$(CC_PREFIX)-windres \
  -DCMAKE_FIND_ROOT_PATH=/usr/$(CC_PREFIX) \
  -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=Never \
@@ -168,17 +167,17 @@ SPIRV_CROSS_MINGW_TOOLCHAIN = \
  -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=Only
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
- GLFW_FLAGS        = $(GLFW_FLAGS_ALL) -DCMAKE_TOOLCHAIN_FILE=CMake/$(CC_PREFIX).cmake
+ GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(GLFW_MINGW_TOOLCHAIN)
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(SHADERC_MINGW_TOOLCHAIN) -G "Unix Makefiles"
  SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(SPIRV_CROSS_MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
- GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(CMAKE_CC_FLAGS) -G "MinGW Makefiles"
- SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_CC_FLAGS) -G "MinGW Makefiles"
- SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_CC_FLAGS) -G "MinGW Makefiles"
+ GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
+ SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
 else
- GLFW_FLAGS        = $(GLFW_FLAGS_UNIX) $(CMAKE_CC_FLAGS)
- SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_CC_FLAGS) -G "Unix Makefiles"
- SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_CC_FLAGS) -DSPIRV_CROSS_FORCE_PIC=ON
+ GLFW_FLAGS        = $(GLFW_FLAGS_UNIX) $(CMAKE_TOOLCHAIN)
+ SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "Unix Makefiles"
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -DSPIRV_CROSS_FORCE_PIC=ON
 endif
 
 
@@ -219,6 +218,7 @@ endif
 
 
 # Cleaning directories
+.PHONY: clean-temp
 clean-temp:
 ifeq ($(OS),Windows_NT)
 	$(eval OUT_W = $(subst /,\,$(OUT)))
@@ -227,6 +227,7 @@ else
 	@rm -Rf $(OUT)
 endif
 
+.PHONY: clean-bin
 clean-bin:
 ifeq ($(OS),Windows_NT)
 	$(eval BIN_W = $(subst /,\,$(BIN)))
@@ -235,6 +236,7 @@ else
 	@rm -Rf $(BIN)
 endif
 
+.PHONY: clean-deps
 clean-deps:
 ifeq ($(OS),Windows_NT)
 	$(eval BUILD_W = $(subst /,\,$(BUILD)))
@@ -245,10 +247,12 @@ endif
 
 
 # Nuke build files
+.PHONY: clean
 clean: clean-temp clean-bin
 
 
 # Nuke everything
+.PHONY: clean-all
 clean-all: clean-temp clean-bin clean-deps
 
 
@@ -308,15 +312,18 @@ MFLAGS_ALL  = --no-print-directory
 MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix LIBEXT=.so TESTPAT=%
 MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win LIBEXT=.dll TESTPAT=%.exe
 
+.PHONY: build build-tests
 .build: $(BIN)$(SUB)/libgroufix$(LIBEXT)
 .build-tests: $(TESTS:%=$(TESTPAT))
 
 
+.PHONY: unix unix-tests
 unix:
 	@$(MAKE) $(MFLAGS_UNIX) .build
 unix-tests:
 	@$(MAKE) $(MFLAGS_UNIX) .build-tests
 
+.PHONY: win win-tests
 win:
 	@$(MAKE) $(MFLAGS_WIN) .build
 win-tests:
