@@ -49,6 +49,14 @@ ifneq ($(OS),Windows_NT)
 endif
 
 
+# Python program command to use
+ifeq ($(OS),Windows_NT)
+ PYTHON = python
+else
+ PYTHON = python3
+endif
+
+
 # Compiler prefix (None if not a cross-compile)
 ifeq ($(CC),i686-w64-mingw32-gcc)
  CC_PREFIX = i686-w64-mingw32
@@ -241,8 +249,10 @@ clean-deps:
 ifeq ($(OS),Windows_NT)
 	$(eval BUILD_W = $(subst /,\,$(BUILD)))
 	@if exist $(BUILD_W)\nul rmdir /s /q $(BUILD_W)
+	@del /q .shaderc-deps.stamp
 else
 	@rm -Rf $(BUILD)
+	@rm -f .shaderc-deps.stamp
 endif
 
 
@@ -283,10 +293,18 @@ TESTS    = $(TESTSRCS:tests/%.c=$(BIN)$(SUB)/%)
 ##############################
 # All available builds
 
+.shaderc-deps.stamp:
+	$(PYTHON) ./deps/shaderc/utils/git-sync-deps
+ifeq ($(OS),Windows_NT)
+	@type nul >> $@ & copy /b $@ +,,
+else
+	@touch $@
+endif
+
 $(BUILD)$(SUB)/glfw/src/libglfw3.a: | $(BUILD)$(SUB)
 	@cd $(BUILD)$(SUB)/glfw && cmake $(GLFW_FLAGS) $(CURDIR)/deps/glfw && $(MAKE)
 
-$(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a: | $(BUILD)$(SUB)
+$(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a: .shaderc-deps.stamp | $(BUILD)$(SUB)
 	@cd $(BUILD)$(SUB)/shaderc && cmake $(SHADERC_FLAGS) $(CURDIR)/deps/shaderc && $(MAKE)
 
 $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a:

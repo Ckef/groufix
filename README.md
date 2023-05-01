@@ -16,9 +16,9 @@ Building
 
 Check out all source code:
 
-	git clone https://github.com/Ckef/groufix.git && cd groufix
+	git clone https://github.com/Ckef/groufix.git
+	cd groufix
 	git submodule update --init
-	python3 ./deps/shaderc/utils/git-sync-deps
 
 The project is shipped with a Makefile, run `make` or `mingw32-make` without a target to view all possible build targets. Each supported operating system has an explicit target. It is also possible to cross-compile _groufix_ to Windows using the `mingw-w64` package.
 
@@ -48,7 +48,7 @@ _When cross-compiling to Windows_:
 
 _When building on Windows_:
 - [CMake](https://cmake.org/) and [Mingw-w64](https://www.mingw-w64.org/) need to be installed, which should include the `cmake.exe` and `mingw32-make.exe` binaries. To use these to build _groufix_, add the `bin` directory of both to your `PATH` variable. Make sure to install the compiler using `POSIX` threads.
-- [Python 3](https://www.python.org/) needs to be installed for building [Shaderc](https://github.com/google/shaderc), make sure to install Python to your `PATH` variable.
+- [Git](https://git-scm.com/) and [Python 3](https://www.python.org/) need to be installed for building [Shaderc](https://github.com/google/shaderc), make sure to install both to your `PATH` variable.
 
 
 Usage
