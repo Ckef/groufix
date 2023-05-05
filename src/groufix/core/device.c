@@ -828,7 +828,6 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_FEATURES(device, vk11, vk12, pdf, pdv11f, pdv12f);
 
 	// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
-	// TODO: Enable VK_EXT_memory_budget?
 	const char* extensions[] = {
 		"VK_KHR_swapchain",
 
@@ -913,7 +912,7 @@ static void _gfx_create_context(_GFXDevice* device)
 
 	gfx_log_debug(
 		"Logical Vulkan device created:\n"
-		"    API version: %u.%u.%u\n"
+		"    API version: v%u.%u.%u\n"
 		"    Contains at least: [ %s ].\n"
 		"    #physical devices: %"GFX_PRIs".\n"
 		"    #queue sets: %"PRIu32".\n"
@@ -1048,7 +1047,7 @@ clean:
 error:
 	gfx_log_error(
 		"Could not create or initialize a logical Vulkan device for physical "
-		"device group containing at least: %s.",
+		"device group containing at least: [ %s ].",
 		device->name);
 }
 

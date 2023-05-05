@@ -178,13 +178,12 @@ bool _gfx_vulkan_init(void)
 	if (glfwExtensions == NULL)
 		goto clean;
 
-	// TODO: Enable VK_EXT_swapchain_colorspace?
 	const char* extraExtensions[] = {
 		// VK_EXT_debug_utils so we can log Vulkan debug messages.
 #if !defined (NDEBUG)
 		"VK_EXT_debug_utils",
 #endif
-		// VK_KHR_portability_subset for e.g. MoltenVK.
+		// VK_KHR_portability_enumeration for e.g. MoltenVK.
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
 		"VK_KHR_portability_enumeration",
 #endif
@@ -296,7 +295,7 @@ bool _gfx_vulkan_init(void)
 
 		gfx_log_debug(
 			"Vulkan instance created:\n"
-			"    API version: %u.%u.%u\n"
+			"    API version: v%u.%u.%u\n"
 			"    Enabled extensions: %s%s\n",
 			(unsigned int)VK_API_VERSION_MAJOR(version),
 			(unsigned int)VK_API_VERSION_MINOR(version),
