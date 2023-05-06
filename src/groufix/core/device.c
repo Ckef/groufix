@@ -940,6 +940,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	}
 #endif
 
+
 	// Now load all device level Vulkan functions.
 	// Load vkDestroyDevice and vkDeviceWaitIdle first so we can clean properly.
 	_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
@@ -1034,6 +1035,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(UnmapMemory);
 	_GFX_GET_DEVICE_PROC_ADDR(UpdateDescriptorSetWithTemplate);
 	_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);
+
 
 	// Set device's reference to this context.
 	device->context = context;
@@ -1340,12 +1342,11 @@ bool _gfx_devices_init(void)
 		goto terminate;
 	}
 
-#if !defined (NDEBUG)
 	// I really wanna know the detected devices :)
-	GFXBufWriter* logger = gfx_logger_debug();
+	GFXBufWriter* logger = gfx_logger_info();
 	if (logger != NULL)
 	{
-		gfx_io_writef(logger, "Detected physical vulkan devices:\n");
+		gfx_io_writef(logger, "Detected physical Vulkan devices:\n");
 
 		for (uint32_t i = 0; i < count; ++i)
 		{
@@ -1361,7 +1362,6 @@ bool _gfx_devices_init(void)
 
 		gfx_logger_end(logger);
 	}
-#endif
 
 	return 1;
 

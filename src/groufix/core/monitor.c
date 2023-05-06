@@ -104,11 +104,26 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 			gfx_log_fatal("Could not initialize a newly connected monitor.");
 			return;
 		}
+
+		// Wanna know about it?
+		const GLFWvidmode* vid = glfwGetVideoMode(monitor->handle);
+
+		gfx_log_info(
+			"Monitor connected:\n"
+			"    [ %s ] (%dx%d @ %d)\n",
+			monitor->base.name,
+			vid->width, vid->height, vid->refreshRate);
 	}
 	else
 	{
 		// On disconnect, shrink the configuration.
 		gfx_vec_pop(&_groufix.monitors, 1);
+
+		// Wanna know about it?
+		gfx_log_info(
+			"Monitor disconnected:\n"
+			"    [ %s ]\n",
+			monitor->base.name);
 	}
 
 	// So we don't know if the order of the configuration array is preserved.
@@ -148,6 +163,26 @@ bool _gfx_monitors_init(void)
 	for (size_t i = 0; i < (size_t)count; ++i)
 		if (_gfx_alloc_monitor(handles[i]) == NULL)
 			goto terminate;
+
+	// Let's see the connected monitors :)
+	GFXBufWriter* logger = gfx_logger_info();
+	if (logger != NULL)
+	{
+		gfx_io_writef(logger, "Detected monitors:\n");
+
+		for (size_t i = 0; i < _groufix.monitors.size; ++i)
+		{
+			_GFXMonitor** monitor = gfx_vec_at(&_groufix.monitors, i);
+			const GLFWvidmode* vid = glfwGetVideoMode((*monitor)->handle);
+
+			gfx_io_writef(logger,
+				"    [ %s ] (%dx%d @ %d)\n",
+				(*monitor)->base.name,
+				vid->width, vid->height, vid->refreshRate);
+		}
+
+		gfx_logger_end(logger);
+	}
 
 	// Make sure we get configuration change events.
 	glfwSetMonitorCallback(_gfx_glfw_monitor);
