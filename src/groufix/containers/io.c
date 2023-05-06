@@ -302,6 +302,7 @@ GFX_API long long gfx_io_vwritef(GFXBufWriter* str, const char* fmt, va_list arg
 	int len = vsnprintf(NULL, 0, fmt, args);
 	if (len < 0) goto error;
 
+recurse:
 	// Enough space left, buffer the data.
 	if (sizeof(str->buffer) - str->len > (size_t)len)
 		goto buffer;
@@ -317,12 +318,8 @@ GFX_API long long gfx_io_vwritef(GFXBufWriter* str, const char* fmt, va_list arg
 		goto buffer;
 
 	if (str->len > 0)
-	{
 		// If partial flush & still not enough space, recurse (!)
-		long long ret = gfx_io_vwritef(str, fmt, args2);
-		va_end(args2);
-		return ret;
-	}
+		goto recurse;
 
 	// Seems we have to allocate a bigger buffer.
 	char* mem = malloc((size_t)len + 1);
