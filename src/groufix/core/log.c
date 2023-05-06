@@ -38,14 +38,21 @@ static const char* _gfx_log_colors[] = {
 
 
 /****************************
- * Logs a new line to a writer stream.
+ * Writes the log header to a buffered writer stream.
  */
-static void _gfx_log(GFXBufWriter* out, uintmax_t thread,
-                     GFXLogLevel level, double timeMs,
-                     const char* file, unsigned int line,
-                     const char* fmt, va_list args)
+static void _gfx_log_header(GFXBufWriter* out,
+                            uintmax_t thread, GFXLogLevel level,
+                            const char* file, unsigned int line)
 {
 	const char* L = _gfx_log_levels[level-1];
+
+	// If file contains 'groufix' in it, only print it from there.
+	// Makes the logs a little less bulky, cheeky but nice :)
+	const char* f = strstr(file, "groufix");
+	file = (f == NULL) ? file : f;
+
+	// So we get seconds that the CPU has spent on this program.
+	const double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
 
 #if defined (GFX_UNIX)
 	if (
@@ -70,15 +77,11 @@ static void _gfx_log(GFXBufWriter* out, uintmax_t thread,
 #if defined (GFX_UNIX)
 	}
 #endif
-
-	gfx_io_vwritef(out, fmt, args);
-	gfx_io_write(&out->writer, "\n", sizeof(char));
-
-	gfx_io_flush(out);
 }
 
 /****************************/
-GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
+GFX_API void gfx_log(GFXLogLevel level,
+                     const char* file, unsigned int line,
                      const char* fmt, ...)
 {
 	assert(level > GFX_LOG_NONE && level < GFX_LOG_ALL);
@@ -86,14 +89,6 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	assert(fmt != NULL);
 
 	va_list args;
-
-	// If file contains 'groufix' in it, only print it from there.
-	// Makes the logs a little less bulky, cheeky but nice :)
-	const char* f = strstr(file, "groufix");
-	file = (f == NULL) ? file : f;
-
-	// So we get seconds that the CPU has spent on this program.
-	const double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
 
 	// If groufix is initialized..
 	if (atomic_load(&_groufix.initialized))
@@ -118,7 +113,10 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 			va_start(args, fmt);
 
 			_gfx_mutex_lock(&_groufix.thread.ioLock);
-			_gfx_log(out, thread, level, timeMs, file, line, fmt, args);
+			_gfx_log_header(out, thread, level, file, line);
+			gfx_io_vwritef(out, fmt, args);
+			gfx_io_write(&out->writer, "\n", sizeof(char));
+			gfx_io_flush(out);
 			_gfx_mutex_unlock(&_groufix.thread.ioLock);
 
 			va_end(args);
@@ -131,9 +129,72 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	else if (level <= _groufix.logDef)
 	{
 		va_start(args, fmt);
-		_gfx_log(&_gfx_io_buf_stderr, 0, level, timeMs, file, line, fmt, args);
+		_gfx_log_header(&_gfx_io_buf_stderr, 0, level, file, line);
+		gfx_io_vwritef(&_gfx_io_buf_stderr, fmt, args);
+		gfx_io_write(&_gfx_io_buf_stderr.writer, "\n", sizeof(char));
+		gfx_io_flush(&_gfx_io_buf_stderr);
 		va_end(args);
 	}
+}
+
+/****************************/
+GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
+                                 const char* file, unsigned int line)
+{
+	assert(level > GFX_LOG_NONE && level < GFX_LOG_ALL);
+	assert(file != NULL);
+
+	// If groufix is initialized..
+	if (atomic_load(&_groufix.initialized))
+	{
+		// Default to stderr with default log level.
+		GFXBufWriter* out = &_gfx_io_buf_stderr;
+		uintmax_t thread = 0;
+		GFXLogLevel logLevel = _groufix.logDef;
+
+		// If there is thread local state, use its params.
+		_GFXThreadState* state = _gfx_get_local();
+		if (state != NULL)
+		{
+			out = &state->log.out;
+			thread = state->id;
+			logLevel = state->log.level;
+		}
+
+		// Check output's destination stream & log level.
+		if (out->dest != NULL && level <= logLevel)
+		{
+			// Leave locked for gfx_logger_flush()!
+			_gfx_mutex_lock(&_groufix.thread.ioLock);
+			_gfx_log_header(out, thread, level, file, line);
+			return out;
+		}
+	}
+
+	// And if not, output to stderr just like gfx_log().
+	else if (level <= _groufix.logDef)
+	{
+		_gfx_log_header(&_gfx_io_buf_stderr, 0, level, file, line);
+		return &_gfx_io_buf_stderr;
+	}
+
+	return NULL;
+}
+
+/****************************/
+GFX_API void gfx_logger_flush(GFXBufWriter* logger)
+{
+	if (logger == NULL)
+		return;
+
+	// First write \n and flush.
+	gfx_io_write(&logger->writer, "\n", sizeof(char));
+	gfx_io_flush(logger);
+
+	// Unlock if groufix is initialized!
+	// Note: it is not allowed to initialize/terminate before this call!
+	if (atomic_load(&_groufix.initialized))
+		_gfx_mutex_unlock(&_groufix.thread.ioLock);
 }
 
 /****************************/

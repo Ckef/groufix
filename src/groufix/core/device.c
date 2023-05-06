@@ -883,58 +883,61 @@ static void _gfx_create_context(_GFXDevice* device)
 
 #if !defined (NDEBUG)
 	// This is like a moment to celebrate, right?
-	// We count the number of actual queues here.
-	size_t queueCount = 0;
-
-	// And get the queue indices of each chosen family.
-	// Don't forget:
-	//  { graphics, present, compute, transfer }.
-	uint32_t indices[4];
-
-	for (GFXListNode* s = context->sets.head; s != NULL; s = s->next)
+	GFXBufWriter* logger = gfx_logger_debug();
+	if (logger != NULL)
 	{
-		_GFXQueueSet* set = (_GFXQueueSet*)s;
-		queueCount += set->count;
+		// We count the number of actual queues here.
+		size_t queueCount = 0;
 
-		// Bit ugly, but we don't want extra computation when not debug!
-		if (set->family == families[0])
-			indices[0] = _gfx_queue_index(set, VK_QUEUE_GRAPHICS_BIT, 0);
-		if (set->family == families[1])
-			indices[1] = _gfx_queue_index(set, 0, 1);
-		if (set->family == families[2])
-			indices[2] = _gfx_queue_index(set, VK_QUEUE_COMPUTE_BIT, 0);
-		if (set->family == families[3])
-			indices[3] = _gfx_queue_index(set, VK_QUEUE_TRANSFER_BIT, 0);
+		// And get the queue indices of each chosen family.
+		// Don't forget:
+		//  { graphics, present, compute, transfer }.
+		uint32_t indices[4];
+
+		for (GFXListNode* s = context->sets.head; s != NULL; s = s->next)
+		{
+			_GFXQueueSet* set = (_GFXQueueSet*)s;
+			queueCount += set->count;
+
+			// Bit ugly, but we don't want extra computation when not debug!
+			if (set->family == families[0])
+				indices[0] = _gfx_queue_index(set, VK_QUEUE_GRAPHICS_BIT, 0);
+			if (set->family == families[1])
+				indices[1] = _gfx_queue_index(set, 0, 1);
+			if (set->family == families[2])
+				indices[2] = _gfx_queue_index(set, VK_QUEUE_COMPUTE_BIT, 0);
+			if (set->family == families[3])
+				indices[3] = _gfx_queue_index(set, VK_QUEUE_TRANSFER_BIT, 0);
+		}
+
+		gfx_io_writef(logger,
+			"Logical Vulkan device created:\n"
+			"    API version: v%u.%u.%u\n"
+			"    Contains at least: [ %s ].\n"
+			"    #physical devices: %"GFX_PRIs".\n"
+			"    #queue sets: %"PRIu32".\n"
+			"    #queues (total): %"GFX_PRIs".\n"
+			"    Picked queues (family,index):\n"
+			"        graphics: (%"PRIu32",%"PRIu32")\n"
+			"        presentation: (%"PRIu32",%"PRIu32")\n"
+			"        compute: (%"PRIu32",%"PRIu32")\n"
+			"        transfer: (%"PRIu32",%"PRIu32")\n"
+			"    Enabled extensions: %s\n",
+			(unsigned int)VK_API_VERSION_MAJOR(device->api),
+			(unsigned int)VK_API_VERSION_MINOR(device->api),
+			(unsigned int)VK_API_VERSION_PATCH(device->api),
+			device->name, context->numDevices, sets, queueCount,
+			families[0], indices[0],
+			families[1], indices[1],
+			families[2], indices[2],
+			families[3], indices[3],
+			extensionCount > 0 ? "" : "None.");
+
+		for (uint32_t e = 0; e < extensionCount; ++e)
+			gfx_io_writef(logger, "        %s\n", extensions[e]);
+
+		gfx_logger_flush(logger);
 	}
-
-	char* extensionString =
-		_gfx_str_join_alloc(extensionCount, extensions, "\n        ");
-
-	gfx_log_debug(
-		"Logical Vulkan device created:\n"
-		"    API version: v%u.%u.%u\n"
-		"    Contains at least: [ %s ].\n"
-		"    #physical devices: %"GFX_PRIs".\n"
-		"    #queue sets: %"PRIu32".\n"
-		"    #queues (total): %"GFX_PRIs".\n"
-		"    Picked queues (family,index):\n"
-		"        graphics: (%"PRIu32",%"PRIu32")\n"
-		"        presentation: (%"PRIu32",%"PRIu32")\n"
-		"        compute: (%"PRIu32",%"PRIu32")\n"
-		"        transfer: (%"PRIu32",%"PRIu32")\n"
-		"    Enabled extensions: %s%s\n",
-		(unsigned int)VK_API_VERSION_MAJOR(device->api),
-		(unsigned int)VK_API_VERSION_MINOR(device->api),
-		(unsigned int)VK_API_VERSION_PATCH(device->api),
-		device->name, context->numDevices, sets, queueCount,
-		families[0], indices[0],
-		families[1], indices[1],
-		families[2], indices[2],
-		families[3], indices[3],
-		extensionString ? "\n        " : "None.",
-		extensionString ? extensionString : "");
-
-	free(extensionString);
 #endif
 
 	// Now load all device level Vulkan functions.
@@ -1063,9 +1066,6 @@ bool _gfx_devices_init(void)
 		_groufix.vk.instance, &count, NULL), count = 0);
 
 	VkPhysicalDevice devices[count > 0 ? count : 1];
-#if !defined (NDEBUG)
-	const char* deviceNames[count > 0 ? count : 1];
-#endif
 	if (count == 0) goto terminate;
 
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
@@ -1324,9 +1324,6 @@ bool _gfx_devices_init(void)
 	{
 		_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
 		dev->base.name = dev->name;
-#if !defined (NDEBUG)
-		deviceNames[i] = dev->name;
-#endif
 
 		// Sneaky goto-based init/clear structure :o
 		if (!_gfx_mutex_init(&dev->lock))
@@ -1345,16 +1342,25 @@ bool _gfx_devices_init(void)
 
 #if !defined (NDEBUG)
 	// I really wanna know the detected devices :)
-	char* namesString =
-		_gfx_str_join_alloc(count, deviceNames, " ]\n    [ ");
+	GFXBufWriter* logger = gfx_logger_debug();
+	if (logger != NULL)
+	{
+		gfx_io_writef(logger, "Detected physical vulkan devices:\n");
 
-	if (namesString)
-		gfx_log_debug(
-			"Detected physical Vulkan devices:\n"
-			"    [ %s ]\n",
-			namesString);
+		for (uint32_t i = 0; i < count; ++i)
+		{
+			_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
+			gfx_io_writef(logger,
+				"    [ %s ] (v%u.%u.%u%s)\n",
+				dev->name,
+				(unsigned int)VK_API_VERSION_MAJOR(dev->api),
+				(unsigned int)VK_API_VERSION_MINOR(dev->api),
+				(unsigned int)VK_API_VERSION_PATCH(dev->api),
+				dev->base.available ? "" : " | not available");
+		}
 
-	free(namesString);
+		gfx_logger_flush(logger);
+	}
 #endif
 
 	return 1;

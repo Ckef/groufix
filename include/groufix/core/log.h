@@ -49,14 +49,31 @@ typedef enum GFXLogLevel
 #define gfx_log_info(...) \
 	gfx_log(GFX_LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
 
+#define gfx_logger_fatal() \
+	gfx_logger(GFX_LOG_FATAL, __FILE__, __LINE__);
+#define gfx_logger_error() \
+	gfx_logger(GFX_LOG_ERROR, __FILE__, __LINE__);
+#define gfx_logger_warn() \
+	gfx_logger(GFX_LOG_WARN, __FILE__, __LINE__);
+#define gfx_logger_info() \
+	gfx_logger(GFX_LOG_INFO, __FILE__, __LINE__);
+
 #if defined (NDEBUG)
 	#define gfx_log_debug(...)
 	#define gfx_log_verbose(...)
+
+	#define gfx_logger_debug()
+	#define gfx_logger_verbose()
 #else
 	#define gfx_log_debug(...) \
 		gfx_log(GFX_LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
 	#define gfx_log_verbose(...) \
 		gfx_log(GFX_LOG_DEBUG_VERBOSE, __FILE__, __LINE__, __VA_ARGS__)
+
+	#define gfx_logger_debug() \
+		gfx_logger(GFX_LOG_DEBUG, __FILE__, __LINE__)
+	#define gfx_logger_verbose() \
+		gfx_logger(GFX_LOG_DEBUG_VERBOSE, __FILE__, __LINE__)
 #endif
 
 
@@ -71,8 +88,31 @@ typedef enum GFXLogLevel
  * global log level that can be set before initialization with gfx_log_set_level.
  * Access to the output stream will be synchronized when groufix is initialized.
  */
-GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
+GFX_API void gfx_log(GFXLogLevel level,
+                     const char* file, unsigned int line,
                      const char* fmt, ...);
+
+/**
+ * Logs a new line to the log output of the calling thread WITHOUT flushing.
+ * This allows complex formatting to the buffered writer stream.
+ * @param level Must be > GFX_LOG_NONE and < GFX_LOG_ALL.
+ * @param file  Cannot be NULL, must be NULL-terminated.
+ * @return Buffered writer stream, if non-NULL, MUST call gfx_logger_flush()!
+ *
+ * If this call is made before the calling thread is attached,
+ * behaviour is equivalent to gfx_log().
+ */
+GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
+                                 const char* file, unsigned int line);
+
+/**
+ * Flushes the buffered writer stream returned by gfx_logger().
+ * MUST always be called after a successful call to gfx_logger()!
+ *
+ * If the engine is initialized/terminated OR gfx_log_set() is called
+ * inbetween calling gfx_logger() and this function, behaviour is undefined!
+ */
+GFX_API void gfx_logger_flush(GFXBufWriter* logger);
 
 /**
  * Sets the log level to output for the calling thread.

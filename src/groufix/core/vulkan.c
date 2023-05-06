@@ -290,20 +290,23 @@ bool _gfx_vulkan_init(void)
 
 #if !defined (NDEBUG)
 		// Traditional moment to celebrate.
-		char* extensionString =
-			_gfx_str_join_alloc(extensionCount, extensions, "\n        ");
+		GFXBufWriter* logger = gfx_logger_debug();
+		if (logger != NULL)
+		{
+			gfx_io_writef(logger,
+				"Vulkan instance created:\n"
+				"    API version: v%u.%u.%u\n"
+				"    Enabled extensions: %s\n",
+				(unsigned int)VK_API_VERSION_MAJOR(version),
+				(unsigned int)VK_API_VERSION_MINOR(version),
+				(unsigned int)VK_API_VERSION_PATCH(version),
+				extensionCount > 0 ? "" : "None.");
 
-		gfx_log_debug(
-			"Vulkan instance created:\n"
-			"    API version: v%u.%u.%u\n"
-			"    Enabled extensions: %s%s\n",
-			(unsigned int)VK_API_VERSION_MAJOR(version),
-			(unsigned int)VK_API_VERSION_MINOR(version),
-			(unsigned int)VK_API_VERSION_PATCH(version),
-			extensionString ? "\n        " : "None.",
-			extensionString ? extensionString : "");
+			for (uint32_t e = 0; e < extensionCount; ++e)
+				gfx_io_writef(logger, "        %s\n", extensions[e]);
 
-		free(extensionString);
+			gfx_logger_flush(logger);
+		}
 #endif
 
 
