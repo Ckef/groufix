@@ -936,7 +936,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		for (uint32_t e = 0; e < extensionCount; ++e)
 			gfx_io_writef(logger, "        %s\n", extensions[e]);
 
-		gfx_logger_flush(logger);
+		gfx_logger_end(logger);
 	}
 #endif
 
@@ -1359,7 +1359,7 @@ bool _gfx_devices_init(void)
 				dev->base.available ? "" : " | not available");
 		}
 
-		gfx_logger_flush(logger);
+		gfx_logger_end(logger);
 	}
 #endif
 

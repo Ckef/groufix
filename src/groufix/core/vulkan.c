@@ -305,7 +305,7 @@ bool _gfx_vulkan_init(void)
 			for (uint32_t e = 0; e < extensionCount; ++e)
 				gfx_io_writef(logger, "        %s\n", extensions[e]);
 
-			gfx_logger_flush(logger);
+			gfx_logger_end(logger);
 		}
 #endif
 

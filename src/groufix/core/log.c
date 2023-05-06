@@ -129,10 +129,12 @@ GFX_API void gfx_log(GFXLogLevel level,
 	else if (level <= _groufix.logDef)
 	{
 		va_start(args, fmt);
+
 		_gfx_log_header(&_gfx_io_buf_stderr, 0, level, file, line);
 		gfx_io_vwritef(&_gfx_io_buf_stderr, fmt, args);
 		gfx_io_write(&_gfx_io_buf_stderr.writer, "\n", sizeof(char));
 		gfx_io_flush(&_gfx_io_buf_stderr);
+
 		va_end(args);
 	}
 }
@@ -141,8 +143,10 @@ GFX_API void gfx_log(GFXLogLevel level,
 GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
                                  const char* file, unsigned int line)
 {
-	assert(level > GFX_LOG_NONE && level < GFX_LOG_ALL);
+	assert(level >= GFX_LOG_NONE && level < GFX_LOG_ALL);
 	assert(file != NULL);
+
+	if (level == GFX_LOG_NONE) return NULL; // No-op by design.
 
 	// If groufix is initialized..
 	if (atomic_load(&_groufix.initialized))
@@ -164,7 +168,7 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 		// Check output's destination stream & log level.
 		if (out->dest != NULL && level <= logLevel)
 		{
-			// Leave locked for gfx_logger_flush()!
+			// Leave locked for gfx_logger_end()!
 			_gfx_mutex_lock(&_groufix.thread.ioLock);
 			_gfx_log_header(out, thread, level, file, line);
 			return out;
@@ -182,7 +186,7 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 }
 
 /****************************/
-GFX_API void gfx_logger_flush(GFXBufWriter* logger)
+GFX_API void gfx_logger_end(GFXBufWriter* logger)
 {
 	if (logger == NULL)
 		return;
@@ -230,9 +234,7 @@ GFX_API bool gfx_log_set(const GFXWriter* out)
 	if (state == NULL)
 		return 0;
 
-	// Flush & re-initialize.
-	if (state->log.out.dest != NULL)
-		gfx_io_flush(&state->log.out);
+	// No need to flush, simply re-initialize.
 	if (out != NULL)
 		gfx_buf_writer(&state->log.out, out);
 	else
