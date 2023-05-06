@@ -78,7 +78,7 @@ typedef struct _GFXThreadState
 	struct
 	{
 		GFXLogLevel level;
-		const GFXWriter* out;
+		GFXBufWriter out; // `dest` is NULL if disabled.
 
 	} log;
 
@@ -451,6 +451,12 @@ typedef struct _GFXWindow
  * The only instance of global groufix data.
  */
 extern _GFXState _groufix;
+
+
+/**
+ * The default logger (to stderr) when no thread data is known.
+ */
+extern GFXBufWriter _gfx_io_buf_stderr;
 
 
 /**

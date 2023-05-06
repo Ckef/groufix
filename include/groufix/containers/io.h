@@ -80,6 +80,19 @@ typedef struct GFXStringReader
 
 
 /**
+ * Buffered writer stream definition.
+ */
+typedef struct GFXBufWriter
+{
+	GFXWriter writer;
+	const GFXWriter* dest;
+	size_t len;
+	char buffer[1024];
+
+} GFXBufWriter;
+
+
+/**
  * File reader/writer stream definition.
  */
 typedef struct GFXFile
@@ -171,17 +184,23 @@ static inline void gfx_io_release(const GFXIncluder* inc, const GFXReader* str)
 }
 
 /**
- * Writes formatted data to a writer stream.
+ * Writes formatted data to a buffered writer stream.
  * @param fmt Format, cannot be NULL, must be NULL-terminated.
  * @see gfx_io_write.
  */
-GFX_API long long gfx_io_writef(const GFXWriter* str, const char* fmt, ...);
+GFX_API long long gfx_io_writef(GFXBufWriter* str, const char* fmt, ...);
 
 /**
  * Equivalent to gfx_io_writef, but with a variable argument list object.
  * @see gfx_io_writef.
  */
-GFX_API long long gfx_io_vwritef(const GFXWriter* str, const char* fmt, va_list args);
+GFX_API long long gfx_io_vwritef(GFXBufWriter* str, const char* fmt, va_list args);
+
+/**
+ * Flushes the buffer of a buffered writer stream to its destination stream.
+ * @return Number of bytes flushed, negative on failure.
+ */
+GFX_API long long gfx_io_flush(GFXBufWriter* str);
 
 /**
  * Initializes a binary data stream.
@@ -206,6 +225,15 @@ GFX_API GFXReader* gfx_bin_reader(GFXBinReader* str, size_t len, const void* bin
  * string is freed or otherwise moved.
  */
 GFX_API GFXReader* gfx_string_reader(GFXStringReader* str, const char* string);
+
+/**
+ * Initializes a buffered writer stream.
+ * Does not need to be cleared, hence no _init postfix.
+ * @param str  Cannot be NULL.
+ * @param dest Cannot be NULL, all writes will be forwarded to this stream.
+ * @return &str->writer.
+ */
+GFX_API GFXWriter* gfx_buf_writer(GFXBufWriter* str, const GFXWriter* dest);
 
 /**
  * Initializes a file stream (i.e. opens it).

@@ -40,7 +40,7 @@ static const char* _gfx_log_colors[] = {
 /****************************
  * Logs a new line to a writer stream.
  */
-static void _gfx_log(const GFXWriter* out, uintmax_t thread,
+static void _gfx_log(GFXBufWriter* out, uintmax_t thread,
                      GFXLogLevel level, double timeMs,
                      const char* file, unsigned int line,
                      const char* fmt, va_list args)
@@ -49,8 +49,8 @@ static void _gfx_log(const GFXWriter* out, uintmax_t thread,
 
 #if defined (GFX_UNIX)
 	if (
-		(out == GFX_IO_STDOUT && isatty(STDOUT_FILENO)) ||
-		(out == GFX_IO_STDERR && isatty(STDERR_FILENO)))
+		(out->dest == GFX_IO_STDOUT && isatty(STDOUT_FILENO)) ||
+		(out->dest == GFX_IO_STDERR && isatty(STDERR_FILENO)))
 	{
 		// If on unix, logging to stdout/stderr and it is a tty, use color.
 		const char* C = _gfx_log_colors[level-1];
@@ -72,7 +72,9 @@ static void _gfx_log(const GFXWriter* out, uintmax_t thread,
 #endif
 
 	gfx_io_vwritef(out, fmt, args);
-	gfx_io_write(out, "\n", sizeof(char));
+	gfx_io_write(&out->writer, "\n", sizeof(char));
+
+	gfx_io_flush(out);
 }
 
 /****************************/
@@ -97,7 +99,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	if (atomic_load(&_groufix.initialized))
 	{
 		// Default to stderr with default log level.
-		const GFXWriter* out = GFX_IO_STDERR;
+		GFXBufWriter* out = &_gfx_io_buf_stderr;
 		uintmax_t thread = 0;
 		GFXLogLevel logLevel = _groufix.logDef;
 
@@ -105,13 +107,13 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 		_GFXThreadState* state = _gfx_get_local();
 		if (state != NULL)
 		{
-			out = state->log.out;
+			out = &state->log.out;
 			thread = state->id;
 			logLevel = state->log.level;
 		}
 
-		// Check output stream & log level.
-		if (out != NULL && level <= logLevel)
+		// Check output's destination stream & log level.
+		if (out->dest != NULL && level <= logLevel)
 		{
 			va_start(args, fmt);
 
@@ -129,7 +131,7 @@ GFX_API void gfx_log(GFXLogLevel level, const char* file, unsigned int line,
 	else if (level <= _groufix.logDef)
 	{
 		va_start(args, fmt);
-		_gfx_log(GFX_IO_STDERR, 0, level, timeMs, file, line, fmt, args);
+		_gfx_log(&_gfx_io_buf_stderr, 0, level, timeMs, file, line, fmt, args);
 		va_end(args);
 	}
 }
@@ -167,7 +169,13 @@ GFX_API bool gfx_log_set(const GFXWriter* out)
 	if (state == NULL)
 		return 0;
 
-	state->log.out = out;
+	// Flush & re-initialize.
+	if (state->log.out.dest != NULL)
+		gfx_io_flush(&state->log.out);
+	if (out != NULL)
+		gfx_buf_writer(&state->log.out, out);
+	else
+		state->log.out.dest = NULL;
 
 	return 1;
 }

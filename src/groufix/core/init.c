@@ -97,7 +97,7 @@ bool _gfx_create_local(void)
 
 	// Initialize the logging stuff.
 	state->log.level = _groufix.logDef;
-	state->log.out = GFX_IO_STDERR; // For initial identification.
+	gfx_buf_writer(&state->log.out, GFX_IO_STDERR); // For initial identification.
 
 	return 1;
 }
