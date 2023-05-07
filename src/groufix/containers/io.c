@@ -63,6 +63,7 @@ static long long _gfx_bin_reader_read(const GFXReader* str, void* data, size_t l
 static long long _gfx_string_reader_len(const GFXReader* str)
 {
 	GFXStringReader* reader = GFX_IO_OBJ(str, GFXStringReader, reader);
+
 	return (long long)strlen(reader->str);
 }
 
@@ -92,57 +93,55 @@ static long long _gfx_buf_writer_write(const GFXWriter* str, const void* data, s
 {
 	GFXBufWriter* writer = GFX_IO_OBJ(str, GFXBufWriter, writer);
 
-	// Calculate free space.
-	const size_t space = sizeof(writer->buffer) - writer->len;
+	size_t written = 0;
 
-	// Enough space left, write & return.
-	if (space >= len)
+	while (len > 0)
 	{
-		if (len > 0) memcpy(writer->buffer + writer->len, data, len);
-		writer->len += len;
-		return (long long)len;
+		// Calculate free space.
+		const size_t space = sizeof(writer->buffer) - writer->len;
+
+		// Enough space left, write & return.
+		if (space >= len)
+		{
+			memcpy(writer->buffer + writer->len, data, len);
+			writer->len += len;
+			return (long long)(written + len);
+		}
+
+		// If not, but the buffer is empty, shortcircuit the buffer.
+		if (writer->len == 0)
+		{
+			long long ret = gfx_io_write(writer->dest, data, len);
+			if (ret < 0)
+				// On error but already written, postpone failure return.
+				return written > 0 ? (long long)written : -1;
+
+			return (long long)written + ret;
+		}
+
+		// If not empty, write to whatever is left.
+		if (space > 0)
+		{
+			memcpy(writer->buffer + writer->len, data, space);
+			writer->len += space;
+			written += space;
+
+			data = (char*)data + space;
+			len -= space;
+		}
+
+		// 0 bytes left, try to flush.
+		long long flushed = gfx_io_flush(writer);
+		if (flushed < 0)
+			// Again, postpone failure return.
+			return written > 0 ? (long long)written : -1;
+
+		if (flushed == 0)
+			// If nothing flushed, nothing left to try.
+			return (long long)written;
 	}
 
-	// If not, write to whatever is left.
-	if (space > 0)
-	{
-		memcpy(writer->buffer + writer->len, data, space);
-		writer->len += space;
-		data = (char*)data + space;
-		len -= space;
-	}
-
-	// 0 bytes left, try to flush.
-	long long flushed = gfx_io_flush(writer);
-	if (flushed < 0)
-		// If broken but some space was left, postpone failure return.
-		return space > 0 ? (long long)space : -1;
-
-	if (flushed == 0)
-		// If nothing flushed, nothing left to try.
-		return (long long)space;
-
-	if (writer->len > 0)
-		// If partial flush, recurse (!)
-		// Here, _gfx_buf_writer_write(..) cannot be < 0;
-		//   we just flushed > 0 bytes, so there MUST be some space left!
-		return (long long)space + _gfx_buf_writer_write(str, data, len);
-
-	// Ok at this point we performed a complete flush (!)
-	// If enough space now, write & return.
-	if (sizeof(writer->buffer) >= len)
-	{
-		memcpy(writer->buffer, data, len);
-		writer->len += len;
-		return (long long)(space + len);
-	}
-
-	// If not, omit the buffer altogether.
-	long long ret = gfx_io_write(writer->dest, data, len);
-	if (ret < 0)
-		return space > 0 ? (long long)space : -1;
-
-	return (long long)space + ret;
+	return (long long)written;
 }
 
 /****************************
@@ -302,24 +301,21 @@ GFX_API long long gfx_io_vwritef(GFXBufWriter* str, const char* fmt, va_list arg
 	int len = vsnprintf(NULL, 0, fmt, args);
 	if (len < 0) goto error;
 
-recurse:
 	// Enough space left, buffer the data.
 	if (sizeof(str->buffer) - str->len > (size_t)len)
 		goto buffer;
 
-	// Ok we'll need to flush anyway...
-	long long flushed = gfx_io_flush(str);
-	if (flushed <= 0)
-		// If broken or nothing flushed, nothing left to try.
-		goto error;
+	// While there is data left, try to flush it.
+	while (str->len > 0)
+	{
+		if (gfx_io_flush(str) <= 0)
+			// If broken or nothing flushed, nothing left to try.
+			goto error;
 
-	if (sizeof(str->buffer) - str->len > (size_t)len)
-		// There's enough space now :)
-		goto buffer;
-
-	if (str->len > 0)
-		// If partial flush & still not enough space, recurse (!)
-		goto recurse;
+		if (sizeof(str->buffer) - str->len > (size_t)len)
+			// There's enough space now :)
+			goto buffer;
+	}
 
 	// Seems we have to allocate a bigger buffer.
 	char* mem = malloc((size_t)len + 1);
@@ -339,7 +335,7 @@ recurse:
 	return ret;
 
 
-	// Write to buffer on fit.
+	// Write to buffer.
 buffer:
 	len = vsprintf(str->buffer + str->len, fmt, args2);
 	if (len < 0) goto error;
@@ -361,28 +357,24 @@ GFX_API long long gfx_io_flush(GFXBufWriter* str)
 {
 	assert(str != NULL);
 
-	if (str->len > 0)
+	if (str->len == 0) return 0;
+
+	// Try to write to the destination!
+	long long ret = gfx_io_write(str->dest, str->buffer, str->len);
+	if (ret < 0) return -1;
+
+	// Complete flush, reset buffer :)
+	if ((size_t)ret >= str->len)
+		str->len = 0;
+
+	// Move memory if incomplete flush.
+	else if (ret > 0)
 	{
-		long long ret = gfx_io_write(str->dest, str->buffer, str->len);
-		if (ret < 0) return -1;
-
-		// Complete flush, reset buffer :)
-		if ((size_t)ret >= str->len)
-		{
-			str->len = 0;
-		}
-
-		// Move memory if incomplete flush.
-		else if (ret > 0)
-		{
-			str->len -= (size_t)ret;
-			memmove(str->buffer, str->buffer + ret, str->len);
-		}
-
-		return ret;
+		str->len -= (size_t)ret;
+		memmove(str->buffer, str->buffer + ret, str->len);
 	}
 
-	return 0;
+	return ret;
 }
 
 /****************************/
