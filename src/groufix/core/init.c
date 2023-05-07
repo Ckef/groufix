@@ -31,7 +31,7 @@ bool _gfx_init(void)
 	if (!_gfx_mutex_init(&_groufix.thread.ioLock))
 		goto clean_key;
 
-	atomic_store(&_groufix.thread.id, 0);
+	atomic_store_explicit(&_groufix.thread.id, 0, memory_order_relaxed);
 
 	// Initialize other things...
 	if (!_gfx_mutex_init(&_groufix.contextLock))
@@ -93,7 +93,8 @@ bool _gfx_create_local(void)
 	}
 
 	// Give it a unique id.
-	state->id = atomic_fetch_add(&_groufix.thread.id, 1);
+	state->id =
+		atomic_fetch_add_explicit(&_groufix.thread.id, 1, memory_order_relaxed);
 
 	// Initialize the logging stuff.
 	state->log.level = _groufix.logDef;

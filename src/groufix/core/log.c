@@ -93,9 +93,11 @@ GFX_API void gfx_log(GFXLogLevel level,
 	// If groufix is initialized..
 	if (atomic_load(&_groufix.initialized))
 	{
-		// Default to stderr with default log level.
+		// Default to stderr with default log level and next thread id.
+		uintmax_t thread =
+			atomic_load_explicit(&_groufix.thread.id, memory_order_relaxed);
+
 		GFXBufWriter* out = &_gfx_io_buf_stderr;
-		uintmax_t thread = 0;
 		GFXLogLevel logLevel = _groufix.logDef;
 
 		// If there is thread local state, use its params.
@@ -151,9 +153,11 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 	// If groufix is initialized..
 	if (atomic_load(&_groufix.initialized))
 	{
-		// Default to stderr with default log level.
+		// Default to stderr with default log level and next thread id.
+		uintmax_t thread =
+			atomic_load_explicit(&_groufix.thread.id, memory_order_relaxed);
+
 		GFXBufWriter* out = &_gfx_io_buf_stderr;
-		uintmax_t thread = 0;
 		GFXLogLevel logLevel = _groufix.logDef;
 
 		// If there is thread local state, use its params.
