@@ -34,6 +34,7 @@ static long long _gfx_stderr(const GFXWriter* str, const void* data, size_t len)
 static long long _gfx_bin_reader_len(const GFXReader* str)
 {
 	GFXBinReader* reader = GFX_IO_OBJ(str, GFXBinReader, reader);
+
 	return (long long)reader->len;
 }
 
@@ -138,7 +139,7 @@ static long long _gfx_buf_writer_write(const GFXWriter* str, const void* data, s
 
 		if (flushed == 0)
 			// If nothing flushed, nothing left to try.
-			return (long long)written;
+			break;
 	}
 
 	return (long long)written;
