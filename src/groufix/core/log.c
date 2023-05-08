@@ -93,11 +93,11 @@ GFX_API void gfx_log(GFXLogLevel level,
 	// If groufix is initialized..
 	if (atomic_load(&_groufix.initialized))
 	{
-		// Default to stderr with default log level and next thread id.
+		// Default to next thread id.
 		uintmax_t thread =
 			atomic_load_explicit(&_groufix.thread.id, memory_order_relaxed);
 
-		GFXBufWriter* out = &_gfx_io_buf_stderr;
+		GFXBufWriter* out = &_gfx_io_buf_def;
 		GFXLogLevel logLevel = _groufix.logDef;
 
 		// If there is thread local state, use its params.
@@ -126,16 +126,16 @@ GFX_API void gfx_log(GFXLogLevel level,
 	}
 
 	// Logging is special;
-	// when groufix is not initialized we output to stderr,
+	// when groufix is not initialized we output to the default logger,
 	// assuming thread id 0 and the default log level.
 	else if (level <= _groufix.logDef)
 	{
 		va_start(args, fmt);
 
-		_gfx_log_header(&_gfx_io_buf_stderr, 0, level, file, line);
-		gfx_io_vwritef(&_gfx_io_buf_stderr, fmt, args);
-		gfx_io_write(&_gfx_io_buf_stderr.writer, "\n", sizeof(char));
-		gfx_io_flush(&_gfx_io_buf_stderr);
+		_gfx_log_header(&_gfx_io_buf_def, 0, level, file, line);
+		gfx_io_vwritef(&_gfx_io_buf_def, fmt, args);
+		gfx_io_write(&_gfx_io_buf_def.writer, "\n", sizeof(char));
+		gfx_io_flush(&_gfx_io_buf_def);
 
 		va_end(args);
 	}
@@ -153,11 +153,11 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 	// If groufix is initialized..
 	if (atomic_load(&_groufix.initialized))
 	{
-		// Default to stderr with default log level and next thread id.
+		// Default to next thread id.
 		uintmax_t thread =
 			atomic_load_explicit(&_groufix.thread.id, memory_order_relaxed);
 
-		GFXBufWriter* out = &_gfx_io_buf_stderr;
+		GFXBufWriter* out = &_gfx_io_buf_def;
 		GFXLogLevel logLevel = _groufix.logDef;
 
 		// If there is thread local state, use its params.
@@ -179,11 +179,11 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 		}
 	}
 
-	// And if not, output to stderr just like gfx_log().
+	// And if not, output to default logger just like gfx_log().
 	else if (level <= _groufix.logDef)
 	{
-		_gfx_log_header(&_gfx_io_buf_stderr, 0, level, file, line);
-		return &_gfx_io_buf_stderr;
+		_gfx_log_header(&_gfx_io_buf_def, 0, level, file, line);
+		return &_gfx_io_buf_def;
 	}
 
 	return NULL;
@@ -210,19 +210,18 @@ GFX_API bool gfx_log_set_level(GFXLogLevel level)
 {
 	assert(level >= GFX_LOG_NONE && level <= GFX_LOG_ALL);
 
-	// Adjust the only pre-gfx_init() initialized setting.
-	if (!atomic_load(&_groufix.initialized))
+	// Set the only pre-gfx_init() initialized setting.
+	GFXLogLevel* logLevel = &_groufix.logDef;
+
+	if (atomic_load(&_groufix.initialized))
 	{
-		_groufix.logDef = level;
-		return 1;
+		_GFXThreadState* state = _gfx_get_local();
+		if (state == NULL) return 0;
+
+		logLevel = &state->log.level;
 	}
 
-	// Get the thread local state and set its level.
-	_GFXThreadState* state = _gfx_get_local();
-	if (state == NULL)
-		return 0;
-
-	state->log.level = level;
+	*logLevel = level;
 
 	return 1;
 }
@@ -230,19 +229,21 @@ GFX_API bool gfx_log_set_level(GFXLogLevel level)
 /****************************/
 GFX_API bool gfx_log_set(const GFXWriter* out)
 {
-	// Again, logging is special.
-	if (!atomic_load(&_groufix.initialized))
-		return 0;
+	assert(out != NULL);
 
-	_GFXThreadState* state = _gfx_get_local();
-	if (state == NULL)
-		return 0;
+	// Set default logger if not initialized or attached.
+	GFXBufWriter* writer = &_gfx_io_buf_def;
 
-	// No need to flush, simply re-initialize.
-	if (out != NULL)
-		gfx_buf_writer(&state->log.out, out);
-	else
-		state->log.out.dest = NULL;
+	if (atomic_load(&_groufix.initialized))
+	{
+		_GFXThreadState* state = _gfx_get_local();
+		if (state == NULL) return 0;
+
+		writer = &state->log.out;
+	}
+
+	// No need to flush, we rely on gfx_log() and gfx_logger_end() for that!
+	gfx_buf_writer(writer, out);
 
 	return 1;
 }

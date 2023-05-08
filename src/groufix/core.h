@@ -448,15 +448,15 @@ typedef struct _GFXWindow
  ****************************/
 
 /**
- * The only instance of global groufix data.
+ * The only instance of global groufix state data.
  */
 extern _GFXState _groufix;
 
 
 /**
- * The default logger (to stderr) when no thread data is known.
+ * The default logger (defaults to stderr) when no groufix state is known.
  */
-extern GFXBufWriter _gfx_io_buf_stderr;
+extern GFXBufWriter _gfx_io_buf_def;
 
 
 /**

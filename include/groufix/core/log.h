@@ -86,9 +86,9 @@ typedef enum GFXLogLevel
  * @param fmt   Format, cannot be NULL, must be NULL-terminated.
  *
  * If this call is made before the calling thread is attached,
- * it outputs to stderr, assuming thread id 0 (as if the main thread) and the
- * global log level that can be set before initialization with gfx_log_set_level.
- * Access to the output stream will be synchronized when groufix is initialized.
+ * it outputs to global logger, assuming the global log level and
+ * thread id 0 (as if the main thread).
+ * Access to the output stream is synchronized when groufix is initialized.
  */
 GFX_API void gfx_log(GFXLogLevel level,
                      const char* file, unsigned int line,
@@ -111,11 +111,11 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 /**
  * Ends (and flushes) the buffered writer stream returned by gfx_logger().
  * MUST always be called exaclty once after a successful call to gfx_logger()!
- * @param logger To flush, invalidated after this call returns.
+ * @param logger Invalidated after this call returns, may be NULL.
  *
- * If the engine is initialized/terminated OR gfx_log_set() is called
- * by the same thread inbetween calling gfx_logger() and this function,
- * behaviour is undefined!
+ * As long as any writer stream fetched through gfx_logger() exists
+ * that has not been ended yet,
+ * gfx_init, gfx_terminate and gfx_log_set CANNOT be called!
  */
 GFX_API void gfx_logger_end(GFXBufWriter* logger);
 
@@ -124,19 +124,23 @@ GFX_API void gfx_logger_end(GFXBufWriter* logger);
  * @param level Must be >= GFX_LOG_NONE and <= GFX_LOG_ALL.
  * @return Zero if the calling thread is not attached.
  *
- * If this call is made before gfx_init, it will always return non-zero and
- * will set a global log level, which is used to initialize every thread with
- * when the engine is initialized (including the main thread).
+ * If this call is made before gfx_init() it will set the global log level,
+ * which is used during intialization of the engine and
+ * to initialize every thread with (including the main thread).
  */
 GFX_API bool gfx_log_set_level(GFXLogLevel level);
 
 /**
  * Sets the output writer stream for logging of the calling thread.
- * @param out NULL to disable logging.
- * @return Zero if calling thread is not attached.
+ * @param out Cannot be NULL.
+ * @return Zero if the calling thread is not attached.
  *
- * All threads default to GFX_IO_STDERR if built with DEBUG=ON,
- * otherwise they all default to NULL.
+ * If this call is made before gfx_init() it will set the global logger,
+ * which is used during intialization of the engine and
+ * to initialize every thread with (including the main thread).
+ *
+ * All threads default to the global logger,
+ * which defaults to GFX_IO_STDERR itself.
  */
 GFX_API bool gfx_log_set(const GFXWriter* out);
 

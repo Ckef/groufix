@@ -29,6 +29,14 @@ static long long _gfx_stderr(const GFXWriter* str, const void* data, size_t len)
 }
 
 /****************************
+ * gfx_io_stdnul implementation of the write function.
+ */
+static long long _gfx_stdnul(const GFXWriter* str, const void* data, size_t len)
+{
+	return (long long)len;
+}
+
+/****************************
  * GFXBinReader implementation of the len function.
  */
 static long long _gfx_bin_reader_len(const GFXReader* str)
@@ -251,7 +259,7 @@ static void _gfx_file_includer_release(const GFXIncluder* inc, const GFXReader* 
 
 
 /****************************/
-GFXBufWriter _gfx_io_buf_stderr =
+GFXBufWriter _gfx_io_buf_def =
 {
 	.writer = { .write = _gfx_buf_writer_write },
 
@@ -271,6 +279,13 @@ const GFXWriter gfx_io_stdout =
 const GFXWriter gfx_io_stderr =
 {
 	.write = _gfx_stderr
+};
+
+
+/****************************/
+const GFXWriter gfx_io_stdnul =
+{
+	.write = _gfx_stdnul
 };
 
 

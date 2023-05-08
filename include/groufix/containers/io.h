@@ -117,13 +117,15 @@ typedef struct GFXFileIncluder
 
 
 /**
- * stdout/stderr constants.
+ * stdout/stderr/stdnul constants.
  */
 #define GFX_IO_STDOUT (&gfx_io_stdout)
 #define GFX_IO_STDERR (&gfx_io_stderr)
+#define GFX_IO_STDNUL (&gfx_io_stdnul)
 
 GFX_API const GFXWriter gfx_io_stdout;
 GFX_API const GFXWriter gfx_io_stderr;
+GFX_API const GFXWriter gfx_io_stdnul;
 
 
 /**
