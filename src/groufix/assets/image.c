@@ -72,33 +72,13 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 	assert(dep != NULL);
 	assert(src != NULL);
 
-	// Allocate source buffer.
-	long long len = gfx_io_len(src);
-	if (len <= 0)
-	{
-		gfx_log_error(
-			"Zero or unknown stream length, cannot load image source.");
-
-		return NULL;
-	}
-
-	void* source = malloc((size_t)len);
-	if (source == NULL)
-	{
-		gfx_log_error(
-			"Could not allocate source buffer to load image source.");
-
-		return NULL;
-	}
-
 	// Read source.
-	len = gfx_io_read(src, source, (size_t)len);
+	const void* source;
+	long long len = gfx_io_raw_init(&source, src);
+
 	if (len <= 0)
 	{
-		gfx_log_error(
-			"Could not read image source from stream.");
-
-		free(source);
+		gfx_log_error("Could not read image source from stream.");
 		return NULL;
 	}
 
@@ -113,7 +93,7 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 			"Failed to retrieve image dimensions & components from stream: %s.",
 			stbi_failure_reason());
 
-		free(source);
+		gfx_io_raw_clear(&source, src);
 		return NULL;
 	}
 
@@ -123,7 +103,7 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 			"Cannot load image from stream, invalid dimensions: %dx%d:%d",
 			x, y, sComps);
 
-		free(source);
+		gfx_io_raw_clear(&source, src);
 		return NULL;
 	}
 
@@ -187,7 +167,7 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 		gfx_log_error(
 			"No suitable supported format to load image from stream.");
 
-		free(source);
+		gfx_io_raw_clear(&source, src);
 		return NULL;
 	}
 
@@ -201,7 +181,7 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 	else
 		img = stbi_load_from_memory(source, (int)len, &x, &y, &comps, comps);
 
-	free(source); // Immediately free source buffer.
+	gfx_io_raw_clear(&source, src); // Immediately clear source buffer.
 
 	if (img == NULL)
 	{

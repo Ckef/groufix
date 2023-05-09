@@ -613,8 +613,7 @@ GFX_API unsigned int gfx_renderer_get_num_frames(GFXRenderer* renderer);
  *
  * Cannot run concurrently with _ANY_ function of the renderer's descendants!
  */
-GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer,
-                                     const GFXReader* src);
+GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src);
 
 /**
  * Stores the current groufix pipeline cache data.
@@ -624,8 +623,7 @@ GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer,
  *
  * Cannot run concurrently with _ANY_ function of the renderer's descendants!
  */
-GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer,
-                                      const GFXWriter* dst);
+GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* dst);
 
 /**
  * Describes the properties of an image attachment of a renderer.

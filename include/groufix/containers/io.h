@@ -26,6 +26,9 @@ typedef struct GFXReader
 	// Read function.
 	long long (*read)(const struct GFXReader*, void* data, size_t len);
 
+	// Raw getter (NULL if unsupported).
+	const void* (*get)(const struct GFXReader*);
+
 } GFXReader;
 
 
@@ -159,6 +162,15 @@ static inline long long gfx_io_read(const GFXReader* str, void* data, size_t len
 }
 
 /**
+ * Shorthand to call the get function.
+ * @return Pointer to the raw data, NULL if unsupported.
+ */
+static inline const void* gfx_io_get(const GFXReader* str)
+{
+	return str->get(str);
+}
+
+/**
  * Shorthand to call the write function.
  * @return Number of bytes written, negative on failure.
  */
@@ -184,6 +196,19 @@ static inline void gfx_io_release(const GFXIncluder* inc, const GFXReader* str)
 {
 	inc->release(inc, str);
 }
+
+/**
+ * Initializes a raw pointer to a reader stream's data.
+ * If gfx_io_get(str) returns non-NULL, *raw will be set to it by this function.
+ * @return Negative on failure, gfx_io_len(str) otherwise.
+ */
+GFX_API long long gfx_io_raw_init(const void** raw, const GFXReader* str);
+
+/**
+ * Clears a raw pointer to a reader stream's data.
+ * i.e. deallocates it if gfx_io_get(str) returns NULL.
+ */
+GFX_API void gfx_io_raw_clear(const void** raw, const GFXReader* str);
 
 /**
  * Writes formatted data to a buffered writer stream.

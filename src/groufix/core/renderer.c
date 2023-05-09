@@ -385,8 +385,7 @@ GFX_API unsigned int gfx_renderer_get_num_frames(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer,
-                                     const GFXReader* src)
+GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src)
 {
 	assert(renderer != NULL);
 	assert(src != NULL);
@@ -395,8 +394,7 @@ GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer,
 }
 
 /****************************/
-GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer,
-                                      const GFXWriter* dst)
+GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* dst)
 {
 	assert(renderer != NULL);
 	assert(dst != NULL);

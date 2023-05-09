@@ -1154,35 +1154,14 @@ bool _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 
 	// Then stick empty data in it big enough for the source.
 	long long len = gfx_io_len(src);
-	if (len <= 0)
-	{
-		gfx_log_error(
-			"Zero or unknown stream length, cannot load pipeline cache.");
-
-		free(_gfx_hash_builder_get(&builder));
-		return 0;
-	}
+	if (len <= 0) goto clean_builder;
 
 	void* bData = _gfx_hash_builder_push(&builder, (size_t)len, NULL);
-	if (bData == NULL)
-	{
-		gfx_log_error(
-			"Could not allocate buffer to load pipeline cache.");
-
-		free(_gfx_hash_builder_get(&builder));
-		return 0;
-	}
+	if (bData == NULL) goto clean_builder;
 
 	// Read cache data.
 	len = gfx_io_read(src, bData, (size_t)len);
-	if (len <= 0)
-	{
-		gfx_log_error(
-			"Could not read pipeline cache from stream.");
-
-		free(_gfx_hash_builder_get(&builder));
-		return 0;
-	}
+	if (len <= 0) goto clean_builder;
 
 	// Claim builder data & unpack the groufix header.
 	_GFXHashKey* key = _gfx_hash_builder_get(&builder);
@@ -1298,6 +1277,14 @@ bool _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 			key->len);
 
 	return success;
+
+
+	// Cleanup the builder on failure.
+clean_builder:
+	gfx_log_error("Could not read pipeline cache from stream.");
+
+	free(_gfx_hash_builder_get(&builder));
+	return 0;
 }
 
 /****************************/

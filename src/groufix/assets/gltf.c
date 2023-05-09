@@ -412,35 +412,17 @@ static void* _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 
 	// Allocate binary buffer.
 	long long len = gfx_io_len(src);
-	if (len <= 0)
-	{
-		gfx_log_error(
-			"Zero or unknown stream length, cannot load URI: %s.", uri);
-
-		gfx_io_release(inc, src);
-		return NULL;
-	}
+	if (len <= 0) goto clean;
 
 	void* bin = malloc((size_t)len);
-	if (bin == NULL)
-	{
-		gfx_log_error(
-			"Could not allocate buffer to load URI: %s.", uri);
-
-		gfx_io_release(inc, src);
-		return NULL;
-	}
+	if (bin == NULL) goto clean;
 
 	// Read source.
 	len = gfx_io_read(src, bin, (size_t)len);
 	if (len <= 0)
 	{
-		gfx_log_error(
-			"Could not read data from stream to load URI: %s.", uri);
-
-		gfx_io_release(inc, src);
 		free(bin);
-		return NULL;
+		goto clean;
 	}
 
 	// Release the stream & output.
@@ -448,6 +430,14 @@ static void* _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 
 	*size = (size_t)len;
 	return bin;
+
+
+	// Cleanup on failure.
+clean:
+	gfx_log_error("Could not read data from stream to load URI: %s.", uri);
+
+	gfx_io_release(inc, src);
+	return NULL;
 }
 
 /****************************
@@ -668,34 +658,14 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	assert(src != NULL);
 	assert(result != NULL);
 
-	// Allocate source buffer.
-	long long len = gfx_io_len(src);
-	if (len <= 0)
-	{
-		gfx_log_error(
-			"Zero or unknown stream length, cannot load glTF source.");
-
-		return 0;
-	}
-
-	void* source = malloc((size_t)len);
-	if (source == NULL)
-	{
-		gfx_log_error(
-			"Could not allocate source buffer to load glTF source.");
-
-		return 0;
-	}
-
 	// Read source.
-	len = gfx_io_read(src, source, (size_t)len);
+	const void* source;
+	long long len = gfx_io_raw_init(&source, src);
+
 	if (len <= 0)
 	{
-		gfx_log_error(
-			"Could not read glTF source from stream.");
-
-		free(source);
-		return 0;
+		gfx_log_error("Could not read glTF source from stream.");
+		return NULL;
 	}
 
 	// Parse the glTF source.
@@ -717,7 +687,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			_GFX_GLTF_ERROR_STRING(res));
 
 		cgltf_free(data);
-		free(source);
+		gfx_io_raw_clear(&source, src);
 		return 0;
 	}
 
@@ -1278,7 +1248,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 	// We are done building groufix objects, free gltf things.
 	cgltf_free(data);
-	free(source);
+	gfx_io_raw_clear(&source, src);
 
 	// Claim all data and return.
 	result->numBuffers = buffers.size;
@@ -1339,7 +1309,7 @@ clean:
 	gfx_vec_clear(&scenes);
 
 	cgltf_free(data);
-	free(source);
+	gfx_io_raw_clear(&source, src);
 
 	gfx_log_error("Failed to load glTF from stream.");
 

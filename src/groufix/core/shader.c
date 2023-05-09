@@ -132,41 +132,25 @@ static shaderc_include_result* _gfx_shaderc_resolve(void* ptr, const char* req,
 	result->source_name_length = 0;
 
 	// Resolve the requested source.
+	result->content =
+		"could not resolve #include directive.";
+
 	const GFXReader* str = gfx_io_resolve(inc, req);
-	if (str == NULL)
-	{
-		result->content = "could not resolve #include directive.";
-		goto clean_name;
-	}
+	if (str == NULL) goto clean_name;
 
 	// Allocate content buffer.
-	long long len = gfx_io_len(str);
-	if (len <= 0)
-	{
-		result->content =
-			"zero or unknown stream length, cannot load #include directive.";
+	result->content =
+		"could not read data from stream to load #include directive.";
 
-		goto clean_stream;
-	}
+	long long len = gfx_io_len(str);
+	if (len <= 0) goto clean_stream;
 
 	char* content = malloc((size_t)len);
-	if (content == NULL)
-	{
-		result->content =
-			"could not allocate buffer to load #include directive.";
-
-		goto clean_stream;
-	}
+	if (content == NULL) goto clean_stream;
 
 	// Read content.
 	len = gfx_io_read(str, content, (size_t)len);
-	if (len <= 0)
-	{
-		result->content =
-			"could not read data from stream to load #include directive.";
-
-		goto clean_content;
-	}
+	if (len <= 0) goto clean_content;
 
 	// Release the stream & output.
 	gfx_io_release(inc, str);
@@ -730,36 +714,17 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	if (shader->vk.module != VK_NULL_HANDLE)
 		return 1;
 
-	// Allocate source buffer.
-	long long len = gfx_io_len(src);
-	if (len <= 0)
-	{
-		gfx_log_error(
-			"Zero or unknown stream length, cannot compile %s shader.",
-			_GFX_GET_STAGE_STRING(shader->stage));
-
-		return 0;
-	}
-
-	char* source = malloc((size_t)len);
-	if (source == NULL)
-	{
-		gfx_log_error(
-			"Could not allocate source buffer to compile %s shader.",
-			_GFX_GET_STAGE_STRING(shader->stage));
-
-		return 0;
-	}
-
 	// Read source.
-	len = gfx_io_read(src, source, (size_t)len);
+	const void* source;
+	long long len = gfx_io_raw_init(&source, src);
+
 	if (len <= 0)
 	{
 		gfx_log_error(
 			"Could not read source from stream to compile %s shader.",
 			_GFX_GET_STAGE_STRING(shader->stage));
 
-		goto clean;
+		return 0;
 	}
 
 	// Create compiler and compile options.
@@ -776,7 +741,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 			"Could not initialize resources to compile %s shader.",
 			_GFX_GET_STAGE_STRING(shader->stage));
 
-		goto clean_compiler;
+		goto clean;
 	}
 
 	// Set source language.
@@ -859,7 +824,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 	// Compile the shader.
 	shaderc_compilation_result_t result = shaderc_compile_into_spv(
-		compiler, source, (size_t)len,
+		compiler, (const char*)source, (size_t)len,
 		_GFX_GET_SHADERC_KIND(shader->stage),
 		_GFX_GET_LANGUAGE_STRING(language),
 		"main",
@@ -930,7 +895,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	shaderc_compiler_release(compiler);
 	shaderc_compile_options_release(options);
 
-	free(source);
+	gfx_io_raw_clear(&source, src);
 
 	return 1;
 
@@ -938,11 +903,11 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	// Cleanup on failure.
 clean_result:
 	shaderc_result_release(result);
-clean_compiler:
+clean:
 	shaderc_compiler_release(compiler);
 	shaderc_compile_options_release(options);
-clean:
-	free(source);
+
+	gfx_io_raw_clear(&source, src);
 
 	return 0;
 }
@@ -957,36 +922,16 @@ GFX_API bool gfx_shader_load(GFXShader* shader, const GFXReader* src)
 	if (shader->vk.module != VK_NULL_HANDLE)
 		return 1;
 
-	// Allocate source buffer.
-	long long len = gfx_io_len(src);
-	if (len <= 0)
-	{
-		gfx_log_error(
-			"Zero or unknown stream length, cannot load %s shader.",
-			_GFX_GET_STAGE_STRING(shader->stage));
-
-		return 0;
-	}
-
-	void* source = malloc((size_t)len);
-	if (source == NULL)
-	{
-		gfx_log_error(
-			"Could not allocate source buffer to load %s shader.",
-			_GFX_GET_STAGE_STRING(shader->stage));
-
-		return 0;
-	}
-
 	// Read source.
-	len = gfx_io_read(src, source, (size_t)len);
+	const void* source;
+	long long len = gfx_io_raw_init(&source, src);
+
 	if (len <= 0)
 	{
 		gfx_log_error(
 			"Could not read source from stream to load %s shader.",
 			_GFX_GET_STAGE_STRING(shader->stage));
 
-		free(source);
 		return 0;
 	}
 
@@ -1001,6 +946,7 @@ GFX_API bool gfx_shader_load(GFXShader* shader, const GFXReader* src)
 			"Failed to load %s shader.",
 			_GFX_GET_STAGE_STRING(shader->stage));
 
-	free(source);
+	gfx_io_raw_clear(&source, src);
+
 	return built;
 }
