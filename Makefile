@@ -192,36 +192,13 @@ endif
 ##############################
 # Directory management
 
-$(BIN)$(SUB):
+.PHONY: .makedir
+.makedir:
 ifeq ($(OS),Windows_NT)
-	$(eval BINSUB_W = $(subst /,\,$(BIN)$(SUB)))
-	@if not exist $(BINSUB_W)\nul mkdir $(BINSUB_W)
+	$(eval MAKEDIR_W = $(subst /,\,$(MAKEDIR)))
+	@if not exist $(MAKEDIR_W)\nul mkdir $(MAKEDIR_W)
 else
-	@mkdir -p $(BIN)$(SUB)
-endif
-
-$(BUILD)$(SUB):
-ifeq ($(OS),Windows_NT)
-	$(eval BUILDSUB_W = $(subst /,\,$(BUILD)$(SUB)))
-	@if not exist $(BUILDSUB_W)\glfw\nul mkdir $(BUILDSUB_W)\glfw
-	@if not exist $(BUILDSUB_W)\shaderc\nul mkdir $(BUILDSUB_W)\shaderc
-	@if not exist $(BUILDSUB_W)\SPIRV-Cross\nul mkdir $(BUILDSUB_W)\SPIRV-Cross
-else
-	@mkdir -p $(BUILD)$(SUB)/glfw
-	@mkdir -p $(BUILD)$(SUB)/shaderc
-	@mkdir -p $(BUILD)$(SUB)/SPIRV-Cross
-endif
-
-$(OUT)$(SUB):
-ifeq ($(OS),Windows_NT)
-	$(eval OUTSUB_W = $(subst /,\,$(OUT)$(SUB)))
-	@if not exist $(OUTSUB_W)\groufix\assets\nul mkdir $(OUTSUB_W)\groufix\assets
-	@if not exist $(OUTSUB_W)\groufix\containers\nul mkdir $(OUTSUB_W)\groufix\containers
-	@if not exist $(OUTSUB_W)\groufix\core\mem\nul mkdir $(OUTSUB_W)\groufix\core\mem
-else
-	@mkdir -p $(OUT)$(SUB)/groufix/assets
-	@mkdir -p $(OUT)$(SUB)/groufix/containers
-	@mkdir -p $(OUT)$(SUB)/groufix/core/mem
+	@mkdir -p $(MAKEDIR)
 endif
 
 
@@ -276,13 +253,13 @@ LIBS = \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a
 
 
-# Auto expansion of a directory
-recurse = $(foreach d,$(wildcard $1/*),$(call recurse,$d,$2) $(filter $2,$d))
+# Auto expansion of files in a directory
+getfiles = $(foreach d,$(wildcard $1/*),$(call getfiles,$d,$2) $(filter $2,$d))
 
-SRCS = $(call recurse,src,%.c)
+SRCS = $(call getfiles,src,%.c)
 OBJS = $(SRCS:src/%.c=$(OUT)$(SUB)/%.o)
 
-TESTSRCS = $(call recurse,tests,%.c)
+TESTSRCS = $(call getfiles,tests,%.c)
 TESTS    = $(TESTSRCS:tests/%.c=$(BIN)$(SUB)/%)
 
 
@@ -301,23 +278,28 @@ else
 	@touch $@
 endif
 
-$(BUILD)$(SUB)/glfw/src/libglfw3.a: | $(BUILD)$(SUB)
+$(BUILD)$(SUB)/glfw/src/libglfw3.a:
+	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(BUILD)$(SUB)/glfw .makedir
 	@cd $(BUILD)$(SUB)/glfw && cmake $(GLFW_FLAGS) $(CURDIR)/deps/glfw && $(MAKE)
 
-$(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a: .shaderc-deps.stamp | $(BUILD)$(SUB)
+$(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a: .shaderc-deps.stamp
+	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(BUILD)$(SUB)/shaderc .makedir
 	@cd $(BUILD)$(SUB)/shaderc && cmake $(SHADERC_FLAGS) $(CURDIR)/deps/shaderc && $(MAKE)
 
 $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a:
-$(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a: | $(BUILD)$(SUB)
+$(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a:
+	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(BUILD)$(SUB)/SPIRV-Cross .makedir
 	@cd $(BUILD)$(SUB)/SPIRV-Cross && cmake $(SPIRV_CROSS_FLAGS) $(CURDIR)/deps/SPIRV-Cross && $(MAKE)
 
 
 # Object files
-$(OUT)$(SUB)/%.o: src/%.c | $(OUT)$(SUB)
+$(OUT)$(SUB)/%.o: src/%.c
+	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
 	$(CC) $(OFLAGS) $< -o $@
 
 # Library file
-$(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(OBJS) | $(BIN)$(SUB)
+$(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(OBJS)
+	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
 	$(CXX) $(OBJS) -o $@ $(LIBS) $(LFLAGS)
 
 # Test programs
@@ -330,7 +312,7 @@ MFLAGS_ALL  = --no-print-directory
 MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix LIBEXT=.so TESTPAT=%
 MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win LIBEXT=.dll TESTPAT=%.exe
 
-.PHONY: build build-tests
+.PHONY: .build .build-tests
 .build: $(BIN)$(SUB)/libgroufix$(LIBEXT)
 .build-tests: $(TESTS:%=$(TESTPAT))
 

@@ -741,7 +741,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 			"Could not initialize resources to compile %s shader.",
 			_GFX_GET_STAGE_STRING(shader->stage));
 
-		goto clean;
+		goto clean_compiler;
 	}
 
 	// Set source language.
@@ -903,7 +903,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	// Cleanup on failure.
 clean_result:
 	shaderc_result_release(result);
-clean:
+clean_compiler:
 	shaderc_compiler_release(compiler);
 	shaderc_compile_options_release(options);
 
