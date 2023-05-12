@@ -356,7 +356,7 @@ GFX_API void gfx_io_raw_clear(const void** raw, const GFXReader* str)
 	assert(raw != NULL);
 	assert(str != NULL);
 
-	if (gfx_io_get(str) == NULL)
+	if (*raw != gfx_io_get(str))
 		free((void*)*raw);
 
 	*raw = NULL;

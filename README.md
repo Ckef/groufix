@@ -24,9 +24,11 @@ The project is shipped with a Makefile, run `make` or `mingw32-make` without a t
 
 The Makefile takes the following flags:
 
+- `CC=xxx` tells the Makefile to use a given compiler collection. `xxx` defaults to `gcc`, to cross-compile to Windows, this must be set to `i686-w64-mingw32-gcc` or `x86_64-w64-mingw32-gcc`.
+
 - `DEBUG=xxx` tells the Makefile whether or not to compile _groufix_ with debug options enabled. If not compiling with debug options, optimization settings will be applied. `xxx` can be either `ON` or `OFF` and defaults to `ON`.
 
-- `CC=xxx` tells the Makefile to use a given compiler collection. `xxx` defaults to `gcc`, to cross-compile to Windows, this must be set to `i686-w64-mingw32-gcc` or `x86_64-w64-mingw32-gcc`.
+    - `SANITIZE=xxx` tells the Makefile to enable sanitizers. This setting is ignored if not compiling with debug options. `xxx` can be any `-fsanitize` option, e.g. `address,undefined`.
 
 - `USE_WAYLAND=xxx` tells the Makefile whether to compile for Wayland or not, as it will default to X11 when building on Linux. `xxx` can be either `ON` or `OFF` and defaults to `OFF`.
 

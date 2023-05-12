@@ -74,6 +74,12 @@ else
  DFLAGS = -DNDEBUG -O3
 endif
 
+ifeq ($(DEBUG),ON)
+ ifdef SANITIZE
+  DFLAGS += -fsanitize=$(SANITIZE)
+ endif
+endif
+
 WFLAGS = -Wall -Wconversion -Wsign-compare -Wshadow -pedantic
 CFLAGS = $(DFLAGS) $(WFLAGS) -std=c11 -Iinclude
 TFLAGS = $(CFLAGS) -pthread -lm
@@ -258,9 +264,7 @@ getfiles = $(foreach d,$(wildcard $1/*),$(call getfiles,$d,$2) $(filter $2,$d))
 
 SRCS = $(call getfiles,src,%.c)
 OBJS = $(SRCS:src/%.c=$(OUT)$(SUB)/%.o)
-
-TESTSRCS = $(call getfiles,tests,%.c)
-TESTS    = $(TESTSRCS:tests/%.c=$(BIN)$(SUB)/%)
+TESTS = $(patsubst tests/%.c,$(BIN)$(SUB)/%,$(call getfiles,tests,%.c))
 
 
 # Generated dependency files
