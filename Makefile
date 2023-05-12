@@ -101,16 +101,16 @@ endif
 
 
 # Linker flags
-LFLAGS_ALL  = -shared -pthread
-LFLAGS_WIN  = $(LFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
-LFLAGS_UNIX = $(LFLAGS_ALL) -ldl
+LDFLAGS_ALL  = -shared -pthread
+LDFLAGS_WIN  = $(LDFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
+LDFLAGS_UNIX = $(LDFLAGS_ALL) -ldl
 
 ifeq ($(USE_WAYLAND),ON)
- LFLAGS_UNIX += -lwayland-client
+ LDFLAGS_UNIX += -lwayland-client
 endif
 
 ifeq ($(MACOS),ON)
- LFLAGS_UNIX += \
+ LDFLAGS_UNIX += \
   -framework CoreFoundation \
   -framework CoreGraphics \
   -framework Cocoa \
@@ -118,11 +118,11 @@ ifeq ($(MACOS),ON)
 endif
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
- LFLAGS = $(LFLAGS_WIN)
+ LDFLAGS = $(LDFLAGS_WIN)
 else ifeq ($(OS),Windows_NT)
- LFLAGS = $(LFLAGS_WIN)
+ LDFLAGS = $(LDFLAGS_WIN)
 else
- LFLAGS = $(LFLAGS_UNIX)
+ LDFLAGS = $(LDFLAGS_UNIX)
 endif
 
 
@@ -304,7 +304,7 @@ $(OUT)$(SUB)/%.o: src/%.c
 # Library file
 $(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(OBJS)
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
-	$(CXX) $(OBJS) -o $@ $(LIBS) $(LFLAGS)
+	$(CXX) $(OBJS) -o $@ $(LIBS) $(LDFLAGS)
 
 # Test programs
 $(BIN)$(SUB)/$(TESTPAT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
