@@ -21,6 +21,7 @@
 
 #if defined (__cplusplus)
 	#include <atomic>
+	#include <string.h>
 #else
 	#include <stdatomic.h>
 #endif
@@ -102,6 +103,19 @@
 	#define GFX_BIT_FIELD(T) inline T operator|(T a, T b) { return (T)((long)a | (long)b); }
 #else
 	#define GFX_BIT_FIELD(T)
+#endif
+
+
+/**
+ * Define a copy constructor for non-copyable types in C++ mode.
+ */
+#if defined (__cplusplus)
+	#define GFX_COPY_CONSTRUCTOR(T, ops) \
+		T() {} \
+		T(const T& t) { memcpy(this, &t, sizeof(T)); ops; } \
+		T& operator=(const T& t) { memcpy(this, &t, sizeof(T)); ops; return *this; }
+#else
+	#define GFX_COPY_CONSTRUCTOR(...)
 #endif
 
 

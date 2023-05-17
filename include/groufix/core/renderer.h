@@ -494,6 +494,10 @@ typedef struct GFXRenderable
 	uintptr_t pipeline;
 	uint32_t  gen;
 
+	GFX_COPY_CONSTRUCTOR(
+		GFXRenderable,
+		this->lock.store(0, std::memory_order_relaxed))
+
 } GFXRenderable;
 
 
@@ -506,6 +510,11 @@ typedef struct GFXComputable
 	GFXTechnique* technique;
 
 	GFX_ATOMIC(uintptr_t) pipeline;
+
+	GFX_COPY_CONSTRUCTOR(
+		GFXComputable,
+		this->pipeline.store(
+			t.pipeline.load(std::memory_order_relaxed), std::memory_order_relaxed))
 
 } GFXComputable;
 
