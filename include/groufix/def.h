@@ -116,11 +116,16 @@
 
 
 /**
- * Describe union member as both anonymous and named.
+ * Describe named union member as optionally anonymous in C mode.
  */
-#define GFX_UNION_ANONYMOUS(member, name) \
-	struct member; \
-	struct member name;
+#if defined (__cplusplus)
+	#define GFX_UNION_ANONYMOUS(member, name) \
+		struct member name;
+#else
+	#define GFX_UNION_ANONYMOUS(member, name) \
+		struct member; \
+		struct member name;
+#endif
 
 
 /**
