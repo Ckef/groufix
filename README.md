@@ -2,7 +2,7 @@
 groufix
 =======
 
-_groufix_ is a cross-platform, thread-friendly and hardware accelerated graphics engine built in C11. The library is primarily focused on the Vulkan API (1.1+). The main repository is hosted on [GitHub](https://github.com/Ckef/groufix).
+_groufix_ is a cross-platform, thread-friendly and hardware accelerated graphics engine built in C11. The library is primarily focused on the Vulkan API (1.1+). It is compatible with C11 and up, GNU++11 and up and C++20 and up. The main repository is hosted on [GitHub](https://github.com/Ckef/groufix).
 
 The engine currently supports the following targets:
 
