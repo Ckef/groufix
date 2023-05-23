@@ -172,9 +172,10 @@
 template <typename T>
 struct GFXAtomic : public std::atomic<T> {
 	using std::atomic<T>::atomic;
-	GFXAtomic(const GFXAtomic& other) {
-		this->store(other.load(std::memory_order_relaxed), std::memory_order_relaxed);
-	}
+
+	GFXAtomic(const GFXAtomic& other) :
+		std::atomic<T>::atomic(other.load(std::memory_order_relaxed)) {}
+
 	GFXAtomic& operator=(const GFXAtomic& other) {
 		this->store(other.load(std::memory_order_relaxed), std::memory_order_relaxed);
 		return *this;
