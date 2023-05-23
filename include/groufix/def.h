@@ -88,7 +88,7 @@
 /**
  * groufix struct literal initialization.
  */
-#if defined (__cplusplus) && __cplusplus >= 202002L
+#if defined (__cplusplus) && __cplusplus > 201703L
 	#define GFX_LITERAL(type) type
 #else
 	#define GFX_LITERAL(type) (type)
