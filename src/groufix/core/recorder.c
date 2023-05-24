@@ -675,7 +675,6 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
                              size_t numDeps, const GFXInject* deps)
 {
 	assert(pass != NULL);
-	assert(pass->renderer->recording);
 	assert(numDeps == 0 || deps != NULL);
 
 	if (numDeps > 0) // Do nothing if no deps.
