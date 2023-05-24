@@ -1299,6 +1299,13 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
                                   void* ptr);
 
 /**
+ * Retrieves the current pass of a recorder.
+ * @param recorder Cannot be NULL.
+ * @return NULL if not called within a callback of gfx_recorder_(render|compute).
+ */
+GFX_API GFXPass* gfx_recorder_get_pass(GFXRecorder* recorder);
+
+/**
  * Retrieves the virtual frame size associated with the current pass.
  * @param recorder Cannot be NULL.
  * @param width    Cannot be NULL, output width.

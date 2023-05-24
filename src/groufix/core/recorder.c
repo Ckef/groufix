@@ -624,12 +624,18 @@ error:
 }
 
 /****************************/
+GFX_API GFXPass* gfx_recorder_get_pass(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	return recorder->inp.pass;
+}
+
+/****************************/
 GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
                                    uint32_t* width, uint32_t* height, uint32_t* layers)
 {
 	assert(recorder != NULL);
-	assert(recorder->inp.pass != NULL);
-	assert(recorder->inp.cmd != NULL);
 	assert(width != NULL);
 	assert(height != NULL);
 	assert(layers != NULL);
