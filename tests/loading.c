@@ -162,7 +162,7 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 	Context* ctx = ptr;
 	gfx_cmd_push(recorder, ctx->renderable.technique, 0, sizeof(push), push);
 	gfx_cmd_bind(recorder, ctx->renderable.technique, 0, 1, 0, &ctx->set, NULL);
-	gfx_cmd_draw_indexed(recorder, &ctx->renderable, 0, 1, 0, 0, 0);
+	gfx_cmd_draw_prim(recorder, &ctx->renderable, 1, 0);
 }
 
 

@@ -900,6 +900,23 @@ GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderab
 }
 
 /****************************/
+GFX_API void gfx_cmd_draw_prim(GFXRecorder* recorder, GFXRenderable* renderable,
+                               uint32_t instances, uint32_t firstInstance)
+{
+	// Mostly relies on called function for asserts.
+
+	assert(recorder != NULL);
+	assert(renderable != NULL);
+	assert(renderable->primitive != NULL);
+	assert(instances > 0);
+
+	if (renderable->primitive->numIndices > 0)
+		gfx_cmd_draw_indexed(recorder, renderable, 0, instances, 0, 0, firstInstance);
+	else
+		gfx_cmd_draw(recorder, renderable, 0, instances, 0, firstInstance);
+}
+
+/****************************/
 GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
                                uint32_t count,
                                uint32_t stride, GFXBufferRef ref)

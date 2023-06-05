@@ -1408,6 +1408,16 @@ GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderab
                                   uint32_t firstInstance);
 
 /**
+ * Render command to record a draw call for an entire primitive.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder   Cannot be NULL.
+ * @param renderable Cannot be NULL, must have a primitive!
+ * @param instances  Must be > 0.
+ */
+GFX_API void gfx_cmd_draw_prim(GFXRecorder* recorder, GFXRenderable* renderable,
+                               uint32_t instances, uint32_t firstInstance);
+
+/**
  * Render command to indirectly (from buffer) record a non-indexed draw.
  * Can only be called within a callback of gfx_recorder_render!
  * @param recorder   Cannot be NULL.
