@@ -954,6 +954,14 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 GFX_API void gfx_erase_tech(GFXTechnique* technique);
 
 /**
+ * Retrieves a shader of a technique.
+ * @param technique Cannot be NULL.
+ * @param stage     Shader stage, exactly 1 stage must be set.
+ * @return May be NULL if no shader was given.
+ */
+GFX_API GFXShader* gfx_tech_get_shader(GFXTechnique* technique, GFXShaderStage stage);
+
+/**
  * Retrieves the number of descriptor sets of a technique.
  * Can be called from any thread.
  * @param technique Cannot be NULL.

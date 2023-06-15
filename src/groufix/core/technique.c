@@ -591,6 +591,16 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique)
 }
 
 /****************************/
+GFX_API GFXShader* gfx_tech_get_shader(GFXTechnique* technique, GFXShaderStage stage)
+{
+	assert(technique != NULL);
+	assert(stage != GFX_STAGE_ANY);
+	assert(GFX_IS_POWER_OF_TWO(stage)); // Only 1 stage can be set.
+
+	return technique->shaders[_GFX_GET_SHADER_STAGE_INDEX(stage)];
+}
+
+/****************************/
 GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique)
 {
 	assert(technique != NULL);
