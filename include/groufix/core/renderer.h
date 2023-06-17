@@ -738,6 +738,16 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
 GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 /**
+ * Blocks until all virtual frames are done rendering.
+ * Does not block if a frame is not submitted.
+ * @param renderer Cannot be NULL.
+ *
+ * Failure during blocking cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_renderer_block(GFXRenderer* renderer);
+
+/**
  * Blocks until a virtual frame is done rendering.
  * No-op if the frame is not submitted.
  * @param frame Cannot be NULL.

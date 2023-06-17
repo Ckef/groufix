@@ -221,7 +221,10 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 		_GFX_VK_CHECK(
 			context->vk.WaitForFences(
 				context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX),
-			return 0);
+			{
+				gfx_log_fatal("Synchronization of all virtual frames failed.");
+				return 0;
+			});
 
 	return 1;
 }
@@ -494,6 +497,15 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 
 	// As promised, purge the associated heap.
 	gfx_heap_purge(renderer->heap);
+}
+
+/****************************/
+GFX_API void gfx_renderer_block(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// Just ignore the result.
+	_gfx_sync_frames(renderer);
 }
 
 /****************************/

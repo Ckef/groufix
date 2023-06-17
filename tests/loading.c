@@ -89,7 +89,7 @@ static bool load_gltf(const char* path, GFXGltfResult* result)
 	// Load glTF.
 	const char* attributeOrder[] = {
 		"POSITION",
-		"TEXCOORD",
+		"TEXCOORD"
 	};
 
 	const GFXGltfOptions opts = {
@@ -155,7 +155,7 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 		invAspect, 0.0f, 0.0f, 0.0f,
 		0.0f, 1.0f,  0.0f, 0.0f,
 		0.0f, 0.0f, -0.5f, 0.7f,
-		0.0f, 0.0f,  0.0f, 1.0f,
+		0.0f, 0.0f,  0.0f, 1.0f
 	};
 
 	// Draw the thing.

@@ -240,21 +240,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 	_GFXContext* context = renderer->cache.context;
 
 	// First wait for the frame to be done.
-	const uint32_t numFences =
-		(frame->submitted & _GFX_FRAME_GRAPHICS) ? 1 : 0 +
-		(frame->submitted & _GFX_FRAME_COMPUTE) ? 1 : 0;
-
-	if (numFences > 0)
-	{
-		const VkFence fences[] = {
-			(frame->submitted & _GFX_FRAME_GRAPHICS) ?
-				frame->vk.graphics.done : frame->vk.compute.done,
-			frame->vk.compute.done
-		};
-
-		_GFX_VK_CHECK(context->vk.WaitForFences(
-			context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX), {});
-	}
+	_gfx_frame_sync(renderer, frame, 0);
 
 	// Then destroy.
 	context->vk.DestroySemaphore(

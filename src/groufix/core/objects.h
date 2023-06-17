@@ -1746,7 +1746,8 @@ uint32_t _gfx_frame_get_swapchain_index(GFXFrame* frame, size_t index);
  * @param reset    Non-zero to also reset command pools.
  * @return Non-zero if successfully synchronized.
  *
- * Cannot be called again until a call to _gfx_frame_submit has been made.
+ * If resetting, this cannot be called again until a call
+ * to _gfx_frame_submit has been made.
  * Failure is considered fatal, frame cannot be used.
  */
 bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset);
@@ -1995,6 +1996,7 @@ bool _gfx_push_stale(GFXRenderer* renderer,
  *
  * Does not block for the publicly accessible frame!
  * Not reentrant nor thread-safe with respect to any frame.
+ * Failure is considered fatal, frames cannot be used.
  */
 bool _gfx_sync_frames(GFXRenderer* renderer);
 
