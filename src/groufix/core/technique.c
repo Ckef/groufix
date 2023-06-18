@@ -87,6 +87,7 @@ static inline bool _gfx_cmp_resources(const _GFXShaderResource* l,
 
 	return
 		l->count == r->count &&
+		l->size == r->size &&
 		l->type == r->type &&
 		(!isImage || l->viewType == r->viewType);
 }
