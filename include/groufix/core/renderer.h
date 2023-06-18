@@ -1137,6 +1137,14 @@ GFX_API void gfx_erase_set(GFXSet* set);
 GFX_API size_t gfx_set_get_num_bindings(GFXSet* set);
 
 /**
+ * Retrieves the type of a descriptor binding of a set.
+ * Can be called from any thread.
+ * @see gfx_set_get_binding_size.
+ * @return Undefined if the binding's size is zero.
+ */
+GFX_API GFXBindingType gfx_set_get_binding_type(GFXSet* set, size_t binding);
+
+/**
  * Retrieves the size (i.e. shader array size) of a descriptor binding of a set.
  * Can be called from any thread.
  * @param set     Cannot be NULL.
@@ -1145,12 +1153,12 @@ GFX_API size_t gfx_set_get_num_bindings(GFXSet* set);
 GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding);
 
 /**
- * Retrieves the type of a descriptor binding of a set.
+ * Retrieves the block byte size of a buffer descriptor binding of a set.
  * Can be called from any thread.
  * @see gfx_set_get_binding_size.
- * @return Undefined if the binding's size is zero.
+ * @return Zero if the binding is not a block, or unknown size.
  */
-GFX_API GFXBindingType gfx_set_get_binding_type(GFXSet* set, size_t binding);
+GFX_API size_t gfx_set_get_binding_block_size(GFXSet* set, size_t binding);
 
 /**
  * Retrieves whether a descriptor binding is immutable.

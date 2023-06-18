@@ -203,9 +203,29 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
                                   const spvc_reflected_resource* in,
                                   _GFXShaderResource* out)
 {
+	// Get all metadata.
+	const spvc_type hType =
+		spvc_compiler_get_type_handle(compiler, in->type_id);
+	const unsigned int numDims =
+		spvc_type_get_num_array_dimensions(hType);
+
+	const spvc_type hBaseType =
+		spvc_compiler_get_type_handle(compiler, in->base_type_id);
+	const spvc_basetype baseType =
+		spvc_type_get_basetype(hBaseType);
+
 	const bool hasLocation =
 		type == SPVC_RESOURCE_TYPE_STAGE_INPUT ||
 		type == SPVC_RESOURCE_TYPE_STAGE_OUTPUT;
+
+	const bool isImage =
+		baseType == SPVC_BASETYPE_IMAGE ||
+		baseType == SPVC_BASETYPE_SAMPLED_IMAGE;
+
+	const SpvDim imageDim = isImage ?
+		spvc_type_get_image_dimension(hBaseType) : 0;
+	const spvc_bool arrayed = isImage ?
+		spvc_type_get_image_arrayed(hBaseType) : SPVC_FALSE;
 
 	if (hasLocation)
 	{
@@ -223,12 +243,7 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 			compiler, in->id, SpvDecorationBinding);
 	}
 
-	// Then we get array size.
-	const spvc_type hType =
-		spvc_compiler_get_type_handle(compiler, in->type_id);
-	unsigned int numDims =
-		spvc_type_get_num_array_dimensions(hType);
-
+	// Get array size.
 	// Multiply all array dimensions together.
 	// If one of them is 0, so should count, as it is unsized.
 	out->count = (numDims == 0) ? 1 :
@@ -237,23 +252,7 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 	for (unsigned int d = 1; d < numDims; ++d)
 		out->count *= spvc_type_get_array_dimension(hType, d);
 
-	// Lastly, deduce the struct size and (view)type of the shader resource.
-	// For this we need information about the base type.
-	const spvc_type hBaseType =
-		spvc_compiler_get_type_handle(compiler, in->base_type_id);
-	const spvc_basetype baseType =
-		spvc_type_get_basetype(hBaseType);
-
-	const bool isImage =
-		baseType == SPVC_BASETYPE_IMAGE ||
-		baseType == SPVC_BASETYPE_SAMPLED_IMAGE;
-
-	const SpvDim imageDim = isImage ?
-		spvc_type_get_image_dimension(hBaseType) : 0;
-	const spvc_bool array = isImage ?
-		spvc_type_get_image_arrayed(hBaseType) : SPVC_FALSE;
-
-	// Struct size.
+	// Get struct size.
 	out->size = 0;
 
 	if (baseType == SPVC_BASETYPE_STRUCT)
@@ -265,20 +264,20 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 		if (result == SPVC_SUCCESS) out->size = structSize;
 	}
 
-	// View type.
+	// Get view type.
 	switch (imageDim)
 	{
 	case SpvDim1D:
-		out->viewType = array ? GFX_VIEW_1D_ARRAY : GFX_VIEW_1D;
+		out->viewType = arrayed ? GFX_VIEW_1D_ARRAY : GFX_VIEW_1D;
 		break;
 
 	case SpvDim2D:
 	case SpvDimRect:
-		out->viewType = array ? GFX_VIEW_2D_ARRAY : GFX_VIEW_2D;
+		out->viewType = arrayed ? GFX_VIEW_2D_ARRAY : GFX_VIEW_2D;
 		break;
 
 	case SpvDimCube:
-		out->viewType = array ? GFX_VIEW_CUBE_ARRAY : GFX_VIEW_CUBE;
+		out->viewType = arrayed ? GFX_VIEW_CUBE_ARRAY : GFX_VIEW_CUBE;
 		break;
 
 	case SpvDim3D:

@@ -1096,15 +1096,6 @@ GFX_API size_t gfx_set_get_num_bindings(GFXSet* set)
 }
 
 /****************************/
-GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding)
-{
-	assert(set != NULL);
-	assert(binding < set->numBindings);
-
-	return set->bindings[binding].count;
-}
-
-/****************************/
 GFX_API GFXBindingType gfx_set_get_binding_type(GFXSet* set, size_t binding)
 {
 	assert(set != NULL);
@@ -1122,6 +1113,24 @@ GFX_API GFXBindingType gfx_set_get_binding_type(GFXSet* set, size_t binding)
 		_GFX_DESCRIPTOR_IS_IMAGE(type) ?
 			GFX_BINDING_IMAGE :
 			GFX_BINDING_SAMPLER;
+}
+
+/****************************/
+GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding)
+{
+	assert(set != NULL);
+	assert(binding < set->numBindings);
+
+	return set->bindings[binding].count;
+}
+
+/****************************/
+GFX_API size_t gfx_set_get_binding_block_size(GFXSet* set, size_t binding)
+{
+	assert(set != NULL);
+	assert(binding < set->numBindings);
+
+	return set->bindings[binding].size;
 }
 
 /****************************/
