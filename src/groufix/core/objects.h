@@ -423,6 +423,9 @@ typedef struct _GFXShaderResource
 	// Array size (increasing location for vert/frag io), 0 = unsized.
 	size_t count;
 
+	// Struct size, 0 if not a struct or unknown.
+	size_t size;
+
 	// Undefined if not a 'non-attachment image'.
 	GFXViewType viewType;
 
@@ -1214,6 +1217,7 @@ typedef struct _GFXSetBinding
 	GFXViewType      viewType; // Undefined if not a 'non-attachment image'.
 
 	size_t        count;   // 0 = empty binding.
+	size_t        size;    // 0 = not a struct or unknown.
 	_GFXSetEntry* entries; // NULL if empty or immutable samplers only.
 
 } _GFXSetBinding;
@@ -2042,7 +2046,7 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 
 /**
  * Retrieves a descriptor set binding from a technique and populates the
- * `type`, `viewType` and `count` fields of a _GFXSetBinding struct.
+ * `type`, `viewType`, `count` and `size` fields of a _GFXSetBinding struct.
  * @param technique Cannot be NULL, must be locked.
  * @param set       Must be < technique->numSets.
  * @param binding   Descriptor binding number.

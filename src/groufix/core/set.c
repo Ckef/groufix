@@ -176,15 +176,24 @@ static void _gfx_set_update(GFXSet* set,
 	{
 		_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
 		if (unp.obj.buffer != NULL)
+		{
+			const uint64_t range =
+				_gfx_ref_size(entry->ref) - entry->range.offset;
+			const uint64_t maxRange =
+				(binding->size == 0) ?
+					range :
+					binding->count * binding->size;
+
 			entry->vk.update.buffer = (VkDescriptorBufferInfo){
 				.buffer = unp.obj.buffer->vk.buffer,
 				.offset = unp.value + entry->range.offset,
 				.range =
 					// Resolve zero buffer size.
 					(entry->range.size == 0) ?
-					_gfx_ref_size(entry->ref) - entry->range.offset :
+					GFX_MIN(range, maxRange) :
 					entry->range.size
 			};
+		}
 	}
 
 	// Update image info.

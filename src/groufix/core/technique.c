@@ -386,6 +386,7 @@ bool _gfx_tech_get_set_binding(GFXTechnique* technique,
 	out->type = _GFX_GET_VK_DESCRIPTOR_TYPE(res->type, isDynamic);
 	out->viewType = res->viewType;
 	out->count = res->count;
+	out->size = res->size;
 
 	// Just as above, check if it contains more than an immutable sampler.
 	return !isImmutable || res->type != _GFX_SHADER_SAMPLER;
