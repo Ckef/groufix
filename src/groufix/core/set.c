@@ -180,7 +180,7 @@ static void _gfx_set_update(GFXSet* set,
 			const uint64_t range =
 				_gfx_ref_size(entry->ref) - entry->range.offset;
 			const uint64_t maxRange =
-				(binding->size == 0) ?
+				(binding->count == 0 || binding->size == 0) ?
 					range :
 					binding->count * binding->size;
 
