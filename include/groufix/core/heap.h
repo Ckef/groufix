@@ -420,8 +420,8 @@ GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
 
 /**
  * Allocates a resource group from a heap.
- * All newly allocated buffers are aligned such that they can all be used as
- * any combination of a texel, uniform or storage buffer.
+ * Newly allocated buffers live in one big buffer, aligned such that they can
+ * all be used as any combination of a texel, uniform or storage buffer.
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Usage for any newly allocated buffer.
@@ -455,6 +455,16 @@ GFX_API size_t gfx_group_get_num_bindings(GFXGroup* group);
  * The `buffers` or `images` field of the returned binding will be NULL.
  */
 GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
+
+/**
+ * Retrieves the offset of a binding into the newly allocated group buffer,
+ * after alignment for texel, uniform and storage buffers.
+ * @see gfx_group_get_binding.
+ * @param index Binding array index, must be < gfx_group_get_binding(group, binding).count;
+ * @return Zero if the binding does not live in the newly allocated buffer.
+ */
+GFX_API uint64_t gfx_group_get_binding_offset(GFXGroup* group,
+                                              size_t binding, size_t index);
 
 
 /****************************

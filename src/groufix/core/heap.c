@@ -1532,36 +1532,36 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 					(uint64_t)(bind->type == GFX_BINDING_BUFFER ?
 						bind->elementSize :
 						GFX_FORMAT_BLOCK_SIZE(bind->format) / CHAR_BIT);
-
-				continue;
 			}
-
-			// Resolve & validate reference types and its context.
-			refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
-			_GFXUnpackRef unp = _gfx_ref_unpack(refPtr[r]);
-
-			if (
-				(!GFX_REF_IS_BUFFER(srcPtr[r]) &&
-					(bind->type == GFX_BINDING_BUFFER ||
-					bind->type == GFX_BINDING_BUFFER_TEXEL)) ||
-				(!GFX_REF_IS_IMAGE(srcPtr[r]) &&
-					bind->type == GFX_BINDING_IMAGE))
+			else
 			{
-				gfx_log_error(
-					"A resource group binding description must only "
-					"contain resource references of its own type.");
+				// Resolve & validate reference types and its context.
+				refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
+				_GFXUnpackRef unp = _gfx_ref_unpack(refPtr[r]);
 
-				goto clean;
-			}
+				if (
+					(!GFX_REF_IS_BUFFER(srcPtr[r]) &&
+						(bind->type == GFX_BINDING_BUFFER ||
+						bind->type == GFX_BINDING_BUFFER_TEXEL)) ||
+					(!GFX_REF_IS_IMAGE(srcPtr[r]) &&
+						bind->type == GFX_BINDING_IMAGE))
+				{
+					gfx_log_error(
+						"A resource group binding description must only "
+						"contain resource references of its own type.");
 
-			if (_GFX_UNPACK_REF_CONTEXT(unp) != heap->allocator.context)
-			{
-				gfx_log_error(
-					"A resource group binding description's resource "
-					"references must all be built on the same "
-					"logical Vulkan device.");
+					goto clean;
+				}
 
-				goto clean;
+				if (_GFX_UNPACK_REF_CONTEXT(unp) != heap->allocator.context)
+				{
+					gfx_log_error(
+						"A resource group binding description's resource "
+						"references must all be built on the same "
+						"logical Vulkan device.");
+
+					goto clean;
+				}
 			}
 		}
 
@@ -1666,4 +1666,20 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 	}
 
 	return bind;
+}
+
+/****************************/
+GFX_API uint64_t gfx_group_get_binding_offset(GFXGroup* group,
+                                              size_t binding, size_t index)
+{
+	assert(group != NULL);
+	assert(binding < ((_GFXGroup*)group)->numBindings);
+	assert(index < ((_GFXGroup*)group)->bindings[binding].count);
+
+	const GFXBinding* bind = &((_GFXGroup*)group)->bindings[binding];
+	const GFXBufferRef* ref = &bind->buffers[index];
+
+	return
+		(bind->type != GFX_BINDING_IMAGE &&
+		ref->obj == &((_GFXGroup*)group)->buffer) ? ref->offset : 0;
 }
