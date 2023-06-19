@@ -116,6 +116,7 @@ typedef enum GFXReferenceType
 	GFX_REF_PRIMITIVE_INDICES,
 	GFX_REF_GROUP_BUFFER,
 	GFX_REF_GROUP_IMAGE,
+	GFX_REF_GROUP,
 	GFX_REF_ATTACHMENT,
 
 	GFX_REF_EMPTY
@@ -169,7 +170,8 @@ typedef GFXReference GFXImageRef;
 	((ref).type == GFX_REF_BUFFER || \
 	(ref).type == GFX_REF_PRIMITIVE_VERTICES || \
 	(ref).type == GFX_REF_PRIMITIVE_INDICES || \
-	(ref).type == GFX_REF_GROUP_BUFFER)
+	(ref).type == GFX_REF_GROUP_BUFFER || \
+	(ref).type == GFX_REF_GROUP)
 
 #define GFX_REF_IS_IMAGE(ref) \
 	((ref).type == GFX_REF_IMAGE || \
@@ -183,6 +185,7 @@ typedef GFXReference GFXImageRef;
  *  GFXImage
  *  GFXPrimitive (its vertex or index buffers)
  *  GFXGroup     (one of its buffers or images)
+ *                (or: all newly allocated buffers as one)
  *  GFXRenderer  (its image attachments)
  *
  * No argument can be NULL, any referenced memory resource must exist.
@@ -269,6 +272,22 @@ typedef GFXReference GFXImageRef;
 		.obj = group, \
 		.offset = 0, \
 		.values = { binding_, index_ } \
+	}
+
+#define gfx_ref_group(group) \
+	GFX_LITERAL(GFXBufferRef){ \
+		.type = GFX_REF_GROUP, \
+		.obj = group, \
+		.offset = 0, \
+		.values = { 0, 0 } \
+	}
+
+#define gfx_ref_group_at(group, offset_) \
+	GFX_LITERAL(GFXBufferRef){ \
+		.type = GFX_REF_GROUP, \
+		.obj = group, \
+		.offset = offset_, \
+		.values = { 0, 0 } \
 	}
 
 #define gfx_ref_attach(renderer, attachment_) \

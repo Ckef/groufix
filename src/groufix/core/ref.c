@@ -68,6 +68,9 @@ uint64_t _gfx_ref_size(GFXReference ref)
 				GFX_FORMAT_BLOCK_SIZE(_GFX_BINDING->format) / CHAR_BIT) -
 			ref.offset;
 
+	case GFX_REF_GROUP:
+		return _GFX_GROUP->buffer.base.size - ref.offset;
+
 	default:
 		// All others are not a buffer.
 		return 0;
@@ -139,6 +142,13 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 			"Group image reference not an image!");
 
 		rec = _GFX_BINDING->images[_GFX_VINDEX(ref)]; // Must be an image.
+		break;
+
+	case GFX_REF_GROUP:
+		_GFX_CHECK_RESOLVE(
+			_GFX_GROUP->buffer.vk.buffer != VK_NULL_HANDLE,
+			"Referencing a group without newly allocated buffers!");
+
 		break;
 
 	case GFX_REF_ATTACHMENT:
@@ -226,6 +236,16 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		unp.value = ref.offset +
 			// Augment offset into the group's buffer.
 			_GFX_BINDING->buffers[_GFX_VINDEX(ref)].offset;
+
+		_GFX_CHECK_UNPACK(
+			unp.value < unp.obj.buffer->base.size,
+			"Group buffer reference out of bounds!");
+
+		break;
+
+	case GFX_REF_GROUP:
+		unp.obj.buffer = &_GFX_GROUP->buffer;
+		unp.value = ref.offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
