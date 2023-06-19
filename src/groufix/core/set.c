@@ -180,9 +180,7 @@ static void _gfx_set_update(GFXSet* set,
 			const uint64_t range =
 				_gfx_ref_size(entry->ref) - entry->range.offset;
 			const uint64_t maxRange =
-				(binding->count == 0 || binding->size == 0) ?
-					range :
-					binding->count * binding->size;
+				(binding->size == 0) ? range : binding->size;
 
 			entry->vk.update.buffer = (VkDescriptorBufferInfo){
 				.buffer = unp.obj.buffer->vk.buffer,
@@ -190,8 +188,7 @@ static void _gfx_set_update(GFXSet* set,
 				.range =
 					// Resolve zero buffer size.
 					(entry->range.size == 0) ?
-					GFX_MIN(range, maxRange) :
-					entry->range.size
+						GFX_MIN(range, maxRange) : entry->range.size
 			};
 		}
 	}
@@ -266,8 +263,8 @@ static void _gfx_set_update(GFXSet* set,
 				.range =
 					// Resolve zero buffer size.
 					(entry->range.size == 0) ?
-					_gfx_ref_size(entry->ref) - entry->range.offset :
-					entry->range.size
+						_gfx_ref_size(entry->ref) - entry->range.offset :
+						entry->range.size
 			};
 
 			VkBufferView view;
