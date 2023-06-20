@@ -49,8 +49,10 @@ typedef struct GFXDevice
 	struct
 	{
 		bool indexUint32;
+		bool indirectMultiDraw;
 		bool indirectFirstInstance;
 		bool cubeArray;
+		bool multisampledStorageImage;
 		bool geometryShader;
 		bool tessellationShader;
 		bool inlineCompute;
@@ -61,6 +63,10 @@ typedef struct GFXDevice
 		bool compressionBC;
 		bool compressionETC2; // Includes EAC compression.
 		bool compressionASTC;
+		bool samplerAnisotropy;
+		bool samplerClampToEdgeMirror;
+		bool samplerMinmax;
+
 		bool shaderClipDistance;
 		bool shaderCullDistance;
 		bool shaderInt8;
@@ -71,9 +77,22 @@ typedef struct GFXDevice
 		bool shaderPushConstant8;
 		bool shaderPushConstant16;
 		bool shaderInputOutput16;
-		bool samplerAnisotropy;
-		bool samplerClampToEdgeMirror;
-		bool samplerMinmax;
+
+		bool dynamicIndexUniformBuffer;
+		bool dynamicIndexStorageBuffer;
+		bool dynamicIndexUniformTexelBuffer;
+		bool dynamicIndexStorageTexelBuffer;
+		bool dynamicIndexSampledImage;
+		bool dynamicIndexStorageImage;
+		bool dynamicIndexAttachmentInput;
+
+		bool nonUniformIndexUniformBuffer;
+		bool nonUniformIndexStorageBuffer;
+		bool nonUniformIndexUniformTexelBuffer;
+		bool nonUniformIndexStorageTexelBuffer;
+		bool nonUniformIndexSampledImage;
+		bool nonUniformIndexStorageImage;
+		bool nonUniformIndexAttachmentInput;
 
 	} features;
 

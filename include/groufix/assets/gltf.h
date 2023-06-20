@@ -228,7 +228,7 @@ typedef struct GFXGltfNode
 	struct GFXGltfNode** children;
 	size_t               numChildren;
 
-	float matrix[16];
+	float matrix[16]; // Column-major.
 	float translation[3];
 	float rotation[4];
 	float scale[3];

@@ -193,44 +193,38 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	}
 
 #if defined (NDEBUG)
-	pdf->robustBufferAccess                      = VK_FALSE;
+	pdf->robustBufferAccess                     = VK_FALSE;
 #endif
-	pdf->sampleRateShading                       = VK_FALSE;
-	pdf->dualSrcBlend                            = VK_FALSE;
-	pdf->multiDrawIndirect                       = VK_FALSE;
-	pdf->depthClamp                              = VK_FALSE;
-	pdf->depthBiasClamp                          = VK_FALSE;
-	pdf->wideLines                               = VK_FALSE;
-	pdf->largePoints                             = VK_FALSE;
-	pdf->alphaToOne                              = VK_FALSE;
-	pdf->multiViewport                           = VK_FALSE;
-	pdf->occlusionQueryPrecise                   = VK_FALSE;
-	pdf->pipelineStatisticsQuery                 = VK_FALSE;
-	pdf->vertexPipelineStoresAndAtomics          = VK_FALSE;
-	pdf->fragmentStoresAndAtomics                = VK_FALSE;
-	pdf->shaderTessellationAndGeometryPointSize  = VK_FALSE;
-	pdf->shaderImageGatherExtended               = VK_FALSE;
-	pdf->shaderStorageImageExtendedFormats       = VK_FALSE;
-	pdf->shaderStorageImageMultisample           = VK_FALSE;
-	pdf->shaderStorageImageReadWithoutFormat     = VK_FALSE;
-	pdf->shaderStorageImageWriteWithoutFormat    = VK_FALSE;
-	pdf->shaderUniformBufferArrayDynamicIndexing = VK_FALSE;
-	pdf->shaderSampledImageArrayDynamicIndexing  = VK_FALSE;
-	pdf->shaderStorageBufferArrayDynamicIndexing = VK_FALSE;
-	pdf->shaderStorageImageArrayDynamicIndexing  = VK_FALSE;
-	pdf->shaderResourceResidency                 = VK_FALSE;
-	pdf->shaderResourceMinLod                    = VK_FALSE;
-	pdf->sparseBinding                           = VK_FALSE;
-	pdf->sparseResidencyBuffer                   = VK_FALSE;
-	pdf->sparseResidencyImage2D                  = VK_FALSE;
-	pdf->sparseResidencyImage3D                  = VK_FALSE;
-	pdf->sparseResidency2Samples                 = VK_FALSE;
-	pdf->sparseResidency4Samples                 = VK_FALSE;
-	pdf->sparseResidency8Samples                 = VK_FALSE;
-	pdf->sparseResidency16Samples                = VK_FALSE;
-	pdf->sparseResidencyAliased                  = VK_FALSE;
-	pdf->variableMultisampleRate                 = VK_FALSE;
-	pdf->inheritedQueries                        = VK_FALSE;
+	pdf->sampleRateShading                      = VK_FALSE;
+	pdf->dualSrcBlend                           = VK_FALSE;
+	pdf->depthClamp                             = VK_FALSE;
+	pdf->depthBiasClamp                         = VK_FALSE;
+	pdf->wideLines                              = VK_FALSE;
+	pdf->largePoints                            = VK_FALSE;
+	pdf->alphaToOne                             = VK_FALSE;
+	pdf->multiViewport                          = VK_FALSE;
+	pdf->occlusionQueryPrecise                  = VK_FALSE;
+	pdf->pipelineStatisticsQuery                = VK_FALSE;
+	pdf->vertexPipelineStoresAndAtomics         = VK_FALSE;
+	pdf->fragmentStoresAndAtomics               = VK_FALSE;
+	pdf->shaderTessellationAndGeometryPointSize = VK_FALSE;
+	pdf->shaderImageGatherExtended              = VK_FALSE;
+	pdf->shaderStorageImageExtendedFormats      = VK_FALSE;
+	pdf->shaderStorageImageReadWithoutFormat    = VK_FALSE;
+	pdf->shaderStorageImageWriteWithoutFormat   = VK_FALSE;
+	pdf->shaderResourceResidency                = VK_FALSE;
+	pdf->shaderResourceMinLod                   = VK_FALSE;
+	pdf->sparseBinding                          = VK_FALSE;
+	pdf->sparseResidencyBuffer                  = VK_FALSE;
+	pdf->sparseResidencyImage2D                 = VK_FALSE;
+	pdf->sparseResidencyImage3D                 = VK_FALSE;
+	pdf->sparseResidency2Samples                = VK_FALSE;
+	pdf->sparseResidency4Samples                = VK_FALSE;
+	pdf->sparseResidency8Samples                = VK_FALSE;
+	pdf->sparseResidency16Samples               = VK_FALSE;
+	pdf->sparseResidencyAliased                 = VK_FALSE;
+	pdf->variableMultisampleRate                = VK_FALSE;
+	pdf->inheritedQueries                       = VK_FALSE;
 
 	if (pdv11f)
 	{
@@ -254,16 +248,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 		pdv12f->shaderBufferInt64Atomics                           = VK_FALSE;
 		pdv12f->shaderSharedInt64Atomics                           = VK_FALSE;
 		pdv12f->descriptorIndexing                                 = VK_FALSE;
-		pdv12f->shaderInputAttachmentArrayDynamicIndexing          = VK_FALSE;
-		pdv12f->shaderUniformTexelBufferArrayDynamicIndexing       = VK_FALSE;
-		pdv12f->shaderStorageTexelBufferArrayDynamicIndexing       = VK_FALSE;
-		pdv12f->shaderUniformBufferArrayNonUniformIndexing         = VK_FALSE;
-		pdv12f->shaderSampledImageArrayNonUniformIndexing          = VK_FALSE;
-		pdv12f->shaderStorageBufferArrayNonUniformIndexing         = VK_FALSE;
-		pdv12f->shaderStorageImageArrayNonUniformIndexing          = VK_FALSE;
-		pdv12f->shaderInputAttachmentArrayNonUniformIndexing       = VK_FALSE;
-		pdv12f->shaderUniformTexelBufferArrayNonUniformIndexing    = VK_FALSE;
-		pdv12f->shaderStorageTexelBufferArrayNonUniformIndexing    = VK_FALSE;
 		pdv12f->descriptorBindingUniformBufferUpdateAfterBind      = VK_FALSE;
 		pdv12f->descriptorBindingSampledImageUpdateAfterBind       = VK_FALSE;
 		pdv12f->descriptorBindingStorageImageUpdateAfterBind       = VK_FALSE;
@@ -1165,8 +1149,10 @@ bool _gfx_devices_init(void)
 
 			.features = {
 				.indexUint32              = pdf.fullDrawIndexUint32,
+				.indirectMultiDraw        = pdf.multiDrawIndirect,
 				.indirectFirstInstance    = pdf.drawIndirectFirstInstance,
 				.cubeArray                = pdf.imageCubeArray,
+				.multisampledStorageImage = pdf.shaderStorageImageMultisample,
 				.geometryShader           = pdf.geometryShader,
 				.tessellationShader       = pdf.tessellationShader,
 				.rasterNonSolid           = pdf.fillModeNonSolid,
@@ -1176,19 +1162,36 @@ bool _gfx_devices_init(void)
 				.compressionBC            = pdf.textureCompressionBC,
 				.compressionETC2          = pdf.textureCompressionETC2,
 				.compressionASTC          = pdf.textureCompressionASTC_LDR,
-				.shaderClipDistance       = pdf.shaderClipDistance,
-				.shaderCullDistance       = pdf.shaderCullDistance,
-				.shaderInt8               = (vk12 ? pdv12f.shaderInt8 : 0),
-				.shaderInt16              = pdf.shaderInt16,
-				.shaderInt64              = pdf.shaderInt64,
-				.shaderFloat16            = (vk12 ? pdv12f.shaderFloat16 : 0),
-				.shaderFloat64            = pdf.shaderFloat64,
-				.shaderPushConstant8      = (vk12 ? pdv12f.storagePushConstant8 : 0),
-				.shaderPushConstant16     = (vk11 ? pdv11f.storagePushConstant16 : 0),
-				.shaderInputOutput16      = (vk11 ? pdv11f.storageInputOutput16 : 0),
 				.samplerAnisotropy        = pdf.samplerAnisotropy,
 				.samplerClampToEdgeMirror = (vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
 				.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0),
+
+				.shaderClipDistance   = pdf.shaderClipDistance,
+				.shaderCullDistance   = pdf.shaderCullDistance,
+				.shaderInt8           = (vk12 ? pdv12f.shaderInt8 : 0),
+				.shaderInt16          = pdf.shaderInt16,
+				.shaderInt64          = pdf.shaderInt64,
+				.shaderFloat16        = (vk12 ? pdv12f.shaderFloat16 : 0),
+				.shaderFloat64        = pdf.shaderFloat64,
+				.shaderPushConstant8  = (vk12 ? pdv12f.storagePushConstant8 : 0),
+				.shaderPushConstant16 = (vk11 ? pdv11f.storagePushConstant16 : 0),
+				.shaderInputOutput16  = (vk11 ? pdv11f.storageInputOutput16 : 0),
+
+				.dynamicIndexUniformBuffer      = pdf.shaderUniformBufferArrayDynamicIndexing,
+				.dynamicIndexStorageBuffer      = pdf.shaderStorageBufferArrayDynamicIndexing,
+				.dynamicIndexUniformTexelBuffer = (vk12 ? pdv12f.shaderUniformTexelBufferArrayDynamicIndexing : 0),
+				.dynamicIndexStorageTexelBuffer = (vk12 ? pdv12f.shaderStorageTexelBufferArrayDynamicIndexing : 0),
+				.dynamicIndexSampledImage       = pdf.shaderSampledImageArrayDynamicIndexing,
+				.dynamicIndexStorageImage       = pdf.shaderStorageImageArrayDynamicIndexing,
+				.dynamicIndexAttachmentInput    = (vk12 ? pdv12f.shaderInputAttachmentArrayDynamicIndexing : 0),
+
+				.nonUniformIndexUniformBuffer      = (vk12 ? pdv12f.shaderUniformBufferArrayNonUniformIndexing : 0),
+				.nonUniformIndexStorageBuffer      = (vk12 ? pdv12f.shaderStorageBufferArrayNonUniformIndexing : 0),
+				.nonUniformIndexUniformTexelBuffer = (vk12 ? pdv12f.shaderUniformTexelBufferArrayNonUniformIndexing : 0),
+				.nonUniformIndexStorageTexelBuffer = (vk12 ? pdv12f.shaderStorageTexelBufferArrayNonUniformIndexing : 0),
+				.nonUniformIndexSampledImage       = (vk12 ? pdv12f.shaderSampledImageArrayNonUniformIndexing : 0),
+				.nonUniformIndexStorageImage       = (vk12 ? pdv12f.shaderStorageImageArrayNonUniformIndexing : 0),
+				.nonUniformIndexAttachmentInput    = (vk12 ? pdv12f.shaderInputAttachmentArrayNonUniformIndexing : 0),
 
 				.inlineCompute = available && (props[families[0]].queueFlags & VK_QUEUE_COMPUTE_BIT)
 			},
