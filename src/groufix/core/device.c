@@ -1040,6 +1040,221 @@ error:
 		device->name);
 }
 
+/****************************
+ * Initializes a single _GFXDevice struct given a Vulkan device.
+ * Only dev->{ base.name, lock, formats } are left undefined!
+ * @param dev Cannot be NULL.
+ */
+static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
+{
+	assert(_groufix.vk.instance != NULL);
+	assert(device != NULL);
+
+	// Get some Vulkan properties.
+	VkPhysicalDeviceProperties2 pdp2 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+		.pNext = NULL
+	};
+
+	VkPhysicalDeviceProperties* pdp = &pdp2.properties;
+	_groufix.vk.GetPhysicalDeviceProperties(device, pdp);
+
+	// Initial setup.
+	dev->api       = pdp->apiVersion;
+	dev->context   = NULL;
+	dev->vk.device = device;
+
+	memcpy(
+		dev->name, pdp->deviceName,
+		VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
+
+#if defined (GFX_USE_VK_SUBSET_DEVICES)
+	// If we're including portability subset devices, we need to check if
+	// the device exposes VK_KHR_portability_subset.
+	// If it does, we need to enable the extension in the device.
+	dev->subset = _gfx_device_is_subset(device);
+#endif
+
+	// Get all Vulkan device features as well.
+	bool vk11, vk12;
+	VkPhysicalDeviceFeatures pdf;
+	VkPhysicalDeviceVulkan11Features pdv11f;
+	VkPhysicalDeviceVulkan12Features pdv12f;
+	_GFX_GET_DEVICE_FEATURES(dev, vk11, vk12, pdf, pdv11f, pdv12f);
+
+	// And get us later properties, now that we have the version...
+	VkPhysicalDeviceVulkan12Properties pdv12p = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES,
+		.pNext = NULL
+	};
+
+	VkPhysicalDeviceVulkan11Properties pdv11p = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES,
+		.pNext = (vk12 ? (void*)&pdv12p : NULL)
+	};
+
+	pdp2.pNext = (vk11 ? (void*)&pdv11p : (vk12 ? (void*)&pdv12p : NULL));
+	_groufix.vk.GetPhysicalDeviceProperties2(device, &pdp2);
+
+	// Sadly we need to get all queue family properties so we can
+	// determine some of the features.
+	// Plus availability is based on the presence of all families.
+	uint32_t fCount;
+	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(device, &fCount, NULL);
+
+	VkQueueFamilyProperties props[fCount];
+	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(device, &fCount, props);
+
+	// Find all queue families as follows:
+	//  { graphics, present, compute, transfer }.
+	uint32_t families[4];
+	_gfx_find_queue_families(dev, fCount, props, families);
+
+	const bool available =
+		dev->api >= _GFX_VK_API_VERSION &&
+		families[0] != UINT32_MAX &&
+		families[1] != UINT32_MAX &&
+		families[2] != UINT32_MAX &&
+		families[3] != UINT32_MAX;
+
+	// Then define the features and limits part of the new device :)
+	dev->base = (GFXDevice){
+		.type = _GFX_GET_DEVICE_TYPE(pdp->deviceType),
+		.name = NULL,
+		.available = available,
+
+		.features = {
+			.indexUint32              = pdf.fullDrawIndexUint32,
+			.indirectMultiDraw        = pdf.multiDrawIndirect,
+			.indirectFirstInstance    = pdf.drawIndirectFirstInstance,
+			.cubeArray                = pdf.imageCubeArray,
+			.multisampledStorageImage = pdf.shaderStorageImageMultisample,
+			.geometryShader           = pdf.geometryShader,
+			.tessellationShader       = pdf.tessellationShader,
+			.rasterNonSolid           = pdf.fillModeNonSolid,
+			.independentBlend         = pdf.independentBlend,
+			.logicOp                  = pdf.logicOp,
+			.depthBounds              = pdf.depthBounds,
+			.compressionBC            = pdf.textureCompressionBC,
+			.compressionETC2          = pdf.textureCompressionETC2,
+			.compressionASTC          = pdf.textureCompressionASTC_LDR,
+			.samplerAnisotropy        = pdf.samplerAnisotropy,
+			.samplerClampToEdgeMirror = (vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
+			.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0),
+
+			.shaderClipDistance   = pdf.shaderClipDistance,
+			.shaderCullDistance   = pdf.shaderCullDistance,
+			.shaderInt8           = (vk12 ? pdv12f.shaderInt8 : 0),
+			.shaderInt16          = pdf.shaderInt16,
+			.shaderInt64          = pdf.shaderInt64,
+			.shaderFloat16        = (vk12 ? pdv12f.shaderFloat16 : 0),
+			.shaderFloat64        = pdf.shaderFloat64,
+			.shaderPushConstant8  = (vk12 ? pdv12f.storagePushConstant8 : 0),
+			.shaderPushConstant16 = (vk11 ? pdv11f.storagePushConstant16 : 0),
+			.shaderInputOutput16  = (vk11 ? pdv11f.storageInputOutput16 : 0),
+
+			.dynamicIndexUniformBuffer      = pdf.shaderUniformBufferArrayDynamicIndexing,
+			.dynamicIndexStorageBuffer      = pdf.shaderStorageBufferArrayDynamicIndexing,
+			.dynamicIndexUniformTexelBuffer = (vk12 ? pdv12f.shaderUniformTexelBufferArrayDynamicIndexing : 0),
+			.dynamicIndexStorageTexelBuffer = (vk12 ? pdv12f.shaderStorageTexelBufferArrayDynamicIndexing : 0),
+			.dynamicIndexSampledImage       = pdf.shaderSampledImageArrayDynamicIndexing,
+			.dynamicIndexStorageImage       = pdf.shaderStorageImageArrayDynamicIndexing,
+			.dynamicIndexAttachmentInput    = (vk12 ? pdv12f.shaderInputAttachmentArrayDynamicIndexing : 0),
+
+			.nonUniformIndexUniformBuffer      = (vk12 ? pdv12f.shaderUniformBufferArrayNonUniformIndexing : 0),
+			.nonUniformIndexStorageBuffer      = (vk12 ? pdv12f.shaderStorageBufferArrayNonUniformIndexing : 0),
+			.nonUniformIndexUniformTexelBuffer = (vk12 ? pdv12f.shaderUniformTexelBufferArrayNonUniformIndexing : 0),
+			.nonUniformIndexStorageTexelBuffer = (vk12 ? pdv12f.shaderStorageTexelBufferArrayNonUniformIndexing : 0),
+			.nonUniformIndexSampledImage       = (vk12 ? pdv12f.shaderSampledImageArrayNonUniformIndexing : 0),
+			.nonUniformIndexStorageImage       = (vk12 ? pdv12f.shaderStorageImageArrayNonUniformIndexing : 0),
+			.nonUniformIndexAttachmentInput    = (vk12 ? pdv12f.shaderInputAttachmentArrayNonUniformIndexing : 0),
+
+			.inlineCompute = available && (props[families[0]].queueFlags & VK_QUEUE_COMPUTE_BIT)
+		},
+
+		.limits = {
+			.maxIndexUint32        = pdp->limits.maxDrawIndexedIndexValue,
+			.maxImageSize1D        = pdp->limits.maxImageDimension1D,
+			.maxImageSize2D        = pdp->limits.maxImageDimension2D,
+			.maxImageSize3D        = pdp->limits.maxImageDimension3D,
+			.maxImageSizeCube      = pdp->limits.maxImageDimensionCube,
+			.maxImageLayers        = pdp->limits.maxImageArrayLayers,
+			.maxBufferTexels       = pdp->limits.maxTexelBufferElements,
+			.maxUniformBufferRange = pdp->limits.maxUniformBufferRange,
+			.maxStorageBufferRange = pdp->limits.maxStorageBufferRange,
+			.maxPushConstantSize   = pdp->limits.maxPushConstantsSize,
+			.maxBoundSets          = pdp->limits.maxBoundDescriptorSets,
+			.maxComputeMemorySize  = pdp->limits.maxComputeSharedMemorySize,
+			.maxAttributes         = pdp->limits.maxVertexInputAttributes,
+			.maxAttributeOffset    = pdp->limits.maxVertexInputAttributeOffset,
+			.maxAttributeStride    = pdp->limits.maxVertexInputBindingStride,
+			.maxPrimitiveBuffers   = pdp->limits.maxVertexInputBindings,
+			.maxAttachmentWidth    = pdp->limits.maxFramebufferWidth,
+			.maxAttachmentHeight   = pdp->limits.maxFramebufferHeight,
+			.maxAttachmentLayers   = pdp->limits.maxFramebufferLayers,
+			.maxAttachmentOutputs  = pdp->limits.maxColorAttachments,
+
+			.maxStageUniformBuffers   = pdp->limits.maxPerStageDescriptorUniformBuffers,
+			.maxStageStorageBuffers   = pdp->limits.maxPerStageDescriptorStorageBuffers,
+			.maxStageSampledImages    = pdp->limits.maxPerStageDescriptorSampledImages,
+			.maxStageStorageImages    = pdp->limits.maxPerStageDescriptorStorageImages,
+			.maxStageSamplers         = pdp->limits.maxPerStageDescriptorSamplers,
+			.maxStageAttachmentInputs = pdp->limits.maxPerStageDescriptorInputAttachments,
+
+			.maxSetUniformBuffers        = pdp->limits.maxDescriptorSetUniformBuffers,
+			.maxSetStorageBuffers        = pdp->limits.maxDescriptorSetStorageBuffers,
+			.maxSetUniformBuffersDynamic = pdp->limits.maxDescriptorSetUniformBuffersDynamic,
+			.maxSetStorageBuffersDynamic = pdp->limits.maxDescriptorSetStorageBuffersDynamic,
+			.maxSetSampledImages         = pdp->limits.maxDescriptorSetSampledImages,
+			.maxSetStorageImages         = pdp->limits.maxDescriptorSetStorageImages,
+			.maxSetSamplers              = pdp->limits.maxDescriptorSetSamplers,
+			.maxSetAttachmentInputs      = pdp->limits.maxDescriptorSetInputAttachments,
+
+			.minTexelBufferAlign   = pdp->limits.minTexelBufferOffsetAlignment,
+			.minUniformBufferAlign = pdp->limits.minUniformBufferOffsetAlignment,
+			.minStorageBufferAlign = pdp->limits.minStorageBufferOffsetAlignment,
+
+			.maxMipLodBias = pdp->limits.maxSamplerLodBias,
+			.maxAnisotropy = pdp->limits.maxSamplerAnisotropy,
+
+			.computeWorkGroupCount = {
+				.x = pdp->limits.maxComputeWorkGroupCount[0],
+				.y = pdp->limits.maxComputeWorkGroupCount[1],
+				.z = pdp->limits.maxComputeWorkGroupCount[2]
+			},
+
+			.computeWorkGroupSize = {
+				.x = pdp->limits.maxComputeWorkGroupSize[0],
+				.y = pdp->limits.maxComputeWorkGroupSize[1],
+				.z = pdp->limits.maxComputeWorkGroupSize[2],
+				.total = pdp->limits.maxComputeWorkGroupInvocations
+			},
+
+			.imageTransferGranularity = {
+				.x = available ? props[families[3]].minImageTransferGranularity.width : 0,
+				.y = available ? props[families[3]].minImageTransferGranularity.height : 0,
+				.z = available ? props[families[3]].minImageTransferGranularity.depth : 0
+			},
+
+			.renderSampleCounts = {
+				.f       = (uint8_t)pdp->limits.framebufferColorSampleCounts,
+				.i       = (uint8_t)(vk12 ? pdv12p.framebufferIntegerColorSampleCounts : 0),
+				.depth   = (uint8_t)pdp->limits.framebufferDepthSampleCounts,
+				.stencil = (uint8_t)pdp->limits.framebufferStencilSampleCounts,
+				.empty   = (uint8_t)pdp->limits.framebufferNoAttachmentsSampleCounts
+			},
+
+			.imageSampleCounts = {
+				.f       = (uint8_t)pdp->limits.sampledImageColorSampleCounts,
+				.i       = (uint8_t)pdp->limits.sampledImageIntegerSampleCounts,
+				.depth   = (uint8_t)pdp->limits.sampledImageDepthSampleCounts,
+				.stencil = (uint8_t)pdp->limits.sampledImageStencilSampleCounts,
+				.storage = (uint8_t)pdp->limits.storageImageSampleCounts
+			}
+		}
+	};
+}
+
 /****************************/
 bool _gfx_devices_init(void)
 {
@@ -1071,212 +1286,9 @@ bool _gfx_devices_init(void)
 	// so we leave their mutexes and name pointers blank until after this loop.
 	for (uint32_t i = 0; i < count; ++i)
 	{
-		// Get some Vulkan properties and define a new device.
-		VkPhysicalDeviceProperties2 pdp2 = {
-			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-			.pNext = NULL
-		};
-
-		VkPhysicalDeviceProperties* pdp = &pdp2.properties;
-		_groufix.vk.GetPhysicalDeviceProperties(devices[i], pdp);
-
-		_GFXDevice dev = {
-			.api     = pdp->apiVersion,
-			.context = NULL,
-			.vk      = { .device = devices[i] }
-		};
-
-		memcpy(
-			dev.name, pdp->deviceName,
-			VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
-
-#if defined (GFX_USE_VK_SUBSET_DEVICES)
-		// If we're including portability subset devices, we need to check if
-		// the device exposes VK_KHR_portability_subset.
-		// If it does, we need to enable the extension in the device.
-		dev.subset = _gfx_device_is_subset(devices[i]);
-#endif
-
-		// Get all Vulkan device features as well.
-		bool vk11, vk12;
-		VkPhysicalDeviceFeatures pdf;
-		VkPhysicalDeviceVulkan11Features pdv11f;
-		VkPhysicalDeviceVulkan12Features pdv12f;
-		_GFX_GET_DEVICE_FEATURES(&dev, vk11, vk12, pdf, pdv11f, pdv12f);
-
-		// And get us later properties, now that we have the version...
-		VkPhysicalDeviceVulkan12Properties pdv12p = {
-			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES,
-			.pNext = NULL
-		};
-
-		VkPhysicalDeviceVulkan11Properties pdv11p = {
-			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES,
-			.pNext = (vk12 ? (void*)&pdv12p : NULL)
-		};
-
-		pdp2.pNext = (vk11 ? (void*)&pdv11p : (vk12 ? (void*)&pdv12p : NULL));
-		_groufix.vk.GetPhysicalDeviceProperties2(devices[i], &pdp2);
-
-		// Sadly we need to get all queue family properties so we can
-		// determine some of the features.
-		// Plus availability is based on the presence of all families.
-		uint32_t fCount;
-		_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-			devices[i], &fCount, NULL);
-
-		VkQueueFamilyProperties props[fCount];
-		_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
-			devices[i], &fCount, props);
-
-		// Find all queue families as follows:
-		//  { graphics, present, compute, transfer }.
-		uint32_t families[4];
-		_gfx_find_queue_families(&dev, fCount, props, families);
-
-		const bool available =
-			dev.api >= _GFX_VK_API_VERSION &&
-			families[0] != UINT32_MAX &&
-			families[1] != UINT32_MAX &&
-			families[2] != UINT32_MAX &&
-			families[3] != UINT32_MAX;
-
-		// Then define the features and limits part of the new device :)
-		dev.base = (GFXDevice){
-			.type = _GFX_GET_DEVICE_TYPE(pdp->deviceType),
-			.name = NULL,
-			.available = available,
-
-			.features = {
-				.indexUint32              = pdf.fullDrawIndexUint32,
-				.indirectMultiDraw        = pdf.multiDrawIndirect,
-				.indirectFirstInstance    = pdf.drawIndirectFirstInstance,
-				.cubeArray                = pdf.imageCubeArray,
-				.multisampledStorageImage = pdf.shaderStorageImageMultisample,
-				.geometryShader           = pdf.geometryShader,
-				.tessellationShader       = pdf.tessellationShader,
-				.rasterNonSolid           = pdf.fillModeNonSolid,
-				.independentBlend         = pdf.independentBlend,
-				.logicOp                  = pdf.logicOp,
-				.depthBounds              = pdf.depthBounds,
-				.compressionBC            = pdf.textureCompressionBC,
-				.compressionETC2          = pdf.textureCompressionETC2,
-				.compressionASTC          = pdf.textureCompressionASTC_LDR,
-				.samplerAnisotropy        = pdf.samplerAnisotropy,
-				.samplerClampToEdgeMirror = (vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
-				.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0),
-
-				.shaderClipDistance   = pdf.shaderClipDistance,
-				.shaderCullDistance   = pdf.shaderCullDistance,
-				.shaderInt8           = (vk12 ? pdv12f.shaderInt8 : 0),
-				.shaderInt16          = pdf.shaderInt16,
-				.shaderInt64          = pdf.shaderInt64,
-				.shaderFloat16        = (vk12 ? pdv12f.shaderFloat16 : 0),
-				.shaderFloat64        = pdf.shaderFloat64,
-				.shaderPushConstant8  = (vk12 ? pdv12f.storagePushConstant8 : 0),
-				.shaderPushConstant16 = (vk11 ? pdv11f.storagePushConstant16 : 0),
-				.shaderInputOutput16  = (vk11 ? pdv11f.storageInputOutput16 : 0),
-
-				.dynamicIndexUniformBuffer      = pdf.shaderUniformBufferArrayDynamicIndexing,
-				.dynamicIndexStorageBuffer      = pdf.shaderStorageBufferArrayDynamicIndexing,
-				.dynamicIndexUniformTexelBuffer = (vk12 ? pdv12f.shaderUniformTexelBufferArrayDynamicIndexing : 0),
-				.dynamicIndexStorageTexelBuffer = (vk12 ? pdv12f.shaderStorageTexelBufferArrayDynamicIndexing : 0),
-				.dynamicIndexSampledImage       = pdf.shaderSampledImageArrayDynamicIndexing,
-				.dynamicIndexStorageImage       = pdf.shaderStorageImageArrayDynamicIndexing,
-				.dynamicIndexAttachmentInput    = (vk12 ? pdv12f.shaderInputAttachmentArrayDynamicIndexing : 0),
-
-				.nonUniformIndexUniformBuffer      = (vk12 ? pdv12f.shaderUniformBufferArrayNonUniformIndexing : 0),
-				.nonUniformIndexStorageBuffer      = (vk12 ? pdv12f.shaderStorageBufferArrayNonUniformIndexing : 0),
-				.nonUniformIndexUniformTexelBuffer = (vk12 ? pdv12f.shaderUniformTexelBufferArrayNonUniformIndexing : 0),
-				.nonUniformIndexStorageTexelBuffer = (vk12 ? pdv12f.shaderStorageTexelBufferArrayNonUniformIndexing : 0),
-				.nonUniformIndexSampledImage       = (vk12 ? pdv12f.shaderSampledImageArrayNonUniformIndexing : 0),
-				.nonUniformIndexStorageImage       = (vk12 ? pdv12f.shaderStorageImageArrayNonUniformIndexing : 0),
-				.nonUniformIndexAttachmentInput    = (vk12 ? pdv12f.shaderInputAttachmentArrayNonUniformIndexing : 0),
-
-				.inlineCompute = available && (props[families[0]].queueFlags & VK_QUEUE_COMPUTE_BIT)
-			},
-
-			.limits = {
-				.maxIndexUint32        = pdp->limits.maxDrawIndexedIndexValue,
-				.maxImageSize1D        = pdp->limits.maxImageDimension1D,
-				.maxImageSize2D        = pdp->limits.maxImageDimension2D,
-				.maxImageSize3D        = pdp->limits.maxImageDimension3D,
-				.maxImageSizeCube      = pdp->limits.maxImageDimensionCube,
-				.maxImageLayers        = pdp->limits.maxImageArrayLayers,
-				.maxBufferTexels       = pdp->limits.maxTexelBufferElements,
-				.maxUniformBufferRange = pdp->limits.maxUniformBufferRange,
-				.maxStorageBufferRange = pdp->limits.maxStorageBufferRange,
-				.maxPushConstantSize   = pdp->limits.maxPushConstantsSize,
-				.maxBoundSets          = pdp->limits.maxBoundDescriptorSets,
-				.maxComputeMemorySize  = pdp->limits.maxComputeSharedMemorySize,
-				.maxAttributes         = pdp->limits.maxVertexInputAttributes,
-				.maxAttributeOffset    = pdp->limits.maxVertexInputAttributeOffset,
-				.maxAttributeStride    = pdp->limits.maxVertexInputBindingStride,
-				.maxPrimitiveBuffers   = pdp->limits.maxVertexInputBindings,
-				.maxAttachmentWidth    = pdp->limits.maxFramebufferWidth,
-				.maxAttachmentHeight   = pdp->limits.maxFramebufferHeight,
-				.maxAttachmentLayers   = pdp->limits.maxFramebufferLayers,
-				.maxAttachmentOutputs  = pdp->limits.maxColorAttachments,
-
-				.maxStageUniformBuffers   = pdp->limits.maxPerStageDescriptorUniformBuffers,
-				.maxStageStorageBuffers   = pdp->limits.maxPerStageDescriptorStorageBuffers,
-				.maxStageSampledImages    = pdp->limits.maxPerStageDescriptorSampledImages,
-				.maxStageStorageImages    = pdp->limits.maxPerStageDescriptorStorageImages,
-				.maxStageSamplers         = pdp->limits.maxPerStageDescriptorSamplers,
-				.maxStageAttachmentInputs = pdp->limits.maxPerStageDescriptorInputAttachments,
-
-				.maxSetUniformBuffers        = pdp->limits.maxDescriptorSetUniformBuffers,
-				.maxSetStorageBuffers        = pdp->limits.maxDescriptorSetStorageBuffers,
-				.maxSetUniformBuffersDynamic = pdp->limits.maxDescriptorSetUniformBuffersDynamic,
-				.maxSetStorageBuffersDynamic = pdp->limits.maxDescriptorSetStorageBuffersDynamic,
-				.maxSetSampledImages         = pdp->limits.maxDescriptorSetSampledImages,
-				.maxSetStorageImages         = pdp->limits.maxDescriptorSetStorageImages,
-				.maxSetSamplers              = pdp->limits.maxDescriptorSetSamplers,
-				.maxSetAttachmentInputs      = pdp->limits.maxDescriptorSetInputAttachments,
-
-				.minTexelBufferAlign   = pdp->limits.minTexelBufferOffsetAlignment,
-				.minUniformBufferAlign = pdp->limits.minUniformBufferOffsetAlignment,
-				.minStorageBufferAlign = pdp->limits.minStorageBufferOffsetAlignment,
-
-				.maxMipLodBias = pdp->limits.maxSamplerLodBias,
-				.maxAnisotropy = pdp->limits.maxSamplerAnisotropy,
-
-				.computeWorkGroupCount = {
-					.x = pdp->limits.maxComputeWorkGroupCount[0],
-					.y = pdp->limits.maxComputeWorkGroupCount[1],
-					.z = pdp->limits.maxComputeWorkGroupCount[2]
-				},
-
-				.computeWorkGroupSize = {
-					.x = pdp->limits.maxComputeWorkGroupSize[0],
-					.y = pdp->limits.maxComputeWorkGroupSize[1],
-					.z = pdp->limits.maxComputeWorkGroupSize[2],
-					.total = pdp->limits.maxComputeWorkGroupInvocations
-				},
-
-				.imageTransferGranularity = {
-					.x = available ? props[families[3]].minImageTransferGranularity.width : 0,
-					.y = available ? props[families[3]].minImageTransferGranularity.height : 0,
-					.z = available ? props[families[3]].minImageTransferGranularity.depth : 0
-				},
-
-				.renderSampleCounts = {
-					.f       = (uint8_t)pdp->limits.framebufferColorSampleCounts,
-					.i       = (uint8_t)(vk12 ? pdv12p.framebufferIntegerColorSampleCounts : 0),
-					.depth   = (uint8_t)pdp->limits.framebufferDepthSampleCounts,
-					.stencil = (uint8_t)pdp->limits.framebufferStencilSampleCounts,
-					.empty   = (uint8_t)pdp->limits.framebufferNoAttachmentsSampleCounts
-				},
-
-				.imageSampleCounts = {
-					.f       = (uint8_t)pdp->limits.sampledImageColorSampleCounts,
-					.i       = (uint8_t)pdp->limits.sampledImageIntegerSampleCounts,
-					.depth   = (uint8_t)pdp->limits.sampledImageDepthSampleCounts,
-					.stencil = (uint8_t)pdp->limits.sampledImageStencilSampleCounts,
-					.storage = (uint8_t)pdp->limits.storageImageSampleCounts
-				}
-			}
-		};
+		// Define a new device & init.
+		_GFXDevice dev;
+		_gfx_device_init(&dev, devices[i]);
 
 		// Find position to insert at, insert them in order of primary-ness.
 		// This makes it so the 'primary' device is at index 0.
@@ -1299,8 +1311,8 @@ bool _gfx_devices_init(void)
 			if (!matchEnv && dEnv) continue;
 
 			// All available devices to the left.
-			if (available && !d->base.available) break;
-			if (!available && d->base.available) continue;
+			if (dev.base.available && !d->base.available) break;
+			if (!dev.base.available && d->base.available) continue;
 
 			// Compare against superior device type.
 			if (dev.base.type < d->base.type) break;
@@ -1321,8 +1333,7 @@ bool _gfx_devices_init(void)
 		gfx_vec_insert(&_groufix.devices, 1, &dev, j);
 	}
 
-	// Now loop over 'm again to init its mutex/formats and
-	// point the public name pointer to the right smth.
+	// Now loop over 'm again to init dev->{ base.name, lock, formats }.
 	// Because the number of devices never changes, the vector never
 	// gets reallocated, thus we store & init these mutexes here.
 	for (uint32_t i = 0; i < count; ++i)
