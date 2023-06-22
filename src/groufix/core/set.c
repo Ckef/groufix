@@ -353,21 +353,23 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			// one atomic operation, so we need to lock before updating gen.
 			_gfx_mutex_lock(&renderer->lock);
 
-			// Immediately update the stored build generation!
-			gen = success ? _GFX_ATTACH_GEN(attach) : 0;
-			atomic_store_explicit(&entry->gen, gen, memory_order_relaxed);
+			// Check again in case another thread just finished updating.
+			if (gen == _GFX_ATTACH_GEN(attach))
+			{
+				_gfx_make_stale(set, 0, view, VK_NULL_HANDLE);
+				goto unlock;
+			}
 
 			// Let's first make the previous image view stale.
 			_gfx_make_stale(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
-			entry->vk.update.image.imageView = VK_NULL_HANDLE;
-			entry->vk.update.image.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			entry->vk.update.image.imageView = view;
+			entry->vk.update.image.imageLayout = layout;
 
-			if (success)
-			{
-				entry->vk.update.image.imageView = view;
-				entry->vk.update.image.imageLayout = layout;
-			}
+			// Update the stored build generation last!
+			gen = success ? _GFX_ATTACH_GEN(attach) : 0;
+			atomic_store_explicit(&entry->gen, gen, memory_order_relaxed);
 
+		unlock:
 			_gfx_mutex_unlock(&renderer->lock);
 
 			// Early exit when all attachments are found!
@@ -376,6 +378,33 @@ static void _gfx_set_update_attachs(GFXSet* set)
 				return;
 		}
 	}
+}
+
+/****************************/
+_GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
+{
+	assert(set != NULL);
+	assert(sub != NULL);
+
+	// Update referenced renderer attachments!
+	_gfx_set_update_attachs(set);
+
+	// Create a set key.
+	_GFXSetKey key;
+	key.len = sizeof(key.bytes);
+	memcpy(key.bytes, &set->setLayout, sizeof(_GFXCacheElem*));
+	memcpy(key.bytes + sizeof(_GFXCacheElem*), &set, sizeof(GFXSet*));
+
+	// Get the descriptor set.
+	_GFXPoolElem* elem = _gfx_pool_get(
+		&set->renderer->pool, sub,
+		set->setLayout, &key.hash,
+		set->first != NULL ? &set->first->vk.update : NULL);
+
+	// Make sure to set the used flag on success.
+	// This HAS to be atomic so multiple threads can record using this set!
+	if (elem != NULL) atomic_store_explicit(&set->used, 1, memory_order_relaxed);
+	return elem;
 }
 
 /****************************
@@ -855,33 +884,6 @@ static bool _gfx_set_samplers(GFXSet* set, bool update,
 	if (recycle) _gfx_set_recycle(set);
 
 	return success;
-}
-
-/****************************/
-_GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
-{
-	assert(set != NULL);
-	assert(sub != NULL);
-
-	// Update referenced renderer attachments!
-	_gfx_set_update_attachs(set);
-
-	// Create a set key.
-	_GFXSetKey key;
-	key.len = sizeof(key.bytes);
-	memcpy(key.bytes, &set->setLayout, sizeof(_GFXCacheElem*));
-	memcpy(key.bytes + sizeof(_GFXCacheElem*), &set, sizeof(GFXSet*));
-
-	// Get the descriptor set.
-	_GFXPoolElem* elem = _gfx_pool_get(
-		&set->renderer->pool, sub,
-		set->setLayout, &key.hash,
-		set->first != NULL ? &set->first->vk.update : NULL);
-
-	// Make sure to set the used flag on success.
-	// This HAS to be atomic so multiple threads can record using this set!
-	if (elem != NULL) atomic_store_explicit(&set->used, 1, memory_order_relaxed);
-	return elem;
 }
 
 /****************************/
