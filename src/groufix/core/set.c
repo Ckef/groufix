@@ -560,7 +560,7 @@ static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
 	// Keep track of success, much like the technique,
 	// we skip over failures.
 	bool success = 1;
-	bool recycle = 0;
+	bool recycled = 0;
 
 	for (size_t r = 0; r < numResources; ++r)
 	{
@@ -653,13 +653,16 @@ static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
 		atomic_store_explicit(&entry->gen, 0, memory_order_relaxed);
 
 		if (update)
-			_gfx_set_update(set, binding, entry),
-			recycle = 1;
-	}
+		{
+			// If not yet recycled, recycle the set,
+			// we're possibly referencing resources that may be freed or sm.
+			if (!recycled)
+				_gfx_set_recycle(set),
+				recycled = 1;
 
-	// If anything was updated, recycle the set,
-	// we're possibily referencing resources that may be freed or smth.
-	if (recycle) _gfx_set_recycle(set);
+			_gfx_set_update(set, binding, entry);
+		}
+	}
 
 	return success;
 }
@@ -683,7 +686,7 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
 
 	// Keep track of success.
 	bool success = 1;
-	bool recycle = 0;
+	bool recycled = 0;
 
 	for (size_t v = 0; v < numViews; ++v)
 	{
@@ -762,12 +765,15 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
 		atomic_store_explicit(&entry->gen, 0, memory_order_relaxed);
 
 		if (update)
-			_gfx_set_update(set, binding, entry),
-			recycle = 1;
-	}
+		{
+			// If not yet recycled, recycle the set,
+			if (!recycled)
+				_gfx_set_recycle(set),
+				recycled = 1;
 
-	// If anything was updated, recycle the set.
-	if (recycle) _gfx_set_recycle(set);
+			_gfx_set_update(set, binding, entry);
+		}
+	}
 
 	return success;
 }
@@ -787,7 +793,7 @@ static bool _gfx_set_groups(GFXSet* set, bool update,
 
 	// Keep track of success.
 	bool success = 1;
-	bool recycle = 0;
+	bool recycled = 0;
 
 	for (size_t g = 0; g < numGroups; ++g)
 	{
@@ -882,14 +888,17 @@ static bool _gfx_set_groups(GFXSet* set, bool update,
 					success = 0;
 
 				if (update && (vChanged || rChanged))
-					_gfx_set_update(set, sBinding, entry),
-					recycle = 1;
+				{
+					// If not yet recycled, recycle the set,
+					if (!recycled)
+						_gfx_set_recycle(set),
+						recycled = 1;
+
+					_gfx_set_update(set, sBinding, entry);
+				}
 			}
 		}
 	}
-
-	// If anything was updated, recycle the set.
-	if (recycle) _gfx_set_recycle(set);
 
 	return success;
 }
@@ -911,7 +920,7 @@ static bool _gfx_set_samplers(GFXSet* set, bool update,
 
 	// Keep track of success.
 	bool success = 1;
-	bool recycle = 0;
+	bool recycled = 0;
 
 	for (size_t s = 0; s < numSamplers; ++s)
 	{
@@ -972,12 +981,15 @@ static bool _gfx_set_samplers(GFXSet* set, bool update,
 		entry->sampler = sampler;
 
 		if (update)
-			_gfx_set_update(set, binding, entry),
-			recycle = 1;
-	}
+		{
+			// If not yet recycled, recycle the set,
+			if (!recycled)
+				_gfx_set_recycle(set),
+				recycled = 1;
 
-	// If anything was updated, recycle the set.
-	if (recycle) _gfx_set_recycle(set);
+			_gfx_set_update(set, binding, entry);
+		}
+	}
 
 	return success;
 }
