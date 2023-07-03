@@ -12,6 +12,34 @@
 #include <string.h>
 
 
+// Fixed hash sizes.
+#define _GFX_BUFFER_HASH_SIZE \
+	(sizeof(_GFXBuffer*) + \
+	sizeof(VkDeviceSize) /* offset */ + \
+	sizeof(VkDeviceSize)) /* range */
+
+#define _GFX_IMAGE_HASH_SIZE \
+	(sizeof(_GFXImage*) /* NULL if an attachment */ + \
+	sizeof(size_t) /* SIZE_MAX if not an attachment */ + \
+	sizeof(VkImageViewType) + \
+	sizeof(VkFormat) + \
+	sizeof(VkImageAspectFlags) + \
+	sizeof(uint32_t) /* mipmap */ + \
+	sizeof(uint32_t) /* numMipmaps */ + \
+	sizeof(uint32_t) /* layer */ + \
+	sizeof(uint32_t) /* numLayers */ + \
+	sizeof(VkImageLayout))
+
+#define _GFX_SAMPLER_HASH_SIZE \
+	(sizeof(_GFXCacheElem*))
+
+#define _GFX_VIEW_HASH_SIZE \
+	(sizeof(_GFXBuffer*) + \
+	sizeof(VkFormat) + \
+	sizeof(VkDeviceSize) /* offset */ + \
+	sizeof(VkDeviceSize)) /* range */
+
+
 // Type checkers for Vulkan update info.
 #define _GFX_DESCRIPTOR_IS_BUFFER(type) \
 	((type) == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || \
@@ -45,19 +73,16 @@
 	(_GFX_DESCRIPTOR_IS_SAMPLER(type))
 
 
-/****************************
- * Mirrors _GFXHashKey, but containing one _GFXCacheElem* and one GFXSet*.
- */
-typedef union _GFXSetKey
-{
-	_GFXHashKey hash;
+// Hash getters.
+#define _GFX_ENTRY_HASH_SIZE(type) \
+	((_GFX_DESCRIPTOR_IS_BUFFER(type) ? _GFX_BUFFER_HASH_SIZE : 0) + \
+	(_GFX_DESCRIPTOR_IS_IMAGE(type) ? _GFX_IMAGE_HASH_SIZE : 0) + \
+	(_GFX_DESCRIPTOR_IS_SAMPLER(type) ? _GFX_SAMPLER_HASH_SIZE : 0) + \
+	(_GFX_DESCRIPTOR_IS_VIEW(type) ? _GFX_VIEW_HASH_SIZE : 0))
 
-	struct {
-		size_t len;
-		char bytes[sizeof(_GFXCacheElem*) + sizeof(GFXSet*)];
-	};
-
-} _GFXSetKey;
+#define _GFX_ENTRY_GET_HASH(binding, entry) \
+	(binding->hash + \
+	_GFX_ENTRY_HASH_SIZE(binding->type) * (size_t)(entry - binding->entries))
 
 
 /****************************
@@ -90,13 +115,15 @@ static void _gfx_make_stale(GFXSet* set, bool lock,
  * Actual image and format are given instead of some reference.
  * @param view   Output image view, VK_NULL_HANDLE on failure.
  * @param layout Output image layout, VK_IMAGE_LAYOUT_UNDEFINED on failure.
+ * @param ivci   Cannot be NULL, output, actual used info.
  * @return Zero on failure.
  */
 static bool _gfx_make_view(_GFXContext* context,
                            const _GFXSetBinding* binding,
                            const _GFXSetEntry* entry,
                            VkImage image, VkFormat vkFmt, const GFXFormat* fmt,
-                           VkImageView* view, VkImageLayout* layout)
+                           VkImageView* view, VkImageLayout* layout,
+                           VkImageViewCreateInfo* ivci)
 {
 	// Yeah go ahead and create an imag view...
 	const GFXViewType viewType =
@@ -110,7 +137,7 @@ static bool _gfx_make_view(_GFXContext* context,
 			(GFX_FORMAT_HAS_STENCIL(*fmt) ? GFX_IMAGE_STENCIL : 0) :
 			GFX_IMAGE_COLOR;
 
-	VkImageViewCreateInfo ivci = {
+	*ivci = (VkImageViewCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 
 		.pNext    = NULL,
@@ -141,7 +168,7 @@ static bool _gfx_make_view(_GFXContext* context,
 
 	_GFX_VK_CHECK(
 		context->vk.CreateImageView(
-			context->vk.device, &ivci, NULL, view),
+			context->vk.device, ivci, NULL, view),
 		{
 			gfx_log_error("Could not create image view for a set.");
 			*view = VK_NULL_HANDLE;
@@ -171,6 +198,8 @@ static bool _gfx_make_view(_GFXContext* context,
 static void _gfx_set_update(GFXSet* set,
                             _GFXSetBinding* binding, _GFXSetEntry* entry)
 {
+	char* hash = _GFX_ENTRY_GET_HASH(binding, entry);
+
 	// Update buffer info.
 	if (_GFX_DESCRIPTOR_IS_BUFFER(binding->type))
 	{
@@ -190,6 +219,14 @@ static void _gfx_set_update(GFXSet* set,
 					(entry->range.size == 0) ?
 						GFX_MIN(range, maxRange) : entry->range.size
 			};
+
+			// Update hash.
+			memcpy(hash, &unp.obj.buffer, sizeof(_GFXBuffer*));
+			hash += sizeof(_GFXBuffer*);
+			memcpy(hash, &entry->vk.update.buffer.offset, sizeof(VkDeviceSize));
+			hash += sizeof(VkDeviceSize);
+			memcpy(hash, &entry->vk.update.buffer.range, sizeof(VkDeviceSize));
+			hash += sizeof(VkDeviceSize);
 		}
 	}
 
@@ -211,31 +248,64 @@ static void _gfx_set_update(GFXSet* set,
 		{
 			VkImageView view;
 			VkImageLayout layout;
+			VkImageViewCreateInfo ivci;
 
 			if (_gfx_make_view(context,
 				binding, entry,
 				unp.obj.image->vk.image, unp.obj.image->vk.format,
-				&unp.obj.image->base.format, &view, &layout))
+				&unp.obj.image->base.format, &view, &layout,
+				&ivci))
 			{
 				entry->vk.update.image.imageView = view;
 				entry->vk.update.image.imageLayout = layout;
 			}
+
+			// Update hash.
+			const size_t noIndex = SIZE_MAX;
+
+			memcpy(hash, &unp.obj.image, sizeof(_GFXImage*));
+			hash += sizeof(_GFXImage*);
+			memcpy(hash, &noIndex, sizeof(size_t));
+			hash += sizeof(size_t);
+			memcpy(hash, &ivci.viewType, sizeof(VkImageViewType));
+			hash += sizeof(VkImageViewType);
+			memcpy(hash, &ivci.format, sizeof(VkFormat));
+			hash += sizeof(VkFormat);
+			memcpy(hash, &ivci.subresourceRange.aspectMask, sizeof(VkImageAspectFlags));
+			hash += sizeof(VkImageAspectFlags);
+			memcpy(hash, &ivci.subresourceRange.baseMipLevel, sizeof(uint32_t));
+			hash += sizeof(uint32_t);
+			memcpy(hash, &ivci.subresourceRange.levelCount, sizeof(uint32_t));
+			hash += sizeof(uint32_t);
+			memcpy(hash, &ivci.subresourceRange.baseArrayLayer, sizeof(uint32_t));
+			hash += sizeof(uint32_t);
+			memcpy(hash, &ivci.subresourceRange.layerCount, sizeof(uint32_t));
+			hash += sizeof(uint32_t);
+			memcpy(hash, &layout, sizeof(VkImageLayout));
+			hash += sizeof(VkImageLayout);
 		}
 	}
 
 	// Update sampler info.
 	if (_GFX_DESCRIPTOR_IS_SAMPLER(binding->type))
 	{
-		if (entry->sampler != NULL)
-			entry->vk.update.image.sampler = entry->sampler->vk.sampler;
-		else
+		_GFXCacheElem* sampler = entry->sampler;
+
+		if (sampler == NULL)
 		{
 			// Get the default sampler.
-			_GFXCacheElem* sampler = _gfx_get_sampler(set->renderer, NULL);
-			if (sampler != NULL)
-				entry->vk.update.image.sampler = sampler->vk.sampler;
-			else
+			sampler = _gfx_get_sampler(set->renderer, NULL);
+			if (sampler == NULL)
 				gfx_log_error("Could not create default sampler for a set.");
+		}
+
+		if (sampler != NULL)
+		{
+			entry->vk.update.image.sampler = sampler->vk.sampler;
+
+			// Update hash.
+			memcpy(hash, &entry->sampler, sizeof(_GFXCacheElem*));
+			hash += sizeof(_GFXCacheElem*);
 		}
 	}
 
@@ -277,6 +347,16 @@ static void _gfx_set_update(GFXSet* set,
 				});
 
 			entry->vk.update.view = view;
+
+			// Update hash.
+			memcpy(hash, &unp.obj.buffer, sizeof(_GFXBuffer*));
+			hash += sizeof(_GFXBuffer*);
+			memcpy(hash, &bvci.format, sizeof(VkFormat));
+			hash += sizeof(VkFormat);
+			memcpy(hash, &bvci.offset, sizeof(VkDeviceSize));
+			hash += sizeof(VkDeviceSize);
+			memcpy(hash, &bvci.range, sizeof(VkDeviceSize));
+			hash += sizeof(VkDeviceSize);
 		}
 	}
 }
@@ -337,11 +417,15 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			// So let's first create a new image view, before locking.
 			VkImageView view;
 			VkImageLayout layout;
+			VkImageViewCreateInfo ivci;
 
 			bool success = _gfx_make_view(context,
 				binding, entry,
 				attach->vk.image, attach->vk.format,
-				&attach->base.format, &view, &layout);
+				&attach->base.format, &view, &layout,
+				&ivci);
+
+			char* hash = _GFX_ENTRY_GET_HASH(binding, entry);
 
 			// Ok we created a view, now we want to write it to the
 			// Vulkan update info of the set.
@@ -364,6 +448,31 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			_gfx_make_stale(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
 			entry->vk.update.image.imageView = view;
 			entry->vk.update.image.imageLayout = layout;
+
+			// Update hash.
+			const _GFXImage* noImage = NULL;
+			const size_t backingInd = (size_t)unp.value;
+
+			memcpy(hash, &noImage, sizeof(_GFXImage*));
+			hash += sizeof(_GFXImage*);
+			memcpy(hash, &backingInd, sizeof(size_t));
+			hash += sizeof(size_t);
+			memcpy(hash, &ivci.viewType, sizeof(VkImageViewType));
+			hash += sizeof(VkImageViewType);
+			memcpy(hash, &ivci.format, sizeof(VkFormat));
+			hash += sizeof(VkFormat);
+			memcpy(hash, &ivci.subresourceRange.aspectMask, sizeof(VkImageAspectFlags));
+			hash += sizeof(VkImageAspectFlags);
+			memcpy(hash, &ivci.subresourceRange.baseMipLevel, sizeof(uint32_t));
+			hash += sizeof(uint32_t);
+			memcpy(hash, &ivci.subresourceRange.levelCount, sizeof(uint32_t));
+			hash += sizeof(uint32_t);
+			memcpy(hash, &ivci.subresourceRange.baseArrayLayer, sizeof(uint32_t));
+			hash += sizeof(uint32_t);
+			memcpy(hash, &ivci.subresourceRange.layerCount, sizeof(uint32_t));
+			hash += sizeof(uint32_t);
+			memcpy(hash, &layout, sizeof(VkImageLayout));
+			hash += sizeof(VkImageLayout);
 
 			// Update the stored build generation last!
 			gen = success ? _GFX_ATTACH_GEN(attach) : 0;
@@ -389,16 +498,10 @@ _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
 	// Update referenced renderer attachments!
 	_gfx_set_update_attachs(set);
 
-	// Create a set key.
-	_GFXSetKey key;
-	key.len = sizeof(key.bytes);
-	memcpy(key.bytes, &set->setLayout, sizeof(_GFXCacheElem*));
-	memcpy(key.bytes + sizeof(_GFXCacheElem*), &set, sizeof(GFXSet*));
-
 	// Get the descriptor set.
 	_GFXPoolElem* elem = _gfx_pool_get(
 		&set->renderer->pool, sub,
-		set->setLayout, &key.hash,
+		set->setLayout, set->key,
 		set->first != NULL ? &set->first->vk.update : NULL);
 
 	// Make sure to set the used flag on success.
@@ -419,12 +522,6 @@ static void _gfx_set_recycle(GFXSet* set)
 	{
 		GFXRenderer* renderer = set->renderer;
 
-		// Create a set key.
-		_GFXSetKey key;
-		key.len = sizeof(key.bytes);
-		memcpy(key.bytes, &set->setLayout, sizeof(_GFXCacheElem*));
-		memcpy(key.bytes + sizeof(_GFXCacheElem*), &set, sizeof(GFXSet*));
-
 		// For the #flushes after which the set can be truly recycled,
 		// note that the associated descriptor pool might be freed on
 		// recycling as well.
@@ -437,7 +534,7 @@ static void _gfx_set_recycle(GFXSet* set)
 		// Just like making the views stale, this should be a rare path to
 		// go down to and aggressive locking is fine.
 		_gfx_mutex_lock(&renderer->lock);
-		_gfx_pool_recycle(&renderer->pool, &key.hash, renderer->numFrames);
+		_gfx_pool_recycle(&renderer->pool, set->key, renderer->numFrames);
 		_gfx_mutex_unlock(&renderer->lock);
 	}
 }
@@ -920,9 +1017,22 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		sizeof(GFXSet) + sizeof(_GFXSetBinding) * numBindings,
 		_Alignof(_GFXSetEntry));
 
+	const size_t updateSize = GFX_ALIGN_UP(
+		structSize + sizeof(_GFXSetEntry) * numEntries,
+		_Alignof(_GFXHashKey));
+
+	const size_t maxHashSize =
+		GFX_MAX(GFX_MAX(GFX_MAX(GFX_MAX(
+			_GFX_BUFFER_HASH_SIZE,
+			_GFX_IMAGE_HASH_SIZE),
+			_GFX_SAMPLER_HASH_SIZE),
+			(_GFX_IMAGE_HASH_SIZE + _GFX_SAMPLER_HASH_SIZE)),
+			_GFX_VIEW_HASH_SIZE);
+
 	GFXSet* aset = malloc(
-		structSize +
-		sizeof(_GFXSetEntry) * numEntries);
+		updateSize +
+		sizeof(_GFXHashKey) +
+		sizeof(_GFXCacheElem*) + numEntries * maxHashSize);
 
 	if (aset == NULL)
 		goto error;
@@ -935,11 +1045,19 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	aset->numBindings = numBindings;
 	atomic_store_explicit(&aset->used, 0, memory_order_relaxed);
 
+	// Setup hash key.
+	_GFXHashKey* key = (_GFXHashKey*)((char*)aset + updateSize);
+	aset->key = key;
+	key->len = sizeof(_GFXCacheElem*);
+	memcpy(key->bytes, &aset->setLayout, sizeof(_GFXCacheElem*));
+
 	// Get all the bindings.
 	aset->first = numEntries > 0 ?
 		(_GFXSetEntry*)((char*)aset + structSize) : NULL;
 
 	_GFXSetEntry* entryPtr = aset->first;
+	char* hashPtr = key->bytes + sizeof(_GFXCacheElem*);
+
 	for (size_t b = 0; b < numBindings; ++b)
 	{
 		_GFXSetBinding* binding = &aset->bindings[b];
@@ -959,7 +1077,12 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		}
 
 		binding->entries = entries > 0 ? entryPtr : NULL;
+		binding->hash = entries > 0 ? hashPtr : NULL;
+
+		const size_t hashLen = _GFX_ENTRY_HASH_SIZE(binding->type) * entries;
 		entryPtr += entries;
+		hashPtr += hashLen;
+		key->len += hashLen;
 
 		// Initialize entries to empty.
 		for (size_t e = 0; e < entries; ++e)

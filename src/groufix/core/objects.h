@@ -1219,6 +1219,7 @@ typedef struct _GFXSetBinding
 	size_t        count;   // 0 = empty binding.
 	size_t        size;    // 0 = not a struct or unknown.
 	_GFXSetEntry* entries; // NULL if empty or immutable samplers only.
+	char*         hash;
 
 } _GFXSetBinding;
 
@@ -1232,6 +1233,7 @@ struct GFXSet
 	GFXRenderer*   renderer;
 	_GFXCacheElem* setLayout;
 	_GFXSetEntry*  first;
+	_GFXHashKey*   key;
 
 	// If used since last modification.
 	atomic_bool used;
