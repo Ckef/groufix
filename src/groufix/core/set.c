@@ -968,12 +968,11 @@ static bool _gfx_set_samplers(GFXSet* set, bool update,
 		if (entry->sampler == sampler)
 			continue;
 
-		// Set the new sampler & update manually.
-		// We do it manually so we do not make any image view stale.
+		// Set the new sampler & update.
 		entry->sampler = sampler;
 
 		if (update)
-			entry->vk.update.image.sampler = sampler->vk.sampler,
+			_gfx_set_update(set, binding, entry),
 			recycle = 1;
 	}
 
@@ -1050,6 +1049,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	aset->key = key;
 	key->len = sizeof(_GFXCacheElem*);
 	memcpy(key->bytes, &aset->setLayout, sizeof(_GFXCacheElem*));
+	memset(key->bytes + sizeof(_GFXCacheElem*), 0, numEntries * maxHashSize);
 
 	// Get all the bindings.
 	aset->first = numEntries > 0 ?
