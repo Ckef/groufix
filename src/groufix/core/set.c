@@ -85,6 +85,14 @@
 	_GFX_ENTRY_HASH_SIZE(binding->type) * (size_t)(entry - binding->entries))
 
 
+// Hash writer.
+#define _GFX_WRITE_HASH(hash, value) \
+	do { \
+		memcpy(hash, &(value), sizeof(value)); \
+		hash += sizeof(value); \
+	} while (0)
+
+
 /****************************
  * Makes set resources stale, i.e. pushing them to the renderer for
  * destruction when they are no longer used by any virtual frames.
@@ -221,12 +229,9 @@ static void _gfx_set_update(GFXSet* set,
 			};
 
 			// Update hash.
-			memcpy(hash, &unp.obj.buffer, sizeof(_GFXBuffer*));
-			hash += sizeof(_GFXBuffer*);
-			memcpy(hash, &entry->vk.update.buffer.offset, sizeof(VkDeviceSize));
-			hash += sizeof(VkDeviceSize);
-			memcpy(hash, &entry->vk.update.buffer.range, sizeof(VkDeviceSize));
-			hash += sizeof(VkDeviceSize);
+			_GFX_WRITE_HASH(hash, unp.obj.buffer);
+			_GFX_WRITE_HASH(hash, entry->vk.update.buffer.offset);
+			_GFX_WRITE_HASH(hash, entry->vk.update.buffer.range);
 		}
 	}
 
@@ -263,26 +268,16 @@ static void _gfx_set_update(GFXSet* set,
 			// Update hash.
 			const size_t noIndex = SIZE_MAX;
 
-			memcpy(hash, &unp.obj.image, sizeof(_GFXImage*));
-			hash += sizeof(_GFXImage*);
-			memcpy(hash, &noIndex, sizeof(size_t));
-			hash += sizeof(size_t);
-			memcpy(hash, &ivci.viewType, sizeof(VkImageViewType));
-			hash += sizeof(VkImageViewType);
-			memcpy(hash, &ivci.format, sizeof(VkFormat));
-			hash += sizeof(VkFormat);
-			memcpy(hash, &ivci.subresourceRange.aspectMask, sizeof(VkImageAspectFlags));
-			hash += sizeof(VkImageAspectFlags);
-			memcpy(hash, &ivci.subresourceRange.baseMipLevel, sizeof(uint32_t));
-			hash += sizeof(uint32_t);
-			memcpy(hash, &ivci.subresourceRange.levelCount, sizeof(uint32_t));
-			hash += sizeof(uint32_t);
-			memcpy(hash, &ivci.subresourceRange.baseArrayLayer, sizeof(uint32_t));
-			hash += sizeof(uint32_t);
-			memcpy(hash, &ivci.subresourceRange.layerCount, sizeof(uint32_t));
-			hash += sizeof(uint32_t);
-			memcpy(hash, &layout, sizeof(VkImageLayout));
-			hash += sizeof(VkImageLayout);
+			_GFX_WRITE_HASH(hash, unp.obj.image);
+			_GFX_WRITE_HASH(hash, noIndex);
+			_GFX_WRITE_HASH(hash, ivci.viewType);
+			_GFX_WRITE_HASH(hash, ivci.format);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.aspectMask);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseMipLevel);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.levelCount);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseArrayLayer);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.layerCount);
+			_GFX_WRITE_HASH(hash, layout);
 		}
 	}
 
@@ -304,8 +299,7 @@ static void _gfx_set_update(GFXSet* set,
 			entry->vk.update.image.sampler = sampler->vk.sampler;
 
 			// Update hash.
-			memcpy(hash, &entry->sampler, sizeof(_GFXCacheElem*));
-			hash += sizeof(_GFXCacheElem*);
+			_GFX_WRITE_HASH(hash, entry->sampler);
 		}
 	}
 
@@ -349,14 +343,10 @@ static void _gfx_set_update(GFXSet* set,
 			entry->vk.update.view = view;
 
 			// Update hash.
-			memcpy(hash, &unp.obj.buffer, sizeof(_GFXBuffer*));
-			hash += sizeof(_GFXBuffer*);
-			memcpy(hash, &bvci.format, sizeof(VkFormat));
-			hash += sizeof(VkFormat);
-			memcpy(hash, &bvci.offset, sizeof(VkDeviceSize));
-			hash += sizeof(VkDeviceSize);
-			memcpy(hash, &bvci.range, sizeof(VkDeviceSize));
-			hash += sizeof(VkDeviceSize);
+			_GFX_WRITE_HASH(hash, unp.obj.buffer);
+			_GFX_WRITE_HASH(hash, bvci.format);
+			_GFX_WRITE_HASH(hash, bvci.offset);
+			_GFX_WRITE_HASH(hash, bvci.range);
 		}
 	}
 }
@@ -453,26 +443,16 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			const _GFXImage* noImage = NULL;
 			const size_t backingInd = (size_t)unp.value;
 
-			memcpy(hash, &noImage, sizeof(_GFXImage*));
-			hash += sizeof(_GFXImage*);
-			memcpy(hash, &backingInd, sizeof(size_t));
-			hash += sizeof(size_t);
-			memcpy(hash, &ivci.viewType, sizeof(VkImageViewType));
-			hash += sizeof(VkImageViewType);
-			memcpy(hash, &ivci.format, sizeof(VkFormat));
-			hash += sizeof(VkFormat);
-			memcpy(hash, &ivci.subresourceRange.aspectMask, sizeof(VkImageAspectFlags));
-			hash += sizeof(VkImageAspectFlags);
-			memcpy(hash, &ivci.subresourceRange.baseMipLevel, sizeof(uint32_t));
-			hash += sizeof(uint32_t);
-			memcpy(hash, &ivci.subresourceRange.levelCount, sizeof(uint32_t));
-			hash += sizeof(uint32_t);
-			memcpy(hash, &ivci.subresourceRange.baseArrayLayer, sizeof(uint32_t));
-			hash += sizeof(uint32_t);
-			memcpy(hash, &ivci.subresourceRange.layerCount, sizeof(uint32_t));
-			hash += sizeof(uint32_t);
-			memcpy(hash, &layout, sizeof(VkImageLayout));
-			hash += sizeof(VkImageLayout);
+			_GFX_WRITE_HASH(hash, noImage);
+			_GFX_WRITE_HASH(hash, backingInd);
+			_GFX_WRITE_HASH(hash, ivci.viewType);
+			_GFX_WRITE_HASH(hash, ivci.format);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.aspectMask);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseMipLevel);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.levelCount);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseArrayLayer);
+			_GFX_WRITE_HASH(hash, ivci.subresourceRange.layerCount);
+			_GFX_WRITE_HASH(hash, layout);
 
 			// Update the stored build generation last!
 			gen = success ? _GFX_ATTACH_GEN(attach) : 0;
