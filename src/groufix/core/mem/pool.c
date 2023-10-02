@@ -380,8 +380,8 @@ bool _gfx_pool_flush(_GFXPool* pool)
 		sub != NULL;
 		sub = (_GFXPoolSub*)sub->list.next)
 	{
-		success = success &&
-			gfx_map_merge(&pool->immutable, &sub->mutable);
+		if (!gfx_map_merge(&pool->immutable, &sub->mutable))
+			success = 0;
 	}
 
 	if (!success) gfx_log_warn(
