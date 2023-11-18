@@ -62,7 +62,9 @@ uint64_t _gfx_ref_size(GFXReference ref)
 			_GFX_PRIMITIVE->base.numIndices) - ref.offset;
 
 	case GFX_REF_GROUP_BUFFER:
-		return _GFX_BINDING->base.numElements * _GFX_BINDING->stride -
+		return _GFX_BINDING->stride * (_GFX_BINDING->base.numElements - 1) +
+			(_GFX_BINDING->base.type == GFX_BINDING_BUFFER ?
+				_GFX_BINDING->base.elementSize : _GFX_BINDING->stride) -
 			ref.offset;
 
 	case GFX_REF_GROUP:

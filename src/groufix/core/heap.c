@@ -1571,7 +1571,11 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 				size = GFX_ALIGN_UP(size, alignBinds);
 				refPtr[r] = gfx_ref_buffer_at(&group->buffer, size);
 
-				size += bind->base.numElements * bind->stride;
+				// Increase size up to and including the last element.
+				size +=
+					bind->stride * (bind->base.numElements - 1) +
+					(bind->base.type == GFX_BINDING_BUFFER ?
+						bind->base.elementSize : bind->stride);
 			}
 			else
 			{
