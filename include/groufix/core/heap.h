@@ -430,6 +430,8 @@ GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
  * @return NULL on failure.
  *
  * Thread-safe with respect to heap!
+ * The stride between newly allocated buffer elements of a binding might be
+ * bigger than its elementSize, see gfx_group_get_binding_stride!
  */
 GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
                                   GFXMemoryFlags flags, GFXBufferUsage usage,
