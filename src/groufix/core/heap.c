@@ -1432,7 +1432,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	// We allocate references at the tail of the group,
 	// make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
-		sizeof(_GFXGroup) + sizeof(GFXBinding) * numBindings,
+		sizeof(_GFXGroup) + sizeof(_GFXBinding) * numBindings,
 		_Alignof(GFXReference));
 
 	_GFXGroup* group = malloc(
@@ -1448,16 +1448,20 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	group->numBindings = numBindings;
 	uint64_t size = 0;
 
-	const uint64_t align =
-		GFX_MAX(GFX_MAX(GFX_MAX(
-			usage & (GFX_BUFFER_UNIFORM_TEXEL | GFX_BUFFER_STORAGE_TEXEL) ?
-				heap->allocator.device->base.limits.minTexelBufferAlign : 1,
+	const uint64_t alignElems =
+		GFX_MAX(GFX_MAX(
 			usage & GFX_BUFFER_UNIFORM ?
-				heap->allocator.device->base.limits.minUniformBufferAlign : 1),
+				heap->allocator.device->base.limits.minUniformBufferAlign : 1,
 			usage & GFX_BUFFER_STORAGE ?
 				heap->allocator.device->base.limits.minStorageBufferAlign : 1),
 			usage & GFX_BUFFER_INDIRECT ?
 				4 : 1);
+
+	const uint64_t alignBinds =
+		GFX_MAX(
+			usage & (GFX_BUFFER_UNIFORM_TEXEL | GFX_BUFFER_STORAGE_TEXEL) ?
+				heap->allocator.device->base.limits.minTexelBufferAlign : 1,
+			alignElems);
 
 	GFXReference* refPtr =
 		(GFXReference*)((char*)group + structSize);
@@ -1465,17 +1469,17 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	for (size_t b = 0; b < numBindings; ++b)
 	{
 		// Set values for each binding.
-		GFXBinding* bind = &group->bindings[b];
-		*bind = bindings[b];
+		_GFXBinding* bind = &group->bindings[b];
+		bind->base = bindings[b];
 
 		// If no buffers/images or buffers of no size, just no.
 		// We do not resolve the format yet, not enough information.
 		if (
-			bind->count == 0 ||
-			(bind->type == GFX_BINDING_BUFFER &&
-				(bind->elementSize == 0 || bind->numElements == 0)) ||
-			(bind->type == GFX_BINDING_BUFFER_TEXEL &&
-				(GFX_FORMAT_IS_EMPTY(bind->format) || bind->numElements == 0)))
+			bind->base.count == 0 ||
+			(bind->base.type == GFX_BINDING_BUFFER &&
+				(bind->base.elementSize == 0 || bind->base.numElements == 0)) ||
+			(bind->base.type == GFX_BINDING_BUFFER_TEXEL &&
+				(GFX_FORMAT_IS_EMPTY(bind->base.format) || bind->base.numElements == 0)))
 		{
 			gfx_log_error(
 				"A resource group binding description cannot be empty.");
@@ -1486,13 +1490,13 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 		// Get all references based on type.
 		const GFXReference* srcPtr = NULL;
 
-		switch (bind->type)
+		switch (bind->base.type)
 		{
 		case GFX_BINDING_BUFFER:
 		case GFX_BINDING_BUFFER_TEXEL:
-			srcPtr = bind->buffers, bind->buffers = refPtr; break;
+			srcPtr = bind->base.buffers, bind->base.buffers = refPtr; break;
 		case GFX_BINDING_IMAGE:
-			srcPtr = bind->images, bind->images = refPtr; break;
+			srcPtr = bind->base.images, bind->base.images = refPtr; break;
 
 		// No samplers! Reserved for gfx_set_get_binding_type!
 		case GFX_BINDING_IMAGE_AND_SAMPLER:
@@ -1504,17 +1508,56 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			goto clean;
 		}
 
+		// Before we loop over all references, check if there are any at all.
+		// If none, we can align for non-texel buffers automatically :)
+		bool hasBuffers = 0;
+
+		if (srcPtr && bind->base.type == GFX_BINDING_BUFFER)
+			for (size_t r = 0; r < bind->base.count; ++r)
+				if (!GFX_REF_IS_NULL(srcPtr[r]))
+				{
+					hasBuffers = 1;
+					break;
+				}
+
+		// Set stride accordingly.
+		switch (bind->base.type)
+		{
+		case GFX_BINDING_BUFFER:
+			bind->stride = hasBuffers ? bind->base.elementSize :
+				GFX_ALIGN_UP(bind->base.elementSize, alignElems); break;
+
+		case GFX_BINDING_BUFFER_TEXEL:
+			bind->stride =
+				GFX_FORMAT_BLOCK_SIZE(bind->base.format) / CHAR_BIT; break;
+
+		default:
+			bind->stride = 0;
+		}
+
+		// If we were given references, check alignment of stride.
+		if (hasBuffers &&
+			bind->base.numElements > 1 && (bind->stride % alignElems != 0))
+		{
+			gfx_log_error(
+				"A resource group binding description of type "
+				"GFX_BINDING_BUFFER and with numElements > 1 must have an "
+				"elementSize aligned according to its buffer usage.");
+
+			goto clean;
+		}
+
 		// We actually copy all the resolved (!) references to the end
 		// of the group struct, in the same order we found them.
 		// If no reference, insert a reference to the group's buffer.
 		// Also, add to the size of that buffer so we can allocate it.
-		for (size_t r = 0; r < bind->count; ++r)
+		for (size_t r = 0; r < bind->base.count; ++r)
 		{
 			// No reference found.
 			if (!srcPtr || GFX_REF_IS_NULL(srcPtr[r]))
 			{
 				// Validate bound images.
-				if (bind->type == GFX_BINDING_IMAGE)
+				if (bind->base.type == GFX_BINDING_IMAGE)
 				{
 					gfx_log_error(
 						"A resource group binding description of type "
@@ -1525,13 +1568,10 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 				}
 
 				// First align up according to the buffer usage!
-				size = GFX_ALIGN_UP(size, align);
+				size = GFX_ALIGN_UP(size, alignBinds);
 				refPtr[r] = gfx_ref_buffer_at(&group->buffer, size);
 
-				size += bind->numElements *
-					(uint64_t)(bind->type == GFX_BINDING_BUFFER ?
-						bind->elementSize :
-						GFX_FORMAT_BLOCK_SIZE(bind->format) / CHAR_BIT);
+				size += bind->base.numElements * bind->stride;
 			}
 			else
 			{
@@ -1541,10 +1581,10 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 
 				if (
 					(!GFX_REF_IS_BUFFER(srcPtr[r]) &&
-						(bind->type == GFX_BINDING_BUFFER ||
-						bind->type == GFX_BINDING_BUFFER_TEXEL)) ||
+						(bind->base.type == GFX_BINDING_BUFFER ||
+						bind->base.type == GFX_BINDING_BUFFER_TEXEL)) ||
 					(!GFX_REF_IS_IMAGE(srcPtr[r]) &&
-						bind->type == GFX_BINDING_IMAGE))
+						bind->base.type == GFX_BINDING_IMAGE))
 				{
 					gfx_log_error(
 						"A resource group binding description must only "
@@ -1565,7 +1605,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			}
 		}
 
-		refPtr += bind->count;
+		refPtr += bind->base.count;
 	}
 
 	// Init all meta fields now that we know what to allocate.
@@ -1651,7 +1691,7 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 
 	// Don't return the actually stored binding.
 	// NULL-ify the buffers or images field, don't expose it.
-	GFXBinding bind = ((_GFXGroup*)group)->bindings[binding];
+	GFXBinding bind = ((_GFXGroup*)group)->bindings[binding].base;
 
 	switch (bind.type)
 	{
@@ -1669,14 +1709,23 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 }
 
 /****************************/
+GFX_API uint64_t gfx_group_get_binding_stride(GFXGroup* group, size_t binding)
+{
+	assert(group != NULL);
+	assert(binding < ((_GFXGroup*)group)->numBindings);
+
+	return ((_GFXGroup*)group)->bindings[binding].stride;
+}
+
+/****************************/
 GFX_API uint64_t gfx_group_get_binding_offset(GFXGroup* group,
                                               size_t binding, size_t index)
 {
 	assert(group != NULL);
 	assert(binding < ((_GFXGroup*)group)->numBindings);
-	assert(index < ((_GFXGroup*)group)->bindings[binding].count);
+	assert(index < ((_GFXGroup*)group)->bindings[binding].base.count);
 
-	const GFXBinding* bind = &((_GFXGroup*)group)->bindings[binding];
+	const GFXBinding* bind = &((_GFXGroup*)group)->bindings[binding].base;
 	const GFXBufferRef* ref = &bind->buffers[index];
 
 	return

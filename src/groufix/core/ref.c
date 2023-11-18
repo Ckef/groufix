@@ -62,10 +62,7 @@ uint64_t _gfx_ref_size(GFXReference ref)
 			_GFX_PRIMITIVE->base.numIndices) - ref.offset;
 
 	case GFX_REF_GROUP_BUFFER:
-		return _GFX_BINDING->numElements *
-			(uint64_t)(_GFX_BINDING->type == GFX_BINDING_BUFFER ?
-				_GFX_BINDING->elementSize :
-				GFX_FORMAT_BLOCK_SIZE(_GFX_BINDING->format) / CHAR_BIT) -
+		return _GFX_BINDING->base.numElements * _GFX_BINDING->stride -
 			ref.offset;
 
 	case GFX_REF_GROUP:
@@ -116,15 +113,15 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 	case GFX_REF_GROUP_BUFFER:
 		_GFX_CHECK_RESOLVE(
 			_GFX_VBINDING(ref) < _GFX_GROUP->numBindings &&
-			_GFX_VINDEX(ref) < _GFX_BINDING->count,
+			_GFX_VINDEX(ref) < _GFX_BINDING->base.count,
 			"Referencing a non-existent group buffer!");
 
 		_GFX_CHECK_RESOLVE(
-			_GFX_BINDING->type == GFX_BINDING_BUFFER ||
-			_GFX_BINDING->type == GFX_BINDING_BUFFER_TEXEL,
+			_GFX_BINDING->base.type == GFX_BINDING_BUFFER ||
+			_GFX_BINDING->base.type == GFX_BINDING_BUFFER_TEXEL,
 			"Group buffer reference not a buffer!");
 
-		rec = _GFX_BINDING->buffers[_GFX_VINDEX(ref)]; // Must be a buffer.
+		rec = _GFX_BINDING->base.buffers[_GFX_VINDEX(ref)]; // Must be a buffer.
 
 		// If referencing the group's buffer, just return the group ref.
 		if (rec.obj == &_GFX_GROUP->buffer) rec = GFX_REF_NULL;
@@ -134,14 +131,14 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 	case GFX_REF_GROUP_IMAGE:
 		_GFX_CHECK_RESOLVE(
 			_GFX_VBINDING(ref) < _GFX_GROUP->numBindings &&
-			_GFX_VINDEX(ref) < _GFX_BINDING->count,
+			_GFX_VINDEX(ref) < _GFX_BINDING->base.count,
 			"Referencing a non-existent group image!");
 
 		_GFX_CHECK_RESOLVE(
-			_GFX_BINDING->type == GFX_BINDING_IMAGE,
+			_GFX_BINDING->base.type == GFX_BINDING_IMAGE,
 			"Group image reference not an image!");
 
-		rec = _GFX_BINDING->images[_GFX_VINDEX(ref)]; // Must be an image.
+		rec = _GFX_BINDING->base.images[_GFX_VINDEX(ref)]; // Must be an image.
 		break;
 
 	case GFX_REF_GROUP:
@@ -235,7 +232,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		unp.obj.buffer = &_GFX_GROUP->buffer;
 		unp.value = ref.offset +
 			// Augment offset into the group's buffer.
-			_GFX_BINDING->buffers[_GFX_VINDEX(ref)].offset;
+			_GFX_BINDING->base.buffers[_GFX_VINDEX(ref)].offset;
 
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,

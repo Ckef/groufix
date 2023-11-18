@@ -421,7 +421,7 @@ GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
 /**
  * Allocates a resource group from a heap.
  * Newly allocated buffers live in one big buffer, aligned such that they can
- * all be used as any combination of a texel, uniform or storage buffer.
+ * all be used as any combination of a texel, uniform, storage or indirect buffer.
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Usage for any newly allocated buffer.
@@ -457,11 +457,21 @@ GFX_API size_t gfx_group_get_num_bindings(GFXGroup* group);
 GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding);
 
 /**
- * Retrieves the offset of a binding into the newly allocated group buffer,
- * after alignment for texel, uniform and storage buffers.
+ * Retrieves the stride between elements of a binding in the newly allocated
+ * group buffer, after alignment for uniform, storage and indirect buffers.
  * @see gfx_group_get_binding.
- * @param index Binding array index, must be < gfx_group_get_binding(group, binding).count;
  * @return Zero if the binding does not live in the newly allocated buffer.
+ *
+ * If the binding contained any buffers that do not live in the newly allocated
+ * buffer, the stride will be equivalent to the binding's elementSize.
+ */
+GFX_API uint64_t gfx_group_get_binding_stride(GFXGroup* group, size_t binding);
+
+/**
+ * Retrieves the offset of a binding into the newly allocated group buffer,
+ * after alignment for texel, uniform, storage and indirect buffers.
+ * @see gfx_group_get_binding_stride.
+ * @param index Binding array index, must be < gfx_group_get_binding(group, binding).count;
  */
 GFX_API uint64_t gfx_group_get_binding_offset(GFXGroup* group,
                                               size_t binding, size_t index);

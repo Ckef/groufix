@@ -807,7 +807,7 @@ static bool _gfx_set_groups(GFXSet* set, bool update,
 		for (size_t b = 0; b < maxBindings; ++b)
 		{
 			_GFXSetBinding* sBinding = &set->bindings[sGroup->binding + b];
-			GFXBinding* gBinding = &group->bindings[sGroup->offset + b];
+			GFXBinding* gBinding = &group->bindings[sGroup->offset + b].base;
 
 			// Check if the types match.
 			// Note that we only have images and not-images.

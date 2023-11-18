@@ -690,6 +690,17 @@ typedef struct _GFXPrimitive
 
 
 /**
+ * Internal group binding.
+ */
+typedef struct _GFXBinding
+{
+	GFXBinding base;
+	uint64_t   stride; // Element stride in bytes.
+
+} _GFXBinding;
+
+
+/**
  * Internal resource group (superset of buffer).
  */
 typedef struct _GFXGroup
@@ -697,8 +708,8 @@ typedef struct _GFXGroup
 	GFXGroup   base;
 	_GFXBuffer buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
 
-	size_t     numBindings;
-	GFXBinding bindings[]; // No reference is GFX_REF_NULL.
+	size_t      numBindings;
+	_GFXBinding bindings[]; // No reference is GFX_REF_NULL.
 
 } _GFXGroup;
 

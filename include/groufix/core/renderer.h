@@ -1388,6 +1388,8 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
  * @param numDynamics Number of dynamic offsets, missing offsets will be 0.
  * @param sets        Cannot be NULL.
  * @param offsets     Cannot be NULL if numDynamics > 0.
+ *
+ * All offsets must be properly aligned for uniform or storage buffer usages.
  */
 GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
                           size_t firstSet,
