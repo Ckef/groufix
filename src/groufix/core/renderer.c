@@ -211,9 +211,9 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 		if (renderer->frames + f != renderer->public)
 		{
 			if (renderer->frames[f].submitted & _GFX_FRAME_GRAPHICS)
-				fences[numFences++] = renderer->frames[f].vk.graphics.done;
+				fences[numFences++] = renderer->frames[f].graphics.vk.done;
 			if (renderer->frames[f].submitted & _GFX_FRAME_COMPUTE)
-				fences[numFences++] = renderer->frames[f].vk.compute.done;
+				fences[numFences++] = renderer->frames[f].compute.vk.done;
 		}
 
 	// Wait for all of them.

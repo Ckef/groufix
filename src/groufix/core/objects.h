@@ -521,7 +521,7 @@ typedef struct _GFXStaging
 
 
 /**
- * Transfer operation.
+ * Transfer operation(s).
  */
 typedef struct _GFXTransfer
 {
@@ -907,6 +907,23 @@ typedef struct _GFXFrameSync
 
 
 /**
+ * Frame recording pool.
+ */
+typedef struct _GFXFramePool
+{
+	// Vulkan fields.
+	struct
+	{
+		VkCommandPool   pool;
+		VkCommandBuffer cmd;
+		VkFence         done;
+
+	} vk;
+
+} _GFXFramePool;
+
+
+/**
  * Internal virtual frame.
  */
 struct GFXFrame
@@ -915,6 +932,9 @@ struct GFXFrame
 
 	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
 	GFXVec syncs; // Stores _GFXFrameSync, one for each window attachment.
+
+	_GFXFramePool graphics;
+	_GFXFramePool compute;
 
 	enum {
 		_GFX_FRAME_GRAPHICS = 0x0001,
@@ -927,20 +947,6 @@ struct GFXFrame
 	struct
 	{
 		VkSemaphore rendered;
-
-		struct {
-			VkCommandPool   pool;
-			VkCommandBuffer cmd;
-			VkFence         done;
-
-		} graphics;
-
-		struct {
-			VkCommandPool   pool;
-			VkCommandBuffer cmd;
-			VkFence         done;
-
-		} compute;
 
 	} vk;
 };
@@ -1177,7 +1183,6 @@ struct GFXTechnique
 	GFXVec samplers;  // Stores { size_t set, GFXSampler }, temporary!
 	GFXVec immutable; // Stores { size_t set, size_t binding }.
 	GFXVec dynamic;   // Stores { size_t set, size_t binding }.
-
 
 	// Vulkan fields.
 	struct { VkPipelineLayout layout; } vk; // For locality.
@@ -1788,7 +1793,6 @@ bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
  * @param frame    Cannot be NULL.
  * @return Zero if the frame could not be submitted.
  *
- * This will consume (not erase) all elements in renderer->deps!
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
 bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);

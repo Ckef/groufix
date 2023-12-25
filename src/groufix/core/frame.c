@@ -116,10 +116,10 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 	gfx_vec_init(&frame->syncs, sizeof(_GFXFrameSync));
 
 	frame->vk.rendered = VK_NULL_HANDLE;
-	frame->vk.graphics.pool = VK_NULL_HANDLE;
-	frame->vk.graphics.done = VK_NULL_HANDLE;
-	frame->vk.compute.pool = VK_NULL_HANDLE;
-	frame->vk.compute.done = VK_NULL_HANDLE;
+	frame->graphics.vk.pool = VK_NULL_HANDLE;
+	frame->graphics.vk.done = VK_NULL_HANDLE;
+	frame->compute.vk.pool = VK_NULL_HANDLE;
+	frame->compute.vk.done = VK_NULL_HANDLE;
 
 	// A semaphore for device synchronization.
 	VkSemaphoreCreateInfo sci = {
@@ -142,12 +142,12 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 
 	_GFX_VK_CHECK(
 		context->vk.CreateFence(
-			context->vk.device, &fci, NULL, &frame->vk.graphics.done),
+			context->vk.device, &fci, NULL, &frame->graphics.vk.done),
 		goto clean);
 
 	_GFX_VK_CHECK(
 		context->vk.CreateFence(
-			context->vk.device, &fci, NULL, &frame->vk.compute.done),
+			context->vk.device, &fci, NULL, &frame->compute.vk.done),
 		goto clean);
 
 	// Create command pools.
@@ -170,12 +170,12 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 
 	_GFX_VK_CHECK(
 		context->vk.CreateCommandPool(
-			context->vk.device, &gcpci, NULL, &frame->vk.graphics.pool),
+			context->vk.device, &gcpci, NULL, &frame->graphics.vk.pool),
 		goto clean);
 
 	_GFX_VK_CHECK(
 		context->vk.CreateCommandPool(
-			context->vk.device, &ccpci, NULL, &frame->vk.compute.pool),
+			context->vk.device, &ccpci, NULL, &frame->compute.vk.pool),
 		goto clean);
 
 	// Lastly, allocate the command buffers for this frame.
@@ -183,7 +183,7 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 
 		.pNext              = NULL,
-		.commandPool        = frame->vk.graphics.pool,
+		.commandPool        = frame->graphics.vk.pool,
 		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = 1
 	};
@@ -192,19 +192,19 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 
 		.pNext              = NULL,
-		.commandPool        = frame->vk.compute.pool,
+		.commandPool        = frame->compute.vk.pool,
 		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = 1
 	};
 
 	_GFX_VK_CHECK(
 		context->vk.AllocateCommandBuffers(
-			context->vk.device, &gcbai, &frame->vk.graphics.cmd),
+			context->vk.device, &gcbai, &frame->graphics.vk.cmd),
 		goto clean);
 
 	_GFX_VK_CHECK(
 		context->vk.AllocateCommandBuffers(
-			context->vk.device, &ccbai, &frame->vk.compute.cmd),
+			context->vk.device, &ccbai, &frame->compute.vk.cmd),
 		goto clean);
 
 	return 1;
@@ -217,13 +217,13 @@ clean:
 	context->vk.DestroySemaphore(
 		context->vk.device, frame->vk.rendered, NULL);
 	context->vk.DestroyCommandPool(
-		context->vk.device, frame->vk.graphics.pool, NULL);
+		context->vk.device, frame->graphics.vk.pool, NULL);
 	context->vk.DestroyFence(
-		context->vk.device, frame->vk.graphics.done, NULL);
+		context->vk.device, frame->graphics.vk.done, NULL);
 	context->vk.DestroyCommandPool(
-		context->vk.device, frame->vk.compute.pool, NULL);
+		context->vk.device, frame->compute.vk.pool, NULL);
 	context->vk.DestroyFence(
-		context->vk.device, frame->vk.compute.done, NULL);
+		context->vk.device, frame->compute.vk.done, NULL);
 
 	gfx_vec_clear(&frame->refs);
 	gfx_vec_clear(&frame->syncs);
@@ -246,13 +246,13 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame)
 	context->vk.DestroySemaphore(
 		context->vk.device, frame->vk.rendered, NULL);
 	context->vk.DestroyCommandPool(
-		context->vk.device, frame->vk.graphics.pool, NULL);
+		context->vk.device, frame->graphics.vk.pool, NULL);
 	context->vk.DestroyFence(
-		context->vk.device, frame->vk.graphics.done, NULL);
+		context->vk.device, frame->graphics.vk.done, NULL);
 	context->vk.DestroyCommandPool(
-		context->vk.device, frame->vk.compute.pool, NULL);
+		context->vk.device, frame->compute.vk.pool, NULL);
 	context->vk.DestroyFence(
-		context->vk.device, frame->vk.compute.done, NULL);
+		context->vk.device, frame->compute.vk.done, NULL);
 
 	_gfx_free_syncs(renderer, frame, frame->syncs.size);
 	gfx_vec_clear(&frame->refs);
@@ -296,8 +296,8 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset)
 	{
 		const VkFence fences[] = {
 			(frame->submitted & _GFX_FRAME_GRAPHICS) ?
-				frame->vk.graphics.done : frame->vk.compute.done,
-			frame->vk.compute.done
+				frame->graphics.vk.done : frame->compute.vk.done,
+			frame->compute.vk.done
 		};
 
 		_GFX_VK_CHECK(
@@ -323,12 +323,12 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset)
 		// Immediately reset the relevant command pools, release the memory!
 		_GFX_VK_CHECK(
 			context->vk.ResetCommandPool(
-				context->vk.device, frame->vk.graphics.pool, 0),
+				context->vk.device, frame->graphics.vk.pool, 0),
 			goto error);
 
 		_GFX_VK_CHECK(
 			context->vk.ResetCommandPool(
-				context->vk.device, frame->vk.compute.pool, 0),
+				context->vk.device, frame->compute.vk.pool, 0),
 			goto error);
 
 		// This includes all the recording pools.
@@ -582,7 +582,7 @@ static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
 }
 
 /****************************
- * Records all render and inline compute passes of a virtual frame.
+ * Records a set of passes of a virtual frame.
  * @param cmd   To record to, cannot be VK_NULL_HANDLE.
  * @param first First pass to start recording at.
  * @param num   Number of passes to record.
@@ -795,7 +795,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		_gfx_injection(&injection);
 
 		// Record graphics.
-		if (!_gfx_frame_record(frame->vk.graphics.cmd,
+		if (!_gfx_frame_record(frame->graphics.vk.cmd,
 			renderer, frame, 0, numGraphics, &injection))
 		{
 			goto clean_graphics;
@@ -871,7 +871,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 			.pWaitSemaphores      = injection.out.waits,
 			.pWaitDstStageMask    = injection.out.stages,
 			.commandBufferCount   = 1,
-			.pCommandBuffers      = &frame->vk.graphics.cmd,
+			.pCommandBuffers      = &frame->graphics.vk.cmd,
 			.signalSemaphoreCount = (uint32_t)numSigs,
 
 			// Take the rendered semaphore if not signaling anything else.
@@ -883,7 +883,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 		_GFX_VK_CHECK(
 			context->vk.QueueSubmit(
-				renderer->graphics.vk.queue, 1, &si, frame->vk.graphics.done),
+				renderer->graphics.vk.queue, 1, &si, frame->graphics.vk.done),
 			{
 				_gfx_mutex_unlock(renderer->graphics.lock);
 				goto clean_graphics;
@@ -942,7 +942,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		_gfx_injection(&injection);
 
 		// Record compute.
-		if (!_gfx_frame_record(frame->vk.compute.cmd,
+		if (!_gfx_frame_record(frame->compute.vk.cmd,
 			renderer, frame, numGraphics, numCompute, &injection))
 		{
 			goto clean_compute;
@@ -957,7 +957,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 			.pWaitSemaphores      = injection.out.waits,
 			.pWaitDstStageMask    = injection.out.stages,
 			.commandBufferCount   = 1,
-			.pCommandBuffers      = &frame->vk.compute.cmd,
+			.pCommandBuffers      = &frame->compute.vk.cmd,
 			.signalSemaphoreCount = (uint32_t)injection.out.numSigs,
 			.pSignalSemaphores    = injection.out.sigs
 		};
@@ -966,7 +966,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 		_GFX_VK_CHECK(
 			context->vk.QueueSubmit(
-				renderer->compute.vk.queue, 1, &si, frame->vk.compute.done),
+				renderer->compute.vk.queue, 1, &si, frame->compute.vk.done),
 			{
 				_gfx_mutex_unlock(renderer->compute.lock);
 				goto clean_compute;
