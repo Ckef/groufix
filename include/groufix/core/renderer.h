@@ -1325,6 +1325,14 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
                                   void* ptr);
 
 /**
+ * Retrieves the current virtual frame index.
+ * @param recorder Cannot be NULL.
+ *
+ * Gets updated during gfx_renderer_acquire.
+ */
+GFX_API unsigned int gfx_recorder_get_frame_index(GFXRecorder* recorder);
+
+/**
  * Retrieves the current pass of a recorder.
  * @param recorder Cannot be NULL.
  * @return NULL if not called within a callback of gfx_recorder_(render|compute).

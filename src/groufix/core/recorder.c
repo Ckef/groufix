@@ -624,6 +624,14 @@ error:
 }
 
 /****************************/
+GFX_API unsigned int gfx_recorder_get_frame_index(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	return recorder->current;
+}
+
+/****************************/
 GFX_API GFXPass* gfx_recorder_get_pass(GFXRecorder* recorder)
 {
 	assert(recorder != NULL);
