@@ -127,6 +127,7 @@ GFX_API void gfx_logger_end(GFXBufWriter* logger);
  * If this call is made before gfx_init() it will set the global log level,
  * which is used during intialization of the engine and
  * to initialize every thread with (including the main thread).
+ * This behaviour is overriden if GROUFIX_DEFAULT_LOG_LEVEL is set.
  */
 GFX_API bool gfx_log_set_level(GFXLogLevel level);
 

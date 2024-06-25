@@ -12,6 +12,7 @@
 
 #include "groufix/core/deps.h"
 #include "groufix/core/device.h"
+#include "groufix/core/env.h"
 #include "groufix/core/formats.h"
 #include "groufix/core/heap.h"
 #include "groufix/core/keys.h"

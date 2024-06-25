@@ -27,6 +27,9 @@ GFX_API bool gfx_init(void)
 	if (atomic_load(&_groufix.initialized))
 		return 1;
 
+	// Before anything, get the log level from env.
+	_gfx_log_set_default_level();
+
 	// Initialize global state.
 	if (!_gfx_init())
 	{

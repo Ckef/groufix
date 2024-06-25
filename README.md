@@ -58,6 +58,8 @@ Usage
 
 Once _groufix_ is built and used by an executable, the following environment variables can be set:
 
+- `GROUFIX_DEFAULT_LOG_LEVEL` : used to set the default log level during init. Value can be set to one of `NONE`,`FATAL`,`ERROR`,`WARN`,`INFO`,`DEBUG`,`VERBOSE`,`ALL`, case insensitive.
+
 - `GROUFIX_PRIMARY_VK_DEVICE` : used to influence the primary device selection. It will prioritize matching physical Vulkan devices. A device matches if the set value is a substring of its name, case insensitive.
 
 

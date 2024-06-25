@@ -8,6 +8,8 @@
 
 #include "groufix/core.h"
 #include <assert.h>
+#include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -17,7 +19,16 @@
 
 
 /****************************
- * Stringified logging levels.
+ * Stringified logging level options for interpreting
+ * the GROUFIX_DEFAULT_LOG_LEVEL environment variable.
+ */
+static const char* _gfx_log_env_levels[] = {
+	"NONE", "FATAL", "ERROR", "WARN", "INFO", "DEBUG", "VERBOSE", "ALL"
+};
+
+
+/****************************
+ * Stringified logging levels for output.
  * Verbose debug has the same name, but different color.
  */
 static const char* _gfx_log_levels[] = {
@@ -77,6 +88,35 @@ static void _gfx_log_header(GFXBufWriter* out,
 #if defined (GFX_UNIX)
 	}
 #endif
+}
+
+/****************************/
+void _gfx_log_set_default_level(void)
+{
+	// Get the env var for the default log level.
+	const char* envLogDef = getenv(GFX_ENV_DEFAULT_LOG_LEVEL);
+	const size_t options = sizeof(_gfx_log_env_levels)/sizeof(char*);
+
+	if (envLogDef == NULL) return; // No value given.
+
+	// Loop over all stringified options, get case insenstive match.
+	for (GFXLogLevel level = 0; level < options; ++level)
+	{
+		const char* opt = _gfx_log_env_levels[level];
+		const char* inp = envLogDef;
+
+		for (; *opt != '\0' && *inp != '\0'; ++opt, ++inp)
+			if (tolower(*opt) != tolower(*inp)) break;
+
+		if (*opt == '\0' && *inp == '\0')
+		{
+			// On a match, set the global default!
+			_groufix.logDef = level;
+			return;
+		}
+	}
+
+	// If no match against a log level, silently ignore.
 }
 
 /****************************/
@@ -210,7 +250,7 @@ GFX_API bool gfx_log_set_level(GFXLogLevel level)
 {
 	assert(level >= GFX_LOG_NONE && level <= GFX_LOG_ALL);
 
-	// Set the only pre-gfx_init() initialized setting.
+	// Set default log level if not initialized.
 	GFXLogLevel* logLevel = &_groufix.logDef;
 
 	if (atomic_load(&_groufix.initialized))
@@ -231,7 +271,7 @@ GFX_API bool gfx_log_set(const GFXWriter* out)
 {
 	assert(out != NULL);
 
-	// Set default logger if not initialized or attached.
+	// Set default logger if not initialized.
 	GFXBufWriter* writer = &_gfx_io_buf_def;
 
 	if (atomic_load(&_groufix.initialized))

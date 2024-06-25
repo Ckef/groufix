@@ -460,6 +460,13 @@ extern GFXBufWriter _gfx_io_buf_def;
 
 
 /**
+ * Reads the default log level from the
+ * GROUFIX_DEFAULT_LOG_LEVEL environment variable,
+ * if present, it overwrites _groufix.logDef.
+ */
+void _gfx_log_set_default_level(void);
+
+/**
  * Initializes global groufix state.
  * _groufix.initialized must be 0, on success it will be set to 1.
  * @return Non-zero on success.
