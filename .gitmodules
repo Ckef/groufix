@@ -16,3 +16,6 @@
 [submodule "deps/stb"]
 	path = deps/stb
 	url = https://github.com/nothings/stb
+[submodule "deps/cimgui"]
+	path = deps/cimgui
+	url = https://github.com/cimgui/cimgui

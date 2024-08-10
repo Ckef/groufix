@@ -10,6 +10,7 @@
 ##############################
 # Helper manual, no target provided
 
+.PHONY: help
 help:
 	@echo " Clean"
 	@echo "  $(MAKE) clean      - Clean build files."
@@ -92,6 +93,7 @@ OFLAGS = \
  -Ideps/Vulkan-Headers/include \
  -Ideps/shaderc/libshaderc/include \
  -Ideps/SPIRV-Cross \
+ -Ideps/cimgui \
  -isystem deps/cgltf \
  -isystem deps/stb
 
@@ -159,9 +161,21 @@ SPIRV_CROSS_FLAGS_ALL = \
  -DSPIRV_CROSS_ENABLE_REFLECT=OFF \
  -DSPIRV_CROSS_ENABLE_UTIL=OFF
 
+CIMGUI_FLAGS_ALL = \
+ -DIMGUI_STATIC=ON
+
 CMAKE_TOOLCHAIN = \
  -DCMAKE_C_COMPILER=$(CC) \
  -DCMAKE_CXX_COMPILER=$(CXX)
+
+MINGW_TOOLCHAIN = \
+ $(CMAKE_TOOLCHAIN) \
+ -DCMAKE_SYSTEM_NAME=Windows \
+ -DCMAKE_RC_COMPILER=$(CC_PREFIX)-windres \
+ -DCMAKE_FIND_ROOT_PATH=/usr/$(CC_PREFIX) \
+ -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=Never \
+ -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=Only \
+ -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=Only
 
 GLFW_MINGW_TOOLCHAIN = \
  -DCMAKE_TOOLCHAIN_FILE=CMake/$(CC_PREFIX).cmake
@@ -171,27 +185,21 @@ SHADERC_MINGW_TOOLCHAIN = \
  -DMINGW_COMPILER_PREFIX=$(CC_PREFIX) \
  -Dgtest_disable_pthreads=ON
 
-SPIRV_CROSS_MINGW_TOOLCHAIN = \
- $(CMAKE_TOOLCHAIN) \
- -DCMAKE_SYSTEM_NAME=Windows \
- -DCMAKE_RC_COMPILER=$(CC_PREFIX)-windres \
- -DCMAKE_FIND_ROOT_PATH=/usr/$(CC_PREFIX) \
- -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=Never \
- -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=Only \
- -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=Only
-
 ifneq ($(CC_PREFIX),None) # Cross-compile
  GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(GLFW_MINGW_TOOLCHAIN)
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(SHADERC_MINGW_TOOLCHAIN) -G "Unix Makefiles"
- SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(SPIRV_CROSS_MINGW_TOOLCHAIN)
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(MINGW_TOOLCHAIN)
+ CIMGUI_FLAGS      = $(CIMGUI_FLAGS_ALL) $(MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
  GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
  SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
+ CIMGUI_FLAGS      = $(CIMGUI_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
 else
  GLFW_FLAGS        = $(GLFW_FLAGS_UNIX) $(CMAKE_TOOLCHAIN)
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "Unix Makefiles"
  SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -DSPIRV_CROSS_FORCE_PIC=ON
+ CIMGUI_FLAGS      = $(CIMGUI_FLAGS_ALL) $(CMAKE_TOOLCHAIN)
 endif
 
 
@@ -256,7 +264,8 @@ LIBS = \
  $(BUILD)$(SUB)/glfw/src/libglfw3.a \
  $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a \
- $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a
+ $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a \
+ $(BUILD)$(SUB)/cimgui/cimgui.a
 
 
 # Auto expansion of files in a directory
@@ -294,6 +303,10 @@ $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a:
 $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a:
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(BUILD)$(SUB)/SPIRV-Cross .makedir
 	@cd $(BUILD)$(SUB)/SPIRV-Cross && cmake $(SPIRV_CROSS_FLAGS) $(CURDIR)/deps/SPIRV-Cross && $(MAKE)
+
+$(BUILD)$(SUB)/cimgui/cimgui.a:
+	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(BUILD)$(SUB)/cimgui .makedir
+	@cd $(BUILD)$(SUB)/cimgui && cmake $(CIMGUI_FLAGS) $(CURDIR)/deps/cimgui && $(MAKE)
 
 
 # Object files
