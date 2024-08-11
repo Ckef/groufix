@@ -500,7 +500,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 		goto error);
 
 	// Set viewport & scissor state.
-	// TODO: Define public GFXRenderArea with a GFXSizeClass?
+	// TODO: Define public GFXViewport/Scissor with a GFXSizeClass?
 	VkViewport viewport = {
 		.x        = 0.0f,
 		.y        = 0.0f,
