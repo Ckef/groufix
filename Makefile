@@ -264,7 +264,9 @@ LIBS = \
  $(BUILD)$(SUB)/glfw/src/libglfw3.a \
  $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a \
- $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a \
+ $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a
+
+EXPORT_LIBS = \
  $(BUILD)$(SUB)/cimgui/cimgui.a
 
 
@@ -315,12 +317,13 @@ $(OUT)$(SUB)/%.o: src/%.c
 	$(CC) $(OFLAGS) $< -o $@
 
 # Library file
-$(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(OBJS)
+$(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(EXPORT_LIBS) $(OBJS)
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
-	$(CXX) $(OBJS) -o $@ $(LIBS) $(LDFLAGS)
+	$(CXX) $(OBJS) -o $@ $(LIBS) -Wl,--push-state,--whole-archive $(EXPORT_LIBS) -Wl,--pop-state $(LDFLAGS)
 
 # Test programs
 $(BIN)$(SUB)/$(TESTPAT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
+	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
 	$(CC) -Itests $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
