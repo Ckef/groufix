@@ -146,6 +146,8 @@ SHADERC_FLAGS_ALL = \
  -DCMAKE_BUILD_TYPE=Release \
  -DSHADERC_SKIP_EXAMPLES=ON \
  -DSHADERC_SKIP_TESTS=ON \
+ -DENABLE_GLSLANG_BINARIES=OFF \
+ -DSPIRV_HEADERS_SKIP_EXAMPLES=ON \
  -DSPIRV_SKIP_EXECUTABLES=ON \
  -DSPIRV_SKIP_TESTS=ON
 
@@ -323,7 +325,6 @@ $(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(EXPORT_LIBS) $(OBJS)
 
 # Test programs
 $(BIN)$(SUB)/$(TESTPAT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
-	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
 	$(CC) -Itests $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
