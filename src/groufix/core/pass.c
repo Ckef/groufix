@@ -1221,6 +1221,14 @@ void _gfx_pass_destruct(_GFXRenderPass* rPass)
 }
 
 /****************************/
+GFX_API GFXRenderer* gfx_pass_get_renderer(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	return pass->renderer;
+}
+
+/****************************/
 GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass)
 {
 	assert(pass != NULL);

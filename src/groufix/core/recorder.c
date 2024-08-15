@@ -447,6 +447,14 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 }
 
 /****************************/
+GFX_API GFXRenderer* gfx_recorder_get_renderer(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	return recorder->renderer;
+}
+
+/****************************/
 GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
                                  void (*cb)(GFXRecorder*, unsigned int, void*),
                                  void* ptr)

@@ -697,6 +697,14 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 
 /**
+ * Returns the renderer the frame belongs to.
+ * @param frame Cannot be NULL.
+ *
+ * Can be called from any thread.
+ */
+GFX_API GFXRenderer* gfx_frame_get_renderer(GFXFrame* frame);
+
+/**
  * Retrieves the index of a virtual frame, used to identify the frame.
  * All frame indices are in the range [0, #frames of the renderer - 1].
  * They will be acquired in order, starting at 0.
@@ -791,9 +799,16 @@ typedef enum GFXPassType
  */
 GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
                                        size_t numParents, GFXPass** parents);
+/**
+ * Returns the renderer the pass was added to.
+ * Can be called from any thread.
+ * @param pass Cannot be NULL.
+ */
+GFX_API GFXRenderer* gfx_pass_get_renderer(GFXPass* pass);
 
 /**
  * Retrieves the type of a pass.
+ * Can be called from any thread.
  * @param pass Cannot be NULL.
  * @return Type of the pass, render, inline compute or async compute.
  */
@@ -964,7 +979,15 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 GFX_API void gfx_erase_tech(GFXTechnique* technique);
 
 /**
+ * Returns the renderer the technique was added to.
+ * Can be called from any thread.
+ * @param technique Cannot be NULL.
+ */
+GFX_API GFXRenderer* gfx_tech_get_renderer(GFXTechnique* technique);
+
+/**
  * Retrieves a shader of a technique.
+ * Can be called from any thread.
  * @param technique Cannot be NULL.
  * @param stage     Shader stage, exactly 1 stage must be set.
  * @return May be NULL if no shader was given.
@@ -1128,6 +1151,13 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
  * @param set Cannot be NULL.
  */
 GFX_API void gfx_erase_set(GFXSet* set);
+
+/**
+ * Returns the renderer the set was added to.
+ * Can be called from any thread.
+ * @param set Cannot be NULL.
+ */
+GFX_API GFXRenderer* gfx_set_get_renderer(GFXSet* set);
 
 /**
  * Retrieves the number of descriptor bindings of a set.
@@ -1297,6 +1327,13 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
  * @param recorder Cannot be NULL.
  */
 GFX_API void gfx_erase_recorder(GFXRecorder* recorder);
+
+/**
+ * Returns the renderer the recorder was added to.
+ * Can be called from any thread.
+ * @param recorder Cannot be NULL.
+ */
+GFX_API GFXRenderer* gfx_recorder_get_renderer(GFXRecorder* recorder);
 
 /**
  * Records render commands within a given render pass.
