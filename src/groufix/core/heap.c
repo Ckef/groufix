@@ -1042,6 +1042,14 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 }
 
 /****************************/
+GFX_API GFXHeap* gfx_buffer_get_heap(GFXBuffer* buffer)
+{
+	assert(buffer != NULL);
+
+	return ((_GFXBuffer*)buffer)->heap;
+}
+
+/****************************/
 GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
                                   GFXImageType type, GFXMemoryFlags flags,
                                   GFXImageUsage usage, GFXFormat format,
@@ -1140,6 +1148,14 @@ GFX_API void gfx_free_image(GFXImage* image)
 	_gfx_mutex_unlock(&heap->lock);
 
 	free(img);
+}
+
+/****************************/
+GFX_API GFXHeap* gfx_image_get_heap(GFXImage* image)
+{
+	assert(image != NULL);
+
+	return ((_GFXImage*)image)->heap;
 }
 
 /****************************/
@@ -1390,6 +1406,14 @@ GFX_API void gfx_free_prim(GFXPrimitive* primitive)
 	_gfx_mutex_unlock(&heap->lock);
 
 	free(prim);
+}
+
+/****************************/
+GFX_API GFXHeap* gfx_prim_get_heap(GFXPrimitive* primitive)
+{
+	assert(primitive != NULL);
+
+	return ((_GFXPrimitive*)primitive)->buffer.heap;
 }
 
 /****************************/
@@ -1677,6 +1701,14 @@ GFX_API void gfx_free_group(GFXGroup* group)
 	_gfx_mutex_unlock(&heap->lock);
 
 	free(group);
+}
+
+/****************************/
+GFX_API GFXHeap* gfx_group_get_heap(GFXGroup* group)
+{
+	assert(group != NULL);
+
+	return ((_GFXGroup*)group)->buffer.heap;
 }
 
 /****************************/

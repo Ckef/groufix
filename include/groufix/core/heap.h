@@ -346,6 +346,13 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
 GFX_API void gfx_free_buffer(GFXBuffer* buffer);
 
 /**
+ * Returns the heap a buffer was allocated from.
+ * Can be called from any thread.
+ * @param buffer Cannot be NULL.
+ */
+GFX_API GFXHeap* gfx_buffer_get_heap(GFXBuffer* buffer);
+
+/**
  * Allocates an image from a heap.
  * @param heap    Cannot be NULL.
  * @param flags   At least one flag must be set.
@@ -375,6 +382,13 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 GFX_API void gfx_free_image(GFXImage* image);
 
 /**
+ * Returns the heap an image was allocated from.
+ * Can be called from any thread.
+ * @param image Cannot be NULL.
+ */
+GFX_API GFXHeap* gfx_image_get_heap(GFXImage* image);
+
+/**
  * Allocates a primitive geometry from a heap.
  * @param heap        Cannot be NULL.
  * @param flags       At least one flag must be set if allocating new buffers.
@@ -398,10 +412,17 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      size_t numAttribs, const GFXAttribute* attribs);
 
 /**
- * Frees a primitive, excluding any buffers it references.
+ * Frees a primitive geometry, excluding any buffers it references.
  * Thread-safe with respect to heap!
  */
 GFX_API void gfx_free_prim(GFXPrimitive* primitive);
+
+/**
+ * Returns the heap a primitive geometry was allocated from.
+ * Can be called from any thread.
+ * @param primitive Cannot be NULL.
+ */
+GFX_API GFXHeap* gfx_prim_get_heap(GFXPrimitive* primitive);
 
 /**
  * Retrieves the number of vertex attributes of a primitive geometry.
@@ -438,10 +459,17 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
                                   size_t numBindings, const GFXBinding* bindings);
 
 /**
- * Frees a group, excluding any buffers or images it references.
+ * Frees a resource group, excluding any buffers or images it references.
  * Thread-safe with respect to heap!
  */
 GFX_API void gfx_free_group(GFXGroup* group);
+
+/**
+ * Returns the heap a resource group was allocated from.
+ * Can be called from any thread.
+ * @param group Cannot be NULL.
+ */
+GFX_API GFXHeap* gfx_group_get_heap(GFXGroup* group);
 
 /**
  * Retrieves the number of bindings of a resource group.

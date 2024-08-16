@@ -697,14 +697,6 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 
 /**
- * Returns the renderer the frame belongs to.
- * @param frame Cannot be NULL.
- *
- * Can be called from any thread.
- */
-GFX_API GFXRenderer* gfx_frame_get_renderer(GFXFrame* frame);
-
-/**
  * Retrieves the index of a virtual frame, used to identify the frame.
  * All frame indices are in the range [0, #frames of the renderer - 1].
  * They will be acquired in order, starting at 0.

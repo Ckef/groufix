@@ -444,14 +444,6 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 }
 
 /****************************/
-GFX_API GFXRenderer* gfx_frame_get_renderer(GFXFrame* frame)
-{
-	assert(frame != NULL);
-
-	return _GFX_RENDERER_FROM_FRAME(frame);
-}
-
-/****************************/
 GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame)
 {
 	assert(frame != NULL);
