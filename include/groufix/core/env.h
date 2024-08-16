@@ -22,6 +22,7 @@
 
 
 /**
+ * Environment variable name to influence the primary device selection.
  * Prioritize matching physical Vulkan devices.
  * A device matches if the set value is a substring of its name, case insensitive.
  */
