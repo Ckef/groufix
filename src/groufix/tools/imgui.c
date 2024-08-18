@@ -43,12 +43,13 @@ static const char* _gfx_imgui_vert_str =
 static const char* _gfx_imgui_frag_str =
 	"#version 450 core\n"
 	"layout(location = 0) out vec4 fColor;\n"
-	"layout(set=0, binding=0) uniform sampler2D sTexture;\n"
+	//"layout(set=0, binding=0) uniform sampler2D sTexture;\n"
 	"layout(location = 0) in struct { vec4 Color; vec2 UV; } In;\n"
 	"\n"
 	"void main()\n"
 	"{\n"
-	"    fColor = In.Color * texture(sTexture, In.UV.st);\n"
+	//"    fColor = In.Color * texture(sTexture, In.UV.st);\n"
+	"    fColor = In.Color;\n"
 	"}\n";
 
 
@@ -59,8 +60,8 @@ typedef struct _GFXDataElem
 {
 	unsigned int frame; // Index of last frame that used this data.
 
-	GFXPrimitive* prim;
-	GFXRenderable rend;
+	GFXPrimitive* primitive;
+	GFXRenderable renderable;
 
 } _GFXDataElem;
 
@@ -127,6 +128,9 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 	if (!gfx_tech_immutable(tech, 0, 0))
 		goto clean_tech;
 
+	if (!gfx_tech_lock(tech))
+		goto clean_tech;
+
 	drawer->tech = tech;
 
 	// TODO: Implement further.
@@ -160,7 +164,7 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 	gfx_destroy_shader(drawer->shaders.vert);
 	gfx_destroy_shader(drawer->shaders.frag);
 
-	// Leave all values, result is invalidated.
+	// Leave all values, drawer is invalidated.
 }
 
 /****************************/
@@ -169,8 +173,51 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 {
 	assert(recorder != NULL);
 	assert(drawer != NULL);
-	assert(gfx_recorder_get_renderer(recorder) == drawer->renderer);
+	assert(gfx_recorder_get_pass(recorder) == drawer->pass);
 	assert(igDrawData != NULL);
 
-	// TODO: Implement.
+	const ImDrawData* drawData = igDrawData;
+
+	// Do nothing when minimized.
+	if (drawData->DisplaySize.x <= 0 || drawData->DisplaySize.y <= 0)
+		return;
+
+	// Get all the vertex/index data, stick it in a buffer.
+	if (drawData->TotalVtxCount > 0)
+	{
+		for (int l = 0; l < drawData->CmdListsCount; ++l)
+		{
+			const ImDrawList* drawList = drawData->CmdLists.Data[l];
+
+			// TODO: Upload drawList->(Vtx|Idx)Buffer.Data.
+		}
+	}
+
+	// Setup push constants.
+	float scale [] = {
+		2.0f / drawData->DisplaySize.x,
+		2.0f / drawData->DisplaySize.y
+	};
+
+	float translate[] = {
+		-1.0f - drawData->DisplayPos.x * scale[0],
+		-1.0f - drawData->DisplayPos.y * scale[1]
+	};
+
+	gfx_cmd_push(recorder, drawer->tech,
+		0, sizeof(scale), scale);
+	gfx_cmd_push(recorder, drawer->tech,
+		sizeof(scale), sizeof(translate), translate);
+
+	// Loop over all draw commands and draw them.
+	for (int l = 0; l < drawData->CmdListsCount; ++l)
+	{
+		const ImDrawList* drawList = drawData->CmdLists.Data[l];
+		for (int c = 0; c < drawList->CmdBuffer.Size; ++c)
+		{
+			const ImDrawCmd* drawCmd = &drawList->CmdBuffer.Data[c];
+
+			// TODO: Draw.
+		}
+	}
 }
