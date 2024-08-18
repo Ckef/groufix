@@ -24,6 +24,166 @@ typedef struct _GFXCmdElem
 
 
 /****************************
+ * Converts a GFXViewport into a VkViewport,
+ * taking into account a given framebuffer width/height.
+ */
+static inline VkViewport _gfx_get_viewport(const GFXViewport* viewport,
+                                           uint32_t fWidth, uint32_t fHeight)
+{
+	VkViewport vkViewport = {
+		.minDepth = viewport->minDepth,
+		.maxDepth = viewport->maxDepth
+	};
+
+	if (viewport->size == GFX_SIZE_ABSOLUTE)
+	{
+		vkViewport.x = viewport->x;
+		vkViewport.y = viewport->y;
+		vkViewport.width = viewport->width;
+		vkViewport.height = viewport->height;
+	}
+	else
+	{
+		vkViewport.x = (float)fWidth * viewport->xOffset;
+		vkViewport.y = (float)fHeight * viewport->yOffset;
+		vkViewport.width = (float)fWidth * viewport->xScale;
+		vkViewport.height = (float)fHeight * viewport->yScale;
+	}
+
+	return vkViewport;
+}
+
+/****************************
+ * Converts a GFXScissor into a VkRect2D,
+ * taking into account a given framebuffer width/height.
+ */
+static inline VkRect2D _gfx_get_scissor(const GFXScissor* scissor,
+                                        uint32_t fWidth, uint32_t fHeight)
+{
+	VkRect2D vkScissor;
+
+	if (scissor->size == GFX_SIZE_ABSOLUTE)
+	{
+		vkScissor.offset.x = scissor->x;
+		vkScissor.offset.y = scissor->y;
+		vkScissor.extent.width = scissor->width;
+		vkScissor.extent.height = scissor->height;
+	}
+	else
+	{
+		vkScissor.offset.x = (int32_t)((float)fWidth * scissor->xOffset);
+		vkScissor.offset.y = (int32_t)((float)fHeight * scissor->yOffset);
+		vkScissor.extent.width = (uint32_t)((float)fWidth * scissor->xScale);
+		vkScissor.extent.height = (uint32_t)((float)fHeight * scissor->yScale);
+	}
+
+	return vkScissor;
+}
+
+/****************************
+ * Binds a graphics pipeline to the current recording.
+ * @param recorder   Cannot be NULL, assumed to be in a callback.
+ * @param renderable Cannot be NULL, assumed to be validated.
+ * @return Zero on failure.
+ */
+static bool _gfx_recorder_bind_renderable(GFXRecorder* recorder,
+                                          GFXRenderable* renderable)
+{
+	assert(recorder != NULL);
+	assert(renderable != NULL);
+
+	_GFXContext* context = recorder->context;
+
+	// Get pipeline from renderable.
+	_GFXCacheElem* elem;
+	if (!_gfx_renderable_pipeline(renderable, &elem, 0))
+		return 0;
+
+	// Bind as graphics pipeline.
+	if (recorder->state.pipeline != elem)
+	{
+		recorder->state.pipeline = elem;
+		context->vk.CmdBindPipeline(recorder->inp.cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS, elem->vk.pipeline);
+	}
+
+	return 1;
+}
+
+/****************************
+ * Binds a compute pipeline to the current recording.
+ * @param recorder   Cannot be NULL, assumed to be in a callback.
+ * @param computable Cannot be NULL, assumed to be validated.
+ * @return Zero on failure.
+ */
+static bool _gfx_recorder_bind_computable(GFXRecorder* recorder,
+                                          GFXComputable* computable)
+{
+	assert(recorder != NULL);
+	assert(computable != NULL);
+
+	_GFXContext* context = recorder->context;
+
+	// Get pipeline from computable.
+	_GFXCacheElem* elem;
+	if (!_gfx_computable_pipeline(computable, &elem, 0))
+		return 0;
+
+	// Bind as compute pipeline.
+	if (recorder->state.pipeline != elem)
+	{
+		recorder->state.pipeline = elem;
+		context->vk.CmdBindPipeline(recorder->inp.cmd,
+			VK_PIPELINE_BIND_POINT_COMPUTE, elem->vk.pipeline);
+	}
+
+	return 1;
+}
+
+/****************************
+ * Binds a vertex and/or index buffer to the current recording.
+ * @param recorder  Cannot be NULL, assumed to be in a callback.
+ * @param primitive Cannot be NULL.
+ */
+static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
+                                         GFXPrimitive* primitive)
+{
+	assert(recorder != NULL);
+	assert(primitive != NULL);
+
+	_GFXContext* context = recorder->context;
+	_GFXPrimitive* prim = (_GFXPrimitive*)primitive;
+
+	// Bind vertex & index buffers.
+	if (recorder->state.primitive != prim)
+	{
+		recorder->state.primitive = prim;
+		VkBuffer vertexBuffs[prim->numBindings];
+		VkDeviceSize vertexOffsets[prim->numBindings];
+
+		for (size_t i = 0; i < prim->numBindings; ++i)
+			vertexBuffs[i] = prim->bindings[i].buffer->vk.buffer,
+			vertexOffsets[i] = prim->bindings[i].offset;
+
+		context->vk.CmdBindVertexBuffers(recorder->inp.cmd,
+			0, (uint32_t)prim->numBindings,
+			vertexBuffs, vertexOffsets);
+
+		if (primitive->numIndices > 0)
+		{
+			_GFXUnpackRef index =
+				_gfx_ref_unpack(gfx_ref_prim_indices(primitive));
+
+			context->vk.CmdBindIndexBuffer(recorder->inp.cmd,
+				index.obj.buffer->vk.buffer,
+				index.value,
+				primitive->indexSize == sizeof(uint16_t) ?
+					VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+		}
+	}
+}
+
+/****************************
  * Claims (or creates) a command buffer from the current recording pool.
  * To unclaim, the current pool's used count should be decreased.
  * @param recorder Cannot be NULL.
@@ -73,109 +233,6 @@ static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder,
 	// Increase used counter & return.
 	++pool->used;
 	return *cmd;
-}
-
-/****************************
- * Binds a graphics pipeline to the current recording.
- * @param recorder   Cannot be NULL, assumed to be in a callback.
- * @param renderable Cannot be NULL, assumed to be validated.
- * @return Zero on failure.
- */
-static bool _gfx_recorder_bind_renderable(GFXRecorder* recorder,
-                                          GFXRenderable* renderable)
-{
-	assert(recorder != NULL);
-	assert(renderable != NULL);
-
-	_GFXContext* context = recorder->context;
-
-	// Get pipeline from renderable.
-	_GFXCacheElem* elem;
-	if (!_gfx_renderable_pipeline(renderable, &elem, 0))
-		return 0;
-
-	// Bind as graphics pipeline.
-	if (recorder->bind.pipeline != elem)
-	{
-		recorder->bind.pipeline = elem;
-		context->vk.CmdBindPipeline(recorder->inp.cmd,
-			VK_PIPELINE_BIND_POINT_GRAPHICS, elem->vk.pipeline);
-	}
-
-	return 1;
-}
-
-/****************************
- * Binds a compute pipeline to the current recording.
- * @param recorder   Cannot be NULL, assumed to be in a callback.
- * @param computable Cannot be NULL, assumed to be validated.
- * @return Zero on failure.
- */
-static bool _gfx_recorder_bind_computable(GFXRecorder* recorder,
-                                          GFXComputable* computable)
-{
-	assert(recorder != NULL);
-	assert(computable != NULL);
-
-	_GFXContext* context = recorder->context;
-
-	// Get pipeline from computable.
-	_GFXCacheElem* elem;
-	if (!_gfx_computable_pipeline(computable, &elem, 0))
-		return 0;
-
-	// Bind as compute pipeline.
-	if (recorder->bind.pipeline != elem)
-	{
-		recorder->bind.pipeline = elem;
-		context->vk.CmdBindPipeline(recorder->inp.cmd,
-			VK_PIPELINE_BIND_POINT_COMPUTE, elem->vk.pipeline);
-	}
-
-	return 1;
-}
-
-/****************************
- * Binds a vertex and/or index buffer to the current recording.
- * @param recorder  Cannot be NULL, assumed to be in a callback.
- * @param primitive Cannot be NULL.
- */
-static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
-                                         GFXPrimitive* primitive)
-{
-	assert(recorder != NULL);
-	assert(primitive != NULL);
-
-	_GFXContext* context = recorder->context;
-	_GFXPrimitive* prim = (_GFXPrimitive*)primitive;
-
-	// Bind vertex & index buffers.
-	if (recorder->bind.primitive != prim)
-	{
-		recorder->bind.primitive = prim;
-		VkBuffer vertexBuffs[prim->numBindings];
-		VkDeviceSize vertexOffsets[prim->numBindings];
-
-		for (size_t i = 0; i < prim->numBindings; ++i)
-			vertexBuffs[i] = prim->bindings[i].buffer->vk.buffer,
-			vertexOffsets[i] = prim->bindings[i].offset;
-
-		context->vk.CmdBindVertexBuffers(recorder->inp.cmd,
-			0, (uint32_t)prim->numBindings,
-			vertexBuffs, vertexOffsets);
-
-		if (primitive->numIndices > 0)
-		{
-			_GFXUnpackRef index =
-				_gfx_ref_unpack(gfx_ref_prim_indices(primitive));
-
-			context->vk.CmdBindIndexBuffer(recorder->inp.cmd,
-				index.obj.buffer->vk.buffer,
-				index.value,
-				primitive->indexSize == sizeof(uint16_t) ?
-					VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
-		}
-	}
 }
 
 /****************************
@@ -508,32 +565,22 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 		goto error);
 
 	// Set viewport & scissor state.
-	// TODO: Define public GFXViewport/Scissor with a GFXSizeClass?
-	VkViewport viewport = {
-		.x        = 0.0f,
-		.y        = 0.0f,
-		.width    = (float)rPass->build.fWidth,
-		.height   = (float)rPass->build.fHeight,
-		.minDepth = 0.0f,
-		.maxDepth = 1.0f
-	};
+	VkViewport viewport = _gfx_get_viewport(
+		&rPass->state.viewport, rPass->build.fWidth, rPass->build.fHeight);
+	VkRect2D scissor = _gfx_get_scissor(
+		&rPass->state.scissor, rPass->build.fWidth, rPass->build.fHeight);
 
-	VkRect2D scissor = {
-		.offset = { 0, 0 },
-		.extent = {
-			rPass->build.fWidth,
-			rPass->build.fHeight
-		}
-	};
+	recorder->state.viewport = rPass->state.viewport;
+	recorder->state.scissor = rPass->state.scissor;
 
 	context->vk.CmdSetViewport(cmd, 0, 1, &viewport);
 	context->vk.CmdSetScissor(cmd, 0, 1, &scissor);
 
 	// Set recording input, record, unset input.
-	recorder->inp.pass = &rPass->base;
+	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;
-	recorder->bind.pipeline = NULL;
-	recorder->bind.primitive = NULL;
+	recorder->state.pipeline = NULL;
+	recorder->state.primitive = NULL;
 
 	cb(recorder, recorder->current, ptr);
 
@@ -571,7 +618,6 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 	_GFXContext* context = recorder->context;
 
 	// The pass must be a compute pass.
-	_GFXComputePass* cPass = (_GFXComputePass*)pass;
 	if (pass->type == GFX_PASS_RENDER) goto error;
 
 	// Then, claim a command buffer to use.
@@ -604,10 +650,10 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 		goto error);
 
 	// Set recording input, record, unset input.
-	recorder->inp.pass = &cPass->base;
+	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;
-	recorder->bind.pipeline = NULL;
-	recorder->bind.primitive = NULL;
+	recorder->state.pipeline = NULL;
+	recorder->state.primitive = NULL;
 
 	cb(recorder, recorder->current, ptr);
 
@@ -637,6 +683,42 @@ GFX_API unsigned int gfx_recorder_get_frame_index(GFXRecorder* recorder)
 	assert(recorder != NULL);
 
 	return recorder->current;
+}
+
+/****************************/
+GFX_API GFXViewport gfx_recorder_get_viewport(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	if (recorder->inp.pass && recorder->inp.pass->type == GFX_PASS_RENDER)
+		return recorder->state.viewport;
+	else
+		return (GFXViewport){
+			.size = GFX_SIZE_ABSOLUTE,
+			.x = 0.0f,
+			.y = 0.0f,
+			.width = 0.0f,
+			.height = 0.0f,
+			.minDepth = 0.0f,
+			.maxDepth = 0.0f
+		};
+}
+
+/****************************/
+GFX_API GFXScissor gfx_recorder_get_scissor(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	if (recorder->inp.pass && recorder->inp.pass->type == GFX_PASS_RENDER)
+		return recorder->state.scissor;
+	else
+		return (GFXScissor){
+			.size = GFX_SIZE_ABSOLUTE,
+			.x = 0,
+			.y = 0,
+			.width = 0,
+			.height = 0
+		};
 }
 
 /****************************/
@@ -1145,4 +1227,46 @@ GFX_API void gfx_cmd_dispatch_from(GFXRecorder* recorder, GFXComputable* computa
 	// Record the dispatch command.
 	context->vk.CmdDispatchIndirect(recorder->inp.cmd,
 		unp.obj.buffer->vk.buffer, unp.value);
+}
+
+/****************************/
+GFX_API void gfx_cmd_set_viewport(GFXRecorder* recorder, GFXViewport viewport)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.pass != NULL);
+	assert(recorder->inp.pass->type == GFX_PASS_RENDER);
+	assert(recorder->inp.cmd != NULL);
+
+	_GFXContext* context = recorder->context;
+	_GFXRenderPass* rPass = (_GFXRenderPass*)recorder->inp.pass;
+
+	VkViewport vkViewport = _gfx_get_viewport(
+		&viewport, rPass->build.fWidth, rPass->build.fHeight);
+
+	// Set for gfx_recorder_get_viewport.
+	recorder->state.viewport = viewport;
+
+	// Record, don't worry about duplicate commands.
+	context->vk.CmdSetViewport(recorder->inp.cmd, 0, 1, &vkViewport);
+}
+
+/****************************/
+GFX_API void gfx_cmd_set_scissor(GFXRecorder* recorder, GFXScissor scissor)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.pass != NULL);
+	assert(recorder->inp.pass->type == GFX_PASS_RENDER);
+	assert(recorder->inp.cmd != NULL);
+
+	_GFXContext* context = recorder->context;
+	_GFXRenderPass* rPass = (_GFXRenderPass*)recorder->inp.pass;
+
+	VkRect2D vkScissor = _gfx_get_scissor(
+		&scissor, rPass->build.fWidth, rPass->build.fHeight);
+
+	// Set for gfx_recorder_get_scissor.
+	recorder->state.scissor = scissor;
+
+	// Record, don't worry about duplicate commands.
+	context->vk.CmdSetScissor(recorder->inp.cmd, 0, 1, &vkScissor);
 }

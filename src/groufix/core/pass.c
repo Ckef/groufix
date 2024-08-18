@@ -429,6 +429,24 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 			.front = stencilOpState,
 			.back = stencilOpState
 		};
+
+		rPass->state.viewport = (GFXViewport){
+			.size = GFX_SIZE_RELATIVE,
+			.xOffset = 0.0f,
+			.yOffset = 0.0f,
+			.xScale = 1.0f,
+			.yScale = 1.0f,
+			.minDepth = 0.0f,
+			.maxDepth = 1.0f
+		};
+
+		rPass->state.scissor = (GFXScissor){
+			.size = GFX_SIZE_RELATIVE,
+			.xOffset = 0.0f,
+			.yOffset = 0.0f,
+			.xScale = 1.0f,
+			.yScale = 1.0f
+		};
 	}
 
 	// Initialize as compute pass.
@@ -1475,6 +1493,32 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 }
 
 /****************************/
+GFX_API void gfx_pass_set_viewport(GFXPass* pass, GFXViewport viewport)
+{
+	assert(pass != NULL);
+
+	// No-op if not a render pass.
+	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+	if (pass->type != GFX_PASS_RENDER) return;
+
+	// Set viewport.
+	rPass->state.viewport = viewport;
+}
+
+/****************************/
+GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor)
+{
+	assert(pass != NULL);
+
+	// No-op if not a render pass.
+	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+	if (pass->type != GFX_PASS_RENDER) return;
+
+	// Set scissor.
+	rPass->state.scissor = scissor;
+}
+
+/****************************/
 GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
 {
 	assert(pass != NULL);
@@ -1492,6 +1536,42 @@ GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
 			.blend = NULL,
 			.depth = NULL,
 			.stencil = NULL
+		};
+}
+
+/****************************/
+GFX_API GFXViewport gfx_pass_get_viewport(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	if (pass->type == GFX_PASS_RENDER)
+		return ((_GFXRenderPass*)pass)->state.viewport;
+	else
+		return (GFXViewport){
+			.size = GFX_SIZE_ABSOLUTE,
+			.x = 0.0f,
+			.y = 0.0f,
+			.width = 0.0f,
+			.height = 0.0f,
+			.minDepth = 0.0f,
+			.maxDepth = 0.0f
+		};
+}
+
+/****************************/
+GFX_API GFXScissor gfx_pass_get_scissor(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	if (pass->type == GFX_PASS_RENDER)
+		return ((_GFXRenderPass*)pass)->state.scissor;
+	else
+		return (GFXScissor){
+			.size = GFX_SIZE_ABSOLUTE,
+			.x = 0,
+			.y = 0,
+			.width = 0,
+			.height = 0
 		};
 }
 
