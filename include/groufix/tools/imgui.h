@@ -66,7 +66,7 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer);
 
 /**
- * Render command to draw ImGUI data using a drawer.
+ * Render command to draw ImGui data using a drawer.
  * Can only be called within a callback of gfx_recorder_render!
  * @param recorder   Cannot be NULL, must use the pass given in gfx_imgui_init!
  * @param drawer     Cannot be NULL.

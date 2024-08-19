@@ -167,6 +167,51 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 	// Leave all values, drawer is invalidated.
 }
 
+/****************************
+ * Sets up basic rendering state to render ImGui data with.
+ * @param recorder   Cannot be NULL.
+ * @param drawer     Cannot be NULL.
+ * @param igDrawData Cannot be NULL.
+ */
+static void _gfx_cmd_imgui_state(GFXRecorder* recorder,
+                                 GFXImguiDrawer* drawer, const void* igDrawData)
+{
+	assert(recorder != NULL);
+	assert(drawer != NULL);
+	assert(igDrawData != NULL);
+
+	const ImDrawData* drawData = igDrawData;
+
+	// Setup viewport.
+	GFXViewport viewport = {
+		.size = GFX_SIZE_RELATIVE,
+		.xOffset = 0.0f,
+		.yOffset = 0.0f,
+		.xScale = 1.0f,
+		.yScale = 1.0f,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
+
+	gfx_cmd_set_viewport(recorder, viewport);
+
+	// Setup push constants.
+	float scale [] = {
+		2.0f / drawData->DisplaySize.x,
+		2.0f / drawData->DisplaySize.y
+	};
+
+	float translate[] = {
+		-1.0f - drawData->DisplayPos.x * scale[0],
+		-1.0f - drawData->DisplayPos.y * scale[1]
+	};
+
+	gfx_cmd_push(recorder, drawer->tech,
+		0, sizeof(scale), scale);
+	gfx_cmd_push(recorder, drawer->tech,
+		sizeof(scale), sizeof(translate), translate);
+}
+
 /****************************/
 GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
                                 GFXImguiDrawer* drawer, const void* igDrawData)
@@ -193,28 +238,14 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 		}
 	}
 
-	// Setup push constants.
-	float scale [] = {
-		2.0f / drawData->DisplaySize.x,
-		2.0f / drawData->DisplaySize.y
-	};
+	// Setup some basic recording state.
+	// Remember current viewport/scissor state so we can reset it afterwards.
+	GFXViewport oldViewport = gfx_recorder_get_viewport(recorder);
+	GFXScissor oldScissor = gfx_recorder_get_scissor(recorder);
 
-	float translate[] = {
-		-1.0f - drawData->DisplayPos.x * scale[0],
-		-1.0f - drawData->DisplayPos.y * scale[1]
-	};
-
-	gfx_cmd_push(recorder, drawer->tech,
-		0, sizeof(scale), scale);
-	gfx_cmd_push(recorder, drawer->tech,
-		sizeof(scale), sizeof(translate), translate);
-
-	// TODO: Probably need to setup viewport state too (and have it reset too).
+	_gfx_cmd_imgui_state(recorder, drawer, igDrawData);
 
 	// Loop over all draw commands and draw them.
-	// Remember current scissor state so we can reset it afterwards.
-	GFXScissor reScissor = gfx_recorder_get_scissor(recorder);
-
 	for (int l = 0; l < drawData->CmdListsCount; ++l)
 	{
 		const ImDrawList* drawList = drawData->CmdLists.Data[l];
@@ -222,7 +253,16 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 		{
 			const ImDrawCmd* drawCmd = &drawList->CmdBuffer.Data[c];
 
-			// TODO: Handle user callbacks?
+			// Handle user callbacks.
+			if (drawCmd->UserCallback != NULL)
+			{
+				if (drawCmd->UserCallback == ImDrawCallback_ResetRenderState)
+					_gfx_cmd_imgui_state(recorder, drawer, igDrawData);
+				else
+					drawCmd->UserCallback(drawList, drawCmd);
+
+				continue;
+			}
 
 			// Convert clipping rectangle to scissor state.
 			float clipMinX = drawCmd->ClipRect.x - drawData->DisplayPos.x;
@@ -238,7 +278,7 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 			if (clipMaxX <= clipMinX || clipMaxY <= clipMinY)
 				continue;
 
-			GFXScissor scissor = (GFXScissor){
+			GFXScissor scissor = {
 				.size = GFX_SIZE_RELATIVE,
 				.xOffset = clipMinX / drawData->DisplaySize.x,
 				.yOffset = clipMinY / drawData->DisplaySize.y,
@@ -252,6 +292,7 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 		}
 	}
 
-	// Reset scissor state.
-	gfx_cmd_set_scissor(recorder, reScissor);
+	// Reset viewport & scissor state.
+	gfx_cmd_set_viewport(recorder, oldViewport);
+	gfx_cmd_set_scissor(recorder, oldScissor);
 }
