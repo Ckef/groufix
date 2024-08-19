@@ -210,6 +210,9 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 		sizeof(scale), sizeof(translate), translate);
 
 	// Loop over all draw commands and draw them.
+	// Remember current scissor state so we can reset it afterwards.
+	GFXScissor reScissor = gfx_recorder_get_scissor(recorder);
+
 	for (int l = 0; l < drawData->CmdListsCount; ++l)
 	{
 		const ImDrawList* drawList = drawData->CmdLists.Data[l];
@@ -217,7 +220,31 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 		{
 			const ImDrawCmd* drawCmd = &drawList->CmdBuffer.Data[c];
 
+			// Convert clipping rectangle to scissor state.
+			float clipMinX = drawCmd->ClipRect.x - drawData->DisplayPos.x;
+			float clipMinY = drawCmd->ClipRect.y - drawData->DisplayPos.y;
+			float clipMaxX = drawCmd->ClipRect.z - drawData->DisplayPos.x;
+			float clipMaxY = drawCmd->ClipRect.w - drawData->DisplayPos.y;
+
+			if (clipMinX < 0.0f) clipMinX = 0.0f;
+			if (clipMinY < 0.0f) clipMinY = 0.0f;
+			if (clipMaxX > drawData->DisplaySize.x) clipMaxX = drawData->DisplaySize.x;
+			if (clipMaxY > drawData->DisplaySize.y) clipMaxY = drawData->DisplaySize.y;
+
+			GFXScissor scissor = (GFXScissor){
+				.size = GFX_SIZE_RELATIVE,
+				.xOffset = clipMinX / drawData->DisplaySize.x,
+				.yOffset = clipMinY / drawData->DisplaySize.y,
+				.xScale = (clipMaxX - clipMinX) / drawData->DisplaySize.x,
+				.yScale = (clipMaxY - clipMinY) / drawData->DisplaySize.y
+			};
+
+			gfx_cmd_set_scissor(recorder, scissor);
+
 			// TODO: Draw.
 		}
 	}
+
+	// Reset scissor state.
+	gfx_cmd_set_scissor(recorder, reScissor);
 }
