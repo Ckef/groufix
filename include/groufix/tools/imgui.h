@@ -10,8 +10,8 @@
 #ifndef GFX_TOOLS_IMGUI_H
 #define GFX_TOOLS_IMGUI_H
 
+#include "groufix/containers/deque.h"
 #include "groufix/containers/map.h"
-#include "groufix/containers/vec.h"
 #include "groufix/core/deps.h"
 #include "groufix/core/heap.h"
 #include "groufix/core/renderer.h"
@@ -30,7 +30,7 @@ typedef struct GFXImguiDrawer
 	GFXPass*       pass;
 
 	GFXTechnique* tech;
-	GFXVec        data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable }
+	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable }
 	GFXMap        images; // Stores GFXImage* : GFXSet*
 
 	// All shaders.

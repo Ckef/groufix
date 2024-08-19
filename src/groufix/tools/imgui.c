@@ -89,7 +89,7 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 	drawer->renderer = renderer;
 	drawer->pass = pass;
 
-	gfx_vec_init(&drawer->data, sizeof(_GFXDataElem));
+	gfx_deque_init(&drawer->data, sizeof(_GFXDataElem));
 	// TODO: Define hash and compare functions.
 	//gfx_map_init(&drawer->images, sizeof(GFXSet*), _some_hash, _some_cmp);
 
@@ -133,8 +133,6 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 
 	drawer->tech = tech;
 
-	// TODO: Implement further.
-
 	return 1;
 
 
@@ -144,6 +142,7 @@ clean_tech:
 clean:
 	gfx_destroy_shader(shads[0]);
 	gfx_destroy_shader(shads[1]);
+	gfx_deque_clear(&drawer->data);
 
 	gfx_log_error("Could not initialize a new ImGui drawer.");
 
@@ -158,7 +157,7 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 	// TODO: Implement further.
 
 	//gfx_map_clear(&drawer->images);
-	gfx_vec_clear(&drawer->data);
+	gfx_deque_clear(&drawer->data);
 
 	gfx_erase_tech(drawer->tech);
 	gfx_destroy_shader(drawer->shaders.vert);
@@ -246,6 +245,9 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 	_gfx_cmd_imgui_state(recorder, drawer, igDrawData);
 
 	// Loop over all draw commands and draw them.
+	uint32_t vertexOffset = 0;
+	uint32_t indexOffset = 0;
+
 	for (int l = 0; l < drawData->CmdListsCount; ++l)
 	{
 		const ImDrawList* drawList = drawData->CmdLists.Data[l];
@@ -288,8 +290,17 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 
 			gfx_cmd_set_scissor(recorder, scissor);
 
-			// TODO: Draw.
+			// Record the draw command.
+			_GFXDataElem* elem = gfx_deque_at(&drawer->data, 0);
+
+			gfx_cmd_draw_indexed(recorder, &elem->renderable,
+				(uint32_t)drawCmd->ElemCount, 1,
+				(uint32_t)drawCmd->IdxOffset + indexOffset,
+				(int32_t)((uint32_t)drawCmd->VtxOffset + vertexOffset), 0);
 		}
+
+		vertexOffset += (uint32_t)drawList->VtxBuffer.Size;
+		indexOffset += (uint32_t)drawList->IdxBuffer.Size;
 	}
 
 	// Reset viewport & scissor state.
