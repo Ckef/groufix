@@ -9,9 +9,39 @@
 #include "groufix/tools/imgui.h"
 #include "groufix/core/log.h"
 #include <assert.h>
+#include <limits.h>
+#include <string.h>
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include "cimgui.h"
+
+
+// Clears the contents of a _GFXDataElem, freeing all memory.
+#define _GFX_IMGUI_CLEAR_DATA(elem) \
+	do { \
+		if (elem->vertices) \
+			gfx_unmap(gfx_ref_prim_vertices(elem->primitive, 0)); \
+		if (elem->indices) \
+			gfx_unmap(gfx_ref_prim_indices(elem->primitive)); \
+		gfx_free_prim(elem->primitive); \
+	} while (0);
+
+
+/****************************
+ * ImGui drawer data element definition.
+ * One such element holds data for all of the renderer's virtual frames!
+ */
+typedef struct _GFXDataElem
+{
+	unsigned int frame; // Index of last frame that used this data.
+
+	GFXPrimitive* primitive;
+	GFXRenderable renderable;
+
+	void* vertices;
+	void* indices;
+
+} _GFXDataElem;
 
 
 /****************************
@@ -51,19 +81,6 @@ static const char* _gfx_imgui_frag_str =
 	//"    fColor = In.Color * texture(sTexture, In.UV.st);\n"
 	"    fColor = In.Color;\n"
 	"}\n";
-
-
-/****************************
- * ImGui drawer data element definition.
- */
-typedef struct _GFXDataElem
-{
-	unsigned int frame; // Index of last frame that used this data.
-
-	GFXPrimitive* primitive;
-	GFXRenderable renderable;
-
-} _GFXDataElem;
 
 
 /****************************/
@@ -154,11 +171,19 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 {
 	assert(drawer != NULL);
 
-	// TODO: Implement further.
-
+	// Erase/free all dynamic data.
+	// TODO: Erase all sets.
 	//gfx_map_clear(&drawer->images);
+
+	for (size_t d = 0; d < drawer->data.size; ++d)
+	{
+		_GFXDataElem* elem = gfx_deque_at(&drawer->data, d);
+		_GFX_IMGUI_CLEAR_DATA(elem);
+	}
+
 	gfx_deque_clear(&drawer->data);
 
+	// Destroy the rest.
 	gfx_erase_tech(drawer->tech);
 	gfx_destroy_shader(drawer->shaders.vert);
 	gfx_destroy_shader(drawer->shaders.frag);
@@ -172,11 +197,114 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
  * @return Zero on failure.
  */
 static bool _gfx_imgui_update_data(GFXImguiDrawer* drawer,
-                                   unsigned int frame, int vertices, int indices)
+                                   unsigned int numFrames, unsigned int frame,
+                                   uint32_t vertices, uint32_t indices)
 {
+	static_assert(
+		sizeof(uint16_t) == sizeof(ImDrawIdx),
+		"sizeof(ImDrawIdx) must equal sizeof(uint16_t).");
+
 	assert(drawer != NULL);
 
-	// TODO: Implement.
+	// First purge all data that was last used by this frame.
+	// Given frames always come in order, all previous frames should have
+	// been destroyed, unless the user skips frames for ImGui...
+	// In which case it will just take longer to purge.
+	while (drawer->data.size > 0)
+	{
+		_GFXDataElem* elem =
+			gfx_deque_at(&drawer->data, drawer->data.size - 1);
+		if (elem->frame != frame)
+			break;
+
+		_GFX_IMGUI_CLEAR_DATA(elem);
+		gfx_deque_pop(&drawer->data, 1);
+	}
+
+	// If there is a front-most element, check if it is sufficiently large.
+	if (drawer->data.size > 0)
+	{
+		_GFXDataElem* elem = gfx_deque_at(&drawer->data, 0);
+		if (elem->frame != UINT_MAX) // Already marked for purging.
+			goto build_new;
+
+		uint32_t numVertices = elem->primitive->numVertices / numFrames;
+		uint32_t numIndices = elem->primitive->numIndices / numFrames;
+
+		// Too small!
+		if (numVertices < vertices || numIndices < indices)
+		{
+			// Mark for purging and build new.
+			// Get the last submitted frame's index,
+			// as clearly this frame won't be using it :)
+			elem->frame = (frame + numFrames - 1) % numFrames;
+
+			goto build_new;
+		}
+
+		// Ok, evidently the front-most elemt has enough space, done!
+		return 1;
+	}
+
+	// Jump here to build a new front-most data element.
+build_new:
+	if (!gfx_deque_push_front(&drawer->data, 1, NULL))
+		return 0;
+
+	_GFXDataElem* elem = gfx_deque_at(&drawer->data, 0);
+	elem->frame = UINT_MAX; // Not yet purged.
+	elem->vertices = NULL;
+	elem->indices = NULL;
+
+	// Allocate primitive.
+	elem->primitive = gfx_alloc_prim(drawer->heap,
+		GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_DEVICE_LOCAL,
+		0, GFX_TOPO_TRIANGLE_LIST,
+		indices * numFrames, sizeof(uint16_t),
+		vertices * numFrames,
+		GFX_REF_NULL,
+		3, (GFXAttribute[]){
+			{
+				.format = GFX_FORMAT_R32G32_SFLOAT,
+				.offset = offsetof(ImDrawVert, pos),
+				.stride = sizeof(ImDrawVert),
+				.buffer = GFX_REF_NULL,
+			}, {
+				.format = GFX_FORMAT_R32G32_SFLOAT,
+				.offset = offsetof(ImDrawVert, uv),
+				.stride = sizeof(ImDrawVert),
+				.buffer = GFX_REF_NULL,
+			}, {
+				.format = GFX_FORMAT_R8G8B8A8_UNORM,
+				.offset = offsetof(ImDrawVert, col),
+				.stride = sizeof(ImDrawVert),
+				.buffer = GFX_REF_NULL,
+			}
+		});
+
+	// If successful, initialize renderable.
+	if (
+		!elem->primitive ||
+		!gfx_renderable(&elem->renderable,
+			drawer->pass, drawer->tech, elem->primitive, NULL))
+	{
+		goto clean_new;
+	}
+
+	// Lastly, map the data.
+	elem->vertices = gfx_map(gfx_ref_prim_vertices(elem->primitive, 0));
+	elem->indices = gfx_map(gfx_ref_prim_indices(elem->primitive));
+
+	if (elem->vertices == NULL || elem->indices == NULL)
+		goto clean_new;
+
+	return 1;
+
+
+	// Cleanup on failure (of build new).
+clean_new:
+	_GFX_IMGUI_CLEAR_DATA(elem);
+	gfx_deque_pop_front(&drawer->data, 1);
 
 	return 0;
 }
@@ -236,18 +364,28 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 	assert(igDrawData != NULL);
 
 	const ImDrawData* drawData = igDrawData;
-	unsigned int frame = gfx_recorder_get_frame_index(recorder);
+
+	const unsigned int numFrames =
+		gfx_renderer_get_num_frames(drawer->renderer);
+	const unsigned int frame =
+		gfx_recorder_get_frame_index(recorder);
 
 	// Do nothing when minimized.
 	if (drawData->DisplaySize.x <= 0 || drawData->DisplaySize.y <= 0)
 		return;
 
 	// Make sure all vertex/index data is ready for the GPU.
-	if (drawData->TotalVtxCount > 0)
+	_GFXDataElem* elem = NULL;
+	uint32_t vertexOffset = 0;
+	uint32_t indexOffset = 0;
+
+	if (drawData->TotalVtxCount > 0 && drawData->TotalIdxCount > 0)
 	{
 		// Try to update the data held by this drawer.
-		if (!_gfx_imgui_update_data(drawer, frame,
-			drawData->TotalVtxCount, drawData->TotalIdxCount))
+		if (!_gfx_imgui_update_data(drawer,
+			numFrames, frame,
+			(uint32_t)drawData->TotalVtxCount,
+			(uint32_t)drawData->TotalIdxCount))
 		{
 			gfx_log_error(
 				"Could not allocate buffers during ImGui draw command; "
@@ -256,12 +394,32 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 			return;
 		}
 
+		// Now we are sure we have data, set the vertex/index offsets
+		// for once we start drawing, as all draws will only use a part
+		// of the primitive (it holds data for all virtual frames!)
+		// We start the offsets according to the current frame index.
+		elem = gfx_deque_at(&drawer->data, 0);
+		vertexOffset = frame * (elem->primitive->numVertices / numFrames);
+		indexOffset = frame * (elem->primitive->numIndices / numFrames);
+
 		// Upload all the vertex/index data.
+		ImDrawVert* vertices = (ImDrawVert*)elem->vertices + vertexOffset;
+		ImDrawIdx* indices = (ImDrawIdx*)elem->indices + indexOffset;
+
 		for (int l = 0; l < drawData->CmdListsCount; ++l)
 		{
 			const ImDrawList* drawList = drawData->CmdLists.Data[l];
 
-			// TODO: Upload drawList->(Vtx|Idx)Buffer.Data.
+			memcpy(vertices,
+				drawList->VtxBuffer.Data,
+				sizeof(ImDrawVert) * (size_t)drawList->VtxBuffer.Size);
+
+			memcpy(indices,
+				drawList->IdxBuffer.Data,
+				sizeof(ImDrawIdx) * (size_t)drawList->IdxBuffer.Size);
+
+			vertices += drawList->VtxBuffer.Size;
+			indices += drawList->IdxBuffer.Size;
 		}
 	}
 
@@ -273,10 +431,6 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 	_gfx_cmd_imgui_state(recorder, drawer, igDrawData);
 
 	// Loop over all draw commands and draw them.
-	// TODO: Start vertex/index offset at the offset appropriate for `frame`!
-	uint32_t vertexOffset = 0;
-	uint32_t indexOffset = 0;
-
 	for (int l = 0; l < drawData->CmdListsCount; ++l)
 	{
 		const ImDrawList* drawList = drawData->CmdLists.Data[l];
@@ -294,6 +448,10 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 
 				continue;
 			}
+
+			// Should not happen, but safety catch.
+			if (elem == NULL)
+				continue;
 
 			// Convert clipping rectangle to scissor state.
 			float clipMinX = drawCmd->ClipRect.x - drawData->DisplayPos.x;
@@ -320,8 +478,6 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 			gfx_cmd_set_scissor(recorder, scissor);
 
 			// Record the draw command.
-			_GFXDataElem* elem = gfx_deque_at(&drawer->data, 0);
-
 			gfx_cmd_draw_indexed(recorder, &elem->renderable,
 				(uint32_t)drawCmd->ElemCount, 1,
 				(uint32_t)drawCmd->IdxOffset + indexOffset,

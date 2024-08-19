@@ -30,7 +30,7 @@ typedef struct GFXImguiDrawer
 	GFXPass*       pass;
 
 	GFXTechnique* tech;
-	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable }
+	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable, void*, void* }
 	GFXMap        images; // Stores GFXImage* : GFXSet*
 
 	// All shaders.
