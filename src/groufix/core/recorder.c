@@ -24,6 +24,59 @@ typedef struct _GFXCmdElem
 
 
 /****************************
+ * Compares two user defined viewport descriptions.
+ * @return Non-zero if equal.
+ */
+static inline bool _gfx_cmp_viewports(const GFXViewport* l,
+                                      const GFXViewport* r)
+{
+	// Cannot use memcmp because of padding.
+	const bool abs =
+		(l->size == GFX_SIZE_ABSOLUTE) && (r->size == GFX_SIZE_ABSOLUTE) &&
+		(l->x == r->x) &&
+		(l->y == r->y) &&
+		(l->width == r->width) &&
+		(l->height == r->height);
+
+	const bool rel =
+		(l->size == GFX_SIZE_RELATIVE) && (r->size == GFX_SIZE_RELATIVE) &&
+		(l->xOffset == r->xOffset) &&
+		(l->yOffset == r->yOffset) &&
+		(l->xScale == r->xScale) &&
+		(l->yScale == r->yScale);
+
+	return
+		(abs || rel) &&
+		(l->minDepth == r->minDepth) &&
+		(l->maxDepth == r->maxDepth);
+}
+
+/****************************
+ * Compares two user defined scissor descriptions.
+ * @return Non-zero if equal.
+ */
+static inline bool _gfx_cmp_scissors(const GFXScissor* l,
+                                     const GFXScissor* r)
+{
+	// Cannot use memcmp because of padding.
+	const bool abs =
+		(l->size == GFX_SIZE_ABSOLUTE) && (r->size == GFX_SIZE_ABSOLUTE) &&
+		(l->x == r->x) &&
+		(l->y == r->y) &&
+		(l->width == r->width) &&
+		(l->height == r->height);
+
+	const bool rel =
+		(l->size == GFX_SIZE_RELATIVE) && (r->size == GFX_SIZE_RELATIVE) &&
+		(l->xOffset == r->xOffset) &&
+		(l->yOffset == r->yOffset) &&
+		(l->xScale == r->xScale) &&
+		(l->yScale == r->yScale);
+
+	return (abs || rel);
+}
+
+/****************************
  * Converts a GFXViewport into a VkViewport,
  * taking into account a given framebuffer width/height.
  */
@@ -1240,14 +1293,17 @@ GFX_API void gfx_cmd_set_viewport(GFXRecorder* recorder, GFXViewport viewport)
 	_GFXContext* context = recorder->context;
 	_GFXRenderPass* rPass = (_GFXRenderPass*)recorder->inp.pass;
 
-	VkViewport vkViewport = _gfx_get_viewport(
-		&viewport, rPass->build.fWidth, rPass->build.fHeight);
+	// Compare & set viewport state.
+	if (!_gfx_cmp_viewports(&recorder->state.viewport, &viewport))
+	{
+		VkViewport vkViewport = _gfx_get_viewport(
+			&viewport, rPass->build.fWidth, rPass->build.fHeight);
 
-	// Set for gfx_recorder_get_viewport.
-	recorder->state.viewport = viewport;
+		context->vk.CmdSetViewport(recorder->inp.cmd, 0, 1, &vkViewport);
 
-	// Record, don't worry about duplicate commands.
-	context->vk.CmdSetViewport(recorder->inp.cmd, 0, 1, &vkViewport);
+		// Set for gfx_recorder_get_viewport.
+		recorder->state.viewport = viewport;
+	}
 }
 
 /****************************/
@@ -1261,12 +1317,15 @@ GFX_API void gfx_cmd_set_scissor(GFXRecorder* recorder, GFXScissor scissor)
 	_GFXContext* context = recorder->context;
 	_GFXRenderPass* rPass = (_GFXRenderPass*)recorder->inp.pass;
 
-	VkRect2D vkScissor = _gfx_get_scissor(
-		&scissor, rPass->build.fWidth, rPass->build.fHeight);
+	// Compare & set scissor state.
+	if (!_gfx_cmp_scissors(&recorder->state.scissor, &scissor))
+	{
+		VkRect2D vkScissor = _gfx_get_scissor(
+			&scissor, rPass->build.fWidth, rPass->build.fHeight);
 
-	// Set for gfx_recorder_get_scissor.
-	recorder->state.scissor = scissor;
+		context->vk.CmdSetScissor(recorder->inp.cmd, 0, 1, &vkScissor);
 
-	// Record, don't worry about duplicate commands.
-	context->vk.CmdSetScissor(recorder->inp.cmd, 0, 1, &vkScissor);
+		// Set for gfx_recorder_get_scissor.
+		recorder->state.scissor = scissor;
+	}
 }
