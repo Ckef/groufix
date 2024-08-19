@@ -167,6 +167,21 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 }
 
 /****************************
+ * Purges stale data and makes sure the first element of drawer->data
+ * is sufficiently large to hold a given number of vertices and indices.
+ * @return Zero on failure.
+ */
+static bool _gfx_imgui_update_data(GFXImguiDrawer* drawer,
+                                   unsigned int frame, int vertices, int indices)
+{
+	assert(drawer != NULL);
+
+	// TODO: Implement.
+
+	return 0;
+}
+
+/****************************
  * Sets up basic rendering state to render ImGui data with.
  * @param recorder   Cannot be NULL.
  * @param drawer     Cannot be NULL.
@@ -221,14 +236,27 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 	assert(igDrawData != NULL);
 
 	const ImDrawData* drawData = igDrawData;
+	unsigned int frame = gfx_recorder_get_frame_index(recorder);
 
 	// Do nothing when minimized.
 	if (drawData->DisplaySize.x <= 0 || drawData->DisplaySize.y <= 0)
 		return;
 
-	// Get all the vertex/index data, stick it in a buffer.
+	// Make sure all vertex/index data is ready for the GPU.
 	if (drawData->TotalVtxCount > 0)
 	{
+		// Try to update the data held by this drawer.
+		if (!_gfx_imgui_update_data(drawer, frame,
+			drawData->TotalVtxCount, drawData->TotalIdxCount))
+		{
+			gfx_log_error(
+				"Could not allocate buffers during ImGui draw command; "
+				"command not recorded.");
+
+			return;
+		}
+
+		// Upload all the vertex/index data.
 		for (int l = 0; l < drawData->CmdListsCount; ++l)
 		{
 			const ImDrawList* drawList = drawData->CmdLists.Data[l];
@@ -245,6 +273,7 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 	_gfx_cmd_imgui_state(recorder, drawer, igDrawData);
 
 	// Loop over all draw commands and draw them.
+	// TODO: Start vertex/index offset at the offset appropriate for `frame`!
 	uint32_t vertexOffset = 0;
 	uint32_t indexOffset = 0;
 
