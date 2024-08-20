@@ -12,6 +12,9 @@ build/
 obj/
 .shaderc-deps.stamp
 
+# runtime files
+imgui.ini
+
 # other
 *.fuse_hidden*
 *~

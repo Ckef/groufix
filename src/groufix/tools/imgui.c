@@ -142,8 +142,9 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 	if (tech == NULL)
 		goto clean;
 
-	if (!gfx_tech_immutable(tech, 0, 0))
-		goto clean_tech;
+	// TODO: Set immutable sampler once we have one.
+	//if (!gfx_tech_immutable(tech, 0, 0))
+	//	goto clean_tech;
 
 	if (!gfx_tech_lock(tech))
 		goto clean_tech;
@@ -282,21 +283,23 @@ build_new:
 			}
 		});
 
-	// If successful, initialize renderable.
-	if (
-		!elem->primitive ||
-		!gfx_renderable(&elem->renderable,
-			drawer->pass, drawer->tech, elem->primitive, NULL))
-	{
+	if (elem->primitive == NULL)
 		goto clean_new;
-	}
 
-	// Lastly, map the data.
+	// If successful, map the data.
 	elem->vertices = gfx_map(gfx_ref_prim_vertices(elem->primitive, 0));
 	elem->indices = gfx_map(gfx_ref_prim_indices(elem->primitive));
 
 	if (elem->vertices == NULL || elem->indices == NULL)
 		goto clean_new;
+
+	// And lastly, initalize the renderable.
+	// TODO: Give it state so we can set cull mode n stuff.
+	if (!gfx_renderable(&elem->renderable,
+		drawer->pass, drawer->tech, elem->primitive, NULL))
+	{
+		goto clean_new;
+	}
 
 	return 1;
 
