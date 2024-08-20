@@ -85,11 +85,9 @@ static const char* _gfx_imgui_frag_str =
 
 /****************************/
 GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
-                            GFXHeap* heap, GFXDependency* dep,
-                            GFXRenderer* renderer, GFXPass* pass)
+                            GFXHeap* heap, GFXRenderer* renderer, GFXPass* pass)
 {
 	assert(drawer != NULL);
-	assert(dep != NULL);
 	assert(renderer != NULL);
 	assert(pass != NULL);
 	assert(gfx_pass_get_renderer(pass) == renderer);
@@ -102,7 +100,6 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 		heap = gfx_renderer_get_heap(renderer);
 
 	drawer->heap = heap;
-	drawer->dep = dep;
 	drawer->renderer = renderer;
 	drawer->pass = pass;
 
