@@ -148,6 +148,22 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 
 	drawer->tech = tech;
 
+	// Setup default render state.
+	drawer->raster = (GFXRasterState){
+		.mode = GFX_RASTER_FILL,
+		.front = GFX_FRONT_FACE_CW,
+		.cull = GFX_CULL_NONE,
+		.topo = GFX_TOPO_TRIANGLE_LIST,
+		.samples = 1,
+	};
+
+	drawer->state = (GFXRenderState){
+		.raster = &drawer->raster,
+		.blend = NULL,
+		.depth = NULL,
+		.stencil = NULL
+	};
+
 	return 1;
 
 
@@ -287,9 +303,8 @@ build_new:
 		goto clean_new;
 
 	// And lastly, initalize the renderable.
-	// TODO: Give it state so we can set cull mode n stuff.
 	if (!gfx_renderable(&elem->renderable,
-		drawer->pass, drawer->tech, elem->primitive, NULL))
+		drawer->pass, drawer->tech, elem->primitive, &drawer->state))
 	{
 		goto clean_new;
 	}

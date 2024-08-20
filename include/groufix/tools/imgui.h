@@ -32,6 +32,10 @@ typedef struct GFXImguiDrawer
 	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable, void*, void* }
 	GFXMap        images; // Stores GFXImage* : GFXSet*
 
+	GFXRasterState raster;
+	GFXRenderState state;
+
+
 	// All shaders.
 	struct
 	{
