@@ -32,6 +32,69 @@ typedef enum GFXSizeClass
 
 
 /**
+ * Viewport description.
+ */
+typedef struct GFXViewport
+{
+	GFXSizeClass size;
+
+	union {
+		float x;
+		float xOffset;
+	};
+
+	union {
+		float y;
+		float yOffset;
+	};
+
+	union {
+		float width;
+		float xScale;
+	};
+
+	union {
+		float height;
+		float yScale;
+	};
+
+	float minDepth;
+	float maxDepth;
+
+} GFXViewport;
+
+
+/**
+ * Scissor description.
+ */
+typedef struct GFXScissor
+{
+	GFXSizeClass size;
+
+	union {
+		int32_t x;
+		float xOffset;
+	};
+
+	union {
+		int32_t y;
+		float yOffset;
+	};
+
+	union {
+		uint32_t width;
+		float xScale;
+	};
+
+	union {
+		uint32_t height;
+		float yScale;
+	};
+
+} GFXScissor;
+
+
+/**
  * Attachment description.
  */
 typedef struct GFXAttachment
@@ -462,7 +525,7 @@ typedef struct GFXTechnique GFXTechnique;
 
 
 /**
- * Set (i.e. render/descriptor set) definition.
+ * Set (i.e. descriptor set) definition.
  */
 typedef struct GFXSet GFXSet;
 
@@ -791,9 +854,16 @@ typedef enum GFXPassType
  */
 GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
                                        size_t numParents, GFXPass** parents);
+/**
+ * Returns the renderer the pass was added to.
+ * Can be called from any thread.
+ * @param pass Cannot be NULL.
+ */
+GFX_API GFXRenderer* gfx_pass_get_renderer(GFXPass* pass);
 
 /**
  * Retrieves the type of a pass.
+ * Can be called from any thread.
  * @param pass Cannot be NULL.
  * @return Type of the pass, render, inline compute or async compute.
  */
@@ -884,6 +954,20 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
 GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
 
 /**
+ * Sets the viewport state of a render pass.
+ * @param pass Cannot be NULL.
+ *
+ * No-op if not a render pass.
+ */
+GFX_API void gfx_pass_set_viewport(GFXPass* pass, GFXViewport viewport);
+
+/**
+ * Sets the scissor state of a render pass.
+ * @see gfx_pass_set_viewport.
+ */
+GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor);
+
+/**
  * Retrieves the current render state of a render pass.
  * @param pass Cannot be NULL.
  * @return Output state, read-only!
@@ -891,6 +975,20 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
  * Returns all NULL's if not a render pass.
  */
 GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
+
+/**
+ * Retrieves the current viewport state of a render pass.
+ * @param pass Cannot be NULL.
+ *
+ * Returns an absolute size of all 0's if not a render pass.
+ */
+GFX_API GFXViewport gfx_pass_get_viewport(GFXPass* pass);
+
+/**
+ * Retrieves the current scissor state of a render pass.
+ * @see gfx_pass_get_viewport.
+ */
+GFX_API GFXScissor gfx_pass_get_scissor(GFXPass* pass);
 
 /**
  * Retrieves the number of sink passes of a renderer.
@@ -964,7 +1062,15 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 GFX_API void gfx_erase_tech(GFXTechnique* technique);
 
 /**
+ * Returns the renderer the technique was added to.
+ * Can be called from any thread.
+ * @param technique Cannot be NULL.
+ */
+GFX_API GFXRenderer* gfx_tech_get_renderer(GFXTechnique* technique);
+
+/**
  * Retrieves a shader of a technique.
+ * Can be called from any thread.
  * @param technique Cannot be NULL.
  * @param stage     Shader stage, exactly 1 stage must be set.
  * @return May be NULL if no shader was given.
@@ -1128,6 +1234,13 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
  * @param set Cannot be NULL.
  */
 GFX_API void gfx_erase_set(GFXSet* set);
+
+/**
+ * Returns the renderer the set was added to.
+ * Can be called from any thread.
+ * @param set Cannot be NULL.
+ */
+GFX_API GFXRenderer* gfx_set_get_renderer(GFXSet* set);
 
 /**
  * Retrieves the number of descriptor bindings of a set.
@@ -1299,6 +1412,13 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
 GFX_API void gfx_erase_recorder(GFXRecorder* recorder);
 
 /**
+ * Returns the renderer the recorder was added to.
+ * Can be called from any thread.
+ * @param recorder Cannot be NULL.
+ */
+GFX_API GFXRenderer* gfx_recorder_get_renderer(GFXRecorder* recorder);
+
+/**
  * Records render commands within a given render pass.
  * The callback takes this recorder and the current virtual frame index.
  * @param recorder Cannot be NULL.
@@ -1333,9 +1453,26 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 GFX_API unsigned int gfx_recorder_get_frame_index(GFXRecorder* recorder);
 
 /**
+ * Retrieves the current viewport state of a recorder.
+ * @param recorder Cannot be NULL.
+ *
+ * Returns an absolute size of all 0's if not called
+ * within a callback of gfx_recorder_render.
+ */
+GFX_API GFXViewport gfx_recorder_get_viewport(GFXRecorder* recorder);
+
+/**
+ * Retrieves the current scissor state of a recorder.
+ * @see gfx_recorder_get_viewport.
+ */
+GFX_API GFXScissor gfx_recorder_get_scissor(GFXRecorder* recorder);
+
+/**
  * Retrieves the current pass of a recorder.
  * @param recorder Cannot be NULL.
- * @return NULL if not called within a callback of gfx_recorder_(render|compute).
+ *
+ * Returns NULL if not called
+ * within a callback of gfx_recorder_(render|compute).
  */
 GFX_API GFXPass* gfx_recorder_get_pass(GFXRecorder* recorder);
 
@@ -1355,14 +1492,10 @@ GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
 
 /**
  * Retrieves the virtual frame size associated with a render pass.
- * @param pass   Cannot be NULL.
- * @param width  Cannot be NULL, output width.
- * @param height Cannot be NULL, output height.
- * @param layers Cannot be NULL, output layers.
+ * @see gfx_recorder_get_size.
  *
- * Only outputs the _actual_ size, meaning this will only return meaningful
- * values when called inbetween gfx_frame_start and gfx_frame_submit.
- * Outputs 0,0,0 if no associated attachments or not a render pass.
+ * Returns meaningful values differently from gfx_recorder_get_size:
+ * it does so when called inbetween gfx_frame_start and gfx_frame_submit.
  */
 GFX_API void gfx_pass_get_size(GFXPass* pass,
                                uint32_t* width, uint32_t* height, uint32_t* layers);
@@ -1388,7 +1521,7 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
                              size_t numDeps, const GFXInject* deps);
 
 /**
- * Render command to bind a render/descriptor set.
+ * State command to bind a descriptor set.
  * Can only be called within a callback of gfx_recorder_(render|compute)!
  * @param recorder    Cannot be NULL.
  * @param technique   Cannot be NULL.
@@ -1406,7 +1539,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
                           const uint32_t* offsets);
 
 /**
- * Render command to update push constants.
+ * State command to update push constants.
  * Can only be called within a callback of gfx_recorder_(render|compute)!
  * @param recorder  Cannot be NULL.
  * @param technique Cannot be NULL.
@@ -1517,6 +1650,26 @@ GFX_API void gfx_cmd_dispatch_base(GFXRecorder* recorder, GFXComputable * comput
  */
 GFX_API void gfx_cmd_dispatch_from(GFXRecorder* recorder, GFXComputable* computable,
                                    GFXBufferRef ref);
+
+/**
+ * State command to set the viewport state of a recorder.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder Cannot be NULL.
+ *
+ * Default value is determined by the pass.
+ * Current value can be retrieved with gfx_recorder_get_viewport.
+ */
+GFX_API void gfx_cmd_set_viewport(GFXRecorder* recorder, GFXViewport viewport);
+
+/**
+ * State command to set the scissor state of a recorder.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder Cannot be NULL.
+ *
+ * Default value is determined by the pass.
+ * Current value can be retrieved with gfx_recorder_get_scissor.
+ */
+GFX_API void gfx_cmd_set_scissor(GFXRecorder* recorder, GFXScissor scissor);
 
 
 #endif

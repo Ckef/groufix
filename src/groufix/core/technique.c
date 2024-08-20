@@ -593,6 +593,14 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique)
 }
 
 /****************************/
+GFX_API GFXRenderer* gfx_tech_get_renderer(GFXTechnique* technique)
+{
+	assert(technique != NULL);
+
+	return technique->renderer;
+}
+
+/****************************/
 GFX_API GFXShader* gfx_tech_get_shader(GFXTechnique* technique, GFXShaderStage stage)
 {
 	assert(technique != NULL);

@@ -10,6 +10,7 @@
 ##############################
 # Helper manual, no target provided
 
+.PHONY: help
 help:
 	@echo " Clean"
 	@echo "  $(MAKE) clean      - Clean build files."
@@ -92,6 +93,7 @@ OFLAGS = \
  -Ideps/Vulkan-Headers/include \
  -Ideps/shaderc/libshaderc/include \
  -Ideps/SPIRV-Cross \
+ -Ideps/cimgui \
  -isystem deps/cgltf \
  -isystem deps/stb
 
@@ -134,9 +136,9 @@ GLFW_FLAGS_ALL = \
  -DGLFW_BUILD_DOCS=OFF
 
 ifeq ($(USE_WAYLAND),ON)
- GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_USE_WAYLAND
+ GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_X11=OFF -DGLFW_BUILD_WAYLAND=ON
 else
- GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL)
+ GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_X11=ON -DGLFW_BUILD_WAYLAND=OFF
 endif
 
 SHADERC_FLAGS_ALL = \
@@ -144,6 +146,8 @@ SHADERC_FLAGS_ALL = \
  -DCMAKE_BUILD_TYPE=Release \
  -DSHADERC_SKIP_EXAMPLES=ON \
  -DSHADERC_SKIP_TESTS=ON \
+ -DENABLE_GLSLANG_BINARIES=OFF \
+ -DSPIRV_HEADERS_SKIP_EXAMPLES=ON \
  -DSPIRV_SKIP_EXECUTABLES=ON \
  -DSPIRV_SKIP_TESTS=ON
 
@@ -159,9 +163,21 @@ SPIRV_CROSS_FLAGS_ALL = \
  -DSPIRV_CROSS_ENABLE_REFLECT=OFF \
  -DSPIRV_CROSS_ENABLE_UTIL=OFF
 
+CIMGUI_FLAGS_ALL = \
+ -DIMGUI_STATIC=ON
+
 CMAKE_TOOLCHAIN = \
  -DCMAKE_C_COMPILER=$(CC) \
  -DCMAKE_CXX_COMPILER=$(CXX)
+
+CMAKE_MINGW_TOOLCHAIN = \
+ $(CMAKE_TOOLCHAIN) \
+ -DCMAKE_SYSTEM_NAME=Windows \
+ -DCMAKE_RC_COMPILER=$(CC_PREFIX)-windres \
+ -DCMAKE_FIND_ROOT_PATH=/usr/$(CC_PREFIX) \
+ -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=Never \
+ -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=Only \
+ -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=Only
 
 GLFW_MINGW_TOOLCHAIN = \
  -DCMAKE_TOOLCHAIN_FILE=CMake/$(CC_PREFIX).cmake
@@ -171,27 +187,21 @@ SHADERC_MINGW_TOOLCHAIN = \
  -DMINGW_COMPILER_PREFIX=$(CC_PREFIX) \
  -Dgtest_disable_pthreads=ON
 
-SPIRV_CROSS_MINGW_TOOLCHAIN = \
- $(CMAKE_TOOLCHAIN) \
- -DCMAKE_SYSTEM_NAME=Windows \
- -DCMAKE_RC_COMPILER=$(CC_PREFIX)-windres \
- -DCMAKE_FIND_ROOT_PATH=/usr/$(CC_PREFIX) \
- -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=Never \
- -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=Only \
- -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=Only
-
 ifneq ($(CC_PREFIX),None) # Cross-compile
  GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(GLFW_MINGW_TOOLCHAIN)
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(SHADERC_MINGW_TOOLCHAIN) -G "Unix Makefiles"
- SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(SPIRV_CROSS_MINGW_TOOLCHAIN)
+ SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_MINGW_TOOLCHAIN)
+ CIMGUI_FLAGS      = $(CIMGUI_FLAGS_ALL) $(CMAKE_MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
  GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
  SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
+ CIMGUI_FLAGS      = $(CIMGUI_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
 else
  GLFW_FLAGS        = $(GLFW_FLAGS_UNIX) $(CMAKE_TOOLCHAIN)
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "Unix Makefiles"
  SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -DSPIRV_CROSS_FORCE_PIC=ON
+ CIMGUI_FLAGS      = $(CIMGUI_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 endif
 
 
@@ -258,6 +268,9 @@ LIBS = \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a
 
+EXPORT_LIBS = \
+ $(BUILD)$(SUB)/cimgui/cimgui.a
+
 
 # Auto expansion of files in a directory
 getfiles = $(foreach d,$(wildcard $1/*),$(call getfiles,$d,$2) $(filter $2,$d))
@@ -295,6 +308,10 @@ $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a:
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(BUILD)$(SUB)/SPIRV-Cross .makedir
 	@cd $(BUILD)$(SUB)/SPIRV-Cross && cmake $(SPIRV_CROSS_FLAGS) $(CURDIR)/deps/SPIRV-Cross && $(MAKE)
 
+$(BUILD)$(SUB)/cimgui/cimgui.a:
+	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(BUILD)$(SUB)/cimgui .makedir
+	@cd $(BUILD)$(SUB)/cimgui && cmake $(CIMGUI_FLAGS) $(CURDIR)/deps/cimgui && $(MAKE)
+
 
 # Object files
 $(OUT)$(SUB)/%.o: src/%.c
@@ -302,13 +319,13 @@ $(OUT)$(SUB)/%.o: src/%.c
 	$(CC) $(OFLAGS) $< -o $@
 
 # Library file
-$(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(OBJS)
+$(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(EXPORT_LIBS) $(OBJS)
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
-	$(CXX) $(OBJS) -o $@ $(LIBS) $(LDFLAGS)
+	$(CXX) $(OBJS) -o $@ $(LIBS) -Wl,--push-state,--whole-archive $(EXPORT_LIBS) -Wl,--pop-state $(LDFLAGS)
 
 # Test programs
 $(BIN)$(SUB)/$(TESTPAT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
-	$(CC) -Itests $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
+	$(CC) -Itests -Ideps/cimgui $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
 # Platform builds

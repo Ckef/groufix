@@ -1202,6 +1202,14 @@ GFX_API void gfx_erase_set(GFXSet* set)
 }
 
 /****************************/
+GFX_API GFXRenderer* gfx_set_get_renderer(GFXSet* set)
+{
+	assert(set != NULL);
+
+	return set->renderer;
+}
+
+/****************************/
 GFX_API size_t gfx_set_get_num_bindings(GFXSet* set)
 {
 	assert(set != NULL);

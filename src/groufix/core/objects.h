@@ -864,13 +864,15 @@ struct GFXRecorder
 	} inp;
 
 
-	// Current bindings.
+	// Current state.
 	struct
 	{
+		GFXViewport    viewport;
+		GFXScissor     scissor;
 		_GFXCacheElem* pipeline;
 		_GFXPrimitive* primitive;
 
-	} bind;
+	} state;
 
 
 	// Recording output.
@@ -1093,6 +1095,8 @@ typedef struct _GFXRenderPass
 		GFXBlendState   blend;
 		GFXDepthState   depth;
 		GFXStencilState stencil;
+		GFXViewport     viewport;
+		GFXScissor      scissor;
 		unsigned char   samples; // Minimum necesary, set on warmup.
 
 		enum {
@@ -1241,7 +1245,7 @@ typedef struct _GFXSetBinding
 
 
 /**
- * Internal set (i.e. render/descriptor set).
+ * Internal set (i.e. descriptor set).
  */
 struct GFXSet
 {
