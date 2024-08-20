@@ -325,7 +325,7 @@ $(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(EXPORT_LIBS) $(OBJS)
 
 # Test programs
 $(BIN)$(SUB)/$(TESTPAT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
-	$(CC) -Itests $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
+	$(CC) -Itests -Ideps/cimgui $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
 # Platform builds
