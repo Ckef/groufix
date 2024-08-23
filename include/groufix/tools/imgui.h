@@ -12,7 +12,6 @@
 
 #include "groufix/containers/deque.h"
 #include "groufix/containers/map.h"
-#include "groufix/core/deps.h"
 #include "groufix/core/heap.h"
 #include "groufix/core/renderer.h"
 #include "groufix/core/shader.h"
