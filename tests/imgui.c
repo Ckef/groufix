@@ -52,6 +52,7 @@ TEST_DESCRIBE(imgui, t)
 
 	GFXImguiDrawer drawer;
 	gfx_imgui_init(&drawer, NULL, t->renderer, t->pass);
+	gfx_imgui_font(&drawer, io->Fonts);
 
 	{
 		// Imgui needs this to be called, so call it...
@@ -72,7 +73,6 @@ TEST_DESCRIBE(imgui, t)
 		gfx_poll_events();
 		igShowDemoWindow(NULL);
 		igRender();
-		gfx_pass_inject(t->pass, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
 		gfx_recorder_render(t->recorder, t->pass, render, &drawer);
 		gfx_frame_submit(frame);
 	}

@@ -104,6 +104,7 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 	drawer->pass = pass;
 
 	gfx_deque_init(&drawer->data, sizeof(_GFXDataElem));
+	gfx_vec_init(&drawer->fonts, sizeof(GFXImage*));
 	// TODO: Define hash and compare functions.
 	//gfx_map_init(&drawer->images, sizeof(GFXSet*), _some_hash, _some_cmp);
 
@@ -189,6 +190,11 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 	// TODO: Erase all sets.
 	//gfx_map_clear(&drawer->images);
 
+	for (size_t f = 0; f < drawer->fonts.size; ++f)
+		gfx_free_image(*(GFXImage**)gfx_vec_at(&drawer->fonts, f));
+
+	gfx_vec_clear(&drawer->fonts);
+
 	for (size_t d = 0; d < drawer->data.size; ++d)
 	{
 		_GFXDataElem* elem = gfx_deque_at(&drawer->data, d);
@@ -203,6 +209,28 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 	gfx_destroy_shader(drawer->shaders.frag);
 
 	// Leave all values, drawer is invalidated.
+}
+
+/****************************/
+GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, const void* igFontAtlas)
+{
+	assert(drawer != NULL);
+	assert(igFontAtlas != NULL);
+
+	// TODO: Implement.
+
+	return NULL;
+}
+
+/****************************/
+GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image)
+{
+	assert(drawer != NULL);
+	assert(image != NULL);
+
+	// TODO: Implement.
+
+	return NULL;
 }
 
 /****************************

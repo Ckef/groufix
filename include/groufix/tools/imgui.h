@@ -12,6 +12,7 @@
 
 #include "groufix/containers/deque.h"
 #include "groufix/containers/map.h"
+#include "groufix/containers/vec.h"
 #include "groufix/core/heap.h"
 #include "groufix/core/renderer.h"
 #include "groufix/core/shader.h"
@@ -29,6 +30,7 @@ typedef struct GFXImguiDrawer
 
 	GFXTechnique* tech;
 	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable, void*, void* }
+	GFXVec        fonts;  // Stores GFXImage*
 	GFXMap        images; // Stores GFXImage* : GFXSet*
 
 	GFXRasterState raster;
@@ -64,6 +66,26 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
  * Cannot be called until all frames that used this drawer are done rendering!
  */
 GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer);
+
+/**
+ * Allocates an image for an ImFontAtlas and sets its ImTextureID.
+ * @param drawer      Cannot be NULL.
+ * @param igFontAtlas The ImFontAtlas* to allocate an image for, cannot be NULL.
+ * @return A valid ImTextureID, NULL on failure.
+ *
+ * The returned ID is invalidated when this drawer is cleared.
+ */
+GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, const void* igFontAtlas);
+
+/**
+ * Builds an ImTextureID from a GFXImage*.
+ * @param drawer Cannot be NULL.
+ * @param image  Cannot be NULL.
+ * @return A valid ImTextureID, NULL on failure.
+ *
+ * The returned ID is invalidated when this drawer is cleared.
+ */
+GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image);
 
 /**
  * Render command to draw ImGui data using a drawer.
