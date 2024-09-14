@@ -218,14 +218,14 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 	// Compile GLSL into shaders.
 	GFXBinReader bin;
 
-	if (!gfx_shader_load(shads[0],
-		gfx_bin_reader(&bin, sizeof(_gfx_imgui_vert_spv), _gfx_imgui_vert_spv)))
+	if (!gfx_shader_load(shads[0], gfx_bin_reader(
+		&bin, sizeof(_gfx_imgui_vert_spv), _gfx_imgui_vert_spv)))
 	{
 		goto clean;
 	}
 
-	if (!gfx_shader_load(shads[1],
-		gfx_bin_reader(&bin, sizeof(_gfx_imgui_frag_spv), _gfx_imgui_frag_spv)))
+	if (!gfx_shader_load(shads[1], gfx_bin_reader(
+		&bin, sizeof(_gfx_imgui_frag_spv), _gfx_imgui_frag_spv)))
 	{
 		goto clean;
 	}
@@ -234,7 +234,8 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 	drawer->shaders.frag = shads[1];
 
 	// Create a technique.
-	GFXTechnique* tech = gfx_renderer_add_tech(renderer, 2, shads);
+	GFXTechnique* tech =
+		gfx_renderer_add_tech(renderer, 2, shads);
 	if (tech == NULL)
 		goto clean;
 
@@ -275,9 +276,28 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 		.samples = 1,
 	};
 
+	GFXBlendOpState color = {
+		.srcFactor = GFX_FACTOR_SRC_ALPHA,
+		.dstFactor = GFX_FACTOR_ONE_MINUS_SRC_ALPHA,
+		.op = GFX_BLEND_ADD
+	};
+
+	GFXBlendOpState alpha = {
+		.srcFactor = GFX_FACTOR_ONE,
+		.dstFactor = GFX_FACTOR_ZERO,
+		.op = GFX_BLEND_ADD
+	};
+
+	drawer->blend = (GFXBlendState){
+		.logic = GFX_LOGIC_NO_OP,
+		.color = color,
+		.alpha = alpha,
+		.constants = { 0.0f, 0.0f, 0.0f, 0.0f },
+	};
+
 	drawer->state = (GFXRenderState){
 		.raster = &drawer->raster,
-		.blend = NULL,
+		.blend = &drawer->blend,
 		.depth = NULL,
 		.stencil = NULL
 	};

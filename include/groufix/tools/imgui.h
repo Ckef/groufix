@@ -35,6 +35,7 @@ typedef struct GFXImguiDrawer
 	GFXMap        images; // Stores GFXImage* : GFXSet*
 
 	GFXRasterState raster;
+	GFXBlendState  blend;
 	GFXRenderState state;
 
 

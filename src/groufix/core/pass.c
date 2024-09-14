@@ -379,8 +379,12 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 		rPass->build.pass = NULL;
 		rPass->vk.pass = VK_NULL_HANDLE;
 
+		// Add an extra char so we know to set independent blend state.
+		const size_t blendsSize =
+			sizeof(VkPipelineColorBlendAttachmentState) + sizeof(char);
+
 		gfx_vec_init(&rPass->vk.clears, sizeof(VkClearValue));
-		gfx_vec_init(&rPass->vk.blends, sizeof(VkPipelineColorBlendAttachmentState));
+		gfx_vec_init(&rPass->vk.blends, blendsSize);
 		gfx_vec_init(&rPass->vk.views, sizeof(_GFXViewElem));
 		gfx_vec_init(&rPass->vk.frames, sizeof(_GFXFrameElem));
 
@@ -889,7 +893,12 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 		// Same for the blend values for building pipelines.
 		if (isColor)
 		{
-			VkPipelineColorBlendAttachmentState pcbas = {
+			gfx_vec_push(&rPass->vk.blends, 1, NULL);
+
+			VkPipelineColorBlendAttachmentState* pcbas =
+				gfx_vec_at(&rPass->vk.blends, rPass->vk.blends.size - 1);
+
+			*pcbas = (VkPipelineColorBlendAttachmentState){
 				.blendEnable         = VK_FALSE,
 				.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
 				.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
@@ -904,40 +913,32 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					VK_COLOR_COMPONENT_A_BIT
 			};
 
-			// Use independent blend state if given.
-			const GFXBlendOpState* blendColor;
-			const GFXBlendOpState* blendAlpha;
+			// Only set if independent blend state is given.
+			// Otherwise, leave them at the defaults.
+			const char isIndependent = con->flags & _GFX_CONSUME_BLEND;
+			*(char*)(pcbas + 1) = isIndependent;
 
-			if (con->flags & _GFX_CONSUME_BLEND)
-				blendColor = &con->color,
-				blendAlpha = &con->alpha;
-			else
-				blendColor = &rPass->state.blend.color,
-				blendAlpha = &rPass->state.blend.alpha;
-
-			if (blendColor->op != GFX_BLEND_NO_OP)
+			if (isIndependent && con->color.op != GFX_BLEND_NO_OP)
 			{
-				pcbas.blendEnable = VK_TRUE;
-				pcbas.srcColorBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(blendColor->srcFactor);
-				pcbas.dstColorBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(blendColor->dstFactor);
-				pcbas.colorBlendOp =
-					_GFX_GET_VK_BLEND_OP(blendColor->op);
+				pcbas->blendEnable = VK_TRUE;
+				pcbas->srcColorBlendFactor =
+					_GFX_GET_VK_BLEND_FACTOR(con->color.srcFactor);
+				pcbas->dstColorBlendFactor =
+					_GFX_GET_VK_BLEND_FACTOR(con->color.dstFactor);
+				pcbas->colorBlendOp =
+					_GFX_GET_VK_BLEND_OP(con->color.op);
 			}
 
-			if (blendAlpha->op != GFX_BLEND_NO_OP)
+			if (isIndependent && con->alpha.op != GFX_BLEND_NO_OP)
 			{
-				pcbas.blendEnable = VK_TRUE;
-				pcbas.srcAlphaBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(blendAlpha->srcFactor);
-				pcbas.dstAlphaBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(blendAlpha->dstFactor);
-				pcbas.alphaBlendOp =
-					_GFX_GET_VK_BLEND_OP(blendAlpha->op);
+				pcbas->blendEnable = VK_TRUE;
+				pcbas->srcAlphaBlendFactor =
+					_GFX_GET_VK_BLEND_FACTOR(con->alpha.srcFactor);
+				pcbas->dstAlphaBlendFactor =
+					_GFX_GET_VK_BLEND_FACTOR(con->alpha.dstFactor);
+				pcbas->alphaBlendOp =
+					_GFX_GET_VK_BLEND_OP(con->alpha.op);
 			}
-
-			gfx_vec_push(&rPass->vk.blends, 1, &pcbas);
 		}
 	}
 
@@ -1456,16 +1457,8 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 	if (pass->type != GFX_PASS_RENDER) return;
 
-	// Firstly check blend state, as new blend operations should cause the
-	// `pass->vk.blends` vector to update, we do this by graph invalidation!
-	bool newBlends = 0;
-
-	if (state.blend != NULL)
-		newBlends = !_gfx_cmp_blend(&rPass->state.blend, state.blend),
-		rPass->state.blend = *state.blend;
-
 	// Set new values, check if changed.
-	bool gen = newBlends;
+	bool gen = 0;
 
 	if (state.raster != NULL)
 		gen = gen || !_gfx_cmp_raster(&rPass->state.raster, state.raster),
@@ -1473,6 +1466,10 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 		// Fix sample count.
 		rPass->state.raster.samples =
 			_GFX_GET_VK_SAMPLE_COUNT(rPass->state.raster.samples);
+
+	if (state.blend != NULL)
+		gen = gen || !_gfx_cmp_blend(&rPass->state.blend, state.blend),
+		rPass->state.blend = *state.blend;
 
 	if (state.depth != NULL)
 		gen = gen || !_gfx_cmp_depth(&rPass->state.depth, state.depth),
@@ -1485,10 +1482,7 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 		rPass->state.stencil = *state.stencil;
 
 	// If changed, increase generation to invalidate pipelines.
-	// Unless we invalidate the graph, it implicitly destructs & increases.
-	if (newBlends)
-		_gfx_render_graph_invalidate(pass->renderer);
-	else if (gen)
+	if (gen)
 		_gfx_pass_gen(rPass);
 }
 

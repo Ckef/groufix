@@ -436,8 +436,8 @@ typedef struct GFXBlendOpState
 typedef struct GFXBlendState
 {
 	GFXLogicOp      logic;
-	GFXBlendOpState color; // Only used in pass states.
-	GFXBlendOpState alpha; // Only used in pass states.
+	GFXBlendOpState color;
+	GFXBlendOpState alpha;
 
 	float constants[4]; // { RGBA } blending constants.
 

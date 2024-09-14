@@ -1136,7 +1136,7 @@ typedef struct _GFXRenderPass
 	{
 		VkRenderPass pass;   // For locality.
 		GFXVec       clears; // Stores VkClearValue.
-		GFXVec       blends; // Stores VkPipelineColorBlendAttachmentState.
+		GFXVec       blends; // Stores { VkPipelineColorBlendAttachmentState, char }.
 		GFXVec       views;  // Stores { _GFXConsume*, VkImageView }.
 		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 

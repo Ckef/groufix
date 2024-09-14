@@ -142,6 +142,39 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	}
 
 	// Build blend info.
+	VkPipelineColorBlendAttachmentState pcbas[rPass->vk.blends.size];
+
+	for (size_t i = 0; i < rPass->vk.blends.size; ++i)
+	{
+		VkPipelineColorBlendAttachmentState* pcbasi =
+			gfx_vec_at(&rPass->vk.blends, i);
+
+		const char isIndependent = *(char*)(pcbasi + 1);
+		pcbas[i] = *pcbasi;
+
+		if (!isIndependent && blend->color.op != GFX_BLEND_NO_OP)
+		{
+			pcbas[i].blendEnable = VK_TRUE;
+			pcbas[i].srcColorBlendFactor =
+				_GFX_GET_VK_BLEND_FACTOR(blend->color.srcFactor);
+			pcbas[i].dstColorBlendFactor =
+				_GFX_GET_VK_BLEND_FACTOR(blend->color.dstFactor);
+			pcbas[i].colorBlendOp =
+				_GFX_GET_VK_BLEND_OP(blend->color.op);
+		}
+
+		if (!isIndependent && blend->alpha.op != GFX_BLEND_NO_OP)
+		{
+			pcbas[i].blendEnable = VK_TRUE;
+			pcbas[i].srcAlphaBlendFactor =
+				_GFX_GET_VK_BLEND_FACTOR(blend->alpha.srcFactor);
+			pcbas[i].dstAlphaBlendFactor =
+				_GFX_GET_VK_BLEND_FACTOR(blend->alpha.dstFactor);
+			pcbas[i].alphaBlendOp =
+				_GFX_GET_VK_BLEND_OP(blend->alpha.op);
+		}
+	}
+
 	VkPipelineColorBlendStateCreateInfo pcbsci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 
@@ -150,7 +183,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		.logicOpEnable   = VK_FALSE,
 		.logicOp         = VK_LOGIC_OP_COPY,
 		.attachmentCount = (uint32_t)rPass->vk.blends.size,
-		.pAttachments    = gfx_vec_at(&rPass->vk.blends, 0),
+		.pAttachments    = pcbas,
 		.blendConstants  = { 0.0f, 0.0f, 0.0f, 0.0f }
 	};
 
