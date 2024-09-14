@@ -73,15 +73,38 @@ static const char* _gfx_imgui_vert_str =
 static const char* _gfx_imgui_frag_str =
 	"#version 450 core\n"
 	"layout(location = 0) out vec4 fColor;\n"
-	//"layout(set=0, binding=0) uniform sampler2D sTexture;\n"
+	"layout(set=0, binding=0) uniform sampler2D sTexture;\n"
 	"layout(location = 0) in struct { vec4 Color; vec2 UV; } In;\n"
 	"\n"
 	"void main()\n"
 	"{\n"
-	//"    fColor = In.Color * texture(sTexture, In.UV.st);\n"
-	"    fColor = In.Color;\n"
+	"    fColor = In.Color * texture(sTexture, In.UV.st);\n"
 	"}\n";
 
+
+/****************************
+ * 64 bits integer hasing implementation as GFXMap hash function,
+ * taken from Wolfgang Brehm at https://stackoverflow.com/q/664014,
+ * key is of type GFXImage**.
+ */
+static uint64_t _gfx_imgui_hash(const void* key)
+{
+	uint64_t n = (uint64_t)(uintptr_t)(*(const GFXImage**)key);
+	n = (n ^ (n >> 32)) * 0x5555555555555555ull; // Alternating 0s and 1s.
+	n = (n ^ (n >> 32)) * 17316035218449499591ull; // Random uneven integer.
+
+	return n;
+}
+
+/****************************
+ * GFXMap key comparison function,
+ * l and r are of type GFXImage**.
+ */
+static int _gfx_imgui_cmp(const void* l, const void* r)
+{
+	// Non-zero = inequal.
+	return *(const GFXImage**)l != *(const GFXImage**)r;
+}
 
 /****************************/
 GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
@@ -108,8 +131,7 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 
 	gfx_deque_init(&drawer->data, sizeof(_GFXDataElem));
 	gfx_vec_init(&drawer->fonts, sizeof(GFXImage*));
-	// TODO: Define hash and compare functions.
-	//gfx_map_init(&drawer->images, sizeof(GFXSet*), _some_hash, _some_cmp);
+	gfx_map_init(&drawer->images, sizeof(GFXSet*), _gfx_imgui_hash, _gfx_imgui_cmp);
 
 	// Create shaders.
 	GFXShader* shads[] = {
@@ -143,9 +165,28 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 	if (tech == NULL)
 		goto clean;
 
-	// TODO: Set immutable sampler once we have one.
-	//if (!gfx_tech_immutable(tech, 0, 0))
-	//	goto clean_tech;
+	GFXSampler sampler = {
+		.binding = 0,
+		.index = 0,
+
+		.flags = GFX_SAMPLER_NONE,
+		.mode = GFX_FILTER_MODE_AVERAGE,
+
+		.minFilter = GFX_FILTER_LINEAR,
+		.magFilter = GFX_FILTER_LINEAR,
+		.mipFilter = GFX_FILTER_LINEAR,
+
+		.wrapU = GFX_WRAP_REPEAT,
+		.wrapV = GFX_WRAP_REPEAT,
+		.wrapW = GFX_WRAP_REPEAT,
+
+		.mipLodBias = 0.0f,
+		.minLod = -1000.0f,
+		.maxLod = +1000.0f
+	};
+
+	if (!gfx_tech_samplers(tech, 0, 1, &sampler))
+		goto clean_tech;
 
 	if (!gfx_tech_lock(tech))
 		goto clean_tech;
@@ -177,7 +218,10 @@ clean_tech:
 clean:
 	gfx_destroy_shader(shads[0]);
 	gfx_destroy_shader(shads[1]);
+
 	gfx_deque_clear(&drawer->data);
+	gfx_vec_clear(&drawer->fonts);
+	gfx_map_clear(&drawer->images);
 
 	gfx_log_error("Could not initialize a new ImGui drawer.");
 
@@ -189,15 +233,24 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 {
 	assert(drawer != NULL);
 
-	// Erase/free all dynamic data.
-	// TODO: Erase all sets.
-	//gfx_map_clear(&drawer->images);
+	// Erase all sets for used images.
+	for (
+		GFXSet** elem = gfx_map_first(&drawer->images);
+		elem != NULL;
+		elem = gfx_map_next(&drawer->images, elem))
+	{
+		gfx_erase_set(*elem);
+	}
 
+	gfx_map_clear(&drawer->images);
+
+	// Free all allocated font images.
 	for (size_t f = 0; f < drawer->fonts.size; ++f)
 		gfx_free_image(*(GFXImage**)gfx_vec_at(&drawer->fonts, f));
 
 	gfx_vec_clear(&drawer->fonts);
 
+	// Free all uploaded vertex/index data.
 	for (size_t d = 0; d < drawer->data.size; ++d)
 	{
 		_GFXDataElem* elem = gfx_deque_at(&drawer->data, d);
@@ -231,11 +284,12 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, void* igFontAtlas)
 	// Allocate image.
 	GFXImage* image = gfx_alloc_image(drawer->heap,
 		GFX_IMAGE_2D, GFX_MEMORY_WRITE,
-		GFX_IMAGE_SAMPLED, // TODO: Add IMAGE_SAMPLED_LINEAR?
+		GFX_IMAGE_SAMPLED | GFX_IMAGE_SAMPLED_LINEAR,
 		GFX_FORMAT_R8G8B8A8_UNORM,
 		1, 1, (uint32_t)width, (uint32_t)height, 1);
 
-	if (image == NULL) goto error;
+	if (image == NULL)
+		goto error;
 
 	// Write data.
 	const GFXRegion srcRegion = {
@@ -271,12 +325,21 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, void* igFontAtlas)
 	if (!gfx_vec_push(&drawer->fonts, 1, &image))
 		goto clean;
 
-	// TODO: Call gfx_imgui_image and then ImFontAtlas_SetTexID?.
+	// Then build an ImTextureID.
+	void* texId = gfx_imgui_image(drawer, image);
 
-	return (void*)(intptr_t)1;
+	if (texId == NULL)
+		goto clean_fonts;
+
+	// And set it at the font atlas.
+	ImFontAtlas_SetTexID(fontAtlas, texId);
+
+	return texId;
 
 
 	// Cleanup on failure.
+clean_fonts:
+	gfx_vec_pop(&drawer->fonts, 1);
 clean:
 	gfx_free_image(image);
 error:
@@ -292,7 +355,42 @@ GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image)
 	assert(drawer != NULL);
 	assert(image != NULL);
 
-	// TODO: Implement.
+	const uint64_t hash = drawer->images.hash(&image);
+
+	// Check if we already know the image.
+	GFXSet** elem = gfx_map_hsearch(&drawer->images, &image, hash);
+	if (elem != NULL)
+		return *elem;
+
+	// Add a new set for this image.
+	GFXSet* set = gfx_renderer_add_set(drawer->renderer,
+		drawer->tech, 0,
+		1, 0, 0, 0,
+		(GFXSetResource[]){{
+			.binding = 0,
+			.index = 0,
+			.ref = gfx_ref_image(image)
+		}},
+		NULL, NULL, NULL);
+
+	if (set == NULL)
+		goto error;
+
+	// And add the new set to the drawer.
+	elem = gfx_map_hinsert(
+		&drawer->images, &set, sizeof(GFXImage*), &image, hash);
+
+	if (elem == NULL)
+		goto clean;
+
+	return *elem;
+
+
+	// Cleanup on failure.
+clean:
+	gfx_erase_set(set);
+error:
+	gfx_log_error("Failed to build an ImTextureID for an image");
 
 	return NULL;
 }
@@ -583,6 +681,10 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 			};
 
 			gfx_cmd_set_scissor(recorder, scissor);
+
+			// Bind the set given as texture ID.
+			GFXSet* set = drawCmd->TextureId;
+			gfx_cmd_bind(recorder, drawer->tech, 0, 1, 0, &set, NULL);
 
 			// Record the draw command.
 			gfx_cmd_draw_indexed(recorder, &elem->renderable,

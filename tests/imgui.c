@@ -60,6 +60,29 @@ TEST_DESCRIBE(imgui, t)
 	if (!gfx_imgui_font(&drawer, io->Fonts))
 		goto clean_drawer;
 
+	// TODO: Somehow make the drawer do this?
+	// TODO: Make the color/alpha op state work for renderables too?
+	GFXBlendState blend = {
+		.logic = GFX_LOGIC_NO_OP,
+		.color = {
+			.srcFactor = GFX_FACTOR_SRC_ALPHA,
+			.dstFactor = GFX_FACTOR_ONE_MINUS_SRC_ALPHA,
+			.op = GFX_BLEND_ADD
+		},
+		.alpha = {
+			.srcFactor = GFX_FACTOR_ONE,
+			.dstFactor = GFX_FACTOR_ONE_MINUS_SRC_ALPHA,
+			.op = GFX_BLEND_ADD
+		}
+	};
+
+	gfx_pass_set_state(t->pass, (GFXRenderState){
+		.raster = NULL,
+		.blend = &blend,
+		.depth = NULL,
+		.stencil = NULL
+	});
+
 	// Flush all memory writes.
 	if (!gfx_heap_flush(t->heap))
 		goto clean_drawer;
