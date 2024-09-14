@@ -85,9 +85,11 @@ static const char* _gfx_imgui_frag_str =
 
 /****************************/
 GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
-                            GFXHeap* heap, GFXRenderer* renderer, GFXPass* pass)
+                            GFXHeap* heap, GFXDependency* dep,
+                            GFXRenderer* renderer, GFXPass* pass)
 {
 	assert(drawer != NULL);
+	assert(dep != NULL);
 	assert(renderer != NULL);
 	assert(pass != NULL);
 	assert(gfx_pass_get_renderer(pass) == renderer);
@@ -100,6 +102,7 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 		heap = gfx_renderer_get_heap(renderer);
 
 	drawer->heap = heap;
+	drawer->dep = dep;
 	drawer->renderer = renderer;
 	drawer->pass = pass;
 
@@ -212,14 +215,75 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 }
 
 /****************************/
-GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, const void* igFontAtlas)
+GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, void* igFontAtlas)
 {
 	assert(drawer != NULL);
 	assert(igFontAtlas != NULL);
 
-	// TODO: Implement.
+	ImFontAtlas* fontAtlas = igFontAtlas;
+
+	// Get texture data from the font atlas.
+	unsigned char* pixels;
+	int width;
+	int height;
+	ImFontAtlas_GetTexDataAsRGBA32(fontAtlas, &pixels, &width, &height, NULL);
+
+	// Allocate image.
+	GFXImage* image = gfx_alloc_image(drawer->heap,
+		GFX_IMAGE_2D, GFX_MEMORY_WRITE,
+		GFX_IMAGE_SAMPLED, // TODO: Add IMAGE_SAMPLED_LINEAR?
+		GFX_FORMAT_R8G8B8A8_UNORM,
+		1, 1, (uint32_t)width, (uint32_t)height, 1);
+
+	if (image == NULL) goto error;
+
+	// Write data.
+	const GFXRegion srcRegion = {
+		.offset = 0,
+		.rowSize = 0,
+		.numRows = 0
+	};
+
+	const GFXRegion dstRegion = {
+		.aspect = GFX_IMAGE_COLOR,
+		.mipmap = 0,
+		.layer = 0,
+		.numLayers = 1,
+		.x = 0,
+		.y = 0,
+		.z = 0,
+		.width = (uint32_t)width,
+		.height = (uint32_t)height,
+		.depth = 1
+	};
+
+	const GFXInject inject =
+		gfx_dep_sig(drawer->dep, GFX_ACCESS_SAMPLED_READ, GFX_STAGE_FRAGMENT);
+
+	if (!gfx_write(pixels, gfx_ref_image(image),
+		GFX_TRANSFER_ASYNC,
+		1, 1, &srcRegion, &dstRegion, &inject))
+	{
+		goto clean;
+	}
+
+	// Add the image to the drawer.
+	if (!gfx_vec_push(&drawer->fonts, 1, &image))
+		goto clean;
+
+	// TODO: Call gfx_imgui_image and then ImFontAtlas_SetTexID?.
+
+	return (void*)(intptr_t)1;
+
+
+	// Cleanup on failure.
+clean:
+	gfx_free_image(image);
+error:
+	gfx_log_error("Failed to allocate an image for an ImFontAtlas.");
 
 	return NULL;
+
 }
 
 /****************************/

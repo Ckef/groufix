@@ -24,9 +24,10 @@
  */
 typedef struct GFXImguiDrawer
 {
-	GFXHeap*     heap;
-	GFXRenderer* renderer;
-	GFXPass*     pass;
+	GFXHeap*       heap;
+	GFXDependency* dep;
+	GFXRenderer*   renderer;
+	GFXPass*       pass;
 
 	GFXTechnique* tech;
 	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable, void*, void* }
@@ -52,12 +53,14 @@ typedef struct GFXImguiDrawer
  * Initializes an ImGui drawer.
  * @param drawer   Cannot be NULL.
  * @param heap     Heap to allocate from, NULL to use the heap from renderer.
+ * @param dep      Dependency to inject signal commands in, cannot be NULL.
  * @param renderer Renderer to build for, cannot be NULL.
  * @param pass     Render pass to build for, cannot be NULL, must be of renderer.
  * @return Non-zero on success.
  */
 GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
-                            GFXHeap* heap, GFXRenderer* renderer, GFXPass* pass);
+                            GFXHeap* heap, GFXDependency* dep,
+                            GFXRenderer* renderer, GFXPass* pass);
 
 /**
  * Clears an ImGui drawer, invalidating the contents of `drawer`.
@@ -75,7 +78,7 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer);
  *
  * The returned ID is invalidated when this drawer is cleared.
  */
-GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, const void* igFontAtlas);
+GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, void* igFontAtlas);
 
 /**
  * Builds an ImTextureID from a GFXImage*.

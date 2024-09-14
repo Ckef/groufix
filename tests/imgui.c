@@ -41,8 +41,10 @@ static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
  */
 TEST_DESCRIBE(imgui, t)
 {
+	bool success = 0;
+
 	// Setup ImGui.
-	igCreateContext(NULL);
+	ImGuiContext* context = igCreateContext(NULL);
 	ImGuiIO* io = igGetIO();
 	t->window->ptr = io;
 	t->window->events.resize = resize;
@@ -50,18 +52,17 @@ TEST_DESCRIBE(imgui, t)
 	GFXVideoMode mode = gfx_window_get_video(t->window);
 	resize(t->window, mode.width, mode.height);
 
+	// Setup ImGui drawer.
 	GFXImguiDrawer drawer;
-	gfx_imgui_init(&drawer, NULL, t->renderer, t->pass);
-	gfx_imgui_font(&drawer, io->Fonts);
+	if (!gfx_imgui_init(&drawer, NULL, t->dep, t->renderer, t->pass))
+		goto clean;
 
-	{
-		// Imgui needs this to be called, so call it...
-		// TODO: Actually make groufix set a font texture id!
-		unsigned char* pixels;
-		int width;
-		int height;
-		ImFontAtlas_GetTexDataAsRGBA32(io->Fonts, &pixels, &width, &height, NULL);
-	}
+	if (!gfx_imgui_font(&drawer, io->Fonts))
+		goto clean_drawer;
+
+	// Flush all memory writes.
+	if (!gfx_heap_flush(t->heap))
+		goto clean_drawer;
 
 	// Setup an event loop.
 	// We wait instead of poll, only update when an event was detected.
@@ -73,14 +74,22 @@ TEST_DESCRIBE(imgui, t)
 		gfx_poll_events();
 		igShowDemoWindow(NULL);
 		igRender();
+		gfx_pass_inject(t->pass, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
 		gfx_recorder_render(t->recorder, t->pass, render, &drawer);
 		gfx_frame_submit(frame);
 	}
 
+	success = 1;
+
+
 	// Cleanup.
+clean_drawer:
 	gfx_renderer_block(t->renderer);
 	gfx_imgui_clear(&drawer);
-	igDestroyContext(igGetCurrentContext());
+clean:
+	igDestroyContext(context);
+
+	if (!success) TEST_FAIL();
 }
 
 
