@@ -1253,8 +1253,6 @@ bool _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 			return 0;
 		});
 
-	free(key);
-
 	// And finally, merge the temporary pipeline & destroy it.
 	bool success = 1;
 
@@ -1276,6 +1274,7 @@ bool _gfx_cache_load(_GFXCache* cache, const GFXReader* src)
 			"    Input size: %"GFX_PRIs" bytes.\n",
 			key->len);
 
+	free(key);
 	return success;
 
 
