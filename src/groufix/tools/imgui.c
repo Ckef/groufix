@@ -180,12 +180,280 @@ static int _gfx_imgui_cmp(const void* l, const void* r)
 }
 
 /****************************/
+GFX_API int gfx_imgui_key(GFXKey key)
+{
+	switch(key)
+	{
+	case GFX_KEY_UNKNOWN:
+		return ImGuiKey_None;
+	case GFX_KEY_WORLD_1:
+		return ImGuiKey_LeftSuper;
+	case GFX_KEY_WORLD_2:
+		return ImGuiKey_RightSuper;
+
+	case GFX_KEY_APOSTROPHE:
+		return ImGuiKey_Apostrophe;
+	case GFX_KEY_COMMA:
+		return ImGuiKey_Comma;
+	case GFX_KEY_MINUS:
+		return ImGuiKey_Minus;
+	case GFX_KEY_PERIOD:
+		return ImGuiKey_Period;
+	case GFX_KEY_SLASH:
+		return ImGuiKey_Slash;
+	case GFX_KEY_SEMICOLON:
+		return ImGuiKey_Semicolon;
+	case GFX_KEY_EQUAL:
+		return ImGuiKey_Equal;
+	case GFX_KEY_LEFT_BRACKET:
+		return ImGuiKey_LeftBracket;
+	case GFX_KEY_BACKSLASH:
+		return ImGuiKey_Backslash;
+	case GFX_KEY_RIGHT_BRACKET:
+		return ImGuiKey_RightBracket;
+	case GFX_KEY_GRAVE_ACCENT:
+		return ImGuiKey_GraveAccent;
+
+	case GFX_KEY_SPACE:
+		return ImGuiKey_Space;
+	case GFX_KEY_ESCAPE:
+		return ImGuiKey_Escape;
+	case GFX_KEY_ENTER:
+		return ImGuiKey_Enter;
+	case GFX_KEY_TAB:
+		return ImGuiKey_Tab;
+	case GFX_KEY_BACKSPACE:
+		return ImGuiKey_Backspace;
+	case GFX_KEY_INSERT:
+		return ImGuiKey_Insert;
+	case GFX_KEY_DELETE:
+		return ImGuiKey_Delete;
+	case GFX_KEY_RIGHT:
+		return ImGuiKey_RightArrow;
+	case GFX_KEY_LEFT:
+		return ImGuiKey_LeftArrow;
+	case GFX_KEY_DOWN:
+		return ImGuiKey_DownArrow;
+	case GFX_KEY_UP:
+		return ImGuiKey_UpArrow;
+	case GFX_KEY_PAGE_UP:
+		return ImGuiKey_PageUp;
+	case GFX_KEY_PAGE_DOWN:
+		return ImGuiKey_PageDown;
+	case GFX_KEY_HOME:
+		return ImGuiKey_Home;
+	case GFX_KEY_END:
+		return ImGuiKey_End;
+	case GFX_KEY_PRINT_SCREEN:
+		return ImGuiKey_PrintScreen;
+	case GFX_KEY_PAUSE:
+		return ImGuiKey_Pause;
+	case GFX_KEY_MENU:
+		return ImGuiKey_Menu;
+
+	case GFX_KEY_CAPS_LOCK:
+		return ImGuiKey_CapsLock;
+	case GFX_KEY_SCROLL_LOCK:
+		return ImGuiKey_ScrollLock;
+	case GFX_KEY_NUM_LOCK:
+		return ImGuiKey_NumLock;
+
+	case GFX_KEY_LEFT_SHIFT:
+		return ImGuiKey_LeftShift;
+	case GFX_KEY_LEFT_CONTROL:
+		return ImGuiKey_LeftCtrl;
+	case GFX_KEY_LEFT_ALT:
+		return ImGuiKey_LeftAlt;
+	case GFX_KEY_LEFT_SUPER:
+		return ImGuiKey_LeftSuper;
+	case GFX_KEY_RIGHT_SHIFT:
+		return ImGuiKey_RightShift;
+	case GFX_KEY_RIGHT_CONTROL:
+		return ImGuiKey_RightCtrl;
+	case GFX_KEY_RIGHT_ALT:
+		return ImGuiKey_RightAlt;
+	case GFX_KEY_RIGHT_SUPER:
+		return ImGuiKey_RightSuper;
+
+	case GFX_KEY_F1:
+		return ImGuiKey_F1;
+	case GFX_KEY_F2:
+		return ImGuiKey_F2;
+	case GFX_KEY_F3:
+		return ImGuiKey_F3;
+	case GFX_KEY_F4:
+		return ImGuiKey_F4;
+	case GFX_KEY_F5:
+		return ImGuiKey_F5;
+	case GFX_KEY_F6:
+		return ImGuiKey_F6;
+	case GFX_KEY_F7:
+		return ImGuiKey_F7;
+	case GFX_KEY_F8:
+		return ImGuiKey_F8;
+	case GFX_KEY_F9:
+		return ImGuiKey_F9;
+	case GFX_KEY_F10:
+		return ImGuiKey_F10;
+	case GFX_KEY_F11:
+		return ImGuiKey_F11;
+	case GFX_KEY_F12:
+		return ImGuiKey_F12;
+	case GFX_KEY_F13:
+		return ImGuiKey_F13;
+	case GFX_KEY_F14:
+		return ImGuiKey_F14;
+	case GFX_KEY_F15:
+		return ImGuiKey_F15;
+	case GFX_KEY_F16:
+		return ImGuiKey_F16;
+	case GFX_KEY_F17:
+		return ImGuiKey_F17;
+	case GFX_KEY_F18:
+		return ImGuiKey_F18;
+	case GFX_KEY_F19:
+		return ImGuiKey_F19;
+	case GFX_KEY_F20:
+		return ImGuiKey_F20;
+	case GFX_KEY_F21:
+		return ImGuiKey_F21;
+	case GFX_KEY_F22:
+		return ImGuiKey_F22;
+	case GFX_KEY_F23:
+		return ImGuiKey_F23;
+	case GFX_KEY_F24:
+		return ImGuiKey_F24;
+	case GFX_KEY_F25:
+		return ImGuiKey_None;
+
+	case GFX_KEY_0:
+		return ImGuiKey_0;
+	case GFX_KEY_1:
+		return ImGuiKey_1;
+	case GFX_KEY_2:
+		return ImGuiKey_2;
+	case GFX_KEY_3:
+		return ImGuiKey_3;
+	case GFX_KEY_4:
+		return ImGuiKey_4;
+	case GFX_KEY_5:
+		return ImGuiKey_5;
+	case GFX_KEY_6:
+		return ImGuiKey_6;
+	case GFX_KEY_7:
+		return ImGuiKey_7;
+	case GFX_KEY_8:
+		return ImGuiKey_8;
+	case GFX_KEY_9:
+		return ImGuiKey_9;
+
+	case GFX_KEY_A:
+		return ImGuiKey_A;
+	case GFX_KEY_B:
+		return ImGuiKey_B;
+	case GFX_KEY_C:
+		return ImGuiKey_C;
+	case GFX_KEY_D:
+		return ImGuiKey_D;
+	case GFX_KEY_E:
+		return ImGuiKey_E;
+	case GFX_KEY_F:
+		return ImGuiKey_F;
+	case GFX_KEY_G:
+		return ImGuiKey_G;
+	case GFX_KEY_H:
+		return ImGuiKey_H;
+	case GFX_KEY_I:
+		return ImGuiKey_I;
+	case GFX_KEY_J:
+		return ImGuiKey_J;
+	case GFX_KEY_K:
+		return ImGuiKey_K;
+	case GFX_KEY_L:
+		return ImGuiKey_L;
+	case GFX_KEY_M:
+		return ImGuiKey_M;
+	case GFX_KEY_N:
+		return ImGuiKey_N;
+	case GFX_KEY_O:
+		return ImGuiKey_O;
+	case GFX_KEY_P:
+		return ImGuiKey_P;
+	case GFX_KEY_Q:
+		return ImGuiKey_Q;
+	case GFX_KEY_R:
+		return ImGuiKey_R;
+	case GFX_KEY_S:
+		return ImGuiKey_S;
+	case GFX_KEY_T:
+		return ImGuiKey_T;
+	case GFX_KEY_U:
+		return ImGuiKey_U;
+	case GFX_KEY_V:
+		return ImGuiKey_V;
+	case GFX_KEY_W:
+		return ImGuiKey_W;
+	case GFX_KEY_X:
+		return ImGuiKey_X;
+	case GFX_KEY_Y:
+		return ImGuiKey_Y;
+	case GFX_KEY_Z:
+		return ImGuiKey_Z;
+
+	case GFX_KEY_KP_DECIMAL:
+		return ImGuiKey_KeypadDecimal;
+	case GFX_KEY_KP_DIVIDE:
+		return ImGuiKey_KeypadDivide;
+	case GFX_KEY_KP_MULTIPLY:
+		return ImGuiKey_KeypadMultiply;
+	case GFX_KEY_KP_SUBTRACT:
+		return ImGuiKey_KeypadSubtract;
+	case GFX_KEY_KP_ADD:
+		return ImGuiKey_KeypadAdd;
+	case GFX_KEY_KP_ENTER:
+		return ImGuiKey_KeypadEnter;
+	case GFX_KEY_KP_EQUAL:
+		return ImGuiKey_KeypadEqual;
+
+	case GFX_KEY_KP_0:
+		return ImGuiKey_Keypad0;
+	case GFX_KEY_KP_1:
+		return ImGuiKey_Keypad1;
+	case GFX_KEY_KP_2:
+		return ImGuiKey_Keypad2;
+	case GFX_KEY_KP_3:
+		return ImGuiKey_Keypad3;
+	case GFX_KEY_KP_4:
+		return ImGuiKey_Keypad4;
+	case GFX_KEY_KP_5:
+		return ImGuiKey_Keypad5;
+	case GFX_KEY_KP_6:
+		return ImGuiKey_Keypad6;
+	case GFX_KEY_KP_7:
+		return ImGuiKey_Keypad7;
+	case GFX_KEY_KP_8:
+		return ImGuiKey_Keypad8;
+	case GFX_KEY_KP_9:
+		return ImGuiKey_Keypad9;
+	}
+
+	return ImGuiKey_None;
+}
+
+/****************************/
+GFX_API int gfx_imgui_button(GFXMouseButton button)
+{
+	// Just bound check it.
+	return
+		((int)ImGuiMouseButton_COUNT < (int)button) ?
+		(int)ImGuiMouseButton_COUNT - 1 : (int)button;
+}
+
+/****************************/
 GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
-                            GFXHeap* heap, GFXDependency* dep,
-                            GFXRenderer* renderer, GFXPass* pass)
+                            GFXHeap* heap, GFXRenderer* renderer, GFXPass* pass)
 {
 	assert(drawer != NULL);
-	assert(dep != NULL);
 	assert(renderer != NULL);
 	assert(pass != NULL);
 	assert(gfx_pass_get_renderer(pass) == renderer);
@@ -198,7 +466,6 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 		heap = gfx_renderer_get_heap(renderer);
 
 	drawer->heap = heap;
-	drawer->dep = dep;
 	drawer->renderer = renderer;
 	drawer->pass = pass;
 
@@ -361,9 +628,11 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 }
 
 /****************************/
-GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, void* igFontAtlas)
+GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
+                             GFXDependency* dep, void* igFontAtlas)
 {
 	assert(drawer != NULL);
+	assert(dep != NULL);
 	assert(igFontAtlas != NULL);
 
 	ImFontAtlas* fontAtlas = igFontAtlas;
@@ -405,7 +674,7 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer, void* igFontAtlas)
 	};
 
 	const GFXInject inject =
-		gfx_dep_sig(drawer->dep, GFX_ACCESS_SAMPLED_READ, GFX_STAGE_FRAGMENT);
+		gfx_dep_sig(dep, GFX_ACCESS_SAMPLED_READ, GFX_STAGE_FRAGMENT);
 
 	if (!gfx_write(pixels, gfx_ref_image(image),
 		GFX_TRANSFER_ASYNC,
