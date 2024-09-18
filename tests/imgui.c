@@ -8,8 +8,6 @@
 
 #include <groufix/tools/imgui.h>
 #include <float.h>
-
-#define TEST_SKIP_CREATE_SCENE
 #include "test.h"
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
@@ -134,6 +132,8 @@ static void mouse_scroll(GFXWindow* window, double x, double y)
  */
 static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
+	TEST_CALLBACK_RENDER(recorder, frame, NULL);
+
 	GFXImguiDrawer* drawer = (GFXImguiDrawer*)ptr;
 	gfx_cmd_draw_imgui(recorder, drawer, igGetDrawData());
 }
