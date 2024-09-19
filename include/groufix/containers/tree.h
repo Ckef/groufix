@@ -46,7 +46,7 @@ typedef struct GFXTree
 static inline const void* gfx_tree_key(GFXTree* tree, const void* node)
 {
 	return (const void*)((const char*)node -
-		GFX_ALIGN_UP(tree->keySize, _Alignof(max_align_t)));
+		GFX_ALIGN_UP(tree->keySize, alignof(max_align_t)));
 }
 
 /**

@@ -17,17 +17,17 @@
 // Retrieve the _GFXMapNode from a public element pointer.
 #define _GFX_GET_NODE(map, element) \
 	(_GFXMapNode*)((char*)element - \
-		GFX_ALIGN_UP(sizeof(_GFXMapNode), _Alignof(max_align_t)))
+		GFX_ALIGN_UP(sizeof(_GFXMapNode), alignof(max_align_t)))
 
 // Retrieve the element data from a _GFXMapNode.
 #define _GFX_GET_ELEMENT(map, mNode) \
 	(void*)((char*)mNode + \
-		GFX_ALIGN_UP(sizeof(_GFXMapNode), _Alignof(max_align_t)))
+		GFX_ALIGN_UP(sizeof(_GFXMapNode), alignof(max_align_t)))
 
 // Retrieve the key from a _GFXMapNode.
 #define _GFX_GET_KEY(map, mNode) \
 	(void*)((char*)_GFX_GET_ELEMENT(map, mNode) + \
-		GFX_ALIGN_UP(map->elementSize, _Alignof(max_align_t)))
+		GFX_ALIGN_UP(map->elementSize, alignof(max_align_t)))
 
 
 /****************************
@@ -357,8 +357,8 @@ GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
 	// We allocate a _GFXMapNode appended with the element and key data,
 	// make sure to align for any scalar type!
 	_GFXMapNode* mNode = malloc(
-		GFX_ALIGN_UP(sizeof(_GFXMapNode), _Alignof(max_align_t)) +
-		GFX_ALIGN_UP(map->elementSize, _Alignof(max_align_t)) +
+		GFX_ALIGN_UP(sizeof(_GFXMapNode), alignof(max_align_t)) +
+		GFX_ALIGN_UP(map->elementSize, alignof(max_align_t)) +
 		keySize);
 
 	if (mNode == NULL)

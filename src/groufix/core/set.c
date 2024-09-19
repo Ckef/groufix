@@ -1006,11 +1006,11 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	// Allocate a new set.
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(GFXSet) + sizeof(_GFXSetBinding) * numBindings,
-		_Alignof(_GFXSetEntry));
+		alignof(_GFXSetEntry));
 
 	const size_t updateSize = GFX_ALIGN_UP(
 		structSize + sizeof(_GFXSetEntry) * numEntries,
-		_Alignof(_GFXHashKey));
+		alignof(_GFXHashKey));
 
 	const size_t maxHashSize =
 		GFX_MAX(GFX_MAX(GFX_MAX(GFX_MAX(

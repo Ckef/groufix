@@ -40,7 +40,7 @@ typedef struct GFXMap
 static inline const void* gfx_map_key(GFXMap* map, const void* node)
 {
 	return (const void*)((const char*)node +
-		GFX_ALIGN_UP(map->elementSize, _Alignof(max_align_t)));
+		GFX_ALIGN_UP(map->elementSize, alignof(max_align_t)));
 }
 
 /**

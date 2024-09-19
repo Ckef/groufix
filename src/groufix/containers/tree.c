@@ -15,18 +15,18 @@
 // Retrieve the _GFXTreeNode from a public element pointer.
 #define _GFX_GET_NODE(tree, element) \
 	(_GFXTreeNode*)((char*)element - \
-		GFX_ALIGN_UP(tree->keySize, _Alignof(max_align_t)) - \
-		GFX_ALIGN_UP(sizeof(_GFXTreeNode), _Alignof(max_align_t)))
+		GFX_ALIGN_UP(tree->keySize, alignof(max_align_t)) - \
+		GFX_ALIGN_UP(sizeof(_GFXTreeNode), alignof(max_align_t)))
 
 // Retrieve the key from a _GFXTreeNode.
 #define _GFX_GET_KEY(tree, tNode) \
 	(void*)((char*)tNode + \
-		GFX_ALIGN_UP(sizeof(_GFXTreeNode), _Alignof(max_align_t)))
+		GFX_ALIGN_UP(sizeof(_GFXTreeNode), alignof(max_align_t)))
 
 // Retrieve the element data from a _GFXTreeNode.
 #define _GFX_GET_ELEMENT(tree, tNode) \
 	(void*)((char*)_GFX_GET_KEY(tree, tNode) + \
-		GFX_ALIGN_UP(tree->keySize, _Alignof(max_align_t)))
+		GFX_ALIGN_UP(tree->keySize, alignof(max_align_t)))
 
 // Replace the child of a node with a new one (without touching the children).
 #define _GFX_REPLACE_CHILD(tNode, child, new) \
@@ -403,8 +403,8 @@ GFX_API void* gfx_tree_insert(GFXTree* tree, size_t elemSize, const void* elem,
 	// We allocate a _GFXTreeNode appended with the key and element data,
 	// make sure to align for any scalar type!
 	_GFXTreeNode* tNode = malloc(
-		GFX_ALIGN_UP(sizeof(_GFXTreeNode), _Alignof(max_align_t)) +
-		GFX_ALIGN_UP(tree->keySize, _Alignof(max_align_t)) +
+		GFX_ALIGN_UP(sizeof(_GFXTreeNode), alignof(max_align_t)) +
+		GFX_ALIGN_UP(tree->keySize, alignof(max_align_t)) +
 		elemSize);
 
 	if (tNode == NULL)

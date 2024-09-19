@@ -1182,7 +1182,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	// Make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(_GFXPrimitive) + sizeof(_GFXAttribute) * numAttribs,
-		_Alignof(_GFXPrimBuffer));
+		alignof(_GFXPrimBuffer));
 
 	_GFXPrimitive* prim = malloc(
 		structSize +
@@ -1457,7 +1457,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	// make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
 		sizeof(_GFXGroup) + sizeof(_GFXBinding) * numBindings,
-		_Alignof(GFXReference));
+		alignof(GFXReference));
 
 	_GFXGroup* group = malloc(
 		structSize +

@@ -380,8 +380,10 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 		rPass->vk.pass = VK_NULL_HANDLE;
 
 		// Add an extra char so we know to set independent blend state.
-		const size_t blendsSize =
-			sizeof(VkPipelineColorBlendAttachmentState) + sizeof(char);
+		// Align so access to the Vulkan structs is aligned.
+		const size_t blendsSize = GFX_ALIGN_UP(
+			sizeof(VkPipelineColorBlendAttachmentState) + sizeof(char),
+			alignof(VkPipelineColorBlendAttachmentState));
 
 		gfx_vec_init(&rPass->vk.clears, sizeof(VkClearValue));
 		gfx_vec_init(&rPass->vk.blends, blendsSize);
