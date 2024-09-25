@@ -245,6 +245,15 @@ GFX_API GFXVideoMode gfx_window_get_video(GFXWindow* window);
 GFX_API void gfx_window_set_video(GFXWindow* window, GFXVideoMode mode);
 
 /**
+ * Retrieves the window title.
+ * @param window Cannot be NULL.
+ *
+ * The returned string is valid until
+ * the next call to gfx_window_(get|set)_title.
+ */
+GFX_API const char* gfx_window_get_title(GFXWindow* window);
+
+/**
  * Sets a new window title.
  * @param window Cannot be NULL.
  * @param title  Cannot be NULL.

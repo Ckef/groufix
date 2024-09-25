@@ -680,6 +680,14 @@ GFX_API void gfx_window_set_video(GFXWindow* window, GFXVideoMode mode)
 }
 
 /****************************/
+GFX_API const char* gfx_window_get_title(GFXWindow* window)
+{
+	assert(window != NULL);
+
+	return glfwGetWindowTitle(((_GFXWindow*)window)->handle);
+}
+
+/****************************/
 GFX_API void gfx_window_set_title(GFXWindow* window, const char* title)
 {
 	assert(window != NULL);
