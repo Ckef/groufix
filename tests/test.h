@@ -347,8 +347,8 @@ static void* _test_thrd(void* arg)
 /**
  * Default key release event handler.
  */
-static void _test_key_release(GFXWindow* window,
-                              GFXKey key, int scan, GFXModifier mod)
+static bool _test_key_release(GFXWindow* window,
+                              GFXKey key, int scan, GFXModifier mod, void* data)
 {
 	switch (key)
 	{
@@ -367,15 +367,15 @@ static void _test_key_release(GFXWindow* window,
 				window, monitor,
 				gfx_monitor_get_current_mode(monitor));
 		}
-		break;
+		return 0;
 
 	// Close on escape.
 	case GFX_KEY_ESCAPE:
 		gfx_window_set_close(window, 1);
-		break;
+		return 0;
 
 	default:
-		break;
+		return 0;
 	}
 }
 

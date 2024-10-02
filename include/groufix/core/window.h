@@ -16,6 +16,12 @@
 
 
 /**
+ * Window declaration.
+ */
+typedef struct GFXWindow GFXWindow;
+
+
+/**
  * Window configuration flags.
  */
 typedef enum GFXWindowFlags
@@ -34,6 +40,46 @@ typedef enum GFXWindowFlags
 } GFXWindowFlags;
 
 GFX_BIT_FIELD(GFXWindowFlags)
+
+
+/**
+ * Window events definition.
+ */
+typedef struct GFXWindowEvents
+{
+	bool (*close   )(GFXWindow*, void*);
+	bool (*drop    )(GFXWindow*, size_t count, const char** paths, void*);
+	bool (*focus   )(GFXWindow*, void*);
+	bool (*blur    )(GFXWindow*, void*);
+	bool (*maximize)(GFXWindow*, void*);
+	bool (*minimize)(GFXWindow*, void*);
+	bool (*restore )(GFXWindow*, void*);
+	bool (*move    )(GFXWindow*, int32_t x, int32_t y, void*);
+	bool (*resize  )(GFXWindow*, uint32_t width, uint32_t height, void*);
+
+	// Keyboard events.
+	struct
+	{
+		bool (*press  )(GFXWindow*, GFXKey, int scan, GFXModifier, void*);
+		bool (*release)(GFXWindow*, GFXKey, int scan, GFXModifier, void*);
+		bool (*repeat )(GFXWindow*, GFXKey, int scan, GFXModifier, void*);
+		bool (*text   )(GFXWindow*, uint32_t codepoint, void*);
+
+	} key;
+
+	// Mouse events.
+	struct
+	{
+		bool (*enter  )(GFXWindow*, void*);
+		bool (*leave  )(GFXWindow*, void*);
+		bool (*move   )(GFXWindow*, double x, double y, void*);
+		bool (*press  )(GFXWindow*, GFXMouseButton, GFXModifier, void*);
+		bool (*release)(GFXWindow*, GFXMouseButton, GFXModifier, void*);
+		bool (*scroll )(GFXWindow*, double x, double y, void*);
+
+	} mouse;
+
+} GFXWindowEvents;
 
 
 /**
@@ -64,50 +110,13 @@ typedef struct GFXMonitor
 /**
  * Window definition.
  */
-typedef struct GFXWindow
+struct GFXWindow
 {
 	// User pointer, can be used for any purpose.
 	// Defaults to NULL.
-	void* ptr;
-
-	// Event callbacks.
-	struct
-	{
-		void (*close   )(struct GFXWindow*);
-		void (*drop    )(struct GFXWindow*, size_t count, const char** paths);
-		void (*focus   )(struct GFXWindow*);
-		void (*blur    )(struct GFXWindow*);
-		void (*maximize)(struct GFXWindow*);
-		void (*minimize)(struct GFXWindow*);
-		void (*restore )(struct GFXWindow*);
-		void (*move    )(struct GFXWindow*, int32_t x, int32_t y);
-		void (*resize  )(struct GFXWindow*, uint32_t width, uint32_t height);
-
-		// Keyboard events.
-		struct
-		{
-			void (*press  )(struct GFXWindow*, GFXKey, int scan, GFXModifier);
-			void (*release)(struct GFXWindow*, GFXKey, int scan, GFXModifier);
-			void (*repeat )(struct GFXWindow*, GFXKey, int scan, GFXModifier);
-			void (*text   )(struct GFXWindow*, uint32_t codepoint);
-
-		} key;
-
-		// Mouse events.
-		struct
-		{
-			void (*enter  )(struct GFXWindow*);
-			void (*leave  )(struct GFXWindow*);
-			void (*move   )(struct GFXWindow*, double x, double y);
-			void (*press  )(struct GFXWindow*, GFXMouseButton, GFXModifier);
-			void (*release)(struct GFXWindow*, GFXMouseButton, GFXModifier);
-			void (*scroll )(struct GFXWindow*, double x, double y);
-
-		} mouse;
-
-	} events;
-
-} GFXWindow;
+	void*           ptr;
+	GFXWindowEvents events;
+};
 
 
 /****************************
@@ -166,6 +175,16 @@ GFX_API GFXVideoMode gfx_monitor_get_current_mode(GFXMonitor* monitor);
  ****************************/
 
 /**
+ * Retrieves the event callbacks from pushed window event data. Undefined
+ * behaviour if data is not a non-NULL value returned by gfx_window_push_events.
+ */
+static inline GFXWindowEvents* gfx_window_get_events(const void* data)
+{
+	return (GFXWindowEvents*)((const char*)data -
+		GFX_ALIGN_UP(sizeof(GFXWindowEvents), alignof(max_align_t)));
+}
+
+/**
  * Creates a window.
  * @param device  NULL is equivalent to gfx_get_primary_device().
  * @param monitor NULL for windowed mode, fullscreen monitor otherwise.
@@ -186,10 +205,27 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 GFX_API void gfx_destroy_window(GFXWindow* window);
 
 /**
- * Returns the device the heap was created for.
+ * Returns the device the window was created for.
  * Can be called from any thread.
  */
 GFX_API GFXDevice* gfx_window_get_device(GFXWindow* window);
+
+/**
+ * Push a new set of events on top of the event stack of a window.
+ * @param window   Cannot be NULL.
+ * @param dataSize May be 0, returned/passed data may never be accessed.
+ * @param data     Passed as last argument, can be NULL to leave uninitialized.
+ * @return The allocated data (constant address), NULL when out of memory.
+ */
+GFX_API void* gfx_window_push_events(GFXWindow* window, GFXWindowEvents events,
+                                     size_t dataSize, const void* data);
+
+/**
+ * Erases a set of events from the event stack of a window.
+ * @param window Cannot be NULL.
+ * @param data   Pointer returned by gfx_window_push_events, will be freed.
+ */
+GFX_API void gfx_window_erase_events(GFXWindow* window, void* data);
 
 /**
  * Retrieves the current flags of a window.

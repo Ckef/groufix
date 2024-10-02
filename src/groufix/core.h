@@ -401,6 +401,7 @@ typedef struct _GFXWindow
 {
 	GFXWindow    base;
 	GLFWwindow*  handle;
+	GFXList      events; // References { GFXListNode, GFXWindowEvents, ... }.
 
 	_GFXDevice*  device; // Associated GPU to build a swapchain on.
 	_GFXContext* context;

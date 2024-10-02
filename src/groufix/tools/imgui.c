@@ -9,6 +9,7 @@
 #include "groufix/tools/imgui.h"
 #include "groufix/core/log.h"
 #include <assert.h>
+#include <float.h>
 #include <limits.h>
 #include <string.h>
 
@@ -42,6 +43,17 @@ typedef struct _GFXDataElem
 	void* indices;
 
 } _GFXDataElem;
+
+
+/****************************
+ * ImGui event data to be passed to callbacks.
+ */
+typedef struct _GFXEventData
+{
+	ImGuiIO* io;
+	bool     blocking;
+
+} _GFXEventData;
 
 
 /****************************
@@ -177,6 +189,140 @@ static int _gfx_imgui_cmp(const void* l, const void* r)
 {
 	// Non-zero = inequal.
 	return *(const GFXImage**)l != *(const GFXImage**)r;
+}
+
+/****************************
+ * ImGui focus callback.
+ */
+static bool _gfx_imgui_focus(GFXWindow* window, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddFocusEvent(event->io, 1);
+
+	return 0;
+}
+
+/****************************
+ * ImGui blur callback.
+ */
+static bool _gfx_imgui_blur(GFXWindow* window, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddFocusEvent(event->io, 0);
+
+	return 0;
+}
+
+/****************************
+ * ImGui resize callback.
+ */
+static bool _gfx_imgui_resize(GFXWindow* window,
+                              uint32_t width, uint32_t height, void* data)
+{
+	_GFXEventData* event = data;
+	event->io->DisplaySize.x = (float)width;
+	event->io->DisplaySize.y = (float)height;
+
+	return 0;
+}
+
+/****************************
+ * ImGui key press callback.
+ */
+static bool _gfx_imgui_key_press(GFXWindow* window,
+                                 GFXKey key, int scan, GFXModifier mod,
+                                 void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddKeyEvent(event->io, gfx_imgui_key(key), 1);
+
+	return event->blocking && event->io->WantCaptureKeyboard;
+}
+
+/****************************
+ * ImGui key release callback.
+ */
+static bool _gfx_imgui_key_release(GFXWindow* window,
+                                   GFXKey key, int scan, GFXModifier mod,
+                                   void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddKeyEvent(event->io, gfx_imgui_key(key), 0);
+
+	return event->blocking && event->io->WantCaptureKeyboard;
+}
+
+/****************************
+ * ImGui key text callback.
+ */
+static bool _gfx_imgui_key_text(GFXWindow* window,
+                                uint32_t codepoint, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddInputCharacter(event->io, codepoint);
+
+	return event->blocking && event->io->WantCaptureKeyboard;
+}
+
+/****************************
+ * ImGui mouse leave callback.
+ */
+static bool _gfx_imgui_mouse_leave(GFXWindow* window, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMousePosEvent(event->io, -FLT_MAX, -FLT_MAX);
+
+	return 0;
+}
+
+/****************************
+ * ImGui mouse move callback.
+ */
+static bool _gfx_imgui_mouse_move(GFXWindow* window,
+                                  double x, double y, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMousePosEvent(event->io, (float)x, (float)y);
+
+	return event->blocking && event->io->WantCaptureMouse;
+}
+
+/****************************
+ * ImGui mouse press callback.
+ */
+static bool _gfx_imgui_mouse_press(GFXWindow* window,
+                                   GFXMouseButton button, GFXModifier mod,
+                                   void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMouseButtonEvent(event->io, gfx_imgui_button(button), 1);
+
+	return event->blocking && event->io->WantCaptureMouse;
+}
+
+/****************************
+ * ImGui mouse release callback.
+ */
+static bool _gfx_imgui_mouse_release(GFXWindow* window,
+                                     GFXMouseButton button, GFXModifier mod,
+                                     void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMouseButtonEvent(event->io, gfx_imgui_button(button), 0);
+
+	return event->blocking && event->io->WantCaptureMouse;
+}
+
+/****************************
+ * ImGui mouse scroll callback.
+ */
+static bool _gfx_imgui_mouse_scroll(GFXWindow* window,
+                                    double x, double y, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMouseWheelEvent(event->io, (float)x, (float)y);
+
+	return event->blocking && event->io->WantCaptureMouse;
 }
 
 /****************************/
@@ -447,6 +593,74 @@ GFX_API int gfx_imgui_button(GFXMouseButton button)
 	return
 		((int)ImGuiMouseButton_COUNT < (int)button) ?
 		(int)ImGuiMouseButton_COUNT - 1 : (int)button;
+}
+
+/****************************/
+GFX_API bool gfx_imgui_input(GFXImguiInput* input,
+                             GFXWindow* window, void* igGuiIO, bool blocking)
+{
+	assert(input != NULL);
+	assert(window != NULL);
+	assert(igGuiIO != NULL);
+
+	// Define events & event callback data.
+	GFXWindowEvents events = {
+		.close = NULL,
+		.drop = NULL,
+		.focus = _gfx_imgui_focus,
+		.blur = _gfx_imgui_blur,
+		.maximize = NULL,
+		.minimize = NULL,
+		.restore = NULL,
+		.move = NULL,
+		.resize = _gfx_imgui_resize,
+
+		.key = {
+			.press = _gfx_imgui_key_press,
+			.release = _gfx_imgui_key_release,
+			.repeat = NULL,
+			.text = _gfx_imgui_key_text
+		},
+
+		.mouse = {
+			.enter = NULL,
+			.leave = _gfx_imgui_mouse_leave,
+			.move = _gfx_imgui_mouse_move,
+			.press = _gfx_imgui_mouse_press,
+			.release = _gfx_imgui_mouse_release,
+			.scroll = _gfx_imgui_mouse_scroll
+		}
+	};
+
+	_GFXEventData data = {
+		.io = igGuiIO,
+		.blocking = blocking
+	};
+
+	// Try to push the events.
+	input->window = window;
+	input->data = gfx_window_push_events(window, events, sizeof(data), &data);
+
+	if (input->data != NULL)
+	{
+		// Set the initial display size.
+		GFXVideoMode mode = gfx_window_get_video(window);
+		_gfx_imgui_resize(window, mode.width, mode.height, input->data);
+
+		return 1;
+	}
+
+	return 0;
+}
+
+/****************************/
+GFX_API void gfx_imgui_end(GFXImguiInput* input)
+{
+	assert(input != NULL);
+
+	gfx_window_erase_events(input->window, input->data);
+
+	// Leave all values, input forwarder is invalidated.
 }
 
 /****************************/

@@ -9,6 +9,43 @@
 #include "groufix/core.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
+
+
+// Retrieve the GFXListNode* from a public user data pointer.
+#define _GFX_GET_NODE(data) \
+	(GFXListNode*)((char*)data - \
+		GFX_ALIGN_UP(sizeof(GFXWindowEvents), alignof(max_align_t)) - \
+		GFX_ALIGN_UP(sizeof(GFXListNode), alignof(GFXWindowEvents)))
+
+// Retrieve the GFXWindowEvents* from a GFXListNode*.
+#define _GFX_GET_EVENTS(node) \
+	(GFXWindowEvents*)((char*)node + \
+		GFX_ALIGN_UP(sizeof(GFXListNode), alignof(GFXWindowEvents)))
+
+// Retrieve the user data from a GFXListNode*.
+#define _GFX_GET_DATA(node) \
+	(void*)((char*)_GFX_GET_EVENTS(node) + \
+		GFX_ALIGN_UP(sizeof(GFXWindowEvents), alignof(max_align_t)))
+
+
+// Executes all events on the stack, from top to bottom.
+#define _GFX_CALL_STACK(handle, cb, ...) \
+	do { \
+		GFXWindow* window = glfwGetWindowUserPointer(handle); \
+		bool blocked = 0; \
+		for ( \
+			GFXListNode* node = ((_GFXWindow*)window)->events.tail; \
+			node != NULL && !blocked; \
+			node = node->prev) \
+		{ \
+			GFXWindowEvents* events = _GFX_GET_EVENTS(node); \
+			if (events->cb != NULL) \
+				blocked = events->cb(__VA_ARGS__, _GFX_GET_DATA(node)); \
+		} \
+		if (!blocked && window->events.cb != NULL) \
+			window->events.cb(__VA_ARGS__, NULL); \
+	} while (0)
 
 
 /****************************
@@ -16,10 +53,7 @@
  */
 static void _gfx_glfw_window_close(GLFWwindow* handle)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
-	if (window->events.close != NULL)
-		window->events.close(window);
+	_GFX_CALL_STACK(handle, close, window);
 }
 
 /****************************
@@ -27,10 +61,7 @@ static void _gfx_glfw_window_close(GLFWwindow* handle)
  */
 static void _gfx_glfw_drop(GLFWwindow* handle, int count, const char** paths)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
-	if (window->events.drop != NULL)
-		window->events.drop(window, (size_t)count, paths);
+	_GFX_CALL_STACK(handle, drop, window, (size_t)count, paths);
 }
 
 /****************************
@@ -38,18 +69,10 @@ static void _gfx_glfw_drop(GLFWwindow* handle, int count, const char** paths)
  */
 static void _gfx_glfw_window_focus(GLFWwindow* handle, int focused)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
 	if (focused)
-	{
-		if (window->events.focus != NULL)
-			window->events.focus(window);
-	}
+		_GFX_CALL_STACK(handle, focus, window);
 	else
-	{
-		if (window->events.blur != NULL)
-			window->events.blur(window);
-	}
+		_GFX_CALL_STACK(handle, blur, window);
 }
 
 /****************************
@@ -57,18 +80,10 @@ static void _gfx_glfw_window_focus(GLFWwindow* handle, int focused)
  */
 static void _gfx_glfw_window_maximize(GLFWwindow* handle, int maximized)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
 	if (maximized)
-	{
-		if (window->events.maximize != NULL)
-			window->events.maximize(window);
-	}
+		_GFX_CALL_STACK(handle, maximize, window);
 	else
-	{
-		if (window->events.restore != NULL)
-			window->events.restore(window);
-	}
+		_GFX_CALL_STACK(handle, restore, window);
 }
 
 /****************************
@@ -76,18 +91,10 @@ static void _gfx_glfw_window_maximize(GLFWwindow* handle, int maximized)
  */
 static void _gfx_glfw_window_iconify(GLFWwindow* handle, int iconified)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
 	if (iconified)
-	{
-		if (window->events.minimize != NULL)
-			window->events.minimize(window);
-	}
+		_GFX_CALL_STACK(handle, minimize, window);
 	else
-	{
-		if (window->events.restore != NULL)
-			window->events.restore(window);
-	}
+		_GFX_CALL_STACK(handle, restore, window);
 }
 
 /****************************
@@ -95,10 +102,7 @@ static void _gfx_glfw_window_iconify(GLFWwindow* handle, int iconified)
  */
 static void _gfx_glfw_window_pos(GLFWwindow* handle, int x, int y)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
-	if (window->events.move != NULL)
-		window->events.move(window, (int32_t)x, (int32_t)y);
+	_GFX_CALL_STACK(handle, move, window, (int32_t)x, (int32_t)y);
 }
 
 /****************************
@@ -106,10 +110,7 @@ static void _gfx_glfw_window_pos(GLFWwindow* handle, int x, int y)
  */
 static void _gfx_glfw_window_size(GLFWwindow* handle, int width, int height)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
-	if (window->events.resize != NULL)
-		window->events.resize(window, (uint32_t)width, (uint32_t)height);
+	_GFX_CALL_STACK(handle, resize, window, (uint32_t)width, (uint32_t)height);
 }
 
 /****************************
@@ -118,21 +119,19 @@ static void _gfx_glfw_window_size(GLFWwindow* handle, int width, int height)
 static void _gfx_glfw_key(GLFWwindow* handle,
                           int key, int scancode, int action, int mods)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
 	switch (action)
 	{
 	case GLFW_PRESS:
-		if (window->events.key.press != NULL)
-			window->events.key.press(window, (GFXKey)key, scancode, (GFXModifier)mods);
+		_GFX_CALL_STACK(handle, key.press,
+			window, (GFXKey)key, scancode, (GFXModifier)mods);
 		break;
 	case GLFW_RELEASE:
-		if (window->events.key.release != NULL)
-			window->events.key.release(window, (GFXKey)key, scancode, (GFXModifier)mods);
+		_GFX_CALL_STACK(handle, key.release,
+			window, (GFXKey)key, scancode, (GFXModifier)mods);
 		break;
 	case GLFW_REPEAT:
-		if (window->events.key.repeat != NULL)
-			window->events.key.repeat(window, (GFXKey)key, scancode, (GFXModifier)mods);
+		_GFX_CALL_STACK(handle, key.repeat,
+			window, (GFXKey)key, scancode, (GFXModifier)mods);
 		break;
 	}
 }
@@ -142,10 +141,7 @@ static void _gfx_glfw_key(GLFWwindow* handle,
  */
 static void _gfx_glfw_char(GLFWwindow* handle, unsigned int codepoint)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
-	if (window->events.key.text != NULL)
-		window->events.key.text(window, (uint32_t)codepoint);
+	_GFX_CALL_STACK(handle, key.text, window, (uint32_t)codepoint);
 }
 
 /****************************
@@ -153,18 +149,10 @@ static void _gfx_glfw_char(GLFWwindow* handle, unsigned int codepoint)
  */
 static void _gfx_glfw_cursor_enter(GLFWwindow* handle, int entered)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
 	if (entered)
-	{
-		if (window->events.mouse.enter != NULL)
-			window->events.mouse.enter(window);
-	}
+		_GFX_CALL_STACK(handle, mouse.enter, window);
 	else
-	{
-		if (window->events.mouse.leave != NULL)
-			window->events.mouse.leave(window);
-	}
+		_GFX_CALL_STACK(handle, mouse.leave, window);
 }
 
 /****************************
@@ -172,10 +160,7 @@ static void _gfx_glfw_cursor_enter(GLFWwindow* handle, int entered)
  */
 static void _gfx_glfw_cursor_pos(GLFWwindow* handle, double x, double y)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
-	if (window->events.mouse.move != NULL)
-		window->events.mouse.move(window, x, y);
+	_GFX_CALL_STACK(handle, mouse.move, window, x, y);
 }
 
 /****************************
@@ -184,17 +169,15 @@ static void _gfx_glfw_cursor_pos(GLFWwindow* handle, double x, double y)
 static void _gfx_glfw_mouse_button(GLFWwindow* handle,
                                    int button, int action, int mods)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
 	switch (action)
 	{
 	case GLFW_PRESS:
-		if (window->events.mouse.press != NULL)
-			window->events.mouse.press(window, (GFXMouseButton)button, (GFXModifier)mods);
+		_GFX_CALL_STACK(handle, mouse.press,
+			window, (GFXMouseButton)button, (GFXModifier)mods);
 		break;
 	case GLFW_RELEASE:
-		if (window->events.mouse.release != NULL)
-			window->events.mouse.release(window, (GFXMouseButton)button, (GFXModifier)mods);
+		_GFX_CALL_STACK(handle, mouse.release,
+			window, (GFXMouseButton)button, (GFXModifier)mods);
 		break;
 	}
 }
@@ -204,10 +187,7 @@ static void _gfx_glfw_mouse_button(GLFWwindow* handle,
  */
 static void _gfx_glfw_scroll(GLFWwindow* handle, double x, double y)
 {
-	GFXWindow* window = glfwGetWindowUserPointer(handle);
-
-	if (window->events.mouse.scroll != NULL)
-		window->events.mouse.scroll(window, x, y);
+	_GFX_CALL_STACK(handle, mouse.scroll, window, x, y);
 }
 
 /****************************
@@ -452,8 +432,9 @@ GFX_API GFXWindow* gfx_create_window(GFXWindowFlags flags, GFXDevice* device,
 	window->vk.oldSwapchain = VK_NULL_HANDLE;
 	gfx_vec_init(&window->vk.retired, sizeof(VkSwapchainKHR));
 
+	// And lastly the event stack.
+	gfx_list_init(&window->events);
 
-	// Holy moly :o
 	return &window->base;
 
 
@@ -498,6 +479,16 @@ GFX_API void gfx_destroy_window(GFXWindow* window)
 	_gfx_mutex_clear(&win->frame.lock);
 
 	glfwDestroyWindow(win->handle);
+
+	// Free all nodes in the event stack.
+	while (win->events.tail != NULL)
+	{
+		GFXListNode* node = win->events.tail;
+		gfx_list_erase(&win->events, node);
+		free(node);
+	}
+
+	gfx_list_clear(&win->events);
 	free(window);
 }
 
@@ -511,6 +502,49 @@ GFX_API GFXDevice* gfx_window_get_device(GFXWindow* window)
 }
 
 /****************************/
+GFX_API void* gfx_window_push_events(GFXWindow* window, GFXWindowEvents events,
+                                     size_t dataSize, const void* data)
+{
+	assert(window != NULL);
+
+	_GFXWindow* win = (_GFXWindow*)window;
+
+	// Allocate memory for events and some data.
+	GFXListNode* node = malloc(
+		GFX_ALIGN_UP(sizeof(GFXListNode), alignof(GFXWindowEvents)) +
+		GFX_ALIGN_UP(sizeof(GFXWindowEvents), alignof(max_align_t)) +
+		GFX_MAX(dataSize, 1)); // Minimum 1 byte, so we have a valid pointer.
+
+	if (node == NULL)
+		return NULL;
+
+	// Initialize events & user data.
+	*_GFX_GET_EVENTS(node) = events;
+
+	if (dataSize > 0 && data != NULL)
+		memcpy(_GFX_GET_DATA(node), data, dataSize);
+
+	// Link itself into the window.
+	gfx_list_insert_after(&win->events, node, NULL);
+
+	return _GFX_GET_DATA(node);
+}
+
+/****************************/
+GFX_API void gfx_window_erase_events(GFXWindow* window, void* data)
+{
+	assert(window != NULL);
+	assert(data != NULL);
+
+	_GFXWindow* win = (_GFXWindow*)window;
+	GFXListNode* node = _GFX_GET_NODE(data);
+
+	// Unlink from window & free.
+	gfx_list_erase(&win->events, node);
+	free(node);
+}
+
+/****************************/
 GFX_API GFXWindowFlags gfx_window_get_flags(GFXWindow* window)
 {
 	assert(window != NULL);
@@ -518,7 +552,7 @@ GFX_API GFXWindowFlags gfx_window_get_flags(GFXWindow* window)
 	// We don't actually need to use the frame lock.
 	// Only the main thread ever writes the flags, every other thread only
 	// reads, so this can never result in a race condition.
-	// Also we filter out any one-time actions
+	// Also we filter out any one-time actions.
 	return
 		((_GFXWindow*)window)->frame.flags &
 		(GFXWindowFlags)~(GFX_WINDOW_FOCUS | GFX_WINDOW_MAXIMIZE);

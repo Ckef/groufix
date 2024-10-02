@@ -17,6 +17,7 @@
 #include "groufix/core/keys.h"
 #include "groufix/core/renderer.h"
 #include "groufix/core/shader.h"
+#include "groufix/core/window.h"
 #include "groufix/def.h"
 
 
@@ -30,9 +31,9 @@ typedef struct GFXImguiDrawer
 	GFXPass*     pass;
 
 	GFXTechnique* tech;
-	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable, void*, void* }
-	GFXVec        fonts;  // Stores GFXImage*
-	GFXMap        images; // Stores GFXImage* : GFXSet*
+	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable, void*, void* }.
+	GFXVec        fonts;  // Stores GFXImage*.
+	GFXMap        images; // Stores GFXImage* : GFXSet*.
 
 	GFXRasterState raster;
 	GFXBlendState  blend;
@@ -107,6 +108,17 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
  ****************************/
 
 /**
+ * Dear ImGui input forwarder definition.
+ */
+typedef struct GFXImguiInput
+{
+	GFXWindow* window;
+	void*      data;
+
+} GFXImguiInput;
+
+
+/**
  * Converts a GFXKey to a ImGuiKey.
  */
 GFX_API int gfx_imgui_key(GFXKey key);
@@ -115,6 +127,30 @@ GFX_API int gfx_imgui_key(GFXKey key);
  * Converts a GFXMouseButton to a ImGui button.
  */
 GFX_API int gfx_imgui_button(GFXMouseButton button);
+
+/**
+ * Initializes an ImGui input forwarder.
+ * Does not need to be cleared, hence no _init postfix.
+ * @param input    Cannot be NULL.
+ * @param window   Cannot be NULL.
+ * @param igGuiIO  The ImGuiIO* to feed input into, cannot be NULL.
+ * @param blocking If true, will block the event stack based on ImGui output.
+ * @return Non-zero on success.
+ */
+GFX_API bool gfx_imgui_input(GFXImguiInput* input,
+                             GFXWindow* window, void* igGuiIO, bool blocking);
+
+/**
+ * Stops (ends) an ImGui input forwarder, invalidating it.
+ * Can only be called once for each call to gfx_imgui_input!
+ * @param input Cannot be NULL.
+ *
+ * This call is optional; when the associated window is destroyed,
+ * the forwarder is implicitly invalidated.
+ * However, if the associated ImGuiIO* is destroyed before that, this function
+ * needs to be called first!
+ */
+GFX_API void gfx_imgui_end(GFXImguiInput* input);
 
 
 #endif
