@@ -648,10 +648,16 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	// If we STILL have no element, allocate a new descriptor set.
 	if (elem == NULL)
 	{
+		// Try to get a new map element.
+		elem = gfx_map_hinsert(
+			&sub->mutable, NULL, _gfx_hash_size(key), key, hash);
+
+		if (elem == NULL) return NULL;
+
 		// Goto here to try another descriptor block.
 	try_block:
 
-		// To do this, we need a descriptor block.
+		// To allocate a descriptor set, we need a descriptor block.
 		// If we don't have one, go claim one from the free list.
 		// We need to lock for this again.
 		if (sub->block == NULL)
@@ -669,18 +675,9 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 				if ((sub->block = _gfx_alloc_pool_block(pool)) == NULL)
 				{
 					// ...
-					if (elem != NULL) gfx_map_erase(&sub->mutable, elem);
+					gfx_map_erase(&sub->mutable, elem);
 					return NULL;
 				}
-		}
-
-		// Quickly try to get a map element if we didn't already.
-		if (elem == NULL)
-		{
-			elem = gfx_map_hinsert(
-				&sub->mutable, NULL, _gfx_hash_size(key), key, hash);
-
-			if (elem == NULL) return NULL;
 		}
 
 		// Now allocate a descriptor set from this block/pool.
