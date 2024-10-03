@@ -54,7 +54,6 @@ TEST_DESCRIBE(imgui, t)
 		goto clean_drawer;
 
 	// Setup an event loop.
-	// We wait instead of poll, only update when an event was detected.
 	while (!gfx_window_should_close(t->window))
 	{
 		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
