@@ -43,7 +43,7 @@ TEST_DESCRIBE(imgui, t)
 
 	// Setup ImGui drawer.
 	GFXImguiDrawer drawer;
-	if (!gfx_imgui_init(&drawer, NULL, t->renderer, t->pass))
+	if (!gfx_imgui_init(&drawer, t->renderer, t->pass, NULL))
 		goto clean_input;
 
 	if (!gfx_imgui_font(&drawer, t->dep, io->Fonts))

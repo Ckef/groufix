@@ -665,7 +665,7 @@ GFX_API void gfx_imgui_end(GFXImguiInput* input)
 
 /****************************/
 GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
-                            GFXHeap* heap, GFXRenderer* renderer, GFXPass* pass)
+                            GFXRenderer* renderer, GFXPass* pass, GFXHeap* heap)
 {
 	assert(drawer != NULL);
 	assert(renderer != NULL);

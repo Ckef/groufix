@@ -54,13 +54,13 @@ typedef struct GFXImguiDrawer
 /**
  * Initializes an ImGui drawer.
  * @param drawer   Cannot be NULL.
- * @param heap     Heap to allocate from, NULL to use the heap from renderer.
  * @param renderer Renderer to build for, cannot be NULL.
  * @param pass     Render pass to build for, cannot be NULL, must be of renderer.
+ * @param heap     Heap to allocate from, NULL to use the heap from renderer.
  * @return Non-zero on success.
  */
 GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
-                            GFXHeap* heap, GFXRenderer* renderer, GFXPass* pass);
+                            GFXRenderer* renderer, GFXPass* pass, GFXHeap* heap);
 
 /**
  * Clears an ImGui drawer, invalidating the contents of `drawer`.
