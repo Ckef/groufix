@@ -428,6 +428,8 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			_gfx_mutex_lock(&renderer->lock);
 
 			// Check again in case another thread just finished updating.
+			gen = atomic_load_explicit(&entry->gen, memory_order_relaxed);
+
 			if (gen == _GFX_ATTACH_GEN(attach))
 			{
 				_gfx_make_stale(set, 0, view, VK_NULL_HANDLE);
