@@ -578,6 +578,9 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	GFXRenderer* rend = recorder->renderer;
 	_GFXContext* context = recorder->context;
 
+	// Ignore if pass is culled.
+	if (pass->culled) return;
+
 	// The pass must be a render pass.
 	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 	if (pass->type != GFX_PASS_RENDER) goto error;
@@ -669,6 +672,9 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 	assert(cb != NULL);
 
 	_GFXContext* context = recorder->context;
+
+	// Ignore if pass is culled.
+	if (pass->culled) return;
 
 	// The pass must be a compute pass.
 	if (pass->type == GFX_PASS_RENDER) goto error;
@@ -811,7 +817,7 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 	assert(height != NULL);
 	assert(layers != NULL);
 
-	if (pass->type == GFX_PASS_RENDER)
+	if (!pass->culled && pass->type == GFX_PASS_RENDER)
 		*width = ((_GFXRenderPass*)pass)->build.fWidth,
 		*height = ((_GFXRenderPass*)pass)->build.fHeight,
 		*layers = ((_GFXRenderPass*)pass)->build.fLayers;
@@ -828,7 +834,7 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
 	assert(pass != NULL);
 	assert(numDeps == 0 || deps != NULL);
 
-	if (numDeps > 0) // Do nothing if no deps.
+	if (numDeps > 0 && !pass->culled) // Do nothing if no deps or culled.
 	{
 		// If not recording, do nothing.
 		if (!pass->renderer->recording)

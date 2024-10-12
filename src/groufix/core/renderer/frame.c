@@ -617,8 +617,9 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 	// Record all requested passes.
 	for (size_t p = first; p < first + num; ++p)
 	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		// Do nothing if pass is culled.
+		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		if (pass->culled) continue;
 
 		injection->inp.pass = pass; // Update injection.
 
@@ -735,8 +736,9 @@ static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
 	// Loop over all passes again to deal with their dependencies.
 	for (size_t p = first; p < first + num; ++p)
 	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		// Do nothing if pass is culled.
+		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		if (pass->culled) continue;
 
 		injection->inp.pass = pass; // Update injection.
 

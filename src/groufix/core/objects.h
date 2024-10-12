@@ -1068,8 +1068,11 @@ struct GFXPass
 	GFXPassType  type;
 	GFXRenderer* renderer;
 	unsigned int level;  // Determines submission order.
+	unsigned int group;  // Cull group of the pass.
+
 	unsigned int order;  // Actual submission order.
-	unsigned int childs; // Number of passes this is a parent of.
+	unsigned int childs; // Number of unculled (!) passes this is a parent of.
+	bool         culled;
 
 	// Stores _GFXConsume.
 	GFXVec consumes;
@@ -1914,27 +1917,24 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  * Creates a pass, referencing all parents.
  * Each element in parents must be associated with the same renderer.
  * @param renderer   Cannot be NULL.
+ * @param group      The cull group this pass is in.
  * @param numParents Number of parents, 0 for none.
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
- *
- * Each parents[*]->childs field will be increased on success.
  */
 GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
+                          unsigned int group,
                           size_t numParents, GFXPass** parents);
 
 /**
  * Destroys a pass, unreferencing all parents.
- * Undefined behaviour if destroying a pass that is referenced by another.
  * @param pass Cannot be NULL.
- *
- * Each pass->parents[*]->childs field will be decreased.
  */
 void _gfx_destroy_pass(GFXPass* pass);
 
 /**
  * Retrieves the current framebuffer of a pass with respect to a frame.
- * @param rPass Cannot be NULL.
+ * @param rPass Cannot be NULL, must not be culled.
  * @param frame Cannot be NULL.
  * @return VK_NULL_HANDLE if unknown.
  */
@@ -1949,6 +1949,7 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame);
  * Before the initial call to _gfx_pass_(warmup|build) and once after a call
  * to _gfx_pass_destruct, the following MUST be set to influence the build:
  *  rPass->out.*
+ *  rPass->base.culled
  *  rPass->base.consumes[*]->out.*
  */
 bool _gfx_pass_warmup(_GFXRenderPass* rPass);

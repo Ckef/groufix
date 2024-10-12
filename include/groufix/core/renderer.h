@@ -688,6 +688,86 @@ GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src
  */
 GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* dst);
 
+
+/****************************
+ * Frame operations.
+ ****************************/
+
+/**
+ * Acquires the next virtual frame of a renderer, blocks until available!
+ * Implicitly starts and/or submits if not yet done after the previous call.
+ * @param renderer Cannot be NULL.
+ * @return Always returns a valid frame.
+ */
+GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
+
+/**
+ * Retrieves the index of a virtual frame, used to identify the frame.
+ * All frame indices are in the range [0, #frames of the renderer - 1].
+ * They will be acquired in order, starting at 0.
+ * @param frame Cannot be NULL.
+ *
+ * Can be called from any thread.
+ */
+GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
+
+/**
+ * Prepares the acquired virtual frame to start recording.
+ * Can only be called inbetween gfx_renderer_acquire and gfx_frame_submit!
+ * @param frame Cannot be NULL.
+ *
+ * The renderer (including its attachments, passes and sets) cannot be
+ * modified after this call until gfx_frame_submit has returned!
+ * Nor can attachments be described or windows be attached during that period.
+ *
+ * Failure during starting cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_frame_start(GFXFrame* frame);
+
+/**
+ * Submits the acquired virtual frame of a renderer.
+ * Can only be called once after gfx_frame_acquire.
+ * Implicitly starts if not yet done so.
+ * @param frame Cannot be NULL.
+ *
+ * All asynchronous passes are after all others in submission order.
+ *
+ * All memory resources used to render a frame cannot be freed until the next
+ * time this frame is acquired. The frames can be identified by their index.
+ *
+ * Will call gfx_heap_purge() on the associated heap when done.
+ *
+ * Failure during submission cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_frame_submit(GFXFrame* frame);
+
+/**
+ * Blocks until all virtual frames are done rendering.
+ * Does not block if a frame is not submitted.
+ * @param renderer Cannot be NULL.
+ *
+ * Failure during blocking cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_renderer_block(GFXRenderer* renderer);
+
+/**
+ * Blocks until a virtual frame is done rendering.
+ * No-op if the frame is not submitted.
+ * @param frame Cannot be NULL.
+ *
+ * Failure during blocking cannot be recovered from,
+ * any such failure is appropriately logged.
+ */
+GFX_API void gfx_frame_block(GFXFrame* frame);
+
+
+/****************************
+ * Attachment handling.
+ ****************************/
+
 /**
  * Describes the properties of an image attachment of a renderer.
  * If the attachment already exists, it will be detached and overwritten.
@@ -748,80 +828,6 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
 
 
 /****************************
- * Frame operations.
- ****************************/
-
-/**
- * Acquires the next virtual frame of a renderer, blocks until available!
- * Implicitly starts and/or submits if not yet done after the previous call.
- * @param renderer Cannot be NULL.
- * @return Always returns a valid frame.
- */
-GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
-
-/**
- * Retrieves the index of a virtual frame, used to identify the frame.
- * All frame indices are in the range [0, #frames of the renderer - 1].
- * They will be acquired in order, starting at 0.
- * @param frame Cannot be NULL.
- *
- * Can be called from any thread.
- */
-GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
-
-/**
- * Prepares the acquired virtual frame to start recording.
- * Can only be called inbetween gfx_renderer_acquire and gfx_frame_submit!
- * @param frame Cannot be NULL.
- *
- * The renderer (including its attachments, passes and sets) cannot be
- * modified after this call until gfx_frame_submit has returned!
- *
- * Failure during starting cannot be recovered from,
- * any such failure is appropriately logged.
- */
-GFX_API void gfx_frame_start(GFXFrame* frame);
-
-/**
- * Submits the acquired virtual frame of a renderer.
- * Can only be called once after gfx_frame_acquire.
- * Implicitly starts if not yet done so.
- * @param frame Cannot be NULL.
- *
- * All asynchronous passes are after all others in submission order.
- *
- * All memory resources used to render a frame cannot be freed until the next
- * time this frame is acquired. The frames can be identified by their index.
- *
- * Will call gfx_heap_purge() on the associated heap when done.
- *
- * Failure during submission cannot be recovered from,
- * any such failure is appropriately logged.
- */
-GFX_API void gfx_frame_submit(GFXFrame* frame);
-
-/**
- * Blocks until all virtual frames are done rendering.
- * Does not block if a frame is not submitted.
- * @param renderer Cannot be NULL.
- *
- * Failure during blocking cannot be recovered from,
- * any such failure is appropriately logged.
- */
-GFX_API void gfx_renderer_block(GFXRenderer* renderer);
-
-/**
- * Blocks until a virtual frame is done rendering.
- * No-op if the frame is not submitted.
- * @param frame Cannot be NULL.
- *
- * Failure during blocking cannot be recovered from,
- * any such failure is appropriately logged.
- */
-GFX_API void gfx_frame_block(GFXFrame* frame);
-
-
-/****************************
  * Pass handling.
  ****************************/
 
@@ -842,6 +848,7 @@ typedef enum GFXPassType
  * A pass will be after all its parents in submission order.
  * Each element in parents must be associated with the same renderer.
  * @param renderer   Cannot be NULL.
+ * @param group      The cull group this pass is in.
  * @param numParents Number of parents, 0 for none.
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
@@ -853,6 +860,7 @@ typedef enum GFXPassType
  * All asynchronous passes are after all others in submission order.
  */
 GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
+                                       unsigned int group,
                                        size_t numParents, GFXPass** parents);
 /**
  * Returns the renderer the pass was added to.
@@ -868,6 +876,20 @@ GFX_API GFXRenderer* gfx_pass_get_renderer(GFXPass* pass);
  * @return Type of the pass, render, inline compute or async compute.
  */
 GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass);
+
+/**
+ * Sets all passes in a cull group to NOT be rendered.
+ * @param renderer Cannot be NULL.
+ * @param group    Cull group to cull.
+ */
+GFX_API void gfx_renderer_cull(GFXRenderer* renderer, unsigned int group);
+
+/**
+ * Sets all passes in a cull group to be rendered.
+ * @param renderer Cannot be NULL.
+ * @param group    Cull group to uncull.
+ */
+GFX_API void gfx_renderer_uncull(GFXRenderer* renderer, unsigned int group);
 
 /**
  * Consume an attachment of a renderer.
@@ -1421,6 +1443,7 @@ GFX_API GFXRenderer* gfx_recorder_get_renderer(GFXRecorder* recorder);
 /**
  * Records render commands within a given render pass.
  * The callback takes this recorder and the current virtual frame index.
+ * If pass is culled, this call becomes a no-op.
  * @param recorder Cannot be NULL.
  * @param pass     Cannot be NULL, must be a render pass.
  * @param cb       Callback, cannot be NULL.
@@ -1437,6 +1460,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 /**
  * Records compute commands within a given compute pass.
  * The callback takes this recorder and the current virtual frame index.
+ * If pass is culled, this call becomes a no-op.
  * @param pass Cannot be NULL, must be a compute pass.
  * @see gfx_recorder_render.
  */
@@ -1503,6 +1527,7 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 /**
  * Appends dependency injections to a given pass.
  * No-op if not called inbetween gfx_frame_start and gfx_frame_submit.
+ * If pass is culled, this call becomes a no-op.
  * @param pass Cannot be NULL.
  * @param deps Cannot be NULL if numDeps > 0.
  *

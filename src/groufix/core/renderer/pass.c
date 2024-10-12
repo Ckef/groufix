@@ -221,7 +221,7 @@ invalidate:
 
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.
-	_gfx_render_graph_invalidate(pass->renderer);
+	if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 
 	return 1;
 }
@@ -294,6 +294,7 @@ static void _gfx_pass_destruct_partial(_GFXRenderPass* rPass,
 
 /****************************/
 GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
+                          unsigned int group,
                           size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
@@ -341,20 +342,19 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	pass->type = type;
 	pass->renderer = renderer;
 	pass->level = 0;
+	pass->group = group;
+
 	pass->order = 0;
 	pass->childs = 0;
+	pass->culled = 0;
 
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsume));
 	gfx_vec_init(&pass->deps, sizeof(GFXInject));
 
 	// The level is the highest level of all parents + 1.
 	for (size_t p = 0; p < numParents; ++p)
-	{
 		if (parents[p]->level >= pass->level)
 			pass->level = parents[p]->level + 1;
-
-		++parents[p]->childs; // (!)
-	}
 
 	// Initialize as render pass.
 	if (type == GFX_PASS_RENDER)
@@ -487,20 +487,6 @@ void _gfx_destroy_pass(GFXPass* pass)
 		gfx_vec_clear(&rPass->vk.blends);
 		gfx_vec_clear(&rPass->vk.views);
 		gfx_vec_clear(&rPass->vk.frames);
-
-		// Decrease child counter of all parents.
-		for (size_t p = 0; p < rPass->numParents; ++p)
-			--rPass->parents[p]->childs;
-	}
-
-	// Destruct as compute pass.
-	else
-	{
-		_GFXComputePass* cPass = (_GFXComputePass*)pass;
-
-		// Decrease child counter of all parents.
-		for (size_t p = 0; p < cPass->numParents; ++p)
-			--cPass->parents[p]->childs;
 	}
 
 	// More destruction.
@@ -515,6 +501,7 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
+	assert(!rPass->base.culled);
 	assert(frame != NULL);
 
 	// TODO:GRA: Get framebuffer from master pass.
@@ -536,13 +523,14 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 /****************************
  * Filters all consumed attachments into framebuffer views &
  * a potential window to use as back-buffer, silently logging issues.
- * @param rPass Cannot be NULL.
+ * @param rPass Cannot be NULL, must not be culled.
  * @return Zero on failure.
  */
 static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
+	assert(!rPass->base.culled);
 
 	GFXRenderer* rend = rPass->base.renderer;
 
@@ -690,8 +678,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// And somehow propagate the VK pass and subpass index to all subpasses.
 	// Used for creating pipelines, which are still for specific passes.
 
-	// Already warmed.
-	if (_GFX_PASS_IS_WARMED(rPass))
+	// Pass is culled or already warmed.
+	if (rPass->base.culled || _GFX_PASS_IS_WARMED(rPass))
 		return 1;
 
 	// Ok so we need to know about all pass attachments.
@@ -993,8 +981,8 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	// TODO:GRA: Skip all this if this is not master.
 	// We somehow want to propagate the dimensions to all subpasses.
 
-	// Already built.
-	if (_GFX_PASS_IS_BUILT(rPass))
+	// Pass is culled or already built.
+	if (rPass->base.culled || _GFX_PASS_IS_BUILT(rPass))
 		return 1;
 
 	// Do a warmup, i.e. make sure the Vulkan render pass is built.
@@ -1347,7 +1335,7 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 			con->clear.gfx = value; // Type-punned into a VkClearValue!
 
 			// Same as _gfx_pass_consume, invalidate for destruction.
-			_gfx_render_graph_invalidate(pass->renderer);
+			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 			break;
 		}
 	}
@@ -1380,7 +1368,7 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 			con->alpha = alpha;
 
 			// Same as _gfx_pass_consume, invalidate for destruction.
-			_gfx_render_graph_invalidate(pass->renderer);
+			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 			break;
 		}
 	}
@@ -1410,7 +1398,7 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
 			con->resolve = resolve;
 
 			// Same as _gfx_pass_consume, invalidate for destruction.
-			_gfx_render_graph_invalidate(pass->renderer);
+			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 			break;
 		}
 	}
@@ -1431,7 +1419,7 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 			con->resolve = SIZE_MAX;
 
 			// Same as below, invalidate for destruction.
-			_gfx_render_graph_invalidate(pass->renderer);
+			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 		}
 	}
 
@@ -1444,7 +1432,7 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 			gfx_vec_erase(&pass->consumes, 1, i-1);
 
 			// Same as _gfx_pass_consume, invalidate for destruction.
-			_gfx_render_graph_invalidate(pass->renderer);
+			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 			break;
 		}
 	}
@@ -1454,6 +1442,7 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 {
 	assert(pass != NULL);
+	assert(!pass->renderer->recording);
 
 	// No-op if not a render pass.
 	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
@@ -1492,6 +1481,7 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 GFX_API void gfx_pass_set_viewport(GFXPass* pass, GFXViewport viewport)
 {
 	assert(pass != NULL);
+	assert(!pass->renderer->recording);
 
 	// No-op if not a render pass.
 	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
@@ -1505,6 +1495,7 @@ GFX_API void gfx_pass_set_viewport(GFXPass* pass, GFXViewport viewport)
 GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor)
 {
 	assert(pass != NULL);
+	assert(!pass->renderer->recording);
 
 	// No-op if not a render pass.
 	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
