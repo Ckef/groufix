@@ -174,6 +174,8 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 			// Again, ignore non-render passes.
 			if (rCandidate->base.type != GFX_PASS_RENDER) continue;
 
+			// TODO:CUL: If culled, try to merge with ITs parents, recursively?
+			// TODO:CUL: If doing that, need a better calculation of `childs`.
 			// Also ignore culled parent passes.
 			if (rCandidate->base.culled) continue;
 
