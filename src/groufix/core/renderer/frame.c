@@ -770,6 +770,11 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 	_GFXContext* context = renderer->cache.context;
 
+	// TODO:CUL: Keep track of number of culled graphics/compute passes,
+	// so we can potentially skip the entire submission.
+	// However, should think of what to do with dependency injection,
+	// user may depend on results of those outside the renderer.
+
 	// Figure out what we need to record.
 	const size_t numGraphics =
 		renderer->graph.numRender;
