@@ -834,14 +834,16 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
 	assert(pass != NULL);
 	assert(numDeps == 0 || deps != NULL);
 
-	// TODO:CUL: Maybe throw a warning if the pass is culled?
-	// Dependencies won't be injected by design,
-	// therefore the call must be a mistake, or rather, it cannot happen.
-
-	if (numDeps > 0 && !pass->culled) // Do nothing if no deps or culled.
+	if (numDeps > 0) // Do nothing if no deps.
 	{
+		// If culled, do nothing.
+		if (pass->culled)
+			gfx_log_warn(
+				"Dependency injection failed, "
+				"associated pass is currently culled.");
+
 		// If not recording, do nothing.
-		if (!pass->renderer->recording)
+		else if (!pass->renderer->recording)
 			gfx_log_warn(
 				"Dependency injection failed, "
 				"associated frame is not currently recording.");

@@ -1246,6 +1246,14 @@ GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass)
 }
 
 /****************************/
+GFX_API bool gfx_pass_is_culled(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	return pass->culled;
+}
+
+/****************************/
 GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
                               GFXAccessMask mask, GFXShaderStage stage)
 {

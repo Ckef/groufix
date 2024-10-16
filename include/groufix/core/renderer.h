@@ -892,6 +892,13 @@ GFX_API void gfx_renderer_cull(GFXRenderer* renderer, unsigned int group);
 GFX_API void gfx_renderer_uncull(GFXRenderer* renderer, unsigned int group);
 
 /**
+ * Retrieves whether the pass is currently culled or not.
+ * @param pass Cannot be NULL.
+ * @return Non-zero if the pass is culled.
+ */
+GFX_API bool gfx_pass_is_culled(GFXPass* pass);
+
+/**
  * Consume an attachment of a renderer.
  * @param pass  Cannot be NULL.
  * @param index Attachment index to consume.
@@ -1526,8 +1533,8 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 
 /**
  * Appends dependency injections to a given pass.
+ * Should not be called on culled passes.
  * No-op if not called inbetween gfx_frame_start and gfx_frame_submit.
- * If pass is culled, this call becomes a no-op.
  * @param pass Cannot be NULL.
  * @param deps Cannot be NULL if numDeps > 0.
  *

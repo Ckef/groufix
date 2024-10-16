@@ -11,6 +11,46 @@
 
 
 /****************************
+ * Stand-in function for gfx_renderer_(cull|uncull).
+ * @see gfx_renderer_(cull|uncull).
+ * @param cull Zero to uncull, non-zero to cull.
+ */
+static void _gfx_renderer_set_cull(GFXRenderer* renderer,
+                                   unsigned int group, bool cull)
+{
+	assert(renderer != NULL);
+	assert(!renderer->recording);
+
+	// Loop over all passes, get the ones belonging to group.
+	// If we change culled state of any pass, we need to re-analyze
+	// for different parent/childs links & build new passes if unculling.
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+	{
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+
+		if (pass->group == group && pass->culled != cull)
+		{
+			// Set the new culled state & make sure to invalidate.
+			pass->culled = cull;
+			renderer->graph.state = _GFX_GRAPH_INVALID;
+
+			// If culling, subtract from parent's child count,
+			// if unculling, add.
+			const size_t numParents = gfx_pass_get_num_parents(pass);
+			for (size_t p = 0; p < numParents; ++p)
+			{
+				GFXPass* parent = gfx_pass_get_parent(pass, p);
+				if (cull)
+					--parent->childs;
+				else
+					++parent->childs;
+			}
+		}
+	}
+}
+
+/****************************
  * Checks if a given parent is a possible merge candidate for a render pass.
  * Meaning its parent _can_ be submitted as subpass before the pass itself,
  * which might implicitly move it up in submission order.
@@ -174,8 +214,9 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 			// Again, ignore non-render passes.
 			if (rCandidate->base.type != GFX_PASS_RENDER) continue;
 
-			// TODO:CUL: If culled, try to merge with ITs parents, recursively?
-			// TODO:CUL: If doing that, need a better calculation of `childs`.
+			// TODO: If culled, try to merge with ITs parents, recursively?
+			// If doing that, need a better calculation of `childs`.
+
 			// Also ignore culled parent passes.
 			if (rCandidate->base.culled) continue;
 
@@ -439,16 +480,34 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	// All async compute passes go at the end, all render or inline compute
 	// passes go in the front, with their own leveling.
 	// Backwards linear search is probably in-line with the adding order :p
-	size_t min = pass->type == GFX_PASS_COMPUTE_ASYNC ?
+	const size_t min = pass->type == GFX_PASS_COMPUTE_ASYNC ?
 		renderer->graph.numRender : 0;
 
-	size_t loc = pass->type == GFX_PASS_COMPUTE_ASYNC ?
+	const size_t max = pass->type == GFX_PASS_COMPUTE_ASYNC ?
 		renderer->graph.passes.size : renderer->graph.numRender;
 
-	for (; loc > min; --loc)
+	size_t loc;
+
+	for (loc = max; loc > min; --loc)
 	{
 		GFXPass** prev = gfx_vec_at(&renderer->graph.passes, loc-1);
 		if ((*prev)->level <= pass->level) break;
+	}
+
+	// Loop again, now to find a pass of the same group so we can
+	// figure out whether we should be culled or not.
+	// If none of the same group is found, keep default value.
+	// Again do it backwards so it's probably in=line with adding order.
+	for (size_t i = max; i > min; --i)
+	{
+		GFXPass* other =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i-1);
+
+		if (other->group == group)
+		{
+			pass->culled = other->culled;
+			break;
+		}
 	}
 
 	// Insert at found position.
@@ -476,12 +535,15 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 			}
 	}
 
-	// TODO:CUL: Make sure to compute `pass->culled AND pass->childs`.
-	// TODO:CUL: Can skip below invalidation based on culled state.
+	// If not culled, increase the child count of all parents.
+	if (!pass->culled)
+		for (size_t p = 0; p < numParents; ++p)
+			++parents[p]->childs;
 
 	// We added a pass, we need to re-analyze
 	// because we may have new parent/child links.
-	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+	// No need to do this if culled.
+	if (!pass->culled && renderer->graph.state != _GFX_GRAPH_EMPTY)
 		renderer->graph.state =
 			// If the first pass, no need to purge, just set to empty.
 			(renderer->graph.passes.size > 1) ?
@@ -502,23 +564,17 @@ error:
 /****************************/
 GFX_API void gfx_renderer_cull(GFXRenderer* renderer, unsigned int group)
 {
-	assert(renderer != NULL);
-	assert(!renderer->recording);
+	// Relies on stand-in function for asserts.
 
-	// TODO:CUL: Make sure to update `pass->culled AND pass->childs`.
-	// TODO:CUL: Prolly should invalidate graph if something changed.
-	// TODO: Implement.
+	_gfx_renderer_set_cull(renderer, group, 1);
 }
 
 /****************************/
 GFX_API void gfx_renderer_uncull(GFXRenderer* renderer, unsigned int group)
 {
-	assert(renderer != NULL);
-	assert(!renderer->recording);
+	// Relies on stand-in function for asserts.
 
-	// TODO:CUL: Make sure to update `pass->culled AND pass->childs`.
-	// TODO:CUL: Prolly should invalidate graph if something changed.
-	// TODO: Implement.
+	_gfx_renderer_set_cull(renderer, group, 0);
 }
 
 /****************************/
