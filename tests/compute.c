@@ -86,7 +86,7 @@ TEST_DESCRIBE(compute, t)
 
 	// Add compute pass.
 	GFXPass* pass = gfx_renderer_add_pass(
-		t->renderer, GFX_PASS_COMPUTE_INLINE, 0, NULL);
+		t->renderer, GFX_PASS_COMPUTE_INLINE, 0, 0, NULL);
 
 	if (pass == NULL)
 		goto clean;

@@ -617,8 +617,9 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 	// Record all requested passes.
 	for (size_t p = first; p < first + num; ++p)
 	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		// Do nothing if pass is culled.
+		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		if (pass->culled) continue;
 
 		injection->inp.pass = pass; // Update injection.
 
@@ -735,8 +736,9 @@ static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
 	// Loop over all passes again to deal with their dependencies.
 	for (size_t p = first; p < first + num; ++p)
 	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		// Do nothing if pass is culled.
+		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
+		if (pass->culled) continue;
 
 		injection->inp.pass = pass; // Update injection.
 
@@ -767,6 +769,13 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	assert(frame != NULL);
 
 	_GFXContext* context = renderer->cache.context;
+
+	// TODO:CUL: Keep track of number of culled graphics/compute passes,
+	// so we can potentially skip the entire submission.
+	// However, should think of what to do with dependency injection,
+	// user may depend on results of those outside the renderer.
+	// TODO:CUL: Furthermore, if we allow injecting into culled passes,
+	// we can keep those injections for when it is not culled anymore?
 
 	// Figure out what we need to record.
 	const size_t numGraphics =

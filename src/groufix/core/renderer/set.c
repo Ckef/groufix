@@ -987,7 +987,6 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
                                      const GFXSampler* samplers)
 {
 	assert(renderer != NULL);
-	assert(!renderer->recording);
 	assert(technique != NULL);
 	assert(technique->renderer == renderer);
 	assert(set < technique->numSets);

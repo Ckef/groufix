@@ -19,12 +19,20 @@ static const char* glsl_post_vertex =
 	"  gl_Position = vec4(fTexCoord * 2.0f + -1.0f, 0.0f, 1.0f);\n"
 	"}\n";
 
-static const char* glsl_post_fragment =
+static const char* glsl_post_fragment_invert =
 	"#version 450\n"
 	"layout(input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput iColor;\n"
 	"layout(location = 0) out vec4 oColor;\n"
 	"void main() {\n"
 	"  oColor = vec4(1.0f) - subpassLoad(iColor).rgba;\n"
+	"}\n";
+
+static const char* glsl_post_fragment_shuffle =
+	"#version 450\n"
+	"layout(input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput iColor;\n"
+	"layout(location = 0) out vec4 oColor;\n"
+	"void main() {\n"
+	"  oColor = subpassLoad(iColor).gbra;\n"
 	"}\n";
 
 
@@ -33,10 +41,39 @@ static const char* glsl_post_fragment =
  */
 typedef struct Context
 {
-	GFXRenderable renderable;
+	unsigned int  mode;
+	GFXRenderable renderables[2];
 	GFXSet*       set;
 
 } Context;
+
+
+/****************************
+ * Switch post-processing mode on key-release.
+ */
+static bool post_key_release(GFXWindow* window,
+                             GFXKey key, int scan, GFXModifier mod, void* data)
+{
+	Context* ctx = window->ptr;
+
+	switch (key)
+	{
+	case GFX_KEY_1:
+		gfx_renderer_uncull(TEST_BASE.renderer, 1);
+		gfx_renderer_cull(TEST_BASE.renderer, 2);
+		ctx->mode = 0;
+		break;
+	case GFX_KEY_2:
+		gfx_renderer_cull(TEST_BASE.renderer, 1);
+		gfx_renderer_uncull(TEST_BASE.renderer, 2);
+		ctx->mode = 1;
+		break;
+	default:
+		break;
+	}
+
+	return TEST_EVT_KEY_RELEASE(window, key, scan, mod, data);
+}
 
 
 /****************************
@@ -46,8 +83,9 @@ static void post_process(GFXRecorder* recorder, unsigned int frame, void* ptr)
 {
 	// Draw a triangle.
 	Context* ctx = ptr;
-	gfx_cmd_bind(recorder, ctx->renderable.technique, 0, 1, 0, &ctx->set, NULL);
-	gfx_cmd_draw(recorder, &ctx->renderable, 3, 1, 0, 0);
+	GFXRenderable* renderable = &ctx->renderables[ctx->mode];
+	gfx_cmd_bind(recorder, renderable->technique, 0, 1, 0, &ctx->set, NULL);
+	gfx_cmd_draw(recorder, renderable, 3, 1, 0, 0);
 }
 
 
@@ -58,11 +96,21 @@ TEST_DESCRIBE(post, t)
 {
 	bool success = 0;
 
-	// Create some post-processing shaders.
-	GFXShader* vert = gfx_create_shader(GFX_STAGE_VERTEX, t->device);
-	GFXShader* frag = gfx_create_shader(GFX_STAGE_FRAGMENT, t->device);
+	Context ctx;
 
-	if (vert == NULL || frag == NULL)
+	// Register post-processing key events.
+	t->window->ptr = &ctx;
+	t->window->events.key.release = post_key_release;
+
+	// Create some post-processing shaders.
+	GFXShader* vert =
+		gfx_create_shader(GFX_STAGE_VERTEX, t->device);
+	GFXShader* frags[] = {
+		gfx_create_shader(GFX_STAGE_FRAGMENT, t->device),
+		gfx_create_shader(GFX_STAGE_FRAGMENT, t->device)
+	};
+
+	if (vert == NULL || frags[0] == NULL || frags[1] == NULL)
 		goto clean;
 
 	// Compile GLSL into the shaders.
@@ -74,8 +122,14 @@ TEST_DESCRIBE(post, t)
 		goto clean;
 	}
 
-	if (!gfx_shader_compile(frag, GFX_GLSL, 1,
-		gfx_string_reader(&str, glsl_post_fragment), NULL, NULL, NULL))
+	if (!gfx_shader_compile(frags[0], GFX_GLSL, 1,
+		gfx_string_reader(&str, glsl_post_fragment_invert), NULL, NULL, NULL))
+	{
+		goto clean;
+	}
+
+	if (!gfx_shader_compile(frags[1], GFX_GLSL, 1,
+		gfx_string_reader(&str, glsl_post_fragment_shuffle), NULL, NULL, NULL))
 	{
 		goto clean;
 	}
@@ -102,14 +156,28 @@ TEST_DESCRIBE(post, t)
 		goto clean;
 	}
 
-	// Add post-processing pass.
-	GFXPass* post = gfx_renderer_add_pass(
-		t->renderer, GFX_PASS_RENDER, 1, (GFXPass*[]){ t->pass });
+	// Add post-processing passes.
+	// Really you don't need multiple passes to switch between renderables,
+	// but where doing it here anyway, as a proof of implementation.
+	// In fact it is quite inefficient to do it this way,
+	// as when you change culling state, the render graph is rebuilt.
+	// If we instead just pick a different renderable to render with,
+	// absolutely nothing needs to be built and/or rebuilt.
+	GFXPass* posts[] = {
+		gfx_renderer_add_pass(
+			t->renderer, GFX_PASS_RENDER,
+			1, // Group 1.
+			1, (GFXPass*[]){ t->pass }),
+		gfx_renderer_add_pass(
+			t->renderer, GFX_PASS_RENDER,
+			2, // Group 2.
+			1, (GFXPass*[]){ t->pass })
+	};
 
-	if (post == NULL)
+	if (posts[0] == NULL || posts[1] == NULL)
 		goto clean;
 
-	// Move the window to the second pass, the intermediate to the first.
+	// Move the window to the second passes, the intermediate to the first.
 	gfx_pass_release(t->pass, 0);
 
 	if (!gfx_pass_consume(t->pass, 1,
@@ -118,13 +186,25 @@ TEST_DESCRIBE(post, t)
 		goto clean;
 	}
 
-	if (!gfx_pass_consume(post, 1,
+	if (!gfx_pass_consume(posts[0], 1,
 		GFX_ACCESS_ATTACHMENT_INPUT, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
-	if (!gfx_pass_consume(post, 0,
+	if (!gfx_pass_consume(posts[1], 1,
+		GFX_ACCESS_ATTACHMENT_INPUT, GFX_STAGE_ANY))
+	{
+		goto clean;
+	}
+
+	if (!gfx_pass_consume(posts[0], 0,
+		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
+	{
+		goto clean;
+	}
+
+	if (!gfx_pass_consume(posts[1], 0,
 		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
 	{
 		goto clean;
@@ -133,19 +213,28 @@ TEST_DESCRIBE(post, t)
 	gfx_pass_clear(t->pass, 1,
 		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
 
-	// Create a technique.
-	GFXTechnique* tech = gfx_renderer_add_tech(
-		t->renderer, 2, (GFXShader*[]){ vert, frag });
+	// Create the techniques.
+	GFXTechnique* techs[] = {
+		gfx_renderer_add_tech(
+			t->renderer, 2, (GFXShader*[]){ vert, frags[0] }),
+		gfx_renderer_add_tech(
+			t->renderer, 2, (GFXShader*[]){ vert, frags[1] })
+	};
 
-	if (tech == NULL)
+	if (techs[0] == NULL || techs[1] == NULL)
 		goto clean;
 
-	// Init a renderable & set using the above stuff.
-	Context ctx;
-	if (!gfx_renderable(&ctx.renderable, post, tech, NULL, NULL))
+	if (!gfx_tech_lock(techs[0]) || !gfx_tech_lock(techs[1]))
 		goto clean;
 
-	ctx.set = gfx_renderer_add_set(t->renderer, tech, 0,
+	// Init renderables & set using the above stuff.
+	if (!gfx_renderable(&ctx.renderables[0], posts[0], techs[0], NULL, NULL))
+		goto clean;
+
+	if (!gfx_renderable(&ctx.renderables[1], posts[1], techs[1], NULL, NULL))
+		goto clean;
+
+	ctx.set = gfx_renderer_add_set(t->renderer, techs[0], 0,
 		1, 0, 0, 0,
 		(GFXSetResource[]){{
 			.binding = 0,
@@ -157,11 +246,17 @@ TEST_DESCRIBE(post, t)
 	if (ctx.set == NULL)
 		goto clean;
 
+	// Set initial state.
+	gfx_renderer_cull(t->renderer, 2);
+	ctx.mode = 0;
+
 	// Setup an event loop.
 	// We wait instead of poll, only update when an event was detected.
 	while (!gfx_window_should_close(t->window))
 	{
 		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
+		GFXPass* post = posts[ctx.mode];
+
 		gfx_frame_start(frame);
 		gfx_pass_inject(t->pass, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
 		gfx_recorder_render(t->recorder, post, post_process, &ctx);
@@ -176,7 +271,8 @@ TEST_DESCRIBE(post, t)
 	// Cleanup.
 clean:
 	gfx_destroy_shader(vert);
-	gfx_destroy_shader(frag);
+	gfx_destroy_shader(frags[0]);
+	gfx_destroy_shader(frags[1]);
 
 	if (!success) TEST_FAIL();
 }

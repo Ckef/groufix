@@ -578,6 +578,9 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	GFXRenderer* rend = recorder->renderer;
 	_GFXContext* context = recorder->context;
 
+	// Ignore if pass is culled.
+	if (pass->culled) return;
+
 	// The pass must be a render pass.
 	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 	if (pass->type != GFX_PASS_RENDER) goto error;
@@ -669,6 +672,9 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 	assert(cb != NULL);
 
 	_GFXContext* context = recorder->context;
+
+	// Ignore if pass is culled.
+	if (pass->culled) return;
 
 	// The pass must be a compute pass.
 	if (pass->type == GFX_PASS_RENDER) goto error;
@@ -811,7 +817,7 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 	assert(height != NULL);
 	assert(layers != NULL);
 
-	if (pass->type == GFX_PASS_RENDER)
+	if (!pass->culled && pass->type == GFX_PASS_RENDER)
 		*width = ((_GFXRenderPass*)pass)->build.fWidth,
 		*height = ((_GFXRenderPass*)pass)->build.fHeight,
 		*layers = ((_GFXRenderPass*)pass)->build.fLayers;
@@ -830,8 +836,14 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
 
 	if (numDeps > 0) // Do nothing if no deps.
 	{
+		// If culled, do nothing.
+		if (pass->culled)
+			gfx_log_warn(
+				"Dependency injection failed, "
+				"associated pass is currently culled.");
+
 		// If not recording, do nothing.
-		if (!pass->renderer->recording)
+		else if (!pass->renderer->recording)
 			gfx_log_warn(
 				"Dependency injection failed, "
 				"associated frame is not currently recording.");
