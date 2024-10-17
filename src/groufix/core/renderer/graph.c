@@ -31,9 +31,11 @@ static void _gfx_renderer_set_cull(GFXRenderer* renderer,
 
 		if (pass->group == group && pass->culled != cull)
 		{
-			// Set the new culled state & make sure to invalidate.
+			// Invalidate the graph & set the new culled state.
+			if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+				renderer->graph.state = _GFX_GRAPH_INVALID;
+
 			pass->culled = cull;
-			renderer->graph.state = _GFX_GRAPH_INVALID;
 
 			// If culling, subtract from parent's child count,
 			// if unculling, add.
