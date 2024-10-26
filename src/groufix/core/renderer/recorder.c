@@ -828,35 +828,6 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 }
 
 /****************************/
-GFX_API void gfx_pass_inject(GFXPass* pass,
-                             size_t numDeps, const GFXInject* deps)
-{
-	assert(pass != NULL);
-	assert(numDeps == 0 || deps != NULL);
-
-	if (numDeps > 0) // Do nothing if no deps.
-	{
-		// If culled, do nothing.
-		if (pass->culled)
-			gfx_log_warn(
-				"Dependency injection failed, "
-				"associated pass is currently culled.");
-
-		// If not recording, do nothing.
-		else if (!pass->renderer->recording)
-			gfx_log_warn(
-				"Dependency injection failed, "
-				"associated frame is not currently recording.");
-
-		// Store dependencies for submission.
-		else if (!gfx_vec_push(&pass->deps, numDeps, deps))
-			gfx_log_warn(
-				"Dependency injection failed, "
-				"injection commands could not be stored at frame inject.");
-	}
-}
-
-/****************************/
 GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
                           size_t firstSet,
                           size_t numSets, size_t numDynamics,

@@ -462,6 +462,10 @@ static void _test_init(TestState* _test_state)
 	gfx_pass_clear(_test_base.pass, 0,
 		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
 
+	// Preemptively inject a general wait dependency.
+	gfx_pass_inject(_test_base.pass,
+		1, (GFXInject[]){ gfx_dep_wait(_test_base.dep) });
+
 #if !defined (TEST_SKIP_CREATE_SCENE)
 	// Allocate a primitive.
 	uint16_t indexData[] = {

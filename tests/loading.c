@@ -309,7 +309,6 @@ TEST_DESCRIBE(loading, t)
 		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
 		gfx_poll_events();
 		gfx_frame_start(frame);
-		gfx_pass_inject(t->pass, 1, (GFXInject[]){ gfx_dep_wait(t->dep) });
 		gfx_recorder_render(t->recorder, t->pass, render, &ctx);
 		gfx_frame_submit(frame);
 	}

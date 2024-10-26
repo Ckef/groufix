@@ -1077,7 +1077,7 @@ struct GFXPass
 	// Stores _GFXConsume.
 	GFXVec consumes;
 
-	// Stores GFXInject, from public frame inject.
+	// Stores GFXInject, from pass inject.
 	GFXVec deps;
 };
 

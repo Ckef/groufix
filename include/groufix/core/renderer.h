@@ -718,7 +718,8 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
  *
  * The renderer (including its attachments, passes and sets) cannot be
  * modified after this call until gfx_frame_submit has returned!
- * Nor can attachments be described or windows be attached during that period.
+ * Nor can attachments be described, windows be attached or
+ * passes be added during that period.
  *
  * Failure during starting cannot be recovered from,
  * any such failure is appropriately logged.
@@ -742,6 +743,29 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
  * any such failure is appropriately logged.
  */
 GFX_API void gfx_frame_submit(GFXFrame* frame);
+
+/**
+ * Appends dependency injections to a given pass.
+ * @param pass Cannot be NULL.
+ * @param deps Cannot be NULL if numDeps > 0.
+ *
+ * NOT thread-safe with respect to pass!
+ * Cannot be called during gfx_frame_submit!
+ *
+ * All dependency objects are referenced until the first call to
+ * gfx_frame_submit during which the pass is unculled (ergo used in the frame)
+ * has returned.
+ *
+ * All signal commands are made visible to wait commands injected in passes
+ * later in submission order. They are made visible to wait commands submitted
+ * anywhere else as soon as gfx_frame_submit returns.
+ *
+ * All wait commands only see signal commands injected in passes earlier in
+ * submission order. However, all wait commands can match any visible signal
+ * commands submitted elsewhere up until gfx_frame_submit is called.
+ */
+GFX_API void gfx_pass_inject(GFXPass* pass,
+                             size_t numDeps, const GFXInject* deps);
 
 /**
  * Blocks until all virtual frames are done rendering.
@@ -876,6 +900,13 @@ GFX_API GFXRenderer* gfx_pass_get_renderer(GFXPass* pass);
  * @return Type of the pass, render, inline compute or async compute.
  */
 GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass);
+
+/**
+ * Retrieves the cull group this pass is in.
+ * Can be called from any thread.
+ * @param pass Cannot be NULL.
+ */
+GFX_API unsigned int gfx_pass_get_group(GFXPass* pass);
 
 /**
  * Sets all passes in a cull group to NOT be rendered.
@@ -1530,27 +1561,6 @@ GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
  */
 GFX_API void gfx_pass_get_size(GFXPass* pass,
                                uint32_t* width, uint32_t* height, uint32_t* layers);
-
-/**
- * Appends dependency injections to a given pass.
- * Should not be called on culled passes.
- * No-op if not called inbetween gfx_frame_start and gfx_frame_submit.
- * @param pass Cannot be NULL.
- * @param deps Cannot be NULL if numDeps > 0.
- *
- * NOT thread-safe with respect to pass!
- * All dependency objects are referenced until gfx_frame_submit has returned.
- *
- * All signal commands are made visible to wait commands injected in passes
- * later in submission order. They are made visible to wait commands submitted
- * anywhere else as soon as gfx_frame_submit returns.
- *
- * All wait commands only see signal commands injected in passes earlier in
- * submission order. However, all wait commands can match any visible signal
- * commands submitted elsewhere up until gfx_frame_submit is called.
- */
-GFX_API void gfx_pass_inject(GFXPass* pass,
-                             size_t numDeps, const GFXInject* deps);
 
 /**
  * State command to bind a descriptor set.

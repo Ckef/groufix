@@ -116,9 +116,6 @@ TEST_DESCRIBE(compute, t)
 		goto clean;
 
 	// Render a single 'frame'.
-	GFXFrame* frame = gfx_renderer_acquire(t->renderer);
-	gfx_frame_start(frame);
-
 	gfx_pass_inject(pass, 1, (GFXInject[]){
 		gfx_dep_sigrf(t->dep,
 			GFX_ACCESS_STORAGE_READ_WRITE, GFX_STAGE_COMPUTE,
@@ -126,8 +123,9 @@ TEST_DESCRIBE(compute, t)
 			gfx_ref_buffer(buffer))
 	});
 
+	GFXFrame* frame = gfx_renderer_acquire(t->renderer);
+	gfx_frame_start(frame);
 	gfx_recorder_compute(t->recorder, pass, compute, &ctx);
-
 	gfx_frame_submit(frame);
 	gfx_frame_block(frame);
 

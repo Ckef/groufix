@@ -774,8 +774,6 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// so we can potentially skip the entire submission.
 	// However, should think of what to do with dependency injection,
 	// user may depend on results of those outside the renderer.
-	// TODO:CUL: Furthermore, if we allow injecting into culled passes,
-	// we can keep those injections for when it is not culled anymore?
 
 	// Figure out what we need to record.
 	const size_t numGraphics =
