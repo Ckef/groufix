@@ -852,6 +852,7 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
 	ImFontAtlas* fontAtlas = igFontAtlas;
 
 	// Get texture data from the font atlas.
+	// TODO: Use GetTexDataAsAlpha8 if applicable/asked?
 	unsigned char* pixels;
 	int width;
 	int height;
