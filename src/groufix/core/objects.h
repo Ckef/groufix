@@ -1000,6 +1000,9 @@ struct GFXRenderer
 		GFXVec sinks;     // Stores GFXPass* (sink passes, tree roots).
 		GFXVec passes;    // Stores GFXPass* (in submission order).
 
+		size_t culledRender;
+		size_t culledCompute;
+
 		enum {
 			_GFX_GRAPH_EMPTY,
 			_GFX_GRAPH_INVALID, // Needs to purge.

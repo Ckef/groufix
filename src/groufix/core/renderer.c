@@ -205,9 +205,9 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 	if (numFences == 0) return 1;
 
 	VkFence fences[numFences];
-	unsigned int f;
+	numFences = 0;
 
-	for (f = 0, numFences = 0; f < renderer->numFrames; ++f)
+	for (unsigned int f = 0; f < renderer->numFrames; ++f)
 		if (renderer->frames + f != renderer->public)
 		{
 			if (renderer->frames[f].submitted & _GFX_FRAME_GRAPHICS)
@@ -325,7 +325,7 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 		gfx_frame_submit(renderer->public);
 
 	// Clear all frames, will block until rendering is done.
-	for (size_t f = 0; f < renderer->numFrames; ++f)
+	for (unsigned int f = 0; f < renderer->numFrames; ++f)
 		_gfx_frame_clear(renderer, &renderer->frames[f]);
 
 	// Erase all recorders, techniques and sets.

@@ -770,21 +770,16 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 	_GFXContext* context = renderer->cache.context;
 
-	// TODO:CUL: Keep track of number of culled graphics/compute passes,
-	// so we can potentially skip the entire submission.
-	// However, should think of what to do with dependency injection,
-	// user may depend on results of those outside the renderer.
-
 	// Figure out what we need to record.
-	const size_t numGraphics =
-		renderer->graph.numRender;
-	const size_t numCompute =
-		renderer->graph.passes.size - renderer->graph.numRender;
+	const size_t numGraphics = renderer->graph.numRender;
+	const size_t numCompute = renderer->graph.passes.size - renderer->graph.numRender;
+	const size_t culledGraphics = renderer->graph.culledRender;
+	const size_t culledCompute = renderer->graph.culledCompute;
 
 	_GFXInjection injection;
 
 	// Record & submit to the graphics queue.
-	if (numGraphics > 0)
+	if (numGraphics - culledGraphics > 0)
 	{
 		// Prepare injection metadata.
 		injection = (_GFXInjection){
@@ -931,7 +926,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	}
 
 	// Record & submit to the compute queue.
-	if (numCompute > 0)
+	if (numCompute - culledCompute > 0)
 	{
 		// Prepare injection metadata.
 		injection = (_GFXInjection){

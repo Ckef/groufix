@@ -37,6 +37,17 @@ static void _gfx_renderer_set_cull(GFXRenderer* renderer,
 
 			pass->culled = cull;
 
+			// Adjust the culled count.
+			size_t* culled =
+				(pass->type != GFX_PASS_COMPUTE_ASYNC) ?
+					&renderer->graph.culledRender :
+					&renderer->graph.culledCompute;
+
+			if (cull)
+				++(*culled);
+			else
+				--(*culled);
+
 			// If culling, subtract from parent's child count,
 			// if unculling, add.
 			const size_t numParents = gfx_pass_get_num_parents(pass);
@@ -282,6 +293,8 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 	gfx_vec_init(&renderer->graph.passes, sizeof(GFXPass*));
 
 	renderer->graph.numRender = 0;
+	renderer->graph.culledRender = 0;
+	renderer->graph.culledCompute = 0;
 
 	// No graph is a valid graph.
 	renderer->graph.state = _GFX_GRAPH_BUILT;
@@ -519,9 +532,6 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 		goto clean;
 	}
 
-	// Increase render (+inline compute) pass count on success.
-	if (pass->type != GFX_PASS_COMPUTE_ASYNC) ++renderer->graph.numRender;
-
 	// Loop through all sinks, remove if it's now a parent.
 	// Skip the last element, as we just added that.
 	for (size_t s = renderer->graph.sinks.size-1; s > 0; --s)
@@ -535,6 +545,19 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 				gfx_vec_erase(&renderer->graph.sinks, 1, s-1);
 				break;
 			}
+	}
+
+	// Increase render (+inline compute) pass count on success.
+	if (pass->type != GFX_PASS_COMPUTE_ASYNC)
+		++renderer->graph.numRender;
+
+	// Increase culled count, if culled.
+	if (pass->culled)
+	{
+		if (pass->type != GFX_PASS_COMPUTE_ASYNC)
+			++renderer->graph.culledRender;
+		else
+			++renderer->graph.culledCompute;
 	}
 
 	// If not culled, increase the child count of all parents.
