@@ -214,10 +214,12 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 	con->resolve = SIZE_MAX;
 
 invalidate:
-	// Always reset graph output.
+	// Always reset graph & build output.
 	con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.prev = NULL;
+	con->build.attachment = SIZE_MAX;
+	con->build.next = NULL;
 
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.
@@ -556,15 +558,28 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 	// including all consumptions of all next subpasses.
 	// Only pick a single backing window to simplify framebuffer creation,
 	// we already need a framebuffer for each window image!
-	/*for (
+	// Also keep track of consumes for each attachment so we can link them.
+	/*const size_t numAttachs = rend->backing.attachs.size;
+
+	_GFXConsume* consumes[numAttachs > 0 ? numAttachs : 1];
+	for (size_t i = 0; i < numAttachs; ++i) consumes[i] = NULL;
+
+	for (
 		_GFXRenderPass* subpass = rPass;
 		subpass != NULL;
 		subpass = subpass->out.next)
 	{
+		size_t attachmentInd = 0; // Keep track of Vulkan attachment index.
+		size_t depSten = SIZE_MAX; // Only to warn for duplicates.
+
 		for (size_t i = 0; i < subpass->base.consumes.size; ++i)
 		{
-			const _GFXConsume* con = gfx_vec_at(&subpass->base.consumes, i);
-			const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+			_GFXConsume* con = gfx_vec_at(&subpass->base.consumes, i);
+			_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+
+			// Default to not referencing this consumption.
+			con->build.attachment = SIZE_MAX;
+			con->build.next = NULL;
 
 			// Validate existence of the attachment.
 			if (
@@ -602,7 +617,8 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 				// as it will be responsible for storing framebuffers.
 				if (rPass->build.backing == SIZE_MAX)
 					rPass->build.backing = con->view.index;
-				else
+
+				else if (rPass->build.backing != con->view.index)
 				{
 					// Skip any other candidate, cannot create a view for it.
 					gfx_log_warn(
@@ -615,10 +631,52 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 				}
 			}
 
-			// TODO: Only insert if new index somehow???
-			// Add a view element referencing this consumption.
-			_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
-			gfx_vec_push(&rPass->vk.views, 1, &elem);
+			// Skip any other windows too, no view will be created.
+			else if (at->type == _GFX_ATTACH_WINDOW)
+			{
+				gfx_log_warn(
+					"Consumption of attachment at index %"GFX_PRIs" ignored, "
+					"a pass can only read/write to a window attachment.",
+					con->view.index);
+
+				continue;
+			}
+
+			// If a depth/stencil we read/write to, warn for duplicates.
+			else if (
+				GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
+				(con->view.range.aspect &
+					(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
+				(con->mask &
+					(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
+			{
+				if (depSten == SIZE_MAX)
+					depSten = con->view.index;
+				else
+					gfx_log_warn(
+						"A single pass can only read/write to a single "
+						"depth/stencil attachment at a time.");
+			}
+
+			// We want to reference this consumption,
+			// meaning we'll set its Vulkan subpass attachment index.
+			con->build.attachment = attachmentInd++;
+
+			if (consumes[con->view.index] == NULL)
+			{
+				// If the attachment was not referenced yet,
+				// add a view element referencing this consumption,
+				// referencing the attachment in turn.
+				_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
+				gfx_vec_push(&rPass->vk.views, 1, &elem);
+
+				consumes[con->view.index] = con;
+			}
+			else
+			{
+				// If it was referenced already, just link it in.
+				consumes[con->view.index]->build.next = con;
+			}
 		}
 	}*/
 

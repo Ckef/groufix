@@ -1055,6 +1055,9 @@ typedef struct _GFXConsume
 	{
 		size_t attachment; // Vulkan index, or SIZE_MAX.
 
+		// Next consumption in this subpass chain.
+		const struct _GFXConsume* next;
+
 	} build;
 
 } _GFXConsume;

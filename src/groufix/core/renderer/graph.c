@@ -88,6 +88,7 @@ static uint64_t _gfx_pass_merge_score(_GFXRenderPass* rPass,
 
 	// TODO:GRA: Determine further; reject if incompatible attachments/others.
 	// TODO:GRA: The whole chain can only contain one window written to.
+	// TODO:GRA: Reject if the passes have mismatching attachment sizes.
 	return 0;
 
 	// Hooray we have an actual candidate!
