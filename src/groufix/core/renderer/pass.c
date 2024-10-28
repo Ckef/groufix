@@ -504,7 +504,9 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 	assert(!rPass->base.culled);
 	assert(frame != NULL);
 
-	// TODO:GRA: Get framebuffer from master pass.
+	// If this is not a master pass, get the master pass.
+	if (rPass->out.master != NULL)
+		rPass = rPass->out.master;
 
 	// Just a single framebuffer.
 	if (rPass->vk.frames.size == 1)
@@ -523,7 +525,7 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 /****************************
  * Filters all consumed attachments into framebuffer views &
  * a potential window to use as back-buffer, silently logging issues.
- * @param rPass Cannot be NULL, must not be culled.
+ * @param rPass Cannot be NULL, must be first in the subpass chain and not culled.
  * @return Zero on failure.
  */
 static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
@@ -531,6 +533,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
 	assert(!rPass->base.culled);
+	assert(rPass->out.master == NULL);
 
 	GFXRenderer* rend = rPass->base.renderer;
 
@@ -544,9 +547,80 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 	// framebuffer creation reasons + we CAN have multiple depth/stencil
 	// attachments now, one per subpass!
 
-	// Reserve as many views as there are attachments, can never be more.
+	// Reserve as many views as there are attachments.
+	// There may be more if this is a subpass chain, but that's fine.
 	if (!gfx_vec_reserve(&rPass->vk.views, rPass->base.consumes.size))
 		return 0;
+
+	// Start looping over all consumptions,
+	// including all consumptions of all next subpasses.
+	// Only pick a single backing window to simplify framebuffer creation,
+	// we already need a framebuffer for each window image!
+	/*for (
+		_GFXRenderPass* subpass = rPass;
+		subpass != NULL;
+		subpass = subpass->out.next)
+	{
+		for (size_t i = 0; i < subpass->base.consumes.size; ++i)
+		{
+			const _GFXConsume* con = gfx_vec_at(&subpass->base.consumes, i);
+			const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+
+			// Validate existence of the attachment.
+			if (
+				con->view.index >= rend->backing.attachs.size ||
+				at->type == _GFX_ATTACH_EMPTY)
+			{
+				gfx_log_warn(
+					"Consumption of attachment at index %"GFX_PRIs" ignored, "
+					"attachment not described.",
+					con->view.index);
+
+				continue;
+			}
+
+			// Validate that we want to access it as attachment.
+			if (!(con->mask &
+				(GFX_ACCESS_ATTACHMENT_INPUT |
+				GFX_ACCESS_ATTACHMENT_READ |
+				GFX_ACCESS_ATTACHMENT_WRITE |
+				GFX_ACCESS_ATTACHMENT_RESOLVE)))
+			{
+				continue;
+			}
+
+			// If a window we read/write color to, pick it.
+			if (at->type == _GFX_ATTACH_WINDOW &&
+				(con->view.range.aspect & GFX_IMAGE_COLOR) &&
+				(con->mask &
+					(GFX_ACCESS_ATTACHMENT_READ |
+					GFX_ACCESS_ATTACHMENT_WRITE |
+					GFX_ACCESS_ATTACHMENT_RESOLVE)))
+			{
+				// Check if we already had a backing window.
+				// We check against the backing index of the master pass,
+				// as it will be responsible for storing framebuffers.
+				if (rPass->build.backing == SIZE_MAX)
+					rPass->build.backing = con->view.index;
+				else
+				{
+					// Skip any other candidate, cannot create a view for it.
+					gfx_log_warn(
+						"Consumption of attachment at index %"GFX_PRIs" "
+						"ignored, a single pass can only read/write to a "
+						"single window attachment at a time.",
+						con->view.index);
+
+					continue;
+				}
+			}
+
+			// TODO: Only insert if new index somehow???
+			// Add a view element referencing this consumption.
+			_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
+			gfx_vec_push(&rPass->vk.views, 1, &elem);
+		}
+	}*/
 
 	// And start looping over all consumptions :)
 	size_t depSten = SIZE_MAX; // Only to warn for duplicates.
@@ -678,8 +752,16 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// And somehow propagate the VK pass and subpass index to all subpasses.
 	// Used for creating pipelines, which are still for specific passes.
 
-	// Pass is culled or already warmed.
-	if (rPass->base.culled || _GFX_PASS_IS_WARMED(rPass))
+	// Ignore this pass if it's culled.
+	if (rPass->base.culled)
+		return 1;
+
+	// If this is not a master pass, skip.
+	if (rPass->out.master != NULL)
+		return 1;
+
+	// Pass is already warmed.
+	if (_GFX_PASS_IS_WARMED(rPass))
 		return 1;
 
 	// Ok so we need to know about all pass attachments.
@@ -981,8 +1063,16 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	// TODO:GRA: Skip all this if this is not master.
 	// We somehow want to propagate the dimensions to all subpasses.
 
-	// Pass is culled or already built.
-	if (rPass->base.culled || _GFX_PASS_IS_BUILT(rPass))
+	// Ignore this pass if it's culled.
+	if (rPass->base.culled)
+		return 1;
+
+	// If this is not a master pass, skip.
+	if (rPass->out.master != NULL)
+		return 1;
+
+	// Pass is already built.
+	if (_GFX_PASS_IS_BUILT(rPass))
 		return 1;
 
 	// Do a warmup, i.e. make sure the Vulkan render pass is built.

@@ -87,6 +87,7 @@ static uint64_t _gfx_pass_merge_score(_GFXRenderPass* rPass,
 	if (rCandidate->base.childs > 1) return 0;
 
 	// TODO:GRA: Determine further; reject if incompatible attachments/others.
+	// TODO:GRA: The whole chain can only contain one window written to.
 	return 0;
 
 	// Hooray we have an actual candidate!
@@ -244,10 +245,10 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		// Link it into the chain.
 		if (merge != NULL)
 		{
-			merge->out.next = (GFXPass*)rPass;
+			merge->out.next = rPass;
 			rPass->out.subpass = merge->out.subpass + 1;
 			rPass->out.master = (merge->out.master == NULL) ?
-				(GFXPass*)merge : merge->out.master;
+				merge : merge->out.master;
 		}
 	}
 

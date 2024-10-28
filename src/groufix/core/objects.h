@@ -495,12 +495,6 @@ struct GFXShader
  ****************************/
 
 /**
- * Injection metadata declaration.
- */
-typedef struct _GFXInjection _GFXInjection;
-
-
-/**
  * Staging buffer.
  */
 typedef struct _GFXStaging
@@ -550,7 +544,7 @@ typedef struct _GFXTransferPool
 	_GFXQueue queue;
 	_GFXMutex lock;
 
-	_GFXInjection* injection;
+	struct _GFXInjection* injection;
 
 	// #blocking threads.
 	atomic_uintmax_t blocking;
@@ -726,12 +720,6 @@ typedef struct _GFXGroup
 
 #define _GFX_PASS_GEN(pass) \
 	(((_GFXRenderPass*)(pass))->gen)
-
-
-/**
- * Attachment consumption declaration.
- */
-typedef struct _GFXConsume _GFXConsume;
 
 
 /**
@@ -1025,7 +1013,7 @@ struct GFXRenderer
 /**
  * Internal attachment consumption.
  */
-struct _GFXConsume
+typedef struct _GFXConsume
 {
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
@@ -1057,10 +1045,19 @@ struct _GFXConsume
 		VkImageLayout final;
 
 		// Non-NULL to form a dependency.
-		const _GFXConsume* prev;
+		const struct _GFXConsume* prev;
 
 	} out;
-};
+
+
+	// Building output (can be invalidated).
+	struct
+	{
+		size_t attachment; // Vulkan index, or SIZE_MAX.
+
+	} build;
+
+} _GFXConsume;
 
 
 /**
@@ -1117,9 +1114,9 @@ typedef struct _GFXRenderPass
 	// Graph output (relative to neighbouring passes).
 	struct
 	{
-		GFXPass* master;  // First subpass, NULL if this.
-		GFXPass* next;    // Next subpass in the chain, NULL if last.
-		uint32_t subpass; // Subpass index.
+		struct _GFXRenderPass* master;  // First subpass, NULL if this.
+		struct _GFXRenderPass* next;    // Next subpass in the chain, NULL if last.
+		uint32_t               subpass; // Subpass index.
 
 	} out;
 
@@ -1384,7 +1381,7 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 /**
  * Dependency injection metadata.
  */
-struct _GFXInjection
+typedef struct _GFXInjection
 {
 	// Operation input, must be pre-initialized!
 	struct
@@ -1433,7 +1430,8 @@ struct _GFXInjection
 		VkPipelineStageFlags* stages;
 
 	} out;
-};
+
+} _GFXInjection;
 
 
 /**
