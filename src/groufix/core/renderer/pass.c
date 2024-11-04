@@ -817,6 +817,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// TODO:GRA: As for blend states and clear values, do that for all
 	// passes anyway, regardless if its master? Just do this during filtering?
 	// And what to do about subpass clear values, use vkCmdClearAttachments?
+	// Furthermore, we can just make vk.clears and vk.blends straight pointers,
+	// no need for it to be a vector, always same size as vk.views.
 
 	// Ignore this pass if it's culled.
 	if (rPass->base.culled)
@@ -1506,6 +1508,7 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 			con->cleared = aspect;
 			con->clear.gfx = value; // Type-punned into a VkClearValue!
 
+			// TODO:GRA: If we can just update, we do not need to invalidate!
 			// Same as _gfx_pass_consume, invalidate for destruction.
 			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 			break;
@@ -1539,6 +1542,7 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 			con->color = color;
 			con->alpha = alpha;
 
+			// TODO:GRA: If we can just update, we only need to increase gen!
 			// Same as _gfx_pass_consume, invalidate for destruction.
 			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 			break;
