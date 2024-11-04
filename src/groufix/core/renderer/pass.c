@@ -218,7 +218,7 @@ invalidate:
 	con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.prev = NULL;
-	con->build.attachment = SIZE_MAX;
+	con->build.view = SIZE_MAX;
 	con->build.next = NULL;
 
 	// Changed a pass, the graph is invalidated.
@@ -569,7 +569,6 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 		subpass != NULL;
 		subpass = subpass->out.next)
 	{
-		size_t attachmentInd = 0; // Keep track of Vulkan attachment index.
 		size_t depSten = SIZE_MAX; // Only to warn for duplicates.
 
 		for (size_t i = 0; i < subpass->base.consumes.size; ++i)
@@ -578,7 +577,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 			// Default to not referencing this consumption.
-			con->build.attachment = SIZE_MAX;
+			con->build.view = SIZE_MAX;
 			con->build.next = NULL;
 
 			// Validate existence of the attachment.
@@ -658,14 +657,16 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 						"depth/stencil attachment at a time.");
 			}
 
-			// We want to reference this consumption,
-			// meaning we'll set its Vulkan subpass attachment index.
-			con->build.attachment = attachmentInd++;
-
+			// At this point, we want to reference this consumption,
+			// which references an attachment that may or may not have
+			// already been referenced by a consumption from a previous pass.
 			if (consumes[con->view.index] == NULL)
 			{
 				// If the attachment was not referenced yet,
-				// add a view element referencing this consumption,
+				// Set the view index into vk.views of the master pass.
+				con->build.view = rPass->vk.views.size;
+
+				// And add the new view element referencing this consumption,
 				// referencing the attachment in turn.
 				_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
 				gfx_vec_push(&rPass->vk.views, 1, &elem);
@@ -674,7 +675,11 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			}
 			else
 			{
-				// If it was referenced already, just link it in.
+				// If it was referenced already, get the view index from
+				// the previous consumption that referenced it.
+				con->build.view = consumes[con->view.index]->build.view;
+
+				// And just link it in.
 				consumes[con->view.index]->build.next = con;
 			}
 		}
@@ -809,6 +814,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// Need to set the correct state.enabled value for all subpasses.
 	// And somehow propagate the VK pass and subpass index to all subpasses.
 	// Used for creating pipelines, which are still for specific passes.
+	// Same goes for blend states probably?
+	// And what to do about clear states, use vkCmdClearAttachments?
 
 	// Ignore this pass if it's culled.
 	if (rPass->base.culled)

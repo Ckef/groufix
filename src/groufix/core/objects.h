@@ -1053,7 +1053,7 @@ typedef struct _GFXConsume
 	// Building output (can be invalidated).
 	struct
 	{
-		size_t attachment; // Vulkan index, or SIZE_MAX.
+		size_t view; // Index into vk.views of master pass, or SIZE_MAX.
 
 		// Next consumption in this subpass chain.
 		const struct _GFXConsume* next;

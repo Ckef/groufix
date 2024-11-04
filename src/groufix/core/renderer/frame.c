@@ -625,8 +625,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 
 		// TODO:GRA: If a pass is the last, record master and all next passes
 		// and handle the whole VK subpass structure like that.
-		// Note: this means a subpass chain cannot have passes in it,
-		// except for the last, that are a child pass of another.
+		// Handle clearing in subpasses with manual clear commands?
 
 		// Inject wait commands.
 		if (!_gfx_deps_catch(
