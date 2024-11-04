@@ -814,8 +814,9 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// Need to set the correct state.enabled value for all subpasses.
 	// And somehow propagate the VK pass and subpass index to all subpasses.
 	// Used for creating pipelines, which are still for specific passes.
-	// Same goes for blend states probably?
-	// And what to do about clear states, use vkCmdClearAttachments?
+	// TODO:GRA: As for blend states and clear values, do that for all
+	// passes anyway, regardless if its master? Just do this during filtering?
+	// And what to do about subpass clear values, use vkCmdClearAttachments?
 
 	// Ignore this pass if it's culled.
 	if (rPass->base.culled)
