@@ -11,86 +11,72 @@
 
 
 /****************************
- * Stand-in function for gfx_renderer_(cull|uncull).
- * @see gfx_renderer_(cull|uncull).
- * @param cull Zero to uncull, non-zero to cull.
+ * Calculates the merge score of a possible merge candidate for a render pass.
+ * If the score > 0, it means this parent _can_ be submitted as subpass
+ * before the pass itself, which might implicitly move it up in submission order.
+ * @param rCandidate Cannot be NULL, must be a non-culled parent of a pass.
+ * @param consumes   Cannot be NULL, must be pre-initialized.
+ * @return Candidate's score, the higher the better, zero if not a candidate.
+ *
+ * consumes must hold `renderer->backing.attachs.size` pointers,
+ * for each attachment, it must hold the _GFXConsume* of the child pass
+ * rCandidate is parent of (or NULL if not consumed).
  */
-static void _gfx_renderer_set_cull(GFXRenderer* renderer,
-                                   unsigned int group, bool cull)
+static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
+                                      _GFXRenderPass* rCandidate,
+                                      _GFXConsume** consumes)
 {
 	assert(renderer != NULL);
-	assert(!renderer->recording);
-
-	// Loop over all passes, get the ones belonging to group.
-	// If we change culled state of any pass, we need to re-analyze
-	// for different parent/childs links & build new passes if unculling.
-	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
-
-		if (pass->group == group && pass->culled != cull)
-		{
-			// Invalidate the graph & set the new culled state.
-			if (renderer->graph.state != _GFX_GRAPH_EMPTY)
-				renderer->graph.state = _GFX_GRAPH_INVALID;
-
-			pass->culled = cull;
-
-			// Adjust the culled count.
-			size_t* culled =
-				(pass->type != GFX_PASS_COMPUTE_ASYNC) ?
-					&renderer->graph.culledRender :
-					&renderer->graph.culledCompute;
-
-			if (cull)
-				++(*culled);
-			else
-				--(*culled);
-
-			// If culling, subtract from parent's child count,
-			// if unculling, add.
-			const size_t numParents = gfx_pass_get_num_parents(pass);
-			for (size_t p = 0; p < numParents; ++p)
-			{
-				GFXPass* parent = gfx_pass_get_parent(pass, p);
-				if (cull)
-					--parent->childs;
-				else
-					++parent->childs;
-			}
-		}
-	}
-}
-
-/****************************
- * Checks if a given parent is a possible merge candidate for a render pass.
- * Meaning its parent _can_ be submitted as subpass before the pass itself,
- * which might implicitly move it up in submission order.
- * @param rPass      Cannot be NULL, must not be culled.
- * @param rCandidate Cannot be NULL, must be a non-culled parent of pass.
- * @return Candidate's score, the higher the better, zero if not a candidate.
- */
-static uint64_t _gfx_pass_merge_score(_GFXRenderPass* rPass,
-                                      _GFXRenderPass* rCandidate)
-{
-	assert(rPass != NULL);
-	assert(!rPass->base.culled);
 	assert(rCandidate != NULL);
 	assert(!rCandidate->base.culled);
-	assert(rCandidate->base.level < rPass->base.level);
+	assert(consumes != NULL);
 
 	// No other passes may depend on (i.e. be child of) the candidate,
 	// as this would mean the pass may not be moved up in submission order,
 	// which it HAS to do to merge with a child.
-	// After this check rPass MUST be the only non-culled child of rCandidate.
+	// After this check, the child pass of rCandidate
+	// MUST be the _only_ non-culled child of rCandidate.
 	if (rCandidate->base.childs > 1) return 0;
+
+	// See if the passes have any attachments in common.
+	// We assume all attachments within a pass will resolve to have the same
+	// size, if they do not, the pass will throw warnings when building.
+	// So if the passes have overlap in consumed attachments, we can assume
+	// all of their attachments are of the same size and we can share them
+	// in a Vulkan subpass using a single framebuffer.
+	// Do not bother getting actual sizes here, way too complex, why build
+	// a Vulkan subpass if there is no overlap anyway...
+	// TODO:GRA: Maybe count shared attachs for all passes in the subchain,
+	// this way they get counted more if shared more, plus we can do below
+	// checks easy.
+	// TODO:GRA: We can maybe also set the backing index of all passes here?
+	// So we can do the window check...
+	size_t sharedAttachs = 0;
+
+	for (size_t i = 0; i < rCandidate->base.consumes.size; ++i)
+	{
+		_GFXConsume* con = gfx_vec_at(&rCandidate->base.consumes, i);
+		if (con->view.index < renderer->backing.attachs.size && con->mask &
+			(GFX_ACCESS_ATTACHMENT_INPUT |
+			GFX_ACCESS_ATTACHMENT_READ |
+			GFX_ACCESS_ATTACHMENT_WRITE |
+			GFX_ACCESS_ATTACHMENT_RESOLVE))
+		{
+			if (consumes[con->view.index] != NULL) ++sharedAttachs;
+		}
+	}
+
+	// Not a candidate if no shared attachments.
+	if (sharedAttachs == 0) return 0;
 
 	// TODO:GRA: Determine further; reject if incompatible attachments/others.
 	// TODO:GRA: The whole chain can only contain one window written to.
-	// TODO:GRA: Reject if the passes have mismatching attachment sizes.
+	// TODO:GRA: Reject if an attachment is consumed multiply times
+	// (by different passes) with different view or VIEWED flag.
 	return 0;
 
+	// TODO:GRA: Incorporate sharedAttachs in score?
+	// TODO:GRA: Or maybe just use sharedAttachs as the metric straight up?
 	// Hooray we have an actual candidate!
 	// Now to calculate their score...
 	// We are going to use the length of the subpass chain as metric,
@@ -99,20 +85,103 @@ static uint64_t _gfx_pass_merge_score(_GFXRenderPass* rPass,
 }
 
 /****************************
+ * Picks a merge candidate (if any) from a pass' parents, and merge with it,
+ * setting and/or updating the `out` field of both passes.
+ * consumes must hold `renderer->backing.attachs.size` pointers.
+ * @param rPass    Cannot be NULL, must not be culled.
+ * @param consumes Cannot be NULL.
+ *
+ * Must be called for all passes in submission order!
+ */
+static void _gfx_pass_merge(GFXRenderer* renderer,
+                            _GFXRenderPass* rPass, _GFXConsume** consumes)
+{
+	assert(renderer != NULL);
+	assert(rPass != NULL);
+	assert(!rPass->base.culled);
+	assert(consumes != NULL);
+
+	// Init to unmerged.
+	rPass->out.master = NULL;
+	rPass->out.next = NULL;
+	rPass->out.subpass = 0;
+
+	// If there are no parents, done.
+	if (rPass->numParents == 0) return;
+
+	// Take the parent with the highest merge score.
+	// To do this, initialize the `consumes` array for this pass.
+	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
+		consumes[i] = NULL;
+
+	for (size_t i = 0; i < rPass->base.consumes.size; ++i)
+	{
+		_GFXConsume* con = gfx_vec_at(&rPass->base.consumes, i);
+		if (con->view.index < renderer->backing.attachs.size && con->mask &
+			(GFX_ACCESS_ATTACHMENT_INPUT |
+			GFX_ACCESS_ATTACHMENT_READ |
+			GFX_ACCESS_ATTACHMENT_WRITE |
+			GFX_ACCESS_ATTACHMENT_RESOLVE))
+		{
+			consumes[con->view.index] = con;
+		}
+	}
+
+	// And then actually loop over all parents.
+	_GFXRenderPass* merge = NULL;
+	uint64_t score = 0;
+
+	for (size_t p = 0; p < rPass->numParents; ++p)
+	{
+		_GFXRenderPass* rCandidate =
+			(_GFXRenderPass*)rPass->parents[p];
+
+		// Again, ignore non-render passes.
+		if (rCandidate->base.type != GFX_PASS_RENDER) continue;
+
+		// TODO: If culled, try to merge with ITs parents, recursively?
+		// If doing that, need a better calculation of `childs`.
+
+		// Also ignore culled parent passes.
+		if (rCandidate->base.culled) continue;
+
+		// Also ignore if already merged.
+		if (rCandidate->out.next != NULL) continue;
+
+		// Calculate score.
+		uint64_t pScore =
+			_gfx_pass_merge_score(renderer, rCandidate, consumes);
+
+		// Note: if pScore == 0, it will always be rejected!
+		if (pScore > score)
+			merge = rCandidate, score = pScore;
+	}
+
+	// Link it into the chain.
+	if (merge != NULL)
+	{
+		merge->out.next = rPass;
+		rPass->out.subpass = merge->out.subpass + 1;
+		rPass->out.master = (merge->out.master == NULL) ?
+			merge : merge->out.master;
+	}
+}
+
+/****************************
  * Resolves a pass, setting the `out` field of all its consumptions.
- * consumes must hold `pass->renderer->backing.attachs.size` pointers.
+ * consumes must hold `renderer->backing.attachs.size` pointers.
  * @param pass     Cannot be NULL, must not be culled.
  * @param consumes Cannot be NULL, must be initialized to all NULL on first call.
  *
  * Must be called for all passes in submission order!
  */
-static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
+static void _gfx_pass_resolve(GFXRenderer* renderer,
+                              GFXPass* pass, _GFXConsume** consumes)
 {
+	assert(renderer != NULL);
 	assert(pass != NULL);
 	assert(!pass->culled);
 	assert(consumes != NULL);
-
-	GFXRenderer* rend = pass->renderer;
 
 	// TODO:GRA: If this is the last pass, do this for master and all next passes
 	// and skip if this is not the last.
@@ -122,14 +191,14 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 	for (size_t i = 0; i < pass->consumes.size; ++i)
 	{
 		_GFXConsume* con = gfx_vec_at(&pass->consumes, i);
-		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		const _GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, con->view.index);
 
 		// Default of NULL (no dependency) in case we skip this consumption.
 		con->out.prev = NULL;
 
 		// Validate existence of the attachment.
 		if (
-			con->view.index >= rend->backing.attachs.size ||
+			con->view.index >= renderer->backing.attachs.size ||
 			at->type == _GFX_ATTACH_EMPTY)
 		{
 			continue;
@@ -173,8 +242,8 @@ static void _gfx_pass_resolve(GFXPass* pass, _GFXConsume** consumes)
 			const bool dstWrites = GFX_ACCESS_WRITES(con->mask);
 			const bool transition = prev->out.final != con->out.initial;
 
-			con->out.prev =
-				(srcWrites || dstWrites || transition) ? prev : NULL;
+			if (srcWrites || dstWrites || transition)
+				con->out.prev = prev;
 		}
 
 		// Store the consumption for this attachment so the next
@@ -200,8 +269,11 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// So for each pass, check its parents for possible merge candidates.
 	// We ignore non-parents, so no merging happens if no connection is
 	// indicated through the user API.
-	// We loop in submission order so we can propogate the master pass,
-	// and also so all parents are processed before their children.
+	// Loop in submission order so parents are processed before children.
+	// Also, allocate the `consumes` for _gfx_pass_(merge|resolve) here.
+	const size_t numAttachs = renderer->backing.attachs.size;
+	_GFXConsume* consumes[numAttachs > 0 ? numAttachs : 1];
+
 	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
 		_GFXRenderPass* rPass = (_GFXRenderPass*)(
@@ -213,55 +285,16 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		// Ignore if culled.
 		if (rPass->base.culled) continue;
 
-		rPass->out.master = NULL;
-		rPass->out.next = NULL;
-		rPass->out.subpass = 0;
-
-		// Take the parent with the highest merge score.
-		_GFXRenderPass* merge = NULL;
-		uint64_t score = 0;
-
-		for (size_t p = 0; p < rPass->numParents; ++p)
-		{
-			_GFXRenderPass* rCandidate =
-				(_GFXRenderPass*)rPass->parents[p];
-
-			// Again, ignore non-render passes.
-			if (rCandidate->base.type != GFX_PASS_RENDER) continue;
-
-			// TODO: If culled, try to merge with ITs parents, recursively?
-			// If doing that, need a better calculation of `childs`.
-
-			// Also ignore culled parent passes.
-			if (rCandidate->base.culled) continue;
-
-			// Calculate score.
-			uint64_t pScore = _gfx_pass_merge_score(rPass, rCandidate);
-
-			// Note: if pScore == 0, it will always be rejected!
-			if (pScore > score)
-				merge = rCandidate, score = pScore;
-		}
-
-		// Link it into the chain.
-		if (merge != NULL)
-		{
-			merge->out.next = rPass;
-			rPass->out.subpass = merge->out.subpass + 1;
-			rPass->out.master = (merge->out.master == NULL) ?
-				merge : merge->out.master;
-		}
+		// Merge it with one of its parents.
+		_gfx_pass_merge(renderer, rPass, consumes);
 	}
 
 	// We loop over all passes in submission order whilst
 	// keeping track of the last consumption of each attachment.
 	// This way we propogate transition and synchronization data per
 	// attachment as we go.
-	const size_t numAttachs = renderer->backing.attachs.size;
-	size_t numCulled = 0;
-
-	_GFXConsume* consumes[numAttachs > 0 ? numAttachs : 1];
 	for (size_t i = 0; i < numAttachs; ++i) consumes[i] = NULL;
+	size_t numCulled = 0;
 
 	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 	{
@@ -275,7 +308,7 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		}
 
 		// Resolve!
-		_gfx_pass_resolve(pass, consumes);
+		_gfx_pass_resolve(renderer, pass, consumes);
 
 		// At this point we also sneakedly set the order of all passes
 		// so the recorders know what's up.
@@ -586,6 +619,59 @@ error:
 	gfx_log_error("Could not add a new pass to a renderer's graph.");
 
 	return NULL;
+}
+
+/****************************
+ * Stand-in function for gfx_renderer_(cull|uncull).
+ * @see gfx_renderer_(cull|uncull).
+ * @param cull Zero to uncull, non-zero to cull.
+ */
+static void _gfx_renderer_set_cull(GFXRenderer* renderer,
+                                   unsigned int group, bool cull)
+{
+	assert(renderer != NULL);
+	assert(!renderer->recording);
+
+	// Loop over all passes, get the ones belonging to group.
+	// If we change culled state of any pass, we need to re-analyze
+	// for different parent/childs links & build new passes if unculling.
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+	{
+		GFXPass* pass =
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
+
+		if (pass->group == group && pass->culled != cull)
+		{
+			// Invalidate the graph & set the new culled state.
+			if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+				renderer->graph.state = _GFX_GRAPH_INVALID;
+
+			pass->culled = cull;
+
+			// Adjust the culled count.
+			size_t* culled =
+				(pass->type != GFX_PASS_COMPUTE_ASYNC) ?
+					&renderer->graph.culledRender :
+					&renderer->graph.culledCompute;
+
+			if (cull)
+				++(*culled);
+			else
+				--(*culled);
+
+			// If culling, subtract from parent's child count,
+			// if unculling, add.
+			const size_t numParents = gfx_pass_get_num_parents(pass);
+			for (size_t p = 0; p < numParents; ++p)
+			{
+				GFXPass* parent = gfx_pass_get_parent(pass, p);
+				if (cull)
+					--parent->childs;
+				else
+					++parent->childs;
+			}
+		}
+	}
 }
 
 /****************************/
