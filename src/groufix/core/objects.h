@@ -1055,7 +1055,8 @@ typedef struct _GFXConsume
 	{
 		size_t view; // Index into vk.views of master pass, or SIZE_MAX.
 
-		// Next consumption in this subpass chain.
+		// Previous/next consumption in this subpass chain.
+		const struct _GFXConsume* prev;
 		const struct _GFXConsume* next;
 
 	} build;

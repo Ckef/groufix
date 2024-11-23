@@ -214,12 +214,10 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 	con->resolve = SIZE_MAX;
 
 invalidate:
-	// Always reset graph & build output.
+	// Always reset graph output.
 	con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
 	con->out.prev = NULL;
-	con->build.view = SIZE_MAX;
-	con->build.next = NULL;
 
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.
@@ -571,6 +569,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 
 			// Default to not referencing this consumption.
 			con->build.view = SIZE_MAX;
+			con->build.prev = NULL;
 			con->build.next = NULL;
 
 			// Validate existence of the attachment.
@@ -632,7 +631,9 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			// At this point, we want to reference this consumption,
 			// which references an attachment that may or may not have
 			// already been referenced by a consumption from a previous pass.
-			if (consumes[con->view.index] == NULL)
+			_GFXConsume* prev = consumes[con->view.index];
+
+			if (prev == NULL)
 			{
 				// If the attachment was not referenced yet,
 				// Set the view index into vk.views of the master pass.
@@ -642,18 +643,20 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 				// referencing the attachment in turn.
 				_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
 				gfx_vec_push(&rPass->vk.views, 1, &elem);
-
-				consumes[con->view.index] = con;
 			}
 			else
 			{
 				// If it was referenced already, get the view index from
 				// the previous consumption that referenced it.
-				con->build.view = consumes[con->view.index]->build.view;
+				con->build.view = prev->build.view;
 
 				// And just link it in.
-				consumes[con->view.index]->build.next = con;
+				prev->build.next = con;
+				con->build.prev = prev;
 			}
+
+			// Store so the next subpass knows about it.
+			consumes[con->view.index] = con;
 		}
 	}
 
