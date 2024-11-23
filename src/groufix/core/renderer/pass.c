@@ -542,13 +542,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 	if (rPass->vk.views.size > 0)
 		return 1;
 
-	// TODO:GRA: Should get from all next subpasses too and skip if not master.
-	// Literally point to the consume elem of a next pass.
-	// Note that we can still only have one window attachment for
-	// framebuffer creation reasons + we CAN have multiple depth/stencil
-	// attachments now, one per subpass!
-
-	// Reserve as many views as there are attachments.
+	// Reserve as many views as there are consumptions in the first pass.
 	// There may be more if this is a subpass chain, but that's fine.
 	if (!gfx_vec_reserve(&rPass->vk.views, rPass->base.consumes.size))
 		return 0;
@@ -556,7 +550,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 	// Start looping over all consumptions,
 	// including all consumptions of all next subpasses.
 	// Also keep track of consumes for each attachment so we can link them.
-	/*const size_t numAttachs = rend->backing.attachs.size;
+	const size_t numAttachs = rend->backing.attachs.size;
 
 	_GFXConsume* consumes[numAttachs > 0 ? numAttachs : 1];
 	for (size_t i = 0; i < numAttachs; ++i) consumes[i] = NULL;
@@ -570,8 +564,10 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 
 		for (size_t i = 0; i < subpass->base.consumes.size; ++i)
 		{
-			_GFXConsume* con = gfx_vec_at(&subpass->base.consumes, i);
-			_GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+			_GFXConsume* con =
+				gfx_vec_at(&subpass->base.consumes, i);
+			_GFXAttach* at =
+				gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 			// Default to not referencing this consumption.
 			con->build.view = SIZE_MAX;
@@ -583,8 +579,8 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 				at->type == _GFX_ATTACH_EMPTY)
 			{
 				gfx_log_warn(
-					"Consumption of attachment at index %"GFX_PRIs" ignored, "
-					"attachment not described.",
+					"Consumption of attachment at index %"GFX_PRIs" "
+					"ignored, attachment not described.",
 					con->view.index);
 
 				continue;
@@ -603,7 +599,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			// If a window, check for duplicates.
 			if (at->type == _GFX_ATTACH_WINDOW)
 			{
-				// Check against the already pre-analyzed backing window index.
+				// Check against the pre-analyzed backing window index.
 				if (con->view.index != rPass->out.backing)
 				{
 					// Skip any other window, no view will be created.
@@ -659,75 +655,6 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 				consumes[con->view.index]->build.next = con;
 			}
 		}
-	}*/
-
-	// And start looping over all consumptions :)
-	size_t depSten = SIZE_MAX; // Only to warn for duplicates.
-
-	for (size_t i = 0; i < rPass->base.consumes.size; ++i)
-	{
-		const _GFXConsume* con = gfx_vec_at(&rPass->base.consumes, i);
-		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
-
-		// Validate existence of the attachment.
-		if (
-			con->view.index >= rend->backing.attachs.size ||
-			at->type == _GFX_ATTACH_EMPTY)
-		{
-			gfx_log_warn(
-				"Consumption of attachment at index %"GFX_PRIs" ignored, "
-				"attachment not described.",
-				con->view.index);
-
-			continue;
-		}
-
-		// Validate that we want to access it as attachment.
-		if (!(con->mask &
-			(GFX_ACCESS_ATTACHMENT_INPUT |
-			GFX_ACCESS_ATTACHMENT_READ |
-			GFX_ACCESS_ATTACHMENT_WRITE |
-			GFX_ACCESS_ATTACHMENT_RESOLVE)))
-		{
-			continue;
-		}
-
-		// If a window, check for duplicates.
-		if (at->type == _GFX_ATTACH_WINDOW)
-		{
-			// Check against the already pre-analyzed backing window index.
-			if (con->view.index != rPass->out.backing)
-			{
-				// Skip any other window, no view will be created.
-				gfx_log_warn(
-					"Consumption of attachment at index %"GFX_PRIs" "
-					"ignored, a single pass can only read/write to a "
-					"single window attachment at a time.",
-					con->view.index);
-
-				continue;
-			}
-		}
-
-		// If a depth/stencil we read/write to, warn for duplicates.
-		else if (
-			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
-			(con->view.range.aspect &
-				(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
-			(con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
-		{
-			if (depSten == SIZE_MAX)
-				depSten = con->view.index;
-			else
-				gfx_log_warn(
-					"A single pass can only read/write to a single "
-					"depth/stencil attachment at a time.");
-		}
-
-		// Add a view element referencing this consumption.
-		_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
-		gfx_vec_push(&rPass->vk.views, 1, &elem);
 	}
 
 	return 1;

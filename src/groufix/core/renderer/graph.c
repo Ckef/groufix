@@ -51,15 +51,16 @@ static size_t _gfx_get_backing(GFXRenderer* renderer, const _GFXConsume* con)
 	const _GFXAttach* at =
 		gfx_vec_at(&renderer->backing.attachs, con->view.index);
 
-	if (at->type == _GFX_ATTACH_WINDOW &&
+	if (
+		at->type == _GFX_ATTACH_WINDOW &&
 		(con->view.range.aspect & GFX_IMAGE_COLOR) &&
 		(con->mask &
 			(GFX_ACCESS_ATTACHMENT_READ |
 			GFX_ACCESS_ATTACHMENT_WRITE |
 			GFX_ACCESS_ATTACHMENT_RESOLVE)))
-		{
-			return con->view.index;
-		}
+	{
+		return con->view.index;
+	}
 
 	return SIZE_MAX;
 }
@@ -253,73 +254,90 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 	assert(!pass->culled);
 	assert(consumes != NULL);
 
-	// TODO:GRA: If this is the last pass, do this for master and all next passes
-	// and skip if this is not the last.
-	// This because a subpass chain will be submitted at the order of the last.
+	GFXPass* subpass = pass;
 
-	// Start looping over all consumptions & resolve them.
-	for (size_t i = 0; i < pass->consumes.size; ++i)
+	// Skip if not the last pass in a subpass chain.
+	// If it is the last pass, resolve for the entire chain.
+	// We perform all actions at the last pass, and not master, because that's
+	// when they will be submitted (ergo when dependencies are relevant).
+	if (pass->type == GFX_PASS_RENDER)
 	{
-		_GFXConsume* con = gfx_vec_at(&pass->consumes, i);
-		const _GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, con->view.index);
+		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+		if (rPass->out.next != NULL) return; // Skip if not last.
+		if (rPass->out.master != NULL) subpass = (GFXPass*)rPass->out.master;
+	}
 
-		// Default of NULL (no dependency) in case we skip this consumption.
-		con->out.prev = NULL;
-
-		// Validate existence of the attachment.
-		if (
-			con->view.index >= renderer->backing.attachs.size ||
-			at->type == _GFX_ATTACH_EMPTY)
+	while (subpass != NULL)
+	{
+		// Start looping over all consumptions & resolve them.
+		for (size_t i = 0; i < subpass->consumes.size; ++i)
 		{
-			continue;
-		}
+			_GFXConsume* con =
+				gfx_vec_at(&subpass->consumes, i);
+			const _GFXAttach* at =
+				gfx_vec_at(&renderer->backing.attachs, con->view.index);
 
-		// Get previous consumption from the previous resolve calls.
-		_GFXConsume* prev = consumes[con->view.index];
+			// Default of NULL (no dependency) in case we skip this consumption.
+			con->out.prev = NULL;
 
-		// Compute initial/final layout based on neighbours.
-		if (at->type == _GFX_ATTACH_WINDOW)
-		{
-			if (prev == NULL)
-				con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
+			// Validate existence of the attachment.
+			if (
+				con->view.index >= renderer->backing.attachs.size ||
+				at->type == _GFX_ATTACH_EMPTY)
+			{
+				continue;
+			}
+
+			// Get previous consumption from the previous resolve calls.
+			_GFXConsume* prev = consumes[con->view.index];
+
+			// Compute initial/final layout based on neighbours.
+			if (at->type == _GFX_ATTACH_WINDOW)
+			{
+				if (prev == NULL)
+					con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
+				else
+					con->out.initial = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+					prev->out.final = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+				con->out.final = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			}
 			else
-				con->out.initial = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-				prev->out.final = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			{
+				VkImageLayout layout =
+					_GFX_GET_VK_IMAGE_LAYOUT(con->mask, at->image.base.format);
 
-			con->out.final = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+				if (prev == NULL)
+					con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
+				else
+					con->out.initial = layout,
+					prev->out.final = layout; // Previous pass transitions!
+
+				con->out.final = layout;
+			}
+
+			// See if we need to insert a dependency.
+			if (prev != NULL)
+			{
+				// Insert dependency (i.e. execution barrier) if necessary:
+				// - Either source or target writes.
+				// - Inequal layouts, need layout transition.
+				const bool srcWrites = GFX_ACCESS_WRITES(prev->mask);
+				const bool dstWrites = GFX_ACCESS_WRITES(con->mask);
+				const bool transition = prev->out.final != con->out.initial;
+
+				if (srcWrites || dstWrites || transition)
+					con->out.prev = prev;
+			}
+
+			// Store the consumption for this attachment so the next
+			// resolve calls have this data.
+			consumes[con->view.index] = con;
 		}
-		else
-		{
-			VkImageLayout layout =
-				_GFX_GET_VK_IMAGE_LAYOUT(con->mask, at->image.base.format);
 
-			if (prev == NULL)
-				con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
-			else
-				con->out.initial = layout,
-				prev->out.final = layout; // Previous pass transitions!
-
-			con->out.final = layout;
-		}
-
-		// See if we need to insert a dependency.
-		if (prev != NULL)
-		{
-			// Insert dependency (i.e. execution barrier) if necessary:
-			// - Either source or target writes.
-			// - Inequal layouts, need layout transition.
-			const bool srcWrites = GFX_ACCESS_WRITES(prev->mask);
-			const bool dstWrites = GFX_ACCESS_WRITES(con->mask);
-			const bool transition = prev->out.final != con->out.initial;
-
-			if (srcWrites || dstWrites || transition)
-				con->out.prev = prev;
-		}
-
-		// Store the consumption for this attachment so the next
-		// resolve calls have this data.
-		// Each index only occurs one for each pass so it's fine.
-		consumes[con->view.index] = con;
+		// Next subpass.
+		if (subpass->type == GFX_PASS_RENDER)
+			subpass = (GFXPass*)((_GFXRenderPass*)subpass)->out.next;
 	}
 }
 
