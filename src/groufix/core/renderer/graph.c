@@ -10,32 +10,93 @@
 #include <assert.h>
 
 
+// Check if a consumption has attachment access.
+#define _GFX_CONSUME_IS_ATTACH(con, renderer) \
+	(con->view.index < renderer->backing.attachs.size && con->mask & \
+		(GFX_ACCESS_ATTACHMENT_INPUT | \
+		GFX_ACCESS_ATTACHMENT_READ | \
+		GFX_ACCESS_ATTACHMENT_WRITE | \
+		GFX_ACCESS_ATTACHMENT_RESOLVE))
+
+
+/****************************
+ * Compares two consumptions for view compatibility.
+ * If compatible, they can be shared between subpasses.
+ * Assumes _GFX_CONSUME_IS_ATTACH is non-zero for both l and r.
+ * @return Non-zero if equal/compatible.
+ */
+static inline bool _gfx_cmp_consume(const _GFXConsume* l, const _GFXConsume* r)
+{
+	const bool isViewed = l->flags & _GFX_CONSUME_VIEWED;
+
+	return
+		isViewed == (bool)(r->flags & _GFX_CONSUME_VIEWED) &&
+		(!isViewed || l->view.type == r->view.type) &&
+		(l->view.range.aspect == r->view.range.aspect) &&
+		(l->view.range.mipmap == r->view.range.mipmap) &&
+		(l->view.range.numMipmaps == r->view.range.numMipmaps) &&
+		(l->view.range.layer == r->view.range.layer) &&
+		(l->view.range.numLayers == r->view.range.numLayers);
+}
+
+/****************************
+ * Checks if a consumption is a potential backing window as attachment.
+ * @return The window attachment index, SIZE_MAX if not present.
+ */
+static size_t _gfx_get_backing(GFXRenderer* renderer, const _GFXConsume* con)
+{
+	if (!_GFX_CONSUME_IS_ATTACH(con, renderer))
+		return SIZE_MAX;
+
+	const _GFXAttach* at =
+		gfx_vec_at(&renderer->backing.attachs, con->view.index);
+
+	if (at->type == _GFX_ATTACH_WINDOW &&
+		(con->view.range.aspect & GFX_IMAGE_COLOR) &&
+		(con->mask &
+			(GFX_ACCESS_ATTACHMENT_READ |
+			GFX_ACCESS_ATTACHMENT_WRITE |
+			GFX_ACCESS_ATTACHMENT_RESOLVE)))
+		{
+			return con->view.index;
+		}
+
+	return SIZE_MAX;
+}
+
 /****************************
  * Calculates the merge score of a possible merge candidate for a render pass.
  * If the score > 0, it means this parent _can_ be submitted as subpass
  * before the pass itself, which might implicitly move it up in submission order.
- * @param rCandidate Cannot be NULL, must be a non-culled parent of a pass.
+ * @param rPass      Cannot be NULL, must not be culled.
+ * @param rCandidate Cannot be NULL, must be a non-culled parent of a rPass.
  * @param consumes   Cannot be NULL, must be pre-initialized.
  * @return Candidate's score, the higher the better, zero if not a candidate.
  *
- * consumes must hold `renderer->backing.attachs.size` pointers,
- * for each attachment, it must hold the _GFXConsume* of the child pass
- * rCandidate is parent of (or NULL if not consumed).
+ * consumes must hold `renderer->backing.attachs.size` pointers, for each
+ * attachment it must hold the _GFXConsume* of rPass (or NULL if not consumed).
  */
 static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
+                                      _GFXRenderPass* rPass,
                                       _GFXRenderPass* rCandidate,
                                       _GFXConsume** consumes)
 {
 	assert(renderer != NULL);
+	assert(rPass != NULL);
+	assert(!rPass->base.culled);
 	assert(rCandidate != NULL);
 	assert(!rCandidate->base.culled);
+	assert(rCandidate->base.level < rPass->base.level);
 	assert(consumes != NULL);
+
+	// The candidate may not already be merged.
+	// This would confuse all of the code.
+	if (rCandidate->out.next != NULL) return 0;
 
 	// No other passes may depend on (i.e. be child of) the candidate,
 	// as this would mean the pass may not be moved up in submission order,
 	// which it HAS to do to merge with a child.
-	// After this check, the child pass of rCandidate
-	// MUST be the _only_ non-culled child of rCandidate.
+	// After this check rPass MUST be the _only_ non-culled child of rCandidate.
 	if (rCandidate->base.childs > 1) return 0;
 
 	// See if the passes have any attachments in common.
@@ -43,45 +104,57 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 	// size, if they do not, the pass will throw warnings when building.
 	// So if the passes have overlap in consumed attachments, we can assume
 	// all of their attachments are of the same size and we can share them
-	// in a Vulkan subpass using a single framebuffer.
+	// between Vulkan subpasses.
 	// Do not bother getting actual sizes here, way too complex, why build
 	// a Vulkan subpass if there is no overlap anyway...
-	// TODO:GRA: Maybe count shared attachs for all passes in the subchain,
-	// this way they get counted more if shared more, plus we can do below
-	// checks easy.
-	// TODO:GRA: We can maybe also set the backing index of all passes here?
-	// So we can do the window check...
 	size_t sharedAttachs = 0;
+	const size_t backing = rPass->out.backing;
 
-	for (size_t i = 0; i < rCandidate->base.consumes.size; ++i)
+	// Loop over the entire chain as it currently is, beginning at master.
+	_GFXRenderPass* rCurr =
+		(rCandidate->out.master == NULL) ?
+		rCandidate : rCandidate->out.master;
+
+	for (; rCurr != NULL; rCurr = rCurr->out.next)
 	{
-		_GFXConsume* con = gfx_vec_at(&rCandidate->base.consumes, i);
-		if (con->view.index < renderer->backing.attachs.size && con->mask &
-			(GFX_ACCESS_ATTACHMENT_INPUT |
-			GFX_ACCESS_ATTACHMENT_READ |
-			GFX_ACCESS_ATTACHMENT_WRITE |
-			GFX_ACCESS_ATTACHMENT_RESOLVE))
+		// Check backing window compatibility (can only have one).
+		if (
+			backing != SIZE_MAX && rCurr->out.backing != SIZE_MAX &&
+			backing != rCurr->out.backing)
 		{
-			if (consumes[con->view.index] != NULL) ++sharedAttachs;
+			return 0;
+		}
+
+		// For each pass, check all consumptions.
+		for (size_t i = 0; i < rCurr->base.consumes.size; ++i)
+		{
+			_GFXConsume* con = gfx_vec_at(&rCurr->base.consumes, i);
+			if (_GFX_CONSUME_IS_ATTACH(con, renderer))
+			{
+				_GFXConsume* childCon = consumes[con->view.index];
+
+				// If it is an attachment & consumed as such by the child.
+				if (childCon != NULL)
+				{
+					// Check view compatibility.
+					if (!_gfx_cmp_consume(con, childCon)) return 0;
+
+					// Count consumptions for each pass.
+					++sharedAttachs;
+				}
+			}
 		}
 	}
 
-	// Not a candidate if no shared attachments.
-	if (sharedAttachs == 0) return 0;
-
-	// TODO:GRA: Determine further; reject if incompatible attachments/others.
-	// TODO:GRA: The whole chain can only contain one window written to.
-	// TODO:GRA: Reject if an attachment is consumed multiply times
-	// (by different passes) with different view or VIEWED flag.
+	// TODO:GRA: Remove this return once everything deals with subpass chains.
 	return 0;
 
-	// TODO:GRA: Incorporate sharedAttachs in score?
-	// TODO:GRA: Or maybe just use sharedAttachs as the metric straight up?
-	// Hooray we have an actual candidate!
-	// Now to calculate their score...
-	// We are going to use the length of the subpass chain as metric,
-	// the longer the better.
-	return 1 + (uint64_t)rCandidate->out.subpass;
+	// Return #<shared attachments> directly as score.
+	// Note they are counted multiple times, once for each pass they are
+	// consumed by. Such that longer chains that all share the same
+	// attachments will get favoured.
+	// Also: if 0 shared attachments, score is 0, not possible to merge!
+	return (uint64_t)sharedAttachs;
 }
 
 /****************************
@@ -117,14 +190,8 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 	for (size_t i = 0; i < rPass->base.consumes.size; ++i)
 	{
 		_GFXConsume* con = gfx_vec_at(&rPass->base.consumes, i);
-		if (con->view.index < renderer->backing.attachs.size && con->mask &
-			(GFX_ACCESS_ATTACHMENT_INPUT |
-			GFX_ACCESS_ATTACHMENT_READ |
-			GFX_ACCESS_ATTACHMENT_WRITE |
-			GFX_ACCESS_ATTACHMENT_RESOLVE))
-		{
+		if (_GFX_CONSUME_IS_ATTACH(con, renderer))
 			consumes[con->view.index] = con;
-		}
 	}
 
 	// And then actually loop over all parents.
@@ -145,12 +212,9 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 		// Also ignore culled parent passes.
 		if (rCandidate->base.culled) continue;
 
-		// Also ignore if already merged.
-		if (rCandidate->out.next != NULL) continue;
-
 		// Calculate score.
 		uint64_t pScore =
-			_gfx_pass_merge_score(renderer, rCandidate, consumes);
+			_gfx_pass_merge_score(renderer, rPass, rCandidate, consumes);
 
 		// Note: if pScore == 0, it will always be rejected!
 		if (pScore > score)
@@ -160,10 +224,16 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 	// Link it into the chain.
 	if (merge != NULL)
 	{
+		_GFXRenderPass* master =
+			(merge->out.master == NULL) ? merge : merge->out.master;
+
 		merge->out.next = rPass;
 		rPass->out.subpass = merge->out.subpass + 1;
-		rPass->out.master = (merge->out.master == NULL) ?
-			merge : merge->out.master;
+		rPass->out.master = master;
+
+		// Set backing window index of at least master.
+		if (master->out.backing == SIZE_MAX)
+			master->out.backing = rPass->out.backing;
 	}
 }
 
@@ -285,7 +355,24 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		// Ignore if culled.
 		if (rPass->base.culled) continue;
 
-		// Merge it with one of its parents.
+		// First of all, for each pass, we're gonna select a backing window.
+		// Only pick a single backing window to simplify framebuffer creation,
+		// we already need a framebuffer for each window image!
+		rPass->out.backing = SIZE_MAX;
+
+		for (size_t c = 0; c < rPass->base.consumes.size; ++c)
+		{
+			const size_t backing = _gfx_get_backing(
+				renderer, gfx_vec_at(&rPass->base.consumes, c));
+
+			if (backing != SIZE_MAX)
+			{
+				rPass->out.backing = backing;
+				break;
+			}
+		}
+
+		// Now, merge it with one of its parents.
 		_gfx_pass_merge(renderer, rPass, consumes);
 	}
 

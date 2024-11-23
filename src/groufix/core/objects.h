@@ -1117,9 +1117,11 @@ typedef struct _GFXRenderPass
 	// Graph output (relative to neighbouring passes).
 	struct
 	{
-		struct _GFXRenderPass* master;  // First subpass, NULL if this.
-		struct _GFXRenderPass* next;    // Next subpass in the chain, NULL if last.
-		uint32_t               subpass; // Subpass index.
+		struct _GFXRenderPass* master; // First subpass, NULL if this.
+		struct _GFXRenderPass* next;   // Next subpass in the chain, NULL if last.
+
+		uint32_t subpass; // Subpass index.
+		size_t   backing; // Window attachment index (or SIZE_MAX).
 
 	} out;
 
@@ -1127,7 +1129,6 @@ typedef struct _GFXRenderPass
 	// Building output (can be invalidated).
 	struct
 	{
-		size_t   backing; // Window attachment index (or SIZE_MAX).
 		uint32_t fWidth;
 		uint32_t fHeight;
 		uint32_t fLayers;

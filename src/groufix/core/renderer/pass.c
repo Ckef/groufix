@@ -274,7 +274,6 @@ static void _gfx_pass_destruct_partial(_GFXRenderPass* rPass,
 			elem->view = VK_NULL_HANDLE;
 		}
 
-		// We do not re-filter, so we must keep `build.backing`!
 		rPass->build.fWidth = 0;
 		rPass->build.fHeight = 0;
 		rPass->build.fLayers = 0;
@@ -373,8 +372,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 		rPass->out.master = NULL;
 		rPass->out.next = NULL;
 		rPass->out.subpass = 0;
+		rPass->out.backing = SIZE_MAX;
 
-		rPass->build.backing = SIZE_MAX;
 		rPass->build.fWidth = 0;
 		rPass->build.fHeight = 0;
 		rPass->build.fLayers = 0;
@@ -516,7 +515,7 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 
 	// Query the swapchain image index.
 	const uint32_t image =
-		_gfx_frame_get_swapchain_index(frame, rPass->build.backing);
+		_gfx_frame_get_swapchain_index(frame, rPass->out.backing);
 
 	// Validate & return.
 	return rPass->vk.frames.size <= image ?
@@ -556,8 +555,6 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 
 	// Start looping over all consumptions,
 	// including all consumptions of all next subpasses.
-	// Only pick a single backing window to simplify framebuffer creation,
-	// we already need a framebuffer for each window image!
 	// Also keep track of consumes for each attachment so we can link them.
 	/*const size_t numAttachs = rend->backing.attachs.size;
 
@@ -603,23 +600,13 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 				continue;
 			}
 
-			// If a window we read/write color to, pick it.
-			if (at->type == _GFX_ATTACH_WINDOW &&
-				(con->view.range.aspect & GFX_IMAGE_COLOR) &&
-				(con->mask &
-					(GFX_ACCESS_ATTACHMENT_READ |
-					GFX_ACCESS_ATTACHMENT_WRITE |
-					GFX_ACCESS_ATTACHMENT_RESOLVE)))
+			// If a window, check for duplicates.
+			if (at->type == _GFX_ATTACH_WINDOW)
 			{
-				// Check if we already had a backing window.
-				// We check against the backing index of the master pass,
-				// as it will be responsible for storing framebuffers.
-				if (rPass->build.backing == SIZE_MAX)
-					rPass->build.backing = con->view.index;
-
-				else if (rPass->build.backing != con->view.index)
+				// Check against the already pre-analyzed backing window index.
+				if (con->view.index != rPass->out.backing)
 				{
-					// Skip any other candidate, cannot create a view for it.
+					// Skip any other window, no view will be created.
 					gfx_log_warn(
 						"Consumption of attachment at index %"GFX_PRIs" "
 						"ignored, a single pass can only read/write to a "
@@ -628,17 +615,6 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 
 					continue;
 				}
-			}
-
-			// Skip any other windows too, no view will be created.
-			else if (at->type == _GFX_ATTACH_WINDOW)
-			{
-				gfx_log_warn(
-					"Consumption of attachment at index %"GFX_PRIs" ignored, "
-					"a pass can only read/write to a window attachment.",
-					con->view.index);
-
-				continue;
 			}
 
 			// If a depth/stencil we read/write to, warn for duplicates.
@@ -716,20 +692,13 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			continue;
 		}
 
-		// If a window we read/write color to, pick it.
-		if (at->type == _GFX_ATTACH_WINDOW &&
-			(con->view.range.aspect & GFX_IMAGE_COLOR) &&
-			(con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ |
-				GFX_ACCESS_ATTACHMENT_WRITE |
-				GFX_ACCESS_ATTACHMENT_RESOLVE)))
+		// If a window, check for duplicates.
+		if (at->type == _GFX_ATTACH_WINDOW)
 		{
-			// Check if we already had a backing window.
-			if (rPass->build.backing == SIZE_MAX)
-				rPass->build.backing = con->view.index;
-			else
+			// Check against the already pre-analyzed backing window index.
+			if (con->view.index != rPass->out.backing)
 			{
-				// Skip any other candidate, cannot create a view for it.
+				// Skip any other window, no view will be created.
 				gfx_log_warn(
 					"Consumption of attachment at index %"GFX_PRIs" "
 					"ignored, a single pass can only read/write to a "
@@ -738,17 +707,6 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 
 				continue;
 			}
-		}
-
-		// Skip any other windows too, no view will be created.
-		else if (at->type == _GFX_ATTACH_WINDOW)
-		{
-			gfx_log_warn(
-				"Consumption of attachment at index %"GFX_PRIs" ignored, "
-				"a pass can only read/write to a window attachment.",
-				con->view.index);
-
-			continue;
 		}
 
 		// If a depth/stencil we read/write to, warn for duplicates.
@@ -1377,8 +1335,8 @@ void _gfx_pass_destruct(_GFXRenderPass* rPass)
 	// Destruct all partial things.
 	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
 
-	// Need to re-calculate what window is consumed.
-	rPass->build.backing = SIZE_MAX;
+	// Reset just in case...
+	rPass->out.backing = SIZE_MAX;
 
 	// Clear memory.
 	gfx_vec_clear(&rPass->vk.clears);
