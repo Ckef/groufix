@@ -700,7 +700,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// TODO:GRA: Somehow do this for all subpasses if this is master.
 	// And skip all this if this is not master.
 	// Need to set the correct state.enabled value for all subpasses.
-	// And somehow propagate the VK pass and subpass index to all subpasses.
+	// And somehow propagate the VK pass to all subpasses.
 	// Used for creating pipelines, which are still for specific passes.
 	// TODO:GRA: As for blend states and clear values, do that for all
 	// passes anyway, regardless if its master? Just do this during filtering?
@@ -1016,9 +1016,6 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	GFXRenderer* rend = rPass->base.renderer;
 	_GFXContext* context = rend->cache.context;
 
-	// TODO:GRA: Skip all this if this is not master.
-	// We somehow want to propagate the dimensions to all subpasses.
-
 	// Ignore this pass if it's culled.
 	if (rPass->base.culled)
 		return 1;
@@ -1130,6 +1127,19 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 
 			view->view = *vkView; // So it's made stale later on.
 		}
+	}
+
+	// Now that we validated the dimensions,
+	// propogate them to all subpasses.
+	// This so the user can still query this through recorders for any pass.
+	for (
+		_GFXRenderPass* subpass = rPass->out.next;
+		subpass != NULL;
+		subpass = subpass->out.next)
+	{
+		subpass->build.fWidth = rPass->build.fWidth;
+		subpass->build.fHeight = rPass->build.fHeight;
+		subpass->build.fLayers = rPass->build.fLayers;
 	}
 
 	// Ok now we need to create all the framebuffers.
