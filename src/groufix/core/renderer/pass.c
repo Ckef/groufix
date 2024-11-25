@@ -157,6 +157,7 @@ static inline void _gfx_pass_gen(_GFXRenderPass* rPass)
 /****************************
  * Stand-in function for all the gfx_pass_consume* variants.
  * The `flags`, `mask`, `stage` and `view` fields of consume must be set.
+ * As for `flags`, _GFX_CONSUME_BLEND may _NOT_ be set.
  * @see gfx_pass_consume*.
  * @param consume Cannot be NULL.
  */
@@ -379,10 +380,10 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 		rPass->vk.pass = VK_NULL_HANDLE;
 
 		// Add an extra char so we know to set independent blend state.
-		// Align so access to the Vulkan structs is aligned.
+		// Align so access to the blend structs is aligned.
 		const size_t blendsSize = GFX_ALIGN_UP(
-			sizeof(VkPipelineColorBlendAttachmentState) + sizeof(char),
-			alignof(VkPipelineColorBlendAttachmentState));
+			sizeof(GFXBlendOpState) * 2 + sizeof(char),
+			alignof(GFXBlendOpState));
 
 		gfx_vec_init(&rPass->vk.clears, sizeof(VkClearValue));
 		gfx_vec_init(&rPass->vk.blends, blendsSize);
@@ -703,7 +704,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// And somehow propagate the VK pass to all subpasses.
 	// Used for creating pipelines, which are still for specific passes.
 	// TODO:GRA: As for blend states and clear values, do that for all
-	// passes anyway, regardless if its master? Just do this during filtering?
+	// passes anyway, regardless if its master?
 	// And what to do about subpass clear values, use vkCmdClearAttachments?
 	// Furthermore, we can just make vk.clears and vk.blends straight pointers,
 	// no need for it to be a vector, always same size as vk.views.
@@ -923,50 +924,12 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 		{
 			gfx_vec_push(&rPass->vk.blends, 1, NULL);
 
-			VkPipelineColorBlendAttachmentState* pcbas =
+			GFXBlendOpState* blend =
 				gfx_vec_at(&rPass->vk.blends, rPass->vk.blends.size - 1);
 
-			*pcbas = (VkPipelineColorBlendAttachmentState){
-				.blendEnable         = VK_FALSE,
-				.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-				.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-				.colorBlendOp        = VK_BLEND_OP_ADD,
-				.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-				.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-				.alphaBlendOp        = VK_BLEND_OP_ADD,
-				.colorWriteMask      =
-					VK_COLOR_COMPONENT_R_BIT |
-					VK_COLOR_COMPONENT_G_BIT |
-					VK_COLOR_COMPONENT_B_BIT |
-					VK_COLOR_COMPONENT_A_BIT
-			};
-
-			// Only set if independent blend state is given.
-			// Otherwise, leave them at the defaults.
-			const char isIndependent = con->flags & _GFX_CONSUME_BLEND;
-			*(char*)(pcbas + 1) = isIndependent;
-
-			if (isIndependent && con->color.op != GFX_BLEND_NO_OP)
-			{
-				pcbas->blendEnable = VK_TRUE;
-				pcbas->srcColorBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->color.srcFactor);
-				pcbas->dstColorBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->color.dstFactor);
-				pcbas->colorBlendOp =
-					_GFX_GET_VK_BLEND_OP(con->color.op);
-			}
-
-			if (isIndependent && con->alpha.op != GFX_BLEND_NO_OP)
-			{
-				pcbas->blendEnable = VK_TRUE;
-				pcbas->srcAlphaBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->alpha.srcFactor);
-				pcbas->dstAlphaBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->alpha.dstFactor);
-				pcbas->alphaBlendOp =
-					_GFX_GET_VK_BLEND_OP(con->alpha.op);
-			}
+			*(blend + 0) = con->color;
+			*(blend + 1) = con->alpha;
+			*(char*)(blend + 2) = (char)(con->flags & _GFX_CONSUME_BLEND);
 		}
 	}
 

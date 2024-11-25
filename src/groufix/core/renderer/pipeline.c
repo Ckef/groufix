@@ -146,32 +146,47 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 	for (size_t i = 0; i < rPass->vk.blends.size; ++i)
 	{
-		VkPipelineColorBlendAttachmentState* pcbasi =
-			gfx_vec_at(&rPass->vk.blends, i);
+		const GFXBlendOpState* blendOp = gfx_vec_at(&rPass->vk.blends, i);
+		const char isInd = *(char*)(blendOp + 2);
 
-		const char isIndependent = *(char*)(pcbasi + 1);
-		pcbas[i] = *pcbasi;
+		const GFXBlendOpState* color = isInd ? (blendOp + 0) : &blend->color;
+		const GFXBlendOpState* alpha = isInd ? (blendOp + 1) : &blend->alpha;
 
-		if (!isIndependent && blend->color.op != GFX_BLEND_NO_OP)
+		pcbas[i] = (VkPipelineColorBlendAttachmentState){
+			.blendEnable         = VK_FALSE,
+			.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+			.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+			.colorBlendOp        = VK_BLEND_OP_ADD,
+			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+			.alphaBlendOp        = VK_BLEND_OP_ADD,
+			.colorWriteMask      =
+				VK_COLOR_COMPONENT_R_BIT |
+				VK_COLOR_COMPONENT_G_BIT |
+				VK_COLOR_COMPONENT_B_BIT |
+				VK_COLOR_COMPONENT_A_BIT
+		};
+
+		if (color->op != GFX_BLEND_NO_OP)
 		{
 			pcbas[i].blendEnable = VK_TRUE;
 			pcbas[i].srcColorBlendFactor =
-				_GFX_GET_VK_BLEND_FACTOR(blend->color.srcFactor);
+				_GFX_GET_VK_BLEND_FACTOR(color->srcFactor);
 			pcbas[i].dstColorBlendFactor =
-				_GFX_GET_VK_BLEND_FACTOR(blend->color.dstFactor);
+				_GFX_GET_VK_BLEND_FACTOR(color->dstFactor);
 			pcbas[i].colorBlendOp =
-				_GFX_GET_VK_BLEND_OP(blend->color.op);
+				_GFX_GET_VK_BLEND_OP(color->op);
 		}
 
-		if (!isIndependent && blend->alpha.op != GFX_BLEND_NO_OP)
+		if (alpha->op != GFX_BLEND_NO_OP)
 		{
 			pcbas[i].blendEnable = VK_TRUE;
 			pcbas[i].srcAlphaBlendFactor =
-				_GFX_GET_VK_BLEND_FACTOR(blend->alpha.srcFactor);
+				_GFX_GET_VK_BLEND_FACTOR(alpha->srcFactor);
 			pcbas[i].dstAlphaBlendFactor =
-				_GFX_GET_VK_BLEND_FACTOR(blend->alpha.dstFactor);
+				_GFX_GET_VK_BLEND_FACTOR(alpha->dstFactor);
 			pcbas[i].alphaBlendOp =
-				_GFX_GET_VK_BLEND_OP(blend->alpha.op);
+				_GFX_GET_VK_BLEND_OP(alpha->op);
 		}
 	}
 
