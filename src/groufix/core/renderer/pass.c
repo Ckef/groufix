@@ -523,8 +523,9 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 }
 
 /****************************
- * Filters all consumed attachments into framebuffer views &
- * a potential window to use as back-buffer, silently logging issues.
+ * Filters all consumed attachments into framebuffer views.
+ * Meaning the `vk.views` field (excluding image view) of rPass and the `build`
+ * field of all consumptions of all next subpasses are set.
  * @param rPass Cannot be NULL, must be first in the subpass chain and not culled.
  * @return Zero on failure.
  */
@@ -725,6 +726,82 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// Filter consumptions into attachment views.
 	if (!_gfx_pass_filter_attachments(rPass))
 		return 0;
+
+	/*
+	// We need to build all Vulkan subpasses corresponding to the whole
+	// subpass chain. We're gonna simultaneously loop over all consumptions
+	// and subpasses, in a single loop.
+	const size_t numViews = rPass->vk.views.size;
+	const size_t vlaViews = numViews > 0 ? numViews : 1;
+	const _GFXConsume* consumes[vlaViews];
+
+	for (size_t i = 0; i < numViews; ++i) consumes[i] =
+		((_GFXViewElem*)gfx_vec_at(&rPass->vk.views, i))->consume;
+
+	// Prepare Vulkan pass data.
+	VkAttachmentDescription ad[vlaViews];
+	VkSubpassDescription sd[rPass->out.subpasses];
+
+	// Start looping over all subpasses & consumptions,
+	// including all next subpasses & their consumptions.
+	for (
+		_GFXRenderPass* subpass = rPass;
+		subpass != NULL;
+		subpass = subpass->out.next)
+	{
+		// We are always gonna update the clear & blend values.
+		// Same for state variables & enables.
+		gfx_vec_release(&subpass->vk.clears);
+		gfx_vec_release(&subpass->vk.blends);
+		subpass->state.samples = 1;
+		subpass->state.enabled = 0;
+
+		// Both need one element per view max.
+		if (!gfx_vec_reserve(&subpass->vk.clears, numViews))
+			return 0;
+
+		if (!gfx_vec_reserve(&subpass->vk.blends, numViews))
+			return 0;
+
+		// TODO:GRA: Continue implementing...
+	}
+
+	// Ok now create the Vulkan render pass.
+	VkRenderPassCreateInfo rpci = {
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+
+		.pNext           = NULL,
+		.flags           = 0,
+		.attachmentCount = (uint32_t)numViews,
+		.pAttachments    = numViews > 0 ? ad : NULL,
+		.subpassCount    = rPass->out.subpasses,
+		.pSubpasses      = &sd,
+		// TODO:GRA: Give it dependencies.
+		.dependencyCount = 0,
+		.pDependencies   = NULL
+	};
+
+	// Remember the cache element for locality!
+	rPass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
+	if (rPass->build.pass == NULL) return 0;
+
+	rPass->vk.pass = rPass->build.pass->vk.pass;
+
+	// Now propogate the pass to all subpasses.
+	// This so pipeline creation doesn't have to know about the master pass.
+	for (
+		_GFXRenderPass* subpass = rPass->out.next;
+		subpass != NULL;
+		subpass = subpass->out.next)
+	{
+		subpass->build.pass = rPass->build.pass;
+		subpass->vk.pass = rPass->vk.pass;
+	}
+
+	return 1;
+	*/
+
+
 
 	// We are always gonna update the clear & blend values.
 	// Do it here and not build so we don't unnecessarily reconstruct this.
@@ -999,11 +1076,13 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	// We're gonna need to create all image views.
 	// Keep track of the window used as backing so we can build framebuffers.
 	// Also in here we're gonna get the dimensions (i.e. size) of the pass.
-	VkImageView views[rPass->vk.views.size > 0 ? rPass->vk.views.size : 1];
+	const size_t numViews = rPass->vk.views.size;
+	VkImageView views[numViews > 0 ? numViews : 1];
+
 	const _GFXAttach* backing = NULL;
 	size_t backingInd = SIZE_MAX;
 
-	for (size_t i = 0; i < rPass->vk.views.size; ++i)
+	for (size_t i = 0; i < numViews; ++i)
 	{
 		_GFXViewElem* view = gfx_vec_at(&rPass->vk.views, i);
 		const _GFXConsume* con = view->consume;
@@ -1167,8 +1246,8 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 			.pNext           = NULL,
 			.flags           = 0,
 			.renderPass      = rPass->vk.pass,
-			.attachmentCount = (uint32_t)rPass->vk.views.size,
-			.pAttachments    = rPass->vk.views.size > 0 ? views : NULL,
+			.attachmentCount = (uint32_t)numViews,
+			.pAttachments    = numViews > 0 ? views : NULL,
 			.width           = GFX_MAX(1, rPass->build.fWidth),
 			.height          = GFX_MAX(1, rPass->build.fHeight),
 			.layers          = GFX_MAX(1, rPass->build.fLayers)

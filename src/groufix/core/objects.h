@@ -1041,6 +1041,7 @@ typedef struct _GFXConsume
 	// Graph output (relative to neighbouring passes).
 	struct
 	{
+		uint32_t      subpass; // Subpass index.
 		VkImageLayout initial;
 		VkImageLayout final;
 
@@ -1053,7 +1054,7 @@ typedef struct _GFXConsume
 	// Building output (can be invalidated).
 	struct
 	{
-		size_t view; // Index into vk.views of master pass, or SIZE_MAX.
+		size_t view; // Index into vk.views of master pass (or SIZE_MAX).
 
 		// Previous/next consumption in this subpass chain.
 		const struct _GFXConsume* prev;
@@ -1121,8 +1122,9 @@ typedef struct _GFXRenderPass
 		struct _GFXRenderPass* master; // First subpass, NULL if this.
 		struct _GFXRenderPass* next;   // Next subpass in the chain, NULL if last.
 
-		uint32_t subpass; // Subpass index.
-		size_t   backing; // Window attachment index (or SIZE_MAX).
+		uint32_t subpass;   // Subpass index.
+		uint32_t subpasses; // Number of subpasses (undefined if not master).
+		size_t   backing;   // Window attachment index (or SIZE_MAX).
 
 	} out;
 

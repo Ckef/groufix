@@ -179,6 +179,7 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 	rPass->out.master = NULL;
 	rPass->out.next = NULL;
 	rPass->out.subpass = 0;
+	rPass->out.subpasses = 1; // In case it is never merged with a child.
 
 	// If there are no parents, done.
 	if (rPass->numParents == 0) return;
@@ -235,6 +236,9 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 		// Set backing window index of at least master.
 		if (master->out.backing == SIZE_MAX)
 			master->out.backing = rPass->out.backing;
+
+		// Set subpass count of master.
+		master->out.subpasses = rPass->out.subpass + 1;
 	}
 }
 
@@ -255,6 +259,7 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 	assert(consumes != NULL);
 
 	GFXPass* subpass = pass;
+	uint32_t index = 0;
 
 	// Skip if not the last pass in a subpass chain.
 	// If it is the last pass, resolve for the entire chain.
@@ -278,6 +283,7 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 				gfx_vec_at(&renderer->backing.attachs, con->view.index);
 
 			// Default of NULL (no dependency) in case we skip this consumption.
+			con->out.subpass = index;
 			con->out.prev = NULL;
 
 			// Validate existence of the attachment.
@@ -338,6 +344,10 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 		// Next subpass.
 		if (subpass->type == GFX_PASS_RENDER)
 			subpass = (GFXPass*)((_GFXRenderPass*)subpass)->out.next;
+		else
+			subpass = NULL;
+
+		++index;
 	}
 }
 
