@@ -886,6 +886,11 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					GFX_ACCESS_ATTACHMENT_READ |
 					GFX_ACCESS_ATTACHMENT_WRITE))
 				{
+					// When we write to the attachment,
+					// remember the greatest sample count for pipelines.
+					if (at->image.base.samples > subpass->state.samples)
+						subpass->state.samples = at->image.base.samples;
+
 					// Reference as color attachment.
 					if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt))
 					{
@@ -945,11 +950,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 						VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 
 					ad[i].initialLayout = con->out.initial;
-
-					// TODO:GRA: Should probably not only set samples for the first subpass.
-					// Remember the greatest sample count for pipelines.
-					if (ad[i].samples > subpass->state.samples)
-						subpass->state.samples = (unsigned char)ad[i].samples;
 				}
 
 				if (con->out.state & _GFX_CONSUME_IS_LAST)
@@ -975,6 +975,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				const _GFXConsume* prev = con->out.prev;
 
 				// TODO:GRA: Probably need to have dependencies to VK_SUBPASS_EXTERNAL?
+				// Base this more off of parent pass' mask/stage settings?
 
 				const VkPipelineStageFlags srcStageMask =
 					_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);

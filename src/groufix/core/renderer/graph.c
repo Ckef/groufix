@@ -344,6 +344,13 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 				// Link the previous consumption to the next.
 				prev->out.next = con;
 
+				// Set subpass chain state if previous is of the same chain.
+				if (thisChain[con->view.index])
+				{
+					prev->out.state &= ~(unsigned int)_GFX_CONSUME_IS_LAST;
+					con->out.state &= ~(unsigned int)_GFX_CONSUME_IS_FIRST;
+				}
+
 				// Insert dependency (i.e. execution barrier) if necessary:
 				// - Either source or target writes.
 				// - Inequal layouts, need layout transition.
@@ -353,13 +360,6 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 
 				if (srcWrites || dstWrites || transition)
 					con->out.prev = prev;
-
-				// Set subpass chain state if previous is of the same chain.
-				if (thisChain[con->view.index])
-				{
-					prev->out.state &= ~(unsigned int)_GFX_CONSUME_IS_LAST;
-					con->out.state &= ~(unsigned int)_GFX_CONSUME_IS_FIRST;
-				}
 			}
 
 			// Store the consumption for this attachment so the next

@@ -620,7 +620,16 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// TODO:GRA: If a pass is the last, record master and all next passes
 		// and handle the whole VK subpass structure like that.
 		// And what to do about subpass clear values, use vkCmdClearAttachments?
-		// And what to do about dependency injection and subpasses...
+		// TODO:GRA: And what to do about dependency injection and subpasses.
+		// The problem being: we need to define subpass dependencies ahead of
+		// time, such that non-attachments their pipelines' scope reaches
+		// outside its own subpass, and we can inject.
+		// Maybe when you create the pass, give the mask/stage with which
+		// it makes a dependencies for each parent pass?
+		// Otherwise, let the user define dependencies between pairs of
+		// passes some other way?
+		// TODO:GRA: Don't forget to document the solution,
+		// mostly at `deps.h` and `gfx_pass_inject()`
 
 		// Do nothing if pass is culled.
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
