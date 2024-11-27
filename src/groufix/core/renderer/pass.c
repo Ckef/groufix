@@ -776,24 +776,28 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 		// and check if there is a consumption for it of this subpass.
 		for (size_t i = 0; i < numViews; ++i)
 		{
-			// Loop over this consumption chain till we get to this subpass.
+			// Get current consumption, advance if of the previous subpass.
 			const _GFXConsume* con = consumes[i];
 
-			while (con != NULL && con->out.subpass < subpass->out.subpass)
+			if (con != NULL && con->out.subpass < subpass->out.subpass)
 				consumes[i] = con = con->build.next;
 
 			// This subpass does _not_ consume this attachment.
 			if (con == NULL)
 				continue;
 
+			// But it will be consumed by a next subpass.
 			else if (con->out.subpass > subpass->out.subpass)
 			{
-				// But it will be consumed by a next subpass.
+				// Has it been consumed by a previous subpass?
 				// Reference as preserve attachment.
-				const uint32_t ref = (uint32_t)i;
+				if (con->build.prev != NULL)
+				{
+					const uint32_t ref = (uint32_t)i;
 
-				gfx_vec_push(&preserves, 1, &ref);
-				++numPreserves;
+					gfx_vec_push(&preserves, 1, &ref);
+					++numPreserves;
+				}
 
 				continue;
 			}
