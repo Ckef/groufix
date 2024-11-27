@@ -620,6 +620,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// TODO:GRA: If a pass is the last, record master and all next passes
 		// and handle the whole VK subpass structure like that.
 		// And what to do about subpass clear values, use vkCmdClearAttachments?
+		// And what to do about dependency injection and subpasses...
 
 		// Do nothing if pass is culled.
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);

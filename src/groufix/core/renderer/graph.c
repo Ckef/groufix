@@ -260,7 +260,6 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 
 	GFXPass* subpass = pass;
 	uint32_t index = 0;
-	unsigned int state = _GFX_CONSUME_IS_FIRST | _GFX_CONSUME_IS_LAST;
 
 	// Skip if not the last pass in a subpass chain.
 	// If it is the last pass, resolve for the entire chain.
@@ -275,10 +274,7 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 
 		// See if it is a chain and start at master.
 		if (rPass->out.master != NULL)
-		{
 			subpass = (GFXPass*)rPass->out.master;
-			state |= _GFX_CONSUME_IS_IN_CHAIN;
-		}
 	}
 
 	// And start looping over the entire subpass chain.
@@ -302,9 +298,9 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 			con->out.subpass = index;
 			con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 			con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
+			con->out.state = _GFX_CONSUME_IS_FIRST | _GFX_CONSUME_IS_LAST;
 			con->out.prev = NULL;
 			con->out.next = NULL;
-			con->out.state = state;
 
 			// Validate existence of the attachment.
 			if (

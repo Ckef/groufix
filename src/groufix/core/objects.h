@@ -1045,21 +1045,18 @@ typedef struct _GFXConsume
 		VkImageLayout initial;
 		VkImageLayout final;
 
+		enum {
+			_GFX_CONSUME_IS_FIRST = 0x0001,
+			_GFX_CONSUME_IS_LAST  = 0x0002
+
+		} state; // Subpass chain state.
+
+
 		// Non-NULL to form a dependency.
 		const struct _GFXConsume* prev;
 
 		// Non-NULL regardless of dependencies.
 		const struct _GFXConsume* next;
-
-
-		// Subpass chain state.
-		enum
-		{
-			_GFX_CONSUME_IS_IN_CHAIN = 0x0001,
-			_GFX_CONSUME_IS_FIRST    = 0x0002,
-			_GFX_CONSUME_IS_LAST     = 0x0004
-
-		} state;
 
 	} out;
 

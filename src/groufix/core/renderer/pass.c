@@ -946,6 +946,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 
 					ad[i].initialLayout = con->out.initial;
 
+					// TODO:GRA: Should probably not only set samples for the first subpass.
 					// Remember the greatest sample count for pipelines.
 					if (ad[i].samples > subpass->state.samples)
 						subpass->state.samples = (unsigned char)ad[i].samples;
