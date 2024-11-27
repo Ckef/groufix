@@ -1048,7 +1048,7 @@ typedef struct _GFXConsume
 		// Non-NULL to form a dependency.
 		const struct _GFXConsume* prev;
 
-		// Next in the subpass chain.
+		// Non-NULL regardless of dependencies.
 		const struct _GFXConsume* next;
 
 

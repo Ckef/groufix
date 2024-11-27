@@ -758,14 +758,16 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			const _GFXConsume* con = consumes[i];
 
 			if (con != NULL && con->out.subpass < subpass->out.subpass)
-				consumes[i] = con = con->out.next;
+				consumes[i] = con =
+					(con->out.state & _GFX_CONSUME_IS_LAST) ?
+					NULL : con->out.next;
 
 			// This subpass does _not_ consume this attachment.
 			if (con == NULL)
 				continue;
 
 			// But it will be consumed by a next subpass.
-			else if (con->out.subpass > subpass->out.subpass)
+			if (con->out.subpass > subpass->out.subpass)
 			{
 				// Has it been consumed by a previous subpass?
 				// Reference as preserve attachment.

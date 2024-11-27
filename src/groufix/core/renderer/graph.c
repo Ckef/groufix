@@ -317,14 +317,6 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 			// Get previous consumption from the previous resolve calls.
 			_GFXConsume* prev = consumes[con->view.index];
 
-			// Link it to this consumption if it's of the same chain.
-			if (thisChain[con->view.index])
-			{
-				prev->out.next = con;
-				prev->out.state &= ~(unsigned int)_GFX_CONSUME_IS_LAST;
-				con->out.state &= ~(unsigned int)_GFX_CONSUME_IS_FIRST;
-			}
-
 			// Compute initial/final layout based on neighbours.
 			if (at->type == _GFX_ATTACH_WINDOW)
 			{
@@ -350,9 +342,12 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 				con->out.final = layout;
 			}
 
-			// See if we need to insert a dependency.
+			// Link the consumptions.
 			if (prev != NULL)
 			{
+				// Link the previous consumption to the next.
+				prev->out.next = con;
+
 				// Insert dependency (i.e. execution barrier) if necessary:
 				// - Either source or target writes.
 				// - Inequal layouts, need layout transition.
@@ -362,6 +357,13 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 
 				if (srcWrites || dstWrites || transition)
 					con->out.prev = prev;
+
+				// Set subpass chain state if previous is of the same chain.
+				if (thisChain[con->view.index])
+				{
+					prev->out.state &= ~(unsigned int)_GFX_CONSUME_IS_LAST;
+					con->out.state &= ~(unsigned int)_GFX_CONSUME_IS_FIRST;
+				}
 			}
 
 			// Store the consumption for this attachment so the next
