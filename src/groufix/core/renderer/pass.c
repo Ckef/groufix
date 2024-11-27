@@ -1518,7 +1518,6 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 			con->cleared = aspect;
 			con->clear.gfx = value; // Type-punned into a VkClearValue!
 
-			// TODO:GRA: If we can just update, we do not need to invalidate!
 			// Same as _gfx_pass_consume, invalidate for destruction.
 			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 			break;
@@ -1552,7 +1551,6 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 			con->color = color;
 			con->alpha = alpha;
 
-			// TODO:GRA: If we can just update, we only need to increase gen!
 			// Same as _gfx_pass_consume, invalidate for destruction.
 			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 			break;
