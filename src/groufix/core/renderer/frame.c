@@ -625,7 +625,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 
 		// TODO:GRA: If a pass is the last, record master and all next passes
 		// and handle the whole VK subpass structure like that.
-		// Handle clearing in subpasses with manual clear commands?
+		// And what to do about subpass clear values, use vkCmdClearAttachments?
 
 		// Inject wait commands.
 		if (!_gfx_deps_catch(
