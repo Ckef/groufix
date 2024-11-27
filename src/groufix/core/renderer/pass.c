@@ -640,7 +640,11 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 				// add the new view element referencing this consumption,
 				// referencing the attachment in turn.
 				_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
-				gfx_vec_push(&rPass->vk.views, 1, &elem);
+				if (!gfx_vec_push(&rPass->vk.views, 1, &elem))
+				{
+					gfx_vec_release(&rPass->vk.views);
+					return 0;
+				}
 			}
 			else
 			{
@@ -690,6 +694,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	assert(rPass->base.type == GFX_PASS_RENDER);
 
 	GFXRenderer* rend = rPass->base.renderer;
+	_GFXContext* context = rend->cache.context;
 
 	// Ignore this pass if it's culled.
 	if (rPass->base.culled)
@@ -728,7 +733,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	GFXVec resolves;
 	VkAttachmentReference depStens[rPass->out.subpasses];
 	GFXVec preserves;
-	// TODO:GRA: Determine dependencies somehow.
 	GFXVec dependencies;
 
 	gfx_vec_init(&inputs, sizeof(VkAttachmentReference));
@@ -795,7 +799,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				{
 					const uint32_t ref = (uint32_t)i;
 
-					gfx_vec_push(&preserves, 1, &ref);
+					if (!gfx_vec_push(&preserves, 1, &ref)) goto clean;
 					++numPreserves;
 				}
 
@@ -805,6 +809,11 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			// This subpass _does_ consume this attachment.
 			const _GFXAttach* at =
 				gfx_vec_at(&rend->backing.attachs, con->view.index);
+
+			const GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
+				// Pick empty format for windows, which results in non-depth/stencil
+				// access flags and pipeline stages, which is what we want :)
+				at->image.base.format : GFX_FORMAT_EMPTY;
 
 			bool isColor = 0;
 
@@ -821,8 +830,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 						.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 					};
 
-					gfx_vec_push(&colors, 1, &ref);
-					gfx_vec_push(&resolves, 1, &unused);
+					if (!gfx_vec_push(&colors, 1, &ref)) goto clean;
+					if (!gfx_vec_push(&resolves, 1, &unused)) goto clean;
 					++numColors;
 
 					isColor = 1;
@@ -866,16 +875,14 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			else
 			{
 				// Build references.
-				const GFXFormat fmt = at->image.base.format;
+				const uint32_t resolveInd =
+					_gfx_pass_find_attachment(rPass, con->resolve);
 
 				const bool aspect = // Whether the viewed aspect exists.
 					con->view.range.aspect &
 					(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
 						GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL :
 						GFX_IMAGE_COLOR);
-
-				const uint32_t resolveInd =
-					_gfx_pass_find_attachment(rPass, con->resolve);
 
 				const VkAttachmentReference ref = !aspect ?
 					unused :
@@ -895,7 +902,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				// Reference as input attachment.
 				if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
 				{
-					gfx_vec_push(&inputs, 1, &ref);
+					if (!gfx_vec_push(&inputs, 1, &ref)) goto clean;
 					++numInputs;
 				}
 
@@ -906,8 +913,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					// Reference as color attachment.
 					if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt))
 					{
-						gfx_vec_push(&colors, 1, &ref);
-						gfx_vec_push(&resolves, 1, &resolveRef);
+						if (!gfx_vec_push(&colors, 1, &ref)) goto clean;
+						if (!gfx_vec_push(&resolves, 1, &resolveRef)) goto clean;
 						++numColors;
 
 						isColor = 1;
@@ -983,11 +990,31 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				}
 			}
 
-			// Lastly, store the clear value for when we begin the pass,
-			// memory is already reserved :)
-			gfx_vec_push(&subpass->vk.clears, 1, &con->clear.vk);
+			// Check if we need to insert a subpass dependency.
+			if (con->out.prev != NULL && con->build.prev != NULL)
+			{
+				const _GFXConsume* prev = con->out.prev;
 
-			// Same for the blend values for building pipelines.
+				const VkPipelineStageFlags srcStageMask =
+					_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);
+				const VkPipelineStageFlags dstStageMask =
+					_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
+
+				VkSubpassDependency dependency = {
+					.srcSubpass    = prev->out.subpass,
+					.dstSubpass    = con->out.subpass,
+					.srcStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+					.dstStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+					.srcAccessMask = _GFX_GET_VK_ACCESS_FLAGS(prev->mask, fmt),
+					.dstAccessMask = _GFX_GET_VK_ACCESS_FLAGS(con->mask, fmt),
+				};
+
+				if (!gfx_vec_push(&dependencies, 1, &dependency))
+					goto clean;
+			}
+
+			// Lastly, store the blend values for building pipelines,
+			// memory is already reserved :)
 			if (isColor)
 			{
 				gfx_vec_push(&subpass->vk.blends, 1, NULL);
@@ -999,6 +1026,9 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				*(blend + 1) = con->alpha;
 				*(char*)(blend + 2) = (char)(con->flags & _GFX_CONSUME_BLEND);
 			}
+
+			// Same for the clear values for when we begin the pass.
+			gfx_vec_push(&subpass->vk.clears, 1, &con->clear.vk);
 		}
 
 		// Output the Vulkan subpass.
