@@ -215,13 +215,9 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 	con->resolve = SIZE_MAX;
 
 invalidate:
-	// Always reset graph output.
-	con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
-	con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
-	con->out.prev = NULL;
-
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.
+	// This also means the graph will be re-analyzed!
 	if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 
 	return 1;
@@ -524,8 +520,7 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 
 /****************************
  * Filters all consumed attachments into framebuffer views.
- * Meaning the `vk.views` field (excluding image view) of rPass and the `build`
- * field of all consumptions of all next subpasses are set.
+ * Meaning the `vk.views` field (excluding image view) of rPass are set.
  * @param rPass Cannot be NULL, must be first in the subpass chain and not culled.
  * @return Zero on failure.
  */
@@ -549,12 +544,6 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 
 	// Start looping over all consumptions,
 	// including all consumptions of all next subpasses.
-	// Also keep track of consumes for each attachment so we can link them.
-	const size_t numAttachs = rend->backing.attachs.size;
-
-	_GFXConsume* consumes[numAttachs > 0 ? numAttachs : 1];
-	for (size_t i = 0; i < numAttachs; ++i) consumes[i] = NULL;
-
 	for (
 		_GFXRenderPass* subpass = rPass;
 		subpass != NULL;
@@ -564,14 +553,10 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 
 		for (size_t i = 0; i < subpass->base.consumes.size; ++i)
 		{
-			_GFXConsume* con =
+			const _GFXConsume* con =
 				gfx_vec_at(&subpass->base.consumes, i);
-			_GFXAttach* at =
+			const _GFXAttach* at =
 				gfx_vec_at(&rend->backing.attachs, con->view.index);
-
-			// Default to not referencing this consumption.
-			con->build.prev = NULL;
-			con->build.next = NULL;
 
 			// Validate existence of the attachment.
 			if (
@@ -632,12 +617,10 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			// At this point, we want to reference this consumption,
 			// which references an attachment that may or may not have
 			// already been referenced by a consumption from a previous pass.
-			_GFXConsume* prev = consumes[con->view.index];
-
-			if (prev == NULL)
+			if (con->out.state & _GFX_CONSUME_IS_FIRST)
 			{
-				// If the attachment was not referenced yet,
-				// add the new view element referencing this consumption,
+				// If it is the first (either a single pass or in a chain),
+				// add the new view element refercing this consumption chain,
 				// referencing the attachment in turn.
 				_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
 				if (!gfx_vec_push(&rPass->vk.views, 1, &elem))
@@ -646,15 +629,6 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 					return 0;
 				}
 			}
-			else
-			{
-				// If it was referenced already, just link it in.
-				prev->build.next = con;
-				con->build.prev = prev;
-			}
-
-			// Store so the next subpass knows about it.
-			consumes[con->view.index] = con;
 		}
 	}
 
@@ -784,7 +758,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			const _GFXConsume* con = consumes[i];
 
 			if (con != NULL && con->out.subpass < subpass->out.subpass)
-				consumes[i] = con = con->build.next;
+				consumes[i] = con = con->out.next;
 
 			// This subpass does _not_ consume this attachment.
 			if (con == NULL)
@@ -795,7 +769,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			{
 				// Has it been consumed by a previous subpass?
 				// Reference as preserve attachment.
-				if (con->build.prev != NULL)
+				if (!(con->out.state & _GFX_CONSUME_IS_FIRST))
 				{
 					const uint32_t ref = (uint32_t)i;
 
@@ -838,7 +812,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				}
 
 				// Describe the attachment.
-				if (con->build.prev == NULL)
+				if (con->out.state & _GFX_CONSUME_IS_FIRST)
 				{
 					// Initialize (first pass to use it).
 					const bool clear =
@@ -860,7 +834,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					ad[i].initialLayout = con->out.initial;
 				}
 
-				if (con->build.next == NULL)
+				if (con->out.state & _GFX_CONSUME_IS_LAST)
 				{
 					// Finalize (last pass to use it).
 					ad[i].storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
@@ -933,7 +907,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				}
 
 				// Describe the attachment.
-				if (con->build.prev == NULL)
+				if (con->out.state & _GFX_CONSUME_IS_FIRST)
 				{
 					// Initialize (first pass to use it).
 					const bool firstClear =
@@ -975,7 +949,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 						subpass->state.samples = (unsigned char)ad[i].samples;
 				}
 
-				if (con->build.next == NULL)
+				if (con->out.state & _GFX_CONSUME_IS_LAST)
 				{
 					// Finalize (last pass to use it).
 					ad[i].storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
@@ -991,9 +965,13 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			}
 
 			// Check if we need to insert a subpass dependency.
-			if (con->out.prev != NULL && con->build.prev != NULL)
+			if (
+				(con->out.prev != NULL) &&
+				!(con->out.state & _GFX_CONSUME_IS_FIRST))
 			{
 				const _GFXConsume* prev = con->out.prev;
+
+				// TODO:GRA: Probably need to have dependencies to VK_SUBPASS_EXTERNAL?
 
 				const VkPipelineStageFlags srcStageMask =
 					_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);

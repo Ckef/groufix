@@ -617,15 +617,15 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 	// Record all requested passes.
 	for (size_t p = first; p < first + num; ++p)
 	{
+		// TODO:GRA: If a pass is the last, record master and all next passes
+		// and handle the whole VK subpass structure like that.
+		// And what to do about subpass clear values, use vkCmdClearAttachments?
+
 		// Do nothing if pass is culled.
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 		if (pass->culled) continue;
 
 		injection->inp.pass = pass; // Update injection.
-
-		// TODO:GRA: If a pass is the last, record master and all next passes
-		// and handle the whole VK subpass structure like that.
-		// And what to do about subpass clear values, use vkCmdClearAttachments?
 
 		// Inject wait commands.
 		if (!_gfx_deps_catch(
@@ -640,7 +640,9 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		for (size_t c = 0; c < pass->consumes.size; ++c)
 		{
 			const _GFXConsume* con = gfx_vec_at(&pass->consumes, c);
-			if (con->out.prev != NULL)
+			if (
+				(con->out.prev != NULL) &&
+				(con->out.state & _GFX_CONSUME_IS_FIRST))
 			{
 				if (!_gfx_frame_push_barrier(renderer, frame, con, injection))
 					return 0;

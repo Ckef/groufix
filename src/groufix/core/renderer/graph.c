@@ -10,7 +10,7 @@
 #include <assert.h>
 
 
-// Check if a consumption has attachment access.
+// Check if a consumption has attachment access to an existing attachment.
 #define _GFX_CONSUME_IS_ATTACH(con, renderer) \
 	(con->view.index < renderer->backing.attachs.size && con->mask & \
 		(GFX_ACCESS_ATTACHMENT_INPUT | \
@@ -260,6 +260,7 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 
 	GFXPass* subpass = pass;
 	uint32_t index = 0;
+	unsigned int state = _GFX_CONSUME_IS_FIRST | _GFX_CONSUME_IS_LAST;
 
 	// Skip if not the last pass in a subpass chain.
 	// If it is the last pass, resolve for the entire chain.
@@ -268,9 +269,24 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 	if (pass->type == GFX_PASS_RENDER)
 	{
 		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
-		if (rPass->out.next != NULL) return; // Skip if not last.
-		if (rPass->out.master != NULL) subpass = (GFXPass*)rPass->out.master;
+
+		// Skip if not last.
+		if (rPass->out.next != NULL) return;
+
+		// See if it is a chain and start at master.
+		if (rPass->out.master != NULL)
+		{
+			subpass = (GFXPass*)rPass->out.master;
+			state |= _GFX_CONSUME_IS_IN_CHAIN;
+		}
 	}
+
+	// And start looping over the entire subpass chain.
+	// Keep track of what consumptions have been seen in this chain.
+	const size_t numAttachs = renderer->backing.attachs.size;
+
+	bool thisChain[numAttachs > 0 ? numAttachs : 1];
+	for (size_t i = 0; i < numAttachs; ++i) thisChain[i] = 0;
 
 	while (subpass != NULL)
 	{
@@ -282,9 +298,13 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 			const _GFXAttach* at =
 				gfx_vec_at(&renderer->backing.attachs, con->view.index);
 
-			// Default of NULL (no dependency) in case we skip this consumption.
+			// Default of empty in case we skip this consumption.
 			con->out.subpass = index;
+			con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
+			con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
 			con->out.prev = NULL;
+			con->out.next = NULL;
+			con->out.state = state;
 
 			// Validate existence of the attachment.
 			if (
@@ -296,6 +316,14 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 
 			// Get previous consumption from the previous resolve calls.
 			_GFXConsume* prev = consumes[con->view.index];
+
+			// Link it to this consumption if it's of the same chain.
+			if (thisChain[con->view.index])
+			{
+				prev->out.next = con;
+				prev->out.state &= ~(unsigned int)_GFX_CONSUME_IS_LAST;
+				con->out.state &= ~(unsigned int)_GFX_CONSUME_IS_FIRST;
+			}
 
 			// Compute initial/final layout based on neighbours.
 			if (at->type == _GFX_ATTACH_WINDOW)
@@ -339,15 +367,15 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 			// Store the consumption for this attachment so the next
 			// resolve calls have this data.
 			consumes[con->view.index] = con;
+			thisChain[con->view.index] = 1;
 		}
 
 		// Next subpass.
-		if (subpass->type == GFX_PASS_RENDER)
-			subpass = (GFXPass*)((_GFXRenderPass*)subpass)->out.next;
-		else
+		if (subpass->type != GFX_PASS_RENDER)
 			subpass = NULL;
-
-		++index;
+		else
+			subpass = (GFXPass*)((_GFXRenderPass*)subpass)->out.next,
+			++index;
 	}
 }
 

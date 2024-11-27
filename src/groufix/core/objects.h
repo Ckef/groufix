@@ -1048,17 +1048,20 @@ typedef struct _GFXConsume
 		// Non-NULL to form a dependency.
 		const struct _GFXConsume* prev;
 
-	} out;
-
-
-	// Building output (can be invalidated).
-	struct
-	{
-		// Previous/next consumption in this subpass chain.
-		const struct _GFXConsume* prev;
+		// Next in the subpass chain.
 		const struct _GFXConsume* next;
 
-	} build;
+
+		// Subpass chain state.
+		enum
+		{
+			_GFX_CONSUME_IS_IN_CHAIN = 0x0001,
+			_GFX_CONSUME_IS_FIRST    = 0x0002,
+			_GFX_CONSUME_IS_LAST     = 0x0004
+
+		} state;
+
+	} out;
 
 } _GFXConsume;
 
