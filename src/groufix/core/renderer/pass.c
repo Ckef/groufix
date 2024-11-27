@@ -727,7 +727,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	GFXVec colors;
 	GFXVec resolves;
 	VkAttachmentReference depStens[rPass->out.subpasses];
-	// TODO:GRA: Determine preserves somehow.
 	GFXVec preserves;
 	// TODO:GRA: Determine dependencies somehow.
 	GFXVec dependencies;
@@ -768,7 +767,9 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 		size_t numInputs = 0;
 		size_t numColors = 0;
 		size_t numPreserves = 0;
-		depStens[subpass->out.subpass] = unused;
+
+		VkAttachmentReference* depSten = &depStens[subpass->out.subpass];
+		*depSten = unused;
 
 		// Describe all attachments of this subpass.
 		// Do so by looping over the framebuffer views,
@@ -779,17 +780,25 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			const _GFXConsume* con = consumes[i];
 
 			while (con != NULL && con->out.subpass < subpass->out.subpass)
-				con = con->build.next;
+				consumes[i] = con = con->build.next;
 
-			consumes[i] = con;
-
-			// TODO:GRA: If it does not consume this attachment,
-			// add it as preserve attachment?
-
-			// This subpass does not consume this attachment.
-			if (con == NULL || con->out.subpass > subpass->out.subpass)
+			// This subpass does _not_ consume this attachment.
+			if (con == NULL)
 				continue;
 
+			else if (con->out.subpass > subpass->out.subpass)
+			{
+				// But it will be consumed by a next subpass.
+				// Reference as preserve attachment.
+				const uint32_t ref = (uint32_t)i;
+
+				gfx_vec_push(&preserves, 1, &ref);
+				++numPreserves;
+
+				continue;
+			}
+
+			// This subpass _does_ consume this attachment.
 			const _GFXAttach* at =
 				gfx_vec_at(&rend->backing.attachs, con->view.index);
 
@@ -824,8 +833,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					const bool load =
 						con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
 
-					ad[i].flags   = 0;
-					ad[i].format  = at->window.window->frame.format;
+					ad[i].flags = 0;
+					ad[i].format = at->window.window->frame.format;
 					ad[i].samples = VK_SAMPLE_COUNT_1_BIT;
 
 					ad[i].loadOp =
@@ -833,9 +842,9 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 						load ? VK_ATTACHMENT_LOAD_OP_LOAD :
 						VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 
-					ad[i].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+					ad[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 					ad[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-					ad[i].initialLayout  = con->out.initial;
+					ad[i].initialLayout = con->out.initial;
 				}
 
 				if (con->build.next == NULL)
@@ -853,24 +862,26 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			else
 			{
 				// Build references.
-				const GFXFormat fmt =
-					at->image.base.format;
+				const GFXFormat fmt = at->image.base.format;
 
 				const bool aspect = // Whether the viewed aspect exists.
 					con->view.range.aspect &
 					(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-						GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL : GFX_IMAGE_COLOR);
+						GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL :
+						GFX_IMAGE_COLOR);
 
 				const uint32_t resolveInd =
 					_gfx_pass_find_attachment(rPass, con->resolve);
 
-				const VkAttachmentReference ref = (VkAttachmentReference){
-					.attachment = (uint32_t)i,
-					.layout     = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
-				};
+				const VkAttachmentReference ref = !aspect ?
+					unused :
+					(VkAttachmentReference){
+						.attachment = (uint32_t)i,
+						.layout     = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
+					};
 
-				const VkAttachmentReference resRef =
-					(resolveInd == VK_ATTACHMENT_UNUSED) ?
+				const VkAttachmentReference resolveRef =
+					(!aspect || resolveInd == VK_ATTACHMENT_UNUSED) ?
 						unused :
 						(VkAttachmentReference){
 							.attachment = resolveInd,
@@ -880,7 +891,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				// Reference as input attachment.
 				if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
 				{
-					gfx_vec_push(&inputs, 1, aspect ? &ref : &unused);
+					gfx_vec_push(&inputs, 1, &ref);
 					++numInputs;
 				}
 
@@ -891,8 +902,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					// Reference as color attachment.
 					if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt))
 					{
-						gfx_vec_push(&colors, 1, aspect ? &ref : &unused);
-						gfx_vec_push(&resolves, 1, aspect ? &resRef : &unused);
+						gfx_vec_push(&colors, 1, &ref);
+						gfx_vec_push(&resolves, 1, &resolveRef);
 						++numColors;
 
 						isColor = 1;
@@ -901,14 +912,12 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					// Reference as depth/stencil attachment.
 					else if (aspect)
 					{
-						depStens[subpass->out.subpass] = ref;
+						*depSten = ref;
 
 						// Adjust state enables.
-						subpass->state.enabled &= ~(unsigned int)(
-							_GFX_PASS_DEPTH | _GFX_PASS_STENCIL);
-						subpass->state.enabled |= (unsigned int)(
+						subpass->state.enabled =
 							(GFX_FORMAT_HAS_DEPTH(fmt) ? _GFX_PASS_DEPTH : 0) |
-							(GFX_FORMAT_HAS_STENCIL(fmt) ? _GFX_PASS_STENCIL : 0));
+							(GFX_FORMAT_HAS_STENCIL(fmt) ? _GFX_PASS_STENCIL : 0);
 					}
 				}
 
@@ -919,23 +928,23 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					const bool firstClear =
 						!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
 							con->cleared & GFX_IMAGE_COLOR :
-							GFX_FORMAT_HAS_DEPTH(fmt) &&
-								con->cleared & GFX_IMAGE_DEPTH;
+							con->cleared & GFX_IMAGE_DEPTH &&
+								GFX_FORMAT_HAS_DEPTH(fmt);
 
 					const bool firstLoad =
-						(GFX_FORMAT_HAS_DEPTH(fmt) || !GFX_FORMAT_HAS_STENCIL(fmt)) &&
-							con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
+						con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED &&
+						(GFX_FORMAT_HAS_DEPTH(fmt) || !GFX_FORMAT_HAS_STENCIL(fmt));
 
 					const bool secondClear =
-						GFX_FORMAT_HAS_STENCIL(fmt) &&
-							con->cleared & GFX_IMAGE_STENCIL;
+						con->cleared & GFX_IMAGE_STENCIL &&
+						GFX_FORMAT_HAS_STENCIL(fmt);
 
 					const bool secondLoad =
-						GFX_FORMAT_HAS_STENCIL(fmt) &&
-							con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
+						con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED &&
+						GFX_FORMAT_HAS_STENCIL(fmt);
 
-					ad[i].flags   = 0;
-					ad[i].format  = at->image.vk.format;
+					ad[i].flags = 0;
+					ad[i].format = at->image.vk.format;
 					ad[i].samples = at->image.base.samples;
 
 					ad[i].loadOp =
@@ -979,8 +988,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			{
 				gfx_vec_push(&subpass->vk.blends, 1, NULL);
 
-				GFXBlendOpState* blend =
-					gfx_vec_at(&subpass->vk.blends, subpass->vk.blends.size - 1);
+				GFXBlendOpState* blend = gfx_vec_at(
+					&subpass->vk.blends, subpass->vk.blends.size - 1);
 
 				*(blend + 0) = con->color;
 				*(blend + 1) = con->alpha;
@@ -998,8 +1007,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			.colorAttachmentCount    = (uint32_t)numColors,
 			.preserveAttachmentCount = (uint32_t)numPreserves,
 			.pDepthStencilAttachment =
-				depStens[subpass->out.subpass].attachment != VK_ATTACHMENT_UNUSED ?
-				&depStens[subpass->out.subpass] : NULL
+				depSten->attachment != VK_ATTACHMENT_UNUSED ? depSten : NULL
 		};
 	}
 
@@ -1013,14 +1021,10 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	{
 		VkSubpassDescription* ssd = &sd[i];
 
-		ssd->pInputAttachments =
-			ssd->inputAttachmentCount > 0 ? rInput : NULL;
-		ssd->pColorAttachments =
-			ssd->colorAttachmentCount > 0 ? rColor : NULL;
-		ssd->pResolveAttachments =
-			ssd->colorAttachmentCount > 0 ? rResolve : NULL;
-		ssd->pPreserveAttachments =
-			ssd->preserveAttachmentCount > 0 ? rPreserve : NULL;
+		ssd->pInputAttachments = ssd->inputAttachmentCount > 0 ? rInput : NULL;
+		ssd->pColorAttachments = ssd->colorAttachmentCount > 0 ? rColor : NULL;
+		ssd->pResolveAttachments = ssd->colorAttachmentCount > 0 ? rResolve : NULL;
+		ssd->pPreserveAttachments = ssd->preserveAttachmentCount > 0 ? rPreserve : NULL;
 
 		rInput += ssd->inputAttachmentCount;
 		rColor += ssd->colorAttachmentCount;
