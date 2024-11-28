@@ -629,7 +629,9 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// Otherwise, let the user define dependencies between pairs of
 		// passes some other way?
 		// TODO:GRA: Don't forget to document the solution,
-		// mostly at `deps.h` and `gfx_pass_inject()`
+		// mostly at `deps.h` and `gfx_pass_inject()`.
+		// Maybe split it into `gfx_pass_inject` and `gfx_renderer_inject`,
+		// the former for the above problem, the latter e.g. for heap memory.
 
 		// Do nothing if pass is culled.
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
