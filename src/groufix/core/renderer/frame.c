@@ -633,6 +633,69 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// Maybe split it into `gfx_pass_inject` and `gfx_renderer_inject`,
 		// the former for the above problem, the latter e.g. for heap memory.
 
+		// TODO:GRA: Other idea: Only have dependency injections at
+		// `gfx_frame_submit`, like `gfx_read` and alike, there is no need
+		// for gfx_(pass|renderer)_inject because we will only be injecting
+		// at the complete start or end of a frame, maybe keep
+		// gfx_renderer_inject for one-time injections tho.
+		// For attachments used as actual render pass attachments,
+		//   everything is handled through consumptions.
+		// For attachments used as non-attachment, e.g. as texture in a
+		//   compute shader (of all things), we MUST use it in a bound set
+		//   as such AND consume them so they're synchronized.
+		//   NOTE: See todo below, breaks on async compute!
+		// For non attachments, we can either also consume them in passes,
+		//   OR we do semi-dependencies; we use the gfx_dep_*f macros but
+		//   just directly insert them into two passes.
+		//   We can artificially inject the wait commands.
+		//   This way we still benefit from the dep's semaphore management,
+		//   in case we inject between async compute passes.
+		//     HOWEVER!
+		//    If this happens to be within a subpass chain, we cannot,
+		//    as we need subpass dependencies for this to work. Do we???
+		//
+		//    I GET IT!!!
+		//    Here is the kicker, subpass dependencies define memory barriers
+		//    between subpasses, they go for ALL resources!
+		//    If we have a storage image written to in one subpass and
+		//    read from in the next, a subpass dependency alone will cover it.
+		//    Pipeline barriers within subpasses are _EXCLUSIVELY_ for
+		//    self-dependency of that single subpass.
+		//
+		//   This means we must know things at warmup/build time for passes...
+		//   Ergo, we must know, ahead of time, all subpass-deps AND
+		//   from what points we are allowed to use dep-objects if we want
+		//   (for e.g. using semaphores or gfx_read or whatever)...
+		//   - We know that only render passes can be merged with each other,
+		//     meaning there can only be subpass-deps between render passes.
+		//   - We cannot use dep-objects between render passes,
+		//     as they may be merged, at which point we're too late.
+		//   What if we use dep-objects for render-compute and compute-compute,
+		//   reusing the gfx_dep_*f macros as described before.
+		//   And for render-render we define gfx_sig (so it can output a
+		//   GFXInject and we have a uniform API) for which we only give
+		//   source and access mask/stage, no dep-object or reference.
+		//     We could still give references, we just ignore them if we
+		//     happen to have built a subpass. If not, we can still insert
+		//     the memory barrier like normal...?!
+		//     Note: should insert a VkMemoryBarrier if not subpass + no ref?
+		//
+		//   The gfx_sig (or maybe gfx_sig(f|rf)?) will not be reset after
+		//   a gpu submission, it is part of the render pass description.
+		//   Will gfx_dep_* stay volatile (reset after submission)?
+		//   Or will you also be able to inject "permanent" dep-objects???
+		//   Do we have separate calls for the two types of injections?
+		//   Maybe gfx_pass_depend and gfx_pass_inject?
+		//   Combine a call with gfx_renderer_inject/gfx_frame_submit
+		//   by making either of src/dst pass NULL-able to signify outside-
+		//   renderer activity??
+		//
+		//   One more thing: subpass-deps are not only limited to render
+		//   passes, they are also limited to parent-child passes.
+		//   Could work it into the gfx_renderer_add_pass API?
+		//   Although it's completely arbitrary we only merge with parents,
+		//   might want to lift that restriction sometime?
+
 		// Do nothing if pass is culled.
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 		if (pass->culled) continue;
@@ -647,6 +710,11 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		{
 			return 0;
 		}
+
+		// TODO:GRA: The below barrier pushing will break mega hard if the
+		// barrier is on different queues (e.g. async compute to render).
+		// i.e. when we consume an attachment at a async compute pass.
+		// We need a queue transfer...
 
 		// Inject & flush consumption barriers.
 		for (size_t c = 0; c < pass->consumes.size; ++c)
