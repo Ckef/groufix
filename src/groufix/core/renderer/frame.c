@@ -678,6 +678,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		//     We could still give references, we just ignore them if we
 		//     happen to have built a subpass. If not, we can still insert
 		//     the memory barrier like normal...?!
+		//     Actually, don't ignore them, we need to do layout transitions!
 		//     Note: should insert a VkMemoryBarrier if not subpass + no ref?
 		//
 		//   The gfx_sig (or maybe gfx_sig(f|rf)?) will not be reset after
