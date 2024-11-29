@@ -129,6 +129,11 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 		// For each pass, check all consumptions.
 		for (size_t i = 0; i < rCurr->base.consumes.size; ++i)
 		{
+			// TODO:GRA: If an attachment is used as something that's not
+			// attachment access, it will be preserved in a subpass
+			// (as it won't be picked out as attachment) and we're not
+			// allowed to acces it, so we must prevent such subchains!
+
 			_GFXConsume* con = gfx_vec_at(&rCurr->base.consumes, i);
 			if (_GFX_CONSUME_IS_ATTACH(con, renderer))
 			{
