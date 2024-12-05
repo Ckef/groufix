@@ -140,20 +140,42 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 		for (size_t i = 0; i < rCurr->base.consumes.size; ++i)
 		{
 			_GFXConsume* con = gfx_vec_at(&rCurr->base.consumes, i);
-			if (
-				con->view.index < renderer->backing.attachs.size &&
-				_GFX_CONSUME_IS_ATTACH(con))
+			if (con->view.index < renderer->backing.attachs.size)
 			{
 				_GFXConsume* childCon = consumes[con->view.index];
-
-				// If it is an attachment & consumed as such by the child.
 				if (childCon != NULL)
 				{
-					// Check view compatibility.
-					if (!_gfx_cmp_consume(con, childCon)) return 0;
+					// Check if either pass consumes as attachment access
+					// while the other consumes as non-attachment.
+					// If this is true, the passes cannot be merged into
+					// a subpass chain, as the attachment may become a
+					// preserved attachment (whilst accessing it!).
+					// Note: If consumed as non-attachment BUT also
+					// consumed as attachment in the same pass,
+					// it will not be preserved, allow this edgecase!
+					if (
+						(_GFX_CONSUME_IS_ATTACH(con) &&
+						_GFX_CONSUME_IS_OTHER(childCon) &&
+						!_GFX_CONSUME_IS_ATTACH(childCon)) ||
 
-					// Count consumptions for each pass.
-					++sharedAttachs;
+						(_GFX_CONSUME_IS_ATTACH(childCon) &&
+						_GFX_CONSUME_IS_OTHER(con) &&
+						!_GFX_CONSUME_IS_ATTACH(con)))
+					{
+						return 0;
+					}
+
+					// If they both consume as attachment...
+					if (
+						_GFX_CONSUME_IS_ATTACH(con) &&
+						_GFX_CONSUME_IS_ATTACH(childCon))
+					{
+						// Check view compatibility.
+						if (!_gfx_cmp_consume(con, childCon)) return 0;
+
+						// Count consumptions for each pass.
+						++sharedAttachs;
+					}
 				}
 			}
 		}
@@ -201,28 +223,11 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 	for (size_t i = 0; i < rPass->base.consumes.size; ++i)
 	{
 		_GFXConsume* con = gfx_vec_at(&rPass->base.consumes, i);
-		if (
-			con->view.index < renderer->backing.attachs.size &&
-			_GFX_CONSUME_IS_ATTACH(con))
-		{
+		if (con->view.index < renderer->backing.attachs.size)
 			consumes[con->view.index] = con;
-		}
-
-		// For each pass, check if it consumes any attachment with
-		// non-attachment access. If it does, it cannot be merged into a
-		// subpass chain, as it may become a preserved attachment.
-		// Mark this non-mergableness by setting its next pointer to itself!
-		// TODO: Maybe we are allowed to read(/write) while preserved??
-		else if (_GFX_CONSUME_IS_OTHER(con))
-		{
-			rPass->out.next = rPass;
-		}
 	}
 
-	// Pass flagged as non-mergable, done.
-	if (rPass->out.next == rPass) return;
-
-	// Ok, start looping over all parents to find the best.
+	// Start looping over all parents to find the best.
 	_GFXRenderPass* merge = NULL;
 	uint64_t score = 0;
 
@@ -239,9 +244,6 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 
 		// Also ignore culled parent passes.
 		if (rCandidate->base.culled) continue;
-
-		// Flagged as non-mergable.
-		if (rCandidate->out.next == rCandidate) continue;
 
 		// Calculate score.
 		uint64_t pScore =
@@ -272,8 +274,7 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 }
 
 /****************************
- * Resolves a pass, setting the `out` field of all its consumptions,
- * also finalizing the `out` field of the pass itself.
+ * Resolves a pass, setting the `out` field of all its consumptions.
  * consumes must hold `renderer->backing.attachs.size` pointers.
  * @param pass     Cannot be NULL, must not be culled.
  * @param consumes Cannot be NULL, must be initialized to all NULL on first call.
@@ -299,18 +300,12 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 	{
 		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 
-		// Marked as non-mergable, unmark & continue as master.
-		if (rPass->out.next == rPass)
-			rPass->out.next = NULL;
-		else
-		{
-			// Possibly merged, skip if not last.
-			if (rPass->out.next != NULL) return;
+		// Skip if not last.
+		if (rPass->out.next != NULL) return;
 
-			// See if it is a chain and start at master.
-			if (rPass->out.master != NULL)
-				subpass = (GFXPass*)rPass->out.master;
-		}
+		// See if it is a chain and start at master.
+		if (rPass->out.master != NULL)
+			subpass = (GFXPass*)rPass->out.master;
 	}
 
 	// And start looping over the entire subpass chain.
