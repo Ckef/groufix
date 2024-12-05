@@ -716,6 +716,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// barrier is on different queues (e.g. async compute to render).
 		// i.e. when we consume an attachment at a async compute pass.
 		// We need a queue transfer...
+		// Just not allow to consume attachments on async compute passes?
 
 		// Inject & flush consumption barriers.
 		for (size_t c = 0; c < pass->consumes.size; ++c)
