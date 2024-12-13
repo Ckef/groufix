@@ -128,11 +128,11 @@ GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep);
  */
 typedef enum GFXInjectType
 {
-	GFX_DEP_SIGNAL,
-	GFX_DEP_SIGNAL_FROM,
-	GFX_DEP_SIGNAL_RANGE,
-	GFX_DEP_SIGNAL_RANGE_FROM,
-	GFX_DEP_WAIT
+	GFX_INJ_SIGNAL,
+	GFX_INJ_SIGNAL_FROM,
+	GFX_INJ_SIGNAL_RANGE,
+	GFX_INJ_SIGNAL_RANGE_FROM,
+	GFX_INJ_WAIT
 
 } GFXInjectType;
 
@@ -222,7 +222,7 @@ typedef struct GFXInject
  */
 #define gfx_dep_sig(dep_, mask_, stage_) \
 	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_SIGNAL, \
+		.type = GFX_INJ_SIGNAL, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL, \
 		.mask = mask_, \
@@ -231,7 +231,7 @@ typedef struct GFXInject
 
 #define gfx_dep_sigr(dep_, mask_, stage_, ref_) \
 	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_SIGNAL, \
+		.type = GFX_INJ_SIGNAL, \
 		.dep = dep_, \
 		.ref = ref_, \
 		.mask = mask_, \
@@ -240,7 +240,7 @@ typedef struct GFXInject
 
 #define gfx_dep_sigrf(dep_, maskf_, stagef_, mask_, stage_, ref_) \
 	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_SIGNAL_FROM, \
+		.type = GFX_INJ_SIGNAL_FROM, \
 		.dep = dep_, \
 		.ref = ref_, \
 		.mask = mask_, \
@@ -251,7 +251,7 @@ typedef struct GFXInject
 
 #define gfx_dep_siga(dep_, mask_, stage_, range_) \
 	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_SIGNAL_RANGE, \
+		.type = GFX_INJ_SIGNAL_RANGE, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL, \
 		.range = range_, \
@@ -261,7 +261,7 @@ typedef struct GFXInject
 
 #define gfx_dep_sigra(dep_, mask_, stage_, ref_, range_) \
 	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_SIGNAL_RANGE, \
+		.type = GFX_INJ_SIGNAL_RANGE, \
 		.dep = dep_, \
 		.ref = ref_, \
 		.range = range_, \
@@ -271,7 +271,7 @@ typedef struct GFXInject
 
 #define gfx_dep_sigraf(dep_, maskf_, stagef_, mask_, stage_, ref_, range_) \
 	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_SIGNAL_RANGE_FROM, \
+		.type = GFX_INJ_SIGNAL_RANGE_FROM, \
 		.dep = dep_, \
 		.ref = ref_, \
 		.range = range_, \
@@ -283,7 +283,7 @@ typedef struct GFXInject
 
 #define gfx_dep_wait(dep_) \
 	GFX_LITERAL(GFXInject){ \
-		.type = GFX_DEP_WAIT, \
+		.type = GFX_INJ_WAIT, \
 		.dep = dep_, \
 		.ref = GFX_REF_NULL \
 	}

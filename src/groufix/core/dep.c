@@ -13,21 +13,21 @@
 
 
 #define _GFX_INJ_IS_SIGNAL(inj) \
-	((inj).type == GFX_DEP_SIGNAL || \
-	(inj).type == GFX_DEP_SIGNAL_FROM || \
-	(inj).type == GFX_DEP_SIGNAL_RANGE || \
-	(inj).type == GFX_DEP_SIGNAL_RANGE_FROM)
+	((inj).type == GFX_INJ_SIGNAL || \
+	(inj).type == GFX_INJ_SIGNAL_FROM || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
 
 #define _GFX_INJ_IS_RANGED(inj) \
-	((inj).type == GFX_DEP_SIGNAL_RANGE || \
-	(inj).type == GFX_DEP_SIGNAL_RANGE_FROM)
+	((inj).type == GFX_INJ_SIGNAL_RANGE || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
 
 #define _GFX_INJ_IS_SOURCED(inj) \
-	((inj).type == GFX_DEP_SIGNAL_FROM || \
-	(inj).type == GFX_DEP_SIGNAL_RANGE_FROM)
+	((inj).type == GFX_INJ_SIGNAL_FROM || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
 
 #define _GFX_INJ_IS_WAIT(inj) \
-	((inj).type == GFX_DEP_WAIT)
+	((inj).type == GFX_INJ_WAIT)
 
 
 // Outputs an injection element & auto log, num and elems are lvalues.
