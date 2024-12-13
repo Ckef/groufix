@@ -540,7 +540,7 @@ typedef struct _GFXTransfer
 typedef struct _GFXTransferPool
 {
 	GFXDeque  transfers; // Stores _GFXTransfer.
-	GFXVec    deps;      // Stores GFXInject.
+	GFXVec    injs;      // Stores GFXInject.
 	_GFXQueue queue;
 	_GFXMutex lock;
 
@@ -1081,7 +1081,7 @@ struct GFXPass
 	GFXVec consumes;
 
 	// Stores GFXInject, from pass inject.
-	GFXVec deps;
+	GFXVec injs;
 };
 
 
@@ -1704,7 +1704,7 @@ void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer);
 
 /**
  * Flushes the last (current) transfer operation of a transfer pool.
- * The `injection` and `deps` fields of pool will be freed after this call.
+ * The `injection` and `injs` fields of pool will be freed after this call.
  * @param heap Cannot be NULL.
  * @param pool Cannot be NULL, must be of heap.
  * @return Zero on failure, current transfer is lost.

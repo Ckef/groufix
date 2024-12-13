@@ -747,7 +747,7 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
 /**
  * Appends dependency injections to a given pass.
  * @param pass Cannot be NULL.
- * @param deps Cannot be NULL if numDeps > 0.
+ * @param injs Cannot be NULL if numInjs > 0.
  *
  * NOT thread-safe with respect to pass!
  * Cannot be called during gfx_frame_submit!
@@ -765,7 +765,7 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  * commands submitted elsewhere up until gfx_frame_submit is called.
  */
 GFX_API void gfx_pass_inject(GFXPass* pass,
-                             size_t numDeps, const GFXInject* deps);
+                             size_t numInjs, const GFXInject* injs);
 
 /**
  * Blocks until all virtual frames are done rendering.

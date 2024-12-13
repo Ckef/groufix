@@ -686,8 +686,8 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 
 	gfx_deque_init(&heap->ops.graphics.transfers, sizeof(_GFXTransfer));
 	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(_GFXTransfer));
-	gfx_vec_init(&heap->ops.graphics.deps, sizeof(GFXInject));
-	gfx_vec_init(&heap->ops.transfer.deps, sizeof(GFXInject));
+	gfx_vec_init(&heap->ops.graphics.injs, sizeof(GFXInject));
+	gfx_vec_init(&heap->ops.transfer.injs, sizeof(GFXInject));
 	atomic_store(&heap->ops.graphics.blocking, 0);
 	atomic_store(&heap->ops.transfer.blocking, 0);
 
@@ -727,7 +727,7 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 
 destroy_pool:
 	// Oh uh, just flush it first to make sure all is done.
-	// This will get rid of the `injection` and `deps` fields for us.
+	// This will get rid of the `injection` and `injs` fields for us.
 	// Also, we don't lock, as we're in the destroy call!
 	_gfx_flush_transfer(heap, pool);
 

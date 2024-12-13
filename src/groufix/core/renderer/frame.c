@@ -706,7 +706,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// Inject wait commands.
 		if (!_gfx_deps_catch(
 			context, cmd,
-			pass->deps.size, gfx_vec_at(&pass->deps, 0),
+			pass->injs.size, gfx_vec_at(&pass->injs, 0),
 			injection))
 		{
 			return 0;
@@ -789,7 +789,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// Inject signal commands.
 		if (!_gfx_deps_prepare(
 			context, cmd, 0,
-			pass->deps.size, gfx_vec_at(&pass->deps, 0),
+			pass->injs.size, gfx_vec_at(&pass->injs, 0),
 			injection))
 		{
 			return 0;
@@ -828,20 +828,20 @@ static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
 		// Firstly, finalize or abort the dependency injection.
 		if (success)
 			_gfx_deps_finish(
-				pass->deps.size, gfx_vec_at(&pass->deps, 0),
+				pass->injs.size, gfx_vec_at(&pass->injs, 0),
 				injection);
 		else
 			_gfx_deps_abort(
-				pass->deps.size, gfx_vec_at(&pass->deps, 0),
+				pass->injs.size, gfx_vec_at(&pass->injs, 0),
 				injection);
 
 		// Then erase them.
 		// Keep the memory in case we repeatedly inject.
 		// Unless it was already empty, then clear what was kept.
-		if (pass->deps.size == 0)
-			gfx_vec_clear(&pass->deps);
+		if (pass->injs.size == 0)
+			gfx_vec_clear(&pass->injs);
 		else
-			gfx_vec_release(&pass->deps);
+			gfx_vec_release(&pass->injs);
 	}
 }
 

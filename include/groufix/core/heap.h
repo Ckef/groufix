@@ -544,7 +544,7 @@ typedef enum GFXFilter
  * @param numRegions Must be > 0.
  * @param srcRegions Cannot be NULL.
  * @param dstRegions Cannot be NULL.
- * @param deps       Cannot be NULL if numDeps > 0.
+ * @param injs       Cannot be NULL if numInjs > 0.
  * @return Non-zero on success.
  *
  * All memory operations are thread-safe with respect to any associated heap,
@@ -572,9 +572,9 @@ typedef enum GFXFilter
  */
 GFX_API bool gfx_read(GFXReference src, void* dst,
                       GFXTransferFlags flags,
-                      size_t numRegions, size_t numDeps,
+                      size_t numRegions, size_t numInjs,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                      const GFXInject* deps);
+                      const GFXInject* injs);
 
 /**
  * Writes data to a memory resource reference.
@@ -582,9 +582,9 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
  */
 GFX_API bool gfx_write(const void* src, GFXReference dst,
                        GFXTransferFlags flags,
-                       size_t numRegions, size_t numDeps,
+                       size_t numRegions, size_t numInjs,
                        const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                       const GFXInject* deps);
+                       const GFXInject* injs);
 
 /**
  * Copies data from one memory resource reference to another.
@@ -597,9 +597,9 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
  */
 GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
                       GFXTransferFlags flags,
-                      size_t numRegions, size_t numDeps,
+                      size_t numRegions, size_t numInjs,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                      const GFXInject* deps);
+                      const GFXInject* injs);
 
 /**
  * Blits (copy with scaling) data from one image reference to another.
@@ -612,9 +612,9 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
  */
 GFX_API bool gfx_blit(GFXImageRef src, GFXImageRef dst,
                       GFXTransferFlags flags, GFXFilter filter,
-                      size_t numRegions, size_t numDeps,
+                      size_t numRegions, size_t numInjs,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                      const GFXInject* deps);
+                      const GFXInject* injs);
 
 /**
  * Resolves a multisampled image attachment to an image reference.
@@ -625,9 +625,9 @@ GFX_API bool gfx_blit(GFXImageRef src, GFXImageRef dst,
  */
 GFX_API bool gfx_resolve(GFXImageRef src, GFXImageRef dst,
                          GFXTransferFlags flags,
-                         size_t numRegions, size_t numDeps,
+                         size_t numRegions, size_t numInjs,
                          const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                         const GFXInject* deps);
+                         const GFXInject* injs);
 
 /**
  * Maps a buffer reference to a host virtual address pointer.

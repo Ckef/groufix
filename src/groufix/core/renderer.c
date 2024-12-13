@@ -501,13 +501,13 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 
 /****************************/
 GFX_API void gfx_pass_inject(GFXPass* pass,
-                             size_t numDeps, const GFXInject* deps)
+                             size_t numInjs, const GFXInject* injs)
 {
 	assert(pass != NULL);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 
-	// Store dependencies for submission.
-	if (numDeps > 0 && !gfx_vec_push(&pass->deps, numDeps, deps))
+	// Store injections for submission.
+	if (numInjs > 0 && !gfx_vec_push(&pass->injs, numInjs, injs))
 		gfx_log_warn(
 			"Dependency injection failed, "
 			"injection commands could not be stored at frame inject.");

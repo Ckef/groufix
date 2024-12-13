@@ -393,7 +393,7 @@ error:
 
 /****************************
  * Cleans up resources from the last (current) transfer operation of a pool.
- * The `injection` and `deps` fields of pool will be freed after this call.
+ * The `injection` and `injs` fields of pool will be freed after this call.
  * @param heap Cannot be NULL.
  * @param pool Cannot be NULL, must be of heap.
  *
@@ -425,10 +425,10 @@ static void _gfx_pop_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	// And abort all injections made into it.
 	if (pool->injection != NULL)
 		_gfx_deps_abort(
-			pool->deps.size, gfx_vec_at(&pool->deps, 0),
+			pool->injs.size, gfx_vec_at(&pool->injs, 0),
 			pool->injection);
 
-	gfx_vec_clear(&pool->deps);
+	gfx_vec_clear(&pool->injs);
 	free(pool->injection);
 
 	pool->injection = NULL;
@@ -494,10 +494,10 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	// This must be last so visibility happens exactly on return!
 	if (injection != NULL)
 		_gfx_deps_finish(
-			pool->deps.size, gfx_vec_at(&pool->deps, 0),
+			pool->injs.size, gfx_vec_at(&pool->injs, 0),
 			injection);
 
-	gfx_vec_clear(&pool->deps);
+	gfx_vec_clear(&pool->injs);
 	free(pool->injection);
 
 	pool->injection = NULL;
@@ -567,7 +567,7 @@ static void _gfx_copy_host(void* ptr, void* ref,
  * @param stage      Staging regions, cannot be NULL if staging is not.
  * @param srcRegions Source regions, cannot be NULL.
  * @param dstRegions Destination regions, Cannot be NULL.
- * @param deps       Cannot be NULL if numDeps > 0.
+ * @param injs       Cannot be NULL if numInjs > 0.
  * @return Non-zero on success.
  *
  * Staging must be set OR numRefs must be >= 2.
@@ -577,7 +577,7 @@ static void _gfx_copy_host(void* ptr, void* ref,
  */
 static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
                             _GFXCopyFlags cpFlags, GFXFilter filter,
-                            size_t numRefs, size_t numRegions, size_t numDeps,
+                            size_t numRefs, size_t numRegions, size_t numInjs,
                             _GFXStaging* staging,
                             const _GFXUnpackRef* refs,
                             const GFXAccessMask* masks,
@@ -585,7 +585,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
                             const _GFXStageRegion* stage,
                             const GFXRegion* srcRegions,
                             const GFXRegion* dstRegions,
-                            const GFXInject* deps)
+                            const GFXInject* injs)
 {
 	assert(heap != NULL);
 	assert(!(cpFlags & _GFX_COPY_REVERSED) || staging != NULL);
@@ -601,7 +601,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	assert(staging == NULL || stage != NULL);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 
 	_GFXContext* context = heap->allocator.context;
 
@@ -689,12 +689,12 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 		goto clean;
 
 	// Store dependencies for flushing.
-	if (!gfx_vec_push(&pool->deps, numDeps, deps))
+	if (!gfx_vec_push(&pool->injs, numInjs, injs))
 		goto clean;
 
 	// Inject wait commands.
 	if (!_gfx_deps_catch(
-		context, transfer->vk.cmd, numDeps, deps, pool->injection))
+		context, transfer->vk.cmd, numInjs, injs, pool->injection))
 	{
 		goto clean;
 	}
@@ -922,7 +922,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	// Inject signal commands.
 	if (!_gfx_deps_prepare(
 		context, transfer->vk.cmd,
-		flags & GFX_TRANSFER_BLOCK, numDeps, deps, pool->injection))
+		flags & GFX_TRANSFER_BLOCK, numInjs, injs, pool->injection))
 	{
 		goto clean;
 	}
@@ -978,16 +978,16 @@ unlock:
 /****************************/
 GFX_API bool gfx_read(GFXReference src, void* dst,
                       GFXTransferFlags flags,
-                      size_t numRegions, size_t numDeps,
+                      size_t numRegions, size_t numInjs,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                      const GFXInject* deps)
+                      const GFXInject* injs)
 {
 	assert(!GFX_REF_IS_NULL(src));
 	assert(dst != NULL);
 	assert(numRegions > 0);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 
 	// When reading we always need to block...
 	flags |= GFX_TRANSFER_BLOCK;
@@ -1034,7 +1034,7 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 		ptr = (void*)((char*)ptr + unp.value);
 
 		// Warn if we have injection commands but cannot submit them.
-		if (numDeps > 0) gfx_log_warn(
+		if (numInjs > 0) gfx_log_warn(
 			"All dependency injection commands ignored, "
 			"the operation is not asynchronous (mappable buffer read).");
 	}
@@ -1063,9 +1063,9 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 
 		if (!_gfx_copy_device(
 			heap, flags, _GFX_COPY_REVERSED, GFX_FILTER_NEAREST,
-			1, numRegions, numDeps,
+			1, numRegions, numInjs,
 			staging, &unp, &rMask, &rSize,
-			stage, dstRegions, srcRegions, deps))
+			stage, dstRegions, srcRegions, injs))
 		{
 			_gfx_free_staging(heap, staging);
 			goto error;
@@ -1097,16 +1097,16 @@ error:
 /****************************/
 GFX_API bool gfx_write(const void* src, GFXReference dst,
                        GFXTransferFlags flags,
-                       size_t numRegions, size_t numDeps,
+                       size_t numRegions, size_t numInjs,
                        const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                       const GFXInject* deps)
+                       const GFXInject* injs)
 {
 	assert(src != NULL);
 	assert(!GFX_REF_IS_NULL(dst));
 	assert(numRegions > 0);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 
 	// Unpack reference.
 	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
@@ -1151,7 +1151,7 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 		ptr = (void*)((char*)ptr + unp.value);
 
 		// Warn if we have injection commands but cannot submit them.
-		if (numDeps > 0) gfx_log_warn(
+		if (numInjs > 0) gfx_log_warn(
 			"All dependency injection commands ignored, "
 			"the operation is not asynchronous (mappable buffer write).");
 	}
@@ -1185,9 +1185,9 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 
 		if (!_gfx_copy_device(
 			heap, flags, 0, GFX_FILTER_NEAREST,
-			1, numRegions, numDeps,
+			1, numRegions, numInjs,
 			staging, &unp, &rMask, &rSize,
-			stage, srcRegions, dstRegions, deps))
+			stage, srcRegions, dstRegions, injs))
 		{
 			_gfx_free_staging(heap, staging);
 			goto error;
@@ -1219,15 +1219,15 @@ error:
  */
 static bool _gfx_copy(GFXReference src, GFXReference dst,
                       GFXTransferFlags flags, _GFXCopyFlags cpFlags, GFXFilter filter,
-                      size_t numRegions, size_t numDeps,
+                      size_t numRegions, size_t numInjs,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                      const GFXInject* deps)
+                      const GFXInject* injs)
 {
 	assert(!(cpFlags & _GFX_COPY_REVERSED));
 	assert(numRegions > 0);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 
 	// Prepare injection metadata.
 	const _GFXUnpackRef refs[2] =
@@ -1282,9 +1282,9 @@ static bool _gfx_copy(GFXReference src, GFXReference dst,
 	// Do the resource -> resource copy.
 	if (!_gfx_copy_device(
 		heap, flags, cpFlags, filter,
-		2, numRegions, numDeps,
+		2, numRegions, numInjs,
 		NULL, refs, rMasks, rSizes,
-		NULL, srcRegions, dstRegions, deps))
+		NULL, srcRegions, dstRegions, injs))
 	{
 		gfx_log_error(
 			"%s operation failed.",
@@ -1301,9 +1301,9 @@ static bool _gfx_copy(GFXReference src, GFXReference dst,
 /****************************/
 GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
                       GFXTransferFlags flags,
-                      size_t numRegions, size_t numDeps,
+                      size_t numRegions, size_t numInjs,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                      const GFXInject* deps)
+                      const GFXInject* injs)
 {
 	// Mostly relies on stand-in function for asserts.
 
@@ -1312,15 +1312,15 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 
 	return _gfx_copy(
 		src, dst, flags, 0, 0,
-		numRegions, numDeps, srcRegions, dstRegions, deps);
+		numRegions, numInjs, srcRegions, dstRegions, injs);
 }
 
 /****************************/
 GFX_API bool gfx_blit(GFXImageRef src, GFXImageRef dst,
                       GFXTransferFlags flags, GFXFilter filter,
-                      size_t numRegions, size_t numDeps,
+                      size_t numRegions, size_t numInjs,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                      const GFXInject* deps)
+                      const GFXInject* injs)
 {
 	// Mostly relies on stand-in function for asserts.
 
@@ -1329,15 +1329,15 @@ GFX_API bool gfx_blit(GFXImageRef src, GFXImageRef dst,
 
 	return _gfx_copy(
 		src, dst, flags, _GFX_COPY_SCALED, filter,
-		numRegions, numDeps, srcRegions, dstRegions, deps);
+		numRegions, numInjs, srcRegions, dstRegions, injs);
 }
 
 /****************************/
 GFX_API bool gfx_resolve(GFXImageRef src, GFXImageRef dst,
                          GFXTransferFlags flags,
-                         size_t numRegions, size_t numDeps,
+                         size_t numRegions, size_t numInjs,
                          const GFXRegion* srcRegions, const GFXRegion* dstRegions,
-                         const GFXInject* deps)
+                         const GFXInject* injs)
 {
 	// Mostly relies on stand-in function for asserts.
 
@@ -1346,7 +1346,7 @@ GFX_API bool gfx_resolve(GFXImageRef src, GFXImageRef dst,
 
 	return _gfx_copy(
 		src, dst, flags, _GFX_COPY_RESOLVE, 0,
-		numRegions, numDeps, srcRegions, dstRegions, deps);
+		numRegions, numInjs, srcRegions, dstRegions, injs);
 }
 
 /****************************/
