@@ -129,8 +129,8 @@ GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep);
 typedef enum GFXInjectType
 {
 	GFX_INJ_SIGNAL,
-	GFX_INJ_SIGNAL_FROM,
 	GFX_INJ_SIGNAL_RANGE,
+	GFX_INJ_SIGNAL_FROM,
 	GFX_INJ_SIGNAL_RANGE_FROM,
 	GFX_INJ_WAIT
 
@@ -144,7 +144,7 @@ typedef struct GFXInject
 {
 	GFXInjectType type;
 
-	// Object to inject a dependency in.
+	// Object to inject a dependency in (may be NULL).
 	GFXDependency* dep;
 
 	// To-be synchronized resource (may be GFX_REF_NULL).
@@ -169,8 +169,9 @@ typedef struct GFXInject
 
 
 /**
- * Injection macros. Dependency objects can be signaled or waited upon
- * with respect to (a set of) resources on the GPU, the CPU is never blocked!
+ * Injection macros. Dependency objects or passes from a renderer can be
+ * signaled or waited upon with respect to (a set of) resources on the GPU,
+ * the CPU is never blocked!
  *
  * In order for resources to transition between different operations performed
  * on them, a dependency must be injected inbetween the two operations.
@@ -184,6 +185,13 @@ typedef struct GFXInject
  * by the operation they were injected in. After being made visible,
  * a wait command matches (and waits for) all signal commands that address
  * the same underlying Vulkan queue.
+ * TODO:GRA: Describe that gfx_pass_depend only needs a signal command,
+ * the wait command is implicit by the target pass.
+ * TODO:GRA: Describe implicit wait commands when using gfx_pass_depend in
+ * combination with the gfx_dep_sig* family, for dependency object capacity?
+ * (preferably one wait command for a dependency object per target pass!)
+ * TODO:GRA Update different commands explanation below to include
+ * the entire gfx_sig* family!
  *
  * There are three queue destinations:
  *  -graphics, -compute, -transfer
@@ -192,11 +200,11 @@ typedef struct GFXInject
  * graphics queue, but they can address the other two with the respective
  * `*_(COMPUTE|TRANSFER)_ASYNC` type, flag and modifiers.
  *
- * To force the dependency on a specific resource, use
- *  `gfx_dep_sigr`
- *
  * To limit the dependency to a range (area) of a resource, use
  *  `gfx_dep_siga`
+ *
+ * To force the dependency on a specific resource, use
+ *  `gfx_dep_sigr`
  *
  * To apply both of the above simultaneously, use
  *  `gfx_dep_sigra`
@@ -229,11 +237,31 @@ typedef struct GFXInject
 		.stage = stage_ \
 	}
 
+#define gfx_dep_siga(dep_, mask_, stage_, range_) \
+	GFX_LITERAL(GFXInject){ \
+		.type = GFX_INJ_SIGNAL_RANGE, \
+		.dep = dep_, \
+		.ref = GFX_REF_NULL, \
+		.range = range_, \
+		.mask = mask_, \
+		.stage = stage_ \
+	}
+
 #define gfx_dep_sigr(dep_, mask_, stage_, ref_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL, \
 		.dep = dep_, \
 		.ref = ref_, \
+		.mask = mask_, \
+		.stage = stage_ \
+	}
+
+#define gfx_dep_sigra(dep_, mask_, stage_, ref_, range_) \
+	GFX_LITERAL(GFXInject){ \
+		.type = GFX_INJ_SIGNAL_RANGE, \
+		.dep = dep_, \
+		.ref = ref_, \
+		.range = range_, \
 		.mask = mask_, \
 		.stage = stage_ \
 	}
@@ -249,30 +277,44 @@ typedef struct GFXInject
 		.stagef = stagef_ \
 	}
 
-#define gfx_dep_siga(dep_, mask_, stage_, range_) \
-	GFX_LITERAL(GFXInject){ \
-		.type = GFX_INJ_SIGNAL_RANGE, \
-		.dep = dep_, \
-		.ref = GFX_REF_NULL, \
-		.range = range_, \
-		.mask = mask_, \
-		.stage = stage_ \
-	}
-
-#define gfx_dep_sigra(dep_, mask_, stage_, ref_, range_) \
-	GFX_LITERAL(GFXInject){ \
-		.type = GFX_INJ_SIGNAL_RANGE, \
-		.dep = dep_, \
-		.ref = ref_, \
-		.range = range_, \
-		.mask = mask_, \
-		.stage = stage_ \
-	}
-
 #define gfx_dep_sigraf(dep_, maskf_, stagef_, mask_, stage_, ref_, range_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL_RANGE_FROM, \
 		.dep = dep_, \
+		.ref = ref_, \
+		.range = range_, \
+		.mask = mask_, \
+		.stage = stage_, \
+		.maskf = maskf_, \
+		.stagef = stagef_ \
+	}
+
+#define gfx_sigf(maskf_, stagef_, mask_, stage_) \
+	GFX_LITERAL(GFXInject){ \
+		.type = GFX_INJ_SIGNAL_FROM, \
+		.dep = NULL, \
+		.ref = GFX_REF_NULL, \
+		.mask = mask_, \
+		.stage = stage_, \
+		.maskf = maskf_, \
+		.stagef = stagef_ \
+	}
+
+#define gfx_sigrf(maskf_, stagef_, mask_, stage_, ref_) \
+	GFX_LITERAL(GFXInject){ \
+		.type = GFX_INJ_SIGNAL_FROM, \
+		.dep = NULL, \
+		.ref = ref_, \
+		.mask = mask_, \
+		.stage = stage_, \
+		.maskf = maskf_, \
+		.stagef = stagef_ \
+	}
+
+#define gfx_sigraf(maskf_, stagef_, mask_, stage_, ref_, range_) \
+	GFX_LITERAL(GFXInject){ \
+		.type = GFX_INJ_SIGNAL_FROM, \
+		.dep = NULL, \
 		.ref = ref_, \
 		.range = range_, \
 		.mask = mask_, \

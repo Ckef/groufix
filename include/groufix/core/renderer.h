@@ -745,6 +745,7 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
 GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 /**
+ * TODO:GRA: Update for gfx_sig*, add gfx_pass_depend.
  * Appends dependency injections to a given pass.
  * @param pass Cannot be NULL.
  * @param injs Cannot be NULL if numInjs > 0.

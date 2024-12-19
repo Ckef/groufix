@@ -14,8 +14,8 @@
 
 #define _GFX_INJ_IS_SIGNAL(inj) \
 	((inj).type == GFX_INJ_SIGNAL || \
-	(inj).type == GFX_INJ_SIGNAL_FROM || \
 	(inj).type == GFX_INJ_SIGNAL_RANGE || \
+	(inj).type == GFX_INJ_SIGNAL_FROM || \
 	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
 
 #define _GFX_INJ_IS_RANGED(inj) \
@@ -764,6 +764,8 @@ bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
 		GFXAccessMask injMask = 0;
 
 		// Also remember if we can search the pass' consumes.
+		// TODO:GRA: Remove this, probably?
+		// TODO:GRA: Have better warnings for when to use the sig*f variants!
 		bool sourceFromPass = 0;
 
 		if (refs == &unp && injection->inp.numRefs > 0)
