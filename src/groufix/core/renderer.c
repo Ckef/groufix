@@ -532,16 +532,11 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 		const size_t numPass = pass->deps.size;
 		const size_t numWait = wait->deps.size;
 
-		// Only if transferring ownership to another queue between passes
-		// do we actually need a prepare operation.
-		// Thus, if NOT transferring ownership, only insert at the target.
-		// If we ARE transferring, insert at both target AND source!
-		// We can determine what to do based on the source/target fields!
-		const bool isTransfer =
-			pass->type != wait->type &&
-			(pass->type == GFX_PASS_COMPUTE_ASYNC ||
-			wait->type == GFX_PASS_COMPUTE_ASYNC);
-
+		// Loop over all injections and insert them at either the
+		// source or target pass, implicitly inserting a wait command if
+		// necessary.
+		// Once submitting, we can determine what to do based on the
+		// source/target fields!
 		_GFXDepend depend = {
 			.source = pass,
 			.target = wait
@@ -551,16 +546,47 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 		{
 			depend.inj = injs[i];
 
-			// Insert at target.
-			if (!gfx_vec_push(&wait->deps, 1, &depend))
-				goto clean;
-
-			// Also insert at source if transferring.
-			if (isTransfer)
-				// TODO:GRA: Somehow precompute how many times to wait for
-				// each dependency object, to simplify its capacity?
-				if (!gfx_vec_push(&pass->deps, 1, &depend))
+			if (depend.inj.dep == NULL)
+			{
+				// If no dependency object, we just inject a barrier
+				// at the catch operation, i.e. at target.
+				if (!gfx_vec_push(&wait->deps, 1, &depend))
 					goto clean;
+			}
+			else
+			{
+				// If we do use a dependency object, insert at source.
+				// Unless it's a wait command.
+				if (
+					depend.inj.type != GFX_INJ_WAIT &&
+					!gfx_vec_push(&pass->deps, 1, &depend))
+				{
+					goto clean;
+				}
+
+				// Plus insert a single wait command per dependency object
+				// at target. So try to find this dependency object.
+				size_t w = 0;
+				for (; w < wait->deps.size; ++w)
+				{
+					_GFXDepend* wDepend = gfx_vec_at(&wait->deps, w);
+					if (
+						wDepend->inj.type == GFX_INJ_WAIT &&
+						wDepend->inj.dep == depend.inj.dep)
+					{
+						break;
+					}
+				}
+
+				// If not found, insert new wait command.
+				if (w >= wait->deps.size)
+				{
+					depend.inj = gfx_dep_wait(depend.inj.dep);
+
+					if (!gfx_vec_push(&wait->deps, 1, &depend))
+						goto clean;
+				}
+			}
 		}
 
 		// Invalidate the graph, maybe new subpass dependencies.
