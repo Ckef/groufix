@@ -510,7 +510,90 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
 	if (numInjs > 0 && !gfx_vec_push(&pass->injs, numInjs, injs))
 		gfx_log_warn(
 			"Dependency injection failed, "
-			"injection commands could not be stored at frame inject.");
+			"injection commands could not be stored at pass inject.");
+}
+
+/****************************/
+GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
+                             size_t numInjs, const GFXInject* injs)
+{
+	assert(pass != NULL);
+	assert(wait != NULL);
+	assert(pass != wait);
+	assert(numInjs == 0 || injs != NULL);
+
+	if (pass->renderer != wait->renderer)
+		gfx_log_warn(
+			"Dependency injection failed, "
+			"passes cannot be associated with a different renderer.");
+
+	else if (numInjs > 0)
+	{
+		const size_t numPass = pass->deps.size;
+		const size_t numWait = wait->deps.size;
+
+		// Only if transferring ownership to another queue between passes
+		// do we actually need a prepare operation.
+		// Thus, if NOT transferring ownership, only insert at the target.
+		// If we ARE transferring, insert at both target AND source!
+		// We can determine what to do based on the source/target fields!
+		const bool isTransfer =
+			pass->type != wait->type &&
+			(pass->type == GFX_PASS_COMPUTE_ASYNC ||
+			wait->type == GFX_PASS_COMPUTE_ASYNC);
+
+		_GFXDepend depend = {
+			.source = pass,
+			.target = wait
+		};
+
+		for (size_t i = 0; i < numInjs; ++i)
+		{
+			depend.inj = injs[i];
+
+			// Insert at target.
+			if (!gfx_vec_push(&wait->deps, 1, &depend))
+				goto clean;
+
+			// Also insert at source if transferring.
+			if (isTransfer)
+				// TODO:GRA: Somehow precompute how many times to wait for
+				// each dependency object, to simplify its capacity?
+				if (!gfx_vec_push(&pass->deps, 1, &depend))
+					goto clean;
+		}
+
+		// Invalidate the graph, maybe new subpass dependencies.
+		_gfx_render_graph_invalidate(pass->renderer);
+
+		return;
+
+
+		// Cleanup on failure.
+	clean:
+		if (pass->deps.size > numPass)
+			gfx_vec_pop(&pass->deps, pass->deps.size - numPass);
+		if (wait->deps.size > numWait)
+			gfx_vec_pop(&wait->deps, wait->deps.size - numWait);
+
+		gfx_log_warn(
+			"Dependency injection failed, "
+			"injection commands could not be stored at pass depend.");
+	}
+}
+
+/****************************/
+GFX_API void gfx_renderer_undepend(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// Loop over all passes and just throw away all of their dependencies.
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+		gfx_vec_clear(
+			&(*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i))->deps);
+
+	// Invalidate the graph, subpass dependencies are gone.
+	_gfx_render_graph_invalidate(renderer);
 }
 
 /****************************/

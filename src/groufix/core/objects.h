@@ -1064,6 +1064,26 @@ typedef struct _GFXConsume
 
 
 /**
+ * Internal pass-dependency injection.
+ */
+typedef struct _GFXDepend
+{
+	GFXInject inj;
+	GFXPass*  source;
+	GFXPass*  target;
+
+
+	// Graph output (relative to neighbouring passes).
+	struct
+	{
+		bool subpass; // Is a subpass dependency (i.e. same subpass chain).
+
+	} out;
+
+} _GFXDepend;
+
+
+/**
  * Internal pass (i.e. render/compute pass).
  */
 struct GFXPass
@@ -1080,12 +1100,8 @@ struct GFXPass
 	// Stores _GFXConsume.
 	GFXVec consumes;
 
-	// TODO:GRA: Define `_GFXDepend` below _GFXConsume,
-	// this depend object will house a GFXInject, it will also have an `out`
-	// field so we know if it will be used within subpasses or just as
-	// pipeline barriers.
-	// TODO:GRA: Add `GFXVec deps`, storing _GFXDepend,
-	// gfx_pass_depend will populate it.
+	// Stores _GFXDepend, from pass depend.
+	GFXVec deps;
 
 	// Stores GFXInject, from pass inject.
 	GFXVec injs;

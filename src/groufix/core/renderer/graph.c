@@ -274,7 +274,7 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 }
 
 /****************************
- * Resolves a pass, setting the `out` field of all its consumptions.
+ * Resolves a pass, setting the `out` field of all consumptions and dependencies.
  * consumes must hold `renderer->backing.attachs.size` pointers.
  * @param pass     Cannot be NULL, must not be culled.
  * @param consumes Cannot be NULL, must be initialized to all NULL on first call.
@@ -399,6 +399,20 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 			thisChain[con->view.index] = 1;
 		}
 
+		// Also resolve all dependencies.
+		for (size_t i = 0; i < subpass->deps.size; ++i)
+		{
+			_GFXDepend* dep = gfx_vec_at(&subpass->deps, i);
+			_GFXRenderPass* source = (_GFXRenderPass*)dep->source;
+			_GFXRenderPass* target = (_GFXRenderPass*)dep->target;
+
+			dep->out.subpass =
+				dep->source->type == GFX_PASS_RENDER &&
+				dep->target->type == GFX_PASS_RENDER &&
+				source->out.master != NULL &&
+				source->out.master == target->out.master;
+		}
+
 		// Next subpass.
 		if (subpass->type != GFX_PASS_RENDER)
 			subpass = NULL;
@@ -409,8 +423,8 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 }
 
 /****************************
- * Analyzes the render graph to setup all passes for correct builds.
- * Meaning the `out` field of all consumptions and each render pass are set.
+ * Analyzes the render graph to setup all passes for correct builds. Meaning
+ * the `out` field of all consumptions, dependencies and render passes are set.
  * Also sets the `order` field of all passes :)
  * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */

@@ -745,8 +745,8 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
 GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 /**
- * TODO:GRA: Update for gfx_sig*, add gfx_pass_depend.
- * Appends dependency injections to a given pass.
+ * TODO:GRA: Update for gfx_sig*.
+ * Injects dependency commands in a given pass.
  * @param pass Cannot be NULL.
  * @param injs Cannot be NULL if numInjs > 0.
  *
@@ -767,6 +767,30 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  */
 GFX_API void gfx_pass_inject(GFXPass* pass,
                              size_t numInjs, const GFXInject* injs);
+
+/**
+ * TODO:GRA: Document dependency behaviour.
+ * Appends dependency commands to given passes, effectively 'injecting' the
+ * given commands before every frame the passes are used in.
+ * @param pass Cannot be NULL.
+ * @param wait Cannot be NULL, pass to implicitly wait, must not be pass.
+ * @param injs Cannot be NULL if numInjs > 0.
+ *
+ * NOT thread-safe with respect to source or target!
+ * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
+ */
+GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
+                             size_t numInjs, const GFXInject* injs);
+
+/**
+ * Removes ALL dependency commands appended to any pass
+ * within renderer via a call to gfx_pass_depend.
+ * @param renderer Cannot be NULL.
+ *
+ * NOT thread-safe with respect to renderer or any of its passes!
+ * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
+ */
+GFX_API void gfx_renderer_undepend(GFXRenderer* renderer);
 
 /**
  * Blocks until all virtual frames are done rendering.

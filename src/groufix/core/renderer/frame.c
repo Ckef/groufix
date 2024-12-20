@@ -621,31 +621,17 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// and handle the whole VK subpass structure like that.
 		// And what to do about subpass clear values, use vkCmdClearAttachments?
 		// TODO:GRA: And what to do about dependency injection and subpasses.
-		// The problem being: we need to define subpass dependencies ahead of
-		// time, such that non-attachments their pipelines' scope reaches
-		// outside its own subpass, and we can inject.
-		// Maybe when you create the pass, give the mask/stage with which
-		// it makes a dependencies for each parent pass?
-		// Otherwise, let the user define dependencies between pairs of
-		// passes some other way?
-		// TODO:GRA: Don't forget to document the solution,
-		// mostly at `deps.h` and `gfx_pass_inject()`.
-		// Maybe split it into `gfx_pass_inject` and `gfx_renderer_inject`,
-		// the former for the above problem, the latter e.g. for heap memory.
-
-		// TODO:GRA: Other idea: Only have dependency injections at
-		// `gfx_frame_submit`, like `gfx_read` and alike, there is no need
-		// for gfx_(pass|renderer)_inject because we will only be injecting
-		// at the complete start or end of a frame, maybe keep
-		// gfx_renderer_inject for one-time injections tho.
+		// Problem being: we need to define subpass dependencies ahead of
+		// time, not only for attachments, but for non-attachments as well.
+		//
 		// For attachments used as actual render pass attachments,
 		//   everything is handled through consumptions.
 		// For attachments used as non-attachment, e.g. as texture in a
 		//   compute shader (of all things), we MUST use it in a bound set
 		//   as such AND consume them so they're synchronized.
 		//   NOTE: See todo below, breaks on async compute!
-		// For non attachments, we can either also consume them in passes,
-		//   OR we do semi-dependencies; we use the gfx_dep_*f macros but
+		// For non attachments,
+		//   we do semi-dependencies; we use the gfx_dep_*f macros but
 		//   just directly insert them into two passes.
 		//   We can artificially inject the wait commands.
 		//   This way we still benefit from the dep's semaphore management,
@@ -687,9 +673,6 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		//   Or will you also be able to inject "permanent" dep-objects???
 		//   Do we have separate calls for the two types of injections?
 		//   Maybe gfx_pass_depend and gfx_pass_inject?
-		//   Combine a call with gfx_renderer_inject/gfx_frame_submit
-		//   by making either of src/dst pass NULL-able to signify outside-
-		//   renderer activity??
 		//
 		//   One more thing: subpass-deps are not only limited to render
 		//   passes, they are also limited to parent-child passes.
