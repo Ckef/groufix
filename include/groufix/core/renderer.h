@@ -745,7 +745,6 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
 GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 /**
- * TODO:GRA: Update for gfx_sig*.
  * Injects dependency commands in a given pass.
  * @param pass Cannot be NULL.
  * @param injs Cannot be NULL if numInjs > 0.
@@ -764,20 +763,32 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  * All wait commands only see signal commands injected in passes earlier in
  * submission order. However, all wait commands can match any visible signal
  * commands submitted elsewhere up until gfx_frame_submit is called.
+ *
+ * It is undefined behaviour to use this call to inject dependencies between
+ * two render passes in the same frame, gfx_pass_depend should be used.
  */
 GFX_API void gfx_pass_inject(GFXPass* pass,
                              size_t numInjs, const GFXInject* injs);
 
 /**
- * TODO:GRA: Document dependency behaviour.
  * Appends dependency commands to given passes, effectively 'injecting' the
  * given commands before every frame the passes are used in.
- * @param pass Cannot be NULL.
+ * @param pass Cannot be NULL, must be a parent (or any parent thereof) of wait.
  * @param wait Cannot be NULL, pass to implicitly wait, must not be pass.
  * @param injs Cannot be NULL if numInjs > 0.
  *
  * NOT thread-safe with respect to source or target!
  * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
+ *
+ * Any signal command is implicitly waited upon by the wait pass.
+ * Meaning there is no need to inject a matching wait command anywhere.
+ *
+ * For each dependency object that is implicitly being waited upon by a pass,
+ * only a single wait command will be injected in that pass,
+ * even if gfx_pass_depend is called multiple times.
+ *
+ * All dependency objects are referenced until gfx_renderer_undepend is called.
+ * This is the only call that takes the gfx_sig* macro family as injections!
  */
 GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
                              size_t numInjs, const GFXInject* injs);

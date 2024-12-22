@@ -1598,7 +1598,6 @@ bool _gfx_injection_push(VkPipelineStageFlags srcStage,
                          _GFXInjection* injection);
 
 /**
- * TODO:GRA: Update for gfx_sig*.
  * Completes dependency injections by catching pending signal commands.
  * @param context   Cannot be NULL.
  * @param cmd       To record some initial barriers to, cannot be VK_NULL_HANDLE.
@@ -1629,7 +1628,6 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
                      _GFXInjection* injection);
 
 /**
- * TODO:GRA: Update for gfx_sig*.
  * Starts dependency injections by preparing new signal commands.
  * @param blocking Non-zero to indicate the operation is blocking.
  * @see _gfx_deps_catch.

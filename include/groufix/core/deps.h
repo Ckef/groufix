@@ -169,7 +169,7 @@ typedef struct GFXInject
 
 
 /**
- * Injection macros. Dependency objects or passes from a renderer can be
+ * Injection macros. Dependency objects or passes of a renderer can be
  * signaled or waited upon with respect to (a set of) resources on the GPU,
  * the CPU is never blocked!
  *
@@ -185,13 +185,6 @@ typedef struct GFXInject
  * by the operation they were injected in. After being made visible,
  * a wait command matches (and waits for) all signal commands that address
  * the same underlying Vulkan queue.
- * TODO:GRA: Describe that gfx_pass_depend only needs a signal command,
- * the wait command is implicit by the target pass.
- * TODO:GRA: Describe implicit wait commands when using gfx_pass_depend in
- * combination with the gfx_dep_sig* family, for dependency object capacity?
- * (preferably one wait command for a dependency object per target pass!)
- * TODO:GRA Update different commands explanation below to include
- * the entire gfx_sig* family!
  *
  * There are three queue destinations:
  *  -graphics, -compute, -transfer
@@ -211,6 +204,9 @@ typedef struct GFXInject
  *
  * To specify the source access mask and stages of a specific resource, use
  *  `gfx_dep_sigrf` or `gfx_dep_sigraf`
+ *
+ * When signaling passes of a renderer directly, `f` is always appended:
+ *  `gfx_sigf`, `gfx_sigrf`, `gfx_sigraf`
  *
  * Resources are considered referenced by the dependency object as long as it
  * has not formed a valid signal/wait pair, meaning the resources in question

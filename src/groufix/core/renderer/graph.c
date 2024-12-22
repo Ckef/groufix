@@ -409,8 +409,14 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 			dep->out.subpass =
 				dep->source->type == GFX_PASS_RENDER &&
 				dep->target->type == GFX_PASS_RENDER &&
-				source->out.master != NULL &&
-				source->out.master == target->out.master;
+				((source->out.master == NULL &&
+					target->out.master == source) ||
+				(source->out.master != NULL &&
+					source->out.master == target->out.master)) &&
+
+				// Do not make it a subpass dependency if we're dealing
+				// with a dependency object.
+				dep->inj.dep == NULL;
 		}
 
 		// Next subpass.

@@ -543,7 +543,7 @@ static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.image               = image,
 
-		// TODO: Not merge ranges? (check overlap while analyzing the graph?)
+		// TODO: If there is no overlap, skip the barrier?
 		// We deal with two ranges from both consumptions,
 		// for now we assume they overlap and merge the ranges.
 		.subresourceRange = {
@@ -673,12 +673,6 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		//   Or will you also be able to inject "permanent" dep-objects???
 		//   Do we have separate calls for the two types of injections?
 		//   Maybe gfx_pass_depend and gfx_pass_inject?
-		//
-		//   One more thing: subpass-deps are not only limited to render
-		//   passes, they are also limited to parent-child passes.
-		//   Could work it into the gfx_renderer_add_pass API?
-		//   Although it's completely arbitrary we only merge with parents,
-		//   might want to lift that restriction sometime?
 
 		// Do nothing if pass is culled.
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);

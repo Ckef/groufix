@@ -976,9 +976,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			{
 				const _GFXConsume* prev = con->out.prev;
 
-				// TODO:GRA: Probably need to have dependencies to VK_SUBPASS_EXTERNAL?
-				// Base this more off of parent pass' mask/stage settings?
-
 				const VkPipelineStageFlags srcStageMask =
 					_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);
 				const VkPipelineStageFlags dstStageMask =
@@ -1013,6 +1010,41 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 
 			// Same for the clear values for when we begin the pass.
 			gfx_vec_push(&subpass->vk.clears, 1, &con->clear.vk);
+		}
+
+		// Before finishing up this subpass, loop over all dependency
+		// commands to see if we need to make them subpass dependencies.
+		// We ignore the actual resource references here.
+		const size_t numDeps =
+			subpass != rPass ? subpass->base.deps.size : 0;
+
+		for (size_t i = 0; i < numDeps; ++i)
+		{
+			_GFXDepend* depend = gfx_vec_at(&subpass->base.deps, i);
+			if (!depend->out.subpass) continue;
+
+			// Use empty formats, only relevant for attachments.
+			const GFXFormat emptyFmt = GFX_FORMAT_EMPTY;
+
+			const VkPipelineStageFlags srcStageMask =
+				_GFX_GET_VK_PIPELINE_STAGE(
+					depend->inj.maskf, depend->inj.stagef, emptyFmt);
+
+			const VkPipelineStageFlags dstStageMask =
+				_GFX_GET_VK_PIPELINE_STAGE(
+					depend->inj.mask, depend->inj.stage, emptyFmt);
+
+			VkSubpassDependency dependency = {
+				.srcSubpass    = ((_GFXRenderPass*)depend->source)->out.subpass,
+				.dstSubpass    = ((_GFXRenderPass*)depend->target)->out.subpass,
+				.srcStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+				.dstStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+				.srcAccessMask = _GFX_GET_VK_ACCESS_FLAGS(depend->inj.maskf, emptyFmt),
+				.dstAccessMask = _GFX_GET_VK_ACCESS_FLAGS(depend->inj.mask, emptyFmt),
+			};
+
+			if (!gfx_vec_push(&dependencies, 1, &dependency))
+				goto clean;
 		}
 
 		// Output the Vulkan subpass.

@@ -325,7 +325,7 @@ GFX_API void gfx_destroy_dep(GFXDependency* dep)
 
 	_GFXContext* context = dep->context;
 
-	// Destroy all semaphores of the dependency.
+	// Destroy all semaphores of the dependency object.
 	// By definition we do not need to care about
 	// whether the semaphores are still in use!
 	// Also, all semaphores are at the front of the deque :)
@@ -399,6 +399,7 @@ bool _gfx_injection_push(VkPipelineStageFlags srcStage,
 			sizeof(VkImageMemoryBarrier), *imb,
 			return 0);
 
+	// TODO: Maybe not merge pipeline flags always?
 	// Always add pipeline flags.
 	injection->bars.srcStage |= srcStage;
 	injection->bars.dstStage |= dstStage;
@@ -479,6 +480,7 @@ static bool _gfx_dep_push_barrier(const _GFXSync* sync,
 		}
 	}
 
+	// TODO: Maybe not merge pipeline flags always?
 	// In all cases (execution or memory barrier), add pipeline flags.
 	injection->bars.srcStage |= sync->vk.srcStage;
 	injection->bars.dstStage |= sync->vk.dstStage;
@@ -513,7 +515,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 		if (!_GFX_INJ_IS_WAIT(injs[i]))
 			continue;
 
-		// Check the context of the dependency.
+		// Check the context of the dependency object.
 		if (injs[i].dep->context != context)
 		{
 			gfx_log_warn(
@@ -713,7 +715,17 @@ bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
 		if (!_GFX_INJ_IS_SIGNAL(injs[i]))
 			continue;
 
-		// Check the context of the dependency.
+		// Check if we have a dependency object.
+		if (injs[i].dep == NULL)
+		{
+			gfx_log_warn(
+				"Dependency signal command ignored, must signal a "
+				"dependency object when not injecting between passes.");
+
+			continue;
+		}
+
+		// Check the context of the dependency object.
 		if (injs[i].dep->context != context)
 		{
 			gfx_log_warn(
