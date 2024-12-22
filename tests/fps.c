@@ -23,9 +23,8 @@ TEST_DESCRIBE(fps, t)
 	// Setup an event loop.
 	while (!gfx_window_should_close(t->window))
 	{
-		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
+		GFXFrame* frame = gfx_renderer_start(t->renderer);
 		gfx_poll_events();
-		gfx_frame_start(frame);
 		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
 	}

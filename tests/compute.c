@@ -125,8 +125,7 @@ TEST_DESCRIBE(compute, t)
 			gfx_ref_buffer(buffer))
 	});
 
-	GFXFrame* frame = gfx_renderer_acquire(t->renderer);
-	gfx_frame_start(frame);
+	GFXFrame* frame = gfx_renderer_start(t->renderer);
 	gfx_recorder_compute(t->recorder, pass, compute, &ctx);
 	gfx_frame_submit(frame);
 	gfx_frame_block(frame);
