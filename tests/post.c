@@ -254,10 +254,9 @@ TEST_DESCRIBE(post, t)
 	// We wait instead of poll, only update when an event was detected.
 	while (!gfx_window_should_close(t->window))
 	{
-		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
+		GFXFrame* frame = gfx_renderer_start(t->renderer);
 		GFXPass* post = posts[ctx.mode];
 
-		gfx_frame_start(frame);
 		gfx_recorder_render(t->recorder, post, post_process, &ctx);
 		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);

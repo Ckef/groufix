@@ -56,8 +56,7 @@ TEST_DESCRIBE(imgui, t)
 	// Setup an event loop.
 	while (!gfx_window_should_close(t->window))
 	{
-		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
-		gfx_frame_start(frame);
+		GFXFrame* frame = gfx_renderer_start(t->renderer);
 		gfx_poll_events();
 
 		igNewFrame();

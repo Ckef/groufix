@@ -702,6 +702,14 @@ GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* ds
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 
 /**
+ * Acquires the next virtual frame and prepares it to start recording.
+ * Calls gfx_renderer_acquire and gfx_frame_start back to back.
+ * @see gfx_renderer_acquire.
+ * @see gfx_frame_start.
+ */
+GFX_API GFXFrame* gfx_renderer_start(GFXRenderer* renderer);
+
+/**
  * Retrieves the index of a virtual frame, used to identify the frame.
  * All frame indices are in the range [0, #frames of the renderer - 1].
  * They will be acquired in order, starting at 0.

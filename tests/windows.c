@@ -66,8 +66,7 @@ TEST_DESCRIBE(windows, t)
 		!gfx_window_should_close(t->window) &&
 		!gfx_window_should_close(window2))
 	{
-		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
-		gfx_frame_start(frame);
+		GFXFrame* frame = gfx_renderer_start(t->renderer);
 		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_recorder_render(t->recorder, pass2, render2, &renderable2);
 		gfx_frame_submit(frame);

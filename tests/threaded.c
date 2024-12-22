@@ -24,8 +24,7 @@ TEST_DESCRIBE(render_loop, t)
 	// Like the other loop, but submit the renderer :)
 	while (!atomic_load(&termSig))
 	{
-		GFXFrame* frame = gfx_renderer_acquire(t->renderer);
-		gfx_frame_start(frame);
+		GFXFrame* frame = gfx_renderer_start(t->renderer);
 		gfx_recorder_render(t->recorder, t->pass, TEST_CALLBACK_RENDER, NULL);
 		gfx_frame_submit(frame);
 	}
