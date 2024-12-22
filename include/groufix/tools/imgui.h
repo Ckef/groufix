@@ -31,7 +31,7 @@ typedef struct GFXImguiDrawer
 	GFXPass*     pass;
 
 	GFXTechnique* tech;
-	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable, void*, void* }.
+	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable, void* }.
 	GFXVec        fonts;  // Stores GFXImage*.
 	GFXMap        images; // Stores GFXImage* : GFXSet*.
 
