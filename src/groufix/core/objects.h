@@ -1415,9 +1415,8 @@ typedef struct _GFXInjection
 	struct
 	{
 		GFXRenderer* renderer; // To signal attachments.
-		GFXPass*     pass;     // To search for access/stage flags.
+		size_t       numRefs;  // May be zero!
 
-		size_t               numRefs; // May be zero!
 		const _GFXUnpackRef* refs;
 		const GFXAccessMask* masks;
 		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!

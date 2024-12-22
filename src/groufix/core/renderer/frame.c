@@ -678,8 +678,6 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 		if (pass->culled) continue;
 
-		injection->inp.pass = pass; // Update injection.
-
 		// Inject wait commands.
 		if (!_gfx_deps_catch(
 			context, cmd,
@@ -800,8 +798,6 @@ static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 		if (pass->culled) continue;
 
-		injection->inp.pass = pass; // Update injection.
-
 		// Firstly, finalize or abort the dependency injection.
 		if (success)
 			_gfx_deps_finish(
@@ -845,7 +841,6 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		injection = (_GFXInjection){
 			.inp = {
 				.renderer = renderer,
-				.pass = NULL,
 				.numRefs = 0,
 				.queue = {
 					.family = renderer->graphics.family,
@@ -992,7 +987,6 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		injection = (_GFXInjection){
 			.inp = {
 				.renderer = renderer,
-				.pass = NULL,
 				.numRefs = 0,
 				.queue = {
 					.family = renderer->compute.family,

@@ -775,11 +775,6 @@ bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
 		// And get the associated access mask for later unpacking.
 		GFXAccessMask injMask = 0;
 
-		// Also remember if we can search the pass' consumes.
-		// TODO:GRA: Remove this, probably?
-		// TODO:GRA: Have better warnings for when to use the sig*f variants!
-		bool sourceFromPass = 0;
-
 		if (refs == &unp && injection->inp.numRefs > 0)
 		{
 			size_t r = 0;
@@ -803,11 +798,7 @@ bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
 		// we must have used a sourced injection command.
 		else if (refs == &unp)
 		{
-			// Except when it is an attachment, we can search the pass!
-			sourceFromPass =
-				unp.obj.renderer != NULL && injection->inp.pass != NULL;
-
-			if (!_GFX_INJ_IS_SOURCED(injs[i]) && !sourceFromPass)
+			if (!_GFX_INJ_IS_SOURCED(injs[i]))
 			{
 				gfx_log_warn(
 					"Dependency signal command ignored, "
@@ -956,38 +947,10 @@ bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
 			else
 				sync->vk.buffer = buffer;
 
-			// If we have no injection references to get source access/stage
-			// flags from, see if we can get it from the injection's pass!
-			// We can do this because we get the pass from the injection
-			// metadata, i.e. we KNOW the the resource has just been used if
-			// we found it in the pass.
-			// Important!: We know the pass is of this renderer because we
-			// do not allow using renderer attachments in other renderers!
-			bool sourceFromPassFound = 0;
-			GFXAccessMask passMask = 0;
-			GFXShaderStage passStage = 0;
-
-			if (sourceFromPass)
-				for (size_t c = 0; c < injection->inp.pass->consumes.size; ++c)
-				{
-					const _GFXConsume* con =
-						gfx_vec_at(&injection->inp.pass->consumes, c);
-
-					if (con->view.index == unp.value)
-					{
-						sourceFromPassFound = 1;
-						passMask = con->mask;
-						passStage = con->stage;
-						break;
-					}
-				}
-
 			// Get all access/stage flags for the resource to signal.
 			const GFXAccessMask srcMask =
 				(refs != &unp) ? injection->inp.masks[r] :
 				(injection->inp.numRefs > 0) ? injMask :
-				// Get from the pass' consumes!
-				(sourceFromPassFound) ? passMask :
 				// If all else fails, check for a sourced injection command.
 				_GFX_INJ_IS_SOURCED(injs[i]) ?
 					injs[i].maskf & ~(GFXAccessMask)GFX_ACCESS_HOST_READ_WRITE : 0;
@@ -995,8 +958,6 @@ bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
 			const GFXShaderStage srcStage =
 				// Check injection reference to not dereference attachments.
 				(refs != &unp || injection->inp.numRefs > 0) ? GFX_STAGE_ANY :
-				// Get from the pass' consumes!
-				(sourceFromPassFound) ? passStage :
 				// Or sourced injection command!
 				_GFX_INJ_IS_SOURCED(injs[i]) ? injs[i].stagef : GFX_STAGE_ANY;
 
