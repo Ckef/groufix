@@ -440,6 +440,20 @@ GFX_API size_t gfx_prim_get_num_attribs(GFXPrimitive* primitive);
 GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib);
 
 /**
+ * Retrieves the offset of vertices into the newly allocated primitive buffer.
+ * @param primitive Cannot be NULL.
+ * @return Zero if the vertices do not live in the newly allocated buffer.
+ */
+GFX_API uint64_t gfx_prim_get_vertices_offset(GFXPrimitive* primitive);
+
+/**
+ * Retrieves the offset of indices into the newly allocated primitive buffer.
+ * @param primitive Cannot be NULL.
+ * @return Zero if the indices do not live in the newly allocated buffer.
+ */
+GFX_API uint64_t gfx_prim_get_indices_offset(GFXPrimitive* primitive);
+
+/**
  * Allocates a resource group from a heap.
  * Newly allocated buffers live in one big buffer, aligned such that they can
  * all be used as any combination of a texel, uniform, storage or indirect buffer.

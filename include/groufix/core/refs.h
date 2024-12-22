@@ -114,6 +114,7 @@ typedef enum GFXReferenceType
 	GFX_REF_IMAGE,
 	GFX_REF_PRIMITIVE_VERTICES,
 	GFX_REF_PRIMITIVE_INDICES,
+	GFX_REF_PRIMITIVE,
 	GFX_REF_GROUP_BUFFER,
 	GFX_REF_GROUP_IMAGE,
 	GFX_REF_GROUP,
@@ -170,6 +171,7 @@ typedef GFXReference GFXImageRef;
 	((ref).type == GFX_REF_BUFFER || \
 	(ref).type == GFX_REF_PRIMITIVE_VERTICES || \
 	(ref).type == GFX_REF_PRIMITIVE_INDICES || \
+	(ref).type == GFX_REF_PRIMITIVE || \
 	(ref).type == GFX_REF_GROUP_BUFFER || \
 	(ref).type == GFX_REF_GROUP)
 
@@ -183,10 +185,14 @@ typedef GFXReference GFXImageRef;
  * Resource referencing macros, objects that can be referenced:
  *  GFXBuffer
  *  GFXImage
- *  GFXPrimitive (its vertex or index buffers)
- *  GFXGroup     (one of its buffers or images)
- *                (or: all newly allocated buffers as one)
- *  GFXRenderer  (its image attachments)
+ *  GFXPrimitive
+ *   - its vertex or index buffers.
+ *   - or: all newly allocated (vertex/index) buffers as one.
+ *  GFXGroup
+ *   - one of its buffers or images.
+ *   - or: all newly allocated buffers as one.
+ *  GFXRenderer
+ *   - its image attachments.
  *
  * No argument can be NULL, any referenced memory resource must exist.
  * If any of these constraints are not met, behaviour is undefined.
@@ -245,6 +251,22 @@ typedef GFXReference GFXImageRef;
 #define gfx_ref_prim_indices_at(primitive, offset_) \
 	GFX_LITERAL(GFXBufferRef){ \
 		.type = GFX_REF_PRIMITIVE_INDICES, \
+		.obj = primitive, \
+		.offset = offset_, \
+		.values = { 0, 0 } \
+	}
+
+#define gfx_ref_prim(primitive) \
+	GFX_LITERAL(GFXBufferRef){ \
+		.type = GFX_REF_PRIMITIVE, \
+		.obj = primitive, \
+		.offset = 0, \
+		.values = { 0, 0 } \
+	}
+
+#define gfx_ref_prim_at(primitive, offset_) \
+	GFX_LITERAL(GFXBufferRef){ \
+		.type = GFX_REF_PRIMITIVE, \
 		.obj = primitive, \
 		.offset = offset_, \
 		.values = { 0, 0 } \

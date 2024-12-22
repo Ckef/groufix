@@ -20,10 +20,7 @@
 // Clears the contents of a _GFXDataElem, freeing all memory.
 #define _GFX_IMGUI_CLEAR_DATA(elem) \
 	do { \
-		if (elem->vertices) \
-			gfx_unmap(gfx_ref_prim_vertices(elem->primitive, 0)); \
-		if (elem->indices) \
-			gfx_unmap(gfx_ref_prim_indices(elem->primitive)); \
+		if (elem->data) gfx_unmap(gfx_ref_prim(elem->primitive)); \
 		gfx_free_prim(elem->primitive); \
 	} while (0);
 
@@ -38,9 +35,7 @@ typedef struct _GFXDataElem
 
 	GFXPrimitive* primitive;
 	GFXRenderable renderable;
-
-	void* vertices;
-	void* indices;
+	void*         data;
 
 } _GFXDataElem;
 
@@ -1030,8 +1025,7 @@ build_new:
 
 	_GFXDataElem* elem = gfx_deque_at(&drawer->data, 0);
 	elem->frame = UINT_MAX; // Not yet purged.
-	elem->vertices = NULL;
-	elem->indices = NULL;
+	elem->data = NULL;
 
 	// Allocate primitive.
 	elem->primitive = gfx_alloc_prim(drawer->heap,
@@ -1063,10 +1057,8 @@ build_new:
 		goto clean_new;
 
 	// If successful, map the data.
-	elem->vertices = gfx_map(gfx_ref_prim_vertices(elem->primitive, 0));
-	elem->indices = gfx_map(gfx_ref_prim_indices(elem->primitive));
-
-	if (elem->vertices == NULL || elem->indices == NULL)
+	elem->data = gfx_map(gfx_ref_prim(elem->primitive));
+	if (elem->data == NULL)
 		goto clean_new;
 
 	// And lastly, initalize the renderable.
@@ -1185,8 +1177,10 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 		indexOffset = frame * (elem->primitive->numIndices / numFrames);
 
 		// Upload all the vertex/index data.
-		ImDrawVert* vertices = (ImDrawVert*)elem->vertices + vertexOffset;
-		ImDrawIdx* indices = (ImDrawIdx*)elem->indices + indexOffset;
+		ImDrawVert* vertices = (ImDrawVert*)((char*)elem->data +
+			gfx_prim_get_vertices_offset(elem->primitive)) + vertexOffset;
+		ImDrawIdx* indices = (ImDrawIdx*)((char*)elem->data +
+			gfx_prim_get_indices_offset(elem->primitive)) + indexOffset;
 
 		for (int l = 0; l < drawData->CmdListsCount; ++l)
 		{

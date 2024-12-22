@@ -1439,6 +1439,24 @@ GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
 }
 
 /****************************/
+GFX_API uint64_t gfx_prim_get_vertices_offset(GFXPrimitive* primitive)
+{
+	assert(primitive != NULL);
+
+	// The vertices are always at the start.
+	return 0;
+}
+
+/****************************/
+GFX_API uint64_t gfx_prim_get_indices_offset(GFXPrimitive* primitive)
+{
+	assert(primitive != NULL);
+
+	const GFXBufferRef* ref = &((_GFXPrimitive*)primitive)->index;
+	return ref->obj == &((_GFXPrimitive*)primitive)->buffer ? ref->offset : 0;
+}
+
+/****************************/
 GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
                                   GFXMemoryFlags flags, GFXBufferUsage usage,
                                   size_t numBindings, const GFXBinding* bindings)

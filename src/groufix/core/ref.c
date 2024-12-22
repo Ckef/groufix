@@ -61,6 +61,9 @@ uint64_t _gfx_ref_size(GFXReference ref)
 		return ((uint64_t)_GFX_PRIMITIVE->base.indexSize *
 			_GFX_PRIMITIVE->base.numIndices) - ref.offset;
 
+	case GFX_REF_PRIMITIVE:
+		return _GFX_PRIMITIVE->buffer.base.size - ref.offset;
+
 	case GFX_REF_GROUP_BUFFER:
 		return _GFX_BINDING->stride * (_GFX_BINDING->base.numElements - 1) +
 			(_GFX_BINDING->base.type == GFX_BINDING_BUFFER ?
@@ -110,6 +113,13 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 		// If referencing the primitive's buffer, just return the prim itself.
 		if (rec.obj == &_GFX_PRIMITIVE->buffer) rec = GFX_REF_NULL;
 		else rec.offset += ref.offset;
+		break;
+
+	case GFX_REF_PRIMITIVE:
+		_GFX_CHECK_RESOLVE(
+			_GFX_PRIMITIVE->buffer.vk.buffer != VK_NULL_HANDLE,
+			"Referencing a primitive without newly allocated buffers!");
+
 		break;
 
 	case GFX_REF_GROUP_BUFFER:
@@ -227,6 +237,16 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 		_GFX_CHECK_UNPACK(
 			unp.value < unp.obj.buffer->base.size,
 			"Index buffer reference out of bounds!");
+
+		break;
+
+	case GFX_REF_PRIMITIVE:
+		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
+		unp.value = ref.offset;
+
+		_GFX_CHECK_UNPACK(
+			unp.value < unp.obj.buffer->base.size,
+			"Primitive buffer reference out of bounds!");
 
 		break;
 
