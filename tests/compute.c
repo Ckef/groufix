@@ -86,7 +86,7 @@ TEST_DESCRIBE(compute, t)
 
 	// Add compute pass.
 	GFXPass* pass = gfx_renderer_add_pass(
-		t->renderer, GFX_PASS_COMPUTE_INLINE, 0, 0, NULL);
+		t->renderer, GFX_PASS_COMPUTE_ASYNC, 0, 0, NULL);
 
 	if (pass == NULL)
 		goto clean;
@@ -118,8 +118,10 @@ TEST_DESCRIBE(compute, t)
 	// Render a single 'frame'.
 	gfx_pass_inject(pass, 1, (GFXInject[]){
 		gfx_dep_sigrf(t->dep,
-			GFX_ACCESS_STORAGE_READ_WRITE, GFX_STAGE_COMPUTE,
-			GFX_ACCESS_HOST_READ, GFX_STAGE_ANY,
+			GFX_ACCESS_STORAGE_READ_WRITE | GFX_ACCESS_COMPUTE_ASYNC,
+			GFX_STAGE_COMPUTE,
+			GFX_ACCESS_HOST_READ,
+			GFX_STAGE_ANY,
 			gfx_ref_buffer(buffer))
 	});
 
