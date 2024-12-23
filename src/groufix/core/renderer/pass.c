@@ -1008,6 +1008,10 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				*(char*)(blend + 2) = (char)(con->flags & _GFX_CONSUME_BLEND);
 			}
 
+			// TODO:GRA: Clear values should be set for each attachment,
+			// so what if this subpass doesn't consume it, but it IS
+			// in the framebuffer for the whole pass? Fix it.
+
 			// Same for the clear values for when we begin the pass.
 			gfx_vec_push(&subpass->vk.clears, 1, &con->clear.vk);
 		}
