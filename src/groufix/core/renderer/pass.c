@@ -994,10 +994,21 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					goto clean;
 			}
 
-			// Lastly, store the blend values for building pipelines,
-			// memory is already reserved :)
+			// If we want to clear, but it is not the first consumption
+			// of this attachment, store at this subpass for manual clearing.
+			if (
+				con->cleared &&
+				!(con->out.state & _GFX_CONSUME_IS_FIRST))
+			{
+				// Already reserved!
+				gfx_vec_push(&subpass->vk.clears, 1, &con->clear.vk);
+			}
+
+			// Lastly, store the blend values for building pipelines.
+			// Only need to specify the attachments used by this subpass :)
 			if (isColor)
 			{
+				// Already reserved!
 				gfx_vec_push(&subpass->vk.blends, 1, NULL);
 
 				GFXBlendOpState* blend = gfx_vec_at(
@@ -1007,13 +1018,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				*(blend + 1) = con->alpha;
 				*(char*)(blend + 2) = (char)(con->flags & _GFX_CONSUME_BLEND);
 			}
-
-			// TODO:GRA: Clear values should be set for each attachment,
-			// so what if this subpass doesn't consume it, but it IS
-			// in the framebuffer for the whole pass? Fix it.
-
-			// Same for the clear values for when we begin the pass.
-			gfx_vec_push(&subpass->vk.clears, 1, &con->clear.vk);
 		}
 
 		// Before finishing up this subpass, loop over all dependency
@@ -1114,7 +1118,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	gfx_vec_clear(&preserves);
 	gfx_vec_clear(&dependencies);
 
-	// Lastly, propogate the pass to all subpasses.
+	// Propogate the pass to all subpasses.
 	// This so pipeline creation doesn't have to know about the master pass.
 	for (
 		_GFXRenderPass* subpass = rPass->out.next;
@@ -1123,6 +1127,16 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	{
 		subpass->build.pass = rPass->build.pass;
 		subpass->vk.pass = rPass->vk.pass;
+	}
+
+	// Lastly, set clear values of the first subpass.
+	for (size_t i = 0; i < numViews; ++i)
+	{
+		const _GFXConsume* con =
+			((_GFXViewElem*)gfx_vec_at(&rPass->vk.views, i))->consume;
+
+		// Already reserved!
+		gfx_vec_push(&rPass->vk.clears, 1, &con->clear.vk);
 	}
 
 	return 1;
