@@ -729,17 +729,16 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 		subpass != NULL;
 		subpass = subpass->out.next)
 	{
-		// We are always gonna update the clear & blend values.
+		// We are always gonna update the clear & blend values,
+		// so we release all values for all passes.
 		// Same for state variables & enables.
 		gfx_vec_release(&subpass->vk.clears);
 		gfx_vec_release(&subpass->vk.blends);
 		subpass->state.samples = 1;
 		subpass->state.enabled = 0;
 
-		// Both need one element per view max.
-		if (!gfx_vec_reserve(&subpass->vk.clears, numViews))
-			goto clean;
-
+		// Blend needs one element per view, max.
+		// Clear is only set for the master pass (done after this loop).
 		if (!gfx_vec_reserve(&subpass->vk.blends, numViews))
 			goto clean;
 
@@ -994,16 +993,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					goto clean;
 			}
 
-			// If we want to clear, but it is not the first consumption
-			// of this attachment, store at this subpass for manual clearing.
-			if (
-				con->cleared &&
-				!(con->out.state & _GFX_CONSUME_IS_FIRST))
-			{
-				// Already reserved!
-				gfx_vec_push(&subpass->vk.clears, 1, &con->clear.vk);
-			}
-
 			// Lastly, store the blend values for building pipelines.
 			// Only need to specify the attachments used by this subpass :)
 			if (isColor)
@@ -1069,7 +1058,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 		};
 	}
 
-	// Loop again to set all the pointers to attachment references.
+	// Loop over all subpasses again to set pointers to attachment references.
 	VkAttachmentReference* rInput = gfx_vec_at(&inputs, 0);
 	VkAttachmentReference* rColor = gfx_vec_at(&colors, 0);
 	VkAttachmentReference* rResolve = gfx_vec_at(&resolves, 0);
@@ -1088,6 +1077,18 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 		rColor += ssd->colorAttachmentCount;
 		rResolve += ssd->colorAttachmentCount;
 		rPreserve += ssd->preserveAttachmentCount;
+	}
+
+	// Store the clear values of the first consumptions at master.
+	if (!gfx_vec_reserve(&rPass->vk.clears, numViews))
+		goto clean;
+
+	for (size_t i = 0; i < numViews; ++i)
+	{
+		const _GFXConsume* con =
+			((_GFXViewElem*)gfx_vec_at(&rPass->vk.views, i))->consume;
+
+		gfx_vec_push(&rPass->vk.clears, 1, &con->clear.vk);
 	}
 
 	// Ok now create the Vulkan render pass.
@@ -1118,7 +1119,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	gfx_vec_clear(&preserves);
 	gfx_vec_clear(&dependencies);
 
-	// Propogate the pass to all subpasses.
+	// Lastly, propogate the pass to all subpasses.
 	// This so pipeline creation doesn't have to know about the master pass.
 	for (
 		_GFXRenderPass* subpass = rPass->out.next;
@@ -1127,16 +1128,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	{
 		subpass->build.pass = rPass->build.pass;
 		subpass->vk.pass = rPass->vk.pass;
-	}
-
-	// Lastly, set clear values of the first subpass.
-	for (size_t i = 0; i < numViews; ++i)
-	{
-		const _GFXConsume* con =
-			((_GFXViewElem*)gfx_vec_at(&rPass->vk.views, i))->consume;
-
-		// Already reserved!
-		gfx_vec_push(&rPass->vk.clears, 1, &con->clear.vk);
 	}
 
 	return 1;
