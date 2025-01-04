@@ -678,37 +678,78 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 		if (pass->culled) continue;
 
-		// Inject wait commands.
-		if (!_gfx_deps_catch(
-			context, cmd,
-			pass->injs.size, gfx_vec_at(&pass->injs, 0),
-			injection))
+		// Skip if not the last pass in a subpass chain.
+		// If it is the last pass, resolve for the entire chain.
+		if (pass->type == GFX_PASS_RENDER)
 		{
-			return 0;
+			_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+
+			// Skip if not last.
+			if (rPass->out.next != NULL) continue;
+
+			// See if it is a chain and start at master.
+			if (rPass->out.master != NULL)
+				pass = (GFXPass*)rPass->out.master;
 		}
 
-		// TODO:GRA: The below barrier pushing will break mega hard if the
-		// barrier is on different queues (e.g. async compute to render).
-		// i.e. when we consume an attachment at a async compute pass.
-		// We need a queue transfer...
-		// Just not allow to consume attachments on async compute passes?
-
-		// Inject & flush consumption barriers.
-		for (size_t c = 0; c < pass->consumes.size; ++c)
+		// First inject all wait commands for the entire chain.
+		// This is the reason you cannot use gfx_pass_inject inbetween
+		// render passes, as they might be merged into a chain and we cannot
+		// inject these barriers while we're recording in a Vulkan subpass.
+		for (
+			GFXPass* subpass = pass;
+			subpass != NULL;
+			subpass = (subpass->type == GFX_PASS_RENDER) ?
+				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
-			const _GFXConsume* con = gfx_vec_at(&pass->consumes, c);
-			if (
-				(con->out.prev != NULL) &&
-				(con->out.state & _GFX_CONSUME_IS_FIRST))
+			// Inject from both `injs` and `deps`.
+			if (!_gfx_deps_catch(
+				context, cmd,
+				subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
+				injection))
 			{
-				if (!_gfx_frame_push_barrier(renderer, frame, con, injection))
-					return 0;
+				return 0;
 			}
+
+			for (size_t d = 0; d < subpass->deps.size; ++d)
+			{
+				// TODO:GRA: If a non-subpass depend (so no dep object),
+				// insert appropriate barriers here!
+
+				_GFXDepend* dep = gfx_vec_at(&subpass->deps, d);
+				if (dep->inj.dep == NULL) continue;
+
+				if (!_gfx_deps_catch(
+					context, cmd, 1, &dep->inj, injection))
+				{
+					return 0;
+				}
+			}
+
+			// TODO:GRA: The below barrier pushing will break mega hard if the
+			// barrier is on different queues (e.g. async compute to render).
+			// i.e. when we consume an attachment at a async compute pass,
+			// we need a queue transfer...
+			// Just not allow to consume attachments on async compute passes?
+
+			// Inject & flush consumption barriers.
+			for (size_t c = 0; c < subpass->consumes.size; ++c)
+			{
+				const _GFXConsume* con = gfx_vec_at(&subpass->consumes, c);
+				if (
+					(con->out.prev != NULL) &&
+					(con->out.state & _GFX_CONSUME_IS_FIRST))
+				{
+					if (!_gfx_frame_push_barrier(renderer, frame, con, injection))
+						return 0;
+				}
+			}
+
+			_gfx_injection_flush(context, cmd, injection);
 		}
 
-		_gfx_injection_flush(context, cmd, injection);
-
-		// Begin render pass.
+		// Now we need to start the Vulkan subpass chain.
+		// So, if it is a render pass, begin as render pass.
 		if (pass->type == GFX_PASS_RENDER)
 		{
 			_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
@@ -745,29 +786,71 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 				&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		}
 
-		// Record all recorders.
+		// Then start looping over the chain again to actually record them.
 		for (
-			GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
-			rec != NULL;
-			rec = (GFXRecorder*)rec->list.next)
+			GFXPass* subpass = pass;
+			subpass != NULL;
+			subpass = (subpass->type == GFX_PASS_RENDER) ?
+				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
-			_gfx_recorder_record(rec, pass->order, cmd);
+			// TODO:GRA: Clear attachments if not the first consumption.
+			// TODO:GRA: May need to handle layout transfers due to `deps`?
+
+			// Record all recorders.
+			for (
+				GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
+				rec != NULL;
+				rec = (GFXRecorder*)rec->list.next)
+			{
+				_gfx_recorder_record(rec, subpass->order, cmd);
+			}
+
+			// If a render pass and not last, next subpass.
+			if (
+				subpass->type == GFX_PASS_RENDER &&
+				((_GFXRenderPass*)subpass)->out.next != NULL)
+			{
+				context->vk.CmdNextSubpass(cmd,
+					VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+			}
 		}
 
-		// End render pass.
+		// If a render pass, end as render pass.
 		if (pass->type == GFX_PASS_RENDER)
 			context->vk.CmdEndRenderPass(cmd);
 
 		// Jump to here if for any reason we do not record the pass.
+		// We always record closing signal commands, regardless of
+		// whether the subpass chain was successfull.
 	skip_pass:
 
-		// Inject signal commands.
-		if (!_gfx_deps_prepare(
-			context, cmd, 0,
-			pass->injs.size, gfx_vec_at(&pass->injs, 0),
-			injection))
+		// Last loop to inject all signal commands of the entire chain.
+		for (
+			GFXPass* subpass = pass;
+			subpass != NULL;
+			subpass = (subpass->type == GFX_PASS_RENDER) ?
+				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
-			return 0;
+			// Inject from both `injs` and `deps`.
+			if (!_gfx_deps_prepare(
+				context, cmd, 0,
+				subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
+				injection))
+			{
+				return 0;
+			}
+
+			for (size_t d = 0; d < subpass->deps.size; ++d)
+			{
+				_GFXDepend* dep = gfx_vec_at(&subpass->deps, d);
+				if (dep->inj.dep == NULL) continue; // Avoid a warning!
+
+				if (!_gfx_deps_prepare(
+					context, cmd, 0, 1, &dep->inj, injection))
+				{
+					return 0;
+				}
+			}
 		}
 	}
 
@@ -799,6 +882,7 @@ static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
 		if (pass->culled) continue;
 
 		// Firstly, finalize or abort the dependency injection.
+		// Finish/abort injections from both `injs` and `deps`.
 		if (success)
 			_gfx_deps_finish(
 				pass->injs.size, gfx_vec_at(&pass->injs, 0),
@@ -808,7 +892,18 @@ static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
 				pass->injs.size, gfx_vec_at(&pass->injs, 0),
 				injection);
 
-		// Then erase them.
+		for (size_t d = 0; d < pass->deps.size; ++d)
+		{
+			_GFXDepend* dep = gfx_vec_at(&pass->deps, d);
+			if (dep->inj.dep == NULL) continue; // Avoid many free() calls!
+
+			if (success)
+				_gfx_deps_finish(1, &dep->inj, injection);
+			else
+				_gfx_deps_abort(1, &dep->inj, injection);
+		}
+
+		// Then erase all injections from `injs`.
 		// Keep the memory in case we repeatedly inject.
 		// Unless it was already empty, then clear what was kept.
 		if (pass->injs.size == 0)

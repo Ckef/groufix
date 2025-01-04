@@ -788,6 +788,10 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
  * NOT thread-safe with respect to source or target!
  * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
  *
+ * This is the only call that takes the gfx_sig* macro family as injections!
+ * To inject between two render passes, use the gfx_sig* macro family.
+ * All dependency objects are referenced until gfx_renderer_undepend is called.
+ *
  * Any signal command is implicitly waited upon by the wait pass.
  * Meaning there is no need to inject a matching wait command anywhere.
  *
@@ -795,8 +799,8 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
  * only a single wait command will be injected in that pass,
  * even if gfx_pass_depend is called multiple times.
  *
- * All dependency objects are referenced until gfx_renderer_undepend is called.
- * This is the only call that takes the gfx_sig* macro family as injections!
+ * It is undefined behaviour to use this call to inject a dependency object
+ * between two render passes in the same frame.
  */
 GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
                              size_t numInjs, const GFXInject* injs);

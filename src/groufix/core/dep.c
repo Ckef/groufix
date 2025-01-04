@@ -1143,6 +1143,8 @@ static void _gfx_deps_finalize(size_t numInjs, const GFXInject* injs,
 	for (size_t i = 0; i < numInjs; ++i)
 	{
 		GFXDependency* dep = injs[i].dep;
+		if (dep == NULL) continue; // Nothing to do.
+
 		_GFXContext* context = dep->context;
 
 		// We lock for each command individually.

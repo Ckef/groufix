@@ -560,6 +560,21 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			const _GFXAttach* at =
 				gfx_vec_at(&rend->backing.attachs, con->view.index);
 
+			// Validate that we want to access it as attachment.
+			// NOTE: We CAN filter based on the mask of a single consumption,
+			// even though we do not know how other subpasses consume it!
+			// This is true because passes will never be merged if one
+			// consumes as attachment while the other does not,
+			// see graph.c (!).
+			if (!(con->mask &
+				(GFX_ACCESS_ATTACHMENT_INPUT |
+				GFX_ACCESS_ATTACHMENT_READ |
+				GFX_ACCESS_ATTACHMENT_WRITE |
+				GFX_ACCESS_ATTACHMENT_RESOLVE)))
+			{
+				continue;
+			}
+
 			// Validate existence of the attachment.
 			if (
 				con->view.index >= rend->backing.attachs.size ||
@@ -570,16 +585,6 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 					"ignored, attachment not described.",
 					con->view.index);
 
-				continue;
-			}
-
-			// Validate that we want to access it as attachment.
-			if (!(con->mask &
-				(GFX_ACCESS_ATTACHMENT_INPUT |
-				GFX_ACCESS_ATTACHMENT_READ |
-				GFX_ACCESS_ATTACHMENT_WRITE |
-				GFX_ACCESS_ATTACHMENT_RESOLVE)))
-			{
 				continue;
 			}
 
@@ -968,31 +973,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				}
 			}
 
-			// Check if we need to insert a subpass dependency.
-			if (
-				(con->out.prev != NULL) &&
-				!(con->out.state & _GFX_CONSUME_IS_FIRST))
-			{
-				const _GFXConsume* prev = con->out.prev;
-
-				const VkPipelineStageFlags srcStageMask =
-					_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);
-				const VkPipelineStageFlags dstStageMask =
-					_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
-
-				VkSubpassDependency dependency = {
-					.srcSubpass    = prev->out.subpass,
-					.dstSubpass    = con->out.subpass,
-					.srcStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
-					.dstStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-					.srcAccessMask = _GFX_GET_VK_ACCESS_FLAGS(prev->mask, fmt),
-					.dstAccessMask = _GFX_GET_VK_ACCESS_FLAGS(con->mask, fmt),
-				};
-
-				if (!gfx_vec_push(&dependencies, 1, &dependency))
-					goto clean;
-			}
-
 			// Lastly, store the blend values for building pipelines.
 			// Only need to specify the attachments used by this subpass :)
 			if (isColor)
@@ -1044,9 +1024,46 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				goto clean;
 		}
 
+		// Same for all consumptions of this subpass,
+		// including ones that weren't selected for attachment views.
+		const size_t numCons =
+			subpass != rPass ? subpass->base.consumes.size : 0;
+
+		for (size_t i = 0; i < numCons; ++i)
+		{
+			const _GFXConsume* con = gfx_vec_at(&subpass->base.consumes, i);
+			const _GFXConsume* prev = con->out.prev;
+			const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+
+			// Will validate existence of the attachment, checked by graph!
+			if (prev == NULL || (con->out.state & _GFX_CONSUME_IS_FIRST))
+				continue;
+
+			// Get format from attachment again...
+			const GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
+				at->image.base.format : GFX_FORMAT_EMPTY;
+
+			const VkPipelineStageFlags srcStageMask =
+				_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);
+			const VkPipelineStageFlags dstStageMask =
+				_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
+
+			VkSubpassDependency dependency = {
+				.srcSubpass    = prev->out.subpass,
+				.dstSubpass    = con->out.subpass,
+				.srcStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+				.dstStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+				.srcAccessMask = _GFX_GET_VK_ACCESS_FLAGS(prev->mask, fmt),
+				.dstAccessMask = _GFX_GET_VK_ACCESS_FLAGS(con->mask, fmt),
+			};
+
+			if (!gfx_vec_push(&dependencies, 1, &dependency))
+				goto clean;
+		}
+
 		// Output the Vulkan subpass.
 		// Cannot set attachment reference pointers yet,
-		// he vectors may still grow.
+		// the vectors may still grow.
 		sd[subpass->out.subpass] = (VkSubpassDescription){
 			.flags                   = 0,
 			.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1386,6 +1403,10 @@ bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags)
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
 	assert(flags & _GFX_RECREATE);
+
+	// If this is not a master pass, skip.
+	if (rPass->out.master != NULL)
+		return 1;
 
 	// Remember if we're warmed or entirely built.
 	const bool warmed = _GFX_PASS_IS_WARMED(rPass);

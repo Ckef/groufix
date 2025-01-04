@@ -1650,6 +1650,8 @@ bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
  *
  * Each injection metadata object must be called at least once with
  * either _gfx_deps_abort OR _gfx_deps_catch for ALL injection commands.
+ * If no injection commands were given, one of these functions must still
+ * be called with numInjs == 0!
  * NEVER can both calls be used for the same injection metadata pointer!
  */
 void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,

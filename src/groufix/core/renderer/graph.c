@@ -10,24 +10,13 @@
 #include <assert.h>
 
 
-// Check if a consumption has attachment access or other access.
+// Check if a consumption has attachment access.
 #define _GFX_CONSUME_IS_ATTACH(con) \
 	(con->mask & \
 		(GFX_ACCESS_ATTACHMENT_INPUT | \
 		GFX_ACCESS_ATTACHMENT_READ | \
 		GFX_ACCESS_ATTACHMENT_WRITE | \
 		GFX_ACCESS_ATTACHMENT_RESOLVE))
-
-#define _GFX_CONSUME_IS_OTHER(con) \
-	(con->mask & \
-		(GFX_ACCESS_VERTEX_READ | \
-		GFX_ACCESS_INDEX_READ | \
-		GFX_ACCESS_UNIFORM_READ | \
-		GFX_ACCESS_INDIRECT_READ | \
-		GFX_ACCESS_SAMPLED_READ | \
-		GFX_ACCESS_STORAGE_READ_WRITE | \
-		GFX_ACCESS_TRANSFER_READ_WRITE | \
-		GFX_ACCESS_HOST_READ_WRITE))
 
 
 /****************************
@@ -145,21 +134,19 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 				_GFXConsume* childCon = consumes[con->view.index];
 				if (childCon != NULL)
 				{
-					// Check if either pass consumes as attachment access
-					// while the other consumes as non-attachment.
+					// Check if either pass consumes an attachment with
+					// attachment-access while the other does not.
 					// If this is true, the passes cannot be merged into
 					// a subpass chain, as the attachment may become a
 					// preserved attachment (whilst accessing it!).
 					// Note: If consumed as non-attachment BUT also
 					// consumed as attachment in the same pass,
-					// it will not be preserved, allow this edgecase!
+					// it will not be preserved, allow this case!
 					if (
 						(_GFX_CONSUME_IS_ATTACH(con) &&
-						_GFX_CONSUME_IS_OTHER(childCon) &&
 						!_GFX_CONSUME_IS_ATTACH(childCon)) ||
 
 						(_GFX_CONSUME_IS_ATTACH(childCon) &&
-						_GFX_CONSUME_IS_OTHER(con) &&
 						!_GFX_CONSUME_IS_ATTACH(con)))
 					{
 						return 0;
@@ -180,9 +167,6 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 			}
 		}
 	}
-
-	// TODO:GRA: Remove this return once everything deals with subpass chains.
-	return 0;
 
 	// Return #<shared attachments> directly as score.
 	// Note they are counted multiple times, once for each pass they are
