@@ -1957,7 +1957,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
                           size_t numParents, GFXPass** parents);
 
 /**
- * Destroys a pass, unreferencing all parents.
+ * Destroys a pass, must be called in submission order!
  * @param pass Cannot be NULL.
  */
 void _gfx_destroy_pass(GFXPass* pass);

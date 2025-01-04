@@ -516,14 +516,10 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	// Destroy all passes, we want to make sure we do not destroy any pass
-	// before all passes that reference it are destroyed.
-	// Luckily, all parents of a pass will be to its left due to
-	// submission order, which is always honored.
-	// So we manually destroy 'em all in reverse order :)
-	for (size_t i = renderer->graph.passes.size; i > 0; --i)
+	// Destroy all passes (in-order!).
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
 		_gfx_destroy_pass(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i-1));
+			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
 
 	gfx_vec_clear(&renderer->graph.passes);
 	gfx_vec_clear(&renderer->graph.sinks);
