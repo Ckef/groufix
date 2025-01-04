@@ -187,13 +187,13 @@ TEST_DESCRIBE(post, t)
 	}
 
 	if (!gfx_pass_consume(posts[0], 1,
-		GFX_ACCESS_ATTACHMENT_INPUT, GFX_STAGE_ANY))
+		GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_DISCARD, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
 	if (!gfx_pass_consume(posts[1], 1,
-		GFX_ACCESS_ATTACHMENT_INPUT, GFX_STAGE_ANY))
+		GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_DISCARD, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}

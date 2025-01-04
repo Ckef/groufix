@@ -792,11 +792,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			const _GFXAttach* at =
 				gfx_vec_at(&rend->backing.attachs, con->view.index);
 
-			const GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
-				// Pick empty format for windows, which results in non-depth/stencil
-				// access flags and pipeline stages, which is what we want :)
-				at->image.base.format : GFX_FORMAT_EMPTY;
-
 			bool isColor = 0;
 
 			// Swapchain.
@@ -857,6 +852,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			else
 			{
 				// Build references.
+				const GFXFormat fmt = at->image.base.format;
+
 				const uint32_t resolveInd =
 					_gfx_pass_find_attachment(rPass, con->resolve);
 
@@ -1041,6 +1038,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 
 			// Get format from attachment again...
 			const GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
+				// Pick empty format for windows, which results in non-depth/stencil
+				// access flags and pipeline stages, which is what we want :)
 				at->image.base.format : GFX_FORMAT_EMPTY;
 
 			const VkPipelineStageFlags srcStageMask =
