@@ -363,7 +363,8 @@ void _gfx_injection_flush(_GFXContext* context, VkCommandBuffer cmd,
 		context->vk.CmdPipelineBarrier(cmd,
 			injection->bars.srcStage,
 			injection->bars.dstStage,
-			0, 0, NULL,
+			0,
+			(uint32_t)injection->bars.numMems, injection->bars.mems,
 			(uint32_t)injection->bars.numBufs, injection->bars.bufs,
 			(uint32_t)injection->bars.numImgs, injection->bars.imgs);
 
@@ -371,6 +372,7 @@ void _gfx_injection_flush(_GFXContext* context, VkCommandBuffer cmd,
 		// Don't free the memory, it'll be realloc'd or free'd later on.
 		injection->bars.srcStage = 0;
 		injection->bars.dstStage = 0;
+		injection->bars.numMems = 0;
 		injection->bars.numBufs = 0;
 		injection->bars.numImgs = 0;
 	}
@@ -379,15 +381,25 @@ void _gfx_injection_flush(_GFXContext* context, VkCommandBuffer cmd,
 /****************************/
 bool _gfx_injection_push(VkPipelineStageFlags srcStage,
                          VkPipelineStageFlags dstStage,
+                         const VkMemoryBarrier* mb,
                          const VkBufferMemoryBarrier* bmb,
                          const VkImageMemoryBarrier* imb,
                          _GFXInjection* injection)
 {
-	assert(bmb == NULL || imb == NULL);
 	assert(injection != NULL);
+	assert(
+		(mb == NULL ? 1 : 0) +
+		(bmb == NULL ? 1 : 0) +
+		(imb == NULL ? 1 : 0) > 1);
 
 	// Push one of the two barriers.
-	if (bmb != NULL)
+	if (mb != NULL)
+		_GFX_INJ_OUTPUT(
+			injection->bars.numMems, injection->bars.mems,
+			sizeof(VkMemoryBarrier), *mb,
+			return 0);
+
+	else if (bmb != NULL)
 		_GFX_INJ_OUTPUT(
 			injection->bars.numBufs, injection->bars.bufs,
 			sizeof(VkBufferMemoryBarrier), *bmb,
@@ -1124,11 +1136,13 @@ static void _gfx_deps_finalize(size_t numInjs, const GFXInject* injs,
 	assert(injection != NULL);
 
 	// Free the injection metadata (always free() to allow external reallocs!).
+	free(injection->bars.mems);
 	free(injection->bars.bufs);
 	free(injection->bars.imgs);
 	free(injection->out.waits);
 	free(injection->out.sigs);
 	free(injection->out.stages);
+	injection->bars.mems = NULL;
 	injection->bars.bufs = NULL;
 	injection->bars.imgs = NULL;
 	injection->out.waits = NULL;

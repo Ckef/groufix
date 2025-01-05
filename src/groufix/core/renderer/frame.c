@@ -501,7 +501,7 @@ static bool _gfx_frame_push_consume(GFXRenderer* renderer, GFXFrame* frame,
 		return _gfx_injection_push(
 			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
 			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-			NULL, NULL, injection);
+			NULL, NULL, NULL, injection);
 	}
 
 	// Otherwise, inject full memory barrier.
@@ -578,12 +578,13 @@ static bool _gfx_frame_push_consume(GFXRenderer* renderer, GFXFrame* frame,
 	return _gfx_injection_push(
 		_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
 		_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-		NULL, &imb, injection);
+		NULL, NULL, &imb, injection);
 }
 
 /****************************
  * Pushes an execution/memory barrier, just as stored in a _GFXDepend object.
- * Assumes `dep` to be fully initialized and a non-subpass-dependency.
+ * Assumes `dep` to be fully initialized
+ * as a non-subpass-dependency and non-dependency-object command!
  * @return Zero on failure.
  */
 static bool _gfx_frame_push_depend(GFXRenderer* renderer,
@@ -593,11 +594,118 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 	assert(renderer != NULL);
 	assert(dep != NULL);
 	assert(!dep->out.subpass);
+	assert(dep->inj.dep == NULL);
 	assert(injection != NULL);
 
-	// TODO:GRA: Implement.
+	_GFXContext* context = renderer->cache.context;
 
-	return 1;
+	// First unpack VkBuffer & VkImage handles for locality.
+	_GFXUnpackRef unp = _gfx_ref_unpack(dep->inj.ref);
+	const _GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+
+	VkBuffer buffer = VK_NULL_HANDLE;
+	VkImage image = VK_NULL_HANDLE;
+	GFXFormat fmt = GFX_FORMAT_EMPTY;
+
+	if (unp.obj.buffer != NULL)
+		buffer = unp.obj.buffer->vk.buffer;
+
+	else if (unp.obj.image != NULL)
+		image  = unp.obj.image->vk.image,
+		fmt    = unp.obj.image->base.format;
+
+	else if (attach != NULL)
+		image  = attach->vk.image,
+		fmt    = attach->base.format;
+
+	// Get all access/stage flags for the resource to signal.
+	const VkAccessFlags srcAccessMask =
+		_GFX_GET_VK_ACCESS_FLAGS(dep->inj.maskf, fmt);
+	const VkAccessFlags dstAccessMask =
+		_GFX_GET_VK_ACCESS_FLAGS(dep->inj.mask, fmt);
+	const VkPipelineStageFlags srcStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(dep->inj.maskf, dep->inj.stagef, fmt);
+	const VkPipelineStageFlags dstStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(dep->inj.mask, dep->inj.stage, fmt);
+
+	// TODO:GRA: Continue implementing.
+	// Need to get range things, maybe extract functionality from
+	// _gfx_unpack in deps.c somehow?
+
+	// TODO:GRA: Validate if we even need any barrier.
+	// For consumptions the graph precomputed this,
+	// which is not the case here!
+
+	// If we have no resource, just inject an execution or memory barrier.
+	if (GFX_REF_IS_NULL(dep->inj.ref))
+	{
+		const bool srcWrites = GFX_ACCESS_WRITES(dep->inj.maskf);
+
+		VkMemoryBarrier mb = {
+			.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+
+			.pNext         = NULL,
+			.srcAccessMask = srcAccessMask,
+			.dstAccessMask = dstAccessMask
+		};
+
+		return _gfx_injection_push(
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+			srcWrites ? &mb : NULL, NULL, NULL, injection);
+	}
+
+	// Inject either a buffer or image memory barrier.
+	if (unp.obj.buffer != NULL)
+	{
+		VkBufferMemoryBarrier bmb = {
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = srcAccessMask,
+			.dstAccessMask       = dstAccessMask,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer              = buffer,
+			//.offset              = sync->range.offset,
+			//.size                = sync->range.size
+		};
+
+		return _gfx_injection_push(
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+			NULL, &bmb, NULL, injection);
+	}
+	else
+	{
+		VkImageMemoryBarrier imb = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = srcAccessMask,
+			.dstAccessMask       = dstAccessMask,
+			.oldLayout           = _GFX_GET_VK_IMAGE_LAYOUT(dep->inj.maskf, fmt),
+			.newLayout           = _GFX_GET_VK_IMAGE_LAYOUT(dep->inj.mask, fmt),
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image               = image,
+			//.subresourceRange = {
+			//	.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(sync->range.aspect),
+			//	.baseMipLevel   = sync->range.mipmap,
+			//	.baseArrayLayer = sync->range.layer,
+
+			//	.levelCount = sync->range.numMipmaps == 0 ?
+			//		VK_REMAINING_MIP_LEVELS : sync->range.numMipmaps,
+			//	.layerCount = sync->range.numLayers == 0 ?
+			//		VK_REMAINING_ARRAY_LAYERS : sync->range.numLayers
+			//}
+		};
+
+		return _gfx_injection_push(
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+			NULL, NULL, &imb, injection);
+	}
 }
 
 /****************************
@@ -725,6 +833,8 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 				if (dep->inj.dep == NULL)
 				{
 					// If not a dependency object, inject depend barriers.
+					// Note this will NEVER be between async and non-async
+					// passes, never have to transfer queues (!).
 					if (
 						!dep->out.subpass &&
 						!_gfx_frame_push_depend(renderer, dep, injection))
@@ -744,8 +854,8 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 			// Inject consumption barriers.
 			for (size_t c = 0; c < subpass->consumes.size; ++c)
 			{
-				// Note _async_ compute passes will NOT have consumptions.
-				// Therefore we never have to transfer queues (!)
+				// Note async compute passes will NOT have consumptions.
+				// Therefore we never have to transfer queues (!).
 				const _GFXConsume* con = gfx_vec_at(&subpass->consumes, c);
 				if (
 					(con->out.prev != NULL) &&

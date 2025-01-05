@@ -1435,11 +1435,13 @@ typedef struct _GFXInjection
 		VkPipelineStageFlags dstStage;
 
 		// Memory barriers.
-		size_t                 numBufs;
-		VkBufferMemoryBarrier* bufs;
+		size_t numMems;
+		size_t numBufs;
+		size_t numImgs;
 
-		size_t                numImgs;
-		VkImageMemoryBarrier* imgs;
+		VkMemoryBarrier*       mems;
+		VkBufferMemoryBarrier* bufs;
+		VkImageMemoryBarrier*  imgs;
 
 	} bars;
 
@@ -1447,10 +1449,10 @@ typedef struct _GFXInjection
 	// Synchronization output.
 	struct
 	{
-		size_t       numWaits;
-		VkSemaphore* waits;
+		size_t numWaits;
+		size_t numSigs;
 
-		size_t       numSigs;
+		VkSemaphore* waits;
 		VkSemaphore* sigs;
 
 		// Wait stages, of the same size as waits.
@@ -1558,14 +1560,16 @@ static inline void _gfx_injection(_GFXInjection* injection)
 {
 	injection->bars.srcStage = 0;
 	injection->bars.dstStage = 0;
+	injection->bars.numMems = 0;
 	injection->bars.numBufs = 0;
-	injection->bars.bufs = NULL;
 	injection->bars.numImgs = 0;
+	injection->bars.mems = NULL;
+	injection->bars.bufs = NULL;
 	injection->bars.imgs = NULL;
 
 	injection->out.numWaits = 0;
-	injection->out.waits = NULL;
 	injection->out.numSigs = 0;
+	injection->out.waits = NULL;
 	injection->out.sigs = NULL;
 	injection->out.stages = NULL;
 }
@@ -1588,10 +1592,11 @@ void _gfx_injection_flush(_GFXContext* context, VkCommandBuffer cmd,
  * @param injection Barrier metadata to append to, cannot be NULL.
  * @return Zero on failure.
  *
- * Can only set one of `bmb` OR `imb` to non-NULL!
+ * Can only set one of `mb`, `bmb` and `imb` to non-NULL!
  */
 bool _gfx_injection_push(VkPipelineStageFlags srcStage,
                          VkPipelineStageFlags dstStage,
+                         const VkMemoryBarrier* mb,
                          const VkBufferMemoryBarrier* bmb,
                          const VkImageMemoryBarrier* imb,
                          _GFXInjection* injection);

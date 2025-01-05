@@ -534,6 +534,9 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 	assert(pass->level < wait->level);
 	assert(numInjs == 0 || injs != NULL);
 
+	_GFXContext* context =
+		pass->renderer->cache.context;
+
 	if (pass->renderer != wait->renderer)
 		gfx_log_warn(
 			"Dependency injection failed, "
@@ -560,6 +563,52 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 
 			if (depend.inj.dep == NULL)
 			{
+				// No dependency object, do checks here!
+				// Check the context the resource was built on.
+				_GFXUnpackRef unp = _gfx_ref_unpack(depend.inj.ref);
+
+				if (
+					!GFX_REF_IS_NULL(depend.inj.ref) &&
+					_GFX_UNPACK_REF_CONTEXT(unp) != context)
+				{
+					gfx_log_warn(
+						"Dependency signal command ignored, given "
+						"underlying resource must be built on the same "
+						"logical Vulkan device.");
+
+					continue;
+				}
+
+				// And its renderer too.
+				if (
+					unp.obj.renderer != NULL &&
+					unp.obj.renderer != pass->renderer)
+				{
+					gfx_log_warn(
+						"Dependency signal command ignored, renderer "
+						"attachment references cannot be used in "
+						"another renderer.");
+
+					continue;
+				}
+
+				// And the pass type too.
+				if (
+					(pass->type == GFX_PASS_COMPUTE_ASYNC &&
+					wait->type != GFX_PASS_COMPUTE_ASYNC) ||
+
+					(pass->type != GFX_PASS_COMPUTE_ASYNC &&
+					wait->type == GFX_PASS_COMPUTE_ASYNC))
+				{
+					gfx_log_warn(
+						"Dependency signal command ignored, must signal "
+						"a dependency object when injecting between an "
+						"asynchronous compute pass and a "
+						"non-asynchronous pass.");
+
+					continue;
+				}
+
 				// If no dependency object, we just inject a barrier
 				// at the catch operation, i.e. at target.
 				if (!gfx_vec_push(&wait->deps, 1, &depend))
@@ -569,6 +618,7 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 			{
 				// If we do use a dependency object, insert at source.
 				// Unless it's a wait command.
+				// Note we do not do any checking, this is done in dep.c!
 				if (
 					depend.inj.type != GFX_INJ_WAIT &&
 					!gfx_vec_push(&pass->deps, 1, &depend))

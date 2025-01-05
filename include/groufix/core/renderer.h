@@ -988,6 +988,10 @@ GFX_API bool gfx_pass_is_culled(GFXPass* pass);
  * Only has effect if called on a render or _inline_ compute pass.
  * Will fail if called on _async_ compute passes.
  *
+ * This call should be used to specify 'dependencies' between
+ * passes that use the same attachments.
+ * Never use gfx_pass_depend for this (except if it is an async compute pass)!
+ *
  * For synchronization purposes it is still necessary to consume an attachment
  * when said attachment is only used in bound sets while recording.
  *
