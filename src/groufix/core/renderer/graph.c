@@ -132,37 +132,36 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 			if (con->view.index < renderer->backing.attachs.size)
 			{
 				_GFXConsume* childCon = consumes[con->view.index];
-				if (childCon != NULL)
+				if (childCon == NULL) continue;
+
+				// Check if either pass consumes an attachment with
+				// attachment-access while the other does not.
+				// If this is true, the passes cannot be merged into
+				// a subpass chain, as the attachment may become a
+				// preserved attachment (whilst accessing it!).
+				// Note: If consumed as non-attachment BUT also consumed as
+				// attachment in the same pass, it will not be preserved,
+				// allow this case!
+				if (
+					(_GFX_CONSUME_IS_ATTACH(con) &&
+					!_GFX_CONSUME_IS_ATTACH(childCon)) ||
+
+					(_GFX_CONSUME_IS_ATTACH(childCon) &&
+					!_GFX_CONSUME_IS_ATTACH(con)))
 				{
-					// Check if either pass consumes an attachment with
-					// attachment-access while the other does not.
-					// If this is true, the passes cannot be merged into
-					// a subpass chain, as the attachment may become a
-					// preserved attachment (whilst accessing it!).
-					// Note: If consumed as non-attachment BUT also
-					// consumed as attachment in the same pass,
-					// it will not be preserved, allow this case!
-					if (
-						(_GFX_CONSUME_IS_ATTACH(con) &&
-						!_GFX_CONSUME_IS_ATTACH(childCon)) ||
+					return 0;
+				}
 
-						(_GFX_CONSUME_IS_ATTACH(childCon) &&
-						!_GFX_CONSUME_IS_ATTACH(con)))
-					{
-						return 0;
-					}
+				// If they both consume as attachment...
+				if (
+					_GFX_CONSUME_IS_ATTACH(con) &&
+					_GFX_CONSUME_IS_ATTACH(childCon))
+				{
+					// Check view compatibility.
+					if (!_gfx_cmp_consume(con, childCon)) return 0;
 
-					// If they both consume as attachment...
-					if (
-						_GFX_CONSUME_IS_ATTACH(con) &&
-						_GFX_CONSUME_IS_ATTACH(childCon))
-					{
-						// Check view compatibility.
-						if (!_gfx_cmp_consume(con, childCon)) return 0;
-
-						// Count consumptions for each pass.
-						++sharedAttachs;
-					}
+					// Count consumptions for each pass.
+					++sharedAttachs;
 				}
 			}
 		}
@@ -201,6 +200,11 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 
 	// Take the parent with the highest merge score.
 	// To do this, initialize the `consumes` array for this pass.
+	// Simultaneously, check if any consumption wants to clear an attachment.
+	// If it does, the pass cannot merge into one of its parents,
+	// a Vulkan render pass can only auto-clear each attachment once.
+	bool canMerge = 1;
+
 	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 		consumes[i] = NULL;
 
@@ -208,8 +212,14 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 	{
 		_GFXConsume* con = gfx_vec_at(&rPass->base.consumes, i);
 		if (con->view.index < renderer->backing.attachs.size)
+		{
 			consumes[con->view.index] = con;
+			if (con->cleared) canMerge = 0;
+		}
 	}
+
+	// Done.
+	if (!canMerge) return;
 
 	// Start looping over all parents to find the best.
 	_GFXRenderPass* merge = NULL;

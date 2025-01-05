@@ -617,10 +617,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 	// Record all requested passes.
 	for (size_t p = first; p < first + num; ++p)
 	{
-		// TODO:GRA: If a pass is the last, record master and all next passes
-		// and handle the whole VK subpass structure like that.
-		// And what to do about subpass clear values, use vkCmdClearAttachments?
-		// TODO:GRA: And what to do about dependency injection and subpasses.
+		// TODO:GRA: What to do about dependency injection and subpasses.
 		// Problem being: we need to define subpass dependencies ahead of
 		// time, not only for attachments, but for non-attachments as well.
 		//
@@ -648,7 +645,6 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		//    Pipeline barriers within subpasses are _EXCLUSIVELY_ for
 		//    self-dependency of that single subpass.
 		//
-		//   This means we must know things at warmup/build time for passes...
 		//   Ergo, we must know, ahead of time, all subpass-deps AND
 		//   from what points we are allowed to use dep-objects if we want
 		//   (for e.g. using semaphores or gfx_read or whatever)...
@@ -666,13 +662,6 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		//     the memory barrier like normal...?!
 		//     Actually, don't ignore them, we need to do layout transitions!
 		//     Note: should insert a VkMemoryBarrier if not subpass + no ref?
-		//
-		//   The gfx_sig (or maybe gfx_sig(f|rf)?) will not be reset after
-		//   a gpu submission, it is part of the render pass description.
-		//   Will gfx_dep_* stay volatile (reset after submission)?
-		//   Or will you also be able to inject "permanent" dep-objects???
-		//   Do we have separate calls for the two types of injections?
-		//   Maybe gfx_pass_depend and gfx_pass_inject?
 
 		// Do nothing if pass is culled.
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
@@ -786,6 +775,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 				&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		}
 
+		// TODO:GRA: May need to handle layout transfers due to `deps`?
 		// Then start looping over the chain again to actually record them.
 		for (
 			GFXPass* subpass = pass;
@@ -793,9 +783,6 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 			subpass = (subpass->type == GFX_PASS_RENDER) ?
 				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
-			// TODO:GRA: Clear attachments if not the first consumption.
-			// TODO:GRA: May need to handle layout transfers due to `deps`?
-
 			// Record all recorders.
 			for (
 				GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
