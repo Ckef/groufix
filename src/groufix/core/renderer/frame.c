@@ -467,7 +467,7 @@ error:
  * Assumes `con` and `con->out.prev` to be fully initialized.
  * @return Zero on failure.
  */
-static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
+static bool _gfx_frame_push_consume(GFXRenderer* renderer, GFXFrame* frame,
                                     const _GFXConsume* con,
                                     _GFXInjection* injection)
 {
@@ -582,6 +582,25 @@ static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
 }
 
 /****************************
+ * Pushes an execution/memory barrier, just as stored in a _GFXDepend object.
+ * Assumes `dep` to be fully initialized and a non-subpass-dependency.
+ * @return Zero on failure.
+ */
+static bool _gfx_frame_push_depend(GFXRenderer* renderer,
+                                   const _GFXDepend* dep,
+                                   _GFXInjection* injection)
+{
+	assert(renderer != NULL);
+	assert(dep != NULL);
+	assert(!dep->out.subpass);
+	assert(injection != NULL);
+
+	// TODO:GRA: Implement.
+
+	return 1;
+}
+
+/****************************
  * Records a set of passes of a virtual frame.
  * @param cmd   To record to, cannot be VK_NULL_HANDLE.
  * @param first First pass to start recording at.
@@ -626,7 +645,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		// For attachments used as non-attachment, e.g. as texture in a
 		//   compute shader (of all things), we MUST use it in a bound set
 		//   as such AND consume them so they're synchronized.
-		//   NOTE: See todo below, breaks on async compute!
+		//   NOTE: See below, breaks on async compute!
 		// For non attachments,
 		//   we do semi-dependencies; we use the gfx_dep_*f macros but
 		//   just directly insert them into two passes.
@@ -702,38 +721,42 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 
 			for (size_t d = 0; d < subpass->deps.size; ++d)
 			{
-				// TODO:GRA: If a non-subpass depend (so no dep object),
-				// insert appropriate barriers here!
-
 				_GFXDepend* dep = gfx_vec_at(&subpass->deps, d);
-				if (dep->inj.dep == NULL) continue;
+				if (dep->inj.dep == NULL)
+				{
+					// If not a dependency object, inject depend barriers.
+					if (
+						!dep->out.subpass &&
+						!_gfx_frame_push_depend(renderer, dep, injection))
+					{
+						return 0;
+					}
+				}
 
-				if (!_gfx_deps_catch(
+				// If a dependency object, inject as if from `injs`.
+				else if (!_gfx_deps_catch(
 					context, cmd, 1, &dep->inj, injection))
 				{
 					return 0;
 				}
 			}
 
-			// TODO:GRA: The below barrier pushing will break mega hard if the
-			// barrier is on different queues (e.g. async compute to render).
-			// i.e. when we consume an attachment at a async compute pass,
-			// we need a queue transfer...
-			// Just not allow to consume attachments on async compute passes?
-
-			// Inject & flush consumption barriers.
+			// Inject consumption barriers.
 			for (size_t c = 0; c < subpass->consumes.size; ++c)
 			{
+				// Note _async_ compute passes will NOT have consumptions.
+				// Therefore we never have to transfer queues (!)
 				const _GFXConsume* con = gfx_vec_at(&subpass->consumes, c);
 				if (
 					(con->out.prev != NULL) &&
 					(con->out.state & _GFX_CONSUME_IS_FIRST))
 				{
-					if (!_gfx_frame_push_barrier(renderer, frame, con, injection))
+					if (!_gfx_frame_push_consume(renderer, frame, con, injection))
 						return 0;
 				}
 			}
 
+			// Flush depend & consumption barriers.
 			_gfx_injection_flush(context, cmd, injection);
 		}
 

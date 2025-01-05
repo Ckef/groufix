@@ -985,6 +985,9 @@ GFX_API bool gfx_pass_is_culled(GFXPass* pass);
  * @param stage Shader stages with access to the attachment.
  * @return Zero on failure.
  *
+ * Only has effect if called on a render or _inline_ compute pass.
+ * Will fail if called on _async_ compute passes.
+ *
  * For synchronization purposes it is still necessary to consume an attachment
  * when said attachment is only used in bound sets while recording.
  *
