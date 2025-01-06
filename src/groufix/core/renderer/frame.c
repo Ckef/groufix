@@ -737,6 +737,31 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 }
 
 /****************************
+ * Pushes a layout transition barrier, just as stored in a _GFXDepend object.
+ * Assumes `dep` to be fully initialized
+ * as a non-dependency-object command, but as a subpass-dependency!
+ * @return Zero on failure.
+ */
+static bool _gfx_frame_push_transition(GFXRenderer* renderer,
+                                       const _GFXDepend* dep,
+                                       _GFXInjection* injection)
+{
+	assert(renderer != NULL);
+	assert(dep != NULL);
+	assert(dep->out.subpass);
+	assert(dep->inj.dep == NULL);
+	assert(injection != NULL);
+
+	// TODO: Implement, the only thing we potentially need is
+	// a layout transition. No need to specify a full memory barrier,
+	// this is already handled by the subpass dependency.
+	// We can probably just use the target mask/stage as then it will neatly
+	// link with the subpass dependency.
+
+	return 1;
+}
+
+/****************************
  * Records a set of passes of a virtual frame.
  * @param cmd   To record to, cannot be VK_NULL_HANDLE.
  * @param first First pass to start recording at.
@@ -897,11 +922,19 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 			subpass = (subpass->type == GFX_PASS_RENDER) ?
 				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
-			// TODO: We may have defined an image layout transition with
-			// gfx_pass_depend that ended up in a subpass chain.
-			// e.g. we transfer from storage write to sampled?
-			// Check for that (check for dep->out.subpass == 1) and
-			// insert a pipeline barrier.
+			// We may need to perform some layout transitions.
+			for (size_t d = 0; d < subpass->deps.size; ++d)
+			{
+				_GFXDepend* dep = gfx_vec_at(&subpass->deps, d);
+				if (
+					dep->out.subpass &&
+					!_gfx_frame_push_transition(renderer, dep, injection))
+				{
+					return 0;
+				}
+			}
+
+			_gfx_injection_flush(context, cmd, injection);
 
 			// Record all recorders.
 			for (
@@ -1013,10 +1046,13 @@ static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
 		// Then erase all injections from `injs`.
 		// Keep the memory in case we repeatedly inject.
 		// Unless it was already empty, then clear what was kept.
-		if (pass->injs.size == 0)
-			gfx_vec_clear(&pass->injs);
-		else
-			gfx_vec_release(&pass->injs);
+		if (success)
+		{
+			if (pass->injs.size == 0)
+				gfx_vec_clear(&pass->injs);
+			else
+				gfx_vec_release(&pass->injs);
+		}
 	}
 }
 
