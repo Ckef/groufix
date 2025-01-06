@@ -10,12 +10,25 @@
 #ifndef GFX_CORE_REFS_H
 #define GFX_CORE_REFS_H
 
+#include "groufix/core/formats.h"
 #include "groufix/def.h"
 
 
 /****************************
  * Resource reference metadata.
  ****************************/
+
+/**
+ * Resolve whole image aspect from format.
+ */
+#define GFX_IMAGE_ASPECT_FROM_FORMAT(fmt) \
+	(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ? \
+		(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : \
+			(GFXImageAspect)0) | \
+		(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : \
+			(GFXImageAspect)0) : \
+		GFX_IMAGE_COLOR)
+
 
 /**
  * Image aspect (i.e. interpreted sub-image).
@@ -192,7 +205,7 @@ typedef GFXReference GFXImageRef;
  *   - one of its buffers or images.
  *   - or: all newly allocated buffers as one.
  *  GFXRenderer
- *   - its image attachments.
+ *   - one of its image attachments.
  *
  * No argument can be NULL, any referenced memory resource must exist.
  * If any of these constraints are not met, behaviour is undefined.

@@ -12,24 +12,6 @@
 #include <string.h>
 
 
-#define _GFX_INJ_IS_SIGNAL(inj) \
-	((inj).type == GFX_INJ_SIGNAL || \
-	(inj).type == GFX_INJ_SIGNAL_RANGE || \
-	(inj).type == GFX_INJ_SIGNAL_FROM || \
-	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
-
-#define _GFX_INJ_IS_RANGED(inj) \
-	((inj).type == GFX_INJ_SIGNAL_RANGE || \
-	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
-
-#define _GFX_INJ_IS_SOURCED(inj) \
-	((inj).type == GFX_INJ_SIGNAL_FROM || \
-	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
-
-#define _GFX_INJ_IS_WAIT(inj) \
-	((inj).type == GFX_INJ_WAIT)
-
-
 // Outputs an injection element & auto log, num and elems are lvalues.
 #define _GFX_INJ_OUTPUT(num, elems, size, insert, action) \
 	do { \
@@ -50,94 +32,6 @@
 		} \
 	} while (0)
 
-
-/****************************
- * Computes the 'unpacked' range, access/stage flags and image layout
- * associated with an injection's ref (normalizes offsets and resolves sizes).
- * @param ref    Must be a non-empty valid unpacked reference.
- * @param attach Must be _GFX_UNPACK_REF_ATTACH(*ref).
- * @param range  May be NULL to take the entire resource as range.
- * @param size   Must be the value of the associated _gfx_ref_size(<packed-ref>)!
- * @param mask   Access mask to unpack the Vulkan access flags and image layout.
- * @param stage  Shader stages to unpack the Vulkan pipeline stage.
- *
- * The returned `unpacked` range is not valid for the unpacked reference anymore,
- * it is only valid for the raw VkBuffer or VkImage handle!
- */
-static void _gfx_unpack(_GFXContext* context,
-                        const _GFXUnpackRef* ref,
-                        const _GFXImageAttach* attach,
-                        const GFXRange* range, uint64_t size,
-                        GFXAccessMask mask, GFXShaderStage stage,
-                        GFXRange* unpacked,
-                        VkAccessFlags* flags,
-                        VkImageLayout* layout,
-                        VkPipelineStageFlags* stages)
-{
-	assert(context != NULL);
-	assert(ref != NULL);
-	assert(unpacked != NULL);
-	assert(flags != NULL);
-	assert(layout != NULL);
-	assert(stages != NULL);
-	assert(
-		ref->obj.buffer != NULL ||
-		ref->obj.image != NULL ||
-		ref->obj.renderer != NULL);
-
-	if (ref->obj.buffer != NULL)
-	{
-		// Resolve access flags, image layout and pipeline stage.
-		GFXFormat fmt = GFX_FORMAT_EMPTY;
-		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
-		*layout = VK_IMAGE_LAYOUT_UNDEFINED; // It's a buffer.
-		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt);
-		*stages = _GFX_MOD_VK_PIPELINE_STAGE(*stages, context);
-
-		// Normalize offset to be independent of references.
-		unpacked->offset = (range == NULL) ? ref->value :
-			ref->value + range->offset;
-
-		// Resolve zero buffer size.
-		unpacked->size = (range == NULL) ? size :
-			(range->size == 0 ? size - range->offset : range->size);
-	}
-	else
-	{
-		// Resolve whole aspect from format.
-		const GFXFormat fmt = (ref->obj.image != NULL) ?
-			ref->obj.image->base.format : attach->base.format;
-
-		const GFXImageAspect aspect =
-			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-				(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
-				(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
-				GFX_IMAGE_COLOR;
-
-		// Resolve access flags, image layout and pipeline stage from format.
-		// Note that zero image mipmaps/layers do not need to be resolved,
-		// from user-land we cannot reference part of an image, only the whole,
-		// meaning we can use the Vulkan 'remaining mipmaps/layers' flags.
-		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
-		*layout = _GFX_GET_VK_IMAGE_LAYOUT(mask, fmt);
-		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt);
-		*stages = _GFX_MOD_VK_PIPELINE_STAGE(*stages, context);
-
-		if (range == NULL)
-			unpacked->aspect = aspect,
-			unpacked->mipmap = 0,
-			unpacked->numMipmaps = 0,
-			unpacked->layer = 0,
-			unpacked->numLayers = 0;
-		else
-			// Fix aspect, cause we're nice :)
-			unpacked->aspect = range->aspect & aspect,
-			unpacked->mipmap = range->mipmap,
-			unpacked->numMipmaps = range->numMipmaps,
-			unpacked->layer = range->layer,
-			unpacked->numLayers = range->numLayers;
-	}
-}
 
 /****************************
  * Claims (creates) a synchronization object to use for an injection.
@@ -498,6 +392,91 @@ static bool _gfx_dep_push_barrier(const _GFXSync* sync,
 	injection->bars.dstStage |= sync->vk.dstStage;
 
 	return 1;
+}
+
+/****************************
+ * Computes the 'unpacked' range, access/stage flags and image layout
+ * associated with an injection's ref (normalizes offsets and resolves sizes).
+ * @param ref    Must be a non-empty valid unpacked reference.
+ * @param attach Must be _GFX_UNPACK_REF_ATTACH(*ref).
+ * @param range  May be NULL to take the entire resource as range.
+ * @param size   Must be the value of the associated _gfx_ref_size(<packed-ref>)!
+ * @param mask   Access mask to unpack the Vulkan access flags and image layout.
+ * @param stage  Shader stages to unpack the Vulkan pipeline stage.
+ *
+ * The returned `unpacked` range is not valid for the unpacked reference anymore,
+ * it is only valid for the raw VkBuffer or VkImage handle!
+ */
+static void _gfx_unpack(_GFXContext* context,
+                        const _GFXUnpackRef* ref,
+                        const _GFXImageAttach* attach,
+                        const GFXRange* range, uint64_t size,
+                        GFXAccessMask mask, GFXShaderStage stage,
+                        GFXRange* unpacked,
+                        VkAccessFlags* flags,
+                        VkImageLayout* layout,
+                        VkPipelineStageFlags* stages)
+{
+	assert(context != NULL);
+	assert(ref != NULL);
+	assert(unpacked != NULL);
+	assert(flags != NULL);
+	assert(layout != NULL);
+	assert(stages != NULL);
+	assert(
+		ref->obj.buffer != NULL ||
+		ref->obj.image != NULL ||
+		ref->obj.renderer != NULL);
+
+	if (ref->obj.buffer != NULL)
+	{
+		// Resolve access flags, image layout and pipeline stage.
+		GFXFormat fmt = GFX_FORMAT_EMPTY;
+		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
+		*layout = VK_IMAGE_LAYOUT_UNDEFINED; // It's a buffer.
+		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt);
+		*stages = _GFX_MOD_VK_PIPELINE_STAGE(*stages, context);
+
+		// Normalize offset to be independent of references.
+		unpacked->offset = (range == NULL) ? ref->value :
+			ref->value + range->offset;
+
+		// Resolve zero buffer size.
+		unpacked->size = (range == NULL) ? size :
+			(range->size == 0 ? size - range->offset : range->size);
+	}
+	else
+	{
+		// Resolve whole aspect from format.
+		const GFXFormat fmt = (ref->obj.image != NULL) ?
+			ref->obj.image->base.format : attach->base.format;
+
+		const GFXImageAspect aspect =
+			GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
+
+		// Resolve access flags, image layout and pipeline stage from format.
+		// Note that zero image mipmaps/layers do not need to be resolved,
+		// from user-land we cannot reference part of an image, only the whole,
+		// meaning we can use the Vulkan 'remaining mipmaps/layers' flags.
+		*flags = _GFX_GET_VK_ACCESS_FLAGS(mask, fmt);
+		*layout = _GFX_GET_VK_IMAGE_LAYOUT(mask, fmt);
+		*stages = _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt);
+		*stages = _GFX_MOD_VK_PIPELINE_STAGE(*stages, context);
+
+		if (range == NULL)
+			unpacked->aspect = aspect,
+			unpacked->mipmap = 0,
+			unpacked->numMipmaps = 0,
+			unpacked->layer = 0,
+			unpacked->numLayers = 0;
+		else
+			// Fix aspect, cause we're nice :)
+			unpacked->aspect = range->aspect & aspect,
+			unpacked->mipmap = range->mipmap,
+			unpacked->numMipmaps = range->numMipmaps,
+			unpacked->layer = range->layer,
+			unpacked->numLayers = range->numLayers;
+	}
 }
 
 /****************************/

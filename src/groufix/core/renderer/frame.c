@@ -491,18 +491,15 @@ static bool _gfx_frame_push_consume(GFXRenderer* renderer, GFXFrame* frame,
 	const VkPipelineStageFlags dstStageMask =
 		_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
 
-	// If no memory hazard, just inject an execution barrier...
+	// If no memory hazard, just inject an execution barrier.
 	const bool srcWrites = GFX_ACCESS_WRITES(prev->mask);
 	const bool transition = prev->out.final != con->out.initial;
 
 	if (!srcWrites && !transition)
-	{
-		// ... and be done with it.
 		return _gfx_injection_push(
 			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
 			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
 			NULL, NULL, NULL, injection);
-	}
 
 	// Otherwise, inject full memory barrier.
 	// To do this, get us the Vulkan image handle first.
@@ -526,10 +523,7 @@ static bool _gfx_frame_push_consume(GFXRenderer* renderer, GFXFrame* frame,
 
 	// And resolve whole aspect from the format.
 	const GFXImageAspect aspect =
-		GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
-			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
-			GFX_IMAGE_COLOR;
+		GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
 
 	VkImageMemoryBarrier imb = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -549,8 +543,8 @@ static bool _gfx_frame_push_consume(GFXRenderer* renderer, GFXFrame* frame,
 		.subresourceRange = {
 			.aspectMask =
 				// Fix aspect, cause we're nice :)
-				(_GFX_GET_VK_IMAGE_ASPECT(prev->view.range.aspect) |
-				_GFX_GET_VK_IMAGE_ASPECT(con->view.range.aspect)) & aspect,
+				_GFX_GET_VK_IMAGE_ASPECT(
+					(prev->view.range.aspect | con->view.range.aspect) & aspect),
 			.baseMipLevel =
 				GFX_MIN(prev->view.range.mipmap, con->view.range.mipmap),
 			.baseArrayLayer =
@@ -628,19 +622,32 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 	const VkPipelineStageFlags dstStageMask =
 		_GFX_GET_VK_PIPELINE_STAGE(dep->inj.mask, dep->inj.stage, fmt);
 
-	// TODO:GRA: Continue implementing.
-	// Need to get range things, maybe extract functionality from
-	// _gfx_unpack in deps.c somehow?
+	const VkImageLayout oldLayout =
+		(unp.obj.buffer != NULL) ? VK_IMAGE_LAYOUT_UNDEFINED :
+		_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.maskf, fmt);
+	const VkImageLayout newLayout =
+		(unp.obj.buffer != NULL) ? VK_IMAGE_LAYOUT_UNDEFINED :
+		_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.mask, fmt);
 
-	// TODO:GRA: Validate if we even need any barrier.
-	// For consumptions the graph precomputed this,
-	// which is not the case here!
+	// See if we need an execution or full memory barrier.
+	const bool srcWrites = GFX_ACCESS_WRITES(dep->inj.maskf);
+	const bool dstWrites = GFX_ACCESS_WRITES(dep->inj.mask);
+	const bool transition = oldLayout != newLayout;
 
-	// If we have no resource, just inject an execution or memory barrier.
+	// No barrier required.
+	if (!srcWrites && !dstWrites && !transition)
+		return 1;
+
+	// Or just an execution barrier.
+	if (!srcWrites && !transition)
+		return _gfx_injection_push(
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+			NULL, NULL, NULL, injection);
+
+	// If we have no resource, inject a general memory barrier.
 	if (GFX_REF_IS_NULL(dep->inj.ref))
 	{
-		const bool srcWrites = GFX_ACCESS_WRITES(dep->inj.maskf);
-
 		VkMemoryBarrier mb = {
 			.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
 
@@ -652,10 +659,14 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 		return _gfx_injection_push(
 			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
 			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-			srcWrites ? &mb : NULL, NULL, NULL, injection);
+			&mb, NULL, NULL, injection);
 	}
 
-	// Inject either a buffer or image memory barrier.
+	// Inject either a buffer or image barrier.
+	const uint64_t size = _gfx_ref_size(dep->inj.ref);
+	const GFXRange* range = &dep->inj.range;
+	const bool isRanged = _GFX_INJ_IS_RANGED(dep->inj);
+
 	if (unp.obj.buffer != NULL)
 	{
 		VkBufferMemoryBarrier bmb = {
@@ -667,8 +678,14 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.buffer              = buffer,
-			//.offset              = sync->range.offset,
-			//.size                = sync->range.size
+
+			// Normalize offset to be independent of references.
+			.offset = !isRanged ? unp.value :
+				unp.value + range->offset,
+
+			// Resolve zero buffer size.
+			.size = !isRanged ? size :
+				(range->size == 0 ? size - range->offset : range->size)
 		};
 
 		return _gfx_injection_push(
@@ -678,27 +695,38 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 	}
 	else
 	{
+		const GFXImageAspect aspect =
+			GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
+
 		VkImageMemoryBarrier imb = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 
 			.pNext               = NULL,
 			.srcAccessMask       = srcAccessMask,
 			.dstAccessMask       = dstAccessMask,
-			.oldLayout           = _GFX_GET_VK_IMAGE_LAYOUT(dep->inj.maskf, fmt),
-			.newLayout           = _GFX_GET_VK_IMAGE_LAYOUT(dep->inj.mask, fmt),
+			.oldLayout           = oldLayout,
+			.newLayout           = newLayout,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.image               = image,
-			//.subresourceRange = {
-			//	.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(sync->range.aspect),
-			//	.baseMipLevel   = sync->range.mipmap,
-			//	.baseArrayLayer = sync->range.layer,
 
-			//	.levelCount = sync->range.numMipmaps == 0 ?
-			//		VK_REMAINING_MIP_LEVELS : sync->range.numMipmaps,
-			//	.layerCount = sync->range.numLayers == 0 ?
-			//		VK_REMAINING_ARRAY_LAYERS : sync->range.numLayers
-			//}
+			.subresourceRange = {
+				.aspectMask =
+					// Fix aspect, cause we're nice :)
+					_GFX_GET_VK_IMAGE_ASPECT(
+						isRanged ? aspect & range->aspect : aspect),
+				.baseMipLevel =
+					isRanged ? range->mipmap : 0,
+				.baseArrayLayer =
+					isRanged ? range->layer : 0,
+
+				.levelCount =
+					(!isRanged || range->numMipmaps == 0) ?
+						VK_REMAINING_MIP_LEVELS : range->numMipmaps,
+				.layerCount =
+					(!isRanged || range->numLayers == 0) ?
+						VK_REMAINING_ARRAY_LAYERS : range->numLayers
+			}
 		};
 
 		return _gfx_injection_push(

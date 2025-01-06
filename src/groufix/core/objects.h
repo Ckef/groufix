@@ -1407,6 +1407,27 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
  ****************************/
 
 /**
+ * Injection type checkers for a GFXInject.
+ */
+#define _GFX_INJ_IS_SIGNAL(inj) \
+	((inj).type == GFX_INJ_SIGNAL || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE || \
+	(inj).type == GFX_INJ_SIGNAL_FROM || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
+
+#define _GFX_INJ_IS_RANGED(inj) \
+	((inj).type == GFX_INJ_SIGNAL_RANGE || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
+
+#define _GFX_INJ_IS_SOURCED(inj) \
+	((inj).type == GFX_INJ_SIGNAL_FROM || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
+
+#define _GFX_INJ_IS_WAIT(inj) \
+	((inj).type == GFX_INJ_WAIT)
+
+
+/**
  * Dependency injection metadata.
  */
 typedef struct _GFXInjection
@@ -1603,6 +1624,7 @@ bool _gfx_injection_push(VkPipelineStageFlags srcStage,
 
 /**
  * Completes dependency injections by catching pending signal commands.
+ * Only operates on commands that reference a dependency object.
  * @param context   Cannot be NULL.
  * @param cmd       To record some initial barriers to, cannot be VK_NULL_HANDLE.
  * @param numInjs   Number of given injection commands.
@@ -1633,6 +1655,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 /**
  * Starts dependency injections by preparing new signal commands.
+ * Only operates on commands that reference a dependency object.
  * @param blocking Non-zero to indicate the operation is blocking.
  * @see _gfx_deps_catch.
  *

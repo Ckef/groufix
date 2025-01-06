@@ -140,10 +140,7 @@ static bool _gfx_make_view(_GFXContext* context,
 			entry->viewType : binding->viewType;
 
 	const GFXImageAspect aspect =
-		GFX_FORMAT_HAS_DEPTH_OR_STENCIL(*fmt) ?
-			(GFX_FORMAT_HAS_DEPTH(*fmt) ? GFX_IMAGE_DEPTH : 0) |
-			(GFX_FORMAT_HAS_STENCIL(*fmt) ? GFX_IMAGE_STENCIL : 0) :
-			GFX_IMAGE_COLOR;
+		GFX_IMAGE_ASPECT_FROM_FORMAT(*fmt);
 
 	*ivci = (VkImageViewCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,

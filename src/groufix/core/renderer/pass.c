@@ -871,10 +871,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					_gfx_pass_find_attachment(rPass, con->resolve);
 
 				const bool aspect = // Whether the viewed aspect exists.
-					con->view.range.aspect &
-					(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-						GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL :
-						GFX_IMAGE_COLOR);
+					con->view.range.aspect & GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
 
 				const VkAttachmentReference ref = !aspect ?
 					unused :
@@ -1245,11 +1242,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 			// then fix the consumed aspect as promised by gfx_pass_consume.
 			const GFXFormat fmt = at->image.base.format;
 			const GFXImageAspect aspect =
-				con->view.range.aspect &
-				(GFXImageAspect)(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-					(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
-					(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
-					GFX_IMAGE_COLOR);
+				con->view.range.aspect & GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
 
 			VkImageViewCreateInfo ivci = {
 				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
