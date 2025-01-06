@@ -531,7 +531,6 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 	assert(pass != NULL);
 	assert(wait != NULL);
 	assert(pass != wait);
-	assert(pass->level < wait->level);
 	assert(numInjs == 0 || injs != NULL);
 
 	_GFXContext* context =

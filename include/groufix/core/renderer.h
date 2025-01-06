@@ -781,7 +781,7 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
 /**
  * Appends dependency commands to given passes, effectively 'injecting' the
  * given commands before every frame the passes are used in.
- * @param pass Cannot be NULL, must be a parent (or any parent thereof) of wait.
+ * @param pass Cannot be NULL.
  * @param wait Cannot be NULL, pass to implicitly wait, must not be pass.
  * @param injs Cannot be NULL if numInjs > 0.
  *
