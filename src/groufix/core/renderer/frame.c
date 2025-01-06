@@ -772,52 +772,6 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 	// Record all requested passes.
 	for (size_t p = first; p < first + num; ++p)
 	{
-		// TODO:GRA: What to do about dependency injection and subpasses.
-		// Problem being: we need to define subpass dependencies ahead of
-		// time, not only for attachments, but for non-attachments as well.
-		//
-		// For attachments used as actual render pass attachments,
-		//   everything is handled through consumptions.
-		// For attachments used as non-attachment, e.g. as texture in a
-		//   compute shader (of all things), we MUST use it in a bound set
-		//   as such AND consume them so they're synchronized.
-		//   NOTE: See below, breaks on async compute!
-		// For non attachments,
-		//   we do semi-dependencies; we use the gfx_dep_*f macros but
-		//   just directly insert them into two passes.
-		//   We can artificially inject the wait commands.
-		//   This way we still benefit from the dep's semaphore management,
-		//   in case we inject between async compute passes.
-		//     HOWEVER!
-		//    If this happens to be within a subpass chain, we cannot,
-		//    as we need subpass dependencies for this to work. Do we???
-		//
-		//    I GET IT!!!
-		//    Here is the kicker, subpass dependencies define memory barriers
-		//    between subpasses, they go for ALL resources!
-		//    If we have a storage image written to in one subpass and
-		//    read from in the next, a subpass dependency alone will cover it.
-		//    Pipeline barriers within subpasses are _EXCLUSIVELY_ for
-		//    self-dependency of that single subpass.
-		//
-		//   Ergo, we must know, ahead of time, all subpass-deps AND
-		//   from what points we are allowed to use dep-objects if we want
-		//   (for e.g. using semaphores or gfx_read or whatever)...
-		//   - We know that only render passes can be merged with each other,
-		//     meaning there can only be subpass-deps between render passes.
-		//   - We cannot use dep-objects between render passes,
-		//     as they may be merged, at which point we're too late.
-		//   What if we use dep-objects for render-compute and compute-compute,
-		//   reusing the gfx_dep_*f macros as described before.
-		//   And for render-render we define gfx_sig (so it can output a
-		//   GFXInject and we have a uniform API) for which we only give
-		//   source and access mask/stage, no dep-object or reference.
-		//     We could still give references, we just ignore them if we
-		//     happen to have built a subpass. If not, we can still insert
-		//     the memory barrier like normal...?!
-		//     Actually, don't ignore them, we need to do layout transitions!
-		//     Note: should insert a VkMemoryBarrier if not subpass + no ref?
-
 		// Do nothing if pass is culled.
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 		if (pass->culled) continue;
@@ -936,7 +890,6 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 				&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		}
 
-		// TODO:GRA: May need to handle layout transfers due to `deps`?
 		// Then start looping over the chain again to actually record them.
 		for (
 			GFXPass* subpass = pass;
@@ -944,6 +897,12 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 			subpass = (subpass->type == GFX_PASS_RENDER) ?
 				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
+			// TODO: We may have defined an image layout transition with
+			// gfx_pass_depend that ended up in a subpass chain.
+			// e.g. we transfer from storage write to sampled?
+			// Check for that (check for dep->out.subpass == 1) and
+			// insert a pipeline barrier.
+
 			// Record all recorders.
 			for (
 				GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
