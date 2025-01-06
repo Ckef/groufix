@@ -157,6 +157,7 @@ static inline void _gfx_pass_gen(_GFXRenderPass* rPass)
 /****************************
  * Stand-in function for all the gfx_pass_consume* variants.
  * The `flags`, `mask`, `stage` and `view` fields of consume must be set.
+ * As for `flags`, _GFX_CONSUME_BLEND may _NOT_ be set.
  * @see gfx_pass_consume*.
  * @param consume Cannot be NULL.
  */
@@ -166,7 +167,10 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 	assert(!pass->renderer->recording);
 	assert(consume != NULL);
 
-	// Firstly, remove any host access mask, images cannot be mapped!
+	// Firstly, validate pass type.
+	if (pass->type == GFX_PASS_COMPUTE_ASYNC) return 0;
+
+	// Remove any host access mask, images cannot be mapped!
 	consume->mask &= ~(GFXAccessMask)GFX_ACCESS_HOST_READ_WRITE;
 
 	// Try to find it first.
@@ -214,21 +218,17 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 	con->resolve = SIZE_MAX;
 
 invalidate:
-	// Always reset graph output.
-	con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
-	con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
-	con->out.prev = NULL;
-
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.
+	// This also means the graph will be re-analyzed!
 	if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
 
 	return 1;
 }
 
 /****************************
- * Destructs a subset of all Vulkan objects, non-recursively.
- * @param rPass Cannot be NULL.
+ * Destructs a subset of all Vulkan objects.
+ * @param rPass Cannot be NULL, must be first in the subpass chain.
  * @param flags What resources should be destroyed (0 to do nothing).
  *
  * Not thread-safe with respect to pushing stale resources!
@@ -238,57 +238,64 @@ static void _gfx_pass_destruct_partial(_GFXRenderPass* rPass,
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
+	assert(rPass->out.master == NULL);
 
-	// The recreate flag is always set if anything is set and signals that
-	// the actual images have been recreated.
-	if (flags & _GFX_RECREATE)
+	// Do this for all subpasses, so they all get e.g. a generation increase!
+	for (
+		_GFXRenderPass* subpass = rPass;
+		subpass != NULL;
+		subpass = subpass->out.next)
 	{
-		// Make all framebuffers and views stale.
-		// Note that they might still be in use by pending virtual frames.
-		// NOT locked using the renderer's lock;
-		// the reason that _gfx_pass_(build|destruct) are not thread-safe.
-		for (size_t i = 0; i < rPass->vk.frames.size; ++i)
+		// The recreate flag is always set if anything is set and signals
+		// that the actual images have been recreated.
+		if (flags & _GFX_RECREATE)
 		{
-			_GFXFrameElem* elem = gfx_vec_at(&rPass->vk.frames, i);
-			_gfx_push_stale(rPass->base.renderer,
-				elem->buffer, elem->view,
-				VK_NULL_HANDLE, VK_NULL_HANDLE);
-		}
-
-		for (size_t i = 0; i < rPass->vk.views.size; ++i)
-		{
-			_GFXViewElem* elem = gfx_vec_at(&rPass->vk.views, i);
-			if (elem->view != VK_NULL_HANDLE)
-				_gfx_push_stale(rPass->base.renderer,
-					VK_NULL_HANDLE, elem->view,
+			// Make all framebuffers and views stale,
+			// they might still be in use by pending virtual frames.
+			// NOT locked using the renderer's lock;
+			// this is why _gfx_pass_(build|destruct) are not thread-safe.
+			for (size_t i = 0; i < subpass->vk.frames.size; ++i)
+			{
+				_GFXFrameElem* elem = gfx_vec_at(&subpass->vk.frames, i);
+				_gfx_push_stale(subpass->base.renderer,
+					elem->buffer, elem->view,
 					VK_NULL_HANDLE, VK_NULL_HANDLE);
+			}
 
-			// We DO NOT release rPass->vk.views.
-			// This because on-swapchain recreate, the consumptions of
-			// attachments have not changed, we just have new images with
-			// potentially new dimensions.
-			// Meaning we do not need to filter all consumptions into
-			// framebuffer views, we only need to recreate the views.
-			elem->view = VK_NULL_HANDLE;
+			for (size_t i = 0; i < subpass->vk.views.size; ++i)
+			{
+				_GFXViewElem* elem = gfx_vec_at(&subpass->vk.views, i);
+				if (elem->view != VK_NULL_HANDLE)
+					_gfx_push_stale(subpass->base.renderer,
+						VK_NULL_HANDLE, elem->view,
+						VK_NULL_HANDLE, VK_NULL_HANDLE);
+
+				// We DO NOT release subpass->vk.views.
+				// This because on-swapchain recreate, the consumptions of
+				// attachments have not changed, we just have new images
+				// with potentially new dimensions.
+				// Meaning we do not need to filter all consumptions into
+				// framebuffer views, we only need to recreate the views.
+				elem->view = VK_NULL_HANDLE;
+			}
+
+			subpass->build.fWidth = 0;
+			subpass->build.fHeight = 0;
+			subpass->build.fLayers = 0;
+			gfx_vec_release(&subpass->vk.frames); // Force a rebuild.
 		}
 
-		// We do not re-filter, so we must keep `build.backing`!
-		rPass->build.fWidth = 0;
-		rPass->build.fHeight = 0;
-		rPass->build.fLayers = 0;
-		gfx_vec_release(&rPass->vk.frames); // Force a rebuild.
-	}
+		// Second, check if the Vulkan render pass needs to be reconstructed.
+		// This object is cached, so no need to destroy anything.
+		if (flags & _GFX_REFORMAT)
+		{
+			subpass->build.pass = NULL;
+			subpass->vk.pass = VK_NULL_HANDLE;
 
-	// Second, we check if the Vulkan render pass needs to be reconstructed.
-	// This object is cached, so no need to destroy anything.
-	if (flags & _GFX_REFORMAT)
-	{
-		rPass->build.pass = NULL;
-		rPass->vk.pass = VK_NULL_HANDLE;
-
-		// Increase generation; the render pass is used in pipelines,
-		// ergo we need to invalidate current pipelines using it.
-		_gfx_pass_gen(rPass);
+			// Increase generation; the render pass is used in pipelines,
+			// ergo we need to invalidate current pipelines using it.
+			_gfx_pass_gen(subpass);
+		}
 	}
 }
 
@@ -349,7 +356,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	pass->culled = 0;
 
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsume));
-	gfx_vec_init(&pass->deps, sizeof(GFXInject));
+	gfx_vec_init(&pass->deps, sizeof(_GFXDepend));
+	gfx_vec_init(&pass->injs, sizeof(GFXInject));
 
 	// The level is the highest level of all parents + 1.
 	for (size_t p = 0; p < numParents; ++p)
@@ -371,8 +379,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 		rPass->out.master = NULL;
 		rPass->out.next = NULL;
 		rPass->out.subpass = 0;
+		rPass->out.backing = SIZE_MAX;
 
-		rPass->build.backing = SIZE_MAX;
 		rPass->build.fWidth = 0;
 		rPass->build.fHeight = 0;
 		rPass->build.fLayers = 0;
@@ -380,10 +388,10 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 		rPass->vk.pass = VK_NULL_HANDLE;
 
 		// Add an extra char so we know to set independent blend state.
-		// Align so access to the Vulkan structs is aligned.
+		// Align so access to the blend structs is aligned.
 		const size_t blendsSize = GFX_ALIGN_UP(
-			sizeof(VkPipelineColorBlendAttachmentState) + sizeof(char),
-			alignof(VkPipelineColorBlendAttachmentState));
+			sizeof(GFXBlendOpState) * 2 + sizeof(char),
+			alignof(GFXBlendOpState));
 
 		gfx_vec_init(&rPass->vk.clears, sizeof(VkClearValue));
 		gfx_vec_init(&rPass->vk.blends, blendsSize);
@@ -480,7 +488,9 @@ void _gfx_destroy_pass(GFXPass* pass)
 		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 
 		// Destruct all partial things.
-		_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
+		// Will loop over subpasses, reason why we must destroy in-order!
+		if (rPass->out.master == NULL)
+			_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
 
 		// Free all remaining things.
 		gfx_vec_clear(&rPass->vk.clears);
@@ -492,6 +502,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 	// More destruction.
 	gfx_vec_clear(&pass->consumes);
 	gfx_vec_clear(&pass->deps);
+	gfx_vec_clear(&pass->injs);
 
 	free(pass);
 }
@@ -504,7 +515,9 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 	assert(!rPass->base.culled);
 	assert(frame != NULL);
 
-	// TODO:GRA: Get framebuffer from master pass.
+	// If this is not a master pass, get the master pass.
+	if (rPass->out.master != NULL)
+		rPass = rPass->out.master;
 
 	// Just a single framebuffer.
 	if (rPass->vk.frames.size == 1)
@@ -512,7 +525,7 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 
 	// Query the swapchain image index.
 	const uint32_t image =
-		_gfx_frame_get_swapchain_index(frame, rPass->build.backing);
+		_gfx_frame_get_swapchain_index(frame, rPass->out.backing);
 
 	// Validate & return.
 	return rPass->vk.frames.size <= image ?
@@ -521,9 +534,9 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 }
 
 /****************************
- * Filters all consumed attachments into framebuffer views &
- * a potential window to use as back-buffer, silently logging issues.
- * @param rPass Cannot be NULL, must not be culled.
+ * Filters all consumed attachments into framebuffer views.
+ * Meaning the `vk.views` field (excluding image view) of rPass are set.
+ * @param rPass Cannot be NULL, must be first in the subpass chain and not culled.
  * @return Zero on failure.
  */
 static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
@@ -531,6 +544,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
 	assert(!rPass->base.culled);
+	assert(rPass->out.master == NULL);
 
 	GFXRenderer* rend = rPass->base.renderer;
 
@@ -538,101 +552,104 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 	if (rPass->vk.views.size > 0)
 		return 1;
 
-	// TODO:GRA: Should get from all next subpasses too and skip if not master.
-	// Literally point to the consume elem of a next pass.
-	// Note that we can still only have one window attachment for
-	// framebuffer creation reasons + we CAN have multiple depth/stencil
-	// attachments now, one per subpass!
-
-	// Reserve as many views as there are attachments, can never be more.
+	// Reserve as many views as there are consumptions in the first pass.
+	// There may be more if this is a subpass chain, but that's fine.
 	if (!gfx_vec_reserve(&rPass->vk.views, rPass->base.consumes.size))
 		return 0;
 
-	// And start looping over all consumptions :)
-	size_t depSten = SIZE_MAX; // Only to warn for duplicates.
-
-	for (size_t i = 0; i < rPass->base.consumes.size; ++i)
+	// Start looping over all consumptions,
+	// including all consumptions of all next subpasses.
+	for (
+		_GFXRenderPass* subpass = rPass;
+		subpass != NULL;
+		subpass = subpass->out.next)
 	{
-		const _GFXConsume* con = gfx_vec_at(&rPass->base.consumes, i);
-		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		size_t depSten = SIZE_MAX; // Only to warn for duplicates.
 
-		// Validate existence of the attachment.
-		if (
-			con->view.index >= rend->backing.attachs.size ||
-			at->type == _GFX_ATTACH_EMPTY)
+		for (size_t i = 0; i < subpass->base.consumes.size; ++i)
 		{
-			gfx_log_warn(
-				"Consumption of attachment at index %"GFX_PRIs" ignored, "
-				"attachment not described.",
-				con->view.index);
+			const _GFXConsume* con =
+				gfx_vec_at(&subpass->base.consumes, i);
+			const _GFXAttach* at =
+				gfx_vec_at(&rend->backing.attachs, con->view.index);
 
-			continue;
-		}
-
-		// Validate that we want to access it as attachment.
-		if (!(con->mask &
-			(GFX_ACCESS_ATTACHMENT_INPUT |
-			GFX_ACCESS_ATTACHMENT_READ |
-			GFX_ACCESS_ATTACHMENT_WRITE |
-			GFX_ACCESS_ATTACHMENT_RESOLVE)))
-		{
-			continue;
-		}
-
-		// If a window we read/write color to, pick it.
-		if (at->type == _GFX_ATTACH_WINDOW &&
-			(con->view.range.aspect & GFX_IMAGE_COLOR) &&
-			(con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ |
+			// Validate that we want to access it as attachment.
+			// NOTE: We CAN filter based on the mask of a single consumption,
+			// even though we do not know how other subpasses consume it!
+			// This is true because passes will never be merged if one
+			// consumes as attachment while the other does not,
+			// see graph.c (!).
+			if (!(con->mask &
+				(GFX_ACCESS_ATTACHMENT_INPUT |
+				GFX_ACCESS_ATTACHMENT_READ |
 				GFX_ACCESS_ATTACHMENT_WRITE |
 				GFX_ACCESS_ATTACHMENT_RESOLVE)))
-		{
-			// Check if we already had a backing window.
-			if (rPass->build.backing == SIZE_MAX)
-				rPass->build.backing = con->view.index;
-			else
 			{
-				// Skip any other candidate, cannot create a view for it.
+				continue;
+			}
+
+			// Validate existence of the attachment.
+			if (
+				con->view.index >= rend->backing.attachs.size ||
+				at->type == _GFX_ATTACH_EMPTY)
+			{
 				gfx_log_warn(
 					"Consumption of attachment at index %"GFX_PRIs" "
-					"ignored, a single pass can only read/write to a "
-					"single window attachment at a time.",
+					"ignored, attachment not described.",
 					con->view.index);
 
 				continue;
 			}
+
+			// If a window, check for duplicates.
+			if (at->type == _GFX_ATTACH_WINDOW)
+			{
+				// Check against the pre-analyzed backing window index.
+				if (con->view.index != rPass->out.backing)
+				{
+					// Skip any other window, no view will be created.
+					gfx_log_warn(
+						"Consumption of attachment at index %"GFX_PRIs" "
+						"ignored, a single pass can only read/write to a "
+						"single window attachment at a time.",
+						con->view.index);
+
+					continue;
+				}
+			}
+
+			// If a depth/stencil we read/write to, warn for duplicates.
+			else if (
+				GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
+				(con->view.range.aspect &
+					(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
+				(con->mask &
+					(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
+			{
+				if (depSten == SIZE_MAX)
+					depSten = con->view.index;
+				else
+					gfx_log_warn(
+						"A single pass can only read/write to a single "
+						"depth/stencil attachment at a time.");
+			}
+
+			// At this point, we want to reference this consumption,
+			// which references an attachment that may or may not have
+			// already been referenced by a consumption from a previous pass.
+			if (con->out.state & _GFX_CONSUME_IS_FIRST)
+			{
+				// If it is the first (either a single pass or in a chain),
+				// add the new view element refercing this consumption chain,
+				// referencing the attachment in turn.
+				_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
+				if (!gfx_vec_push(&rPass->vk.views, 1, &elem))
+				{
+					gfx_vec_release(&rPass->vk.views);
+					return 0;
+				}
+			}
 		}
-
-		// Skip any other windows too, no view will be created.
-		else if (at->type == _GFX_ATTACH_WINDOW)
-		{
-			gfx_log_warn(
-				"Consumption of attachment at index %"GFX_PRIs" ignored, "
-				"a pass can only read/write to a window attachment.",
-				con->view.index);
-
-			continue;
-		}
-
-		// If a depth/stencil we read/write to, warn for duplicates.
-		else if (
-			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(at->image.base.format) &&
-			(con->view.range.aspect &
-				(GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL)) &&
-			(con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
-		{
-			if (depSten == SIZE_MAX)
-				depSten = con->view.index;
-			else
-				gfx_log_warn(
-					"A single pass can only read/write to a single "
-					"depth/stencil attachment at a time.");
-		}
-
-		// Add a view element referencing this consumption.
-		_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
-		gfx_vec_push(&rPass->vk.views, 1, &elem);
 	}
 
 	return 1;
@@ -671,15 +688,18 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	assert(rPass->base.type == GFX_PASS_RENDER);
 
 	GFXRenderer* rend = rPass->base.renderer;
+	_GFXContext* context = rend->cache.context;
 
-	// TODO:GRA: Somehow do this for all subpasses if this is master.
-	// And skip all this if this is not master.
-	// Need to set the correct state.enabled value for all subpasses.
-	// And somehow propagate the VK pass and subpass index to all subpasses.
-	// Used for creating pipelines, which are still for specific passes.
+	// Ignore this pass if it's culled.
+	if (rPass->base.culled)
+		return 1;
 
-	// Pass is culled or already warmed.
-	if (rPass->base.culled || _GFX_PASS_IS_WARMED(rPass))
+	// If this is not a master pass, skip.
+	if (rPass->out.master != NULL)
+		return 1;
+
+	// Pass is already warmed.
+	if (_GFX_PASS_IS_WARMED(rPass))
 		return 1;
 
 	// Ok so we need to know about all pass attachments.
@@ -687,286 +707,467 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	if (!_gfx_pass_filter_attachments(rPass))
 		return 0;
 
-	// We are always gonna update the clear & blend values.
-	// Do it here and not build so we don't unnecessarily reconstruct this.
-	// Same for state variables & enables.
-	gfx_vec_release(&rPass->vk.clears);
-	gfx_vec_release(&rPass->vk.blends);
-	rPass->state.samples = 1;
-	rPass->state.enabled = 0;
+	// We need to build all Vulkan subpasses corresponding to the whole
+	// subpass chain. We're gonna simultaneously loop over all consumptions
+	// and subpasses, in a single loop.
+	const size_t numViews = rPass->vk.views.size;
+	const size_t vlaViews = numViews > 0 ? numViews : 1;
+	const _GFXConsume* consumes[vlaViews];
 
-	// Both just need one element per view.
-	if (!gfx_vec_reserve(&rPass->vk.clears, rPass->vk.views.size))
-		return 0;
+	for (size_t i = 0; i < numViews; ++i) consumes[i] =
+		((_GFXViewElem*)gfx_vec_at(&rPass->vk.views, i))->consume;
 
-	if (!gfx_vec_reserve(&rPass->vk.blends, rPass->vk.views.size))
-		return 0;
+	// Prepare Vulkan pass data.
+	// Use vectors for attachments & dependencies...
+	VkAttachmentDescription ad[vlaViews];
+	VkSubpassDescription sd[rPass->out.subpasses];
 
-	// Describe all attachments.
-	// We loop over all framebuffer views, which guarantees non-empty
-	// attachments with attachment input/read/write/resolve access.
-	// Keep track of all the input/color and depth/stencil attachment counts.
-	size_t numInputs = 0;
-	size_t numColors = 0;
+	GFXVec inputs;
+	GFXVec colors;
+	GFXVec resolves;
+	VkAttachmentReference depStens[rPass->out.subpasses];
+	GFXVec preserves;
+	GFXVec dependencies;
+
+	gfx_vec_init(&inputs, sizeof(VkAttachmentReference));
+	gfx_vec_init(&colors, sizeof(VkAttachmentReference));
+	gfx_vec_init(&resolves, sizeof(VkAttachmentReference));
+	gfx_vec_init(&preserves, sizeof(uint32_t));
+	gfx_vec_init(&dependencies, sizeof(VkSubpassDependency));
 
 	const VkAttachmentReference unused = (VkAttachmentReference){
 		.attachment = VK_ATTACHMENT_UNUSED,
 		.layout     = VK_IMAGE_LAYOUT_UNDEFINED
 	};
 
-	const size_t vlaViews = rPass->vk.views.size > 0 ? rPass->vk.views.size : 1;
-	VkAttachmentDescription ad[vlaViews];
-	VkAttachmentReference input[vlaViews];
-	VkAttachmentReference color[vlaViews];
-	VkAttachmentReference resolve[vlaViews];
-	VkAttachmentReference depSten = unused;
-
-	for (size_t i = 0; i < rPass->vk.views.size; ++i)
+	// Start looping over all subpasses & consumptions,
+	// including all next subpasses & their consumptions.
+	for (
+		_GFXRenderPass* subpass = rPass;
+		subpass != NULL;
+		subpass = subpass->out.next)
 	{
-		const _GFXViewElem* view = gfx_vec_at(&rPass->vk.views, i);
-		const _GFXConsume* con = view->consume;
-		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		// We are always gonna update the clear & blend values,
+		// so we release all values for all passes.
+		// Same for state variables & enables.
+		gfx_vec_release(&subpass->vk.clears);
+		gfx_vec_release(&subpass->vk.blends);
+		subpass->state.samples = 1;
+		subpass->state.enabled = 0;
 
-		bool isColor = 0;
+		// Blend needs one element per view, max.
+		// Clear is only set for the master pass (done after this loop).
+		if (!gfx_vec_reserve(&subpass->vk.blends, numViews))
+			goto clean;
 
-		// Swapchain.
-		if (at->type == _GFX_ATTACH_WINDOW)
+		// More per-subpass data setup.
+		size_t numInputs = 0;
+		size_t numColors = 0;
+		size_t numPreserves = 0;
+
+		VkAttachmentReference* depSten = &depStens[subpass->out.subpass];
+		*depSten = unused;
+
+		// Describe all attachments of this subpass.
+		// Do so by looping over the framebuffer views,
+		// and check if there is a consumption for it of this subpass.
+		for (size_t i = 0; i < numViews; ++i)
 		{
-			// Reference the attachment if appropriate.
-			if (con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
-			{
-				resolve[numColors] = unused;
-				color[numColors] = (VkAttachmentReference){
-					.attachment = (uint32_t)i,
-					.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-				};
+			// Get current consumption, advance if of the previous subpass.
+			const _GFXConsume* con = consumes[i];
 
-				numColors++;
-				isColor = 1;
+			if (con != NULL && con->out.subpass < subpass->out.subpass)
+				consumes[i] = con =
+					(con->out.state & _GFX_CONSUME_IS_LAST) ?
+					NULL : con->out.next;
+
+			// This subpass does _not_ consume this attachment.
+			if (con == NULL)
+				continue;
+
+			// But it will be consumed by a next subpass.
+			if (con->out.subpass > subpass->out.subpass)
+			{
+				// Has it been consumed by a previous subpass?
+				// Reference as preserve attachment.
+				if (!(con->out.state & _GFX_CONSUME_IS_FIRST))
+				{
+					const uint32_t ref = (uint32_t)i;
+
+					if (!gfx_vec_push(&preserves, 1, &ref)) goto clean;
+					++numPreserves;
+				}
+
+				continue;
 			}
 
-			// Describe the attachment.
-			const bool clear = con->cleared & GFX_IMAGE_COLOR;
-			const bool load = con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
+			// This subpass _does_ consume this attachment.
+			const _GFXAttach* at =
+				gfx_vec_at(&rend->backing.attachs, con->view.index);
 
-			ad[i] = (VkAttachmentDescription){
-				.flags   = 0,
-				.format  = at->window.window->frame.format,
-				.samples = VK_SAMPLE_COUNT_1_BIT,
+			bool isColor = 0;
 
-				.loadOp =
-					(clear) ? VK_ATTACHMENT_LOAD_OP_CLEAR :
-					(load) ? VK_ATTACHMENT_LOAD_OP_LOAD :
-					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-
-				.storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
-					VK_ATTACHMENT_STORE_OP_DONT_CARE :
-					VK_ATTACHMENT_STORE_OP_STORE,
-
-				.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-				.initialLayout  = con->out.initial,
-				.finalLayout    = con->out.final
-			};
-		}
-
-		// Non-swapchain.
-		else
-		{
-			const GFXFormat fmt = at->image.base.format;
-
-			const bool aspectMatch =
-				con->view.range.aspect &
-				(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-					GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL : GFX_IMAGE_COLOR);
-
-			const bool firstClear =
-				!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-					con->cleared & GFX_IMAGE_COLOR :
-					GFX_FORMAT_HAS_DEPTH(fmt) &&
-						con->cleared & GFX_IMAGE_DEPTH;
-
-			const bool firstLoad =
-				(GFX_FORMAT_HAS_DEPTH(fmt) || !GFX_FORMAT_HAS_STENCIL(fmt)) &&
-					con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
-
-			const bool secondClear =
-				GFX_FORMAT_HAS_STENCIL(fmt) &&
-					con->cleared & GFX_IMAGE_STENCIL;
-
-			const bool secondLoad =
-				GFX_FORMAT_HAS_STENCIL(fmt) &&
-					con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
-
-			// Build references.
-			uint32_t resolveInd =
-				_gfx_pass_find_attachment(rPass, con->resolve);
-
-			const VkAttachmentReference ref = (VkAttachmentReference){
-				.attachment = (uint32_t)i,
-				.layout = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
-			};
-
-			const VkAttachmentReference refResolve =
-				(resolveInd == VK_ATTACHMENT_UNUSED) ?
-					unused :
-					(VkAttachmentReference){
-						.attachment = resolveInd,
-						.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+			// Swapchain.
+			if (at->type == _GFX_ATTACH_WINDOW)
+			{
+				// Reference as color attachment.
+				if (con->mask & (
+					GFX_ACCESS_ATTACHMENT_READ |
+					GFX_ACCESS_ATTACHMENT_WRITE))
+				{
+					const VkAttachmentReference ref = (VkAttachmentReference){
+						.attachment = (uint32_t)i,
+						.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 					};
 
-			// Reference the attachment if appropriate.
-			if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
-				input[numInputs++] = aspectMatch ? ref : unused;
+					if (!gfx_vec_push(&colors, 1, &ref)) goto clean;
+					if (!gfx_vec_push(&resolves, 1, &unused)) goto clean;
+					++numColors;
 
-			if (con->mask &
-				(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE))
-			{
-				if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt))
-					resolve[numColors] = aspectMatch ? refResolve : unused,
-					color[numColors] = aspectMatch ? ref : unused,
-					numColors++,
 					isColor = 1;
+				}
 
-				// Only set depSten on aspect match.
-				else if (aspectMatch)
+				// Describe the attachment.
+				if (con->out.state & _GFX_CONSUME_IS_FIRST)
 				{
-					depSten = ref;
+					// Initialize (first pass to use it).
+					const bool clear =
+						con->cleared & GFX_IMAGE_COLOR;
+					const bool load =
+						con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED;
 
-					// Adjust state enables.
-					rPass->state.enabled &= ~(unsigned int)(
-						_GFX_PASS_DEPTH | _GFX_PASS_STENCIL);
-					rPass->state.enabled |= (unsigned int)(
-						(GFX_FORMAT_HAS_DEPTH(fmt) ? _GFX_PASS_DEPTH : 0) |
-						(GFX_FORMAT_HAS_STENCIL(fmt) ? _GFX_PASS_STENCIL : 0));
+					ad[i].flags = 0;
+					ad[i].format = at->window.window->frame.format;
+					ad[i].samples = VK_SAMPLE_COUNT_1_BIT;
+
+					ad[i].loadOp =
+						clear ? VK_ATTACHMENT_LOAD_OP_CLEAR :
+						load ? VK_ATTACHMENT_LOAD_OP_LOAD :
+						VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+
+					ad[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+					ad[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+					ad[i].initialLayout = con->out.initial;
+				}
+
+				if (con->out.state & _GFX_CONSUME_IS_LAST)
+				{
+					// Finalize (last pass to use it).
+					ad[i].storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
+						VK_ATTACHMENT_STORE_OP_DONT_CARE :
+						VK_ATTACHMENT_STORE_OP_STORE;
+
+					ad[i].finalLayout = con->out.final;
 				}
 			}
 
-			// Describe the attachment.
-			ad[i] = (VkAttachmentDescription){
-				.flags   = 0,
-				.format  = at->image.vk.format,
-				.samples = at->image.base.samples,
+			// Non-swapchain.
+			else
+			{
+				// Build references.
+				const GFXFormat fmt = at->image.base.format;
 
-				.loadOp =
-					(firstClear) ? VK_ATTACHMENT_LOAD_OP_CLEAR :
-					(firstLoad) ? VK_ATTACHMENT_LOAD_OP_LOAD :
-					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				const uint32_t resolveInd =
+					_gfx_pass_find_attachment(rPass, con->resolve);
 
-				.storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
-					VK_ATTACHMENT_STORE_OP_DONT_CARE :
-					VK_ATTACHMENT_STORE_OP_STORE,
+				const bool aspect = // Whether the viewed aspect exists.
+					con->view.range.aspect & GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
 
-				.stencilLoadOp =
-					(secondClear) ? VK_ATTACHMENT_LOAD_OP_CLEAR :
-					(secondLoad) ? VK_ATTACHMENT_LOAD_OP_LOAD :
-					VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				const VkAttachmentReference ref = !aspect ?
+					unused :
+					(VkAttachmentReference){
+						.attachment = (uint32_t)i,
+						.layout     = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
+					};
 
-				.stencilStoreOp = (con->mask & GFX_ACCESS_DISCARD) ?
-					VK_ATTACHMENT_STORE_OP_DONT_CARE :
-					VK_ATTACHMENT_STORE_OP_STORE,
+				const VkAttachmentReference resolveRef =
+					(!aspect || resolveInd == VK_ATTACHMENT_UNUSED) ?
+						unused :
+						(VkAttachmentReference){
+							.attachment = resolveInd,
+							.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+						};
 
-				.initialLayout = con->out.initial,
-				.finalLayout = con->out.final
-			};
+				// Reference as input attachment.
+				if (con->mask & GFX_ACCESS_ATTACHMENT_INPUT)
+				{
+					if (!gfx_vec_push(&inputs, 1, &ref)) goto clean;
+					++numInputs;
+				}
 
-			// Remember the greatest sample count for pipelines.
-			if (ad[i].samples > rPass->state.samples)
-				rPass->state.samples = (unsigned char)ad[i].samples;
+				if (con->mask & (
+					GFX_ACCESS_ATTACHMENT_READ |
+					GFX_ACCESS_ATTACHMENT_WRITE))
+				{
+					// When we write to the attachment,
+					// remember the greatest sample count for pipelines.
+					if (at->image.base.samples > subpass->state.samples)
+						subpass->state.samples = at->image.base.samples;
+
+					// Reference as color attachment.
+					if (!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt))
+					{
+						if (!gfx_vec_push(&colors, 1, &ref)) goto clean;
+						if (!gfx_vec_push(&resolves, 1, &resolveRef)) goto clean;
+						++numColors;
+
+						isColor = 1;
+					}
+
+					// Reference as depth/stencil attachment.
+					else if (aspect)
+					{
+						*depSten = ref;
+
+						// Adjust state enables.
+						subpass->state.enabled =
+							(GFX_FORMAT_HAS_DEPTH(fmt) ? _GFX_PASS_DEPTH : 0) |
+							(GFX_FORMAT_HAS_STENCIL(fmt) ? _GFX_PASS_STENCIL : 0);
+					}
+				}
+
+				// Describe the attachment.
+				if (con->out.state & _GFX_CONSUME_IS_FIRST)
+				{
+					// Initialize (first pass to use it).
+					const bool firstClear =
+						!GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
+							con->cleared & GFX_IMAGE_COLOR :
+							con->cleared & GFX_IMAGE_DEPTH &&
+								GFX_FORMAT_HAS_DEPTH(fmt);
+
+					const bool firstLoad =
+						con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED &&
+						(GFX_FORMAT_HAS_DEPTH(fmt) || !GFX_FORMAT_HAS_STENCIL(fmt));
+
+					const bool secondClear =
+						con->cleared & GFX_IMAGE_STENCIL &&
+						GFX_FORMAT_HAS_STENCIL(fmt);
+
+					const bool secondLoad =
+						con->out.initial != VK_IMAGE_LAYOUT_UNDEFINED &&
+						GFX_FORMAT_HAS_STENCIL(fmt);
+
+					ad[i].flags = 0;
+					ad[i].format = at->image.vk.format;
+					ad[i].samples = at->image.base.samples;
+
+					ad[i].loadOp =
+						firstClear ? VK_ATTACHMENT_LOAD_OP_CLEAR :
+						firstLoad ? VK_ATTACHMENT_LOAD_OP_LOAD :
+						VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+
+					ad[i].stencilLoadOp =
+						secondClear ? VK_ATTACHMENT_LOAD_OP_CLEAR :
+						secondLoad ? VK_ATTACHMENT_LOAD_OP_LOAD :
+						VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+
+					ad[i].initialLayout = con->out.initial;
+				}
+
+				if (con->out.state & _GFX_CONSUME_IS_LAST)
+				{
+					// Finalize (last pass to use it).
+					ad[i].storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
+						VK_ATTACHMENT_STORE_OP_DONT_CARE :
+						VK_ATTACHMENT_STORE_OP_STORE;
+
+					ad[i].stencilStoreOp = (con->mask & GFX_ACCESS_DISCARD) ?
+						VK_ATTACHMENT_STORE_OP_DONT_CARE :
+						VK_ATTACHMENT_STORE_OP_STORE;
+
+					ad[i].finalLayout = con->out.final;
+				}
+			}
+
+			// Lastly, store the blend values for building pipelines.
+			// Only need to specify the attachments used by this subpass :)
+			if (isColor)
+			{
+				// Already reserved!
+				gfx_vec_push(&subpass->vk.blends, 1, NULL);
+
+				GFXBlendOpState* blend = gfx_vec_at(
+					&subpass->vk.blends, subpass->vk.blends.size - 1);
+
+				*(blend + 0) = con->color;
+				*(blend + 1) = con->alpha;
+				*(char*)(blend + 2) = (char)(con->flags & _GFX_CONSUME_BLEND);
+			}
 		}
 
-		// Lastly, store the clear value for when we begin the pass,
-		// memory is already reserved :)
-		gfx_vec_push(&rPass->vk.clears, 1, &con->clear.vk);
+		// Before finishing up this subpass, loop over all dependency
+		// commands to see if we need to make them subpass dependencies.
+		// We ignore the actual resource references here.
+		const size_t numDeps =
+			subpass != rPass ? subpass->base.deps.size : 0;
 
-		// Same for the blend values for building pipelines.
-		if (isColor)
+		for (size_t i = 0; i < numDeps; ++i)
 		{
-			gfx_vec_push(&rPass->vk.blends, 1, NULL);
+			_GFXDepend* depend = gfx_vec_at(&subpass->base.deps, i);
+			if (!depend->out.subpass) continue;
 
-			VkPipelineColorBlendAttachmentState* pcbas =
-				gfx_vec_at(&rPass->vk.blends, rPass->vk.blends.size - 1);
+			// Use empty formats, only relevant for attachments.
+			const GFXFormat emptyFmt = GFX_FORMAT_EMPTY;
 
-			*pcbas = (VkPipelineColorBlendAttachmentState){
-				.blendEnable         = VK_FALSE,
-				.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-				.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-				.colorBlendOp        = VK_BLEND_OP_ADD,
-				.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-				.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-				.alphaBlendOp        = VK_BLEND_OP_ADD,
-				.colorWriteMask      =
-					VK_COLOR_COMPONENT_R_BIT |
-					VK_COLOR_COMPONENT_G_BIT |
-					VK_COLOR_COMPONENT_B_BIT |
-					VK_COLOR_COMPONENT_A_BIT
+			const VkPipelineStageFlags srcStageMask =
+				_GFX_GET_VK_PIPELINE_STAGE(
+					depend->inj.maskf, depend->inj.stagef, emptyFmt);
+
+			const VkPipelineStageFlags dstStageMask =
+				_GFX_GET_VK_PIPELINE_STAGE(
+					depend->inj.mask, depend->inj.stage, emptyFmt);
+
+			VkSubpassDependency dependency = {
+				.srcSubpass    = ((_GFXRenderPass*)depend->source)->out.subpass,
+				.dstSubpass    = ((_GFXRenderPass*)depend->target)->out.subpass,
+				.srcStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+				.dstStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+				.srcAccessMask = _GFX_GET_VK_ACCESS_FLAGS(depend->inj.maskf, emptyFmt),
+				.dstAccessMask = _GFX_GET_VK_ACCESS_FLAGS(depend->inj.mask, emptyFmt),
 			};
 
-			// Only set if independent blend state is given.
-			// Otherwise, leave them at the defaults.
-			const char isIndependent = con->flags & _GFX_CONSUME_BLEND;
-			*(char*)(pcbas + 1) = isIndependent;
-
-			if (isIndependent && con->color.op != GFX_BLEND_NO_OP)
-			{
-				pcbas->blendEnable = VK_TRUE;
-				pcbas->srcColorBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->color.srcFactor);
-				pcbas->dstColorBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->color.dstFactor);
-				pcbas->colorBlendOp =
-					_GFX_GET_VK_BLEND_OP(con->color.op);
-			}
-
-			if (isIndependent && con->alpha.op != GFX_BLEND_NO_OP)
-			{
-				pcbas->blendEnable = VK_TRUE;
-				pcbas->srcAlphaBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->alpha.srcFactor);
-				pcbas->dstAlphaBlendFactor =
-					_GFX_GET_VK_BLEND_FACTOR(con->alpha.dstFactor);
-				pcbas->alphaBlendOp =
-					_GFX_GET_VK_BLEND_OP(con->alpha.op);
-			}
+			if (!gfx_vec_push(&dependencies, 1, &dependency))
+				goto clean;
 		}
+
+		// Same for all consumptions of this subpass,
+		// including ones that weren't selected for attachment views.
+		const size_t numCons =
+			subpass != rPass ? subpass->base.consumes.size : 0;
+
+		for (size_t i = 0; i < numCons; ++i)
+		{
+			const _GFXConsume* con = gfx_vec_at(&subpass->base.consumes, i);
+			const _GFXConsume* prev = con->out.prev;
+			const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+
+			// Will validate existence of the attachment, checked by graph!
+			if (prev == NULL || (con->out.state & _GFX_CONSUME_IS_FIRST))
+				continue;
+
+			// Get format from attachment again...
+			const GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
+				// Pick empty format for windows, which results in non-depth/stencil
+				// access flags and pipeline stages, which is what we want :)
+				at->image.base.format : GFX_FORMAT_EMPTY;
+
+			const VkPipelineStageFlags srcStageMask =
+				_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);
+			const VkPipelineStageFlags dstStageMask =
+				_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
+
+			VkSubpassDependency dependency = {
+				.srcSubpass    = prev->out.subpass,
+				.dstSubpass    = con->out.subpass,
+				.srcStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+				.dstStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+				.srcAccessMask = _GFX_GET_VK_ACCESS_FLAGS(prev->mask, fmt),
+				.dstAccessMask = _GFX_GET_VK_ACCESS_FLAGS(con->mask, fmt),
+			};
+
+			if (!gfx_vec_push(&dependencies, 1, &dependency))
+				goto clean;
+		}
+
+		// Output the Vulkan subpass.
+		// Cannot set attachment reference pointers yet,
+		// the vectors may still grow.
+		sd[subpass->out.subpass] = (VkSubpassDescription){
+			.flags                   = 0,
+			.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.inputAttachmentCount    = (uint32_t)numInputs,
+			.colorAttachmentCount    = (uint32_t)numColors,
+			.preserveAttachmentCount = (uint32_t)numPreserves,
+			.pDepthStencilAttachment =
+				depSten->attachment != VK_ATTACHMENT_UNUSED ? depSten : NULL
+		};
+	}
+
+	// Loop over all subpasses again to set pointers to attachment references.
+	VkAttachmentReference* rInput = gfx_vec_at(&inputs, 0);
+	VkAttachmentReference* rColor = gfx_vec_at(&colors, 0);
+	VkAttachmentReference* rResolve = gfx_vec_at(&resolves, 0);
+	uint32_t* rPreserve = gfx_vec_at(&preserves, 0);
+
+	for (size_t i = 0; i < rPass->out.subpasses; ++i)
+	{
+		VkSubpassDescription* ssd = &sd[i];
+
+		ssd->pInputAttachments = ssd->inputAttachmentCount > 0 ? rInput : NULL;
+		ssd->pColorAttachments = ssd->colorAttachmentCount > 0 ? rColor : NULL;
+		ssd->pResolveAttachments = ssd->colorAttachmentCount > 0 ? rResolve : NULL;
+		ssd->pPreserveAttachments = ssd->preserveAttachmentCount > 0 ? rPreserve : NULL;
+
+		rInput += ssd->inputAttachmentCount;
+		rColor += ssd->colorAttachmentCount;
+		rResolve += ssd->colorAttachmentCount;
+		rPreserve += ssd->preserveAttachmentCount;
+	}
+
+	// Store the clear values of the first consumptions at master.
+	if (!gfx_vec_reserve(&rPass->vk.clears, numViews))
+		goto clean;
+
+	for (size_t i = 0; i < numViews; ++i)
+	{
+		const _GFXConsume* con =
+			((_GFXViewElem*)gfx_vec_at(&rPass->vk.views, i))->consume;
+
+		gfx_vec_push(&rPass->vk.clears, 1, &con->clear.vk);
 	}
 
 	// Ok now create the Vulkan render pass.
-	VkSubpassDescription sd = {
-		.flags                   = 0,
-		.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
-		.inputAttachmentCount    = (uint32_t)numInputs,
-		.pInputAttachments       = numInputs > 0 ? input : NULL,
-		.colorAttachmentCount    = (uint32_t)numColors,
-		.pColorAttachments       = numColors > 0 ? color : NULL,
-		.pResolveAttachments     = numColors > 0 ? resolve : NULL,
-		.pDepthStencilAttachment =
-			(depSten.attachment != VK_ATTACHMENT_UNUSED) ? &depSten : NULL,
-		.preserveAttachmentCount = 0,
-		.pPreserveAttachments    = NULL
-	};
-
 	VkRenderPassCreateInfo rpci = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 
 		.pNext           = NULL,
 		.flags           = 0,
-		.attachmentCount = (uint32_t)rPass->vk.views.size,
-		.pAttachments    = rPass->vk.views.size > 0 ? ad : NULL,
-		.subpassCount    = 1,
-		.pSubpasses      = &sd,
-		.dependencyCount = 0,
-		.pDependencies   = NULL
+		.attachmentCount = (uint32_t)numViews,
+		.pAttachments    = numViews > 0 ? ad : NULL,
+		.subpassCount    = rPass->out.subpasses,
+		.pSubpasses      = sd,
+		.dependencyCount = (uint32_t)dependencies.size,
+		.pDependencies   = dependencies.size > 0 ?
+			gfx_vec_at(&dependencies, 0) : NULL
 	};
 
 	// Remember the cache element for locality!
 	rPass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
-	if (rPass->build.pass == NULL) return 0;
+	if (rPass->build.pass == NULL) goto clean;
 
 	rPass->vk.pass = rPass->build.pass->vk.pass;
 
+	// Clean temporary memory!
+	gfx_vec_clear(&inputs);
+	gfx_vec_clear(&colors);
+	gfx_vec_clear(&resolves);
+	gfx_vec_clear(&preserves);
+	gfx_vec_clear(&dependencies);
+
+	// Lastly, propogate the pass to all subpasses.
+	// This so pipeline creation doesn't have to know about the master pass.
+	for (
+		_GFXRenderPass* subpass = rPass->out.next;
+		subpass != NULL;
+		subpass = subpass->out.next)
+	{
+		subpass->build.pass = rPass->build.pass;
+		subpass->vk.pass = rPass->vk.pass;
+	}
+
 	return 1;
+
+
+	// Cleanup on failure.
+clean:
+	gfx_vec_clear(&inputs);
+	gfx_vec_clear(&colors);
+	gfx_vec_clear(&resolves);
+	gfx_vec_clear(&preserves);
+	gfx_vec_clear(&dependencies);
+
+	return 0;
 }
 
 /****************************/
@@ -978,11 +1179,16 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	GFXRenderer* rend = rPass->base.renderer;
 	_GFXContext* context = rend->cache.context;
 
-	// TODO:GRA: Skip all this if this is not master.
-	// We somehow want to propagate the dimensions to all subpasses.
+	// Ignore this pass if it's culled.
+	if (rPass->base.culled)
+		return 1;
 
-	// Pass is culled or already built.
-	if (rPass->base.culled || _GFX_PASS_IS_BUILT(rPass))
+	// If this is not a master pass, skip.
+	if (rPass->out.master != NULL)
+		return 1;
+
+	// Pass is already built.
+	if (_GFX_PASS_IS_BUILT(rPass))
 		return 1;
 
 	// Do a warmup, i.e. make sure the Vulkan render pass is built.
@@ -993,11 +1199,13 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	// We're gonna need to create all image views.
 	// Keep track of the window used as backing so we can build framebuffers.
 	// Also in here we're gonna get the dimensions (i.e. size) of the pass.
-	VkImageView views[rPass->vk.views.size > 0 ? rPass->vk.views.size : 1];
+	const size_t numViews = rPass->vk.views.size;
+	VkImageView views[numViews > 0 ? numViews : 1];
+
 	const _GFXAttach* backing = NULL;
 	size_t backingInd = SIZE_MAX;
 
-	for (size_t i = 0; i < rPass->vk.views.size; ++i)
+	for (size_t i = 0; i < numViews; ++i)
 	{
 		_GFXViewElem* view = gfx_vec_at(&rPass->vk.views, i);
 		const _GFXConsume* con = view->consume;
@@ -1034,11 +1242,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 			// then fix the consumed aspect as promised by gfx_pass_consume.
 			const GFXFormat fmt = at->image.base.format;
 			const GFXImageAspect aspect =
-				con->view.range.aspect &
-				(GFXImageAspect)(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-					(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
-					(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
-					GFX_IMAGE_COLOR);
+				con->view.range.aspect & GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
 
 			VkImageViewCreateInfo ivci = {
 				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -1084,6 +1288,19 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 
 			view->view = *vkView; // So it's made stale later on.
 		}
+	}
+
+	// Now that we validated the dimensions,
+	// propogate them to all subpasses.
+	// This so the user can still query this through recorders for any pass.
+	for (
+		_GFXRenderPass* subpass = rPass->out.next;
+		subpass != NULL;
+		subpass = subpass->out.next)
+	{
+		subpass->build.fWidth = rPass->build.fWidth;
+		subpass->build.fHeight = rPass->build.fHeight;
+		subpass->build.fLayers = rPass->build.fLayers;
 	}
 
 	// Ok now we need to create all the framebuffers.
@@ -1148,8 +1365,8 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 			.pNext           = NULL,
 			.flags           = 0,
 			.renderPass      = rPass->vk.pass,
-			.attachmentCount = (uint32_t)rPass->vk.views.size,
-			.pAttachments    = rPass->vk.views.size > 0 ? views : NULL,
+			.attachmentCount = (uint32_t)numViews,
+			.pAttachments    = numViews > 0 ? views : NULL,
 			.width           = GFX_MAX(1, rPass->build.fWidth),
 			.height          = GFX_MAX(1, rPass->build.fHeight),
 			.layers          = GFX_MAX(1, rPass->build.fLayers)
@@ -1174,8 +1391,6 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 
 	// Cleanup on failure.
 clean:
-	gfx_log_error("Could not build framebuffers for a pass.");
-
 	// Get rid of built things; avoid dangling views.
 	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE);
 	return 0;
@@ -1193,6 +1408,10 @@ bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags)
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
 	assert(flags & _GFX_RECREATE);
+
+	// If this is not a master pass, skip.
+	if (rPass->out.master != NULL)
+		return 1;
 
 	// Remember if we're warmed or entirely built.
 	const bool warmed = _GFX_PASS_IS_WARMED(rPass);
@@ -1217,10 +1436,11 @@ void _gfx_pass_destruct(_GFXRenderPass* rPass)
 	assert(rPass->base.type == GFX_PASS_RENDER);
 
 	// Destruct all partial things.
-	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
+	if (rPass->out.master == NULL)
+		_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
 
-	// Need to re-calculate what window is consumed.
-	rPass->build.backing = SIZE_MAX;
+	// Reset just in case...
+	rPass->out.backing = SIZE_MAX;
 
 	// Clear memory.
 	gfx_vec_clear(&rPass->vk.clears);

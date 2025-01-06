@@ -753,9 +753,9 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
 GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 /**
- * Appends dependency injections to a given pass.
+ * Injects dependency commands in a given pass.
  * @param pass Cannot be NULL.
- * @param deps Cannot be NULL if numDeps > 0.
+ * @param injs Cannot be NULL if numInjs > 0.
  *
  * NOT thread-safe with respect to pass!
  * Cannot be called during gfx_frame_submit!
@@ -771,9 +771,49 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  * All wait commands only see signal commands injected in passes earlier in
  * submission order. However, all wait commands can match any visible signal
  * commands submitted elsewhere up until gfx_frame_submit is called.
+ *
+ * It is undefined behaviour to use this call to inject dependencies between
+ * two render passes in the same frame, gfx_pass_depend should be used.
  */
 GFX_API void gfx_pass_inject(GFXPass* pass,
-                             size_t numDeps, const GFXInject* deps);
+                             size_t numInjs, const GFXInject* injs);
+
+/**
+ * Appends dependency commands to given passes, effectively 'injecting' the
+ * given commands before every frame the passes are used in.
+ * @param pass Cannot be NULL, must be a parent (or any parent thereof) of wait.
+ * @param wait Cannot be NULL, pass to implicitly wait, must not be pass.
+ * @param injs Cannot be NULL if numInjs > 0.
+ *
+ * NOT thread-safe with respect to source or target!
+ * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
+ *
+ * This is the only call that takes the gfx_sig* macro family as injections!
+ * To inject between two render passes, use the gfx_sig* macro family.
+ * All dependency objects are referenced until gfx_renderer_undepend is called.
+ *
+ * Any signal command is implicitly waited upon by the wait pass.
+ * Meaning there is no need to inject a matching wait command anywhere.
+ *
+ * For each dependency object that is implicitly being waited upon by a pass,
+ * only a single wait command will be injected in that pass,
+ * even if gfx_pass_depend is called multiple times.
+ *
+ * It is undefined behaviour to use this call to inject a dependency object
+ * between two render passes in the same frame.
+ */
+GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
+                             size_t numInjs, const GFXInject* injs);
+
+/**
+ * Removes ALL dependency commands appended to any pass
+ * within renderer via a call to gfx_pass_depend.
+ * @param renderer Cannot be NULL.
+ *
+ * NOT thread-safe with respect to renderer or any of its passes!
+ * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
+ */
+GFX_API void gfx_renderer_undepend(GFXRenderer* renderer);
 
 /**
  * Blocks until all virtual frames are done rendering.
@@ -944,6 +984,13 @@ GFX_API bool gfx_pass_is_culled(GFXPass* pass);
  * @param mask  Access mask to consume the attachment with.
  * @param stage Shader stages with access to the attachment.
  * @return Zero on failure.
+ *
+ * Only has effect if called on a render or _inline_ compute pass.
+ * Will fail if called on _async_ compute passes.
+ *
+ * This call should be used to specify 'dependencies' between
+ * passes that use the same attachments.
+ * Never use gfx_pass_depend for this (except if it is an async compute pass)!
  *
  * For synchronization purposes it is still necessary to consume an attachment
  * when said attachment is only used in bound sets while recording.

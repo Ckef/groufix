@@ -495,12 +495,6 @@ struct GFXShader
  ****************************/
 
 /**
- * Injection metadata declaration.
- */
-typedef struct _GFXInjection _GFXInjection;
-
-
-/**
  * Staging buffer.
  */
 typedef struct _GFXStaging
@@ -546,11 +540,11 @@ typedef struct _GFXTransfer
 typedef struct _GFXTransferPool
 {
 	GFXDeque  transfers; // Stores _GFXTransfer.
-	GFXVec    deps;      // Stores GFXInject.
+	GFXVec    injs;      // Stores GFXInject.
 	_GFXQueue queue;
 	_GFXMutex lock;
 
-	_GFXInjection* injection;
+	struct _GFXInjection* injection;
 
 	// #blocking threads.
 	atomic_uintmax_t blocking;
@@ -726,12 +720,6 @@ typedef struct _GFXGroup
 
 #define _GFX_PASS_GEN(pass) \
 	(((_GFXRenderPass*)(pass))->gen)
-
-
-/**
- * Attachment consumption declaration.
- */
-typedef struct _GFXConsume _GFXConsume;
 
 
 /**
@@ -1025,7 +1013,7 @@ struct GFXRenderer
 /**
  * Internal attachment consumption.
  */
-struct _GFXConsume
+typedef struct _GFXConsume
 {
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
@@ -1053,14 +1041,46 @@ struct _GFXConsume
 	// Graph output (relative to neighbouring passes).
 	struct
 	{
+		uint32_t      subpass; // Subpass index.
 		VkImageLayout initial;
 		VkImageLayout final;
 
+		enum {
+			_GFX_CONSUME_IS_FIRST = 0x0001,
+			_GFX_CONSUME_IS_LAST  = 0x0002
+
+		} state; // Subpass chain state.
+
+
 		// Non-NULL to form a dependency.
-		const _GFXConsume* prev;
+		const struct _GFXConsume* prev;
+
+		// Non-NULL regardless of dependencies.
+		const struct _GFXConsume* next;
 
 	} out;
-};
+
+} _GFXConsume;
+
+
+/**
+ * Internal pass-dependency injection.
+ */
+typedef struct _GFXDepend
+{
+	GFXInject inj;
+	GFXPass*  source;
+	GFXPass*  target;
+
+
+	// Graph output (relative to neighbouring passes).
+	struct
+	{
+		bool subpass; // Is a subpass dependency (i.e. same subpass chain).
+
+	} out;
+
+} _GFXDepend;
 
 
 /**
@@ -1080,8 +1100,11 @@ struct GFXPass
 	// Stores _GFXConsume.
 	GFXVec consumes;
 
-	// Stores GFXInject, from pass inject.
+	// Stores _GFXDepend, from pass depend.
 	GFXVec deps;
+
+	// Stores GFXInject, from pass inject.
+	GFXVec injs;
 };
 
 
@@ -1117,9 +1140,12 @@ typedef struct _GFXRenderPass
 	// Graph output (relative to neighbouring passes).
 	struct
 	{
-		GFXPass* master;  // First subpass, NULL if this.
-		GFXPass* next;    // Next subpass in the chain, NULL if last.
-		uint32_t subpass; // Subpass index.
+		struct _GFXRenderPass* master; // First subpass, NULL if this.
+		struct _GFXRenderPass* next;   // Next subpass in the chain, NULL if last.
+
+		uint32_t subpass;   // Subpass index.
+		uint32_t subpasses; // Number of subpasses (undefined if not master).
+		size_t   backing;   // Window attachment index (or SIZE_MAX).
 
 	} out;
 
@@ -1127,7 +1153,6 @@ typedef struct _GFXRenderPass
 	// Building output (can be invalidated).
 	struct
 	{
-		size_t   backing; // Window attachment index (or SIZE_MAX).
 		uint32_t fWidth;
 		uint32_t fHeight;
 		uint32_t fLayers;
@@ -1142,7 +1167,7 @@ typedef struct _GFXRenderPass
 	{
 		VkRenderPass pass;   // For locality.
 		GFXVec       clears; // Stores VkClearValue.
-		GFXVec       blends; // Stores { VkPipelineColorBlendAttachmentState, char }.
+		GFXVec       blends; // Stores { GFXBlendOpState (x2), char }.
 		GFXVec       views;  // Stores { _GFXConsume*, VkImageView }.
 		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 
@@ -1382,17 +1407,37 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
  ****************************/
 
 /**
+ * Injection type checkers for a GFXInject.
+ */
+#define _GFX_INJ_IS_SIGNAL(inj) \
+	((inj).type == GFX_INJ_SIGNAL || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE || \
+	(inj).type == GFX_INJ_SIGNAL_FROM || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
+
+#define _GFX_INJ_IS_RANGED(inj) \
+	((inj).type == GFX_INJ_SIGNAL_RANGE || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
+
+#define _GFX_INJ_IS_SOURCED(inj) \
+	((inj).type == GFX_INJ_SIGNAL_FROM || \
+	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
+
+#define _GFX_INJ_IS_WAIT(inj) \
+	((inj).type == GFX_INJ_WAIT)
+
+
+/**
  * Dependency injection metadata.
  */
-struct _GFXInjection
+typedef struct _GFXInjection
 {
 	// Operation input, must be pre-initialized!
 	struct
 	{
 		GFXRenderer* renderer; // To signal attachments.
-		GFXPass*     pass;     // To search for access/stage flags.
+		size_t       numRefs;  // May be zero!
 
-		size_t               numRefs; // May be zero!
 		const _GFXUnpackRef* refs;
 		const GFXAccessMask* masks;
 		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
@@ -1411,11 +1456,13 @@ struct _GFXInjection
 		VkPipelineStageFlags dstStage;
 
 		// Memory barriers.
-		size_t                 numBufs;
-		VkBufferMemoryBarrier* bufs;
+		size_t numMems;
+		size_t numBufs;
+		size_t numImgs;
 
-		size_t                numImgs;
-		VkImageMemoryBarrier* imgs;
+		VkMemoryBarrier*       mems;
+		VkBufferMemoryBarrier* bufs;
+		VkImageMemoryBarrier*  imgs;
 
 	} bars;
 
@@ -1423,17 +1470,18 @@ struct _GFXInjection
 	// Synchronization output.
 	struct
 	{
-		size_t       numWaits;
-		VkSemaphore* waits;
+		size_t numWaits;
+		size_t numSigs;
 
-		size_t       numSigs;
+		VkSemaphore* waits;
 		VkSemaphore* sigs;
 
 		// Wait stages, of the same size as waits.
 		VkPipelineStageFlags* stages;
 
 	} out;
-};
+
+} _GFXInjection;
 
 
 /**
@@ -1533,14 +1581,16 @@ static inline void _gfx_injection(_GFXInjection* injection)
 {
 	injection->bars.srcStage = 0;
 	injection->bars.dstStage = 0;
+	injection->bars.numMems = 0;
 	injection->bars.numBufs = 0;
-	injection->bars.bufs = NULL;
 	injection->bars.numImgs = 0;
+	injection->bars.mems = NULL;
+	injection->bars.bufs = NULL;
 	injection->bars.imgs = NULL;
 
 	injection->out.numWaits = 0;
-	injection->out.waits = NULL;
 	injection->out.numSigs = 0;
+	injection->out.waits = NULL;
 	injection->out.sigs = NULL;
 	injection->out.stages = NULL;
 }
@@ -1563,16 +1613,18 @@ void _gfx_injection_flush(_GFXContext* context, VkCommandBuffer cmd,
  * @param injection Barrier metadata to append to, cannot be NULL.
  * @return Zero on failure.
  *
- * Can only set one of `bmb` OR `imb` to non-NULL!
+ * Can only set one of `mb`, `bmb` and `imb` to non-NULL!
  */
 bool _gfx_injection_push(VkPipelineStageFlags srcStage,
                          VkPipelineStageFlags dstStage,
+                         const VkMemoryBarrier* mb,
                          const VkBufferMemoryBarrier* bmb,
                          const VkImageMemoryBarrier* imb,
                          _GFXInjection* injection);
 
 /**
  * Completes dependency injections by catching pending signal commands.
+ * Only operates on commands that reference a dependency object.
  * @param context   Cannot be NULL.
  * @param cmd       To record some initial barriers to, cannot be VK_NULL_HANDLE.
  * @param numInjs   Number of given injection commands.
@@ -1603,6 +1655,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 /**
  * Starts dependency injections by preparing new signal commands.
+ * Only operates on commands that reference a dependency object.
  * @param blocking Non-zero to indicate the operation is blocking.
  * @see _gfx_deps_catch.
  *
@@ -1625,6 +1678,8 @@ bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
  *
  * Each injection metadata object must be called at least once with
  * either _gfx_deps_abort OR _gfx_deps_catch for ALL injection commands.
+ * If no injection commands were given, one of these functions must still
+ * be called with numInjs == 0!
  * NEVER can both calls be used for the same injection metadata pointer!
  */
 void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
@@ -1701,7 +1756,7 @@ void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer);
 
 /**
  * Flushes the last (current) transfer operation of a transfer pool.
- * The `injection` and `deps` fields of pool will be freed after this call.
+ * The `injection` and `injs` fields of pool will be freed after this call.
  * @param heap Cannot be NULL.
  * @param pool Cannot be NULL, must be of heap.
  * @return Zero on failure, current transfer is lost.
@@ -1930,7 +1985,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
                           size_t numParents, GFXPass** parents);
 
 /**
- * Destroys a pass, unreferencing all parents.
+ * Destroys a pass, must be called in submission order!
  * @param pass Cannot be NULL.
  */
 void _gfx_destroy_pass(GFXPass* pass);

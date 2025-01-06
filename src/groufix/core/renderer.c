@@ -512,16 +512,176 @@ GFX_API void gfx_frame_submit(GFXFrame* frame)
 
 /****************************/
 GFX_API void gfx_pass_inject(GFXPass* pass,
-                             size_t numDeps, const GFXInject* deps)
+                             size_t numInjs, const GFXInject* injs)
 {
 	assert(pass != NULL);
-	assert(numDeps == 0 || deps != NULL);
+	assert(numInjs == 0 || injs != NULL);
 
-	// Store dependencies for submission.
-	if (numDeps > 0 && !gfx_vec_push(&pass->deps, numDeps, deps))
+	// Store injections for submission.
+	if (numInjs > 0 && !gfx_vec_push(&pass->injs, numInjs, injs))
 		gfx_log_warn(
 			"Dependency injection failed, "
-			"injection commands could not be stored at frame inject.");
+			"injection commands could not be stored at pass inject.");
+}
+
+/****************************/
+GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
+                             size_t numInjs, const GFXInject* injs)
+{
+	assert(pass != NULL);
+	assert(wait != NULL);
+	assert(pass != wait);
+	assert(pass->level < wait->level);
+	assert(numInjs == 0 || injs != NULL);
+
+	_GFXContext* context =
+		pass->renderer->cache.context;
+
+	if (pass->renderer != wait->renderer)
+		gfx_log_warn(
+			"Dependency injection failed, "
+			"passes cannot be associated with a different renderer.");
+
+	else if (numInjs > 0)
+	{
+		const size_t numPass = pass->deps.size;
+		const size_t numWait = wait->deps.size;
+
+		// Loop over all injections and insert them at either the
+		// source or target pass, implicitly inserting a wait command if
+		// necessary.
+		// Once submitting, we can determine what to do based on the
+		// source/target fields!
+		_GFXDepend depend = {
+			.source = pass,
+			.target = wait
+		};
+
+		for (size_t i = 0; i < numInjs; ++i)
+		{
+			depend.inj = injs[i];
+
+			if (depend.inj.dep == NULL)
+			{
+				// No dependency object, do checks here!
+				// Check the context the resource was built on.
+				_GFXUnpackRef unp = _gfx_ref_unpack(depend.inj.ref);
+
+				if (
+					!GFX_REF_IS_NULL(depend.inj.ref) &&
+					_GFX_UNPACK_REF_CONTEXT(unp) != context)
+				{
+					gfx_log_warn(
+						"Dependency signal command ignored, given "
+						"underlying resource must be built on the same "
+						"logical Vulkan device.");
+
+					continue;
+				}
+
+				// And its renderer too.
+				if (
+					unp.obj.renderer != NULL &&
+					unp.obj.renderer != pass->renderer)
+				{
+					gfx_log_warn(
+						"Dependency signal command ignored, renderer "
+						"attachment references cannot be used in "
+						"another renderer.");
+
+					continue;
+				}
+
+				// And the pass type too.
+				if (
+					(pass->type == GFX_PASS_COMPUTE_ASYNC &&
+					wait->type != GFX_PASS_COMPUTE_ASYNC) ||
+
+					(pass->type != GFX_PASS_COMPUTE_ASYNC &&
+					wait->type == GFX_PASS_COMPUTE_ASYNC))
+				{
+					gfx_log_warn(
+						"Dependency signal command ignored, must signal "
+						"a dependency object when injecting between an "
+						"asynchronous compute pass and a "
+						"non-asynchronous pass.");
+
+					continue;
+				}
+
+				// If no dependency object, we just inject a barrier
+				// at the catch operation, i.e. at target.
+				if (!gfx_vec_push(&wait->deps, 1, &depend))
+					goto clean;
+			}
+			else
+			{
+				// If we do use a dependency object, insert at source.
+				// Unless it's a wait command.
+				// Note we do not do any checking, this is done in dep.c!
+				if (
+					depend.inj.type != GFX_INJ_WAIT &&
+					!gfx_vec_push(&pass->deps, 1, &depend))
+				{
+					goto clean;
+				}
+
+				// Plus insert a single wait command per dependency object
+				// at target. So try to find this dependency object.
+				size_t w = 0;
+				for (; w < wait->deps.size; ++w)
+				{
+					_GFXDepend* wDepend = gfx_vec_at(&wait->deps, w);
+					if (
+						wDepend->inj.type == GFX_INJ_WAIT &&
+						wDepend->inj.dep == depend.inj.dep)
+					{
+						break;
+					}
+				}
+
+				// If not found, insert new wait command.
+				if (w >= wait->deps.size)
+				{
+					depend.inj = gfx_dep_wait(depend.inj.dep);
+
+					if (!gfx_vec_push(&wait->deps, 1, &depend))
+						goto clean;
+				}
+			}
+		}
+
+		// Invalidate the graph, maybe new subpass dependencies.
+		_gfx_render_graph_invalidate(pass->renderer);
+
+		return;
+
+
+		// Cleanup on failure.
+	clean:
+		if (pass->deps.size > numPass)
+			gfx_vec_pop(&pass->deps, pass->deps.size - numPass);
+		if (wait->deps.size > numWait)
+			gfx_vec_pop(&wait->deps, wait->deps.size - numWait);
+
+		gfx_log_warn(
+			"Dependency injection failed, "
+			"injection commands could not be stored at pass depend.");
+	}
+}
+
+/****************************/
+GFX_API void gfx_renderer_undepend(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	// Loop over all passes and just throw away all of their dependencies.
+	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+		gfx_vec_clear(
+			&(*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i))->deps);
+
+	// Invalidate the graph, subpass dependencies are gone.
+	_gfx_render_graph_invalidate(renderer);
 }
 
 /****************************/

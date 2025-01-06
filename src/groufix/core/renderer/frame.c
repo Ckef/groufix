@@ -467,7 +467,7 @@ error:
  * Assumes `con` and `con->out.prev` to be fully initialized.
  * @return Zero on failure.
  */
-static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
+static bool _gfx_frame_push_consume(GFXRenderer* renderer, GFXFrame* frame,
                                     const _GFXConsume* con,
                                     _GFXInjection* injection)
 {
@@ -491,18 +491,15 @@ static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
 	const VkPipelineStageFlags dstStageMask =
 		_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
 
-	// If no memory hazard, just inject an execution barrier...
+	// If no memory hazard, just inject an execution barrier.
 	const bool srcWrites = GFX_ACCESS_WRITES(prev->mask);
 	const bool transition = prev->out.final != con->out.initial;
 
 	if (!srcWrites && !transition)
-	{
-		// ... and be done with it.
 		return _gfx_injection_push(
 			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
 			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-			NULL, NULL, injection);
-	}
+			NULL, NULL, NULL, injection);
 
 	// Otherwise, inject full memory barrier.
 	// To do this, get us the Vulkan image handle first.
@@ -526,10 +523,7 @@ static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
 
 	// And resolve whole aspect from the format.
 	const GFXImageAspect aspect =
-		GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ?
-			(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : 0) |
-			(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : 0) :
-			GFX_IMAGE_COLOR;
+		GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
 
 	VkImageMemoryBarrier imb = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -543,14 +537,14 @@ static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.image               = image,
 
-		// TODO: Not merge ranges? (check overlap while analyzing the graph?)
+		// TODO: If there is no overlap, skip the barrier?
 		// We deal with two ranges from both consumptions,
 		// for now we assume they overlap and merge the ranges.
 		.subresourceRange = {
 			.aspectMask =
 				// Fix aspect, cause we're nice :)
-				(_GFX_GET_VK_IMAGE_ASPECT(prev->view.range.aspect) |
-				_GFX_GET_VK_IMAGE_ASPECT(con->view.range.aspect)) & aspect,
+				_GFX_GET_VK_IMAGE_ASPECT(
+					(prev->view.range.aspect | con->view.range.aspect) & aspect),
 			.baseMipLevel =
 				GFX_MIN(prev->view.range.mipmap, con->view.range.mipmap),
 			.baseArrayLayer =
@@ -578,7 +572,168 @@ static bool _gfx_frame_push_barrier(GFXRenderer* renderer, GFXFrame* frame,
 	return _gfx_injection_push(
 		_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
 		_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-		NULL, &imb, injection);
+		NULL, NULL, &imb, injection);
+}
+
+/****************************
+ * Pushes an execution/memory barrier, just as stored in a _GFXDepend object.
+ * Assumes `dep` to be fully initialized
+ * as a non-subpass-dependency and non-dependency-object command!
+ * @return Zero on failure.
+ */
+static bool _gfx_frame_push_depend(GFXRenderer* renderer,
+                                   const _GFXDepend* dep,
+                                   _GFXInjection* injection)
+{
+	assert(renderer != NULL);
+	assert(dep != NULL);
+	assert(!dep->out.subpass);
+	assert(dep->inj.dep == NULL);
+	assert(injection != NULL);
+
+	_GFXContext* context = renderer->cache.context;
+
+	// First unpack VkBuffer & VkImage handles for locality.
+	_GFXUnpackRef unp = _gfx_ref_unpack(dep->inj.ref);
+	const _GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+
+	VkBuffer buffer = VK_NULL_HANDLE;
+	VkImage image = VK_NULL_HANDLE;
+	GFXFormat fmt = GFX_FORMAT_EMPTY;
+
+	if (unp.obj.buffer != NULL)
+		buffer = unp.obj.buffer->vk.buffer;
+
+	else if (unp.obj.image != NULL)
+		image  = unp.obj.image->vk.image,
+		fmt    = unp.obj.image->base.format;
+
+	else if (attach != NULL)
+		image  = attach->vk.image,
+		fmt    = attach->base.format;
+
+	// Get all access/stage flags for the resource to signal.
+	const VkAccessFlags srcAccessMask =
+		_GFX_GET_VK_ACCESS_FLAGS(dep->inj.maskf, fmt);
+	const VkAccessFlags dstAccessMask =
+		_GFX_GET_VK_ACCESS_FLAGS(dep->inj.mask, fmt);
+	const VkPipelineStageFlags srcStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(dep->inj.maskf, dep->inj.stagef, fmt);
+	const VkPipelineStageFlags dstStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(dep->inj.mask, dep->inj.stage, fmt);
+
+	const VkImageLayout oldLayout =
+		(unp.obj.buffer != NULL) ? VK_IMAGE_LAYOUT_UNDEFINED :
+		_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.maskf, fmt);
+	const VkImageLayout newLayout =
+		(unp.obj.buffer != NULL) ? VK_IMAGE_LAYOUT_UNDEFINED :
+		_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.mask, fmt);
+
+	// See if we need an execution or full memory barrier.
+	const bool srcWrites = GFX_ACCESS_WRITES(dep->inj.maskf);
+	const bool dstWrites = GFX_ACCESS_WRITES(dep->inj.mask);
+	const bool transition = oldLayout != newLayout;
+
+	// No barrier required.
+	if (!srcWrites && !dstWrites && !transition)
+		return 1;
+
+	// Or just an execution barrier.
+	if (!srcWrites && !transition)
+		return _gfx_injection_push(
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+			NULL, NULL, NULL, injection);
+
+	// If we have no resource, inject a general memory barrier.
+	if (GFX_REF_IS_NULL(dep->inj.ref))
+	{
+		VkMemoryBarrier mb = {
+			.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+
+			.pNext         = NULL,
+			.srcAccessMask = srcAccessMask,
+			.dstAccessMask = dstAccessMask
+		};
+
+		return _gfx_injection_push(
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+			&mb, NULL, NULL, injection);
+	}
+
+	// Inject either a buffer or image barrier.
+	const uint64_t size = _gfx_ref_size(dep->inj.ref);
+	const GFXRange* range = &dep->inj.range;
+	const bool isRanged = _GFX_INJ_IS_RANGED(dep->inj);
+
+	if (unp.obj.buffer != NULL)
+	{
+		VkBufferMemoryBarrier bmb = {
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = srcAccessMask,
+			.dstAccessMask       = dstAccessMask,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer              = buffer,
+
+			// Normalize offset to be independent of references.
+			.offset = !isRanged ? unp.value :
+				unp.value + range->offset,
+
+			// Resolve zero buffer size.
+			.size = !isRanged ? size :
+				(range->size == 0 ? size - range->offset : range->size)
+		};
+
+		return _gfx_injection_push(
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+			NULL, &bmb, NULL, injection);
+	}
+	else
+	{
+		const GFXImageAspect aspect =
+			GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
+
+		VkImageMemoryBarrier imb = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+			.pNext               = NULL,
+			.srcAccessMask       = srcAccessMask,
+			.dstAccessMask       = dstAccessMask,
+			.oldLayout           = oldLayout,
+			.newLayout           = newLayout,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image               = image,
+
+			.subresourceRange = {
+				.aspectMask =
+					// Fix aspect, cause we're nice :)
+					_GFX_GET_VK_IMAGE_ASPECT(
+						isRanged ? aspect & range->aspect : aspect),
+				.baseMipLevel =
+					isRanged ? range->mipmap : 0,
+				.baseArrayLayer =
+					isRanged ? range->layer : 0,
+
+				.levelCount =
+					(!isRanged || range->numMipmaps == 0) ?
+						VK_REMAINING_MIP_LEVELS : range->numMipmaps,
+				.layerCount =
+					(!isRanged || range->numLayers == 0) ?
+						VK_REMAINING_ARRAY_LAYERS : range->numLayers
+			}
+		};
+
+		return _gfx_injection_push(
+			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
+			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
+			NULL, NULL, &imb, injection);
+	}
 }
 
 /****************************
@@ -621,36 +776,84 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 		if (pass->culled) continue;
 
-		injection->inp.pass = pass; // Update injection.
-
-		// TODO:GRA: If a pass is the last, record master and all next passes
-		// and handle the whole VK subpass structure like that.
-		// Note: this means a subpass chain cannot have passes in it,
-		// except for the last, that are a child pass of another.
-
-		// Inject wait commands.
-		if (!_gfx_deps_catch(
-			context, cmd,
-			pass->deps.size, gfx_vec_at(&pass->deps, 0),
-			injection))
+		// Skip if not the last pass in a subpass chain.
+		// If it is the last pass, resolve for the entire chain.
+		if (pass->type == GFX_PASS_RENDER)
 		{
-			return 0;
+			_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+
+			// Skip if not last.
+			if (rPass->out.next != NULL) continue;
+
+			// See if it is a chain and start at master.
+			if (rPass->out.master != NULL)
+				pass = (GFXPass*)rPass->out.master;
 		}
 
-		// Inject & flush consumption barriers.
-		for (size_t c = 0; c < pass->consumes.size; ++c)
+		// First inject all wait commands for the entire chain.
+		// This is the reason you cannot use gfx_pass_inject inbetween
+		// render passes, as they might be merged into a chain and we cannot
+		// inject these barriers while we're recording in a Vulkan subpass.
+		for (
+			GFXPass* subpass = pass;
+			subpass != NULL;
+			subpass = (subpass->type == GFX_PASS_RENDER) ?
+				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
-			const _GFXConsume* con = gfx_vec_at(&pass->consumes, c);
-			if (con->out.prev != NULL)
+			// Inject from both `injs` and `deps`.
+			if (!_gfx_deps_catch(
+				context, cmd,
+				subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
+				injection))
 			{
-				if (!_gfx_frame_push_barrier(renderer, frame, con, injection))
-					return 0;
+				return 0;
 			}
+
+			for (size_t d = 0; d < subpass->deps.size; ++d)
+			{
+				_GFXDepend* dep = gfx_vec_at(&subpass->deps, d);
+				if (dep->inj.dep == NULL)
+				{
+					// If not a dependency object, inject depend barriers.
+					// Note this will NEVER be between async and non-async
+					// passes, never have to transfer queues (!).
+					if (
+						!dep->out.subpass &&
+						!_gfx_frame_push_depend(renderer, dep, injection))
+					{
+						return 0;
+					}
+				}
+
+				// If a dependency object, inject as if from `injs`.
+				else if (!_gfx_deps_catch(
+					context, cmd, 1, &dep->inj, injection))
+				{
+					return 0;
+				}
+			}
+
+			// Inject consumption barriers.
+			for (size_t c = 0; c < subpass->consumes.size; ++c)
+			{
+				// Note async compute passes will NOT have consumptions.
+				// Therefore we never have to transfer queues (!).
+				const _GFXConsume* con = gfx_vec_at(&subpass->consumes, c);
+				if (
+					(con->out.prev != NULL) &&
+					(con->out.state & _GFX_CONSUME_IS_FIRST))
+				{
+					if (!_gfx_frame_push_consume(renderer, frame, con, injection))
+						return 0;
+				}
+			}
+
+			// Flush depend & consumption barriers.
+			_gfx_injection_flush(context, cmd, injection);
 		}
 
-		_gfx_injection_flush(context, cmd, injection);
-
-		// Begin render pass.
+		// Now we need to start the Vulkan subpass chain.
+		// So, if it is a render pass, begin as render pass.
 		if (pass->type == GFX_PASS_RENDER)
 		{
 			_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
@@ -687,29 +890,74 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 				&rpbi, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		}
 
-		// Record all recorders.
+		// Then start looping over the chain again to actually record them.
 		for (
-			GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
-			rec != NULL;
-			rec = (GFXRecorder*)rec->list.next)
+			GFXPass* subpass = pass;
+			subpass != NULL;
+			subpass = (subpass->type == GFX_PASS_RENDER) ?
+				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
-			_gfx_recorder_record(rec, pass->order, cmd);
+			// TODO: We may have defined an image layout transition with
+			// gfx_pass_depend that ended up in a subpass chain.
+			// e.g. we transfer from storage write to sampled?
+			// Check for that (check for dep->out.subpass == 1) and
+			// insert a pipeline barrier.
+
+			// Record all recorders.
+			for (
+				GFXRecorder* rec = (GFXRecorder*)renderer->recorders.head;
+				rec != NULL;
+				rec = (GFXRecorder*)rec->list.next)
+			{
+				_gfx_recorder_record(rec, subpass->order, cmd);
+			}
+
+			// If a render pass and not last, next subpass.
+			if (
+				subpass->type == GFX_PASS_RENDER &&
+				((_GFXRenderPass*)subpass)->out.next != NULL)
+			{
+				context->vk.CmdNextSubpass(cmd,
+					VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+			}
 		}
 
-		// End render pass.
+		// If a render pass, end as render pass.
 		if (pass->type == GFX_PASS_RENDER)
 			context->vk.CmdEndRenderPass(cmd);
 
 		// Jump to here if for any reason we do not record the pass.
+		// We always record closing signal commands, regardless of
+		// whether the subpass chain was successfull.
 	skip_pass:
 
-		// Inject signal commands.
-		if (!_gfx_deps_prepare(
-			context, cmd, 0,
-			pass->deps.size, gfx_vec_at(&pass->deps, 0),
-			injection))
+		// Last loop to inject all signal commands of the entire chain.
+		for (
+			GFXPass* subpass = pass;
+			subpass != NULL;
+			subpass = (subpass->type == GFX_PASS_RENDER) ?
+				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
-			return 0;
+			// Inject from both `injs` and `deps`.
+			if (!_gfx_deps_prepare(
+				context, cmd, 0,
+				subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
+				injection))
+			{
+				return 0;
+			}
+
+			for (size_t d = 0; d < subpass->deps.size; ++d)
+			{
+				_GFXDepend* dep = gfx_vec_at(&subpass->deps, d);
+				if (dep->inj.dep == NULL) continue; // Avoid a warning!
+
+				if (!_gfx_deps_prepare(
+					context, cmd, 0, 1, &dep->inj, injection))
+				{
+					return 0;
+				}
+			}
 		}
 	}
 
@@ -740,25 +988,35 @@ static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
 		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, p);
 		if (pass->culled) continue;
 
-		injection->inp.pass = pass; // Update injection.
-
 		// Firstly, finalize or abort the dependency injection.
+		// Finish/abort injections from both `injs` and `deps`.
 		if (success)
 			_gfx_deps_finish(
-				pass->deps.size, gfx_vec_at(&pass->deps, 0),
+				pass->injs.size, gfx_vec_at(&pass->injs, 0),
 				injection);
 		else
 			_gfx_deps_abort(
-				pass->deps.size, gfx_vec_at(&pass->deps, 0),
+				pass->injs.size, gfx_vec_at(&pass->injs, 0),
 				injection);
 
-		// Then erase them.
+		for (size_t d = 0; d < pass->deps.size; ++d)
+		{
+			_GFXDepend* dep = gfx_vec_at(&pass->deps, d);
+			if (dep->inj.dep == NULL) continue; // Avoid many free() calls!
+
+			if (success)
+				_gfx_deps_finish(1, &dep->inj, injection);
+			else
+				_gfx_deps_abort(1, &dep->inj, injection);
+		}
+
+		// Then erase all injections from `injs`.
 		// Keep the memory in case we repeatedly inject.
 		// Unless it was already empty, then clear what was kept.
-		if (pass->deps.size == 0)
-			gfx_vec_clear(&pass->deps);
+		if (pass->injs.size == 0)
+			gfx_vec_clear(&pass->injs);
 		else
-			gfx_vec_release(&pass->deps);
+			gfx_vec_release(&pass->injs);
 	}
 }
 
@@ -785,7 +1043,6 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		injection = (_GFXInjection){
 			.inp = {
 				.renderer = renderer,
-				.pass = NULL,
 				.numRefs = 0,
 				.queue = {
 					.family = renderer->graphics.family,
@@ -932,7 +1189,6 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		injection = (_GFXInjection){
 			.inp = {
 				.renderer = renderer,
-				.pass = NULL,
 				.numRefs = 0,
 				.queue = {
 					.family = renderer->compute.family,

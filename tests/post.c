@@ -32,7 +32,7 @@ static const char* glsl_post_fragment_shuffle =
 	"layout(input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput iColor;\n"
 	"layout(location = 0) out vec4 oColor;\n"
 	"void main() {\n"
-	"  oColor = subpassLoad(iColor).gbra;\n"
+	"  oColor = subpassLoad(iColor).rbra;\n"
 	"}\n";
 
 
@@ -187,13 +187,13 @@ TEST_DESCRIBE(post, t)
 	}
 
 	if (!gfx_pass_consume(posts[0], 1,
-		GFX_ACCESS_ATTACHMENT_INPUT, GFX_STAGE_ANY))
+		GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_DISCARD, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
 	if (!gfx_pass_consume(posts[1], 1,
-		GFX_ACCESS_ATTACHMENT_INPUT, GFX_STAGE_ANY))
+		GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_DISCARD, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}

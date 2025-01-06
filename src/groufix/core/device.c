@@ -956,6 +956,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CmdDrawIndirect);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdEndRenderPass);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdExecuteCommands);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdNextSubpass);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdPipelineBarrier);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdPushConstants);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdResolveImage);
