@@ -400,6 +400,19 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 			_GFXRenderPass* source = (_GFXRenderPass*)dep->source;
 			_GFXRenderPass* target = (_GFXRenderPass*)dep->target;
 
+			// Unpack resource references to get a format.
+			// Can't store actual VkImage handles because those might change!
+			_GFXUnpackRef unp = _gfx_ref_unpack(dep->inj.ref);
+			const _GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+
+			dep->out.fmt = GFX_FORMAT_EMPTY; // Always set format.
+
+			if (unp.obj.image != NULL)
+				dep->out.fmt = unp.obj.image->base.format;
+			else if (attach != NULL)
+				dep->out.fmt = attach->base.format;
+
+			// Whether or not they are in the same subpass chain.
 			dep->out.subpass =
 				dep->source->type == GFX_PASS_RENDER &&
 				dep->target->type == GFX_PASS_RENDER &&
@@ -411,6 +424,12 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 				// Do not make it a subpass dependency if we're dealing
 				// with a dependency object.
 				dep->inj.dep == NULL;
+
+			// Whether or not we are dealing with a layout transition.
+			dep->out.transition =
+				!GFX_FORMAT_IS_EMPTY(dep->out.fmt) &&
+				_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.maskf, dep->out.fmt) !=
+				_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.mask, dep->out.fmt);
 		}
 
 		// Next subpass.

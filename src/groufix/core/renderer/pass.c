@@ -1008,6 +1008,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			if (!depend->out.subpass) continue;
 
 			// Use empty formats, only relevant for attachments.
+			// Given we are between two render passes, this dependency
+			// shouldn't be about an attachment anyway!
 			const GFXFormat emptyFmt = GFX_FORMAT_EMPTY;
 
 			const VkPipelineStageFlags srcStageMask =

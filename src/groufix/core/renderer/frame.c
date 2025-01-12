@@ -502,7 +502,7 @@ static bool _gfx_frame_push_consume(GFXRenderer* renderer, GFXFrame* frame,
 			NULL, NULL, NULL, injection);
 
 	// Otherwise, inject full memory barrier.
-	// To do this, get us the Vulkan image handle first.
+	// To do this, get us the VkImage handle first.
 	VkImage image;
 
 	if (at->type == _GFX_ATTACH_IMAGE)
@@ -577,8 +577,8 @@ static bool _gfx_frame_push_consume(GFXRenderer* renderer, GFXFrame* frame,
 
 /****************************
  * Pushes an execution/memory barrier, just as stored in a _GFXDepend object.
- * Assumes `dep` to be fully initialized
- * as a non-subpass-dependency and non-dependency-object command!
+ * Assumes `dep` to be fully initialized as a non-dependency-object command
+ * and as a non-subpass-dependency!
  * @return Zero on failure.
  */
 static bool _gfx_frame_push_depend(GFXRenderer* renderer,
@@ -593,59 +593,32 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 
 	_GFXContext* context = renderer->cache.context;
 
-	// First unpack VkBuffer & VkImage handles for locality.
-	_GFXUnpackRef unp = _gfx_ref_unpack(dep->inj.ref);
-	const _GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
-
-	VkBuffer buffer = VK_NULL_HANDLE;
-	VkImage image = VK_NULL_HANDLE;
-	GFXFormat fmt = GFX_FORMAT_EMPTY;
-
-	if (unp.obj.buffer != NULL)
-		buffer = unp.obj.buffer->vk.buffer;
-
-	else if (unp.obj.image != NULL)
-		image  = unp.obj.image->vk.image,
-		fmt    = unp.obj.image->base.format;
-
-	else if (attach != NULL)
-		image  = attach->vk.image,
-		fmt    = attach->base.format;
-
-	// Get all access/stage flags for the resource to signal.
-	const VkAccessFlags srcAccessMask =
-		_GFX_GET_VK_ACCESS_FLAGS(dep->inj.maskf, fmt);
-	const VkAccessFlags dstAccessMask =
-		_GFX_GET_VK_ACCESS_FLAGS(dep->inj.mask, fmt);
-	const VkPipelineStageFlags srcStageMask =
-		_GFX_GET_VK_PIPELINE_STAGE(dep->inj.maskf, dep->inj.stagef, fmt);
-	const VkPipelineStageFlags dstStageMask =
-		_GFX_GET_VK_PIPELINE_STAGE(dep->inj.mask, dep->inj.stage, fmt);
-
-	const VkImageLayout oldLayout =
-		(unp.obj.buffer != NULL) ? VK_IMAGE_LAYOUT_UNDEFINED :
-		_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.maskf, fmt);
-	const VkImageLayout newLayout =
-		(unp.obj.buffer != NULL) ? VK_IMAGE_LAYOUT_UNDEFINED :
-		_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.mask, fmt);
-
 	// See if we need an execution or full memory barrier.
 	const bool srcWrites = GFX_ACCESS_WRITES(dep->inj.maskf);
 	const bool dstWrites = GFX_ACCESS_WRITES(dep->inj.mask);
-	const bool transition = oldLayout != newLayout;
 
 	// No barrier required.
-	if (!srcWrites && !dstWrites && !transition)
+	if (!srcWrites && !dstWrites && !dep->out.transition)
 		return 1;
 
-	// Or just an execution barrier.
-	if (!srcWrites && !transition)
+	// Get all access/stage flags.
+	const VkAccessFlags srcAccessMask =
+		_GFX_GET_VK_ACCESS_FLAGS(dep->inj.maskf, dep->out.fmt);
+	const VkAccessFlags dstAccessMask =
+		_GFX_GET_VK_ACCESS_FLAGS(dep->inj.mask, dep->out.fmt);
+	const VkPipelineStageFlags srcStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(dep->inj.maskf, dep->inj.stagef, dep->out.fmt);
+	const VkPipelineStageFlags dstStageMask =
+		_GFX_GET_VK_PIPELINE_STAGE(dep->inj.mask, dep->inj.stage, dep->out.fmt);
+
+	// Just an execution barrier.
+	if (!srcWrites && !dep->out.transition)
 		return _gfx_injection_push(
 			_GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
 			_GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
 			NULL, NULL, NULL, injection);
 
-	// If we have no resource, inject a general memory barrier.
+	// Or if we have no resource, inject a general memory barrier.
 	if (GFX_REF_IS_NULL(dep->inj.ref))
 	{
 		VkMemoryBarrier mb = {
@@ -663,9 +636,26 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 	}
 
 	// Inject either a buffer or image barrier.
+	// To do so, first unpack VkBuffer & VkImage handles.
+	_GFXUnpackRef unp = _gfx_ref_unpack(dep->inj.ref);
+	const _GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+
 	const uint64_t size = _gfx_ref_size(dep->inj.ref);
 	const GFXRange* range = &dep->inj.range;
 	const bool isRanged = _GFX_INJ_IS_RANGED(dep->inj);
+
+	VkBuffer buffer = VK_NULL_HANDLE;
+	VkImage image = VK_NULL_HANDLE;
+
+	if (unp.obj.buffer != NULL)
+		buffer = unp.obj.buffer->vk.buffer;
+	else if (unp.obj.image != NULL)
+		image = unp.obj.image->vk.image;
+	else if (attach != NULL)
+		image = attach->vk.image;
+	else
+		// If reference was somehow invalid, do nothing.
+		return 1;
 
 	if (unp.obj.buffer != NULL)
 	{
@@ -696,7 +686,7 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 	else
 	{
 		const GFXImageAspect aspect =
-			GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
+			GFX_IMAGE_ASPECT_FROM_FORMAT(dep->out.fmt);
 
 		VkImageMemoryBarrier imb = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -704,8 +694,8 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 			.pNext               = NULL,
 			.srcAccessMask       = srcAccessMask,
 			.dstAccessMask       = dstAccessMask,
-			.oldLayout           = oldLayout,
-			.newLayout           = newLayout,
+			.oldLayout           = _GFX_GET_VK_IMAGE_LAYOUT(dep->inj.maskf, dep->out.fmt),
+			.newLayout           = _GFX_GET_VK_IMAGE_LAYOUT(dep->inj.mask, dep->out.fmt),
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.image               = image,
@@ -713,19 +703,14 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 			.subresourceRange = {
 				.aspectMask =
 					// Fix aspect, cause we're nice :)
-					_GFX_GET_VK_IMAGE_ASPECT(
-						isRanged ? aspect & range->aspect : aspect),
-				.baseMipLevel =
-					isRanged ? range->mipmap : 0,
-				.baseArrayLayer =
-					isRanged ? range->layer : 0,
+					_GFX_GET_VK_IMAGE_ASPECT(isRanged ? aspect & range->aspect : aspect),
+				.baseMipLevel = isRanged ? range->mipmap : 0,
+				.baseArrayLayer = isRanged ? range->layer : 0,
 
-				.levelCount =
-					(!isRanged || range->numMipmaps == 0) ?
-						VK_REMAINING_MIP_LEVELS : range->numMipmaps,
-				.layerCount =
-					(!isRanged || range->numLayers == 0) ?
-						VK_REMAINING_ARRAY_LAYERS : range->numLayers
+				.levelCount = (!isRanged || range->numMipmaps == 0) ?
+					VK_REMAINING_MIP_LEVELS : range->numMipmaps,
+				.layerCount = (!isRanged || range->numLayers == 0) ?
+					VK_REMAINING_ARRAY_LAYERS : range->numLayers
 			}
 		};
 
@@ -738,8 +723,8 @@ static bool _gfx_frame_push_depend(GFXRenderer* renderer,
 
 /****************************
  * Pushes a layout transition barrier, just as stored in a _GFXDepend object.
- * Assumes `dep` to be fully initialized
- * as a non-dependency-object command, but as a subpass-dependency!
+ * Assumes `dep` to be fully initialized as a non-dependency-object command
+ * and as a subpass-dependency with a layout transition!
  * @return Zero on failure.
  */
 static bool _gfx_frame_push_transition(GFXRenderer* renderer,
@@ -749,16 +734,70 @@ static bool _gfx_frame_push_transition(GFXRenderer* renderer,
 	assert(renderer != NULL);
 	assert(dep != NULL);
 	assert(dep->out.subpass);
+	assert(dep->out.transition);
 	assert(dep->inj.dep == NULL);
 	assert(injection != NULL);
 
-	// TODO: Implement, the only thing we potentially need is
-	// a layout transition. No need to specify a full memory barrier,
-	// this is already handled by the subpass dependency.
-	// We can probably just use the target mask/stage as then it will neatly
-	// link with the subpass dependency.
+	_GFXContext* context = renderer->cache.context;
 
-	return 1;
+	// Insert layout transition.
+	// To do so, first unpack the VkImage handle.
+	_GFXUnpackRef unp = _gfx_ref_unpack(dep->inj.ref);
+	const _GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+
+	VkImage image = VK_NULL_HANDLE;
+
+	if (unp.obj.image != NULL)
+		image = unp.obj.image->vk.image;
+	else if (attach != NULL)
+		image = attach->vk.image;
+	else
+		// If reference was somehow invalid, do nothing.
+		return 1;
+
+	// Because the actual subpass dependency already takes care of the
+	// execution and/or memory barrier,
+	// we only get the destination access/stage flags so we form a
+	// dependency chain with said subpass dependency.
+	const GFXRange* range = &dep->inj.range;
+	const bool isRanged = _GFX_INJ_IS_RANGED(dep->inj);
+	const GFXImageAspect aspect = GFX_IMAGE_ASPECT_FROM_FORMAT(dep->out.fmt);
+
+	const VkAccessFlags dstAccessMask =
+		_GFX_GET_VK_ACCESS_FLAGS(dep->inj.mask, dep->out.fmt);
+	const VkPipelineStageFlags dstStageMask =
+		_GFX_MOD_VK_PIPELINE_STAGE(
+			_GFX_GET_VK_PIPELINE_STAGE(
+				dep->inj.mask, dep->inj.stage, dep->out.fmt), context);
+
+	VkImageMemoryBarrier imb = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+
+		.pNext               = NULL,
+		.srcAccessMask       = dstAccessMask,
+		.dstAccessMask       = dstAccessMask,
+		.oldLayout           = _GFX_GET_VK_IMAGE_LAYOUT(dep->inj.maskf, dep->out.fmt),
+		.newLayout           = _GFX_GET_VK_IMAGE_LAYOUT(dep->inj.mask, dep->out.fmt),
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image               = image,
+
+		.subresourceRange = {
+			.aspectMask =
+				// Fix aspect, cause we're nice :)
+				_GFX_GET_VK_IMAGE_ASPECT(isRanged ? aspect & range->aspect : aspect),
+			.baseMipLevel = isRanged ? range->mipmap : 0,
+			.baseArrayLayer = isRanged ? range->layer : 0,
+
+			.levelCount = (!isRanged || range->numMipmaps == 0) ?
+				VK_REMAINING_MIP_LEVELS : range->numMipmaps,
+			.layerCount = (!isRanged || range->numLayers == 0) ?
+				VK_REMAINING_ARRAY_LAYERS : range->numLayers
+		}
+	};
+
+	return _gfx_injection_push(
+		dstStageMask, dstStageMask, NULL, NULL, &imb, injection);
 }
 
 /****************************
@@ -928,6 +967,7 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 				_GFXDepend* dep = gfx_vec_at(&subpass->deps, d);
 				if (
 					dep->out.subpass &&
+					dep->out.transition &&
 					!_gfx_frame_push_transition(renderer, dep, injection))
 				{
 					return 0;

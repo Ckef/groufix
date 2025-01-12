@@ -559,6 +559,7 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 		for (size_t i = 0; i < numInjs; ++i)
 		{
 			depend.inj = injs[i];
+			depend.inj.ref = _gfx_ref_resolve(depend.inj.ref);
 
 			if (depend.inj.dep == NULL)
 			{

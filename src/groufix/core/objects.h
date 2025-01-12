@@ -1076,7 +1076,10 @@ typedef struct _GFXDepend
 	// Graph output (relative to neighbouring passes).
 	struct
 	{
-		bool subpass; // Is a subpass dependency (i.e. same subpass chain).
+		bool subpass;    // Is a subpass dependency (i.e. same subpass chain).
+		bool transition; // Is a layout transition.
+
+		GFXFormat fmt;
 
 	} out;
 
