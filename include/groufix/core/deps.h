@@ -309,7 +309,7 @@ typedef struct GFXInject
 
 #define gfx_sigraf(maskf_, stagef_, mask_, stage_, ref_, range_) \
 	GFX_LITERAL(GFXInject){ \
-		.type = GFX_INJ_SIGNAL_FROM, \
+		.type = GFX_INJ_SIGNAL_RANGE_FROM, \
 		.dep = NULL, \
 		.ref = ref_, \
 		.range = range_, \
