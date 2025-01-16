@@ -694,20 +694,20 @@ GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* ds
  ****************************/
 
 /**
- * Acquires the next virtual frame of a renderer, blocks until available!
- * Implicitly starts and/or submits if not yet done after the previous call.
- * @param renderer Cannot be NULL.
- * @return Always returns a valid frame.
- */
-GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
-
-/**
  * Acquires the next virtual frame and prepares it to start recording.
  * Calls gfx_renderer_acquire and gfx_frame_start back to back.
  * @see gfx_renderer_acquire.
  * @see gfx_frame_start.
  */
 GFX_API GFXFrame* gfx_renderer_start(GFXRenderer* renderer);
+
+/**
+ * Acquires the next virtual frame of a renderer, blocks until available!
+ * Implicitly starts and/or submits if not yet done after the previous call.
+ * @param renderer Cannot be NULL.
+ * @return Always returns a valid frame.
+ */
+GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer);
 
 /**
  * Retrieves the index of a virtual frame, used to identify the frame.
