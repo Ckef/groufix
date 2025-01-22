@@ -406,6 +406,17 @@ GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* ds
 }
 
 /****************************/
+GFX_API GFXFrame* gfx_renderer_start(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	GFXFrame* frame = gfx_renderer_acquire(renderer);
+	gfx_frame_start(frame);
+
+	return frame;
+}
+
+/****************************/
 GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
@@ -441,17 +452,6 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	}
 
 	return renderer->public;
-}
-
-/****************************/
-GFX_API GFXFrame* gfx_renderer_start(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	GFXFrame* frame = gfx_renderer_acquire(renderer);
-	gfx_frame_start(frame);
-
-	return frame;
 }
 
 /****************************/
