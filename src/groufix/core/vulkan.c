@@ -282,7 +282,7 @@ bool _gfx_vulkan_init(void)
 			gfx_log_warn(
 				"Perhaps you do not have the Vulkan SDK installed?\n"
 				"    To build without needing the SDK, run `make clean` then build with DEBUG=OFF.\n"
-				"    Or download the Vulkan SDK from `https://vulkan.lunarg.com/sdk/home`.\n");
+				"    Or download the Vulkan SDK from https://vulkan.lunarg.com/sdk/home\n");
 #endif
 
 			goto clean;
