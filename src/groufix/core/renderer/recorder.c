@@ -628,9 +628,11 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 
 	recorder->state.viewport = rPass->state.viewport;
 	recorder->state.scissor = rPass->state.scissor;
+	recorder->state.lineWidth = 1.0f; // Also set a default line width.
 
 	context->vk.CmdSetViewport(cmd, 0, 1, &viewport);
 	context->vk.CmdSetScissor(cmd, 0, 1, &scissor);
+	context->vk.CmdSetLineWidth(cmd, recorder->state.lineWidth);
 
 	// Set recording input, record, unset input.
 	recorder->inp.pass = pass;
@@ -1283,8 +1285,6 @@ GFX_API void gfx_cmd_set_viewport(GFXRecorder* recorder, GFXViewport viewport)
 			&viewport, rPass->build.fWidth, rPass->build.fHeight);
 
 		context->vk.CmdSetViewport(recorder->inp.cmd, 0, 1, &vkViewport);
-
-		// Set for gfx_recorder_get_viewport.
 		recorder->state.viewport = viewport;
 	}
 }
@@ -1307,8 +1307,24 @@ GFX_API void gfx_cmd_set_scissor(GFXRecorder* recorder, GFXScissor scissor)
 			&scissor, rPass->build.fWidth, rPass->build.fHeight);
 
 		context->vk.CmdSetScissor(recorder->inp.cmd, 0, 1, &vkScissor);
-
-		// Set for gfx_recorder_get_scissor.
 		recorder->state.scissor = scissor;
+	}
+}
+
+/****************************/
+GFX_API void gfx_cmd_set_line_width(GFXRecorder* recorder, float lineWidth)
+{
+	assert(recorder != NULL);
+	assert(recorder->inp.pass != NULL);
+	assert(recorder->inp.pass->type == GFX_PASS_RENDER);
+	assert(recorder->inp.cmd != NULL);
+
+	_GFXContext* context = recorder->context;
+
+	// Compare & set line width state.
+	if (recorder->state.lineWidth != lineWidth)
+	{
+		context->vk.CmdSetLineWidth(recorder->inp.cmd, lineWidth);
+		recorder->state.lineWidth = lineWidth;
 	}
 }

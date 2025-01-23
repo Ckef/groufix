@@ -199,8 +199,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	pdf->dualSrcBlend                           = VK_FALSE;
 	pdf->depthClamp                             = VK_FALSE;
 	pdf->depthBiasClamp                         = VK_FALSE;
-	pdf->wideLines                              = VK_FALSE;
-	pdf->largePoints                            = VK_FALSE;
 	pdf->alphaToOne                             = VK_FALSE;
 	pdf->multiViewport                          = VK_FALSE;
 	pdf->occlusionQueryPrecise                  = VK_FALSE;
@@ -960,8 +958,9 @@ static void _gfx_create_context(_GFXDevice* device)
 	_GFX_GET_DEVICE_PROC_ADDR(CmdPipelineBarrier);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdPushConstants);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdResolveImage);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdSetViewport);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdSetLineWidth);
 	_GFX_GET_DEVICE_PROC_ADDR(CmdSetScissor);
+	_GFX_GET_DEVICE_PROC_ADDR(CmdSetViewport);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateBufferView);
 	_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
@@ -1133,6 +1132,8 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 			.geometryShader           = pdf.geometryShader,
 			.tessellationShader       = pdf.tessellationShader,
 			.rasterNonSolid           = pdf.fillModeNonSolid,
+			.wideLines                = pdf.wideLines,
+			.largePoints              = pdf.largePoints,
 			.independentBlend         = pdf.independentBlend,
 			.logicOp                  = pdf.logicOp,
 			.depthBounds              = pdf.depthBounds,
@@ -1214,6 +1215,14 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 			.minTexelBufferAlign   = pdp->limits.minTexelBufferOffsetAlignment,
 			.minUniformBufferAlign = pdp->limits.minUniformBufferOffsetAlignment,
 			.minStorageBufferAlign = pdp->limits.minStorageBufferOffsetAlignment,
+
+			.minPointSize = pdp->limits.pointSizeRange[0],
+			.maxPointSize = pdp->limits.pointSizeRange[1],
+			.pointSizeGranularity = pdp->limits.pointSizeGranularity,
+
+			.minLineWidth = pdp->limits.lineWidthRange[0],
+			.maxLineWidth = pdp->limits.lineWidthRange[1],
+			.lineWidthGranularity = pdp->limits.lineWidthGranularity,
 
 			.maxMipLodBias = pdp->limits.maxSamplerLodBias,
 			.maxAnisotropy = pdp->limits.maxSamplerAnisotropy,

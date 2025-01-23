@@ -274,8 +274,9 @@ typedef struct _GFXContext
 		_GFX_VK_PFN(CmdPipelineBarrier);
 		_GFX_VK_PFN(CmdPushConstants);
 		_GFX_VK_PFN(CmdResolveImage);
-		_GFX_VK_PFN(CmdSetViewport);
+		_GFX_VK_PFN(CmdSetLineWidth);
 		_GFX_VK_PFN(CmdSetScissor);
+		_GFX_VK_PFN(CmdSetViewport);
 		_GFX_VK_PFN(CreateBuffer);
 		_GFX_VK_PFN(CreateBufferView);
 		_GFX_VK_PFN(CreateCommandPool);

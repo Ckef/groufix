@@ -51,6 +51,8 @@ typedef struct GFXDevice
 		bool tessellationShader;
 		bool inlineCompute;
 		bool rasterNonSolid;
+		bool wideLines;
+		bool largePoints;
 		bool independentBlend;
 		bool logicOp;
 		bool depthBounds;
@@ -134,6 +136,14 @@ typedef struct GFXDevice
 		uint64_t minTexelBufferAlign;
 		uint64_t minUniformBufferAlign;
 		uint64_t minStorageBufferAlign;
+
+		float minPointSize;
+		float maxPointSize;
+		float pointSizeGranularity;
+
+		float minLineWidth;
+		float maxLineWidth;
+		float lineWidthGranularity;
 
 		float maxMipLodBias;
 		float maxAnisotropy;

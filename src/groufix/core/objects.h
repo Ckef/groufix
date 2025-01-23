@@ -857,6 +857,7 @@ struct GFXRecorder
 	{
 		GFXViewport    viewport;
 		GFXScissor     scissor;
+		float          lineWidth;
 		_GFXCacheElem* pipeline;
 		_GFXPrimitive* primitive;
 

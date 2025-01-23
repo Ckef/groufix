@@ -413,10 +413,11 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 			.pNext             = NULL,
 			.flags             = 0,
-			.dynamicStateCount = 2,
+			.dynamicStateCount = 3,
 			.pDynamicStates    = (VkDynamicState[]){
 				VK_DYNAMIC_STATE_VIEWPORT,
-				VK_DYNAMIC_STATE_SCISSOR
+				VK_DYNAMIC_STATE_SCISSOR,
+				VK_DYNAMIC_STATE_LINE_WIDTH
 			}
 		}}
 	};

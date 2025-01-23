@@ -1069,6 +1069,15 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
 GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state);
 
 /**
+ * Retrieves the current render state of a render pass.
+ * @param pass Cannot be NULL.
+ * @return Output state, read-only!
+ *
+ * Returns all NULL's if not a render pass.
+ */
+GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
+
+/**
  * Sets the viewport state of a render pass.
  * @param pass Cannot be NULL.
  *
@@ -1081,15 +1090,6 @@ GFX_API void gfx_pass_set_viewport(GFXPass* pass, GFXViewport viewport);
  * @see gfx_pass_set_viewport.
  */
 GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor);
-
-/**
- * Retrieves the current render state of a render pass.
- * @param pass Cannot be NULL.
- * @return Output state, read-only!
- *
- * Returns all NULL's if not a render pass.
- */
-GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
 
 /**
  * Retrieves the current viewport state of a render pass.
@@ -1767,6 +1767,15 @@ GFX_API void gfx_cmd_set_viewport(GFXRecorder* recorder, GFXViewport viewport);
  * Current value can be retrieved with gfx_recorder_get_scissor.
  */
 GFX_API void gfx_cmd_set_scissor(GFXRecorder* recorder, GFXScissor scissor);
+
+/**
+ * State command to set the line width state of a recorder.
+ * Can only be called within a callback of gfx_recorder_render!
+ * @param recorder Cannot be NULL.
+ *
+ * Default value is 1.0f.
+ */
+GFX_API void gfx_cmd_set_line_width(GFXRecorder* recorder, float lineWidth);
 
 
 #endif

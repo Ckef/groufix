@@ -1716,6 +1716,27 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 }
 
 /****************************/
+GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	if (pass->type == GFX_PASS_RENDER)
+		return (GFXRenderState){
+			.raster = &((_GFXRenderPass*)pass)->state.raster,
+			.blend = &((_GFXRenderPass*)pass)->state.blend,
+			.depth = &((_GFXRenderPass*)pass)->state.depth,
+			.stencil = &((_GFXRenderPass*)pass)->state.stencil
+		};
+	else
+		return (GFXRenderState){
+			.raster = NULL,
+			.blend = NULL,
+			.depth = NULL,
+			.stencil = NULL
+		};
+}
+
+/****************************/
 GFX_API void gfx_pass_set_viewport(GFXPass* pass, GFXViewport viewport)
 {
 	assert(pass != NULL);
@@ -1741,27 +1762,6 @@ GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor)
 
 	// Set scissor.
 	rPass->state.scissor = scissor;
-}
-
-/****************************/
-GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
-{
-	assert(pass != NULL);
-
-	if (pass->type == GFX_PASS_RENDER)
-		return (GFXRenderState){
-			.raster = &((_GFXRenderPass*)pass)->state.raster,
-			.blend = &((_GFXRenderPass*)pass)->state.blend,
-			.depth = &((_GFXRenderPass*)pass)->state.depth,
-			.stencil = &((_GFXRenderPass*)pass)->state.stencil
-		};
-	else
-		return (GFXRenderState){
-			.raster = NULL,
-			.blend = NULL,
-			.depth = NULL,
-			.stencil = NULL
-		};
 }
 
 /****************************/
