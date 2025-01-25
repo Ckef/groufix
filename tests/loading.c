@@ -126,7 +126,7 @@ error:
 /****************************
  * Custom render callback to render the thing.
  */
-static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
+static void render(GFXRecorder* recorder, void* ptr)
 {
 	// Rotate with some constant factor lol (it's locked to vsync).
 	const float pi2 = 6.28318530718f;

@@ -1535,30 +1535,29 @@ GFX_API GFXRenderer* gfx_recorder_get_renderer(GFXRecorder* recorder);
 
 /**
  * Records render commands within a given render pass.
- * The callback takes this recorder and the current virtual frame index.
- * If pass is culled, this call becomes a no-op.
  * @param recorder Cannot be NULL.
  * @param pass     Cannot be NULL, must be a render pass.
  * @param cb       Callback, cannot be NULL.
- * @param ptr      User pointer as third argument of cb.
+ * @param ptr      User pointer as second argument of cb.
+ *
+ * The callback takes this recorder and a user pointer as arguments.
+ * If pass is culled, this call becomes a no-op.
  *
  * Must be called inbetween gfx_frame_start and gfx_frame_submit!
  * Different recorders can always call gfx_recorder_(render|compute)
  * concurrently, with any arguments!
  */
 GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
-                                 void (*cb)(GFXRecorder*, unsigned int, void*),
+                                 void (*cb)(GFXRecorder*, void*),
                                  void* ptr);
 
 /**
  * Records compute commands within a given compute pass.
- * The callback takes this recorder and the current virtual frame index.
- * If pass is culled, this call becomes a no-op.
  * @param pass Cannot be NULL, must be a compute pass.
  * @see gfx_recorder_render.
  */
 GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
-                                  void (*cb)(GFXRecorder*, unsigned int, void*),
+                                  void (*cb)(GFXRecorder*, void*),
                                   void* ptr);
 
 /**
@@ -1568,21 +1567,6 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
  * Gets updated during gfx_renderer_acquire.
  */
 GFX_API unsigned int gfx_recorder_get_frame_index(GFXRecorder* recorder);
-
-/**
- * Retrieves the current viewport state of a recorder.
- * @param recorder Cannot be NULL.
- *
- * Returns an absolute size of all 0's if not called
- * within a callback of gfx_recorder_render.
- */
-GFX_API GFXViewport gfx_recorder_get_viewport(GFXRecorder* recorder);
-
-/**
- * Retrieves the current scissor state of a recorder.
- * @see gfx_recorder_get_viewport.
- */
-GFX_API GFXScissor gfx_recorder_get_scissor(GFXRecorder* recorder);
 
 /**
  * Retrieves the current pass of a recorder.
@@ -1616,6 +1600,29 @@ GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
  */
 GFX_API void gfx_pass_get_size(GFXPass* pass,
                                uint32_t* width, uint32_t* height, uint32_t* layers);
+
+/**
+ * Retrieves the current viewport state of a recorder.
+ * @param recorder Cannot be NULL.
+ *
+ * Returns an absolute size of all 0's if not called
+ * within a callback of gfx_recorder_render.
+ */
+GFX_API GFXViewport gfx_recorder_get_viewport(GFXRecorder* recorder);
+
+/**
+ * Retrieves the current scissor state of a recorder.
+ * @see gfx_recorder_get_viewport.
+ */
+GFX_API GFXScissor gfx_recorder_get_scissor(GFXRecorder* recorder);
+
+/**
+ * Retrieves the line width state of a recorder.
+ * @param recorder Cannot be NULL.
+ *
+ * Returns 0.0f if not called within a callback of gfx_recorder_render.
+ */
+GFX_API float gfx_recorder_get_line_width(GFXRecorder* recorder);
 
 /**
  * State command to bind a descriptor set.

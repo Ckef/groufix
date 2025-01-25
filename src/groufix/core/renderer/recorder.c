@@ -566,7 +566,7 @@ GFX_API GFXRenderer* gfx_recorder_get_renderer(GFXRecorder* recorder)
 
 /****************************/
 GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
-                                 void (*cb)(GFXRecorder*, unsigned int, void*),
+                                 void (*cb)(GFXRecorder*, void*),
                                  void* ptr)
 {
 	assert(recorder != NULL);
@@ -640,7 +640,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	recorder->state.pipeline = NULL;
 	recorder->state.primitive = NULL;
 
-	cb(recorder, recorder->current, ptr);
+	cb(recorder, ptr);
 
 	recorder->inp.pass = NULL;
 	recorder->inp.cmd = NULL;
@@ -664,7 +664,7 @@ error:
 
 /****************************/
 GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
-                                  void (*cb)(GFXRecorder*, unsigned int, void*),
+                                  void (*cb)(GFXRecorder*, void*),
                                   void* ptr)
 {
 	assert(recorder != NULL);
@@ -716,7 +716,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 	recorder->state.pipeline = NULL;
 	recorder->state.primitive = NULL;
 
-	cb(recorder, recorder->current, ptr);
+	cb(recorder, ptr);
 
 	recorder->inp.pass = NULL;
 	recorder->inp.cmd = NULL;
@@ -744,42 +744,6 @@ GFX_API unsigned int gfx_recorder_get_frame_index(GFXRecorder* recorder)
 	assert(recorder != NULL);
 
 	return recorder->current;
-}
-
-/****************************/
-GFX_API GFXViewport gfx_recorder_get_viewport(GFXRecorder* recorder)
-{
-	assert(recorder != NULL);
-
-	if (recorder->inp.pass && recorder->inp.pass->type == GFX_PASS_RENDER)
-		return recorder->state.viewport;
-	else
-		return (GFXViewport){
-			.size = GFX_SIZE_ABSOLUTE,
-			.x = 0.0f,
-			.y = 0.0f,
-			.width = 0.0f,
-			.height = 0.0f,
-			.minDepth = 0.0f,
-			.maxDepth = 0.0f
-		};
-}
-
-/****************************/
-GFX_API GFXScissor gfx_recorder_get_scissor(GFXRecorder* recorder)
-{
-	assert(recorder != NULL);
-
-	if (recorder->inp.pass && recorder->inp.pass->type == GFX_PASS_RENDER)
-		return recorder->state.scissor;
-	else
-		return (GFXScissor){
-			.size = GFX_SIZE_ABSOLUTE,
-			.x = 0,
-			.y = 0,
-			.width = 0,
-			.height = 0
-		};
 }
 
 /****************************/
@@ -827,6 +791,53 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 		*width = 0,
 		*height = 0,
 		*layers = 0;
+}
+
+/****************************/
+GFX_API GFXViewport gfx_recorder_get_viewport(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	if (recorder->inp.pass && recorder->inp.pass->type == GFX_PASS_RENDER)
+		return recorder->state.viewport;
+	else
+		return (GFXViewport){
+			.size = GFX_SIZE_ABSOLUTE,
+			.x = 0.0f,
+			.y = 0.0f,
+			.width = 0.0f,
+			.height = 0.0f,
+			.minDepth = 0.0f,
+			.maxDepth = 0.0f
+		};
+}
+
+/****************************/
+GFX_API GFXScissor gfx_recorder_get_scissor(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	if (recorder->inp.pass && recorder->inp.pass->type == GFX_PASS_RENDER)
+		return recorder->state.scissor;
+	else
+		return (GFXScissor){
+			.size = GFX_SIZE_ABSOLUTE,
+			.x = 0,
+			.y = 0,
+			.width = 0,
+			.height = 0
+		};
+}
+
+/****************************/
+GFX_API float gfx_recorder_get_line_width(GFXRecorder* recorder)
+{
+	assert(recorder != NULL);
+
+	if (recorder->inp.pass && recorder->inp.pass->type == GFX_PASS_RENDER)
+		return recorder->state.lineWidth;
+	else
+		return 0.0f;
 }
 
 /****************************/

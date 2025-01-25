@@ -387,8 +387,7 @@ static bool _test_key_release(GFXWindow* window,
 /**
  * Default render callback.
  */
-static void _test_default_render(GFXRecorder* recorder,
-                                 unsigned int frame, void* ptr)
+static void _test_default_render(GFXRecorder* recorder, void* ptr)
 {
 	// Record stuff.
 	gfx_cmd_bind(recorder, _test_base.technique, 0, 1, 0, &_test_base.set, NULL);

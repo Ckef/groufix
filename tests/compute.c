@@ -41,7 +41,7 @@ typedef struct Context
 /****************************
  * Compute callback.
  */
-static void compute(GFXRecorder* recorder, unsigned int frame, void* ptr)
+static void compute(GFXRecorder* recorder, void* ptr)
 {
 	// Dispatch the compute shader.
 	Context* ctx = ptr;

@@ -12,7 +12,7 @@
 /****************************
  * Second render callback to draw a different renderable.
  */
-static void render2(GFXRecorder* recorder, unsigned int frame, void* ptr)
+static void render2(GFXRecorder* recorder, void* ptr)
 {
 	gfx_cmd_bind(recorder, TEST_BASE.technique, 0, 1, 0, &TEST_BASE.set, NULL);
 	gfx_cmd_draw_prim(recorder, (GFXRenderable*)ptr, 1, 0);

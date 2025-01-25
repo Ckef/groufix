@@ -79,7 +79,7 @@ static bool post_key_release(GFXWindow* window,
 /****************************
  * Post-processing render callback.
  */
-static void post_process(GFXRecorder* recorder, unsigned int frame, void* ptr)
+static void post_process(GFXRecorder* recorder, void* ptr)
 {
 	// Draw a triangle.
 	Context* ctx = ptr;

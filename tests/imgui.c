@@ -16,9 +16,9 @@
 /****************************
  * Callback to render ImGui.
  */
-static void render(GFXRecorder* recorder, unsigned int frame, void* ptr)
+static void render(GFXRecorder* recorder, void* ptr)
 {
-	TEST_CALLBACK_RENDER(recorder, frame, NULL);
+	TEST_CALLBACK_RENDER(recorder, NULL);
 
 	GFXImguiDrawer* drawer = ptr;
 	gfx_cmd_draw_imgui(recorder, drawer, igGetDrawData());
