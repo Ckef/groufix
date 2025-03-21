@@ -48,26 +48,28 @@ static const char* _gfx_log_colors[] = {
 
 
 /****************************
- * Retrieves the current time in milliseconds.
+ * Retrieves the current time in seconds.
  * groufix must be initialized!
  */
-static inline double _gfx_time_ms(void)
+static inline double _gfx_time_s(void)
 {
-	const double seconds =
+	return
 		(double)_gfx_clock_get_time(&_groufix.clock) /
 		(double)_groufix.clock.frequency;
-
-	return seconds * 1000.0;
 }
 
 /****************************
  * Writes the log header to a buffered writer stream.
  */
 static void _gfx_log_header(GFXBufWriter* out,
-                            double timeMs, uintmax_t thread, GFXLogLevel level,
+                            double time_s, uintmax_t thread, GFXLogLevel level,
                             const char* file, unsigned int line)
 {
 	const char* L = _gfx_log_levels[level-1];
+
+	const int64_t m = (int64_t)(time_s / 60.0);
+	const int64_t s = (int64_t)time_s % 60;
+	const int64_t ms = (int64_t)(time_s * 1000.0) % 1000;
 
 	// If file contains 'groufix' in it, only print it from there.
 	// Makes the logs a little less bulky, cheeky but nice :)
@@ -83,16 +85,18 @@ static void _gfx_log_header(GFXBufWriter* out,
 		const char* C = _gfx_log_colors[level-1];
 
 		gfx_io_writef(out,
-			"%.2ems %s%-5s \x1b[90mthread-%"PRIuMAX": %s:%u: \x1b[0m",
-			timeMs, C, L, thread, file, line);
+			"\x1b[90m[%"PRIi64"m:%02"PRIi64"s:%03"PRIi64"ms] "
+			"%s%-5s \x1b[90mthread-%"PRIuMAX": %s:%u: \x1b[0m",
+			m, s, ms, C, L, thread, file, line);
 	}
 	else
 	{
 #endif
 		// If not, or not on unix at all, output regularly.
 		gfx_io_writef(out,
-			"%.2ems %-5s thread-%"PRIuMAX": %s:%u: ",
-			timeMs, L, thread, file, line);
+			"[%"PRIi64"m:%02"PRIi64"s:%03"PRIi64"ms] "
+			"%-5s thread-%"PRIuMAX": %s:%u: ",
+			m, s, ms, L, thread, file, line);
 
 #if defined (GFX_UNIX)
 	}
@@ -164,7 +168,7 @@ GFX_API void gfx_log(GFXLogLevel level,
 			va_start(args, fmt);
 
 			_gfx_mutex_lock(&_groufix.thread.ioLock);
-			_gfx_log_header(out, _gfx_time_ms(), thread, level, file, line);
+			_gfx_log_header(out, _gfx_time_s(), thread, level, file, line);
 			gfx_io_vwritef(out, fmt, args);
 			gfx_io_write(&out->writer, "\n", sizeof(char));
 			gfx_io_flush(out);
@@ -223,7 +227,7 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 		{
 			// Leave locked for gfx_logger_end()!
 			_gfx_mutex_lock(&_groufix.thread.ioLock);
-			_gfx_log_header(out, _gfx_time_ms(), thread, level, file, line);
+			_gfx_log_header(out, _gfx_time_s(), thread, level, file, line);
 			return out;
 		}
 	}
