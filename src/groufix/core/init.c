@@ -33,7 +33,7 @@ bool _gfx_init(void)
 
 	atomic_store_explicit(&_groufix.thread.id, 0, memory_order_relaxed);
 
-	// Initialize other things...
+	// Initialize other things.
 	if (!_gfx_mutex_init(&_groufix.contextLock))
 		goto clean_io;
 
@@ -43,6 +43,9 @@ bool _gfx_init(void)
 
 	_groufix.monitorEvent = NULL;
 	_groufix.vk.instance = NULL;
+
+	// Start clock as last.
+	_gfx_clock(&_groufix.clock);
 
 	// Signal that initialization is done.
 	atomic_store(&_groufix.initialized, 1);

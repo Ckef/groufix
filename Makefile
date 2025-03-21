@@ -101,6 +101,12 @@ ifneq ($(OS),Windows_NT)
  OFLAGS += -fPIC
 endif
 
+ifeq ($(CC_PREFIX),None)
+ ifneq ($(OS),Windows_NT)
+  OFLAGS += -D_POSIX_C_SOURCE=199506L
+ endif
+endif
+
 
 # Linker flags
 LDFLAGS_ALL  = -shared -pthread

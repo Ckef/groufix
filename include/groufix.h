@@ -52,6 +52,22 @@ GFX_API bool gfx_attach(void);
 GFX_API void gfx_detach(void);
 
 /**
+ * Retrieve high resolution monotonic time since gfx_init was called.
+ * Must be called after gfx_init has succesfully returned.
+ * Can be called from any thread, however measurements across threads can be
+ * unreliable. One should not use the same measurement for multiple threads.
+ */
+GFX_API int64_t gfx_time(void);
+
+/**
+ * Retrieves the frequency of the time retrieved by gfx_time.
+ * Divide time by frequency to get time in seconds.
+ * Must be called after gfx_init has succesfully returned.
+ * Can be called from any thread.
+ */
+GFX_API int64_t gfx_time_frequency(void);
+
+/**
  * Polls all window manager events and calls the window and monitor callbacks.
  * Must be called after gfx_init has succesfully returned.
  * Must be called from the main thread.

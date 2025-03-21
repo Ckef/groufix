@@ -136,6 +136,22 @@ GFX_API void gfx_detach(void)
 }
 
 /****************************/
+GFX_API int64_t gfx_time(void)
+{
+	assert(atomic_load(&_groufix.initialized));
+
+	return _gfx_clock_get_time(&_groufix.clock);
+}
+
+/****************************/
+GFX_API int64_t gfx_time_frequency(void)
+{
+	assert(atomic_load(&_groufix.initialized));
+
+	return _groufix.clock.frequency;
+}
+
+/****************************/
 GFX_API void gfx_poll_events(void)
 {
 	assert(atomic_load(&_groufix.initialized));

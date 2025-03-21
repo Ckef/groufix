@@ -14,6 +14,7 @@
 #include "groufix/containers/list.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/threads.h"
+#include "groufix/core/time.h"
 #include "groufix.h"
 
 #define VK_NO_PROTOTYPES
@@ -94,6 +95,8 @@ typedef struct _GFXState
 
 	// Only pre-initialized field besides `initialized`.
 	GFXLogLevel logDef;
+
+	_GFXClock clock;
 
 	GFXVec  devices;  // Stores _GFXDevice (never changes, so not dynamic).
 	GFXList contexts; // References _GFXContext.

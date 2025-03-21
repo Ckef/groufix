@@ -11,7 +11,6 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #if defined (GFX_UNIX)
 	#include <unistd.h>
@@ -49,10 +48,23 @@ static const char* _gfx_log_colors[] = {
 
 
 /****************************
+ * Retrieves the current time in milliseconds.
+ * groufix must be initialized!
+ */
+static inline double _gfx_time_ms(void)
+{
+	const double seconds =
+		(double)_gfx_clock_get_time(&_groufix.clock) /
+		(double)_groufix.clock.frequency;
+
+	return seconds * 1000.0;
+}
+
+/****************************
  * Writes the log header to a buffered writer stream.
  */
 static void _gfx_log_header(GFXBufWriter* out,
-                            uintmax_t thread, GFXLogLevel level,
+                            double timeMs, uintmax_t thread, GFXLogLevel level,
                             const char* file, unsigned int line)
 {
 	const char* L = _gfx_log_levels[level-1];
@@ -61,9 +73,6 @@ static void _gfx_log_header(GFXBufWriter* out,
 	// Makes the logs a little less bulky, cheeky but nice :)
 	const char* f = strstr(file, "groufix");
 	file = (f == NULL) ? file : f;
-
-	// So we get seconds that the CPU has spent on this program.
-	const double timeMs = 1000.0 * (double)clock() / CLOCKS_PER_SEC;
 
 #if defined (GFX_UNIX)
 	if (
@@ -155,7 +164,7 @@ GFX_API void gfx_log(GFXLogLevel level,
 			va_start(args, fmt);
 
 			_gfx_mutex_lock(&_groufix.thread.ioLock);
-			_gfx_log_header(out, thread, level, file, line);
+			_gfx_log_header(out, _gfx_time_ms(), thread, level, file, line);
 			gfx_io_vwritef(out, fmt, args);
 			gfx_io_write(&out->writer, "\n", sizeof(char));
 			gfx_io_flush(out);
@@ -172,7 +181,7 @@ GFX_API void gfx_log(GFXLogLevel level,
 	{
 		va_start(args, fmt);
 
-		_gfx_log_header(&_gfx_io_buf_def, 0, level, file, line);
+		_gfx_log_header(&_gfx_io_buf_def, 0.0, 0, level, file, line);
 		gfx_io_vwritef(&_gfx_io_buf_def, fmt, args);
 		gfx_io_write(&_gfx_io_buf_def.writer, "\n", sizeof(char));
 		gfx_io_flush(&_gfx_io_buf_def);
@@ -214,7 +223,7 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 		{
 			// Leave locked for gfx_logger_end()!
 			_gfx_mutex_lock(&_groufix.thread.ioLock);
-			_gfx_log_header(out, thread, level, file, line);
+			_gfx_log_header(out, _gfx_time_ms(), thread, level, file, line);
 			return out;
 		}
 	}
@@ -222,7 +231,7 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 	// And if not, output to default logger just like gfx_log().
 	else if (level <= _groufix.logDef)
 	{
-		_gfx_log_header(&_gfx_io_buf_def, 0, level, file, line);
+		_gfx_log_header(&_gfx_io_buf_def, 0.0, 0, level, file, line);
 		return &_gfx_io_buf_def;
 	}
 
