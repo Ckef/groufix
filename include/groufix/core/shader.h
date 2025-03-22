@@ -45,6 +45,26 @@ GFX_BIT_FIELD(GFXShaderStage)
 
 
 /**
+ * Shader resource type.
+ */
+typedef enum GFXShaderResourceType
+{
+	GFX_RESOURCE_BUFFER_UNIFORM,
+	GFX_RESOURCE_BUFFER_STORAGE,
+	GFX_RESOURCE_BUFFER_UNIFORM_TEXEL,
+	GFX_RESOURCE_BUFFER_STORAGE_TEXEL,
+	GFX_RESOURCE_IMAGE_AND_SAMPLER,
+	GFX_RESOURCE_IMAGE_SAMPLED,
+	GFX_RESOURCE_IMAGE_STORAGE,
+	GFX_RESOURCE_IMAGE_ATTACHMENT,
+	GFX_RESOURCE_SAMPLER,
+
+	GFX_RESOURCE_UNKNOWN // Resource does not exist (or is empty).
+
+} GFXShaderResourceType;
+
+
+/**
  * Shader definition.
  */
 typedef struct GFXShader GFXShader;
@@ -77,8 +97,9 @@ GFX_API GFXDevice* gfx_shader_get_device(GFXShader* shader);
  * @param inc      Optional stream includer.
  * @param out      Optional SPIR-V bytecode output stream.
  * @param err      Optional error/warning output stream.
- * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
+ * @return Non-zero on success.
  *
+ * Silently fails if shader already stores SPIR-V bytecode.
  * Output stream failure is ignored.
  */
 GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
@@ -90,7 +111,9 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
  * Loads SPIR-V bytecode for use.
  * @param shader Cannot be NULL.
  * @param src    Source bytecode stream, cannot be NULL.
- * @return Non-zero on success, no-op if shader already stores SPIR-V bytecode.
+ * @return Non-zero on success.
+ *
+ * Silently fails if shader already stores SPIR-V bytecode.
  */
 GFX_API bool gfx_shader_load(GFXShader* shader, const GFXReader* src);
 

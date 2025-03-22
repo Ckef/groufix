@@ -1216,30 +1216,52 @@ GFX_API size_t gfx_set_get_num_bindings(GFXSet* set)
 }
 
 /****************************/
-GFX_API GFXBindingType gfx_set_get_binding_type(GFXSet* set, size_t binding)
+GFX_API GFXShaderResourceType gfx_set_get_resource_type(GFXSet* set, size_t binding)
 {
 	assert(set != NULL);
-	assert(binding < set->numBindings);
 
-	VkDescriptorType type = set->bindings[binding].type;
+	if (binding >= set->numBindings)
+		return GFX_RESOURCE_UNKNOWN;
 
-	return
-		_GFX_DESCRIPTOR_IS_BUFFER(type) ?
-			GFX_BINDING_BUFFER :
-		_GFX_DESCRIPTOR_IS_VIEW(type) ?
-			GFX_BINDING_BUFFER_TEXEL :
-		_GFX_DESCRIPTOR_IS_IMAGE(type) && _GFX_DESCRIPTOR_IS_SAMPLER(type) ?
-			GFX_BINDING_IMAGE_AND_SAMPLER :
-		_GFX_DESCRIPTOR_IS_IMAGE(type) ?
-			GFX_BINDING_IMAGE :
-			GFX_BINDING_SAMPLER;
+	// Report empty as unknown.
+	if (set->bindings[binding].count == 0)
+		return GFX_RESOURCE_UNKNOWN;
+
+	switch (set->bindings[binding].type)
+	{
+	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+		return GFX_RESOURCE_BUFFER_UNIFORM;
+	case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+	case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+		return GFX_RESOURCE_BUFFER_STORAGE;
+	case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+		return GFX_RESOURCE_BUFFER_UNIFORM_TEXEL;
+	case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+		return GFX_RESOURCE_BUFFER_STORAGE_TEXEL;
+	case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+		return GFX_RESOURCE_IMAGE_AND_SAMPLER;
+	case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+		return GFX_RESOURCE_IMAGE_SAMPLED;
+	case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+		return GFX_RESOURCE_IMAGE_STORAGE;
+	case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+		return GFX_RESOURCE_IMAGE_ATTACHMENT;
+	case VK_DESCRIPTOR_TYPE_SAMPLER:
+		return GFX_RESOURCE_SAMPLER;
+
+	default:
+		return GFX_RESOURCE_UNKNOWN;
+	}
 }
 
 /****************************/
 GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding)
 {
 	assert(set != NULL);
-	assert(binding < set->numBindings);
+
+	if (binding >= set->numBindings)
+		return 0;
 
 	return set->bindings[binding].count;
 }
@@ -1248,7 +1270,9 @@ GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding)
 GFX_API size_t gfx_set_get_binding_block_size(GFXSet* set, size_t binding)
 {
 	assert(set != NULL);
-	assert(binding < set->numBindings);
+
+	if (binding >= set->numBindings)
+		return 0;
 
 	return set->bindings[binding].size;
 }
@@ -1257,7 +1281,9 @@ GFX_API size_t gfx_set_get_binding_block_size(GFXSet* set, size_t binding)
 GFX_API bool gfx_set_is_binding_immutable(GFXSet* set, size_t binding)
 {
 	assert(set != NULL);
-	assert(binding < set->numBindings);
+
+	if (binding >= set->numBindings)
+		return 0;
 
 	// If it is empty, do not report it as immutable.
 	return
@@ -1269,7 +1295,9 @@ GFX_API bool gfx_set_is_binding_immutable(GFXSet* set, size_t binding)
 GFX_API bool gfx_set_is_binding_dynamic(GFXSet* set, size_t binding)
 {
 	assert(set != NULL);
-	assert(binding < set->numBindings);
+
+	if (binding >= set->numBindings)
+		return 0;
 
 	// If it is empty, do not report it as dynamic.
 	return

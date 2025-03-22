@@ -1200,6 +1200,34 @@ GFX_API GFXShader* gfx_tech_get_shader(GFXTechnique* technique, GFXShaderStage s
 GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
 
 /**
+ * Retrieves the resource type of a descriptor binding of a set.
+ * NOTE: Inefficient! Should prefer gfx_set_get_resource_type if possible!
+ * Can be called from any thread.
+ * @param technique Cannot be NULL.
+ */
+GFX_API GFXShaderResourceType gfx_tech_get_resource_type(GFXTechnique* technique,
+                                                         size_t set, size_t binding);
+
+/**
+ * Retrieves the size (i.e. shader array size) of a descriptor binding of a set.
+ * NOTE: Inefficient! Should prefer gfx_set_get_binding_size if possible!
+ * Can be called from any thread.
+ * @param technique Cannot be NULL.
+ */
+GFX_API size_t gfx_tech_get_binding_size(GFXTechnique* technique,
+                                         size_t set, size_t binding);
+
+/**
+ * Retrieves the block byte size of a buffer descriptor binding of a set.
+ * NOTE: Inefficient! Should prefer gfx_set_get_binding_block_size if possible!
+ * Can be called from any thread.
+ * @param technique Cannot be NULL.
+ * @return Zero if the binding is not a block, or unknown size.
+ */
+GFX_API size_t gfx_tech_get_binding_block_size(GFXTechnique* technique,
+                                               size_t set, size_t binding);
+
+/**
  * Retrieves the push constant range's size of a technique.
  * Can be called from any thread.
  * @param technique Cannot be NULL.
@@ -1365,25 +1393,23 @@ GFX_API GFXRenderer* gfx_set_get_renderer(GFXSet* set);
 GFX_API size_t gfx_set_get_num_bindings(GFXSet* set);
 
 /**
- * Retrieves the type of a descriptor binding of a set.
+ * Retrieves the resource type of a descriptor binding of a set.
  * Can be called from any thread.
- * @see gfx_set_get_binding_size.
- * @return Undefined if the binding's size is zero.
+ * @param set Cannot be NULL.
  */
-GFX_API GFXBindingType gfx_set_get_binding_type(GFXSet* set, size_t binding);
+GFX_API GFXShaderResourceType gfx_set_get_resource_type(GFXSet* set, size_t binding);
 
 /**
  * Retrieves the size (i.e. shader array size) of a descriptor binding of a set.
  * Can be called from any thread.
- * @param set     Cannot be NULL.
- * @param binding Must be < gfx_set_get_num_bindings(set).
+ * @param set Cannot be NULL.
  */
 GFX_API size_t gfx_set_get_binding_size(GFXSet* set, size_t binding);
 
 /**
  * Retrieves the block byte size of a buffer descriptor binding of a set.
  * Can be called from any thread.
- * @see gfx_set_get_binding_size.
+ * @param set Cannot be NULL.
  * @return Zero if the binding is not a block, or unknown size.
  */
 GFX_API size_t gfx_set_get_binding_block_size(GFXSet* set, size_t binding);
@@ -1391,15 +1417,15 @@ GFX_API size_t gfx_set_get_binding_block_size(GFXSet* set, size_t binding);
 /**
  * Retrieves whether a descriptor binding is immutable.
  * Can be called from any thread.
- * @see gfx_set_get_binding_size.
- * @return Always zero if this binding's type is not GFX_BINDING_SAMPLER.
+ * @param set Cannot be NULL.
+ * @return Always zero if this binding is not a sampler.
  */
 GFX_API bool gfx_set_is_binding_immutable(GFXSet* set, size_t binding);
 
 /**
  * Retrieves whether a descriptor binding is dynamic.
  * Can be called from any thread.
- * @see gfx_set_get_binding_size.
+ * @param set Cannot be NULL.
  */
 GFX_API bool gfx_set_is_binding_dynamic(GFXSet* set, size_t binding);
 

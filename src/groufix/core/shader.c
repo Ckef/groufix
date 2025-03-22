@@ -723,7 +723,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 	// Already has a shader module.
 	if (shader->vk.module != VK_NULL_HANDLE)
-		return 1;
+		return 0;
 
 	// Read source.
 	const void* source;
@@ -931,7 +931,7 @@ GFX_API bool gfx_shader_load(GFXShader* shader, const GFXReader* src)
 
 	// Already has a shader module.
 	if (shader->vk.module != VK_NULL_HANDLE)
-		return 1;
+		return 0;
 
 	// Read source.
 	const void* source;

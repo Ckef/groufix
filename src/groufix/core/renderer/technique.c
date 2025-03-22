@@ -374,6 +374,7 @@ bool _gfx_tech_get_set_binding(GFXTechnique* technique,
 	{
 		// Empty.
 		out->count = 0;
+		out->size = 0;
 		return 0;
 	}
 
@@ -616,6 +617,68 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique)
 	assert(technique != NULL);
 
 	return technique->numSets;
+}
+
+/****************************/
+GFX_API GFXShaderResourceType gfx_tech_get_resource_type(GFXTechnique* technique,
+                                                         size_t set, size_t binding)
+{
+	assert(technique != NULL);
+
+	_GFXShaderResource* res =
+		_gfx_tech_get_resource(technique, set, binding);
+
+	if (res == NULL)
+		return GFX_RESOURCE_UNKNOWN;
+
+	switch (res->type)
+	{
+	case _GFX_SHADER_BUFFER_UNIFORM:
+		return GFX_RESOURCE_BUFFER_UNIFORM;
+	case _GFX_SHADER_BUFFER_STORAGE:
+		return GFX_RESOURCE_BUFFER_STORAGE;
+	case _GFX_SHADER_BUFFER_UNIFORM_TEXEL:
+		return GFX_RESOURCE_BUFFER_UNIFORM_TEXEL;
+	case _GFX_SHADER_BUFFER_STORAGE_TEXEL:
+		return GFX_RESOURCE_BUFFER_STORAGE_TEXEL;
+	case _GFX_SHADER_IMAGE_AND_SAMPLER:
+		return GFX_RESOURCE_IMAGE_AND_SAMPLER;
+	case _GFX_SHADER_IMAGE_SAMPLED:
+		return GFX_RESOURCE_IMAGE_SAMPLED;
+	case _GFX_SHADER_IMAGE_STORAGE:
+		return GFX_RESOURCE_IMAGE_STORAGE;
+	case _GFX_SHADER_ATTACHMENT_INPUT:
+		return GFX_RESOURCE_IMAGE_ATTACHMENT;
+	case _GFX_SHADER_SAMPLER:
+		return GFX_RESOURCE_SAMPLER;
+
+	default:
+		return GFX_RESOURCE_UNKNOWN;
+	}
+}
+
+/****************************/
+GFX_API size_t gfx_tech_get_binding_size(GFXTechnique* technique,
+                                         size_t set, size_t binding)
+{
+	assert(technique != NULL);
+
+	_GFXShaderResource* res =
+		_gfx_tech_get_resource(technique, set, binding);
+
+	return (res == NULL) ? 0 : res->count;
+}
+
+/****************************/
+GFX_API size_t gfx_tech_get_binding_block_size(GFXTechnique* technique,
+                                               size_t set, size_t binding)
+{
+	assert(technique != NULL);
+
+	_GFXShaderResource* res =
+		_gfx_tech_get_resource(technique, set, binding);
+
+	return (res == NULL) ? 0 : res->size;
 }
 
 /****************************/
