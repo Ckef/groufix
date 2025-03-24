@@ -167,8 +167,7 @@ GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
  * @return The found node, NULL if not found.
  *
  * When duplicates exist, the 'first' node is returned such that all
- * duplicates can be found with calls to gfx_map_next, however they are not
- * guaranteed to be returned without other nodes inbetween.
+ * duplicates can be found with calls to gfx_map_next_equal.
  */
 GFX_API void* gfx_map_search(GFXMap* map, const void* key);
 
