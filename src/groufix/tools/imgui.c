@@ -846,6 +846,7 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
 	assert(igFontAtlas != NULL);
 
 	ImFontAtlas* fontAtlas = igFontAtlas;
+	GFXSet** elem;
 
 	// Get texture data from the font atlas.
 	// TODO: Use GetTexDataAsAlpha8 if applicable/asked?
@@ -864,7 +865,17 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
 	if (image == NULL)
 		goto error;
 
-	// Write data.
+	// Add the image to the drawer.
+	if (!gfx_vec_push(&drawer->fonts, 1, &image))
+		goto clean;
+
+	// Build an ImTextureID.
+	void* texId = gfx_imgui_image(drawer, image);
+
+	if (texId == NULL)
+		goto clean_fonts;
+
+	// Write data last, cannot be undone.
 	const GFXRegion srcRegion = {
 		.offset = 0,
 		.rowSize = 0,
@@ -891,26 +902,24 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
 		GFX_TRANSFER_ASYNC,
 		1, 1, &srcRegion, &dstRegion, &inject))
 	{
-		goto clean;
+		goto clean_image;
 	}
 
-	// Add the image to the drawer.
-	if (!gfx_vec_push(&drawer->fonts, 1, &image))
-		goto clean;
-
-	// Then build an ImTextureID.
-	void* texId = gfx_imgui_image(drawer, image);
-
-	if (texId == NULL)
-		goto clean_fonts;
-
-	// And set it at the font atlas.
+	// Set it at the font atlas on success.
 	ImFontAtlas_SetTexID(fontAtlas, texId);
 
 	return texId;
 
 
 	// Cleanup on failure.
+clean_image:
+	elem = gfx_map_search(&drawer->images, &image);
+	if (elem != NULL)
+	{
+		gfx_erase_set(*elem);
+		gfx_map_erase(&drawer->images, elem);
+	}
+
 clean_fonts:
 	gfx_vec_pop(&drawer->fonts, 1);
 clean:
