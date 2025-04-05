@@ -406,6 +406,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	// Use the last shader of each stage.
 	GFXShader* shads[_GFX_NUM_SHADER_STAGES];
 	bool compute = 0;
+	bool nonCompute = 0;
 
 	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
 		shads[s] = NULL; // Init all to empty.
@@ -434,21 +435,20 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 
 		// Must yield a valid index for all shaders (!).
 		shads[_GFX_GET_SHADER_STAGE_INDEX(shaders[s]->stage)] = shaders[s];
+
 		if (shaders[s]->stage == GFX_STAGE_COMPUTE) compute = 1;
+		else nonCompute = 1;
 	}
 
 	// No compute or only compute.
-	if (compute) for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
-		if (
-			s != _GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE) &&
-			shads[s] != NULL)
-		{
-			gfx_log_error(
-				"A technique cannot have a compute shader in combination "
-				"with shaders of a different stage.");
+	if (compute && nonCompute)
+	{
+		gfx_log_error(
+			"A technique cannot have a compute shader in combination "
+			"with shaders of a different stage.");
 
-			return NULL;
-		}
+		return NULL;
+	}
 
 	// Now that we know the shaders we are going to use,
 	// validate all shaders that they are compatible with each other,
@@ -458,6 +458,12 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	// have a stale lingering technique that cannot be used...
 	size_t valPos[_GFX_NUM_SHADER_STAGES];
 	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s) valPos[s] = 0;
+
+	// Also keep track of max #sets and #bindings.
+	// We need to create empty set layouts for missing set numbers AND
+	// we want to count empty bindings too, so just get the maximum of all :)
+	size_t maxSets = 0;
+	size_t maxBindings = 0;
 
 	while (1)
 	{
@@ -508,45 +514,36 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 				// If matched, go to next.
 				++valPos[s];
 			}
+
+		// Keep track of max #sets and #bindings.
+		maxSets =
+			GFX_MAX(maxSets, (size_t)(cur->set + 1));
+		maxBindings =
+			GFX_MAX(maxBindings, (size_t)(cur->binding + 1));
 	}
-
-	// We need the number of descriptor set layouts to store.
-	// Luckily we need to create empty set layouts for missing set numbers.
-	// Plus shader resources are sorted, so we just get the maximum of all :)
-	// Also get the push constant size/stages while we're at it.
-	uint32_t maxSet = 0;
-	uint32_t pushSize = 0;
-	GFXShaderStage pushStages = 0;
-
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
-		if (shads[s] != NULL)
-		{
-			if (shads[s]->reflect.bindings > 0)
-				maxSet = GFX_MAX(maxSet, shads[s]->reflect.resources[
-					shads[s]->reflect.locations +
-					shads[s]->reflect.bindings - 1].set);
-
-			if (shads[s]->reflect.push > 0)
-				pushSize = GFX_MAX(pushSize, shads[s]->reflect.push),
-				pushStages |= shads[s]->stage;
-		}
 
 	// Allocate a new technique.
 	GFXTechnique* tech = malloc(
 		sizeof(GFXTechnique) +
-		sizeof(_GFXCacheElem*) * (maxSet + 1));
+		sizeof(_GFXCacheElem*) * maxSets);
 
 	if (tech == NULL)
 		goto error;
 
 	// Initialize the technique.
 	tech->renderer = renderer;
-	tech->numSets = (size_t)(maxSet + 1);
-	tech->pushSize = pushSize;
-	tech->pushStages = pushStages;
+	tech->numSets = maxSets;
+	tech->maxBindings = maxBindings;
+	tech->pushSize = 0;
+	tech->pushStages = 0;
 	tech->layout = NULL;
 	tech->vk.layout = VK_NULL_HANDLE;
 	memcpy(tech->shaders, shads, sizeof(shads));
+
+	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		if (shads[s] != NULL && shads[s]->reflect.push > 0)
+			tech->pushSize = GFX_MAX(tech->pushSize, shads[s]->reflect.push),
+			tech->pushStages |= shads[s]->stage;
 
 	for (size_t l = 0; l < tech->numSets; ++l)
 		tech->setLayouts[l] = NULL;
@@ -617,6 +614,14 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique)
 	assert(technique != NULL);
 
 	return technique->numSets;
+}
+
+/****************************/
+GFX_API size_t gfx_tech_get_max_bindings(GFXTechnique* technique)
+{
+	assert(technique != NULL);
+
+	return technique->maxBindings;
 }
 
 /****************************/

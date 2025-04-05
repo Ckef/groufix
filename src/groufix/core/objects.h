@@ -1212,6 +1212,7 @@ struct GFXTechnique
 
 	GFXShader*     shaders[_GFX_NUM_SHADER_STAGES]; // May contain NULL.
 	size_t         numSets;
+	size_t         maxBindings;
 	uint32_t       pushSize;
 	GFXShaderStage pushStages;
 
