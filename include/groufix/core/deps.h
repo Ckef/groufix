@@ -95,9 +95,9 @@ typedef struct GFXDependency GFXDependency;
  * These internal semaphores are recycled after N (capacity) subsequent
  * wait commands, at which point the original operations MUST have completed.
  * In other words: the dependency object can hold `capacity` concurrent
- * wait commands of which the operation that the commands are inserted in
- * are not yet completed.
- * Once an operation that waited on this dependency has finished,
+ * wait commands of which the first operation that these wait commands were
+ * submitted in is not yet completed.
+ * Once the first operation that waited on this dependency has finished,
  * we are allowed to insert another wait command into this dependency object.
  *
  * capacity can be 0 (infinite) to _never_ recycle any internal semaphores,
