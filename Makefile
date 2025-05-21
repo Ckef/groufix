@@ -13,17 +13,19 @@
 .PHONY: help
 help:
 	@echo " Clean"
-	@echo "  $(MAKE) clean      - Clean build files."
-	@echo "  $(MAKE) clean-temp - Clean temporary build files only."
-	@echo "  $(MAKE) clean-bin  - Clean output build files only."
-	@echo "  $(MAKE) clean-deps - Clean dependency builds."
-	@echo "  $(MAKE) clean-all  - Clean all files make produced."
+	@echo "  $(MAKE) clean        - Clean build files."
+	@echo "  $(MAKE) clean-temp   - Clean temporary build files only."
+	@echo "  $(MAKE) clean-bin    - Clean output build files only."
+	@echo "  $(MAKE) clean-deps   - Clean dependency builds."
+	@echo "  $(MAKE) clean-all    - Clean all files make produced."
 	@echo ""
 	@echo " Build"
-	@echo "  $(MAKE) unix       - Build the Unix target."
-	@echo "  $(MAKE) unix-tests - Build all tests for the Unix target."
-	@echo "  $(MAKE) win        - Build the Windows target."
-	@echo "  $(MAKE) win-tests  - Build all tests for the Windows target."
+	@echo "  $(MAKE) unix         - Build the Unix target."
+	@echo "  $(MAKE) unix-grouviz - Build grouviz for the Unix target."
+	@echo "  $(MAKE) unix-tests   - Build all tests for the Unix target."
+	@echo "  $(MAKE) win          - Build the Windows target."
+	@echo "  $(MAKE) win-grouviz  - Build grouviz for the Windows target."
+	@echo "  $(MAKE) win-tests    - Build all tests for the Windows target."
 	@echo ""
 
 
@@ -36,7 +38,7 @@ DEBUG = ON
 
 BIN   = bin
 BUILD = build
-OUT   = obj
+TEMP  = obj
 
 USE_WAYLAND = OFF
 
@@ -83,12 +85,17 @@ endif
 
 WFLAGS = -Wall -Wconversion -Wsign-compare -Wshadow -pedantic
 CFLAGS = $(DFLAGS) $(WFLAGS) -std=c11 -Iinclude
+OFLAGS = $(CFLAGS) -c -MP -MMD
 TFLAGS = $(CFLAGS) -pthread -lm
+
+ifneq ($(OS),Windows_NT)
+ OFLAGS += -fPIC
+endif
 
 
 # Flags for library files only
-OFLAGS = \
- $(CFLAGS) -c -MP -MMD -DGFX_BUILD_LIB -Isrc \
+LIB_FLAGS = \
+ $(OFLAGS) -DGFX_BUILD_LIB -Ilib \
  -Ideps/glfw/include \
  -Ideps/Vulkan-Headers/include \
  -Ideps/shaderc/libshaderc/include \
@@ -97,28 +104,24 @@ OFLAGS = \
  -isystem deps/cgltf \
  -isystem deps/stb
 
-ifneq ($(OS),Windows_NT)
- OFLAGS += -fPIC
-endif
-
 ifeq ($(CC_PREFIX),None)
  ifneq ($(OS),Windows_NT)
-  OFLAGS += -D_POSIX_C_SOURCE=199506L
+  LIB_FLAGS += -D_POSIX_C_SOURCE=199506L
  endif
 endif
 
 
-# Linker flags
-LDFLAGS_ALL  = -shared -pthread
-LDFLAGS_WIN  = $(LDFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
-LDFLAGS_UNIX = $(LDFLAGS_ALL) -ldl
+# Library linker flags
+LIB_LDFLAGS_ALL  = -shared -pthread
+LIB_LDFLAGS_WIN  = $(LIB_LDFLAGS_ALL) -lgdi32 -static-libstdc++ -static-libgcc
+LIB_LDFLAGS_UNIX = $(LIB_LDFLAGS_ALL) -ldl
 
 ifeq ($(USE_WAYLAND),ON)
- LDFLAGS_UNIX += -lwayland-client
+ LIB_LDFLAGS_UNIX += -lwayland-client
 endif
 
 ifeq ($(MACOS),ON)
- LDFLAGS_UNIX += \
+ LIB_LDFLAGS_UNIX += \
   -framework CoreFoundation \
   -framework CoreGraphics \
   -framework Cocoa \
@@ -126,11 +129,11 @@ ifeq ($(MACOS),ON)
 endif
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
- LDFLAGS = $(LDFLAGS_WIN)
+ LIB_LDFLAGS = $(LIB_LDFLAGS_WIN)
 else ifeq ($(OS),Windows_NT)
- LDFLAGS = $(LDFLAGS_WIN)
+ LIB_LDFLAGS = $(LIB_LDFLAGS_WIN)
 else
- LDFLAGS = $(LDFLAGS_UNIX)
+ LIB_LDFLAGS = $(LIB_LDFLAGS_UNIX)
 endif
 
 
@@ -228,10 +231,10 @@ endif
 .PHONY: clean-temp
 clean-temp:
 ifeq ($(OS),Windows_NT)
-	$(eval OUT_W = $(subst /,\,$(OUT)))
-	@if exist $(OUT_W)\nul rmdir /s /q $(OUT_W)
+	$(eval TEMP_W = $(subst /,\,$(TEMP)))
+	@if exist $(TEMP_W)\nul rmdir /s /q $(TEMP_W)
 else
-	@rm -Rf $(OUT)
+	@rm -Rf $(TEMP)
 endif
 
 .PHONY: clean-bin
@@ -268,26 +271,31 @@ clean-all: clean-temp clean-bin clean-deps
 ##############################
 # Dependency and build files
 
-LIBS = \
+DEPS = \
  $(BUILD)$(SUB)/glfw/src/libglfw3.a \
  $(BUILD)$(SUB)/shaderc/libshaderc/libshaderc_combined.a \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-c.a \
  $(BUILD)$(SUB)/SPIRV-Cross/libspirv-cross-core.a
 
-EXPORT_LIBS = \
+DEPS_EXPORT = \
  $(BUILD)$(SUB)/cimgui/cimgui.a
 
 
 # Auto expansion of files in a directory
 getfiles = $(foreach d,$(wildcard $1/*),$(call getfiles,$d,$2) $(filter $2,$d))
 
-SRCS = $(call getfiles,src,%.c)
-OBJS = $(SRCS:src/%.c=$(OUT)$(SUB)/%.o)
+LIB_SRCS = $(call getfiles,lib,%.c)
+LIB_OBJS = $(LIB_SRCS:lib/%.c=$(TEMP)$(SUB)/lib/%.o)
+
+VIZ_SRCS = $(call getfiles,viz,%.c)
+VIZ_OBJS = $(VIZ_SRCS:viz/%.c=$(TEMP)$(SUB)/viz/%.o)
+
 TESTS = $(patsubst tests/%.c,$(BIN)$(SUB)/%,$(call getfiles,tests,%.c))
 
 
 # Generated dependency files
--include $(OBJS:.o=.d)
+-include $(LIB_OBJS:.o=.d)
+-include $(VIZ_OBJS:.o=.d)
 
 
 ##############################
@@ -320,38 +328,50 @@ $(BUILD)$(SUB)/cimgui/cimgui.a:
 
 
 # Object files
-$(OUT)$(SUB)/%.o: src/%.c
+$(TEMP)$(SUB)/lib/%.o: lib/%.c
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
-	$(CC) $(OFLAGS) $< -o $@
+	$(CC) $(LIB_FLAGS) $< -o $@
+
+$(TEMP)$(SUB)/viz/%.o: viz/%.c
+	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
+	$(CC) $(OFLAGS) -Iviz $< -o $@
 
 # Library file
-$(BIN)$(SUB)/libgroufix$(LIBEXT): $(LIBS) $(EXPORT_LIBS) $(OBJS)
+$(BIN)$(SUB)/libgroufix$(LIBEXT): $(DEPS) $(DEPS_EXPORT) $(LIB_OBJS)
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
-	$(CXX) $(OBJS) -o $@ $(LIBS) -Wl,--push-state,--whole-archive $(EXPORT_LIBS) -Wl,--pop-state $(LDFLAGS)
+	$(CXX) $(LIB_OBJS) -o $@ $(DEPS) -Wl,--push-state,--whole-archive $(DEPS_EXPORT) -Wl,--pop-state $(LIB_LDFLAGS)
 
-# Test programs
-$(BIN)$(SUB)/$(TESTPAT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
+# Program files
+$(BIN)$(SUB)/grouviz$(BINEXT): $(VIZ_OBJS) $(BIN)$(SUB)/libgroufix$(LIBEXT)
+	$(CC) $(VIZ_OBJS) -o $@ -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
+
+$(BIN)$(SUB)/%$(BINEXT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
 	$(CC) -Itests -Ideps/cimgui $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
 # Platform builds
 MFLAGS_ALL  = --no-print-directory
-MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix LIBEXT=.so TESTPAT=%
-MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win LIBEXT=.dll TESTPAT=%.exe
+MFLAGS_UNIX = $(MFLAGS_ALL) SUB=/unix LIBEXT=.so
+MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win LIBEXT=.dll BINEXT=.exe
 
-.PHONY: .build .build-tests
+.PHONY: .build .build-grouviz .build-tests
 .build: $(BIN)$(SUB)/libgroufix$(LIBEXT)
-.build-tests: $(TESTS:%=$(TESTPAT))
+.build-grouviz: $(BIN)$(SUB)/grouviz$(BINEXT)
+.build-tests: $(TESTS:%=%$(BINEXT))
 
 
-.PHONY: unix unix-tests
+.PHONY: unix unix-grouviz unix-tests
 unix:
 	@$(MAKE) $(MFLAGS_UNIX) .build
+unix-grouviz:
+	@$(MAKE) $(MFLAGS_UNIX) .build-grouviz
 unix-tests:
 	@$(MAKE) $(MFLAGS_UNIX) .build-tests
 
-.PHONY: win win-tests
+.PHONY: win win-grouviz win-tests
 win:
 	@$(MAKE) $(MFLAGS_WIN) .build
+win-grouviz:
+	@$(MAKE) $(MFLAGS_WIN) .build-grouviz
 win-tests:
 	@$(MAKE) $(MFLAGS_WIN) .build-tests
