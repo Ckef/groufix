@@ -785,7 +785,7 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
  * @param wait Cannot be NULL, pass to implicitly wait, must not be pass.
  * @param injs Cannot be NULL if numInjs > 0.
  *
- * NOT thread-safe with respect to source or target!
+ * NOT thread-safe with respect to pass or wait!
  * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
  *
  * This is the only call that takes the gfx_sig* macro family as injections!
