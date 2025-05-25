@@ -55,7 +55,8 @@ static uint32_t _gfx_swapchain_pick_format(_GFXDevice* device,
 	{
 		gfx_log_warn(
 			"[ %s ] could not select an sRGB image format for a "
-			"swapchain, using the driver default instead.");
+			"swapchain, using the driver default instead.",
+			device->name);
 
 		index = 0;
 	}
