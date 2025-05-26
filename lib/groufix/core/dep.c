@@ -494,8 +494,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 
 	// We keep track of whether all operation references have been
 	// transitioned. So we can do initial layout transitions for images.
-	const size_t vlaRefs = injection->inp.numRefs > 0 ? injection->inp.numRefs : 1;
-	unsigned char transitioned[vlaRefs];
+	unsigned char transitioned[GFX_MAX(1, injection->inp.numRefs)];
 	memset(transitioned, 0, injection->inp.numRefs);
 
 	// During a catch, we loop over all injections and filter out the
@@ -620,7 +619,7 @@ bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
 	// If not, record an initial layout transition for images.
 	// Merge them all into a single pipeline barrier command :)
 	uint32_t numImbs = 0;
-	VkImageMemoryBarrier imbs[vlaRefs];
+	VkImageMemoryBarrier imbs[GFX_MAX(1, injection->inp.numRefs)];
 	VkPipelineStageFlagBits imbStages = 0;
 
 	for (size_t r = 0; r < injection->inp.numRefs; ++r)

@@ -711,15 +711,14 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// subpass chain. We're gonna simultaneously loop over all consumptions
 	// and subpasses, in a single loop.
 	const size_t numViews = rPass->vk.views.size;
-	const size_t vlaViews = numViews > 0 ? numViews : 1;
-	const _GFXConsume* consumes[vlaViews];
+	const _GFXConsume* consumes[GFX_MAX(1, numViews)];
 
 	for (size_t i = 0; i < numViews; ++i) consumes[i] =
 		((_GFXViewElem*)gfx_vec_at(&rPass->vk.views, i))->consume;
 
 	// Prepare Vulkan pass data.
 	// Use vectors for attachments & dependencies...
-	VkAttachmentDescription ad[vlaViews];
+	VkAttachmentDescription ad[GFX_MAX(1, numViews)];
 	VkSubpassDescription sd[rPass->out.subpasses];
 
 	GFXVec inputs;
@@ -1202,7 +1201,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	// Keep track of the window used as backing so we can build framebuffers.
 	// Also in here we're gonna get the dimensions (i.e. size) of the pass.
 	const size_t numViews = rPass->vk.views.size;
-	VkImageView views[numViews > 0 ? numViews : 1];
+	VkImageView views[GFX_MAX(1, numViews)];
 
 	const _GFXAttach* backing = NULL;
 	size_t backingInd = SIZE_MAX;

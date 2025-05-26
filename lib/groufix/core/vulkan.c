@@ -194,7 +194,7 @@ bool _gfx_vulkan_init(void)
 	{
 		const uint32_t extraCount = sizeof(extraExtensions)/sizeof(char*) - 1;
 		const uint32_t extensionCount = glfwCount + extraCount;
-		const char* extensions[extensionCount > 0 ? extensionCount : 1];
+		const char* extensions[GFX_MAX(1, extensionCount)];
 		memcpy(extensions, glfwExtensions, sizeof(char*) * glfwCount);
 		memcpy(extensions + glfwCount, extraExtensions, sizeof(char*) * extraCount);
 

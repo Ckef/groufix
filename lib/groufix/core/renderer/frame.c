@@ -1139,7 +1139,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		// Get all the available semaphores & metadata.
 		// If there are no sync objects, make VLAs of size 1 for legality.
 		// Then we count the presentable swapchains and go off of that.
-		size_t vlaSyncs = frame->syncs.size > 0 ? frame->syncs.size : 1;
+		const size_t vlaSyncs = GFX_MAX(1, frame->syncs.size);
 		size_t presentable = 0;
 
 		_GFXWindow* windows[vlaSyncs];

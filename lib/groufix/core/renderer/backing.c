@@ -233,10 +233,7 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 
 	// Ok so we keep track of whether each attachment is resolved.
 	// If no attachments, make VLAs of size 1 for legality.
-	const size_t vlaAttachs = renderer->backing.attachs.size > 0 ?
-		renderer->backing.attachs.size : 1;
-
-	bool resolved[vlaAttachs];
+	bool resolved[GFX_MAX(1, renderer->backing.attachs.size)];
 	size_t totalResolved = 0;
 
 	// Set initial resolved state.

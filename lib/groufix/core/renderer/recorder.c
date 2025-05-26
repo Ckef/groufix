@@ -908,7 +908,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 	{
 		// If not, create a new array,
 		// set all trailing 'empty' offsets to 0.
-		uint32_t offs[numOffsets > 0 ? numOffsets : 1];
+		uint32_t offs[GFX_MAX(1, numOffsets)];
 
 		for (size_t d = 0; d < numOffsets; ++d)
 			offs[d] = d < numDynamics ? offsets[d] : 0;

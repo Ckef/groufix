@@ -306,7 +306,7 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 	// Keep track of what consumptions have been seen in this chain.
 	const size_t numAttachs = renderer->backing.attachs.size;
 
-	bool thisChain[numAttachs > 0 ? numAttachs : 1];
+	bool thisChain[GFX_MAX(1, numAttachs)];
 	for (size_t i = 0; i < numAttachs; ++i) thisChain[i] = 0;
 
 	while (subpass != NULL)
@@ -460,7 +460,7 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// Loop in submission order so parents are processed before children.
 	// Also, allocate the `consumes` for _gfx_pass_(merge|resolve) here.
 	const size_t numAttachs = renderer->backing.attachs.size;
-	_GFXConsume* consumes[numAttachs > 0 ? numAttachs : 1];
+	_GFXConsume* consumes[GFX_MAX(1, numAttachs)];
 
 	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{

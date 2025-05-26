@@ -288,9 +288,9 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 	// Build shader info.
 	const size_t numConsts = tech->constants.size;
-	VkPipelineShaderStageCreateInfo pstci[numShaders > 0 ? numShaders : 1];
+	VkPipelineShaderStageCreateInfo pstci[GFX_MAX(1, numShaders)];
 	VkSpecializationInfo si[_GFX_NUM_SHADER_STAGES];
-	VkSpecializationMapEntry sme[numConsts > 0 ? numConsts : 1];
+	VkSpecializationMapEntry sme[GFX_MAX(1, numConsts)];
 
 	_gfx_tech_get_constants(tech, si, sme);
 
@@ -320,8 +320,8 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	// Build create info.
 	const size_t numAttribs = prim != NULL ? prim->numAttribs : 0;
 	const size_t numBindings = prim != NULL ? prim->numBindings : 0;
-	VkVertexInputAttributeDescription viad[numAttribs > 0 ? numAttribs : 1];
-	VkVertexInputBindingDescription vibd[numBindings > 0 ? numBindings : 1];
+	VkVertexInputAttributeDescription viad[GFX_MAX(1, numAttribs)];
+	VkVertexInputBindingDescription vibd[GFX_MAX(1, numBindings)];
 
 	for (size_t i = 0; i < numAttribs; ++i)
 		viad[i] = (VkVertexInputAttributeDescription){
@@ -490,7 +490,7 @@ bool _gfx_computable_pipeline(GFXComputable* computable,
 	// Build create info.
 	const size_t numConsts = tech->constants.size;
 	VkSpecializationInfo si[_GFX_NUM_SHADER_STAGES];
-	VkSpecializationMapEntry sme[numConsts > 0 ? numConsts : 1];
+	VkSpecializationMapEntry sme[GFX_MAX(1, numConsts)];
 
 	_gfx_tech_get_constants(tech, si, sme);
 

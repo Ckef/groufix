@@ -1276,7 +1276,7 @@ bool _gfx_devices_init(void)
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
 		_groufix.vk.instance, &count, NULL), count = 0);
 
-	VkPhysicalDevice devices[count > 0 ? count : 1];
+	VkPhysicalDevice devices[GFX_MAX(1, count)];
 	if (count == 0) goto terminate;
 
 	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(

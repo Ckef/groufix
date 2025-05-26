@@ -333,7 +333,7 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 	// For this we loop over all shaders again, then loop from the right-most
 	// resource to the left and check if we've already counted it.
 	// If not, check if it is immutable, if not, add its descriptor count.
-	unsigned char counted[*numBindings > 0 ? *numBindings : 1];
+	unsigned char counted[GFX_MAX(1, *numBindings)];
 	memset(counted, 0, *numBindings);
 
 	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
@@ -1016,9 +1016,8 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 		}
 
 		// Loop over all bindings again to create immutable samplers.
-		size_t vlaBinds = bindings.size > 0 ? bindings.size : 1;
-		size_t samOffs[vlaBinds];
-		unsigned char immutable[vlaBinds];
+		size_t samOffs[GFX_MAX(1, bindings.size)];
+		unsigned char immutable[GFX_MAX(1, bindings.size)];
 
 		for (size_t b = 0; b < bindings.size; ++b)
 		{
@@ -1097,9 +1096,8 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 	// Create pipeline layout.
 	// We use a scope here so the gotos above are allowed.
 	{
-		size_t vlaSets = technique->numSets > 0 ? technique->numSets : 1;
-		VkDescriptorSetLayout sets[vlaSets];
-		const void* handles[vlaSets]; // Idk for clarity.
+		VkDescriptorSetLayout sets[GFX_MAX(1, technique->numSets)];
+		const void* handles[GFX_MAX(1, technique->numSets)];
 
 		for (size_t s = 0; s < technique->numSets; ++s)
 			sets[s] = technique->setLayouts[s]->vk.setLayout,
