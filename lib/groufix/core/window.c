@@ -16,16 +16,18 @@
 #define _GFX_GET_NODE(data) \
 	(GFXListNode*)((char*)data - \
 		GFX_ALIGN_UP(sizeof(GFXWindowEvents), alignof(max_align_t)) - \
-		GFX_ALIGN_UP(sizeof(GFXListNode), alignof(GFXWindowEvents)))
+		GFX_ALIGN_UP(sizeof(GFXListNode), \
+			GFX_MAX(alignof(GFXWindowEvents), alignof(max_align_t))))
 
 // Retrieve the GFXWindowEvents* from a GFXListNode*.
 #define _GFX_GET_EVENTS(node) \
 	(GFXWindowEvents*)((char*)node + \
-		GFX_ALIGN_UP(sizeof(GFXListNode), alignof(GFXWindowEvents)))
+		GFX_ALIGN_UP(sizeof(GFXListNode), \
+			GFX_MAX(alignof(GFXWindowEvents), alignof(max_align_t))))
 
-// Retrieve the user data from a GFXListNode*.
-#define _GFX_GET_DATA(node) \
-	(void*)((char*)_GFX_GET_EVENTS(node) + \
+// Retrieve the user data from a GFXWindowEvents*.
+#define _GFX_GET_DATA(events) \
+	(void*)((char*)events + \
 		GFX_ALIGN_UP(sizeof(GFXWindowEvents), alignof(max_align_t)))
 
 
@@ -41,7 +43,7 @@
 		{ \
 			GFXWindowEvents* events = _GFX_GET_EVENTS(node); \
 			if (events->cb != NULL) \
-				blocked = events->cb(__VA_ARGS__, _GFX_GET_DATA(node)); \
+				blocked = events->cb(__VA_ARGS__, _GFX_GET_DATA(events)); \
 		} \
 		if (!blocked && window->events.cb != NULL) \
 			window->events.cb(__VA_ARGS__, NULL); \
@@ -510,8 +512,11 @@ GFX_API void* gfx_window_push_events(GFXWindow* window, GFXWindowEvents events,
 	_GFXWindow* win = (_GFXWindow*)window;
 
 	// Allocate memory for events and some data.
+	const size_t align =
+		GFX_MAX(alignof(GFXWindowEvents), alignof(max_align_t));
+
 	GFXListNode* node = malloc(
-		GFX_ALIGN_UP(sizeof(GFXListNode), alignof(GFXWindowEvents)) +
+		GFX_ALIGN_UP(sizeof(GFXListNode), align) +
 		GFX_ALIGN_UP(sizeof(GFXWindowEvents), alignof(max_align_t)) +
 		GFX_MAX(dataSize, 1)); // Minimum 1 byte, so we have a valid pointer.
 
@@ -519,15 +524,16 @@ GFX_API void* gfx_window_push_events(GFXWindow* window, GFXWindowEvents events,
 		return NULL;
 
 	// Initialize events & user data.
-	*_GFX_GET_EVENTS(node) = events;
+	GFXWindowEvents* nEvents = _GFX_GET_EVENTS(node);
+	*nEvents = events;
 
 	if (dataSize > 0 && data != NULL)
-		memcpy(_GFX_GET_DATA(node), data, dataSize);
+		memcpy(_GFX_GET_DATA(nEvents), data, dataSize);
 
 	// Link itself into the window.
 	gfx_list_insert_after(&win->events, node, NULL);
 
-	return _GFX_GET_DATA(node);
+	return _GFX_GET_DATA(nEvents);
 }
 
 /****************************/
