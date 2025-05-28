@@ -15,6 +15,10 @@
 #endif
 
 
+// Hash block size compatibility.
+static_assert(sizeof(uint32_t) == 4, "MurmurHash3 blocks must be 4 bytes.");
+
+
 // 'Randomized' hash seed (generated on the web).
 #define _GFX_HASH_SEED ((uint32_t)0x4ac093e6)
 
@@ -40,8 +44,6 @@ int _gfx_hash_cmp(const void* l, const void* r)
 /****************************/
 uint64_t _gfx_hash_murmur3(const void* key)
 {
-	static_assert(sizeof(uint32_t) == 4, "MurmurHash3 blocks must be 4 bytes.");
-
 	const _GFXHashKey* cKey = key;
 	const size_t nblocks = cKey->len / sizeof(uint32_t);
 

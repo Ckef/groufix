@@ -11,6 +11,10 @@
 #include <limits.h>
 
 
+// Format block width compatibility.
+static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
+
+
 #define _GFX_MAP_FMT(gfxName, vkName) \
 	do { \
 		if (!_gfx_device_map_format(device, gfxName, vkName)) { \
@@ -94,8 +98,6 @@ static bool _gfx_device_map_format(_GFXDevice* device,
 /****************************/
 bool _gfx_device_init_formats(_GFXDevice* device)
 {
-	static_assert(CHAR_BIT == 8, "Format block bytes must be 8 bits.");
-
 	assert(device != NULL);
 
 	// Initialize the format 'dictionary'.

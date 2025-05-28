@@ -17,6 +17,12 @@
 #include "cimgui.h"
 
 
+// ImGui index size compatibility.
+static_assert(
+		sizeof(uint16_t) == sizeof(ImDrawIdx),
+		"sizeof(ImDrawIdx) must equal sizeof(uint16_t).");
+
+
 // Clears the contents of a _GFXDataElem, freeing all memory.
 #define _GFX_IMGUI_CLEAR_DATA(elem) \
 	do { \
@@ -1138,10 +1144,6 @@ static void _gfx_cmd_imgui_state(GFXRecorder* recorder,
 GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
                                 GFXImguiDrawer* drawer, const void* igDrawData)
 {
-	static_assert(
-		sizeof(uint16_t) == sizeof(ImDrawIdx),
-		"sizeof(ImDrawIdx) must equal sizeof(uint16_t).");
-
 	assert(recorder != NULL);
 	assert(drawer != NULL);
 	assert(gfx_recorder_get_pass(recorder) == drawer->pass);

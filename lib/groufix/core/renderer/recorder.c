@@ -12,6 +12,20 @@
 #include <stdlib.h>
 
 
+// Indirect command size compatibility.
+static_assert(
+	sizeof(GFXDrawCmd) % 4 == 0,
+	"sizeof(GFXDrawCmd) must be a multiple of 4 bytes.");
+
+static_assert(
+	sizeof(GFXDrawIndexedCmd) % 4 == 0,
+	"sizeof(GFXDrawIndexedCmd) must be a multiple of 4 bytes.");
+
+static_assert(
+	sizeof(GFXDispatchCmd) % 4 == 0,
+	"sizeof(GFXDispatchCmd) must be a multiple of 4 bytes.");
+
+
 /****************************
  * Recording command buffer element definition.
  */
@@ -1068,10 +1082,6 @@ GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
                                uint32_t count,
                                uint32_t stride, GFXBufferRef ref)
 {
-	static_assert(
-		sizeof(GFXDrawCmd) % 4 == 0,
-		"sizeof(GFXDrawCmd) must be a multiple of 4 bytes.");
-
 	assert(GFX_REF_IS_BUFFER(ref));
 	assert(recorder != NULL);
 	assert(recorder->inp.pass != NULL);
@@ -1123,10 +1133,6 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
                                        uint32_t count,
                                        uint32_t stride, GFXBufferRef ref)
 {
-	static_assert(
-		sizeof(GFXDrawIndexedCmd) % 4 == 0,
-		"sizeof(GFXDrawIndexedCmd) must be a multiple of 4 bytes.");
-
 	assert(GFX_REF_IS_BUFFER(ref));
 	assert(recorder != NULL);
 	assert(recorder->inp.pass != NULL);

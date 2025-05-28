@@ -14,6 +14,10 @@
 #include <string.h>
 
 
+// SPIR-V word size compatibility.
+static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
+
+
 #define _GFX_GET_LANGUAGE_STRING(language) \
 	((language) == GFX_GLSL ? "glsl" : \
 	(language) == GFX_HLSL ? "hlsl" : "*")
@@ -565,8 +569,6 @@ error:
 static bool _gfx_shader_build(GFXShader* shader,
                               size_t size, const uint32_t* code)
 {
-	static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
-
 	assert(shader != NULL);
 	assert(shader->vk.module == VK_NULL_HANDLE);
 	assert(size % sizeof(uint32_t) == 0);
