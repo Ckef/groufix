@@ -372,6 +372,8 @@ typedef struct GFXView
 
 	GFXRange range;
 
+	// TODO: Add a swizzle bitflag?
+
 } GFXView;
 
 
