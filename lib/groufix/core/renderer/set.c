@@ -139,8 +139,9 @@ static bool _gfx_make_view(_GFXContext* context,
 		binding->type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT ?
 			entry->viewType : binding->viewType;
 
+	// Fix aspect, cause we're nice :)
 	const GFXImageAspect aspect =
-		GFX_IMAGE_ASPECT_FROM_FORMAT(*fmt);
+		entry->range.aspect & GFX_IMAGE_ASPECT_FROM_FORMAT(*fmt);
 
 	*ivci = (VkImageViewCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -159,8 +160,7 @@ static bool _gfx_make_view(_GFXContext* context,
 		},
 
 		.subresourceRange = {
-			// Fix aspect, cause we're nice :)
-			.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(entry->range.aspect & aspect),
+			.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(aspect),
 			.baseMipLevel   = entry->range.mipmap,
 			.baseArrayLayer = entry->range.layer,
 
