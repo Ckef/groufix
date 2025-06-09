@@ -15,106 +15,6 @@
 
 
 /****************************
- * Resource reference metadata.
- ****************************/
-
-/**
- * Resolve whole image aspect from format.
- */
-#define GFX_IMAGE_ASPECT_FROM_FORMAT(fmt) \
-	(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ? \
-		(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : \
-			(GFXImageAspect)0) | \
-		(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : \
-			(GFXImageAspect)0) : \
-		GFX_IMAGE_COLOR)
-
-
-/**
- * Image aspect (i.e. interpreted sub-image).
- */
-typedef enum GFXImageAspect
-{
-	GFX_IMAGE_COLOR   = 0x0001,
-	GFX_IMAGE_DEPTH   = 0x0002,
-	GFX_IMAGE_STENCIL = 0x0004
-
-} GFXImageAspect;
-
-GFX_BIT_FIELD(GFXImageAspect)
-
-
-/**
- * Unified memory range (i.e. sub-resource).
- * Meaningless without an accompanied memory resource.
- */
-typedef union GFXRange
-{
-	// Buffer offset/size.
-	GFX_UNION_ANONYMOUS(
-	{
-		uint64_t offset;
-		uint64_t size; // 0 for all bytes after `offset`.
-
-	}, buf)
-
-
-	// Image aspect/mips/layers.
-	GFX_UNION_ANONYMOUS(
-	{
-		GFXImageAspect aspect;
-
-		uint32_t mipmap;
-		uint32_t numMipmaps; // 0 for all mipmaps after `mipmap`.
-		uint32_t layer;
-		uint32_t numLayers; // 0 for all layers after `layer`.
-
-	}, img)
-
-} GFXRange;
-
-
-/**
- * Unified memory region (i.e. part of a sub-resource).
- * Meaningless without an accompanied memory resource.
- */
-typedef union GFXRegion
-{
-	// Buffer (or host pointer) offset/size.
-	GFX_UNION_ANONYMOUS(
-	{
-		uint64_t offset;
-		uint64_t size;
-
-		// Buffer packing for image operations (0 = tightly packed).
-		uint32_t rowSize; // In texels.
-		uint32_t numRows; // In texels.
-
-	}, buf)
-
-
-	// Image aspect/mip/layers/offset/extent.
-	GFX_UNION_ANONYMOUS(
-	{
-		GFXImageAspect aspect; // Cannot contain both color and depth/stencil!
-
-		uint32_t mipmap;
-		uint32_t layer;
-		uint32_t numLayers; // Cannot be 0 (as opposed to GFXRange).
-
-		uint32_t x;
-		uint32_t y;
-		uint32_t z;
-		uint32_t width;
-		uint32_t height;
-		uint32_t depth;
-
-	}, img)
-
-} GFXRegion;
-
-
-/****************************
  * Resource reference definition.
  ****************************/
 
@@ -331,6 +231,205 @@ typedef GFXReference GFXImageRef;
 		.obj = renderer, \
 		.offset = 0, \
 		.values = { attachment_, 0 } \
+	}
+
+
+/****************************
+ * Resource reference metadata.
+ ****************************/
+
+/**
+ * Resolve whole image aspect from format.
+ */
+#define GFX_IMAGE_ASPECT_FROM_FORMAT(fmt) \
+	(GFX_FORMAT_HAS_DEPTH_OR_STENCIL(fmt) ? \
+		(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_IMAGE_DEPTH : \
+			(GFXImageAspect)0) | \
+		(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_IMAGE_STENCIL : \
+			(GFXImageAspect)0) : \
+		GFX_IMAGE_COLOR)
+
+
+/**
+ * Image aspect (i.e. interpreted sub-image).
+ */
+typedef enum GFXImageAspect
+{
+	GFX_IMAGE_COLOR   = 0x0001,
+	GFX_IMAGE_DEPTH   = 0x0002,
+	GFX_IMAGE_STENCIL = 0x0004
+
+} GFXImageAspect;
+
+GFX_BIT_FIELD(GFXImageAspect)
+
+
+/**
+ * Unified memory range (i.e. sub-resource).
+ * Meaningless without an accompanied memory resource.
+ */
+typedef union GFXRange
+{
+	// Buffer offset/size.
+	GFX_UNION_ANONYMOUS(
+	{
+		uint64_t offset;
+		uint64_t size; // 0 for all bytes after `offset`.
+
+	}, buf)
+
+
+	// Image aspect/mips/layers.
+	GFX_UNION_ANONYMOUS(
+	{
+		GFXImageAspect aspect;
+
+		uint32_t mipmap;
+		uint32_t numMipmaps; // 0 for all mipmaps after `mipmap`.
+		uint32_t layer;
+		uint32_t numLayers; // 0 for all layers after `layer`.
+
+	}, img)
+
+} GFXRange;
+
+
+/**
+ * Unified memory region (i.e. part of a sub-resource).
+ * Meaningless without an accompanied memory resource.
+ */
+typedef union GFXRegion
+{
+	// Buffer (or host pointer) offset/size.
+	GFX_UNION_ANONYMOUS(
+	{
+		uint64_t offset;
+		uint64_t size;
+
+		// Buffer packing for image operations (0 = tightly packed).
+		uint32_t rowSize; // In texels.
+		uint32_t numRows; // In texels.
+
+	}, buf)
+
+
+	// Image aspect/mip/layers/offset/extent.
+	GFX_UNION_ANONYMOUS(
+	{
+		GFXImageAspect aspect; // Cannot contain both color and depth/stencil!
+
+		uint32_t mipmap;
+		uint32_t layer;
+		uint32_t numLayers; // Cannot be 0 (as opposed to GFXRange).
+
+		uint32_t x;
+		uint32_t y;
+		uint32_t z;
+		uint32_t width;
+		uint32_t height;
+		uint32_t depth;
+
+	}, img)
+
+} GFXRegion;
+
+
+/**
+ * Texel component swizzle.
+ */
+typedef enum GFXSwizzle
+{
+	GFX_SWIZZLE_ZERO,
+	GFX_SWIZZLE_ONE,
+	GFX_SWIZZLE_R,
+	GFX_SWIZZLE_G,
+	GFX_SWIZZLE_B,
+	GFX_SWIZZLE_A
+
+} GFXSwizzle;
+
+
+/**
+ * Texel swizzle mapping.
+ */
+typedef struct GFXSwizzleMap
+{
+	GFXSwizzle r;
+	GFXSwizzle g;
+	GFXSwizzle b;
+	GFXSwizzle a;
+
+} GFXSwizzleMap;
+
+
+/**
+ * Whole memory range macros.
+ */
+#define GFX_RANGE_WHOLE_BUFFER \
+	GFX_LITERAL(GFXRange){.buf = { \
+		.offset = 0, \
+		.size = 0 \
+	}}
+
+#define GFX_RANGE_WHOLE_IMAGE \
+	GFX_LITERAL(GFXRange){.img = { \
+		.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL, \
+		.mipmap = 0, \
+		.numMipmaps = 0, \
+		.layer = 0, \
+		.numLayers = 0 \
+	}}
+
+
+/**
+ * Swizzle macros, i.e. constant GFXSwizzleMap definitions.
+ */
+#define GFX_SWIZZLE_IDENTITY \
+	GFX_LITERAL(GFXSwizzleMap){ \
+		.r = GFX_SWIZZLE_R, \
+		.g = GFX_SWIZZLE_G, \
+		.b = GFX_SWIZZLE_B, \
+		.a = GFX_SWIZZLE_A \
+	}
+
+#define GFX_SWIZZLE_R_ALPHA \
+	GFX_LITERAL(GFXSwizzleMap){ \
+		.r = GFX_SWIZZLE_ONE, \
+		.g = GFX_SWIZZLE_ONE, \
+		.b = GFX_SWIZZLE_ONE, \
+		.a = GFX_SWIZZLE_R, \
+	}
+
+#define GFX_SWIZZLE_R_ALL \
+	GFX_LITERAL(GFXSwizzleMap){ \
+		.r = GFX_SWIZZLE_R, \
+		.g = GFX_SWIZZLE_R, \
+		.b = GFX_SWIZZLE_R, \
+		.a = GFX_SWIZZLE_R \
+	}
+
+#define GFX_SWIZZLE_G_ALL \
+	GFX_LITERAL(GFXSwizzleMap){ \
+		.r = GFX_SWIZZLE_G, \
+		.g = GFX_SWIZZLE_G, \
+		.b = GFX_SWIZZLE_G, \
+		.a = GFX_SWIZZLE_G \
+	}
+
+#define GFX_SWIZZLE_B_ALL \
+	GFX_LITERAL(GFXSwizzleMap){ \
+		.r = GFX_SWIZZLE_B, \
+		.g = GFX_SWIZZLE_B, \
+		.b = GFX_SWIZZLE_B, \
+		.a = GFX_SWIZZLE_B \
+	}
+
+#define GFX_SWIZZLE_A_ALL \
+	GFX_LITERAL(GFXSwizzleMap){ \
+		.r = GFX_SWIZZLE_A, \
+		.g = GFX_SWIZZLE_A, \
+		.b = GFX_SWIZZLE_A, \
+		.a = GFX_SWIZZLE_A \
 	}
 
 

@@ -370,9 +370,8 @@ typedef struct GFXView
 		GFXViewType type;   // For attachments.
 	};
 
-	GFXRange range;
-
-	// TODO: Add a swizzle bitflag?
+	GFXRange      range;
+	GFXSwizzleMap swizzle;
 
 } GFXView;
 

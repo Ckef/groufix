@@ -855,17 +855,21 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
 	GFXSet** elem;
 
 	// Get texture data from the font atlas.
-	// TODO: Use GetTexDataAsAlpha8 if applicable/asked?
 	unsigned char* pixels;
 	int width;
 	int height;
-	ImFontAtlas_GetTexDataAsRGBA32(fontAtlas, &pixels, &width, &height, NULL);
+
+	if (fontAtlas->TexPixelsUseColors)
+		ImFontAtlas_GetTexDataAsRGBA32(fontAtlas, &pixels, &width, &height, NULL);
+	else
+		ImFontAtlas_GetTexDataAsAlpha8(fontAtlas, &pixels, &width, &height, NULL);
 
 	// Allocate image.
 	GFXImage* image = gfx_alloc_image(drawer->heap,
 		GFX_IMAGE_2D, GFX_MEMORY_WRITE,
 		GFX_IMAGE_SAMPLED | GFX_IMAGE_SAMPLED_LINEAR,
-		GFX_FORMAT_R8G8B8A8_UNORM,
+		(fontAtlas->TexPixelsUseColors) ?
+			GFX_FORMAT_R8G8B8A8_UNORM : GFX_FORMAT_R8_UNORM,
 		1, 1, (uint32_t)width, (uint32_t)height, 1);
 
 	if (image == NULL)
@@ -951,15 +955,27 @@ GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image)
 		return *elem;
 
 	// Add a new set for this image.
+	const GFXSwizzleMap swizzle =
+		(image->format.order == GFX_ORDER_R) ?
+			GFX_SWIZZLE_R_ALPHA :
+			GFX_SWIZZLE_IDENTITY;
+
 	GFXSet* set = gfx_renderer_add_set(drawer->renderer,
 		drawer->tech, 0,
-		1, 0, 0, 0,
+		1, 0, 1, 0,
 		(GFXSetResource[]){{
 			.binding = 0,
 			.index = 0,
 			.ref = gfx_ref_image(image)
 		}},
-		NULL, NULL, NULL);
+		NULL,
+		(GFXView[]){{
+			.binding = 0,
+			.index = 0,
+			.range = GFX_RANGE_WHOLE_IMAGE,
+			.swizzle = swizzle
+		}},
+		NULL);
 
 	if (set == NULL)
 		goto error;

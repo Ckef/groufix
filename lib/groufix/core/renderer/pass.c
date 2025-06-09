@@ -1204,6 +1204,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	VkImageView views[GFX_MAX(1, numViews)];
 
 	const _GFXAttach* backing = NULL;
+	const _GFXConsume* backingCon = NULL;
 	size_t backingInd = SIZE_MAX;
 
 	for (size_t i = 0; i < numViews; ++i)
@@ -1217,6 +1218,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 		{
 			// To be filled in below.
 			backing = at;
+			backingCon = con;
 			backingInd = i;
 			views[i] = VK_NULL_HANDLE;
 
@@ -1263,10 +1265,10 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 					VK_IMAGE_VIEW_TYPE_2D),
 
 				.components = {
-					.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.a = VK_COMPONENT_SWIZZLE_IDENTITY
+					.r = _GFX_GET_VK_COMPONENT_SWIZZLE(con->view.swizzle.r),
+					.g = _GFX_GET_VK_COMPONENT_SWIZZLE(con->view.swizzle.g),
+					.b = _GFX_GET_VK_COMPONENT_SWIZZLE(con->view.swizzle.b),
+					.a = _GFX_GET_VK_COMPONENT_SWIZZLE(con->view.swizzle.a)
 				},
 
 				.subresourceRange = {
@@ -1335,10 +1337,10 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 				.format   = window->frame.format,
 
 				.components = {
-					.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-					.a = VK_COMPONENT_SWIZZLE_IDENTITY
+					.r = _GFX_GET_VK_COMPONENT_SWIZZLE(backingCon->view.swizzle.r),
+					.g = _GFX_GET_VK_COMPONENT_SWIZZLE(backingCon->view.swizzle.g),
+					.b = _GFX_GET_VK_COMPONENT_SWIZZLE(backingCon->view.swizzle.b),
+					.a = _GFX_GET_VK_COMPONENT_SWIZZLE(backingCon->view.swizzle.a)
 				},
 
 				.subresourceRange = {
@@ -1492,17 +1494,11 @@ GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
 		.flags = 0,
 		.mask = mask,
 		.stage = stage,
-		// Take the entire reference.
 		.view = {
 			.index = index,
-			.range = (GFXRange){
-				// Specify all aspect flags, will be filtered later on.
-				.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
-				.mipmap = 0,
-				.numMipmaps = 0,
-				.layer = 0,
-				.numLayers = 0
-			}
+			// Can specify all aspect flags, will be filtered later on.
+			.range = GFX_RANGE_WHOLE_IMAGE,
+			.swizzle = GFX_SWIZZLE_IDENTITY
 		}
 	};
 
@@ -1522,7 +1518,8 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 		.stage = stage,
 		.view = {
 			.index = index,
-			.range = range
+			.range = range,
+			.swizzle = GFX_SWIZZLE_IDENTITY
 		}
 	};
 

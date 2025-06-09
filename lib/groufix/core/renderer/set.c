@@ -23,6 +23,10 @@
 	sizeof(size_t) /* SIZE_MAX if not an attachment */ + \
 	sizeof(VkImageViewType) + \
 	sizeof(VkFormat) + \
+	sizeof(uint8_t) /* swizzle.r */ + \
+	sizeof(uint8_t) /* swizzle.g */ + \
+	sizeof(uint8_t) /* swizzle.b */ + \
+	sizeof(uint8_t) /* swizzle.a */ + \
 	sizeof(VkImageAspectFlags) + \
 	sizeof(uint32_t) /* mipmap */ + \
 	sizeof(uint32_t) /* numMipmaps */ + \
@@ -153,10 +157,10 @@ static bool _gfx_make_view(_GFXContext* context,
 		.format   = vkFmt,
 
 		.components = {
-			.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.a = VK_COMPONENT_SWIZZLE_IDENTITY
+			.r = _GFX_GET_VK_COMPONENT_SWIZZLE(entry->swizzle.r),
+			.g = _GFX_GET_VK_COMPONENT_SWIZZLE(entry->swizzle.g),
+			.b = _GFX_GET_VK_COMPONENT_SWIZZLE(entry->swizzle.b),
+			.a = _GFX_GET_VK_COMPONENT_SWIZZLE(entry->swizzle.a)
 		},
 
 		.subresourceRange = {
@@ -264,11 +268,19 @@ static void _gfx_set_update(GFXSet* set,
 
 			// Update hash.
 			const size_t noIndex = SIZE_MAX;
+			const uint8_t swizzleR = (uint8_t)ivci.components.r;
+			const uint8_t swizzleG = (uint8_t)ivci.components.g;
+			const uint8_t swizzleB = (uint8_t)ivci.components.b;
+			const uint8_t swizzleA = (uint8_t)ivci.components.a;
 
 			_GFX_WRITE_HASH(hash, unp.obj.image);
 			_GFX_WRITE_HASH(hash, noIndex);
 			_GFX_WRITE_HASH(hash, ivci.viewType);
 			_GFX_WRITE_HASH(hash, ivci.format);
+			_GFX_WRITE_HASH(hash, swizzleR);
+			_GFX_WRITE_HASH(hash, swizzleG);
+			_GFX_WRITE_HASH(hash, swizzleB);
+			_GFX_WRITE_HASH(hash, swizzleA);
 			_GFX_WRITE_HASH(hash, ivci.subresourceRange.aspectMask);
 			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseMipLevel);
 			_GFX_WRITE_HASH(hash, ivci.subresourceRange.levelCount);
@@ -441,11 +453,19 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			// Update hash.
 			const _GFXImage* noImage = NULL;
 			const size_t backingInd = (size_t)unp.value;
+			const uint8_t swizzleR = (uint8_t)ivci.components.r;
+			const uint8_t swizzleG = (uint8_t)ivci.components.g;
+			const uint8_t swizzleB = (uint8_t)ivci.components.b;
+			const uint8_t swizzleA = (uint8_t)ivci.components.a;
 
 			_GFX_WRITE_HASH(hash, noImage);
 			_GFX_WRITE_HASH(hash, backingInd);
 			_GFX_WRITE_HASH(hash, ivci.viewType);
 			_GFX_WRITE_HASH(hash, ivci.format);
+			_GFX_WRITE_HASH(hash, swizzleR);
+			_GFX_WRITE_HASH(hash, swizzleG);
+			_GFX_WRITE_HASH(hash, swizzleB);
+			_GFX_WRITE_HASH(hash, swizzleA);
 			_GFX_WRITE_HASH(hash, ivci.subresourceRange.aspectMask);
 			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseMipLevel);
 			_GFX_WRITE_HASH(hash, ivci.subresourceRange.levelCount);
@@ -740,6 +760,7 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
 		// Set the new values & update.
 		*changed = 1;
 		entry->range = view->range;
+		entry->swizzle = view->swizzle;
 		entry->viewType = view->type;
 		atomic_store_explicit(&entry->gen, 0, memory_order_relaxed);
 
@@ -1079,6 +1100,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		{
 			_GFXSetEntry* entry = &binding->entries[e];
 			entry->ref = GFX_REF_NULL;
+			entry->swizzle = GFX_SWIZZLE_IDENTITY;
 			entry->viewType = GFX_VIEW_2D;
 			entry->sampler = NULL;
 			entry->vk.format = VK_FORMAT_UNDEFINED;
@@ -1086,20 +1108,11 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 
 			// Set range, leave undefined if only a sampler.
 			if (_GFX_BINDING_IS_BUFFER(binding->type))
-				entry->range = (GFXRange){
-					.offset = 0,
-					.size = 0
-				};
+				entry->range = GFX_RANGE_WHOLE_BUFFER;
 
 			else if (_GFX_BINDING_IS_IMAGE(binding->type))
-				entry->range = (GFXRange){
-					// Specify all aspect flags, will be filtered later on.
-					.aspect = GFX_IMAGE_COLOR | GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL,
-					.mipmap = 0,
-					.numMipmaps = 0,
-					.layer = 0,
-					.numLayers = 0
-				};
+				// Can specify all aspect flags, will be filtered later on.
+				entry->range = GFX_RANGE_WHOLE_IMAGE;
 
 			// Set update info.
 			if (_GFX_DESCRIPTOR_IS_BUFFER(binding->type))

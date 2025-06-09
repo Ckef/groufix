@@ -36,7 +36,11 @@ static inline bool _gfx_cmp_consume(const _GFXConsume* l, const _GFXConsume* r)
 		(l->view.range.mipmap == r->view.range.mipmap) &&
 		(l->view.range.numMipmaps == r->view.range.numMipmaps) &&
 		(l->view.range.layer == r->view.range.layer) &&
-		(l->view.range.numLayers == r->view.range.numLayers);
+		(l->view.range.numLayers == r->view.range.numLayers) &&
+		(l->view.swizzle.r == r->view.swizzle.r) &&
+		(l->view.swizzle.g == r->view.swizzle.g) &&
+		(l->view.swizzle.b == r->view.swizzle.b) &&
+		(l->view.swizzle.a == r->view.swizzle.a);
 }
 
 /****************************

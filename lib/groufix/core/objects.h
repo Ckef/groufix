@@ -85,6 +85,15 @@
 	((usage) & GFX_IMAGE_TRANSIENT ? \
 		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : (VkImageUsageFlags)0))
 
+#define _GFX_GET_VK_COMPONENT_SWIZZLE(swizzle) \
+	((swizzle) == GFX_SWIZZLE_ZERO ? VK_COMPONENT_SWIZZLE_ZERO : \
+	(swizzle) == GFX_SWIZZLE_ONE ? VK_COMPONENT_SWIZZLE_ONE : \
+	(swizzle) == GFX_SWIZZLE_R ? VK_COMPONENT_SWIZZLE_R : \
+	(swizzle) == GFX_SWIZZLE_G ? VK_COMPONENT_SWIZZLE_G : \
+	(swizzle) == GFX_SWIZZLE_B ? VK_COMPONENT_SWIZZLE_B : \
+	(swizzle) == GFX_SWIZZLE_A ? VK_COMPONENT_SWIZZLE_A : \
+	VK_COMPONENT_SWIZZLE_IDENTITY)
+
 #define _GFX_GET_VK_SAMPLE_COUNT(count) \
 	/* Vulkan sample counts are the hexadecimal equivalent. */ \
 	((count) == 1 ? VK_SAMPLE_COUNT_1_BIT : \
@@ -1240,6 +1249,7 @@ typedef struct _GFXSetEntry
 {
 	GFXReference   ref; // GFX_REF_NULL if empty or sampler.
 	GFXRange       range;
+	GFXSwizzleMap  swizzle;
 	GFXViewType    viewType; // For attachment inputs ONLY!.
 	_GFXCacheElem* sampler;  // May be NULL.
 
