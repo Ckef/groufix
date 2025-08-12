@@ -582,7 +582,7 @@ typedef struct GFXComputable
  * @param pass       Cannot be NULL, must be a render pass.
  * @param tech       Cannot be NULL.
  * @param prim       May be NULL!
- * @param state      May be NULL, `blend.color` and `blend.alpha` are ignored.
+ * @param state      May be NULL, overrides pass state.
  * @return Non-zero on success.
  *
  * Can be called from any thread at any time!
@@ -1035,6 +1035,7 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 /**
  * Sets the blend state of a consumed attachment independently.
  * The device must support independent blending!
+ * This overrides blend state of renderables used in this pass!
  * @param color (src|dst)Factor are ignored if GFX_BLEND_NO_OP.
  * @param alpha (src|dst)AlphaFactor are ignored if GFX_BLEND_NO_OP.
  * @see gfx_pass_clear.
