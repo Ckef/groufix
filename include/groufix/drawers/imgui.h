@@ -7,12 +7,13 @@
  */
 
 
-#ifndef GFX_TOOLS_IMGUI_H
-#define GFX_TOOLS_IMGUI_H
+#ifndef GFX_DRAWERS_IMGUI_H
+#define GFX_DRAWERS_IMGUI_H
 
 #include "groufix/containers/deque.h"
 #include "groufix/containers/map.h"
 #include "groufix/containers/vec.h"
+#include "groufix/core/deps.h"
 #include "groufix/core/heap.h"
 #include "groufix/core/keys.h"
 #include "groufix/core/renderer.h"

@@ -6,7 +6,7 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include <groufix/tools/imgui.h>
+#include <groufix/drawers/imgui.h>
 #include "test.h"
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS

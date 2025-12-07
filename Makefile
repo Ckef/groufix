@@ -343,7 +343,7 @@ $(BIN)$(SUB)/libgroufix$(LIBEXT): $(DEPS) $(DEPS_EXPORT) $(LIB_OBJS)
 
 # Program files
 $(BIN)$(SUB)/grouviz$(BINEXT): $(VIZ_OBJS) $(BIN)$(SUB)/libgroufix$(LIBEXT)
-	$(CC) $(VIZ_OBJS) -o $@ -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
+	$(CC) $(VIZ_OBJS) -o $@ $(CFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 $(BIN)$(SUB)/%$(BINEXT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
 	$(CC) -Itests -Ideps/cimgui $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
