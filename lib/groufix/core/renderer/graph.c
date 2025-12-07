@@ -465,11 +465,13 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// Also, allocate the `consumes` for _gfx_pass_(merge|resolve) here.
 	const size_t numAttachs = renderer->backing.attachs.size;
 	_GFXConsume* consumes[GFX_MAX(1, numAttachs)];
+	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 
-	for (size_t i = 0; i < renderer->graph.numRender; ++i)
+	for (
+		size_t i = 0; i < renderer->graph.numRender;
+		++i, pass = (GFXPass*)pass->list.next)
 	{
-		_GFXRenderPass* rPass = (_GFXRenderPass*)(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
+		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 
 		// No need to merge non-render passes.
 		if (rPass->base.type != GFX_PASS_RENDER) continue;
@@ -498,30 +500,26 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		_gfx_pass_merge(renderer, rPass, consumes);
 	}
 
-	// We loop over all passes in submission order whilst
+	// Then we loop over all passes in submission order whilst
 	// keeping track of the last consumption of each attachment.
 	// This way we propogate transition and synchronization data per
 	// attachment as we go.
 	for (size_t i = 0; i < numAttachs; ++i) consumes[i] = NULL;
-	size_t numCulled = 0;
+	unsigned int order = 0;
 
-	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+	for (
+		pass = (GFXPass*)renderer->graph.passes.head;
+		pass != NULL;
+		pass = (GFXPass*)pass->list.next)
 	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
-
-		if (pass->culled)
-		{
-			++numCulled;
-			continue;
-		}
+		if (pass->culled) continue;
 
 		// Resolve!
 		_gfx_pass_resolve(renderer, pass, consumes);
 
 		// At this point we also sneakedly set the order of all passes
 		// so the recorders know what's up.
-		pass->order = (unsigned int)(i - numCulled);
+		pass->order = order++;
 	}
 
 	// Its now validated!
@@ -533,10 +531,11 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	gfx_vec_init(&renderer->graph.sinks, sizeof(GFXPass*));
-	gfx_vec_init(&renderer->graph.passes, sizeof(GFXPass*));
+	gfx_list_init(&renderer->graph.passes);
+	renderer->graph.lastRender = NULL;
 
 	renderer->graph.numRender = 0;
+	renderer->graph.numCompute = 0;
 	renderer->graph.culledRender = 0;
 	renderer->graph.culledCompute = 0;
 
@@ -550,12 +549,14 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Destroy all passes (in-order!).
-	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		_gfx_destroy_pass(
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i));
+	while (renderer->graph.passes.head != NULL)
+	{
+		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		gfx_list_erase(&renderer->graph.passes, &pass->list);
+		_gfx_destroy_pass(pass);
+	}
 
-	gfx_vec_clear(&renderer->graph.passes);
-	gfx_vec_clear(&renderer->graph.sinks);
+	gfx_list_clear(&renderer->graph.passes);
 }
 
 /****************************/
@@ -576,14 +577,16 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 		_gfx_render_graph_analyze(renderer);
 
 	// And then make sure all render passes are warmped up!
+	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 	size_t failed = 0;
 
 	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
-		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 		if (pass->type == GFX_PASS_RENDER)
 			// No need to worry about destructing, state remains 'validated'.
 			failed += !_gfx_pass_warmup((_GFXRenderPass*)pass);
+
+		pass = (GFXPass*)pass->list.next;
 	}
 
 	if (failed > 0)
@@ -621,15 +624,17 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 		_gfx_render_graph_analyze(renderer);
 
 	// So now make sure all the render passes in the graph are built.
+	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 	size_t failed = 0;
 
 	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
-		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 		if (pass->type == GFX_PASS_RENDER)
 			// The pass itself should log errors.
 			// No need to worry about destructing, state remains 'validated'.
 			failed += !_gfx_pass_build((_GFXRenderPass*)pass);
+
+		pass = (GFXPass*)pass->list.next;
 	}
 
 	if (failed > 0)
@@ -660,13 +665,15 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 	// (Re)build all render passes.
 	// If we fail, just ignore and signal we're not built.
 	// Will be tried again in _gfx_render_graph_build.
+	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 	size_t failed = 0;
 
 	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
-		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 		if (pass->type == GFX_PASS_RENDER)
 			failed += !_gfx_pass_rebuild((_GFXRenderPass*)pass, flags);
+
+		pass = (GFXPass*)pass->list.next;
 	}
 
 	if (failed > 0)
@@ -686,11 +693,14 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Destruct all render passes.
+	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+
 	for (size_t i = 0; i < renderer->graph.numRender; ++i)
 	{
-		GFXPass* pass = *(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
 		if (pass->type == GFX_PASS_RENDER)
 			_gfx_pass_destruct((_GFXRenderPass*)pass);
+
+		pass = (GFXPass*)pass->list.next;
 	}
 
 	// The graph is now empty.
@@ -724,10 +734,6 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	if (pass == NULL)
 		goto error;
 
-	// Add the new pass as a sink, as it has no 'children' yet.
-	if (!gfx_vec_push(&renderer->graph.sinks, 1, &pass))
-		goto clean;
-
 	// Find the right place to insert the new pass at,
 	// we pre-sort on level, this essentially makes it such that
 	// every pass is submitted as early as possible.
@@ -735,29 +741,24 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	// All async compute passes go at the end, all render or inline compute
 	// passes go in the front, with their own leveling.
 	// Backwards linear search is probably in-line with the adding order :p
-	const size_t min = pass->type == GFX_PASS_COMPUTE_ASYNC ?
-		renderer->graph.numRender : 0;
+	size_t num = pass->type == GFX_PASS_COMPUTE_ASYNC ?
+		renderer->graph.numCompute : renderer->graph.numRender;
 
-	const size_t max = pass->type == GFX_PASS_COMPUTE_ASYNC ?
-		renderer->graph.passes.size : renderer->graph.numRender;
+	GFXPass* last = pass->type == GFX_PASS_COMPUTE_ASYNC ?
+		(GFXPass*)renderer->graph.passes.tail : renderer->graph.lastRender;
 
-	size_t loc;
-
-	for (loc = max; loc > min; --loc)
-	{
-		GFXPass** prev = gfx_vec_at(&renderer->graph.passes, loc-1);
-		if ((*prev)->level <= pass->level) break;
-	}
+	for (; num > 0; --num, last = (GFXPass*)last->list.prev)
+		if (last->level <= pass->level) break;
 
 	// Loop again, now to find a pass of the same group so we can
 	// figure out whether we should be culled or not.
 	// If none of the same group is found, keep default value.
-	// Again do it backwards so it's probably in=line with adding order.
-	for (size_t i = max; i > min; --i)
+	// Again do it backwards so it's probably in-line with adding order.
+	for (
+		GFXPass* other = (GFXPass*)renderer->graph.passes.tail;
+		other != NULL;
+		other = (GFXPass*)other->list.prev)
 	{
-		GFXPass* other =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i-1);
-
 		if (other->group == group)
 		{
 			pass->culled = other->culled;
@@ -766,30 +767,19 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	}
 
 	// Insert at found position.
-	if (!gfx_vec_insert(&renderer->graph.passes, 1, &pass, loc))
-	{
-		gfx_vec_pop(&renderer->graph.sinks, 1);
-		goto clean;
-	}
+	if (last == NULL)
+		gfx_list_insert_before(&renderer->graph.passes, &pass->list, NULL);
+	else
+		gfx_list_insert_after(&renderer->graph.passes, &pass->list, &last->list);
 
-	// Loop through all sinks, remove if it's now a parent.
-	// Skip the last element, as we just added that.
-	for (size_t s = renderer->graph.sinks.size-1; s > 0; --s)
-	{
-		GFXPass* sink =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.sinks, s-1);
-
-		for (size_t p = 0; p < numParents; ++p)
-			if (sink == parents[p])
-			{
-				gfx_vec_erase(&renderer->graph.sinks, 1, s-1);
-				break;
-			}
-	}
+	if (last == renderer->graph.lastRender && pass->type != GFX_PASS_COMPUTE_ASYNC)
+		renderer->graph.lastRender = pass;
 
 	// Increase render (+inline compute) pass count on success.
 	if (pass->type != GFX_PASS_COMPUTE_ASYNC)
 		++renderer->graph.numRender;
+	else
+		++renderer->graph.numCompute;
 
 	// Increase culled count, if culled.
 	if (pass->culled)
@@ -811,15 +801,13 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	if (!pass->culled && renderer->graph.state != _GFX_GRAPH_EMPTY)
 		renderer->graph.state =
 			// If the first pass, no need to purge, just set to empty.
-			(renderer->graph.passes.size > 1) ?
+			(renderer->graph.passes.head != renderer->graph.passes.tail) ?
 				_GFX_GRAPH_INVALID : _GFX_GRAPH_EMPTY;
 
 	return pass;
 
 
-	// Cleanup on failure.
-clean:
-	_gfx_destroy_pass(pass);
+	// Error on failure.
 error:
 	gfx_log_error("Could not add a new pass to a renderer's graph.");
 
@@ -840,11 +828,11 @@ static void _gfx_renderer_set_cull(GFXRenderer* renderer,
 	// Loop over all passes, get the ones belonging to group.
 	// If we change culled state of any pass, we need to re-analyze
 	// for different parent/childs links & build new passes if unculling.
-	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
+	for (
+		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		pass != NULL;
+		pass = (GFXPass*)pass->list.next)
 	{
-		GFXPass* pass =
-			*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i);
-
 		if (pass->group == group && pass->culled != cull)
 		{
 			// Invalidate the graph & set the new culled state.
@@ -893,21 +881,4 @@ GFX_API void gfx_renderer_uncull(GFXRenderer* renderer, unsigned int group)
 	// Relies on stand-in function for asserts.
 
 	_gfx_renderer_set_cull(renderer, group, 0);
-}
-
-/****************************/
-GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer)
-{
-	assert(renderer != NULL);
-
-	return renderer->graph.sinks.size;
-}
-
-/****************************/
-GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink)
-{
-	assert(renderer != NULL);
-	assert(sink < renderer->graph.sinks.size);
-
-	return *(GFXPass**)gfx_vec_at(&renderer->graph.sinks, sink);
 }

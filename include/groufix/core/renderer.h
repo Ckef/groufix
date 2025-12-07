@@ -1108,25 +1108,6 @@ GFX_API GFXViewport gfx_pass_get_viewport(GFXPass* pass);
 GFX_API GFXScissor gfx_pass_get_scissor(GFXPass* pass);
 
 /**
- * Retrieves the number of sink passes of a renderer.
- * A sink pass is one that is not a parent of any pass (last in the path).
- * @param renderer Cannot be NULL.
- *
- * This number may change when a new pass is added.
- */
-GFX_API size_t gfx_renderer_get_num_sinks(GFXRenderer* renderer);
-
-/**
- * Retrieves a sink pass of a renderer.
- * @param renderer Cannot be NULL.
- * @param sink     Sink index, must be < gfx_renderer_get_num_sinks(renderer).
- *
- * The index of each sink may change when a new pass is added, however
- * their relative order remains fixed during the lifetime of the renderer.
- */
-GFX_API GFXPass* gfx_renderer_get_sink(GFXRenderer* renderer, size_t sink);
-
-/**
  * Retrieves the number of parents of a pass.
  * @param pass Cannot be NULL.
  */

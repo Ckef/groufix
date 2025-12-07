@@ -994,10 +994,11 @@ struct GFXRenderer
 	// Render graph (directed acyclic graph of passes).
 	struct
 	{
-		size_t numRender; // Number of render & inline compute passes.
-		GFXVec sinks;     // Stores GFXPass* (sink passes, tree roots).
-		GFXVec passes;    // Stores GFXPass* (in submission order).
+		GFXList  passes;     // References GFXPass (in submission order).
+		GFXPass* lastRender; // Last render or inline compute pass.
 
+		size_t numRender;  // Number of render & inline compute passes.
+		size_t numCompute; // Number of async compute passes.
 		size_t culledRender;
 		size_t culledCompute;
 
@@ -1101,6 +1102,7 @@ typedef struct _GFXDepend
  */
 struct GFXPass
 {
+	GFXListNode  list; // Base-type.
 	GFXPassType  type;
 	GFXRenderer* renderer;
 	unsigned int level;  // Determines submission order.
@@ -1994,6 +1996,8 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  * @param numParents Number of parents, 0 for none.
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
+ *
+ * Leaves the `list` base-type uninitialized!
  */
 GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
                           unsigned int group,
@@ -2002,6 +2006,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 /**
  * Destroys a pass, must be called in submission order!
  * @param pass Cannot be NULL.
+ *
+ * Does not unlink itself from anything!
  */
 void _gfx_destroy_pass(GFXPass* pass);
 

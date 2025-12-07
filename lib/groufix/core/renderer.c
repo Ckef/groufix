@@ -676,9 +676,13 @@ GFX_API void gfx_renderer_undepend(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Loop over all passes and just throw away all of their dependencies.
-	for (size_t i = 0; i < renderer->graph.passes.size; ++i)
-		gfx_vec_clear(
-			&(*(GFXPass**)gfx_vec_at(&renderer->graph.passes, i))->deps);
+	for (
+		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		pass != NULL;
+		pass = (GFXPass*)pass->list.next)
+	{
+		gfx_vec_clear(&pass->deps);
+	}
 
 	// Invalidate the graph, subpass dependencies are gone.
 	_gfx_render_graph_invalidate(renderer);
