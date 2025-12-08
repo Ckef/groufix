@@ -364,7 +364,7 @@ MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win LIBEXT=.dll BINEXT=.exe
 .build-tests: $(TESTS:%=%$(BINEXT))
 
 
-.PHONY: unix unix-grouviz unix-tests
+.PHONY: unix unix-grouviz unix-tests unix-all
 unix:
 	@$(MAKE) $(MFLAGS_UNIX) .build
 unix-grouviz:
@@ -374,7 +374,7 @@ unix-tests:
 unix-all:
 	@$(MAKE) $(MFLAGS_UNIX) .build-grouviz .build-tests
 
-.PHONY: win win-grouviz win-tests
+.PHONY: win win-grouviz win-tests win-all
 win:
 	@$(MAKE) $(MFLAGS_WIN) .build
 win-grouviz:
