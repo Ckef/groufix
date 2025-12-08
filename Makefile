@@ -13,19 +13,23 @@
 .PHONY: help
 help:
 	@echo " Clean"
-	@echo "  $(MAKE) clean        - Clean build files."
-	@echo "  $(MAKE) clean-temp   - Clean temporary build files only."
-	@echo "  $(MAKE) clean-bin    - Clean output build files only."
-	@echo "  $(MAKE) clean-deps   - Clean dependency builds."
-	@echo "  $(MAKE) clean-all    - Clean all files make produced."
+	@echo "  $(MAKE) clean         - Clean temporary and output build files."
+	@echo "  $(MAKE) clean-temp    - Clean temporary build files only."
+	@echo "  $(MAKE) clean-bin     - Clean output build files only."
+	@echo "  $(MAKE) clean-deps    - Clean dependency builds."
+	@echo "  $(MAKE) clean-all     - Clean all files make produced."
 	@echo ""
 	@echo " Build"
-	@echo "  $(MAKE) unix         - Build the Unix target."
-	@echo "  $(MAKE) unix-grouviz - Build grouviz for the Unix target."
-	@echo "  $(MAKE) unix-tests   - Build all tests for the Unix target."
-	@echo "  $(MAKE) win          - Build the Windows target."
-	@echo "  $(MAKE) win-grouviz  - Build grouviz for the Windows target."
-	@echo "  $(MAKE) win-tests    - Build all tests for the Windows target."
+	@echo "  $(MAKE) <TAR>         - Build the groufix library only."
+	@echo "  $(MAKE) <TAR>-grouviz - Build grouviz."
+	@echo "  $(MAKE) <TAR>-tests   - Build all tests."
+	@echo "  $(MAKE) <TAR>-all     - Build everything."
+	@echo ""
+	@echo "  Choose target platform with <TAR>:"
+	@echo "   - unix (Unix + macOS)"
+	@echo "   - win  (Windows)"
+	@echo ""
+	@echo "  e.g. '$(MAKE) unix-grouviz'"
 	@echo ""
 
 
@@ -367,6 +371,8 @@ unix-grouviz:
 	@$(MAKE) $(MFLAGS_UNIX) .build-grouviz
 unix-tests:
 	@$(MAKE) $(MFLAGS_UNIX) .build-tests
+unix-all:
+	@$(MAKE) $(MFLAGS_UNIX) .build-grouviz .build-tests
 
 .PHONY: win win-grouviz win-tests
 win:
@@ -375,3 +381,5 @@ win-grouviz:
 	@$(MAKE) $(MFLAGS_WIN) .build-grouviz
 win-tests:
 	@$(MAKE) $(MFLAGS_WIN) .build-tests
+win-all:
+	@$(MAKE) $(MFLAGS_WIN) .build-grouviz .build-tests
