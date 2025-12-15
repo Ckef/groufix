@@ -135,25 +135,28 @@ bool _gfx_gamepads_init(void)
 		if (glfwJoystickIsGamepad(jid) && _gfx_alloc_gamepad(jid) == NULL)
 			goto terminate;
 
-	// Let's see the connected gamepads :)
-	GFXBufWriter* logger = gfx_logger_info();
-	if (logger != NULL)
+	if (_groufix.gamepads.size > 0)
 	{
-		gfx_io_writef(logger, "Detected gamepads:\n");
-
-		for (size_t i = 0; i < _groufix.gamepads.size; ++i)
+		// Let's see the connected gamepads :)
+		GFXBufWriter* logger = gfx_logger_info();
+		if (logger != NULL)
 		{
-			_GFXGamepad* gamepad =
-				*(_GFXGamepad**)gfx_vec_at(&_groufix.gamepads, i);
+			gfx_io_writef(logger, "Detected gamepads:\n");
 
-			gfx_io_writef(logger,
-				"    [ %s ] (%s - %s)\n",
-				gamepad->base.name,
-				gamepad->base.guid,
-				gamepad->base.sysName);
+			for (size_t i = 0; i < _groufix.gamepads.size; ++i)
+			{
+				_GFXGamepad* gamepad =
+					*(_GFXGamepad**)gfx_vec_at(&_groufix.gamepads, i);
+
+				gfx_io_writef(logger,
+					"    [ %s ] (%s - %s)\n",
+					gamepad->base.name,
+					gamepad->base.guid,
+					gamepad->base.sysName);
+			}
+
+			gfx_logger_end(logger);
 		}
-
-		gfx_logger_end(logger);
 	}
 
 	// Make sure we get configuration change events.

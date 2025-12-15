@@ -165,24 +165,27 @@ bool _gfx_monitors_init(void)
 		if (_gfx_alloc_monitor(handles[i]) == NULL)
 			goto terminate;
 
-	// Let's see the connected monitors :)
-	GFXBufWriter* logger = gfx_logger_info();
-	if (logger != NULL)
+	if (_groufix.monitors.size > 0)
 	{
-		gfx_io_writef(logger, "Detected monitors:\n");
-
-		for (size_t i = 0; i < _groufix.monitors.size; ++i)
+		// Let's see the connected monitors :)
+		GFXBufWriter* logger = gfx_logger_info();
+		if (logger != NULL)
 		{
-			_GFXMonitor** monitor = gfx_vec_at(&_groufix.monitors, i);
-			const GLFWvidmode* vid = glfwGetVideoMode((*monitor)->handle);
+			gfx_io_writef(logger, "Detected monitors:\n");
 
-			gfx_io_writef(logger,
-				"    [ %s ] (%dx%d @ %d)\n",
-				(*monitor)->base.name,
-				vid->width, vid->height, vid->refreshRate);
+			for (size_t i = 0; i < _groufix.monitors.size; ++i)
+			{
+				_GFXMonitor** monitor = gfx_vec_at(&_groufix.monitors, i);
+				const GLFWvidmode* vid = glfwGetVideoMode((*monitor)->handle);
+
+				gfx_io_writef(logger,
+					"    [ %s ] (%dx%d @ %d)\n",
+					(*monitor)->base.name,
+					vid->width, vid->height, vid->refreshRate);
+			}
+
+			gfx_logger_end(logger);
 		}
-
-		gfx_logger_end(logger);
 	}
 
 	// Make sure we get configuration change events.
@@ -241,7 +244,6 @@ GFX_API size_t gfx_get_num_monitors(void)
 GFX_API GFXMonitor* gfx_get_monitor(size_t index)
 {
 	assert(atomic_load(&_groufix.initialized));
-	assert(_groufix.monitors.size > 0);
 	assert(index < _groufix.monitors.size);
 
 	return *(GFXMonitor**)gfx_vec_at(&_groufix.monitors, index);
