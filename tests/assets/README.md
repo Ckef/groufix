@@ -4,7 +4,7 @@ Damaged Helmet
 
 This folder contains:
 [Battle Damaged Sci-fi Helmet - PBR](https://sketchfab.com/models/b81008d513954189a063ff901f7abfe4)
-by [theblueturtle\_](https://sketchfab.com/theblueturtle_).
+by [leonardo-carrion](https://sketchfab.com/leonardo-carrion).
 
 
 License Information
