@@ -40,8 +40,10 @@ bool _gfx_init(void)
 	gfx_vec_init(&_groufix.devices, sizeof(_GFXDevice));
 	gfx_list_init(&_groufix.contexts);
 	gfx_vec_init(&_groufix.monitors, sizeof(_GFXMonitor*));
+	gfx_vec_init(&_groufix.gamepads, sizeof(_GFXGamepad*));
 
 	_groufix.monitorEvent = NULL;
+	_groufix.gamepadEvent = NULL;
 	_groufix.vk.instance = NULL;
 
 	// Start clock as last.
@@ -70,6 +72,7 @@ void _gfx_terminate(void)
 	gfx_vec_clear(&_groufix.devices);
 	gfx_list_clear(&_groufix.contexts);
 	gfx_vec_clear(&_groufix.monitors);
+	gfx_vec_clear(&_groufix.gamepads);
 
 	_gfx_thread_key_clear(_groufix.thread.key);
 	_gfx_mutex_clear(&_groufix.thread.ioLock);

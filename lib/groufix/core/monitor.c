@@ -90,9 +90,7 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
 static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 {
 	const bool conn = (event == GLFW_CONNECTED);
-
-	// Get associated groufix monitor.
-	_GFXMonitor* monitor = glfwGetMonitorUserPointer(handle);
+	_GFXMonitor* monitor;
 
 	if (conn)
 	{
@@ -116,6 +114,9 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 	}
 	else
 	{
+		// On disconnect, get associated groufix monitor.
+		monitor = glfwGetMonitorUserPointer(handle);
+
 		// On disconnect, shrink the configuration.
 		gfx_vec_pop(&_groufix.monitors, 1);
 

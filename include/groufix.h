@@ -14,6 +14,7 @@
 #include "groufix/core/device.h"
 #include "groufix/core/env.h"
 #include "groufix/core/formats.h"
+#include "groufix/core/gamepad.h"
 #include "groufix/core/heap.h"
 #include "groufix/core/keys.h"
 #include "groufix/core/log.h"
@@ -68,7 +69,7 @@ GFX_API int64_t gfx_time(void);
 GFX_API int64_t gfx_time_frequency(void);
 
 /**
- * Polls all window manager events and calls the window and monitor callbacks.
+ * Polls all window manager events and calls the window, monitor and gamepad callbacks.
  * Must be called after gfx_init has succesfully returned.
  * Must be called from the main thread.
  */
@@ -76,7 +77,7 @@ GFX_API void gfx_poll_events(void);
 
 /**
  * Puts the main thread to sleep until at least one event is available,
- * then calls the window and monitor callbacks.
+ * then calls the window, monitor and gamepad callbacks.
  * Must be called after gfx_init has succesfully returned.
  * Must be called from the main thread.
  */

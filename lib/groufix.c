@@ -65,6 +65,9 @@ GFX_API bool gfx_init(void)
 	if (!_gfx_monitors_init())
 		goto terminate;
 
+	if (!_gfx_gamepads_init())
+		goto terminate;
+
 	gfx_log_info("All internal state initialized succesfully, ready.");
 
 	return 1;
@@ -86,6 +89,7 @@ GFX_API void gfx_terminate(void)
 		return;
 
 	// Terminate the contents of the engine.
+	_gfx_gamepads_terminate();
 	_gfx_monitors_terminate();
 	_gfx_devices_terminate();
 	_gfx_vulkan_terminate();

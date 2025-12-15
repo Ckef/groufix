@@ -78,7 +78,7 @@ Similarly to initializing the engine, any thread that wants to make any _groufix
 
 - _groufix objects are not thread-safe_. Function calls that operate on the same object (or descendants thereof) are not synchronized and __cannot__ be called concurrently from different threads. However, objects referencing each other that do not share a common ancestor created with a call to `gfx_create_*` __are__ internally synchronized and __can always__ be operated on concurrently. For example, simultaneously operating on a `GFXRenderer` and a `GFXHeap` (or `GFXWindow`) referenced by it is thread-safe.
 
-- _All functions directly related to the window manager of the host platform are thread-affine_. These functions can __only__ be called from the main thread. These functions are `gfx_poll_events`, `gfx_wait_events` and all functions defined in `groufix/core/window.h` (these are the `gfx_*monitor*` and `gfx_*window*` function families). All other functions can be called from any thread.
+- _All functions directly related to the window manager of the host platform are thread-affine_. These functions can __only__ be called from the main thread. These functions are `gfx_poll_events`, `gfx_wait_events` and all functions defined in `groufix/core/window.h` and `groufix/core/gamepad.h` (these are the `gfx_*monitor*`, `gfx_*window*` and `gfx_*gamepad*` function families). All other functions can be called from any thread.
 
 
 When an exception is made to any of the listed rules, this will always be noted alongside the relevant functions of the object in question. The following are a few of the most noteworthy exceptions:

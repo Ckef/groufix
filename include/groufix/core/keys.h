@@ -192,4 +192,57 @@ typedef enum GFXMouseButton
 } GFXMouseButton;
 
 
+/**
+ * Gamepad buttons (identical to GLFW gamepad buttons).
+ */
+typedef enum GFXGamepadButton
+{
+	GFX_GAMEPAD_A = 0,
+	GFX_GAMEPAD_B = 1,
+	GFX_GAMEPAD_X = 2,
+	GFX_GAMEPAD_Y = 3,
+
+	GFX_GAMEPAD_LEFT_BUMPER  = 4,
+	GFX_GAMEPAD_RIGHT_BUMPER = 5,
+
+	GFX_GAMEPAD_BACK  = 6,
+	GFX_GAMEPAD_START = 7,
+	GFX_GAMEPAD_GUIDE = 8,
+
+	GFX_GAMEPAD_LEFT_THUMB  = 9,
+	GFX_GAMEPAD_RIGHT_THUMB = 10,
+
+	GFX_GAMEPAD_DPAD_UP    = 11,
+	GFX_GAMEPAD_DPAD_RIGHT = 12,
+	GFX_GAMEPAD_DPAD_DOWN  = 13,
+	GFX_GAMEPAD_DPAD_LEFT  = 14,
+
+	GFX_GAMEPAD_CROSS    = GFX_GAMEPAD_A,
+	GFX_GAMEPAD_CIRCLE   = GFX_GAMEPAD_B,
+	GFX_GAMEPAD_SQUARE   = GFX_GAMEPAD_X,
+	GFX_GAMEPAD_TRIANGLE = GFX_GAMEPAD_Y,
+
+	GFX_GAMEPAD_NUM_BUTTONS = 15
+
+} GFXGamepadButton;
+
+
+/**
+ * Gamepad axes (identical to GLFW gamepad axes).
+ */
+typedef enum GFXGamepadAxis
+{
+	GFX_GAMEPAD_LEFT_X  = 0,
+	GFX_GAMEPAD_LEFT_Y  = 1,
+	GFX_GAMEPAD_RIGHT_X = 2,
+	GFX_GAMEPAD_RIGHT_Y = 3,
+
+	GFX_GAMEPAD_LEFT_TRIGGER  = 4,
+	GFX_GAMEPAD_RIGHT_TRIGGER = 5,
+
+	GFX_GAMEPAD_NUM_AXES = 6
+
+} GFXGamepadAxis;
+
+
 #endif

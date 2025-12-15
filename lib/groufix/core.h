@@ -101,11 +101,15 @@ typedef struct _GFXState
 	GFXVec  devices;  // Stores _GFXDevice (never changes, so not dynamic).
 	GFXList contexts; // References _GFXContext.
 	GFXVec  monitors; // Stores _GFXMonitor* (pointers for access by index).
+	GFXVec  gamepads; // Stores _GFXGamepad* (pointers for access by index).
 
 	_GFXMutex contextLock;
 
 	// Monitor configuration change.
 	void (*monitorEvent)(GFXMonitor*, bool);
+
+	// Gamepad configuration change.
+	void (*gamepadEvent)(GFXGamepad*, bool);
 
 
 	// Thread local data access.
@@ -400,6 +404,17 @@ typedef struct _GFXMonitor
 
 
 /**
+ * Internal gamepad.
+ */
+typedef struct _GFXGamepad
+{
+	GFXGamepad base;
+	int        jid;
+
+} _GFXGamepad;
+
+
+/**
  * Internal window.
  */
 typedef struct _GFXWindow
@@ -515,7 +530,7 @@ _GFXThreadState* _gfx_get_local(void);
 
 
 /****************************
- * Devices, monitors and Vulkan contexts.
+ * Devices, monitors, gamepads and Vulkan contexts.
  ****************************/
 
 /**
@@ -566,6 +581,21 @@ bool _gfx_monitors_init(void);
  * Must be called before _gfx_state_terminate, on the same thread.
  */
 void _gfx_monitors_terminate(void);
+
+/**
+ * Initializes internal gamepad configuration.
+ * _groufix.gamepads.size must be 0.
+ * Must be called by the same thread that called _gfx_state_init.
+ * @return Non-zero on success.
+ */
+bool _gfx_gamepads_init(void);
+
+/**
+ * Terminates internal gamepad configuration.
+ * This will make sure all gamepads are destroyed.
+ * Must be called before _gfx_state_terminate, on the same thread.
+ */
+void _gfx_gamepads_terminate(void);
 
 /**
  * Initializes the groufix/Vulkan format 'dictionary',
