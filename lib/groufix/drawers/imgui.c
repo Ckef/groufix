@@ -480,7 +480,7 @@ static int _gfx_imgui_button(GFXMouseButton button)
 {
 	// Just bound check it.
 	return
-		((int)ImGuiMouseButton_COUNT < (int)button) ?
+		((int)button < 0 || (int)ImGuiMouseButton_COUNT <= (int)button) ?
 		(int)ImGuiMouseButton_COUNT - 1 : (int)button;
 }
 
@@ -526,8 +526,11 @@ static bool _gfx_imgui_key_press(GFXWindow* window,
                                  GFXKey key, int scan, GFXModifier mod,
                                  void* data)
 {
+	const ImGuiKey igKey = _gfx_imgui_key(key);
 	_GFXEventData* event = data;
-	ImGuiIO_AddKeyEvent(event->io, _gfx_imgui_key(key), 1);
+
+	if (igKey != ImGuiKey_None)
+		ImGuiIO_AddKeyEvent(event->io, igKey, 1);
 
 	return event->blocking && event->io->WantCaptureKeyboard;
 }
@@ -539,8 +542,11 @@ static bool _gfx_imgui_key_release(GFXWindow* window,
                                    GFXKey key, int scan, GFXModifier mod,
                                    void* data)
 {
+	const ImGuiKey igKey = _gfx_imgui_key(key);
 	_GFXEventData* event = data;
-	ImGuiIO_AddKeyEvent(event->io, _gfx_imgui_key(key), 0);
+
+	if (igKey != ImGuiKey_None)
+		ImGuiIO_AddKeyEvent(event->io, igKey, 0);
 
 	return event->blocking && event->io->WantCaptureKeyboard;
 }
