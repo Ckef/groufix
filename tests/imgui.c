@@ -36,6 +36,10 @@ TEST_DESCRIBE(imgui, t)
 	ImGuiContext* context = igCreateContext(NULL);
 	ImGuiIO* io = igGetIO();
 
+	io->ConfigFlags |=
+		ImGuiConfigFlags_NavEnableKeyboard |
+		ImGuiConfigFlags_NavEnableGamepad;
+
 	// Setup ImGui input.
 	GFXImguiInput input;
 	if (!gfx_imgui_input(&input, t->window, io, 1))
@@ -58,6 +62,13 @@ TEST_DESCRIBE(imgui, t)
 	{
 		GFXFrame* frame = gfx_renderer_start(t->renderer);
 		gfx_poll_events();
+
+		if (gfx_get_num_gamepads() > 0)
+		{
+			GFXGamepadState state;
+			gfx_gamepad_get_state(gfx_get_gamepad(0), &state);
+			gfx_imgui_gamepad(&state, io);
+		}
 
 		igNewFrame();
 		igShowDemoWindow(NULL);

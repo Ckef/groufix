@@ -23,6 +23,23 @@ static_assert(
 		"sizeof(ImDrawIdx) must equal sizeof(uint16_t).");
 
 
+// Gamepad button/axis mapping.
+#define _GFX_MAP_BUTTON(igKey, gfxButton) \
+	do { \
+		ImGuiIO_AddKeyEvent( \
+			io, igKey, state->buttons[gfxButton]); \
+	} while (0)
+
+#define _GFX_MAP_AXIS(igKey, gfxAxis, V0, V1) \
+	do { \
+		float v = state->axes[gfxAxis]; \
+		v = (v - V0) / (V1 - V0); \
+		ImGuiIO_AddKeyAnalogEvent( \
+			io, igKey, v > 0.10f, \
+			v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v); \
+	} while (0)
+
+
 // Clears the contents of a _GFXDataElem, freeing all memory.
 #define _GFX_IMGUI_CLEAR_DATA(elem) \
 	do { \
@@ -194,143 +211,11 @@ static int _gfx_imgui_cmp(const void* l, const void* r)
 }
 
 /****************************
- * ImGui focus callback.
+ * Converts a GFXKey to a ImGuiKey.
  */
-static bool _gfx_imgui_focus(GFXWindow* window, void* data)
+static int _gfx_imgui_key(GFXKey key)
 {
-	_GFXEventData* event = data;
-	ImGuiIO_AddFocusEvent(event->io, 1);
-
-	return 0;
-}
-
-/****************************
- * ImGui blur callback.
- */
-static bool _gfx_imgui_blur(GFXWindow* window, void* data)
-{
-	_GFXEventData* event = data;
-	ImGuiIO_AddFocusEvent(event->io, 0);
-
-	return 0;
-}
-
-/****************************
- * ImGui resize callback.
- */
-static bool _gfx_imgui_resize(GFXWindow* window,
-                              uint32_t width, uint32_t height, void* data)
-{
-	_GFXEventData* event = data;
-	event->io->DisplaySize.x = (float)width;
-	event->io->DisplaySize.y = (float)height;
-
-	return 0;
-}
-
-/****************************
- * ImGui key press callback.
- */
-static bool _gfx_imgui_key_press(GFXWindow* window,
-                                 GFXKey key, int scan, GFXModifier mod,
-                                 void* data)
-{
-	_GFXEventData* event = data;
-	ImGuiIO_AddKeyEvent(event->io, gfx_imgui_key(key), 1);
-
-	return event->blocking && event->io->WantCaptureKeyboard;
-}
-
-/****************************
- * ImGui key release callback.
- */
-static bool _gfx_imgui_key_release(GFXWindow* window,
-                                   GFXKey key, int scan, GFXModifier mod,
-                                   void* data)
-{
-	_GFXEventData* event = data;
-	ImGuiIO_AddKeyEvent(event->io, gfx_imgui_key(key), 0);
-
-	return event->blocking && event->io->WantCaptureKeyboard;
-}
-
-/****************************
- * ImGui key text callback.
- */
-static bool _gfx_imgui_key_text(GFXWindow* window,
-                                uint32_t codepoint, void* data)
-{
-	_GFXEventData* event = data;
-	ImGuiIO_AddInputCharacter(event->io, codepoint);
-
-	return event->blocking && event->io->WantCaptureKeyboard;
-}
-
-/****************************
- * ImGui mouse leave callback.
- */
-static bool _gfx_imgui_mouse_leave(GFXWindow* window, void* data)
-{
-	_GFXEventData* event = data;
-	ImGuiIO_AddMousePosEvent(event->io, -FLT_MAX, -FLT_MAX);
-
-	return 0;
-}
-
-/****************************
- * ImGui mouse move callback.
- */
-static bool _gfx_imgui_mouse_move(GFXWindow* window,
-                                  double x, double y, void* data)
-{
-	_GFXEventData* event = data;
-	ImGuiIO_AddMousePosEvent(event->io, (float)x, (float)y);
-
-	return event->blocking && event->io->WantCaptureMouse;
-}
-
-/****************************
- * ImGui mouse press callback.
- */
-static bool _gfx_imgui_mouse_press(GFXWindow* window,
-                                   GFXMouseButton button, GFXModifier mod,
-                                   void* data)
-{
-	_GFXEventData* event = data;
-	ImGuiIO_AddMouseButtonEvent(event->io, gfx_imgui_button(button), 1);
-
-	return event->blocking && event->io->WantCaptureMouse;
-}
-
-/****************************
- * ImGui mouse release callback.
- */
-static bool _gfx_imgui_mouse_release(GFXWindow* window,
-                                     GFXMouseButton button, GFXModifier mod,
-                                     void* data)
-{
-	_GFXEventData* event = data;
-	ImGuiIO_AddMouseButtonEvent(event->io, gfx_imgui_button(button), 0);
-
-	return event->blocking && event->io->WantCaptureMouse;
-}
-
-/****************************
- * ImGui mouse scroll callback.
- */
-static bool _gfx_imgui_mouse_scroll(GFXWindow* window,
-                                    double x, double y, void* data)
-{
-	_GFXEventData* event = data;
-	ImGuiIO_AddMouseWheelEvent(event->io, (float)x, (float)y);
-
-	return event->blocking && event->io->WantCaptureMouse;
-}
-
-/****************************/
-GFX_API int gfx_imgui_key(GFXKey key)
-{
-	switch(key)
+	switch (key)
 	{
 	case GFX_KEY_UNKNOWN:
 		return ImGuiKey_None;
@@ -588,13 +473,149 @@ GFX_API int gfx_imgui_key(GFXKey key)
 	return ImGuiKey_None;
 }
 
-/****************************/
-GFX_API int gfx_imgui_button(GFXMouseButton button)
+/****************************
+ * Converts a GFXMouseButton to a ImGui button.
+ */
+static int _gfx_imgui_button(GFXMouseButton button)
 {
 	// Just bound check it.
 	return
 		((int)ImGuiMouseButton_COUNT < (int)button) ?
 		(int)ImGuiMouseButton_COUNT - 1 : (int)button;
+}
+
+/****************************
+ * ImGui focus callback.
+ */
+static bool _gfx_imgui_focus(GFXWindow* window, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddFocusEvent(event->io, 1);
+
+	return 0;
+}
+
+/****************************
+ * ImGui blur callback.
+ */
+static bool _gfx_imgui_blur(GFXWindow* window, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddFocusEvent(event->io, 0);
+
+	return 0;
+}
+
+/****************************
+ * ImGui resize callback.
+ */
+static bool _gfx_imgui_resize(GFXWindow* window,
+                              uint32_t width, uint32_t height, void* data)
+{
+	_GFXEventData* event = data;
+	event->io->DisplaySize.x = (float)width;
+	event->io->DisplaySize.y = (float)height;
+
+	return 0;
+}
+
+/****************************
+ * ImGui key press callback.
+ */
+static bool _gfx_imgui_key_press(GFXWindow* window,
+                                 GFXKey key, int scan, GFXModifier mod,
+                                 void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddKeyEvent(event->io, _gfx_imgui_key(key), 1);
+
+	return event->blocking && event->io->WantCaptureKeyboard;
+}
+
+/****************************
+ * ImGui key release callback.
+ */
+static bool _gfx_imgui_key_release(GFXWindow* window,
+                                   GFXKey key, int scan, GFXModifier mod,
+                                   void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddKeyEvent(event->io, _gfx_imgui_key(key), 0);
+
+	return event->blocking && event->io->WantCaptureKeyboard;
+}
+
+/****************************
+ * ImGui key text callback.
+ */
+static bool _gfx_imgui_key_text(GFXWindow* window,
+                                uint32_t codepoint, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddInputCharacter(event->io, codepoint);
+
+	return event->blocking && event->io->WantCaptureKeyboard;
+}
+
+/****************************
+ * ImGui mouse leave callback.
+ */
+static bool _gfx_imgui_mouse_leave(GFXWindow* window, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMousePosEvent(event->io, -FLT_MAX, -FLT_MAX);
+
+	return 0;
+}
+
+/****************************
+ * ImGui mouse move callback.
+ */
+static bool _gfx_imgui_mouse_move(GFXWindow* window,
+                                  double x, double y, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMousePosEvent(event->io, (float)x, (float)y);
+
+	return event->blocking && event->io->WantCaptureMouse;
+}
+
+/****************************
+ * ImGui mouse press callback.
+ */
+static bool _gfx_imgui_mouse_press(GFXWindow* window,
+                                   GFXMouseButton button, GFXModifier mod,
+                                   void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMouseButtonEvent(event->io, _gfx_imgui_button(button), 1);
+
+	return event->blocking && event->io->WantCaptureMouse;
+}
+
+/****************************
+ * ImGui mouse release callback.
+ */
+static bool _gfx_imgui_mouse_release(GFXWindow* window,
+                                     GFXMouseButton button, GFXModifier mod,
+                                     void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMouseButtonEvent(event->io, _gfx_imgui_button(button), 0);
+
+	return event->blocking && event->io->WantCaptureMouse;
+}
+
+/****************************
+ * ImGui mouse scroll callback.
+ */
+static bool _gfx_imgui_mouse_scroll(GFXWindow* window,
+                                    double x, double y, void* data)
+{
+	_GFXEventData* event = data;
+	ImGuiIO_AddMouseWheelEvent(event->io, (float)x, (float)y);
+
+	return event->blocking && event->io->WantCaptureMouse;
 }
 
 /****************************/
@@ -663,6 +684,49 @@ GFX_API void gfx_imgui_end(GFXImguiInput* input)
 	gfx_window_erase_events(input->window, input->data);
 
 	// Leave all values, input forwarder is invalidated.
+}
+
+/****************************/
+GFX_API void gfx_imgui_gamepad(const GFXGamepadState* state, void* igGuiIO)
+{
+	assert(state != NULL);
+	assert(igGuiIO != NULL);
+
+	ImGuiIO* io = igGuiIO;
+
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadFaceDown, GFX_GAMEPAD_A);
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadFaceRight, GFX_GAMEPAD_B);
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadFaceLeft, GFX_GAMEPAD_X);
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadFaceUp, GFX_GAMEPAD_Y);
+
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadL1, GFX_GAMEPAD_LEFT_BUMPER);
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadR1, GFX_GAMEPAD_RIGHT_BUMPER);
+
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadBack, GFX_GAMEPAD_BACK);
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadStart, GFX_GAMEPAD_START);
+
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadL3, GFX_GAMEPAD_LEFT_THUMB);
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadR3, GFX_GAMEPAD_RIGHT_THUMB);
+
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadDpadUp, GFX_GAMEPAD_DPAD_UP);
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadDpadRight, GFX_GAMEPAD_DPAD_RIGHT);
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadDpadDown, GFX_GAMEPAD_DPAD_DOWN);
+	_GFX_MAP_BUTTON(ImGuiKey_GamepadDpadLeft, GFX_GAMEPAD_DPAD_LEFT);
+
+	_GFX_MAP_AXIS(ImGuiKey_GamepadLStickLeft, GFX_GAMEPAD_LEFT_X,  -0.25f, -1.0f);
+	_GFX_MAP_AXIS(ImGuiKey_GamepadLStickRight, GFX_GAMEPAD_LEFT_X, +0.25f, +1.0f);
+	_GFX_MAP_AXIS(ImGuiKey_GamepadLStickUp, GFX_GAMEPAD_LEFT_Y,    -0.25f, -1.0f);
+	_GFX_MAP_AXIS(ImGuiKey_GamepadLStickDown, GFX_GAMEPAD_LEFT_Y,  +0.25f, +1.0f);
+
+	_GFX_MAP_AXIS(ImGuiKey_GamepadRStickLeft, GFX_GAMEPAD_RIGHT_X,  -0.25f, -1.0f);
+	_GFX_MAP_AXIS(ImGuiKey_GamepadRStickRight, GFX_GAMEPAD_RIGHT_X, +0.25f, +1.0f);
+	_GFX_MAP_AXIS(ImGuiKey_GamepadRStickUp, GFX_GAMEPAD_RIGHT_Y,    -0.25f, -1.0f);
+	_GFX_MAP_AXIS(ImGuiKey_GamepadRStickDown, GFX_GAMEPAD_RIGHT_Y,  +0.25f, +1.0f);
+
+	_GFX_MAP_AXIS(ImGuiKey_GamepadL2, GFX_GAMEPAD_LEFT_TRIGGER,  -0.75f, +1.0f);
+	_GFX_MAP_AXIS(ImGuiKey_GamepadR2, GFX_GAMEPAD_RIGHT_TRIGGER, -0.75f, +1.0f);
+
+	io->BackendFlags |= ImGuiBackendFlags_HasGamepad;
 }
 
 /****************************/

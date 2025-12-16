@@ -14,6 +14,7 @@
 #include "groufix/containers/map.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/deps.h"
+#include "groufix/core/gamepad.h"
 #include "groufix/core/heap.h"
 #include "groufix/core/keys.h"
 #include "groufix/core/renderer.h"
@@ -120,16 +121,6 @@ typedef struct GFXImguiInput
 
 
 /**
- * Converts a GFXKey to a ImGuiKey.
- */
-GFX_API int gfx_imgui_key(GFXKey key);
-
-/**
- * Converts a GFXMouseButton to a ImGui button.
- */
-GFX_API int gfx_imgui_button(GFXMouseButton button);
-
-/**
  * Initializes an ImGui input forwarder.
  * Does not need to be cleared, hence no _init postfix.
  * @param input    Cannot be NULL.
@@ -152,6 +143,13 @@ GFX_API bool gfx_imgui_input(GFXImguiInput* input,
  * needs to be called first!
  */
 GFX_API void gfx_imgui_end(GFXImguiInput* input);
+
+/**
+ * Forwards a gamepad state to ImGui.
+ * @param state   Cannot be NULL.
+ * @param igGuiIO The ImGuiIO* to feed input into, cannot be NULL.
+ */
+GFX_API void gfx_imgui_gamepad(const GFXGamepadState* state, void* igGuiIO);
 
 
 #endif
