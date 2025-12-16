@@ -10,6 +10,7 @@
 #ifndef GFX_CORE_GAMEPAD_H
 #define GFX_CORE_GAMEPAD_H
 
+#include "groufix/containers/io.h"
 #include "groufix/core/keys.h"
 #include "groufix/def.h"
 
@@ -38,9 +39,11 @@ typedef struct GFXGamepad
 	void* ptr;
 
 	// All read-only.
-	const char* name;
+	const char* name; // NULL if not available.
 	const char* guid;
 	const char* sysName;
+
+	bool available; // Zero if there is no gamepad mapping found.
 
 } GFXGamepad;
 
@@ -69,8 +72,21 @@ GFX_API GFXGamepad* gfx_get_gamepad(size_t index);
  * Retrieves the state of a gamepad.
  * @param gamepad Cannot be NULL.
  * @param state   Output gamepad state, cannot be NULL.
+ * @return Zero if the gamepad is not available, nothing is written to state.
  */
-GFX_API void gfx_gamepad_get_state(GFXGamepad* gamepad, GFXGamepadState* state);
+GFX_API bool gfx_gamepad_get_state(GFXGamepad* gamepad, GFXGamepadState* state);
+
+/**
+ * Updates the internal list of gamepad mappings from ASCII source.
+ * The format is defined by the SDL and SDL_GameControllerDB projects.
+ * See GLFW for the currently supported features.
+ * @param src Source stream, cannot be NULL.
+ * @return Non-zero on success.
+ *
+ * All gamepads returned by gfx_get_gamepad remain valid,
+ * but their `name` and `available` fields may be updated.
+ */
+GFX_API bool gfx_gamepad_mappings_update(const GFXReader* src);
 
 
 #endif

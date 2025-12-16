@@ -12,12 +12,41 @@
 
 
 /****************************
+ * Logs info about all connected gamepads.
+ * @param head Header message (incl. \n!) after which all gamepads are listed.
+ */
+static void _gfx_log_gamepads(const char* head)
+{
+	// Let's see the connected gamepads :)
+	GFXBufWriter* logger = gfx_logger_info();
+	if (logger != NULL)
+	{
+		gfx_io_writef(logger, head);
+
+		for (size_t i = 0; i < _groufix.gamepads.size; ++i)
+		{
+			_GFXGamepad* gamepad =
+				*(_GFXGamepad**)gfx_vec_at(&_groufix.gamepads, i);
+
+			gfx_io_writef(logger,
+				"    [ %s ] (%s - %s%s)\n",
+				gamepad->base.name,
+				gamepad->base.guid,
+				gamepad->base.sysName,
+				gamepad->base.available ? "" : " | not available");
+		}
+
+		gfx_logger_end(logger);
+	}
+}
+
+/****************************
  * Allocates and initializes a new groufix gamepad from a GLFW joystick id.
  * Automatically appends the gamepad to _groufix.gamepads.
  * @param jid Must be >= 0 and <= GLFW_JOYSTICK_LAST.
  * @return NULL on failure.
  *
- * glfwJoystickIsGamepad(jid) must return GLFW_TRUE.
+ * glfwJoystickPresent(jid) must return GLFW_TRUE.
  */
 static _GFXGamepad* _gfx_alloc_gamepad(int jid)
 {
@@ -42,6 +71,7 @@ static _GFXGamepad* _gfx_alloc_gamepad(int jid)
 	gamepad->base.name = glfwGetGamepadName(jid);
 	gamepad->base.guid = glfwGetJoystickGUID(jid);
 	gamepad->base.sysName = glfwGetJoystickName(jid);
+	gamepad->base.available = glfwJoystickIsGamepad(jid) == GLFW_TRUE;
 	gamepad->jid = jid;
 
 	return gamepad;
@@ -58,9 +88,6 @@ static void _gfx_glfw_joystick(int jid, int event)
 
 	if (conn)
 	{
-		// If not a gamepad, nothing to do.
-		if (!glfwJoystickIsGamepad(jid)) return;
-
 		// On connect, allocate a new gamepad and
 		// attempt to insert it into the configuration.
 		gamepad = _gfx_alloc_gamepad(jid);
@@ -73,28 +100,28 @@ static void _gfx_glfw_joystick(int jid, int event)
 		// Wanna know about it?
 		gfx_log_info(
 			"Gamepad connected:\n"
-			"    [ %s ] (%s - %s)\n",
+			"    [ %s ] (%s - %s%s)\n",
 			gamepad->base.name,
 			gamepad->base.guid,
-			gamepad->base.sysName);
+			gamepad->base.sysName,
+			gamepad->base.available ? "" : " | not available");
 	}
 	else
 	{
 		// On disconnect, get associated groufix gamepad.
-		// If no groufix gamepad, it was no gamepad, do nothing.
 		gamepad = glfwGetJoystickUserPointer(jid);
-		if (gamepad == NULL) return;
 
-		// On disconnect, shrink the configuration.
+		// Then shrink the configuration.
 		gfx_vec_pop(&_groufix.gamepads, 1);
 
 		// Wanna know about it?
 		gfx_log_info(
 			"Gamepad disconnected:\n"
-			"    [ %s ] (%s - %s)\n",
+			"    [ %s ] (%s - %s%s)\n",
 			gamepad->base.name,
 			gamepad->base.guid,
-			gamepad->base.sysName);
+			gamepad->base.sysName,
+			gamepad->base.available ? "" : " | not available");
 	}
 
 	// So we don't know if the order of the configuration array is preserved.
@@ -125,39 +152,14 @@ bool _gfx_gamepads_init(void)
 {
 	assert(_groufix.gamepads.size == 0);
 
-	// Reserve some data and create all gamepads.
-	const size_t count = (size_t)(GLFW_JOYSTICK_LAST + 1);
-
-	if (!gfx_vec_reserve(&_groufix.gamepads, count))
-		goto terminate;
-
+	// Create all gamepads.
 	for (int jid = 0; jid <= GLFW_JOYSTICK_LAST; ++jid)
-		if (glfwJoystickIsGamepad(jid) && _gfx_alloc_gamepad(jid) == NULL)
+		if (glfwJoystickPresent(jid) && _gfx_alloc_gamepad(jid) == NULL)
 			goto terminate;
 
+	// Only log if there are actual gamepads.
 	if (_groufix.gamepads.size > 0)
-	{
-		// Let's see the connected gamepads :)
-		GFXBufWriter* logger = gfx_logger_info();
-		if (logger != NULL)
-		{
-			gfx_io_writef(logger, "Detected gamepads:\n");
-
-			for (size_t i = 0; i < _groufix.gamepads.size; ++i)
-			{
-				_GFXGamepad* gamepad =
-					*(_GFXGamepad**)gfx_vec_at(&_groufix.gamepads, i);
-
-				gfx_io_writef(logger,
-					"    [ %s ] (%s - %s)\n",
-					gamepad->base.name,
-					gamepad->base.guid,
-					gamepad->base.sysName);
-			}
-
-			gfx_logger_end(logger);
-		}
-	}
+		_gfx_log_gamepads("Detected gamepads:\n");
 
 	// Make sure we get configuration change events.
 	glfwSetJoystickCallback(_gfx_glfw_joystick);
@@ -222,18 +224,76 @@ GFX_API GFXGamepad* gfx_get_gamepad(size_t index)
 }
 
 /****************************/
-GFX_API void gfx_gamepad_get_state(GFXGamepad* gamepad, GFXGamepadState* state)
+GFX_API bool gfx_gamepad_get_state(GFXGamepad* gamepad, GFXGamepadState* state)
 {
 	assert(gamepad != NULL);
 	assert(state != NULL);
 
-	// Get GLFW state, guaranteed to not error in our case.
 	GLFWgamepadstate glfwState;
-	glfwGetGamepadState(((_GFXGamepad*)gamepad)->jid, &glfwState);
+	if (!glfwGetGamepadState(((_GFXGamepad*)gamepad)->jid, &glfwState))
+		return 0;
 
 	for (GFXGamepadButton b = 0; b < GFX_GAMEPAD_NUM_BUTTONS; ++b)
 		state->buttons[b] = glfwState.buttons[b] == GLFW_PRESS;
 
 	for (GFXGamepadAxis a = 0; a < GFX_GAMEPAD_NUM_AXES; ++a)
 		state->axes[a] = glfwState.axes[a];
+
+	return 1;
+}
+
+/****************************/
+GFX_API bool gfx_gamepad_mappings_update(const GFXReader* src)
+{
+	assert(atomic_load(&_groufix.initialized));
+	assert(src != NULL);
+
+	// Read the source, unfortunately we need a NULL-terminated string.
+	// We don't know if gfx_io_get will return that, allocate it manually.
+	long long len = gfx_io_len(src);
+	if (len <= 0) goto error;
+
+	char* source = malloc((size_t)len + 1);
+	if (source == NULL) goto error;
+
+	// Read source.
+	len = gfx_io_read(src, source, (size_t)len);
+	if (len <= 0)
+	{
+		free(source);
+		goto error;
+	}
+
+	// Add NULL-terminator and simply feed it to GLFW.
+	source[len] = '\0';
+	glfwUpdateGamepadMappings(source);
+
+	free(source); // Immediately free.
+
+	// Lastly, fix all existing gamepads.
+	// These may now have new availability & names.
+	for (size_t i = 0; i < _groufix.gamepads.size; ++i)
+	{
+		_GFXGamepad* gamepad =
+			*(_GFXGamepad**)gfx_vec_at(&_groufix.gamepads, i);
+
+		gamepad->base.name = glfwGetGamepadName(gamepad->jid);
+		gamepad->base.available = glfwJoystickIsGamepad(gamepad->jid) == GLFW_TRUE;
+	}
+
+	// Always log something.
+	if (_groufix.gamepads.size > 0)
+		_gfx_log_gamepads("Gamepad mappings updated, detected gamepads:\n");
+	else
+		gfx_log_info("Gamepad mappings updated.");
+
+	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error(
+		"Could not read SDL game controller db source from stream.");
+
+	return 0;
 }

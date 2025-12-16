@@ -117,7 +117,7 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 		// On disconnect, get associated groufix monitor.
 		monitor = glfwGetMonitorUserPointer(handle);
 
-		// On disconnect, shrink the configuration.
+		// Then shrink the configuration.
 		gfx_vec_pop(&_groufix.monitors, 1);
 
 		// Wanna know about it?
