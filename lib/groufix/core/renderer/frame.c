@@ -1114,15 +1114,11 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	const size_t culledGraphics = renderer->graph.culledRender;
 	const size_t culledCompute = renderer->graph.culledCompute;
 
-	GFXPass* first;
 	_GFXInjection injection;
 
 	// Record & submit to the graphics queue.
-	if (numGraphics - culledGraphics > 0)
+	if (culledGraphics < numGraphics)
 	{
-		// Get first graphics pass.
-		first = (GFXPass*)renderer->graph.passes.head;
-
 		// Prepare injection metadata.
 		injection = (_GFXInjection){
 			.inp = {
@@ -1139,7 +1135,9 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 		// Record graphics.
 		if (!_gfx_frame_record(frame->graphics.vk.cmd,
-			renderer, frame, first, numGraphics, &injection))
+			renderer, frame,
+			(GFXPass*)renderer->graph.passes.head, numGraphics,
+			&injection))
 		{
 			goto clean_graphics;
 		}
@@ -1260,20 +1258,17 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		}
 
 		// Lastly, make all commands visible for future operations.
-		_gfx_frame_finalize(renderer, 1, first, numGraphics, &injection);
+		_gfx_frame_finalize(renderer, 1,
+			(GFXPass*)renderer->graph.passes.head, numGraphics,
+			&injection);
 
 		// Succesfully submitted.
 		frame->submitted |= _GFX_FRAME_GRAPHICS;
 	}
 
 	// Record & submit to the compute queue.
-	if (numCompute - culledCompute > 0)
+	if (culledCompute < numCompute)
 	{
-		// Get first compute pass.
-		first = renderer->graph.lastRender != NULL ?
-			(GFXPass*)renderer->graph.lastRender->list.next :
-			(GFXPass*)renderer->graph.passes.head;
-
 		// Prepare injection metadata.
 		injection = (_GFXInjection){
 			.inp = {
@@ -1290,7 +1285,9 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 		// Record compute.
 		if (!_gfx_frame_record(frame->compute.vk.cmd,
-			renderer, frame, first, numCompute, &injection))
+			renderer, frame,
+			renderer->graph.firstCompute, numCompute,
+			&injection))
 		{
 			goto clean_compute;
 		}
@@ -1322,7 +1319,9 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		_gfx_mutex_unlock(renderer->compute.lock);
 
 		// Lastly, make all commands visible for future operations.
-		_gfx_frame_finalize(renderer, 1, first, numCompute, &injection);
+		_gfx_frame_finalize(renderer, 1,
+			renderer->graph.firstCompute, numCompute,
+			&injection);
 
 		// Succesfully submitted.
 		frame->submitted |= _GFX_FRAME_COMPUTE;
@@ -1344,11 +1343,17 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 	// Cleanup on failure.
 clean_graphics:
-	_gfx_frame_finalize(renderer, 0, first, numGraphics, &injection);
+	_gfx_frame_finalize(renderer, 0,
+		(GFXPass*)renderer->graph.passes.head, numGraphics,
+		&injection);
+
 	goto error;
 
 clean_compute:
-	_gfx_frame_finalize(renderer, 0, first, numCompute, &injection);
+	_gfx_frame_finalize(renderer, 0,
+		renderer->graph.firstCompute, numCompute,
+		&injection);
+
 	goto error;
 
 

@@ -465,11 +465,11 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// Also, allocate the `consumes` for _gfx_pass_(merge|resolve) here.
 	const size_t numAttachs = renderer->backing.attachs.size;
 	_GFXConsume* consumes[GFX_MAX(1, numAttachs)];
-	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 
 	for (
-		size_t i = 0; i < renderer->graph.numRender;
-		++i, pass = (GFXPass*)pass->list.next)
+		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		pass != renderer->graph.firstCompute;
+		pass = (GFXPass*)pass->list.next)
 	{
 		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 
@@ -508,7 +508,7 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	unsigned int order = 0;
 
 	for (
-		pass = (GFXPass*)renderer->graph.passes.head;
+		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 		pass != NULL;
 		pass = (GFXPass*)pass->list.next)
 	{
@@ -532,7 +532,7 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	gfx_list_init(&renderer->graph.passes);
-	renderer->graph.lastRender = NULL;
+	renderer->graph.firstCompute = NULL;
 
 	renderer->graph.numRender = 0;
 	renderer->graph.numCompute = 0;
@@ -577,16 +577,16 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 		_gfx_render_graph_analyze(renderer);
 
 	// And then make sure all render passes are warmped up!
-	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 	size_t failed = 0;
 
-	for (size_t i = 0; i < renderer->graph.numRender; ++i)
+	for (
+		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		pass != renderer->graph.firstCompute;
+		pass = (GFXPass*)pass->list.next)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			// No need to worry about destructing, state remains 'validated'.
 			failed += !_gfx_pass_warmup((_GFXRenderPass*)pass);
-
-		pass = (GFXPass*)pass->list.next;
 	}
 
 	if (failed > 0)
@@ -624,17 +624,17 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 		_gfx_render_graph_analyze(renderer);
 
 	// So now make sure all the render passes in the graph are built.
-	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 	size_t failed = 0;
 
-	for (size_t i = 0; i < renderer->graph.numRender; ++i)
+	for (
+		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		pass != renderer->graph.firstCompute;
+		pass = (GFXPass*)pass->list.next)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			// The pass itself should log errors.
 			// No need to worry about destructing, state remains 'validated'.
 			failed += !_gfx_pass_build((_GFXRenderPass*)pass);
-
-		pass = (GFXPass*)pass->list.next;
 	}
 
 	if (failed > 0)
@@ -665,15 +665,15 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 	// (Re)build all render passes.
 	// If we fail, just ignore and signal we're not built.
 	// Will be tried again in _gfx_render_graph_build.
-	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 	size_t failed = 0;
 
-	for (size_t i = 0; i < renderer->graph.numRender; ++i)
+	for (
+		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		pass != renderer->graph.firstCompute;
+		pass = (GFXPass*)pass->list.next)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			failed += !_gfx_pass_rebuild((_GFXRenderPass*)pass, flags);
-
-		pass = (GFXPass*)pass->list.next;
 	}
 
 	if (failed > 0)
@@ -693,14 +693,13 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Destruct all render passes.
-	GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
-
-	for (size_t i = 0; i < renderer->graph.numRender; ++i)
+	for (
+		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		pass != renderer->graph.firstCompute;
+		pass = (GFXPass*)pass->list.next)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			_gfx_pass_destruct((_GFXRenderPass*)pass);
-
-		pass = (GFXPass*)pass->list.next;
 	}
 
 	// The graph is now empty.
@@ -745,7 +744,10 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 		renderer->graph.numCompute : renderer->graph.numRender;
 
 	GFXPass* last = pass->type == GFX_PASS_COMPUTE_ASYNC ?
-		(GFXPass*)renderer->graph.passes.tail : renderer->graph.lastRender;
+		(GFXPass*)renderer->graph.passes.tail :
+		(renderer->graph.firstCompute != NULL ?
+			(GFXPass*)renderer->graph.firstCompute->list.prev :
+			(GFXPass*)renderer->graph.passes.tail);
 
 	for (; num > 0; --num, last = (GFXPass*)last->list.prev)
 		if (last->level <= pass->level) break;
@@ -772,8 +774,12 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	else
 		gfx_list_insert_after(&renderer->graph.passes, &pass->list, &last->list);
 
-	if (last == renderer->graph.lastRender && pass->type != GFX_PASS_COMPUTE_ASYNC)
-		renderer->graph.lastRender = pass;
+	if (
+		pass->type == GFX_PASS_COMPUTE_ASYNC &&
+		(GFXPass*)pass->list.next == renderer->graph.firstCompute)
+	{
+		renderer->graph.firstCompute = pass;
+	}
 
 	// Increase render (+inline compute) pass count on success.
 	if (pass->type != GFX_PASS_COMPUTE_ASYNC)

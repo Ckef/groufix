@@ -994,8 +994,8 @@ struct GFXRenderer
 	// Render graph (directed acyclic graph of passes).
 	struct
 	{
-		GFXList  passes;     // References GFXPass (in submission order).
-		GFXPass* lastRender; // Last render or inline compute pass.
+		GFXList  passes;       // References GFXPass (in submission order).
+		GFXPass* firstCompute; // First async compute pass.
 
 		size_t numRender;  // Number of render & inline compute passes.
 		size_t numCompute; // Number of async compute passes.
