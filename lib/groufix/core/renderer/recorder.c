@@ -946,7 +946,6 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(offset % 4 == 0);
 	assert(offset < technique->pushSize);
 	assert(size % 4 == 0);
-	assert(size > 0);
 	assert(size <= technique->pushSize - offset);
 	assert(data != NULL);
 

@@ -1650,6 +1650,7 @@ GFX_API float gfx_recorder_get_line_width(GFXRecorder* recorder);
  * @param sets        Cannot be NULL.
  * @param offsets     Cannot be NULL if numDynamics > 0.
  *
+ * firstSet and numSets must fit within the available sets of technique.
  * All offsets must be properly aligned for uniform or storage buffer usages.
  */
 GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
@@ -1666,6 +1667,8 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
  * @param offset    Must be a multiple of 4.
  * @param size      Must be a multiple of 4, zero for all remaining bytes.
  * @param data      An array of size bytes.
+ *
+ * offset and size must fit within the available push memory of technique.
  */
 GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
                           uint32_t offset,
