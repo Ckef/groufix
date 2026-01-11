@@ -918,7 +918,12 @@ GFX_API void gfx_erase_pass(GFXPass* pass)
 	// which is simply inefficient.
 	// Do this even when culled, in case it wasn't culled before!
 	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+	{
+		// Use renderer's lock for pushing stale resources!
+		_gfx_mutex_lock(&renderer->lock);
 		_gfx_render_graph_destruct(renderer);
+		_gfx_mutex_unlock(&renderer->lock);
+	}
 
 	// Unlink itself from the render graph.
 	if (renderer->graph.firstCompute == pass)
@@ -971,7 +976,12 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
 	// Just like when erasing a pass, we first destruct the entire graph.
 	// This is still necessary as the order of passes might change!
 	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+	{
+		// Use renderer's lock for pushing stale resources!
+		_gfx_mutex_lock(&renderer->lock);
 		_gfx_render_graph_destruct(renderer);
+		_gfx_mutex_unlock(&renderer->lock);
+	}
 
 	// If not culled, decrease + increase the child count of all parents.
 	if (!pass->culled)
