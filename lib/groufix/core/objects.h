@@ -1105,11 +1105,12 @@ struct GFXPass
 	GFXListNode  list; // Base-type.
 	GFXPassType  type;
 	GFXRenderer* renderer;
-	unsigned int level;  // Determines submission order.
 	unsigned int group;  // Cull group of the pass.
 
-	unsigned int order;  // Actual submission order.
-	unsigned int childs; // Number of unculled (!) passes this is a parent of.
+	GFXVec       parents; // Stores GFXPass*.
+	unsigned int level;   // Determines submission order.
+	unsigned int order;   // Actual submission order.
+	unsigned int childs;  // Number of unculled (!) passes this is a parent of.
 	bool         culled;
 
 	// Stores _GFXConsume.
@@ -1188,11 +1189,6 @@ typedef struct _GFXRenderPass
 
 	} vk;
 
-
-	// Parent passes.
-	size_t   numParents;
-	GFXPass* parents[];
-
 } _GFXRenderPass;
 
 
@@ -1204,11 +1200,6 @@ typedef struct _GFXComputePass
 	GFXPass base;
 
 	// Nothing special to do for compute passes.
-
-
-	// Parent passes.
-	size_t   numParents;
-	GFXPass* parents[];
 
 } _GFXComputePass;
 
@@ -1998,13 +1989,14 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  * @return NULL on failure.
  *
  * Leaves the `list` base-type uninitialized!
+ * Additionally, the `level` field is left at zero.
  */
 GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
                           unsigned int group,
                           size_t numParents, GFXPass** parents);
 
 /**
- * Destroys a pass, must be called in submission order!
+ * Destroys a pass, MUST first call _gfx_pass_destruct!
  * @param pass Cannot be NULL.
  *
  * Does not unlink itself from anything!
@@ -2025,6 +2017,7 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame);
  * @param rPass Cannot be NULL.
  * @return Non-zero on success.
  *
+ * Must be called in submission order!
  * Before the initial call to _gfx_pass_(warmup|build) and once after a call
  * to _gfx_pass_destruct, the following MUST be set to influence the build:
  *  rPass->out.*
@@ -2039,6 +2032,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass);
  * @return Non-zero if completely valid and built.
  *
  * @see _gfx_pass_warmup for influencing the build.
+ *
+ * Must be called in submission order!
  */
 bool _gfx_pass_build(_GFXRenderPass* rPass);
 
@@ -2048,6 +2043,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass);
  * @param flags Must contain the _GFX_RECREATE bit.
  * @return Non-zero if rebuilt successfully.
  *
+ * Must be called in submission order!
  * Not thread-safe with respect to pushing stale resources!
  */
 bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags);
@@ -2056,6 +2052,7 @@ bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags);
  * Destructs all Vulkan objects, non-recursively.
  * @param rPass Cannot be NULL.
  *
+ * Must be called in submission order!
  * Must be called before its attachments and after its consumptions are changed!
  * Not thread-safe with respect to pushing stale resources!
  */

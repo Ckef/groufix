@@ -307,50 +307,34 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	assert(renderer != NULL);
 	assert(numParents == 0 || parents != NULL);
 
-	// Check if all parents are compatible.
-	for (size_t p = 0; p < numParents; ++p)
-	{
-		if (parents[p]->renderer != renderer)
-		{
-			gfx_log_error(
-				"Render/compute passes cannot be the parent of a pass "
-				"associated with a different renderer.");
-
-			return NULL;
-		}
-
-		if (
-			(type == GFX_PASS_COMPUTE_ASYNC &&
-				parents[p]->type != GFX_PASS_COMPUTE_ASYNC) ||
-			(type != GFX_PASS_COMPUTE_ASYNC &&
-				parents[p]->type == GFX_PASS_COMPUTE_ASYNC))
-		{
-			gfx_log_error(
-				"Asynchronous compute passes cannot be the parent of any "
-				"render or inline compute pass and vice versa.");
-
-			return NULL;
-		}
-	}
-
 	// Allocate a new pass.
 	const size_t structSize =
 		(type == GFX_PASS_RENDER) ?
 		sizeof(_GFXRenderPass) : sizeof(_GFXComputePass);
 
-	GFXPass* pass = malloc(
-		structSize +
-		sizeof(GFXPass*) * numParents);
+	GFXPass* pass = malloc(structSize);
+	if (pass == NULL) return NULL;
 
-	if (pass == NULL)
+	// Set parents.
+	gfx_vec_init(&pass->parents, sizeof(GFXPass*));
+
+	if (!gfx_vec_reserve(&pass->parents, numParents))
+	{
+		gfx_vec_clear(&pass->parents);
+		free(pass);
+
 		return NULL;
+	}
 
-	// Initialize things.
+	if (numParents > 0)
+		gfx_vec_push(&pass->parents, numParents, parents);
+
+	// Initialize other things.
 	pass->type = type;
 	pass->renderer = renderer;
-	pass->level = 0;
 	pass->group = group;
 
+	pass->level = 0;
 	pass->order = 0;
 	pass->childs = 0;
 	pass->culled = 0;
@@ -359,21 +343,11 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	gfx_vec_init(&pass->deps, sizeof(_GFXDepend));
 	gfx_vec_init(&pass->injs, sizeof(GFXInject));
 
-	// The level is the highest level of all parents + 1.
-	for (size_t p = 0; p < numParents; ++p)
-		if (parents[p]->level >= pass->level)
-			pass->level = parents[p]->level + 1;
-
 	// Initialize as render pass.
 	if (type == GFX_PASS_RENDER)
 	{
 		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
 		rPass->gen = 0;
-
-		// Set parents.
-		rPass->numParents = numParents;
-		if (numParents > 0)
-			memcpy(rPass->parents, parents, sizeof(GFXPass*) * numParents);
 
 		// Initialize building stuff.
 		rPass->out.master = NULL;
@@ -463,17 +437,6 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 		};
 	}
 
-	// Initialize as compute pass.
-	else
-	{
-		_GFXComputePass* cPass = (_GFXComputePass*)pass;
-
-		// Set parents.
-		cPass->numParents = numParents;
-		if (numParents > 0)
-			memcpy(cPass->parents, parents, sizeof(GFXPass*) * numParents);
-	}
-
 	return pass;
 }
 
@@ -482,24 +445,9 @@ void _gfx_destroy_pass(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	// Destruct as render pass.
-	if (pass->type == GFX_PASS_RENDER)
-	{
-		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
-
-		// Destruct all partial things.
-		// Will loop over subpasses, reason why we must destroy in-order!
-		if (rPass->out.master == NULL)
-			_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
-
-		// Free all remaining things.
-		gfx_vec_clear(&rPass->vk.clears);
-		gfx_vec_clear(&rPass->vk.blends);
-		gfx_vec_clear(&rPass->vk.views);
-		gfx_vec_clear(&rPass->vk.frames);
-	}
-
-	// More destruction.
+	// Destroy things, we assume everything render-pass is already cleared.
+	// We can assume so as _gfx_pass_destruct(pass) MUST be called first!
+	gfx_vec_clear(&pass->parents);
 	gfx_vec_clear(&pass->consumes);
 	gfx_vec_clear(&pass->deps);
 	gfx_vec_clear(&pass->injs);
@@ -1421,6 +1369,7 @@ bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags)
 	const bool built = _GFX_PASS_IS_BUILT(rPass);
 
 	// Then we destroy the things we want to recreate.
+	// Will loop over subpasses, reason why we must destroy in-order!
 	_gfx_pass_destruct_partial(rPass, flags);
 
 	// Then re-perform the remembered bits :)
@@ -1439,6 +1388,7 @@ void _gfx_pass_destruct(_GFXRenderPass* rPass)
 	assert(rPass->base.type == GFX_PASS_RENDER);
 
 	// Destruct all partial things.
+	// Will loop over subpasses, reason why we must destroy in-order!
 	if (rPass->out.master == NULL)
 		_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
 
@@ -1466,6 +1416,23 @@ GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass)
 	assert(pass != NULL);
 
 	return pass->type;
+}
+
+/****************************/
+GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	return pass->parents.size;
+}
+
+/****************************/
+GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
+{
+	assert(pass != NULL);
+	assert(parent < pass->parents.size);
+
+	return *(GFXPass**)gfx_vec_at(&pass->parents, parent);
 }
 
 /****************************/
@@ -1747,20 +1714,6 @@ GFX_API void gfx_pass_set_viewport(GFXPass* pass, GFXViewport viewport)
 }
 
 /****************************/
-GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor)
-{
-	assert(pass != NULL);
-	assert(!pass->renderer->recording);
-
-	// No-op if not a render pass.
-	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
-	if (pass->type != GFX_PASS_RENDER) return;
-
-	// Set scissor.
-	rPass->state.scissor = scissor;
-}
-
-/****************************/
 GFX_API GFXViewport gfx_pass_get_viewport(GFXPass* pass)
 {
 	assert(pass != NULL);
@@ -1780,6 +1733,20 @@ GFX_API GFXViewport gfx_pass_get_viewport(GFXPass* pass)
 }
 
 /****************************/
+GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor)
+{
+	assert(pass != NULL);
+	assert(!pass->renderer->recording);
+
+	// No-op if not a render pass.
+	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+	if (pass->type != GFX_PASS_RENDER) return;
+
+	// Set scissor.
+	rPass->state.scissor = scissor;
+}
+
+/****************************/
 GFX_API GFXScissor gfx_pass_get_scissor(GFXPass* pass)
 {
 	assert(pass != NULL);
@@ -1794,29 +1761,4 @@ GFX_API GFXScissor gfx_pass_get_scissor(GFXPass* pass)
 			.width = 0,
 			.height = 0
 		};
-}
-
-/****************************/
-GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass)
-{
-	assert(pass != NULL);
-
-	return
-		(pass->type == GFX_PASS_RENDER) ?
-			((_GFXRenderPass*)pass)->numParents :
-			((_GFXComputePass*)pass)->numParents;
-}
-
-/****************************/
-GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
-{
-	assert(pass != NULL);
-	assert(pass->type == GFX_PASS_RENDER ?
-		parent < ((_GFXRenderPass*)pass)->numParents :
-		parent < ((_GFXComputePass*)pass)->numParents);
-
-	return
-		(pass->type == GFX_PASS_RENDER) ?
-			((_GFXRenderPass*)pass)->parents[parent] :
-			((_GFXComputePass*)pass)->parents[parent];
 }

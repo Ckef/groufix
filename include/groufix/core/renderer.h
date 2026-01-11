@@ -917,7 +917,7 @@ typedef enum GFXPassType
 
 
 /**
- * Adds a new (sink) pass to the renderer given a set of parent.
+ * Adds a new pass to the renderer given a set of parent.
  * A pass will be after all its parents in submission order.
  * Each element in parents must be associated with the same renderer.
  * @param renderer   Cannot be NULL.
@@ -935,6 +935,15 @@ typedef enum GFXPassType
 GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
                                        unsigned int group,
                                        size_t numParents, GFXPass** parents);
+
+/**
+ * Erases (destroys) a pass, removing it from its renderer.
+ * @param pass Cannot be NULL.
+ *
+ * This function CANNOT be called if pass is still the parent of any other pass.
+ */
+GFX_API void gfx_erase_pass(GFXPass* pass);
+
 /**
  * Returns the renderer the pass was added to.
  * Can be called from any thread.
@@ -949,6 +958,29 @@ GFX_API GFXRenderer* gfx_pass_get_renderer(GFXPass* pass);
  * @return Type of the pass, render, inline compute or async compute.
  */
 GFX_API GFXPassType gfx_pass_get_type(GFXPass* pass);
+
+/**
+ * Retrieves the number of parents of a pass.
+ * @param pass Cannot be NULL.
+ */
+GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
+
+/**
+ * Retrieves a parent of a pass.
+ * @param pass   Cannot be NULL.
+ * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
+ */
+GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
+
+/**
+ * Sets a new set of parents of a pass.
+ * @param pass Cannot be NULL.
+ * @return Zero on failure.
+ *
+ * @see gfx_renderer_add_pass.
+ */
+GFX_API bool gfx_pass_set_parents(GFXPass* pass,
+                                  size_t numParents, GFXPass** parents);
 
 /**
  * Retrieves the cull group this pass is in.
@@ -1088,12 +1120,6 @@ GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass);
 GFX_API void gfx_pass_set_viewport(GFXPass* pass, GFXViewport viewport);
 
 /**
- * Sets the scissor state of a render pass.
- * @see gfx_pass_set_viewport.
- */
-GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor);
-
-/**
  * Retrieves the current viewport state of a render pass.
  * @param pass Cannot be NULL.
  *
@@ -1102,23 +1128,16 @@ GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor);
 GFX_API GFXViewport gfx_pass_get_viewport(GFXPass* pass);
 
 /**
+ * Sets the scissor state of a render pass.
+ * @see gfx_pass_set_viewport.
+ */
+GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor);
+
+/**
  * Retrieves the current scissor state of a render pass.
  * @see gfx_pass_get_viewport.
  */
 GFX_API GFXScissor gfx_pass_get_scissor(GFXPass* pass);
-
-/**
- * Retrieves the number of parents of a pass.
- * @param pass Cannot be NULL.
- */
-GFX_API size_t gfx_pass_get_num_parents(GFXPass* pass);
-
-/**
- * Retrieves a parent of a pass.
- * @param pass   Cannot be NULL.
- * @param parent Parent index, must be < gfx_pass_get_num_parents(pass).
- */
-GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
 
 
 /****************************

@@ -69,6 +69,43 @@ static size_t _gfx_get_backing(GFXRenderer* renderer, const _GFXConsume* con)
 }
 
 /****************************
+ * Checks whether or not a set of parents is compatible with
+ * a given pass type of a given renderer, auto logs errors.
+ * @return Non-zero if compatible.
+ */
+static bool _gfx_check_parents(GFXRenderer* renderer, GFXPassType type,
+                               size_t numParents, GFXPass** parents)
+{
+	// Check if all parents are compatible.
+	for (size_t p = 0; p < numParents; ++p)
+	{
+		if (parents[p]->renderer != renderer)
+		{
+			gfx_log_error(
+				"Render/compute passes cannot be the parent of a pass "
+				"associated with a different renderer.");
+
+			return 0;
+		}
+
+		if (
+			(type == GFX_PASS_COMPUTE_ASYNC &&
+				parents[p]->type != GFX_PASS_COMPUTE_ASYNC) ||
+			(type != GFX_PASS_COMPUTE_ASYNC &&
+				parents[p]->type == GFX_PASS_COMPUTE_ASYNC))
+		{
+			gfx_log_error(
+				"Asynchronous compute passes cannot be the parent of any "
+				"render or inline compute pass and vice versa.");
+
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+/****************************
  * Calculates the merge score of a possible merge candidate for a render pass.
  * If the score > 0, it means this parent _can_ be submitted as subpass
  * before the pass itself, which might implicitly move it up in submission order.
@@ -229,10 +266,10 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 	_GFXRenderPass* merge = NULL;
 	uint64_t score = 0;
 
-	for (size_t p = 0; p < rPass->numParents; ++p)
+	for (size_t p = 0; p < rPass->base.parents.size; ++p)
 	{
 		_GFXRenderPass* rCandidate =
-			(_GFXRenderPass*)rPass->parents[p];
+			*(_GFXRenderPass**)gfx_vec_at(&rPass->base.parents, p);
 
 		// Again, ignore non-render passes.
 		if (rCandidate->base.type != GFX_PASS_RENDER) continue;
@@ -553,6 +590,10 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 	{
 		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 		gfx_list_erase(&renderer->graph.passes, &pass->list);
+
+		if (pass->type == GFX_PASS_RENDER)
+			_gfx_pass_destruct((_GFXRenderPass*)pass);
+
 		_gfx_destroy_pass(pass);
 	}
 
@@ -717,23 +758,30 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer)
 		renderer->graph.state = _GFX_GRAPH_INVALID;
 }
 
-/****************************/
-GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
-                                       unsigned int group,
-                                       size_t numParents, GFXPass** parents)
+/****************************
+ * (Re)inserts a pass into the render graph.
+ * Based on the level of its parents, its parents must be properly set.
+ * Will also compute `pass->level` in the process.
+ * @param firstInsert Non-zero if pass isn't linked into the render graph yet.
+ */
+static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
+                                     bool firstInsert)
 {
 	assert(renderer != NULL);
-	assert(!renderer->recording);
-	assert(numParents == 0 || parents != NULL);
+	assert(pass != NULL);
+	assert(pass->renderer == renderer);
 
-	// Create a new pass.
-	GFXPass* pass =
-		_gfx_create_pass(renderer, type, group, numParents, parents);
+	// Compute level; it is the highest level of all parents + 1.
+	pass->level = 0;
 
-	if (pass == NULL)
-		goto error;
+	for (size_t p = 0; p < pass->parents.size; ++p)
+	{
+		GFXPass* parent = *(GFXPass**)gfx_vec_at(&pass->parents, p);
+		if (parent->level >= pass->level)
+			pass->level = parent->level + 1;
+	}
 
-	// Find the right place to insert the new pass at,
+	// Find the right place to insert the pass at,
 	// we pre-sort on level, this essentially makes it such that
 	// every pass is submitted as early as possible.
 	// Note that within a level, the adding order is preserved.
@@ -743,6 +791,18 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	size_t num = pass->type == GFX_PASS_COMPUTE_ASYNC ?
 		renderer->graph.numCompute : renderer->graph.numRender;
 
+	if (!firstInsert)
+	{
+		// If it was already inserted before, unlink it first.
+		if (renderer->graph.firstCompute == pass)
+			renderer->graph.firstCompute = (GFXPass*)pass->list.next;
+
+		gfx_list_erase(&renderer->graph.passes, &pass->list);
+
+		// And adjust the number of passes to check.
+		--num;
+	}
+
 	GFXPass* last = pass->type == GFX_PASS_COMPUTE_ASYNC ?
 		(GFXPass*)renderer->graph.passes.tail :
 		(renderer->graph.firstCompute != NULL ?
@@ -751,22 +811,6 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 
 	for (; num > 0; --num, last = (GFXPass*)last->list.prev)
 		if (last->level <= pass->level) break;
-
-	// Loop again, now to find a pass of the same group so we can
-	// figure out whether we should be culled or not.
-	// If none of the same group is found, keep default value.
-	// Again do it backwards so it's probably in-line with adding order.
-	for (
-		GFXPass* other = (GFXPass*)renderer->graph.passes.tail;
-		other != NULL;
-		other = (GFXPass*)other->list.prev)
-	{
-		if (other->group == group)
-		{
-			pass->culled = other->culled;
-			break;
-		}
-	}
 
 	// Insert at found position.
 	if (last == NULL)
@@ -780,8 +824,48 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	{
 		renderer->graph.firstCompute = pass;
 	}
+}
 
-	// Increase render (+inline compute) pass count on success.
+/****************************/
+GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
+                                       unsigned int group,
+                                       size_t numParents, GFXPass** parents)
+{
+	assert(renderer != NULL);
+	assert(!renderer->recording);
+	assert(numParents == 0 || parents != NULL);
+
+	// Check if all parents are compatible.
+	if (!_gfx_check_parents(renderer, type, numParents, parents))
+		goto error;
+
+	// Create a new pass.
+	GFXPass* pass =
+		_gfx_create_pass(renderer, type, group, numParents, parents);
+
+	if (pass == NULL)
+		goto error;
+
+	// Loop before inserting to find a pass of the same group so we can
+	// figure out whether we should be culled or not.
+	// If none of the same group is found, keep default value.
+	// Loop backwards so it's probably in-line with adding order.
+	for (
+		GFXPass* other = (GFXPass*)renderer->graph.passes.tail;
+		other != NULL;
+		other = (GFXPass*)other->list.prev)
+	{
+		if (other->group == group)
+		{
+			pass->culled = other->culled;
+			break;
+		}
+	}
+
+	// Now insert the pass into the render graph.
+	_gfx_render_graph_insert(renderer, pass, 1);
+
+	// Increase pass count.
 	if (pass->type != GFX_PASS_COMPUTE_ASYNC)
 		++renderer->graph.numRender;
 	else
@@ -818,6 +902,96 @@ error:
 	gfx_log_error("Could not add a new pass to a renderer's graph.");
 
 	return NULL;
+}
+
+/****************************/
+GFX_API void gfx_erase_pass(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	GFXRenderer* renderer = pass->renderer;
+
+	// First we destruct the entire render graph.
+	// We cannot only invalidate, as this pass will be destroyed.
+	// We do not just destruct this pass (or the subpass chain) as
+	// then the entire subpass chain might get destructed multiple times,
+	// which is simply inefficient.
+	// Do this even when culled, in case it wasn't culled before!
+	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+		_gfx_render_graph_destruct(renderer);
+
+	// Unlink itself from the render graph.
+	if (renderer->graph.firstCompute == pass)
+		renderer->graph.firstCompute = (GFXPass*)pass->list.next;
+
+	gfx_list_erase(&renderer->graph.passes, &pass->list);
+
+	// Decrease pass count.
+	if (pass->type != GFX_PASS_COMPUTE_ASYNC)
+		--renderer->graph.numRender;
+	else
+		--renderer->graph.numCompute;
+
+	// Decrease culled count, if culled.
+	if (pass->culled)
+	{
+		if (pass->type != GFX_PASS_COMPUTE_ASYNC)
+			--renderer->graph.culledRender;
+		else
+			--renderer->graph.culledCompute;
+	}
+
+	// If not culled, decrease the child count of all parents.
+	if (!pass->culled)
+		for (size_t p = 0; p < pass->parents.size; ++p)
+			--(*(GFXPass**)gfx_vec_at(&pass->parents, p))->childs;
+
+	// And finally, destroy the pass. The call to _gfx_render_graph_destruct
+	// ensures _gfx_pass_destruct is called!
+	_gfx_destroy_pass(pass);
+}
+
+/****************************/
+GFX_API bool gfx_pass_set_parents(GFXPass* pass,
+                                  size_t numParents, GFXPass** parents)
+{
+	assert(pass != NULL);
+	assert(numParents == 0 || parents != NULL);
+
+	GFXRenderer* renderer = pass->renderer;
+
+	// Check if all parents are compatible.
+	if (!_gfx_check_parents(renderer, pass->type, numParents, parents))
+		return 0;
+
+	// Attempt to allocate enough memory for new parents.
+	if (!gfx_vec_reserve(&pass->parents, numParents))
+		return 0;
+
+	// Just like when erasing a pass, we first destruct the entire graph.
+	// This is still necessary as the order of passes might change!
+	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+		_gfx_render_graph_destruct(renderer);
+
+	// If not culled, decrease + increase the child count of all parents.
+	if (!pass->culled)
+	{
+		for (size_t p = 0; p < pass->parents.size; ++p)
+			--(*(GFXPass**)gfx_vec_at(&pass->parents, p))->childs;
+
+		for (size_t p = 0; p < numParents; ++p)
+			++parents[p]->childs;
+	}
+
+	// Set new parents.
+	gfx_vec_release(&pass->parents);
+	if (numParents > 0)
+		gfx_vec_push(&pass->parents, numParents, parents);
+
+	// Re-insert into passes list.
+	_gfx_render_graph_insert(renderer, pass, 0);
+
+	return 1;
 }
 
 /****************************
@@ -860,10 +1034,9 @@ static void _gfx_renderer_set_cull(GFXRenderer* renderer,
 
 			// If culling, subtract from parent's child count,
 			// if unculling, add.
-			const size_t numParents = gfx_pass_get_num_parents(pass);
-			for (size_t p = 0; p < numParents; ++p)
+			for (size_t p = 0; p < pass->parents.size; ++p)
 			{
-				GFXPass* parent = gfx_pass_get_parent(pass, p);
+				GFXPass* parent = *(GFXPass**)gfx_vec_at(&pass->parents, p);
 				if (cull)
 					--parent->childs;
 				else
