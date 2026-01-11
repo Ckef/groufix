@@ -967,11 +967,11 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
 
 	// Check if all parents are compatible.
 	if (!_gfx_check_parents(renderer, pass->type, numParents, parents))
-		return 0;
+		goto error;
 
 	// Attempt to allocate enough memory for new parents.
 	if (!gfx_vec_reserve(&pass->parents, numParents))
-		return 0;
+		goto error;
 
 	// Just like when erasing a pass, we first destruct the entire graph.
 	// This is still necessary as the order of passes might change!
@@ -1002,6 +1002,13 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
 	_gfx_render_graph_insert(renderer, pass, 0);
 
 	return 1;
+
+
+	// Error on failure.
+error:
+	gfx_log_error("Could not set parents of a pass.");
+
+	return 0;
 }
 
 /****************************
