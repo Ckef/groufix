@@ -1166,7 +1166,7 @@ typedef struct _GFXRenderPass
 	} out;
 
 
-	// Building output (can be invalidated).
+	// Building output.
 	struct
 	{
 		uint32_t fWidth;
@@ -1996,9 +1996,10 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
                           size_t numParents, GFXPass** parents);
 
 /**
- * Destroys a pass, MUST first call _gfx_pass_destruct!
+ * Destroys a pass.
  * @param pass Cannot be NULL.
  *
+ * MUST first destruct render graph (except when destroying all passes)!
  * Does not unlink itself from anything!
  */
 void _gfx_destroy_pass(GFXPass* pass);
@@ -2017,7 +2018,6 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame);
  * @param rPass Cannot be NULL.
  * @return Non-zero on success.
  *
- * Must be called in submission order!
  * Before the initial call to _gfx_pass_(warmup|build) and once after a call
  * to _gfx_pass_destruct, the following MUST be set to influence the build:
  *  rPass->out.*
@@ -2032,8 +2032,6 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass);
  * @return Non-zero if completely valid and built.
  *
  * @see _gfx_pass_warmup for influencing the build.
- *
- * Must be called in submission order!
  */
 bool _gfx_pass_build(_GFXRenderPass* rPass);
 
@@ -2043,7 +2041,6 @@ bool _gfx_pass_build(_GFXRenderPass* rPass);
  * @param flags Must contain the _GFX_RECREATE bit.
  * @return Non-zero if rebuilt successfully.
  *
- * Must be called in submission order!
  * Not thread-safe with respect to pushing stale resources!
  */
 bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags);
@@ -2052,7 +2049,6 @@ bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags);
  * Destructs all Vulkan objects, non-recursively.
  * @param rPass Cannot be NULL.
  *
- * Must be called in submission order!
  * Must be called before its attachments and after its consumptions are changed!
  * Not thread-safe with respect to pushing stale resources!
  */

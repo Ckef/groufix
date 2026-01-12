@@ -585,15 +585,11 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	// Destroy all passes (in-order!).
+	// Destroy all passes.
 	while (renderer->graph.passes.head != NULL)
 	{
 		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 		gfx_list_erase(&renderer->graph.passes, &pass->list);
-
-		if (pass->type == GFX_PASS_RENDER)
-			_gfx_pass_destruct((_GFXRenderPass*)pass);
-
 		_gfx_destroy_pass(pass);
 	}
 
@@ -952,7 +948,7 @@ GFX_API void gfx_erase_pass(GFXPass* pass)
 			--(*(GFXPass**)gfx_vec_at(&pass->parents, p))->childs;
 
 	// And finally, destroy the pass. The call to _gfx_render_graph_destruct
-	// ensures _gfx_pass_destruct is called!
+	// ensures we are allowed to destroy the pass!
 	_gfx_destroy_pass(pass);
 }
 
@@ -973,15 +969,11 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
 	if (!gfx_vec_reserve(&pass->parents, numParents))
 		goto error;
 
-	// Just like when erasing a pass, we first destruct the entire graph.
-	// This is still necessary as the order of passes might change!
+	// Invalidate the graph.
+	// Order might change due to parent updates, but this does not matter
+	// for destruction, so we can get away with just invalidating the graph!
 	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
-	{
-		// Use renderer's lock for pushing stale resources!
-		_gfx_mutex_lock(&renderer->lock);
-		_gfx_render_graph_destruct(renderer);
-		_gfx_mutex_unlock(&renderer->lock);
-	}
+		renderer->graph.state = _GFX_GRAPH_INVALID;
 
 	// If not culled, decrease + increase the child count of all parents.
 	if (!pass->culled)

@@ -228,7 +228,7 @@ invalidate:
 
 /****************************
  * Destructs a subset of all Vulkan objects.
- * @param rPass Cannot be NULL, must be first in the subpass chain.
+ * @param rPass Cannot be NULL.
  * @param flags What resources should be destroyed (0 to do nothing).
  *
  * Not thread-safe with respect to pushing stale resources!
@@ -238,64 +238,79 @@ static void _gfx_pass_destruct_partial(_GFXRenderPass* rPass,
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
+
+	// The recreate flag is always set if anything is set and signals
+	// that the actual images have been recreated.
+	if (flags & _GFX_RECREATE)
+	{
+		// Make all framebuffers and views stale,
+		// they might still be in use by pending virtual frames.
+		// NOT locked using the renderer's lock;
+		// this is why _gfx_pass_(build|destruct) are not thread-safe.
+		for (size_t i = 0; i < rPass->vk.frames.size; ++i)
+		{
+			_GFXFrameElem* elem = gfx_vec_at(&rPass->vk.frames, i);
+			_gfx_push_stale(rPass->base.renderer,
+				elem->buffer, elem->view,
+				VK_NULL_HANDLE, VK_NULL_HANDLE);
+		}
+
+		for (size_t i = 0; i < rPass->vk.views.size; ++i)
+		{
+			_GFXViewElem* elem = gfx_vec_at(&rPass->vk.views, i);
+			if (elem->view != VK_NULL_HANDLE)
+				_gfx_push_stale(rPass->base.renderer,
+					VK_NULL_HANDLE, elem->view,
+					VK_NULL_HANDLE, VK_NULL_HANDLE);
+
+			// We DO NOT release rPass->vk.views.
+			// This because on-swapchain recreate, the consumptions of
+			// attachments have not changed, we just have new images
+			// with potentially new dimensions.
+			// Meaning we do not need to filter all consumptions into
+			// framebuffer views, we only need to recreate the views.
+			elem->view = VK_NULL_HANDLE;
+		}
+
+		rPass->build.fWidth = 0;
+		rPass->build.fHeight = 0;
+		rPass->build.fLayers = 0;
+		gfx_vec_release(&rPass->vk.frames); // Force a rebuild.
+	}
+
+	// Second, check if the Vulkan render pass needs to be reconstructed.
+	// This object is cached, so no need to destroy anything.
+	if (flags & _GFX_REFORMAT)
+	{
+		rPass->build.pass = NULL;
+		rPass->vk.pass = VK_NULL_HANDLE;
+
+		// Increase generation; the render pass is used in pipelines,
+		// ergo we need to invalidate current pipelines using it.
+		_gfx_pass_gen(rPass);
+	}
+}
+
+/****************************
+ * Destructs a subset of all Vulkan objects of an entire subpass chain.
+ * @param rPass Cannot be NULL, must be first in the subpass chain.
+ *
+ * @see _gfx_pass_destruct_partial.
+ */
+static void _gfx_passes_destruct_partial(_GFXRenderPass* rPass,
+                                         _GFXRecreateFlags flags)
+{
+	assert(rPass != NULL);
+	assert(rPass->base.type == GFX_PASS_RENDER);
 	assert(rPass->out.master == NULL);
 
-	// Do this for all subpasses, so they all get e.g. a generation increase!
+	// Loop over all subpasses and destruct them!
 	for (
 		_GFXRenderPass* subpass = rPass;
 		subpass != NULL;
 		subpass = subpass->out.next)
 	{
-		// The recreate flag is always set if anything is set and signals
-		// that the actual images have been recreated.
-		if (flags & _GFX_RECREATE)
-		{
-			// Make all framebuffers and views stale,
-			// they might still be in use by pending virtual frames.
-			// NOT locked using the renderer's lock;
-			// this is why _gfx_pass_(build|destruct) are not thread-safe.
-			for (size_t i = 0; i < subpass->vk.frames.size; ++i)
-			{
-				_GFXFrameElem* elem = gfx_vec_at(&subpass->vk.frames, i);
-				_gfx_push_stale(subpass->base.renderer,
-					elem->buffer, elem->view,
-					VK_NULL_HANDLE, VK_NULL_HANDLE);
-			}
-
-			for (size_t i = 0; i < subpass->vk.views.size; ++i)
-			{
-				_GFXViewElem* elem = gfx_vec_at(&subpass->vk.views, i);
-				if (elem->view != VK_NULL_HANDLE)
-					_gfx_push_stale(subpass->base.renderer,
-						VK_NULL_HANDLE, elem->view,
-						VK_NULL_HANDLE, VK_NULL_HANDLE);
-
-				// We DO NOT release subpass->vk.views.
-				// This because on-swapchain recreate, the consumptions of
-				// attachments have not changed, we just have new images
-				// with potentially new dimensions.
-				// Meaning we do not need to filter all consumptions into
-				// framebuffer views, we only need to recreate the views.
-				elem->view = VK_NULL_HANDLE;
-			}
-
-			subpass->build.fWidth = 0;
-			subpass->build.fHeight = 0;
-			subpass->build.fLayers = 0;
-			gfx_vec_release(&subpass->vk.frames); // Force a rebuild.
-		}
-
-		// Second, check if the Vulkan render pass needs to be reconstructed.
-		// This object is cached, so no need to destroy anything.
-		if (flags & _GFX_REFORMAT)
-		{
-			subpass->build.pass = NULL;
-			subpass->vk.pass = VK_NULL_HANDLE;
-
-			// Increase generation; the render pass is used in pipelines,
-			// ergo we need to invalidate current pipelines using it.
-			_gfx_pass_gen(subpass);
-		}
+		_gfx_pass_destruct_partial(subpass, flags);
 	}
 }
 
@@ -445,8 +460,11 @@ void _gfx_destroy_pass(GFXPass* pass)
 {
 	assert(pass != NULL);
 
-	// Destroy things, we assume everything render-pass is already cleared.
-	// We can assume so as _gfx_pass_destruct(pass) MUST be called first!
+	// Destruct as render pass.
+	if (pass->type == GFX_PASS_RENDER)
+		_gfx_pass_destruct((_GFXRenderPass*)pass);
+
+	// Destroy the rest.
 	gfx_vec_clear(&pass->parents);
 	gfx_vec_clear(&pass->consumes);
 	gfx_vec_clear(&pass->deps);
@@ -1342,14 +1360,14 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 
 	// Cleanup on failure.
 clean:
-	// Get rid of built things; avoid dangling views.
-	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE);
+	// Get rid of built things of entire subpass chain; avoid dangling views.
+	_gfx_passes_destruct_partial(rPass, _GFX_RECREATE);
 	return 0;
 
 
 	// Identical cleanup on skip.
 skip_pass:
-	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE);
+	_gfx_passes_destruct_partial(rPass, _GFX_RECREATE);
 	return 1;
 }
 
@@ -1368,14 +1386,13 @@ bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags)
 	const bool warmed = _GFX_PASS_IS_WARMED(rPass);
 	const bool built = _GFX_PASS_IS_BUILT(rPass);
 
-	// Then we destroy the things we want to recreate.
-	// Will loop over subpasses, reason why we must destroy in-order!
-	_gfx_pass_destruct_partial(rPass, flags);
+	// Then we destroy the things we want to recreate (of the entire chain!).
+	_gfx_passes_destruct_partial(rPass, flags);
 
 	// Then re-perform the remembered bits :)
 	if (built)
 		return _gfx_pass_build(rPass);
-	if (warmed)
+	else if (warmed)
 		return _gfx_pass_warmup(rPass);
 
 	return 1;
@@ -1387,13 +1404,8 @@ void _gfx_pass_destruct(_GFXRenderPass* rPass)
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
 
-	// Destruct all partial things.
-	// Will loop over subpasses, reason why we must destroy in-order!
-	if (rPass->out.master == NULL)
-		_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
-
-	// Reset just in case...
-	rPass->out.backing = SIZE_MAX;
+	// Destruct all partial things (of only this pass!).
+	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
 
 	// Clear memory.
 	gfx_vec_clear(&rPass->vk.clears);
