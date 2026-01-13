@@ -940,7 +940,7 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
  * Erases (destroys) a pass, removing it from its renderer.
  * @param pass Cannot be NULL.
  *
- * This function CANNOT be called if pass is still the parent of any other pass.
+ * This function CANNOT be called if pass is still the parent of another pass.
  */
 GFX_API void gfx_erase_pass(GFXPass* pass);
 
@@ -974,10 +974,15 @@ GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
 
 /**
  * Sets a new set of parents of a pass.
- * @param pass Cannot be NULL.
+ * @param pass       Cannot be NULL.
+ * @param numParents Number of parents, 0 for none.
+ * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return Zero on failure.
  *
- * @see gfx_renderer_add_pass.
+ * Same constraints apply as when creating the pass.
+ *
+ * If pass itself is parent to another pass, this function MUST be called
+ * for that other pass as well, otherwise unexpected submission order may occur.
  */
 GFX_API bool gfx_pass_set_parents(GFXPass* pass,
                                   size_t numParents, GFXPass** parents);

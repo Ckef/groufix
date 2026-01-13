@@ -1109,7 +1109,7 @@ struct GFXPass
 
 	GFXVec       parents; // Stores GFXPass*.
 	unsigned int level;   // Determines submission order.
-	unsigned int order;   // Actual submission order.
+	unsigned int order;   // Actual submission order, UINT_MAX if not yet set.
 	unsigned int childs;  // Number of unculled (!) passes this is a parent of.
 	bool         culled;
 
@@ -2051,6 +2051,12 @@ bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags);
  *
  * Must be called before its attachments and after its consumptions are changed!
  * Not thread-safe with respect to pushing stale resources!
+ *
+ * Will reset the following fields to default values (same as when created):
+ *  rPass->out.master
+ *  rPass->out.next
+ *  rPass->out.backing
+ *  rPass->base.order
  */
 void _gfx_pass_destruct(_GFXRenderPass* rPass);
 

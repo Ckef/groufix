@@ -8,7 +8,6 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
-#include <limits.h>
 #include <stdlib.h>
 
 

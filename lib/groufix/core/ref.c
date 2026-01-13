@@ -7,7 +7,6 @@
  */
 
 #include "groufix/core/objects.h"
-#include <limits.h>
 
 
 #define _GFX_BUFFER ((_GFXBuffer*)ref.obj)

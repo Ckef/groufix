@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <limits.h>
 
 
 // Check if a consumption has attachment access.
@@ -129,6 +130,10 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 	assert(!rCandidate->base.culled);
 	assert(rCandidate->base.level < rPass->base.level);
 	assert(consumes != NULL);
+
+	// Unknown order, the candidate hasn't been processed yet...
+	// Probably means gfx_pass_set_parents was used irresponsibly.
+	if (rCandidate->base.order == UINT_MAX) return 0;
 
 	// The candidate may not already be merged.
 	// This would confuse all of the code.
@@ -493,6 +498,11 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	assert(renderer != NULL);
 	assert(renderer->graph.state < _GFX_GRAPH_VALIDATED);
 
+	// During this call we sneakedly set the order of all passes.
+	// Recorders use this order to distinguish between passes.
+	// We also use the field to avoid parent-cycles in the render graph.
+	unsigned int order = 0;
+
 	// We want to see if we can merge render passes into a chain of
 	// subpasses, useful for tiled renderers n such :)
 	// So for each pass, check its parents for possible merge candidates.
@@ -516,7 +526,10 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		// Ignore if culled.
 		if (rPass->base.culled) continue;
 
-		// First of all, for each pass, we're gonna select a backing window.
+		// Set order for cycle detection.
+		rPass->base.order = order++;
+
+		// Secondly, for each pass, we're gonna select a backing window.
 		// Only pick a single backing window to simplify framebuffer creation,
 		// we already need a framebuffer for each window image!
 		rPass->out.backing = SIZE_MAX;
@@ -541,8 +554,10 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// keeping track of the last consumption of each attachment.
 	// This way we propogate transition and synchronization data per
 	// attachment as we go.
-	for (size_t i = 0; i < numAttachs; ++i) consumes[i] = NULL;
-	unsigned int order = 0;
+	for (size_t i = 0; i < numAttachs; ++i)
+		consumes[i] = NULL;
+
+	order = 0; // Reset to set order of ALL passes (including compute).
 
 	for (
 		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
@@ -554,8 +569,7 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		// Resolve!
 		_gfx_pass_resolve(renderer, pass, consumes);
 
-		// At this point we also sneakedly set the order of all passes
-		// so the recorders know what's up.
+		// Set order.
 		pass->order = order++;
 	}
 

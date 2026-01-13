@@ -8,8 +8,8 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
-#include <string.h>
 
 
 // Detect whether a render pass is warmed.
@@ -350,7 +350,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	pass->group = group;
 
 	pass->level = 0;
-	pass->order = 0;
+	pass->order = UINT_MAX;
 	pass->childs = 0;
 	pass->culled = 0;
 
@@ -1412,6 +1412,12 @@ void _gfx_pass_destruct(_GFXRenderPass* rPass)
 	gfx_vec_clear(&rPass->vk.blends);
 	gfx_vec_clear(&rPass->vk.views);
 	gfx_vec_clear(&rPass->vk.frames);
+
+	// Reset some values for next render graph analysis.
+	rPass->out.master = NULL;
+	rPass->out.next = NULL;
+	rPass->out.backing = SIZE_MAX;
+	rPass->base.order = UINT_MAX;
 }
 
 /****************************/
