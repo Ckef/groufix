@@ -8,7 +8,6 @@
 
 #include "groufix/core/objects.h"
 #include <assert.h>
-#include <limits.h>
 
 
 // Check if a consumption has attachment access.
@@ -80,6 +79,12 @@ static bool _gfx_check_parents(GFXRenderer* renderer, GFXPassType type,
 	// Check if all parents are compatible.
 	for (size_t p = 0; p < numParents; ++p)
 	{
+		if (parents[p] == NULL)
+		{
+			gfx_log_error("Passes cannot have NULL parents.");
+			return 0;
+		}
+
 		if (parents[p]->renderer != renderer)
 		{
 			gfx_log_error(
@@ -99,6 +104,35 @@ static bool _gfx_check_parents(GFXRenderer* renderer, GFXPassType type,
 				"Asynchronous compute passes cannot be the parent of any "
 				"render or inline compute pass and vice versa.");
 
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+/****************************
+ * Checks whether or not setting new parents of a pass will result
+ * in cycles in the graph.
+ * @param pass The pass which will potentially get its new parents set.
+ * @return Non-zero if no cycles will be created.
+ */
+static bool _gfx_check_cycles(GFXPass* pass,
+                              size_t numParents, GFXPass** parents)
+{
+	// For all given parents, check
+	for (size_t p = 0; p < numParents; ++p)
+	{
+		if (parents[p] == pass)
+		{
+			gfx_log_error("The renderer's graph cannot contain cycles.");
+			return 0;
+		}
+
+		// If no cycle detected yet, check the parents of this parent.
+		if (!_gfx_check_cycles(pass,
+			parents[p]->parents.size, parents[p]->parents.data))
+		{
 			return 0;
 		}
 	}
@@ -130,10 +164,6 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 	assert(!rCandidate->base.culled);
 	assert(rCandidate->base.level < rPass->base.level);
 	assert(consumes != NULL);
-
-	// Unknown order, the candidate hasn't been processed yet...
-	// Probably means gfx_pass_set_parents was used irresponsibly.
-	if (rCandidate->base.order == UINT_MAX) return 0;
 
 	// The candidate may not already be merged.
 	// This would confuse all of the code.
@@ -498,11 +528,6 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	assert(renderer != NULL);
 	assert(renderer->graph.state < _GFX_GRAPH_VALIDATED);
 
-	// During this call we sneakedly set the order of all passes.
-	// Recorders use this order to distinguish between passes.
-	// We also use the field to avoid parent-cycles in the render graph.
-	unsigned int order = 0;
-
 	// We want to see if we can merge render passes into a chain of
 	// subpasses, useful for tiled renderers n such :)
 	// So for each pass, check its parents for possible merge candidates.
@@ -526,10 +551,7 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		// Ignore if culled.
 		if (rPass->base.culled) continue;
 
-		// Set order for cycle detection.
-		rPass->base.order = order++;
-
-		// Secondly, for each pass, we're gonna select a backing window.
+		// First of all, for each pass, we're gonna select a backing window.
 		// Only pick a single backing window to simplify framebuffer creation,
 		// we already need a framebuffer for each window image!
 		rPass->out.backing = SIZE_MAX;
@@ -557,7 +579,9 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	for (size_t i = 0; i < numAttachs; ++i)
 		consumes[i] = NULL;
 
-	order = 0; // Reset to set order of ALL passes (including compute).
+	// During this loop we sneakedly set the order of all passes.
+	// Recorders use this order to distinguish between passes.
+	unsigned int order = 0;
 
 	for (
 		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
@@ -769,10 +793,12 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer)
 }
 
 /****************************
- * (Re)inserts a pass into the render graph.
+ * (Re)inserts a pass into the render graph, in the correct submission order.
  * Based on the level of its parents, its parents must be properly set.
  * Will also compute `pass->level` in the process.
  * @param firstInsert Non-zero if pass isn't linked into the render graph yet.
+ *
+ * Recursively calls itself for all descendants of pass if !firstInsert.
  */
 static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
                                      bool firstInsert)
@@ -781,7 +807,11 @@ static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
 	assert(pass != NULL);
 	assert(pass->renderer == renderer);
 
+	GFXPass* next;
+
 	// Compute level; it is the highest level of all parents + 1.
+	const unsigned int oldLevel = pass->level;
+
 	pass->level = 0;
 
 	for (size_t p = 0; p < pass->parents.size; ++p)
@@ -791,19 +821,33 @@ static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
 			pass->level = parent->level + 1;
 	}
 
-	// Find the right place to insert the pass at,
+	// If re-inserting and level remains the same, done.
+	if (!firstInsert && pass->level == oldLevel)
+		return;
+
+	// We need to find the right place to (re)insert the pass at,
 	// we pre-sort on level, this essentially makes it such that
 	// every pass is submitted as early as possible.
 	// Note that within a level, the adding order is preserved.
 	// All async compute passes go at the end, all render or inline compute
 	// passes go in the front, with their own leveling.
-	// Backwards linear search is probably in-line with the adding order :p
+	// Backwards linear search is probably in-line with the adding order.
 	size_t num = pass->type == GFX_PASS_COMPUTE_ASYNC ?
 		renderer->graph.numCompute : renderer->graph.numRender;
 
+	// If it was already inserted before, unlink it first.
 	if (!firstInsert)
 	{
-		// If it was already inserted before, unlink it first.
+		// Before unlinking, get the next pass that's possibly a child.
+		// We can do this now as all children will be to the right,
+		// because they have a higher level.
+		// After re-insertion this no longer holds true!
+		next = (GFXPass*)pass->list.next;
+
+		while (next != NULL && next->level <= oldLevel)
+			next = (GFXPass*)pass->list.next;
+
+		// Unlink.
 		if (renderer->graph.firstCompute == pass)
 			renderer->graph.firstCompute = (GFXPass*)pass->list.next;
 
@@ -813,6 +857,7 @@ static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
 		--num;
 	}
 
+	// Ok now find insert position.
 	GFXPass* last = pass->type == GFX_PASS_COMPUTE_ASYNC ?
 		(GFXPass*)renderer->graph.passes.tail :
 		(renderer->graph.firstCompute != NULL ?
@@ -834,6 +879,42 @@ static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
 	{
 		renderer->graph.firstCompute = pass;
 	}
+
+	// Lastly, update all passes that are descendant of this pass,
+	// as they now all potentially get a new level too!
+	// Start at the next possible child that we found earlier,
+	// then simply call this function again for each direct child of this pass!
+	if (!firstInsert)
+		while (next != NULL)
+		{
+			// First check if we stumble upon the same pass again.
+			// This means the pass got a higher level than before.
+			// Just skip it this time, it's already placed correctly.
+			if (next == pass)
+			{
+				next = (GFXPass*)next->list.next;
+				continue;
+			}
+
+			// Check if current pass is a direct child.
+			size_t p = 0;
+
+			for (; p < next->parents.size; ++p)
+				if (*(GFXPass**)gfx_vec_at(&next->parents, p) == pass)
+					break;
+
+			if (p >= next->parents.size)
+				next = (GFXPass*)next->list.next;
+			else
+			{
+				// If so, recurse!
+				// Get the next possible child before re-inserting.
+				GFXPass* nnext = (GFXPass*)next->list.next;
+				_gfx_render_graph_insert(renderer, next, 0);
+
+				next = nnext;
+			}
+		}
 }
 
 /****************************/
@@ -975,8 +1056,12 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
 
 	GFXRenderer* renderer = pass->renderer;
 
-	// Check if all parents are compatible.
+	// Check if all parents are compatible, will also check for NULL parents!
 	if (!_gfx_check_parents(renderer, pass->type, numParents, parents))
+		goto error;
+
+	// Then check for cycles in the graph.
+	if (!_gfx_check_cycles(pass, numParents, parents))
 		goto error;
 
 	// Attempt to allocate enough memory for new parents.
