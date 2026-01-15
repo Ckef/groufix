@@ -845,7 +845,7 @@ static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
 		next = (GFXPass*)pass->list.next;
 
 		while (next != NULL && next->level <= oldLevel)
-			next = (GFXPass*)pass->list.next;
+			next = (GFXPass*)next->list.next;
 
 		// Unlink.
 		if (renderer->graph.firstCompute == pass)
@@ -999,6 +999,7 @@ error:
 GFX_API void gfx_erase_pass(GFXPass* pass)
 {
 	assert(pass != NULL);
+	assert(!pass->renderer->recording);
 
 	GFXRenderer* renderer = pass->renderer;
 
@@ -1052,6 +1053,7 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
                                   size_t numParents, GFXPass** parents)
 {
 	assert(pass != NULL);
+	assert(!pass->renderer->recording);
 	assert(numParents == 0 || parents != NULL);
 
 	GFXRenderer* renderer = pass->renderer;
@@ -1100,6 +1102,38 @@ error:
 	gfx_log_error("Could not set parents of a pass.");
 
 	return 0;
+}
+
+/****************************/
+GFX_API GFXPass* gfx_renderer_get_first(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	return (GFXPass*)renderer->graph.passes.head;
+}
+
+/****************************/
+GFX_API GFXPass* gfx_renderer_get_last(GFXRenderer* renderer)
+{
+	assert(renderer != NULL);
+
+	return (GFXPass*)renderer->graph.passes.tail;
+}
+
+/****************************/
+GFX_API GFXPass* gfx_pass_get_next(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	return (GFXPass*)pass->list.next;
+}
+
+/****************************/
+GFX_API GFXPass* gfx_pass_get_prev(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	return (GFXPass*)pass->list.prev;
 }
 
 /****************************

@@ -727,8 +727,8 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
  *
  * The renderer (including its attachments, passes and sets) cannot be
  * modified after this call until gfx_frame_submit has returned!
- * Nor can attachments be described, windows be attached or
- * passes be added during that period.
+ * Nor can attachments be described, windows be attached, or
+ * passes be added or erased during that period.
  *
  * Failure during starting cannot be recovered from,
  * any such failure is appropriately logged.
@@ -740,8 +740,6 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
  * Can only be called once after gfx_frame_acquire.
  * Implicitly starts if not yet done so.
  * @param frame Cannot be NULL.
- *
- * All asynchronous passes are after all others in submission order.
  *
  * All memory resources used to render a frame cannot be freed until the next
  * time this frame is acquired. The frames can be identified by their index.
@@ -974,6 +972,7 @@ GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
 
 /**
  * Sets a new set of parents of a pass.
+ * A pass will be after all its parents in submission order.
  * @param pass       Cannot be NULL.
  * @param numParents Number of parents, 0 for none.
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
@@ -984,6 +983,34 @@ GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent);
  */
 GFX_API bool gfx_pass_set_parents(GFXPass* pass,
                                   size_t numParents, GFXPass** parents);
+
+/**
+ * Retrieves the first pass in submission order of a renderer.
+ * @param renderer Cannot be NULL.
+ * @return NULL if no passes are present.
+ */
+GFX_API GFXPass* gfx_renderer_get_first(GFXRenderer* renderer);
+
+/**
+ * Retrieves the last pass in submission order of a renderer.
+ * @param renderer Cannot be NULL.
+ * @return NULL if no passes are present.
+ */
+GFX_API GFXPass* gfx_renderer_get_last(GFXRenderer* renderer);
+
+/**
+ * Retrieves the next pass in submission order.
+ * @param pass Cannot be NULL.
+ * @return NULL if this is the last pass.
+ */
+GFX_API GFXPass* gfx_pass_get_next(GFXPass* pass);
+
+/**
+ * Retrieves the previous pass in submission order.
+ * @param pass Cannot be NULL.
+ * @return NULL if this is the first pass.
+ */
+GFX_API GFXPass* gfx_pass_get_prev(GFXPass* pass);
 
 /**
  * Retrieves the cull group this pass is in.
