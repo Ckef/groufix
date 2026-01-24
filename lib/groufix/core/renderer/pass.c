@@ -651,17 +651,11 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
+	assert(!rPass->base.culled);
+	assert(rPass->out.master == NULL);
 
 	GFXRenderer* rend = rPass->base.renderer;
 	_GFXContext* context = rend->cache.context;
-
-	// Ignore this pass if it's culled.
-	if (rPass->base.culled)
-		return 1;
-
-	// If this is not a master pass, skip.
-	if (rPass->out.master != NULL)
-		return 1;
 
 	// Pass is already warmed.
 	if (_GFX_PASS_IS_WARMED(rPass))
@@ -1141,17 +1135,11 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
+	assert(!rPass->base.culled);
+	assert(rPass->out.master == NULL);
 
 	GFXRenderer* rend = rPass->base.renderer;
 	_GFXContext* context = rend->cache.context;
-
-	// Ignore this pass if it's culled.
-	if (rPass->base.culled)
-		return 1;
-
-	// If this is not a master pass, skip.
-	if (rPass->out.master != NULL)
-		return 1;
 
 	// Pass is already built.
 	if (_GFX_PASS_IS_BUILT(rPass))
@@ -1375,11 +1363,9 @@ bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
+	assert(!rPass->base.culled);
+	assert(rPass->out.master == NULL);
 	assert(flags & _GFX_RECREATE);
-
-	// If this is not a master pass, skip.
-	if (rPass->out.master != NULL)
-		return 1;
 
 	// Remember if we're warmed or entirely built.
 	const bool warmed = _GFX_PASS_IS_WARMED(rPass);

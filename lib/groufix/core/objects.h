@@ -1011,6 +1011,16 @@ struct GFXRenderer
 
 		} state;
 
+
+		// Graph output (relative to neighbouring passes).
+		struct
+		{
+			// First 'master' (or to be built/recorded) pass.
+			// This chain is guaranteed to contain firstCompute.
+			GFXPass* first;
+
+		} out;
+
 	} graph;
 
 
@@ -1121,6 +1131,15 @@ struct GFXPass
 
 	// Stores GFXInject, from pass inject.
 	GFXVec injs;
+
+
+	// Graph output (relative to neighbouring passes).
+	struct
+	{
+		// Next 'master' (or to be built/recorded) pass.
+		GFXPass* next;
+
+	} out;
 };
 
 
@@ -1226,8 +1245,14 @@ struct GFXTechnique
 	GFXVec immutable; // Stores { size_t set, size_t binding }.
 	GFXVec dynamic;   // Stores { size_t set, size_t binding }.
 
+
 	// Vulkan fields.
-	struct { VkPipelineLayout layout; } vk; // For locality.
+	struct
+	{
+		VkPipelineLayout layout; // For locality.
+
+	} vk;
+
 
 	// Locking output.
 	_GFXCacheElem* layout;       // Pipeline layout, NULL until locked.
@@ -2015,20 +2040,20 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame);
 /**
  * Builds the Vulkan render pass if not present yet.
  * Can be used for potential pipeline warmups.
- * @param rPass Cannot be NULL.
+ * @param rPass Cannot be NULL, cannot be culled and must be a master pass!
  * @return Non-zero on success.
  *
  * Before the initial call to _gfx_pass_(warmup|build) and once after a call
- * to _gfx_pass_destruct, the following MUST be set to influence the build:
+ * to _gfx_pass_destruct, the following MUST be set of ALL passes and
+ * consumptions to influence the build:
  *  rPass->out.*
- *  rPass->base.culled
  *  rPass->base.consumes[*]->out.*
  */
 bool _gfx_pass_warmup(_GFXRenderPass* rPass);
 
 /**
  * Builds the Vulkan framebuffer (and others) if not present yet.
- * @param rPass Cannot be NULL.
+ * @param rPass Cannot be NULL, cannot be culled and must be a master pass!
  * @return Non-zero if completely valid and built.
  *
  * @see _gfx_pass_warmup for influencing the build.
@@ -2037,7 +2062,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass);
 
 /**
  * Rebuilds Vulkan objects, does NOT build not yet built objects!
- * @param rPass Cannot be NULL.
+ * @param rPass Cannot be NULL, cannot be culled and must be a master pass!
  * @param flags Must contain the _GFX_RECREATE bit.
  * @return Non-zero if rebuilt successfully.
  *
@@ -2046,7 +2071,8 @@ bool _gfx_pass_build(_GFXRenderPass* rPass);
 bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags);
 
 /**
- * Destructs all Vulkan objects, non-recursively.
+ * Destructs all Vulkan objects, non-recursively. As opposed to
+ * _gfx_pass_(warmup|build|rebuild), this must be called for all passes!
  * @param rPass Cannot be NULL.
  *
  * Must be called before its attachments are changed!

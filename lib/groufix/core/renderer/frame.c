@@ -804,19 +804,21 @@ static bool _gfx_frame_push_transition(GFXRenderer* renderer,
  * Records a set of passes of a virtual frame.
  * @param cmd   To record to, cannot be VK_NULL_HANDLE.
  * @param first First pass to start recording at.
- * @param num   Number of passes to record.
+ * @param end   Pass to stop recording at, may be NULL.
  * @return Zero if the frame could not be recorded.
+ *
+ * Will loop over the chain of 'master' passes,
+ * first and end must be in that chain!
  */
 static bool _gfx_frame_record(VkCommandBuffer cmd,
                               GFXRenderer* renderer, GFXFrame* frame,
-                              GFXPass* first, size_t num,
+                              GFXPass* first, GFXPass* end,
                               _GFXInjection* injection)
 {
 	assert(cmd != VK_NULL_HANDLE);
 	assert(renderer != NULL);
 	assert(frame != NULL);
 	assert(first != NULL);
-	assert(num > 0);
 	assert(injection != NULL);
 
 	_GFXContext* context = renderer->cache.context;
@@ -836,25 +838,9 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
 		return 0);
 
 	// Record all requested passes.
-	for (; num > 0; --num, first = (GFXPass*)first->list.next)
+	for (; first != end; first = first->out.next)
 	{
-		// Do nothing if pass is culled.
-		GFXPass* pass = first;
-		if (pass->culled) continue;
-
-		// Skip if not the last pass in a subpass chain.
-		// If it is the last pass, resolve for the entire chain.
-		if (pass->type == GFX_PASS_RENDER)
-		{
-			_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
-
-			// Skip if not last.
-			if (rPass->out.next != NULL) continue;
-
-			// See if it is a chain and start at master.
-			if (rPass->out.master != NULL)
-				pass = (GFXPass*)rPass->out.master;
-		}
+		GFXPass* pass = first; // Guaranteed to be a master pass!
 
 		// First inject all wait commands for the entire chain.
 		// This is the reason you cannot use gfx_pass_inject inbetween
@@ -1050,54 +1036,55 @@ static bool _gfx_frame_record(VkCommandBuffer cmd,
  * @see _gfx_frame_record.
  */
 static void _gfx_frame_finalize(GFXRenderer* renderer, bool success,
-                                GFXPass* first, size_t num,
+                                GFXPass* first, GFXPass* end,
                                 _GFXInjection* injection)
 {
 	assert(renderer != NULL);
 	assert(first != NULL);
-	assert(num > 0);
 	assert(injection != NULL);
 
 	// Loop over all passes again to deal with their dependencies.
-	for (; num > 0; --num, first = (GFXPass*)first->list.next)
-	{
-		// Do nothing if pass is culled.
-		GFXPass* pass = first;
-		if (pass->culled) continue;
-
-		// Firstly, finalize or abort the dependency injection.
-		// Finish/abort injections from both `injs` and `deps`.
-		if (success)
-			_gfx_deps_finish(
-				pass->injs.size, gfx_vec_at(&pass->injs, 0),
-				injection);
-		else
-			_gfx_deps_abort(
-				pass->injs.size, gfx_vec_at(&pass->injs, 0),
-				injection);
-
-		for (size_t d = 0; d < pass->deps.size; ++d)
+	// Also loop over the subpass chain to mirror _gfx_frame_record.
+	for (; first != end; first = first->out.next)
+		for (
+			GFXPass* subpass = first; // Guaranteed to be a master pass!
+			subpass != NULL;
+			subpass = (subpass->type == GFX_PASS_RENDER) ?
+				(GFXPass*)((_GFXRenderPass*)subpass)->out.next : NULL)
 		{
-			_GFXDepend* dep = gfx_vec_at(&pass->deps, d);
-			if (dep->inj.dep == NULL) continue; // Avoid many free() calls!
-
+			// Firstly, finalize or abort the dependency injection.
+			// Finish/abort injections from both `injs` and `deps`.
 			if (success)
-				_gfx_deps_finish(1, &dep->inj, injection);
+				_gfx_deps_finish(
+					subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
+					injection);
 			else
-				_gfx_deps_abort(1, &dep->inj, injection);
-		}
+				_gfx_deps_abort(
+					subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
+					injection);
 
-		// Then erase all injections from `injs`.
-		// Keep the memory in case we repeatedly inject.
-		// Unless it was already empty, then clear what was kept.
-		if (success)
-		{
-			if (pass->injs.size == 0)
-				gfx_vec_clear(&pass->injs);
-			else
-				gfx_vec_release(&pass->injs);
+			for (size_t d = 0; d < subpass->deps.size; ++d)
+			{
+				_GFXDepend* dep = gfx_vec_at(&subpass->deps, d);
+				if (dep->inj.dep == NULL) continue; // Avoid many free() calls!
+
+				if (success)
+					_gfx_deps_finish(1, &dep->inj, injection);
+				else
+					_gfx_deps_abort(1, &dep->inj, injection);
+			}
+
+			// Then erase all injections from `injs`.
+			// Keep the memory in case we repeatedly inject.
+			// Unless it was already empty, then clear what was kept.
+			if (success)
+			{
+				if (subpass->injs.size == 0)
+					gfx_vec_clear(&subpass->injs);
+				else
+					gfx_vec_release(&subpass->injs);
+			}
 		}
-	}
 }
 
 /****************************/
@@ -1136,7 +1123,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		// Record graphics.
 		if (!_gfx_frame_record(frame->graphics.vk.cmd,
 			renderer, frame,
-			(GFXPass*)renderer->graph.passes.head, numGraphics,
+			renderer->graph.out.first, renderer->graph.firstCompute,
 			&injection))
 		{
 			goto clean_graphics;
@@ -1259,7 +1246,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 		// Lastly, make all commands visible for future operations.
 		_gfx_frame_finalize(renderer, 1,
-			(GFXPass*)renderer->graph.passes.head, numGraphics,
+			renderer->graph.out.first, renderer->graph.firstCompute,
 			&injection);
 
 		// Succesfully submitted.
@@ -1286,7 +1273,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 		// Record compute.
 		if (!_gfx_frame_record(frame->compute.vk.cmd,
 			renderer, frame,
-			renderer->graph.firstCompute, numCompute,
+			renderer->graph.firstCompute, NULL,
 			&injection))
 		{
 			goto clean_compute;
@@ -1320,7 +1307,7 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 
 		// Lastly, make all commands visible for future operations.
 		_gfx_frame_finalize(renderer, 1,
-			renderer->graph.firstCompute, numCompute,
+			renderer->graph.firstCompute, NULL,
 			&injection);
 
 		// Succesfully submitted.
@@ -1344,14 +1331,14 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame)
 	// Cleanup on failure.
 clean_graphics:
 	_gfx_frame_finalize(renderer, 0,
-		(GFXPass*)renderer->graph.passes.head, numGraphics,
+		renderer->graph.out.first, renderer->graph.firstCompute,
 		&injection);
 
 	goto error;
 
 clean_compute:
 	_gfx_frame_finalize(renderer, 0,
-		renderer->graph.firstCompute, numCompute,
+		renderer->graph.firstCompute, NULL,
 		&injection);
 
 	goto error;

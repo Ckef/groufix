@@ -253,7 +253,7 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 
 /****************************
  * Picks a merge candidate (if any) from a pass' parents, and merge with it,
- * setting and/or updating the `out` field of both passes.
+ * setting and/or updating the `out` field of both render passes.
  * consumes must hold `renderer->backing.attachs.size` pointers.
  * @param rPass    Cannot be NULL, must not be culled.
  * @param consumes Cannot be NULL.
@@ -345,19 +345,23 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 
 /****************************
  * Resolves a pass, setting the `out` field of all consumptions and dependencies.
- * consumes must hold `renderer->backing.attachs.size` pointers.
- * @param pass     Cannot be NULL, must not be culled.
- * @param consumes Cannot be NULL, must be initialized to all NULL on first call.
+ * Will also resolve the `out` field of all 'master' passes in the chain.
+ * @param pass      Cannot be NULL, must not be culled.
+ * @param consumes  Cannot be NULL, must be initialized to all NULL on first call.
+ * @param ptrToNext Cannot be NULL, pointed to cannot be NULL either.
  *
  * Must be called for all passes in submission order!
+ * consumes must hold `renderer->backing.attachs.size` pointers.
  */
 static void _gfx_pass_resolve(GFXRenderer* renderer,
-                              GFXPass* pass, _GFXConsume** consumes)
+                              GFXPass* pass, _GFXConsume** consumes,
+                              GFXPass*** ptrToNext)
 {
 	assert(renderer != NULL);
 	assert(pass != NULL);
 	assert(!pass->culled);
 	assert(consumes != NULL);
+	assert(ptrToNext != NULL && *ptrToNext != NULL);
 
 	GFXPass* subpass = pass;
 	uint32_t index = 0;
@@ -377,6 +381,11 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 		if (rPass->out.master != NULL)
 			subpass = (GFXPass*)rPass->out.master;
 	}
+
+	// Resolve the chain of 'master' passes.
+	subpass->out.next = NULL;
+	**ptrToNext = subpass;
+	*ptrToNext = &subpass->out.next;
 
 	// And start looping over the entire subpass chain.
 	// Keep track of what consumptions have been seen in this chain.
@@ -520,7 +529,8 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 /****************************
  * Analyzes the render graph to setup all passes for correct builds. Meaning
  * the `out` field of all consumptions, dependencies and render passes are set.
- * Also sets the `order` field of all passes :)
+ * Also resolves the 'master' chain of passes
+ * and sets the `order` field of all passes :)
  * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */
 static void _gfx_render_graph_analyze(GFXRenderer* renderer)
@@ -574,10 +584,14 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 
 	// Then we loop over all passes in submission order whilst
 	// keeping track of the last consumption of each attachment.
-	// This way we propogate transition and synchronization data per
-	// attachment as we go.
+	// This way we resolve and propogate transition and synchronization
+	// data per attachment as we go.
 	for (size_t i = 0; i < numAttachs; ++i)
 		consumes[i] = NULL;
+
+	// Also reset the first 'master' pass, as the chain will be resolved also.
+	renderer->graph.out.first = NULL;
+	GFXPass** ptrToNext = &renderer->graph.out.first;
 
 	// During this loop we sneakedly set the order of all passes.
 	// Recorders use this order to distinguish between passes.
@@ -591,7 +605,7 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		if (pass->culled) continue;
 
 		// Resolve!
-		_gfx_pass_resolve(renderer, pass, consumes);
+		_gfx_pass_resolve(renderer, pass, consumes, &ptrToNext);
 
 		// Set order.
 		pass->order = order++;
@@ -616,6 +630,9 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 
 	// No graph is a valid graph.
 	renderer->graph.state = _GFX_GRAPH_BUILT;
+
+	// Just in case.
+	renderer->graph.out.first = NULL;
 }
 
 /****************************/
@@ -655,9 +672,9 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 	size_t failed = 0;
 
 	for (
-		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		GFXPass* pass = renderer->graph.out.first;
 		pass != renderer->graph.firstCompute;
-		pass = (GFXPass*)pass->list.next)
+		pass = pass->out.next)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			// No need to worry about destructing, state remains 'validated'.
@@ -702,9 +719,9 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 	size_t failed = 0;
 
 	for (
-		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		GFXPass* pass = renderer->graph.out.first;
 		pass != renderer->graph.firstCompute;
-		pass = (GFXPass*)pass->list.next)
+		pass = pass->out.next)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			// The pass itself should log errors.
@@ -743,9 +760,9 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 	size_t failed = 0;
 
 	for (
-		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
+		GFXPass* pass = renderer->graph.out.first;
 		pass != renderer->graph.firstCompute;
-		pass = (GFXPass*)pass->list.next)
+		pass = pass->out.next)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			failed += !_gfx_pass_rebuild((_GFXRenderPass*)pass, flags);
@@ -768,6 +785,8 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Destruct all render passes.
+	// Do not use the chain of 'master' passes,
+	// all passes need to be destructed!
 	for (
 		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 		pass != renderer->graph.firstCompute;
