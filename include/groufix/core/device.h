@@ -133,6 +133,7 @@ typedef struct GFXDevice
 		uint32_t maxSetSamplers;
 		uint32_t maxSetAttachmentInputs;
 
+		uint64_t maxBufferSize;
 		uint64_t minTexelBufferAlign;
 		uint64_t minUniformBufferAlign;
 		uint64_t minStorageBufferAlign;

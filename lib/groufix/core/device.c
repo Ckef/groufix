@@ -48,12 +48,18 @@
 
 
 // Gets device version support & features support per version (all lvalues).
-#define _GFX_GET_DEVICE_FEATURES(device, vk11, vk12, pdf, pdv11f, pdv12f) \
+#define _GFX_GET_DEVICE_FEATURES(device, \
+		vk11, vk12, vk13, \
+		pdf, pdv11f, pdv12f, pdv13f) \
 	do { \
 		vk11 = (device)->api >= VK_MAKE_API_VERSION(0,1,1,0); \
 		vk12 = (device)->api >= VK_MAKE_API_VERSION(0,1,2,0); \
+		vk13 = (device)->api >= VK_MAKE_API_VERSION(0,1,3,0); \
 		_gfx_get_device_features(device, \
-			&pdf, (vk11 ? &pdv11f : NULL), (vk12 ? &pdv12f : NULL)); \
+			&pdf, \
+			(vk11 ? &pdv11f : NULL), \
+			(vk12 ? &pdv12f : NULL), \
+			(vk13 ? &pdv13f : NULL)); \
 	} while (0)
 
 
@@ -154,6 +160,7 @@ static bool _gfx_device_is_subset(VkPhysicalDevice device)
  * @param pdf    Output Vulkan 1.0 data, cannot be NULL.
  * @param pdv11f Output Vulkan 1.1 data, may be NULL.
  * @param pdv12f Output Vulkan 1.2 data, may be NULL.
+ * @param pdv13f Output Vulkan 1.3 data, may be NULL.
  *
  * All output structure for Vulkan >= 1.1 will link to one another in order
  * of increasing Vulkan version.
@@ -161,12 +168,14 @@ static bool _gfx_device_is_subset(VkPhysicalDevice device)
 static void _gfx_get_device_features(_GFXDevice* device,
                                      VkPhysicalDeviceFeatures* pdf,
                                      VkPhysicalDeviceVulkan11Features* pdv11f,
-                                     VkPhysicalDeviceVulkan12Features* pdv12f)
+                                     VkPhysicalDeviceVulkan12Features* pdv12f,
+                                     VkPhysicalDeviceVulkan13Features* pdv13f)
 {
 	assert(device != NULL);
 	assert(device->vk.device != NULL);
 	assert(!pdv11f || device->api >= VK_MAKE_API_VERSION(0,1,1,0));
 	assert(!pdv12f || device->api >= VK_MAKE_API_VERSION(0,1,2,0));
+	assert(!pdv13f || device->api >= VK_MAKE_API_VERSION(0,1,3,0));
 	assert(pdf != NULL);
 
 	VkPhysicalDeviceFeatures2 pdf2 = {
@@ -181,10 +190,15 @@ static void _gfx_get_device_features(_GFXDevice* device,
 
 	if (pdv12f) *pdv12f = (VkPhysicalDeviceVulkan12Features){
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+		.pNext = pdv13f
+	};
+
+	if (pdv13f) *pdv13f = (VkPhysicalDeviceVulkan13Features){
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
 		.pNext = NULL
 	};
 
-	if (!pdv11f && !pdv12f)
+	if (!pdv11f && !pdv12f && !pdv13f)
 		_groufix.vk.GetPhysicalDeviceFeatures(device->vk.device, pdf);
 	else
 	{
@@ -272,6 +286,27 @@ static void _gfx_get_device_features(_GFXDevice* device,
 		pdv12f->shaderOutputViewportIndex                          = VK_FALSE;
 		pdv12f->shaderOutputLayer                                  = VK_FALSE;
 		pdv12f->subgroupBroadcastDynamicId                         = VK_FALSE;
+	}
+
+	if (pdv13f)
+	{
+#if defined (NDEBUG)
+		pdv13f->robustImageAccess                                  = VK_FALSE;
+#endif
+		pdv13f->inlineUniformBlock                                 = VK_FALSE;
+		pdv13f->descriptorBindingInlineUniformBlockUpdateAfterBind = VK_FALSE;
+		pdv13f->pipelineCreationCacheControl                       = VK_FALSE;
+		pdv13f->privateData                                        = VK_FALSE;
+		pdv13f->shaderDemoteToHelperInvocation                     = VK_FALSE;
+		pdv13f->shaderTerminateInvocation                          = VK_FALSE;
+		pdv13f->subgroupSizeControl                                = VK_FALSE;
+		pdv13f->computeFullSubgroups                               = VK_FALSE;
+		pdv13f->synchronization2                                   = VK_FALSE;
+		pdv13f->textureCompressionASTC_HDR                         = VK_FALSE;
+		pdv13f->shaderZeroInitializeWorkgroupMemory                = VK_FALSE;
+		pdv13f->dynamicRendering                                   = VK_FALSE;
+		pdv13f->shaderIntegerDotProduct                            = VK_FALSE;
+		pdv13f->maintenance4                                       = VK_FALSE;
 	}
 }
 
@@ -803,11 +838,15 @@ static void _gfx_create_context(_GFXDevice* device)
 	// Get desired device feature structs for the next chain.
 	// Similarly to the families, we assume that any device that uses the same
 	// context has equivalent features.
-	bool vk11, vk12;
+	bool vk11, vk12, vk13;
 	VkPhysicalDeviceFeatures pdf;
 	VkPhysicalDeviceVulkan11Features pdv11f;
 	VkPhysicalDeviceVulkan12Features pdv12f;
-	_GFX_GET_DEVICE_FEATURES(device, vk11, vk12, pdf, pdv11f, pdv12f);
+	VkPhysicalDeviceVulkan13Features pdv13f;
+
+	_GFX_GET_DEVICE_FEATURES(device,
+		vk11, vk12, vk13,
+		pdf, pdv11f, pdv12f, pdv13f);
 
 	// Enable VK_KHR_swapchain so we can interact with surfaces from GLFW.
 	const char* extensions[] = {
@@ -1076,16 +1115,25 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 #endif
 
 	// Get all Vulkan device features as well.
-	bool vk11, vk12;
+	bool vk11, vk12, vk13;
 	VkPhysicalDeviceFeatures pdf;
 	VkPhysicalDeviceVulkan11Features pdv11f;
 	VkPhysicalDeviceVulkan12Features pdv12f;
-	_GFX_GET_DEVICE_FEATURES(dev, vk11, vk12, pdf, pdv11f, pdv12f);
+	VkPhysicalDeviceVulkan13Features pdv13f;
+
+	_GFX_GET_DEVICE_FEATURES(dev,
+		vk11, vk12, vk13,
+		pdf, pdv11f, pdv12f, pdv13f);
 
 	// And get us later properties, now that we have the version...
+	VkPhysicalDeviceVulkan13Properties pdv13p = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_PROPERTIES,
+		.pNext = NULL
+	};
+
 	VkPhysicalDeviceVulkan12Properties pdv12p = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES,
-		.pNext = NULL
+		.pNext = (vk13 ? (void*)&pdv13p : NULL)
 	};
 
 	VkPhysicalDeviceVulkan11Properties pdv11p = {
@@ -1093,7 +1141,7 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 		.pNext = (vk12 ? (void*)&pdv12p : NULL)
 	};
 
-	pdp2.pNext = (vk11 ? (void*)&pdv11p : (vk12 ? (void*)&pdv12p : NULL));
+	pdp2.pNext = (vk11 ? (void*)&pdv11p : NULL);
 	_groufix.vk.GetPhysicalDeviceProperties2(device, &pdp2);
 
 	// Sadly we need to get all queue family properties so we can
@@ -1212,6 +1260,7 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 			.maxSetSamplers              = pdp->limits.maxDescriptorSetSamplers,
 			.maxSetAttachmentInputs      = pdp->limits.maxDescriptorSetInputAttachments,
 
+			.maxBufferSize         = (vk13 ? pdv13p.maxBufferSize : (uint64_t)1073741824), // 2^30
 			.minTexelBufferAlign   = pdp->limits.minTexelBufferOffsetAlignment,
 			.minUniformBufferAlign = pdp->limits.minUniformBufferOffsetAlignment,
 			.minStorageBufferAlign = pdp->limits.minStorageBufferOffsetAlignment,
