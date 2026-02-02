@@ -392,7 +392,7 @@ GFX_API GFXHeap* gfx_image_get_heap(GFXImage* image);
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Added usage for any newly allocated buffer.
  * @param numIndices  Number of indices to claim.
- * @param indexSize   Index size, must be 0 or sizeof(uint16_t | uint32_t).
+ * @param indexSize   Index size, must be 0 or sizeof(uint8_t|uint16_t|uint32_t).
  * @param numVertices Number of vertices to claim, must be > 0.
  * @param index       Index buffer to use, GFX_REF_NULL to allocate new.
  * @param numAttribs  Number of vertex attributes, must be > 0.

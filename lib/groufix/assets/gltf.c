@@ -97,7 +97,8 @@
 		GFX_TOPO_TRIANGLE_LIST)
 
 #define _GFX_GLTF_INDEX_SIZE(type) \
-	((type) == cgltf_component_type_r_16u ? sizeof(uint16_t) : \
+	((type) == cgltf_component_type_r_8u ? sizeof(uint8_t) : \
+	(type) == cgltf_component_type_r_16u ? sizeof(uint16_t) : \
 	(type) == cgltf_component_type_r_32u ? sizeof(uint32_t) : 0)
 
 #define _GFX_GLTF_FILTER(magFilter) \
@@ -1041,7 +1042,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 			if (numIndices > 0 && indexSize == 0)
 			{
-				gfx_log_error("Index accessors must be sizeof(uint16_t|uint32_t).");
+				gfx_log_error("Index accessors must be sizeof(uint8_t|uint16_t|uint32_t).");
 				goto clean;
 			}
 

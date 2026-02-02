@@ -42,6 +42,7 @@ typedef struct GFXDevice
 	// Device features.
 	struct
 	{
+		bool indexUint8;
 		bool indexUint32;
 		bool indirectMultiDraw;
 		bool indirectFirstInstance;
@@ -96,7 +97,7 @@ typedef struct GFXDevice
 	// Device limits.
 	struct
 	{
-		uint32_t maxIndexUint32;
+		uint32_t maxIndexValue;
 		uint32_t maxImageSize1D;   // For { width }.
 		uint32_t maxImageSize2D;   // For { width, height }.
 		uint32_t maxImageSize3D;   // For { width, height, depth }.

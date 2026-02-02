@@ -1168,10 +1168,13 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
                                      size_t numAttribs, const GFXAttribute* attribs)
 {
 	assert(heap != NULL);
-	assert(numIndices == 0 || indexSize == sizeof(uint16_t) || indexSize == sizeof(uint32_t));
 	assert(numVertices > 0);
 	assert(numAttribs > 0);
 	assert(attribs != NULL);
+	assert(numIndices == 0 ||
+		indexSize == sizeof(uint8_t) ||
+		indexSize == sizeof(uint16_t) ||
+		indexSize == sizeof(uint32_t));
 
 	// Not using an index buffer...
 	if (numIndices == 0) index = GFX_REF_NULL;

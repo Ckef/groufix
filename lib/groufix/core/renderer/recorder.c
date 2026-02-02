@@ -25,6 +25,14 @@ static_assert(
 	"sizeof(GFXDispatchCmd) must be a multiple of 4 bytes.");
 
 
+// Get Vulkan index type.
+#define _GFX_GET_VK_INDEX_TYPE(size) \
+	((size) == sizeof(uint8_t) ? VK_INDEX_TYPE_UINT8 : \
+	(size) == sizeof(uint16_t) ? VK_INDEX_TYPE_UINT16 : \
+	(size) == sizeof(uint32_t) ? VK_INDEX_TYPE_UINT32 : \
+	0) /* Should not happen. */
+
+
 /****************************
  * Recording command buffer element definition.
  */
@@ -243,8 +251,7 @@ static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
 			context->vk.CmdBindIndexBuffer(recorder->inp.cmd,
 				index.obj.buffer->vk.buffer,
 				index.value,
-				primitive->indexSize == sizeof(uint16_t) ?
-					VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+				_GFX_GET_VK_INDEX_TYPE(primitive->indexSize));
 		}
 	}
 }
