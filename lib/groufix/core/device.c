@@ -66,6 +66,14 @@
 
 
 /****************************
+ * Stringified device types for logging.
+ */
+static const char* _gfx_log_device_types[] = {
+	"GPU", "Virtual GPU", "Integrated GPU", "CPU", "Unknown device type"
+};
+
+
+/****************************
  * Array of Vulkan queue priority values in [0,1].
  * The only separate queues that may be allocated within the same family are
  *  { (graphics|present), compute, transfer }
@@ -1466,8 +1474,9 @@ bool _gfx_devices_init(void)
 		{
 			_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
 			gfx_io_writef(logger,
-				"    [ %s ] (v%u.%u.%u%s)\n",
+				"    [ %s ] (%s | v%u.%u.%u%s)\n",
 				dev->name,
+				_gfx_log_device_types[dev->base.type],
 				(unsigned int)VK_API_VERSION_MAJOR(dev->api),
 				(unsigned int)VK_API_VERSION_MINOR(dev->api),
 				(unsigned int)VK_API_VERSION_PATCH(dev->api),
