@@ -323,7 +323,6 @@ static void _gfx_get_device_features(_GFXDevice* device,
 		pdv13f->textureCompressionASTC_HDR                         = VK_FALSE;
 		pdv13f->shaderZeroInitializeWorkgroupMemory                = VK_FALSE;
 		pdv13f->dynamicRendering                                   = VK_FALSE;
-		pdv13f->shaderIntegerDotProduct                            = VK_FALSE;
 	}
 
 	if (pdv14f)
@@ -1264,16 +1263,17 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 			.samplerClampToEdgeMirror = (vk12 ? pdv12f.samplerMirrorClampToEdge : 0),
 			.samplerMinmax            = (vk12 ? pdv12f.samplerFilterMinmax : 0),
 
-			.shaderClipDistance   = pdf.shaderClipDistance,
-			.shaderCullDistance   = pdf.shaderCullDistance,
-			.shaderInt8           = (vk12 ? pdv12f.shaderInt8 : 0),
-			.shaderInt16          = pdf.shaderInt16,
-			.shaderInt64          = pdf.shaderInt64,
-			.shaderFloat16        = (vk12 ? pdv12f.shaderFloat16 : 0),
-			.shaderFloat64        = pdf.shaderFloat64,
-			.shaderPushConstant8  = (vk12 ? pdv12f.storagePushConstant8 : 0),
-			.shaderPushConstant16 = (vk11 ? pdv11f.storagePushConstant16 : 0),
-			.shaderInputOutput16  = (vk11 ? pdv11f.storageInputOutput16 : 0),
+			.shaderClipDistance      = pdf.shaderClipDistance,
+			.shaderCullDistance      = pdf.shaderCullDistance,
+			.shaderInt8              = (vk12 ? pdv12f.shaderInt8 : 0),
+			.shaderInt16             = pdf.shaderInt16,
+			.shaderInt64             = pdf.shaderInt64,
+			.shaderFloat16           = (vk12 ? pdv12f.shaderFloat16 : 0),
+			.shaderFloat64           = pdf.shaderFloat64,
+			.shaderPushConstant8     = (vk12 ? pdv12f.storagePushConstant8 : 0),
+			.shaderPushConstant16    = (vk11 ? pdv11f.storagePushConstant16 : 0),
+			.shaderInputOutput16     = (vk11 ? pdv11f.storageInputOutput16 : 0),
+			.shaderIntegerDotProduct = (vk13 ? pdv13f.shaderIntegerDotProduct : 0),
 
 			.dynamicIndexUniformBuffer      = pdf.shaderUniformBufferArrayDynamicIndexing,
 			.dynamicIndexStorageBuffer      = pdf.shaderStorageBufferArrayDynamicIndexing,

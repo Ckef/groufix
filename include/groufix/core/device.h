@@ -77,6 +77,7 @@ typedef struct GFXDevice
 		bool shaderPushConstant8;
 		bool shaderPushConstant16;
 		bool shaderInputOutput16;
+		bool shaderIntegerDotProduct;
 
 		bool dynamicIndexUniformBuffer;
 		bool dynamicIndexStorageBuffer;
