@@ -367,6 +367,8 @@ typedef struct _GFXDevice
 	GFXDevice    base;
 	uint32_t     api; // Vulkan API version.
 	char         name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
+	char         driverName[VK_MAX_DRIVER_NAME_SIZE];
+	char         driverInfo[VK_MAX_DRIVER_INFO_SIZE];
 
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
 	bool         subset; // If it is a non-conformant Vulkan implementation.

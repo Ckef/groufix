@@ -1123,8 +1123,10 @@ error:
 
 /****************************
  * Initializes a single _GFXDevice struct given a Vulkan device.
- * Only dev->{ base.name, lock, formats } are left undefined!
  * @param dev Cannot be NULL.
+ *
+ * Only the following fields are left unset:
+ *  dev->{ base.{ name, driverName, driverInfo }, lock, formats }
  */
 static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 {
@@ -1148,6 +1150,9 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 	memcpy(
 		dev->name, pdp->deviceName,
 		VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
+
+	dev->driverName[0] = '\0';
+	dev->driverInfo[0] = '\0';
 
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
 	// If we're including portability subset devices, we need to check if
@@ -1189,8 +1194,24 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 		.pNext = (vk12 ? (void*)&pdv12p : NULL)
 	};
 
-	pdp2.pNext = (vk11 ? (void*)&pdv11p : NULL);
+	VkPhysicalDeviceDriverProperties pddp = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES,
+		.pNext = (void*)&pdv11p
+	};
+
+	pdp2.pNext = (vk12 ? (void*)&pddp : vk11 ? (void*)&pdv11p : NULL);
 	_groufix.vk.GetPhysicalDeviceProperties2(device, &pdp2);
+
+	// Extra setup.
+	if (vk12)
+	{
+		memcpy(
+			dev->driverName, pddp.driverName,
+			VK_MAX_DRIVER_NAME_SIZE);
+		memcpy(
+			dev->driverInfo, pddp.driverInfo,
+			VK_MAX_DRIVER_INFO_SIZE);
+	}
 
 	// Sadly we need to get all queue family properties so we can
 	// determine some of the features.
@@ -1217,6 +1238,8 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 	dev->base = (GFXDevice){
 		.type = _GFX_GET_DEVICE_TYPE(pdp->deviceType),
 		.name = NULL,
+		.driverName = NULL,
+		.driverInfo = NULL,
 		.available = available,
 
 		.features = {
@@ -1441,13 +1464,16 @@ bool _gfx_devices_init(void)
 		gfx_vec_insert(&_groufix.devices, 1, &dev, j);
 	}
 
-	// Now loop over 'm again to init dev->{ base.name, lock, formats }.
+	// Now loop over 'm again to init
+	//  dev->{ base.{ name, driverName, driverInfo }, lock, formats }.
 	// Because the number of devices never changes, the vector never
-	// gets reallocated, thus we store & init these mutexes here.
+	// gets reallocated, thus we store & init these values and mutexes here.
 	for (uint32_t i = 0; i < count; ++i)
 	{
 		_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
 		dev->base.name = dev->name;
+		dev->base.driverName = dev->driverName;
+		dev->base.driverInfo = dev->driverInfo;
 
 		// Sneaky goto-based init/clear structure :o
 		if (!_gfx_mutex_init(&dev->lock))
@@ -1481,6 +1507,12 @@ bool _gfx_devices_init(void)
 				(unsigned int)VK_API_VERSION_MINOR(dev->api),
 				(unsigned int)VK_API_VERSION_PATCH(dev->api),
 				dev->base.available ? "" : " | not available");
+
+			if (dev->driverName[0] != '\0' || dev->driverInfo[0] != '\0')
+				gfx_io_writef(logger,
+					"        driver: %s (%s)\n",
+					dev->driverName[0] == '\0' ? "???" : dev->driverName,
+					dev->driverInfo[0] == '\0' ? "???" : dev->driverInfo);
 		}
 
 		gfx_logger_end(logger);

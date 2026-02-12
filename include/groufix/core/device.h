@@ -36,6 +36,9 @@ typedef struct GFXDevice
 	GFXDeviceType type;
 	const char*   name;
 
+	const char* driverName;
+	const char* driverInfo;
+
 	bool available; // Zero if it does not support the required Vulkan version.
 
 
