@@ -315,7 +315,7 @@ static void _gfx_passes_destruct_partial(_GFXRenderPass* rPass,
 
 /****************************/
 GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
-                          unsigned int group,
+                          bool culled,
                           size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
@@ -346,12 +346,11 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	// Initialize other things.
 	pass->type = type;
 	pass->renderer = renderer;
-	pass->group = group;
 
 	pass->level = 0;
 	pass->order = 0;
 	pass->childs = 0;
-	pass->culled = 0;
+	pass->culled = culled;
 
 	gfx_vec_init(&pass->consumes, sizeof(_GFXConsume));
 	gfx_vec_init(&pass->deps, sizeof(_GFXDepend));
@@ -1430,14 +1429,6 @@ GFX_API GFXPass* gfx_pass_get_parent(GFXPass* pass, size_t parent)
 	assert(parent < pass->parents.size);
 
 	return *(GFXPass**)gfx_vec_at(&pass->parents, parent);
-}
-
-/****************************/
-GFX_API unsigned int gfx_pass_get_group(GFXPass* pass)
-{
-	assert(pass != NULL);
-
-	return pass->group;
 }
 
 /****************************/

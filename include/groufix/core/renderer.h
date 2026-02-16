@@ -919,7 +919,7 @@ typedef enum GFXPassType
  * A pass will be after all its parents in submission order.
  * Each element in parents must be associated with the same renderer.
  * @param renderer   Cannot be NULL.
- * @param group      The cull group this pass is in.
+ * @param culled     Whether or not this pass is culled.
  * @param numParents Number of parents, 0 for none.
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
@@ -931,7 +931,7 @@ typedef enum GFXPassType
  * All asynchronous passes are after all others in submission order.
  */
 GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
-                                       unsigned int group,
+                                       bool culled,
                                        size_t numParents, GFXPass** parents);
 
 /**
@@ -985,60 +985,23 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
                                   size_t numParents, GFXPass** parents);
 
 /**
- * Retrieves the first pass in submission order of a renderer.
- * @param renderer Cannot be NULL.
- * @return NULL if no passes are present.
- */
-GFX_API GFXPass* gfx_renderer_get_first(GFXRenderer* renderer);
-
-/**
- * Retrieves the last pass in submission order of a renderer.
- * @param renderer Cannot be NULL.
- * @return NULL if no passes are present.
- */
-GFX_API GFXPass* gfx_renderer_get_last(GFXRenderer* renderer);
-
-/**
- * Retrieves the next pass in submission order.
- * @param pass Cannot be NULL.
- * @return NULL if this is the last pass.
- */
-GFX_API GFXPass* gfx_pass_get_next(GFXPass* pass);
-
-/**
- * Retrieves the previous pass in submission order.
- * @param pass Cannot be NULL.
- * @return NULL if this is the first pass.
- */
-GFX_API GFXPass* gfx_pass_get_prev(GFXPass* pass);
-
-/**
- * Retrieves the cull group this pass is in.
- * Can be called from any thread.
- * @param pass Cannot be NULL.
- */
-GFX_API unsigned int gfx_pass_get_group(GFXPass* pass);
-
-/**
- * Sets all passes in a cull group to NOT be rendered.
- * @param renderer Cannot be NULL.
- * @param group    Cull group to cull.
- */
-GFX_API void gfx_renderer_cull(GFXRenderer* renderer, unsigned int group);
-
-/**
- * Sets all passes in a cull group to be rendered.
- * @param renderer Cannot be NULL.
- * @param group    Cull group to uncull.
- */
-GFX_API void gfx_renderer_uncull(GFXRenderer* renderer, unsigned int group);
-
-/**
  * Retrieves whether the pass is currently culled or not.
  * @param pass Cannot be NULL.
  * @return Non-zero if the pass is culled.
  */
 GFX_API bool gfx_pass_is_culled(GFXPass* pass);
+
+/**
+ * Culls a pass, it will NOT be rendered.
+ * @param pass Cannot be NULL.
+ */
+GFX_API void gfx_pass_cull(GFXPass* pass);
+
+/**
+ * Unculls a pass, it will be rendered.
+ * @param pass Cannot be NULL.
+ */
+GFX_API void gfx_pass_uncull(GFXPass* pass);
 
 /**
  * Consume an attachment of a renderer.
@@ -1168,6 +1131,34 @@ GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor);
  * @see gfx_pass_get_viewport.
  */
 GFX_API GFXScissor gfx_pass_get_scissor(GFXPass* pass);
+
+/**
+ * Retrieves the first pass in submission order of a renderer.
+ * @param renderer Cannot be NULL.
+ * @return NULL if no passes are present.
+ */
+GFX_API GFXPass* gfx_renderer_get_first(GFXRenderer* renderer);
+
+/**
+ * Retrieves the last pass in submission order of a renderer.
+ * @param renderer Cannot be NULL.
+ * @return NULL if no passes are present.
+ */
+GFX_API GFXPass* gfx_renderer_get_last(GFXRenderer* renderer);
+
+/**
+ * Retrieves the next pass in submission order.
+ * @param pass Cannot be NULL.
+ * @return NULL if this is the last pass.
+ */
+GFX_API GFXPass* gfx_pass_get_next(GFXPass* pass);
+
+/**
+ * Retrieves the previous pass in submission order.
+ * @param pass Cannot be NULL.
+ * @return NULL if this is the first pass.
+ */
+GFX_API GFXPass* gfx_pass_get_prev(GFXPass* pass);
 
 
 /****************************

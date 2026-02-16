@@ -1115,7 +1115,6 @@ struct GFXPass
 	GFXListNode  list; // Base-type.
 	GFXPassType  type;
 	GFXRenderer* renderer;
-	unsigned int group;  // Cull group of the pass.
 
 	GFXVec       parents; // Stores GFXPass*.
 	unsigned int level;   // Determines submission order.
@@ -2008,7 +2007,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  * Creates a pass, referencing all parents.
  * Each element in parents must be associated with the same renderer.
  * @param renderer   Cannot be NULL.
- * @param group      The cull group this pass is in.
+ * @param culled     Whether or not this pass is culled.
  * @param numParents Number of parents, 0 for none.
  * @param parents    Parent passes, cannot be NULL if numParents > 0.
  * @return NULL on failure.
@@ -2017,7 +2016,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  * Additionally, the `level` field is left at zero.
  */
 GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
-                          unsigned int group,
+                          bool culled,
                           size_t numParents, GFXPass** parents);
 
 /**

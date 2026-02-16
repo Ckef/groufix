@@ -111,29 +111,28 @@ static bool post_key_release(GFXWindow* window,
                              GFXKey key, int scan, GFXModifier mod, void* data)
 {
 	Context* ctx = window->ptr;
+	unsigned int newMode = ctx->mode;
 
 	switch (key)
 	{
 	case GFX_KEY_1:
-		gfx_renderer_uncull(TEST_BASE.renderer, 1);
-		gfx_renderer_cull(TEST_BASE.renderer, 2);
-		gfx_renderer_cull(TEST_BASE.renderer, 3);
-		ctx->mode = 0;
+		newMode = 0;
 		break;
 	case GFX_KEY_2:
-		gfx_renderer_cull(TEST_BASE.renderer, 1);
-		gfx_renderer_uncull(TEST_BASE.renderer, 2);
-		gfx_renderer_cull(TEST_BASE.renderer, 3);
-		ctx->mode = 1;
+		newMode = 1;
 		break;
 	case GFX_KEY_3:
-		gfx_renderer_cull(TEST_BASE.renderer, 1);
-		gfx_renderer_cull(TEST_BASE.renderer, 2);
-		gfx_renderer_uncull(TEST_BASE.renderer, 3);
-		ctx->mode = 2;
+		newMode = 2;
 		break;
 	default:
 		break;
+	}
+
+	if (newMode != ctx->mode)
+	{
+		gfx_pass_cull(ctx->renderables[ctx->mode].pass);
+		gfx_pass_uncull(ctx->renderables[newMode].pass);
+		ctx->mode = newMode;
 	}
 
 	return TEST_EVT_KEY_RELEASE(window, key, scan, mod, data);
@@ -249,20 +248,23 @@ TEST_DESCRIBE(post, t)
 	GFXPass* posts[] = {
 		gfx_renderer_add_pass(
 			t->renderer, GFX_PASS_RENDER,
-			1, // Group 1.
+			1, // Culled!
 			1, (GFXPass*[]){ t->pass }),
 		gfx_renderer_add_pass(
 			t->renderer, GFX_PASS_RENDER,
-			2, // Group 2.
+			1, // Culled!
 			1, (GFXPass*[]){ t->pass }),
 		gfx_renderer_add_pass(
 			t->renderer, GFX_PASS_RENDER,
-			3, // Group 3.
+			0, // Unculled.
 			1, (GFXPass*[]){ t->pass })
 	};
 
 	if (posts[0] == NULL || posts[1] == NULL || posts[2] == NULL)
 		goto clean;
+
+	// Set initial mode according to the pass cull states.
+	ctx.mode = 2;
 
 	// Move the window to the second passes, the intermediate to the first.
 	gfx_pass_release(t->pass, 0);
@@ -352,11 +354,6 @@ TEST_DESCRIBE(post, t)
 
 	if (ctx.sets[2] == NULL)
 		goto clean;
-
-	// Set initial state.
-	gfx_renderer_cull(t->renderer, 1);
-	gfx_renderer_cull(t->renderer, 2);
-	ctx.mode = 2;
 
 	// Setup an event loop.
 	// We wait instead of poll, only update when an event was detected.

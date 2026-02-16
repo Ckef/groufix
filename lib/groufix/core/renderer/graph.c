@@ -938,7 +938,7 @@ static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
 
 /****************************/
 GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
-                                       unsigned int group,
+                                       bool culled,
                                        size_t numParents, GFXPass** parents)
 {
 	assert(renderer != NULL);
@@ -951,28 +951,12 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 
 	// Create a new pass.
 	GFXPass* pass =
-		_gfx_create_pass(renderer, type, group, numParents, parents);
+		_gfx_create_pass(renderer, type, culled, numParents, parents);
 
 	if (pass == NULL)
 		goto error;
 
-	// Loop before inserting to find a pass of the same group so we can
-	// figure out whether we should be culled or not.
-	// If none of the same group is found, keep default value.
-	// Loop backwards so it's probably in-line with adding order.
-	for (
-		GFXPass* other = (GFXPass*)renderer->graph.passes.tail;
-		other != NULL;
-		other = (GFXPass*)other->list.prev)
-	{
-		if (other->group == group)
-		{
-			pass->culled = other->culled;
-			break;
-		}
-	}
-
-	// Now insert the pass into the render graph.
+	// Insert the pass into the render graph.
 	_gfx_render_graph_insert(renderer, pass, 1);
 
 	// Increase pass count.
@@ -981,19 +965,19 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	else
 		++renderer->graph.numCompute;
 
-	// Increase culled count, if culled.
-	if (pass->culled)
+	// If not culled, increase the child count of all parents.
+	if (!pass->culled)
+		for (size_t p = 0; p < numParents; ++p)
+			++parents[p]->childs;
+
+	// If culled, increase culled count.
+	else
 	{
 		if (pass->type != GFX_PASS_COMPUTE_ASYNC)
 			++renderer->graph.culledRender;
 		else
 			++renderer->graph.culledCompute;
 	}
-
-	// If not culled, increase the child count of all parents.
-	if (!pass->culled)
-		for (size_t p = 0; p < numParents; ++p)
-			++parents[p]->childs;
 
 	// We added a pass, we need to re-analyze
 	// because we may have new parent/child links.
@@ -1048,19 +1032,19 @@ GFX_API void gfx_erase_pass(GFXPass* pass)
 	else
 		--renderer->graph.numCompute;
 
-	// Decrease culled count, if culled.
-	if (pass->culled)
+	// If not culled, decrease the child count of all parents.
+	if (!pass->culled)
+		for (size_t p = 0; p < pass->parents.size; ++p)
+			--(*(GFXPass**)gfx_vec_at(&pass->parents, p))->childs;
+
+	// If culled, decrease culled count.
+	else
 	{
 		if (pass->type != GFX_PASS_COMPUTE_ASYNC)
 			--renderer->graph.culledRender;
 		else
 			--renderer->graph.culledCompute;
 	}
-
-	// If not culled, decrease the child count of all parents.
-	if (!pass->culled)
-		for (size_t p = 0; p < pass->parents.size; ++p)
-			--(*(GFXPass**)gfx_vec_at(&pass->parents, p))->childs;
 
 	// And finally, destroy the pass. The call to _gfx_render_graph_destruct
 	// ensures we are allowed to destroy the pass!
@@ -1123,6 +1107,68 @@ error:
 	return 0;
 }
 
+/****************************
+ * Stand-in function for gfx_pass_(cull|uncull).
+ * @see gfx_pass_(cull|uncull).
+ * @param cull Zero to uncull, non-zero to cull.
+ */
+static void _gfx_pass_set_cull(GFXPass* pass, bool cull)
+{
+	assert(pass != NULL);
+	assert(!pass->renderer->recording);
+
+	GFXRenderer* renderer = pass->renderer;
+
+	// If we change culed state of the pass, we need to re-analyze
+	// for different parent/child links & build new passes if unculling.
+	if (pass->culled != cull)
+	{
+		// Invalidate the graph & set the new culled state.
+		if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+			renderer->graph.state = _GFX_GRAPH_INVALID;
+
+		pass->culled = cull;
+
+		// Adjust the culled count.
+		size_t* culled =
+			(pass->type != GFX_PASS_COMPUTE_ASYNC) ?
+				&renderer->graph.culledRender :
+				&renderer->graph.culledCompute;
+
+		if (cull)
+			++(*culled);
+		else
+			--(*culled);
+
+		// If culling, subtract from parent's child count,
+		// if unculling, add.
+		for (size_t p = 0; p < pass->parents.size; ++p)
+		{
+			GFXPass* parent = *(GFXPass**)gfx_vec_at(&pass->parents, p);
+			if (cull)
+				--parent->childs;
+			else
+				++parent->childs;
+		}
+	}
+}
+
+/****************************/
+GFX_API void gfx_pass_cull(GFXPass* pass)
+{
+	// Relies on stand-in function for asserts.
+
+	_gfx_pass_set_cull(pass, 1);
+}
+
+/****************************/
+GFX_API void gfx_pass_uncull(GFXPass* pass)
+{
+	// Relies on stand-in function for asserts.
+
+	_gfx_pass_set_cull(pass, 0);
+}
+
 /****************************/
 GFX_API GFXPass* gfx_renderer_get_first(GFXRenderer* renderer)
 {
@@ -1153,72 +1199,4 @@ GFX_API GFXPass* gfx_pass_get_prev(GFXPass* pass)
 	assert(pass != NULL);
 
 	return (GFXPass*)pass->list.prev;
-}
-
-/****************************
- * Stand-in function for gfx_renderer_(cull|uncull).
- * @see gfx_renderer_(cull|uncull).
- * @param cull Zero to uncull, non-zero to cull.
- */
-static void _gfx_renderer_set_cull(GFXRenderer* renderer,
-                                   unsigned int group, bool cull)
-{
-	assert(renderer != NULL);
-	assert(!renderer->recording);
-
-	// Loop over all passes, get the ones belonging to group.
-	// If we change culled state of any pass, we need to re-analyze
-	// for different parent/childs links & build new passes if unculling.
-	for (
-		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
-		pass != NULL;
-		pass = (GFXPass*)pass->list.next)
-	{
-		if (pass->group == group && pass->culled != cull)
-		{
-			// Invalidate the graph & set the new culled state.
-			if (renderer->graph.state != _GFX_GRAPH_EMPTY)
-				renderer->graph.state = _GFX_GRAPH_INVALID;
-
-			pass->culled = cull;
-
-			// Adjust the culled count.
-			size_t* culled =
-				(pass->type != GFX_PASS_COMPUTE_ASYNC) ?
-					&renderer->graph.culledRender :
-					&renderer->graph.culledCompute;
-
-			if (cull)
-				++(*culled);
-			else
-				--(*culled);
-
-			// If culling, subtract from parent's child count,
-			// if unculling, add.
-			for (size_t p = 0; p < pass->parents.size; ++p)
-			{
-				GFXPass* parent = *(GFXPass**)gfx_vec_at(&pass->parents, p);
-				if (cull)
-					--parent->childs;
-				else
-					++parent->childs;
-			}
-		}
-	}
-}
-
-/****************************/
-GFX_API void gfx_renderer_cull(GFXRenderer* renderer, unsigned int group)
-{
-	// Relies on stand-in function for asserts.
-
-	_gfx_renderer_set_cull(renderer, group, 1);
-}
-
-/****************************/
-GFX_API void gfx_renderer_uncull(GFXRenderer* renderer, unsigned int group)
-{
-	// Relies on stand-in function for asserts.
-
-	_gfx_renderer_set_cull(renderer, group, 0);
 }
