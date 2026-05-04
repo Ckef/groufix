@@ -32,6 +32,8 @@ The Makefile takes the following flags:
 
 - `USE_WAYLAND=xxx` tells the Makefile whether to compile for Wayland or not, as it will default to X11 when building on Linux. `xxx` can be either `ON` or `OFF` and defaults to `OFF`.
 
+- `EXPORT_COMPILE_COMMAND=xxx` tells the Makefile whether to export `compile_commands.json` for Clang-based tools or not. `xxx` can be either `ON` or `OFF` and defaults to `ON` if not on windows.
+
 
 ### Dependencies
 
@@ -44,6 +46,7 @@ _When building on Linux_:
 - `make` _and_ `cmake` : for building source files.
 - `xorg-dev` _or_ `libwayland-dev` : for building [GLFW](https://www.glfw.org/).
 - `python3` : for building [Shaderc](https://github.com/google/shaderc).
+- `bear` : for exporting compile commands (optional).
 
 _When cross-compiling to Windows_:
 - `mingw-w64` : for building source files for windows (in addition to the above packages), the `CC` flag needs to be set as described under [#Building](#building).

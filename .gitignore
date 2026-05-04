@@ -10,6 +10,7 @@
 bin/
 build/
 obj/
+compile_commands.json
 .shaderc-deps.stamp
 
 # runtime files

@@ -46,6 +46,8 @@ TEMP  = obj
 
 USE_WAYLAND = OFF
 
+EXPORT_COMPILE_COMMANDS = ON
+
 
 # Is this macOS?
 MACOS = OFF
@@ -61,6 +63,14 @@ ifeq ($(OS),Windows_NT)
  PYTHON = python
 else
  PYTHON = python3
+endif
+
+
+# Compile commands export prefix to use
+ifneq ($(OS),Windows_NT)
+ ifeq ($(EXPORT_COMPILE_COMMANDS),ON)
+  BEAR = bear --append --
+ endif
 endif
 
 
@@ -366,20 +376,20 @@ MFLAGS_WIN  = $(MFLAGS_ALL) SUB=/win LIBEXT=.dll BINEXT=.exe
 
 .PHONY: unix unix-grouviz unix-tests unix-all
 unix:
-	@$(MAKE) $(MFLAGS_UNIX) .build
+	@$(BEAR) $(MAKE) $(MFLAGS_UNIX) .build
 unix-grouviz:
-	@$(MAKE) $(MFLAGS_UNIX) .build-grouviz
+	@$(BEAR) $(MAKE) $(MFLAGS_UNIX) .build-grouviz
 unix-tests:
-	@$(MAKE) $(MFLAGS_UNIX) .build-tests
+	@$(BEAR) $(MAKE) $(MFLAGS_UNIX) .build-tests
 unix-all:
-	@$(MAKE) $(MFLAGS_UNIX) .build-grouviz .build-tests
+	@$(BEAR) $(MAKE) $(MFLAGS_UNIX) .build-grouviz .build-tests
 
 .PHONY: win win-grouviz win-tests win-all
 win:
-	@$(MAKE) $(MFLAGS_WIN) .build
+	@$(BEAR) $(MAKE) $(MFLAGS_WIN) .build
 win-grouviz:
-	@$(MAKE) $(MFLAGS_WIN) .build-grouviz
+	@$(BEAR) $(MAKE) $(MFLAGS_WIN) .build-grouviz
 win-tests:
-	@$(MAKE) $(MFLAGS_WIN) .build-tests
+	@$(BEAR) $(MAKE) $(MFLAGS_WIN) .build-tests
 win-all:
-	@$(MAKE) $(MFLAGS_WIN) .build-grouviz .build-tests
+	@$(BEAR) $(MAKE) $(MFLAGS_WIN) .build-grouviz .build-tests
