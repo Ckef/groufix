@@ -620,7 +620,7 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 				// Unless it's a wait command.
 				// Note we do not do any checking, this is done in dep.c!
 				if (
-					depend.inj.type != GFX_INJ_WAIT &&
+					!_GFX_INJ_IS_WAIT(depend.inj) &&
 					!gfx_vec_push(&pass->deps, 1, &depend))
 				{
 					goto clean;
@@ -633,7 +633,7 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 				{
 					_GFXDepend* wDepend = gfx_vec_at(&wait->deps, w);
 					if (
-						wDepend->inj.type == GFX_INJ_WAIT &&
+						_GFX_INJ_IS_WAIT(wDepend->inj) &&
 						wDepend->inj.dep == depend.inj.dep)
 					{
 						break;

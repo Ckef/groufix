@@ -43,14 +43,14 @@ typedef struct GFXReference
 
 	// Referenced object, isa
 	//  GFXBuffer* | GFXImage* | GFXPrimitive* | GFXGroup* | GFXRenderer*.
-	void* obj;
+	GFX_SUPPRESS(void* obj)
 
 	// Reference buffer offset (0 for images).
-	uint64_t offset;
+	GFX_SUPPRESS(uint64_t offset)
 
 	// Reference values,
 	//  { attribute | binding | attachment | 0, index | 0 }.
-	size_t values[2];
+	GFX_SUPPRESS(size_t values[2])
 
 } GFXReference;
 
@@ -137,11 +137,11 @@ typedef union GFXRegion
 	GFX_UNION_ANONYMOUS(
 	{
 		uint64_t offset;
-		uint64_t size;
+		GFX_SUPPRESS(uint64_t size)
 
 		// Buffer packing for image operations (0 = tightly packed).
-		uint32_t rowSize; // In texels.
-		uint32_t numRows; // In texels.
+		GFX_SUPPRESS(uint32_t rowSize) // In texels.
+		GFX_SUPPRESS(uint32_t numRows) // In texels.
 
 	}, buf)
 

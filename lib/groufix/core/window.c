@@ -660,7 +660,7 @@ GFX_API void gfx_window_set_monitor(GFXWindow* window, GFXMonitor* monitor,
 		0, 0,
 		(int)mode.width,
 		(int)mode.height,
-		mode.refresh == 0 ? GLFW_DONT_CARE : (int)mode.refresh);
+		(monitor == NULL || mode.refresh == 0) ? GLFW_DONT_CARE : (int)mode.refresh);
 }
 
 /****************************/

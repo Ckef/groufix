@@ -152,7 +152,7 @@ typedef struct GFXAttribute
 	GFXBufferRef buffer; // May be GFX_REF_NULL to allocate new.
 
 	// Ignored if buffer is GFX_REF_NULL, assumes vertex input rate.
-	GFXInputRate rate;
+	GFX_SUPPRESS(GFXInputRate rate)
 
 } GFXAttribute;
 
@@ -166,7 +166,7 @@ typedef struct GFXBinding
 	size_t         count; // Number of bound buffers/images (i.e. shader array size).
 
 	// Buffer format (ignored for images)
-	uint32_t numElements; // Elements/texels to claim from each buffer.
+	GFX_SUPPRESS(uint32_t numElements) // Elements/texels to claim from each buffer.
 
 	union {
 		GFXFormat format;      // For texel buffers.

@@ -119,6 +119,16 @@
 
 
 /**
+ * Describe member field as zero initialized in C++ mode.
+ */
+#if defined (__cplusplus)
+	#define GFX_SUPPRESS(field) field = {};
+#else
+	#define GFX_SUPPRESS(field) field;
+#endif
+
+
+/**
  * Describe named union member as optionally anonymous in C mode.
  */
 #if defined (__cplusplus)
@@ -167,11 +177,11 @@
 	((offset) & ~((align) - 1))
 
 
-#if defined (__cplusplus)
-
 /**
  * Define a copyable atomic type for C++ mode.
  */
+#if defined (__cplusplus)
+
 template <typename T>
 struct GFXAtomic : public std::atomic<T> {
 	using std::atomic<T>::atomic;

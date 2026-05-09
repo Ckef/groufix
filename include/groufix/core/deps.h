@@ -148,22 +148,22 @@ typedef struct GFXInject
 	GFXDependency* dep;
 
 	// To-be synchronized resource (may be GFX_REF_NULL).
-	GFXReference ref;
+	GFX_SUPPRESS(GFXReference ref)
 
 	// Affected resource range.
-	GFXRange range;
+	GFX_SUPPRESS(GFXRange range)
 
 	// Access scope that will be signaled.
-	GFXAccessMask mask;
+	GFX_SUPPRESS(GFXAccessMask mask)
 
 	// Shader stages that will have access.
-	GFXShaderStage stage;
+	GFX_SUPPRESS(GFXShaderStage stage)
 
 	// Access scope that does the signaling.
-	GFXAccessMask maskf;
+	GFX_SUPPRESS(GFXAccessMask maskf)
 
 	// Shader stages that do the signaling.
-	GFXShaderStage stagef;
+	GFX_SUPPRESS(GFXShaderStage stagef)
 
 } GFXInject;
 
@@ -322,8 +322,7 @@ typedef struct GFXInject
 #define gfx_dep_wait(dep_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_WAIT, \
-		.dep = dep_, \
-		.ref = GFX_REF_NULL \
+		.dep = dep_ \
 	}
 
 

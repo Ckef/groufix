@@ -16,7 +16,6 @@
 #include "groufix/core/deps.h"
 #include "groufix/core/gamepad.h"
 #include "groufix/core/heap.h"
-#include "groufix/core/keys.h"
 #include "groufix/core/renderer.h"
 #include "groufix/core/shader.h"
 #include "groufix/core/window.h"

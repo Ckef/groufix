@@ -404,8 +404,9 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.alphaToCoverageEnable = VK_FALSE,
 			.alphaToOneEnable      = VK_FALSE,
 			.rasterizationSamples  =
-				_GFX_GET_VK_SAMPLE_COUNT(
-					GFX_MAX(raster->samples, rPass->state.samples)),
+				_GFX_GET_VK_SAMPLE_COUNT(noRaster ?
+					rPass->state.samples :
+					GFX_MAX(raster->samples, rPass->state.samples))
 		}},
 
 		.pDynamicState = (VkPipelineDynamicStateCreateInfo[]){{

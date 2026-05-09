@@ -110,7 +110,8 @@ typedef struct GFXAttachment
 
 	// Optionally dynamic size.
 	GFXSizeClass size;
-	size_t       ref; // Index of the attachment the size is relative to.
+
+	GFX_SUPPRESS(size_t ref) // Index of the attachment the size is relative to.
 
 	union {
 		uint32_t width;
@@ -141,8 +142,8 @@ typedef union GFXClear
 
 	GFX_UNION_ANONYMOUS(
 	{
-		float    depth;
-		uint32_t stencil;
+		GFX_SUPPRESS(float    depth)
+		GFX_SUPPRESS(uint32_t stencil)
 
 	}, test)
 
@@ -362,16 +363,17 @@ typedef enum GFXStencilOp
 typedef struct GFXView
 {
 	// Both ignored for pass consumptions.
-	size_t binding;
-	size_t index; // Binding array index.
+	GFX_SUPPRESS(size_t binding)
+	GFX_SUPPRESS(size_t index) // Binding array index.
 
 	union {
 		GFXFormat   format; // For texel buffers.
 		GFXViewType type;   // For attachments.
 	};
 
-	GFXRange      range;
-	GFXSwizzleMap swizzle;
+	GFX_SUPPRESS(GFXSwizzleMap swizzle)
+
+	GFXRange range;
 
 } GFXView;
 
@@ -398,9 +400,10 @@ typedef struct GFXSampler
 	float mipLodBias;
 	float minLod;
 	float maxLod;
-	float maxAnisotropy;
 
-	GFXCompareOp cmp;
+	GFX_SUPPRESS(float maxAnisotropy)
+
+	GFX_SUPPRESS(GFXCompareOp cmp)
 
 } GFXSampler;
 
@@ -411,10 +414,11 @@ typedef struct GFXSampler
 typedef struct GFXRasterState
 {
 	GFXRasterMode mode;
-	GFXFrontFace  front;
-	GFXCullMode   cull;
-	GFXTopology   topo;    // Topology when no primitive is given.
-	unsigned char samples; // 1 <= 2^n <= 64.
+
+	GFX_SUPPRESS(GFXFrontFace  front)
+	GFX_SUPPRESS(GFXCullMode   cull)
+	GFX_SUPPRESS(GFXTopology   topo)    // Topology when no primitive is given.
+	GFX_SUPPRESS(unsigned char samples) // 1 <= 2^n <= 64.
 
 } GFXRasterState;
 
@@ -440,7 +444,7 @@ typedef struct GFXBlendState
 	GFXBlendOpState color;
 	GFXBlendOpState alpha;
 
-	float constants[4]; // { RGBA } blending constants.
+	GFX_SUPPRESS(float constants[4]) // { RGBA } blending constants.
 
 } GFXBlendState;
 
@@ -453,8 +457,8 @@ typedef struct GFXDepthState
 	GFXDepthFlags flags;
 	GFXCompareOp  cmp;
 
-	float minDepth;
-	float maxDepth;
+	GFX_SUPPRESS(float minDepth)
+	GFX_SUPPRESS(float maxDepth)
 
 } GFXDepthState;
 
