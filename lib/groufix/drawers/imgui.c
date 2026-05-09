@@ -213,7 +213,7 @@ static int _gfx_imgui_cmp(const void* l, const void* r)
 /****************************
  * Converts a GFXKey to a ImGuiKey.
  */
-static int _gfx_imgui_key(GFXKey key)
+static ImGuiKey _gfx_imgui_key(GFXKey key)
 {
 	switch (key)
 	{
