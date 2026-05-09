@@ -19,8 +19,8 @@
 
 // ImGui index size compatibility.
 static_assert(
-		sizeof(uint16_t) == sizeof(ImDrawIdx),
-		"sizeof(ImDrawIdx) must equal sizeof(uint16_t).");
+	sizeof(uint16_t) == sizeof(ImDrawIdx),
+	"sizeof(ImDrawIdx) must equal sizeof(uint16_t).");
 
 
 // Gamepad button/axis mapping.
