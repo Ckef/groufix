@@ -8,7 +8,6 @@
 
 #include "groufix/drawers/imgui.h"
 #include "groufix/core/log.h"
-#include <assert.h>
 #include <float.h>
 #include <limits.h>
 #include <string.h>
@@ -24,13 +23,13 @@ static_assert(
 
 
 // Gamepad button/axis mapping.
-#define _GFX_MAP_BUTTON(igKey, gfxButton) \
+#define GFX_MAP_BUTTON_(igKey, gfxButton) \
 	do { \
 		ImGuiIO_AddKeyEvent( \
 			io, igKey, state->buttons[gfxButton]); \
 	} while (0)
 
-#define _GFX_MAP_AXIS(igKey, gfxAxis, V0, V1) \
+#define GFX_MAP_AXIS_(igKey, gfxAxis, V0, V1) \
 	do { \
 		float v = state->axes[gfxAxis]; \
 		v = (v - V0) / (V1 - V0); \
@@ -40,8 +39,8 @@ static_assert(
 	} while (0)
 
 
-// Clears the contents of a _GFXDataElem, freeing all memory.
-#define _GFX_IMGUI_CLEAR_DATA(elem) \
+// Clears the contents of a GFXDataElem_, freeing all memory.
+#define GFX_IMGUI_CLEAR_DATA_(elem) \
 	do { \
 		if (elem->data) gfx_unmap(gfx_ref_prim(elem->primitive)); \
 		gfx_free_prim(elem->primitive); \
@@ -52,7 +51,7 @@ static_assert(
  * ImGui drawer data element definition.
  * One such element holds data for all of the renderer's virtual frames!
  */
-typedef struct _GFXDataElem
+typedef struct GFXDataElem_
 {
 	unsigned int frame; // Index of last frame that used this data.
 
@@ -60,18 +59,18 @@ typedef struct _GFXDataElem
 	GFXRenderable renderable;
 	void*         data;
 
-} _GFXDataElem;
+} GFXDataElem_;
 
 
 /****************************
  * ImGui event data to be passed to callbacks.
  */
-typedef struct _GFXEventData
+typedef struct GFXEventData_
 {
 	ImGuiIO* io;
 	bool     blocking;
 
-} _GFXEventData;
+} GFXEventData_;
 
 
 /****************************
@@ -95,7 +94,7 @@ typedef struct _GFXEventData
  * }
  *
  */
-static const uint32_t _gfx_imgui_vert_spv[] =
+static const uint32_t gfx_imgui_vert_spv_[] =
 {
 	0x07230203,0x00010000,0x00080001,0x0000002e,0x00000000,0x00020011,0x00000001,0x0006000b,
 	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
@@ -156,7 +155,7 @@ static const uint32_t _gfx_imgui_vert_spv[] =
  * }
  *
  */
-static const uint32_t _gfx_imgui_frag_spv[] =
+static const uint32_t gfx_imgui_frag_spv_[] =
 {
 	0x07230203,0x00010000,0x00080001,0x0000001e,0x00000000,0x00020011,0x00000001,0x0006000b,
 	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
@@ -191,7 +190,7 @@ static const uint32_t _gfx_imgui_frag_spv[] =
  * taken from Wolfgang Brehm at https://stackoverflow.com/q/664014,
  * key is of type GFXImage**.
  */
-static uint64_t _gfx_imgui_hash(const void* key)
+static uint64_t gfx_imgui_hash_(const void* key)
 {
 	uint64_t n = (uint64_t)(uintptr_t)(*(const GFXImage**)key);
 	n = (n ^ (n >> 32)) * 0x5555555555555555ull; // Alternating 0s and 1s.
@@ -204,7 +203,7 @@ static uint64_t _gfx_imgui_hash(const void* key)
  * GFXMap key comparison function,
  * l and r are of type GFXImage**.
  */
-static int _gfx_imgui_cmp(const void* l, const void* r)
+static int gfx_imgui_cmp_(const void* l, const void* r)
 {
 	// Non-zero = inequal.
 	return *(const GFXImage**)l != *(const GFXImage**)r;
@@ -213,7 +212,7 @@ static int _gfx_imgui_cmp(const void* l, const void* r)
 /****************************
  * Converts a GFXKey to a ImGuiKey.
  */
-static ImGuiKey _gfx_imgui_key(GFXKey key)
+static ImGuiKey gfx_imgui_key_(GFXKey key)
 {
 	switch (key)
 	{
@@ -476,7 +475,7 @@ static ImGuiKey _gfx_imgui_key(GFXKey key)
 /****************************
  * Converts a GFXMouseButton to a ImGui button.
  */
-static int _gfx_imgui_button(GFXMouseButton button)
+static int gfx_imgui_button_(GFXMouseButton button)
 {
 	// Just bound check it.
 	return
@@ -487,9 +486,9 @@ static int _gfx_imgui_button(GFXMouseButton button)
 /****************************
  * ImGui focus callback.
  */
-static bool _gfx_imgui_focus(GFXWindow* window, void* data)
+static bool gfx_imgui_focus_(GFXWindow* window, void* data)
 {
-	_GFXEventData* event = data;
+	GFXEventData_* event = data;
 	ImGuiIO_AddFocusEvent(event->io, 1);
 
 	return 0;
@@ -498,9 +497,9 @@ static bool _gfx_imgui_focus(GFXWindow* window, void* data)
 /****************************
  * ImGui blur callback.
  */
-static bool _gfx_imgui_blur(GFXWindow* window, void* data)
+static bool gfx_imgui_blur_(GFXWindow* window, void* data)
 {
-	_GFXEventData* event = data;
+	GFXEventData_* event = data;
 	ImGuiIO_AddFocusEvent(event->io, 0);
 
 	return 0;
@@ -509,10 +508,10 @@ static bool _gfx_imgui_blur(GFXWindow* window, void* data)
 /****************************
  * ImGui resize callback.
  */
-static bool _gfx_imgui_resize(GFXWindow* window,
+static bool gfx_imgui_resize_(GFXWindow* window,
                               uint32_t width, uint32_t height, void* data)
 {
-	_GFXEventData* event = data;
+	GFXEventData_* event = data;
 	event->io->DisplaySize.x = (float)width;
 	event->io->DisplaySize.y = (float)height;
 
@@ -522,12 +521,12 @@ static bool _gfx_imgui_resize(GFXWindow* window,
 /****************************
  * ImGui key press callback.
  */
-static bool _gfx_imgui_key_press(GFXWindow* window,
+static bool gfx_imgui_key_press_(GFXWindow* window,
                                  GFXKey key, int scan, GFXModifier mod,
                                  void* data)
 {
-	const ImGuiKey igKey = _gfx_imgui_key(key);
-	_GFXEventData* event = data;
+	const ImGuiKey igKey = gfx_imgui_key_(key);
+	GFXEventData_* event = data;
 
 	if (igKey != ImGuiKey_None)
 		ImGuiIO_AddKeyEvent(event->io, igKey, 1);
@@ -538,12 +537,12 @@ static bool _gfx_imgui_key_press(GFXWindow* window,
 /****************************
  * ImGui key release callback.
  */
-static bool _gfx_imgui_key_release(GFXWindow* window,
+static bool gfx_imgui_key_release_(GFXWindow* window,
                                    GFXKey key, int scan, GFXModifier mod,
                                    void* data)
 {
-	const ImGuiKey igKey = _gfx_imgui_key(key);
-	_GFXEventData* event = data;
+	const ImGuiKey igKey = gfx_imgui_key_(key);
+	GFXEventData_* event = data;
 
 	if (igKey != ImGuiKey_None)
 		ImGuiIO_AddKeyEvent(event->io, igKey, 0);
@@ -554,10 +553,10 @@ static bool _gfx_imgui_key_release(GFXWindow* window,
 /****************************
  * ImGui key text callback.
  */
-static bool _gfx_imgui_key_text(GFXWindow* window,
+static bool gfx_imgui_key_text_(GFXWindow* window,
                                 uint32_t codepoint, void* data)
 {
-	_GFXEventData* event = data;
+	GFXEventData_* event = data;
 	ImGuiIO_AddInputCharacter(event->io, codepoint);
 
 	return event->blocking && event->io->WantCaptureKeyboard;
@@ -566,9 +565,9 @@ static bool _gfx_imgui_key_text(GFXWindow* window,
 /****************************
  * ImGui mouse leave callback.
  */
-static bool _gfx_imgui_mouse_leave(GFXWindow* window, void* data)
+static bool gfx_imgui_mouse_leave_(GFXWindow* window, void* data)
 {
-	_GFXEventData* event = data;
+	GFXEventData_* event = data;
 	ImGuiIO_AddMousePosEvent(event->io, -FLT_MAX, -FLT_MAX);
 
 	return 0;
@@ -577,10 +576,10 @@ static bool _gfx_imgui_mouse_leave(GFXWindow* window, void* data)
 /****************************
  * ImGui mouse move callback.
  */
-static bool _gfx_imgui_mouse_move(GFXWindow* window,
+static bool gfx_imgui_mouse_move_(GFXWindow* window,
                                   double x, double y, void* data)
 {
-	_GFXEventData* event = data;
+	GFXEventData_* event = data;
 	ImGuiIO_AddMousePosEvent(event->io, (float)x, (float)y);
 
 	return event->blocking && event->io->WantCaptureMouse;
@@ -589,12 +588,12 @@ static bool _gfx_imgui_mouse_move(GFXWindow* window,
 /****************************
  * ImGui mouse press callback.
  */
-static bool _gfx_imgui_mouse_press(GFXWindow* window,
+static bool gfx_imgui_mouse_press_(GFXWindow* window,
                                    GFXMouseButton button, GFXModifier mod,
                                    void* data)
 {
-	_GFXEventData* event = data;
-	ImGuiIO_AddMouseButtonEvent(event->io, _gfx_imgui_button(button), 1);
+	GFXEventData_* event = data;
+	ImGuiIO_AddMouseButtonEvent(event->io, gfx_imgui_button_(button), 1);
 
 	return event->blocking && event->io->WantCaptureMouse;
 }
@@ -602,12 +601,12 @@ static bool _gfx_imgui_mouse_press(GFXWindow* window,
 /****************************
  * ImGui mouse release callback.
  */
-static bool _gfx_imgui_mouse_release(GFXWindow* window,
+static bool gfx_imgui_mouse_release_(GFXWindow* window,
                                      GFXMouseButton button, GFXModifier mod,
                                      void* data)
 {
-	_GFXEventData* event = data;
-	ImGuiIO_AddMouseButtonEvent(event->io, _gfx_imgui_button(button), 0);
+	GFXEventData_* event = data;
+	ImGuiIO_AddMouseButtonEvent(event->io, gfx_imgui_button_(button), 0);
 
 	return event->blocking && event->io->WantCaptureMouse;
 }
@@ -615,10 +614,10 @@ static bool _gfx_imgui_mouse_release(GFXWindow* window,
 /****************************
  * ImGui mouse scroll callback.
  */
-static bool _gfx_imgui_mouse_scroll(GFXWindow* window,
+static bool gfx_imgui_mouse_scroll_(GFXWindow* window,
                                     double x, double y, void* data)
 {
-	_GFXEventData* event = data;
+	GFXEventData_* event = data;
 	ImGuiIO_AddMouseWheelEvent(event->io, (float)x, (float)y);
 
 	return event->blocking && event->io->WantCaptureMouse;
@@ -636,32 +635,32 @@ GFX_API bool gfx_imgui_input(GFXImguiInput* input,
 	GFXWindowEvents events = {
 		.close = NULL,
 		.drop = NULL,
-		.focus = _gfx_imgui_focus,
-		.blur = _gfx_imgui_blur,
+		.focus = gfx_imgui_focus_,
+		.blur = gfx_imgui_blur_,
 		.maximize = NULL,
 		.minimize = NULL,
 		.restore = NULL,
 		.move = NULL,
-		.resize = _gfx_imgui_resize,
+		.resize = gfx_imgui_resize_,
 
 		.key = {
-			.press = _gfx_imgui_key_press,
-			.release = _gfx_imgui_key_release,
+			.press = gfx_imgui_key_press_,
+			.release = gfx_imgui_key_release_,
 			.repeat = NULL,
-			.text = _gfx_imgui_key_text
+			.text = gfx_imgui_key_text_
 		},
 
 		.mouse = {
 			.enter = NULL,
-			.leave = _gfx_imgui_mouse_leave,
-			.move = _gfx_imgui_mouse_move,
-			.press = _gfx_imgui_mouse_press,
-			.release = _gfx_imgui_mouse_release,
-			.scroll = _gfx_imgui_mouse_scroll
+			.leave = gfx_imgui_mouse_leave_,
+			.move = gfx_imgui_mouse_move_,
+			.press = gfx_imgui_mouse_press_,
+			.release = gfx_imgui_mouse_release_,
+			.scroll = gfx_imgui_mouse_scroll_
 		}
 	};
 
-	_GFXEventData data = {
+	GFXEventData_ data = {
 		.io = igGuiIO,
 		.blocking = blocking
 	};
@@ -674,7 +673,7 @@ GFX_API bool gfx_imgui_input(GFXImguiInput* input,
 	{
 		// Set the initial display size.
 		GFXVideoMode mode = gfx_window_get_video(window);
-		_gfx_imgui_resize(window, mode.width, mode.height, input->data);
+		gfx_imgui_resize_(window, mode.width, mode.height, input->data);
 
 		return 1;
 	}
@@ -700,37 +699,37 @@ GFX_API void gfx_imgui_gamepad(const GFXGamepadState* state, void* igGuiIO)
 
 	ImGuiIO* io = igGuiIO;
 
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadFaceDown, GFX_GAMEPAD_A);
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadFaceRight, GFX_GAMEPAD_B);
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadFaceLeft, GFX_GAMEPAD_X);
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadFaceUp, GFX_GAMEPAD_Y);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadFaceDown, GFX_GAMEPAD_A);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadFaceRight, GFX_GAMEPAD_B);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadFaceLeft, GFX_GAMEPAD_X);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadFaceUp, GFX_GAMEPAD_Y);
 
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadL1, GFX_GAMEPAD_LEFT_BUMPER);
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadR1, GFX_GAMEPAD_RIGHT_BUMPER);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadL1, GFX_GAMEPAD_LEFT_BUMPER);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadR1, GFX_GAMEPAD_RIGHT_BUMPER);
 
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadBack, GFX_GAMEPAD_BACK);
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadStart, GFX_GAMEPAD_START);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadBack, GFX_GAMEPAD_BACK);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadStart, GFX_GAMEPAD_START);
 
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadL3, GFX_GAMEPAD_LEFT_THUMB);
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadR3, GFX_GAMEPAD_RIGHT_THUMB);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadL3, GFX_GAMEPAD_LEFT_THUMB);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadR3, GFX_GAMEPAD_RIGHT_THUMB);
 
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadDpadUp, GFX_GAMEPAD_DPAD_UP);
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadDpadRight, GFX_GAMEPAD_DPAD_RIGHT);
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadDpadDown, GFX_GAMEPAD_DPAD_DOWN);
-	_GFX_MAP_BUTTON(ImGuiKey_GamepadDpadLeft, GFX_GAMEPAD_DPAD_LEFT);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadDpadUp, GFX_GAMEPAD_DPAD_UP);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadDpadRight, GFX_GAMEPAD_DPAD_RIGHT);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadDpadDown, GFX_GAMEPAD_DPAD_DOWN);
+	GFX_MAP_BUTTON_(ImGuiKey_GamepadDpadLeft, GFX_GAMEPAD_DPAD_LEFT);
 
-	_GFX_MAP_AXIS(ImGuiKey_GamepadLStickLeft, GFX_GAMEPAD_LEFT_X,  -0.25f, -1.0f);
-	_GFX_MAP_AXIS(ImGuiKey_GamepadLStickRight, GFX_GAMEPAD_LEFT_X, +0.25f, +1.0f);
-	_GFX_MAP_AXIS(ImGuiKey_GamepadLStickUp, GFX_GAMEPAD_LEFT_Y,    -0.25f, -1.0f);
-	_GFX_MAP_AXIS(ImGuiKey_GamepadLStickDown, GFX_GAMEPAD_LEFT_Y,  +0.25f, +1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadLStickLeft, GFX_GAMEPAD_LEFT_X,  -0.25f, -1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadLStickRight, GFX_GAMEPAD_LEFT_X, +0.25f, +1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadLStickUp, GFX_GAMEPAD_LEFT_Y,    -0.25f, -1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadLStickDown, GFX_GAMEPAD_LEFT_Y,  +0.25f, +1.0f);
 
-	_GFX_MAP_AXIS(ImGuiKey_GamepadRStickLeft, GFX_GAMEPAD_RIGHT_X,  -0.25f, -1.0f);
-	_GFX_MAP_AXIS(ImGuiKey_GamepadRStickRight, GFX_GAMEPAD_RIGHT_X, +0.25f, +1.0f);
-	_GFX_MAP_AXIS(ImGuiKey_GamepadRStickUp, GFX_GAMEPAD_RIGHT_Y,    -0.25f, -1.0f);
-	_GFX_MAP_AXIS(ImGuiKey_GamepadRStickDown, GFX_GAMEPAD_RIGHT_Y,  +0.25f, +1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadRStickLeft, GFX_GAMEPAD_RIGHT_X,  -0.25f, -1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadRStickRight, GFX_GAMEPAD_RIGHT_X, +0.25f, +1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadRStickUp, GFX_GAMEPAD_RIGHT_Y,    -0.25f, -1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadRStickDown, GFX_GAMEPAD_RIGHT_Y,  +0.25f, +1.0f);
 
-	_GFX_MAP_AXIS(ImGuiKey_GamepadL2, GFX_GAMEPAD_LEFT_TRIGGER,  -0.75f, +1.0f);
-	_GFX_MAP_AXIS(ImGuiKey_GamepadR2, GFX_GAMEPAD_RIGHT_TRIGGER, -0.75f, +1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadL2, GFX_GAMEPAD_LEFT_TRIGGER,  -0.75f, +1.0f);
+	GFX_MAP_AXIS_(ImGuiKey_GamepadR2, GFX_GAMEPAD_RIGHT_TRIGGER, -0.75f, +1.0f);
 
 	io->BackendFlags |= ImGuiBackendFlags_HasGamepad;
 }
@@ -755,9 +754,9 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 	drawer->renderer = renderer;
 	drawer->pass = pass;
 
-	gfx_deque_init(&drawer->data, sizeof(_GFXDataElem));
+	gfx_deque_init(&drawer->data, sizeof(GFXDataElem_));
 	gfx_vec_init(&drawer->fonts, sizeof(GFXImage*));
-	gfx_map_init(&drawer->images, sizeof(GFXSet*), _gfx_imgui_hash, _gfx_imgui_cmp);
+	gfx_map_init(&drawer->images, sizeof(GFXSet*), gfx_imgui_hash_, gfx_imgui_cmp_);
 
 	// Create shaders.
 	GFXShader* shads[] = {
@@ -772,13 +771,13 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 	GFXBinReader bin;
 
 	if (!gfx_shader_load(shads[0], gfx_bin_reader(
-		&bin, sizeof(_gfx_imgui_vert_spv), _gfx_imgui_vert_spv)))
+		&bin, sizeof(gfx_imgui_vert_spv_), gfx_imgui_vert_spv_)))
 	{
 		goto clean;
 	}
 
 	if (!gfx_shader_load(shads[1], gfx_bin_reader(
-		&bin, sizeof(_gfx_imgui_frag_spv), _gfx_imgui_frag_spv)))
+		&bin, sizeof(gfx_imgui_frag_spv_), gfx_imgui_frag_spv_)))
 	{
 		goto clean;
 	}
@@ -899,8 +898,8 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 	// Free all uploaded vertex/index data.
 	for (size_t d = 0; d < drawer->data.size; ++d)
 	{
-		_GFXDataElem* elem = gfx_deque_at(&drawer->data, d);
-		_GFX_IMGUI_CLEAR_DATA(elem);
+		GFXDataElem_* elem = gfx_deque_at(&drawer->data, d);
+		GFX_IMGUI_CLEAR_DATA_(elem);
 	}
 
 	gfx_deque_clear(&drawer->data);
@@ -1074,7 +1073,7 @@ error:
  * is sufficiently large to hold a given number of vertices and indices.
  * @return Zero on failure.
  */
-static bool _gfx_imgui_update_data(GFXImguiDrawer* drawer,
+static bool gfx_imgui_update_data_(GFXImguiDrawer* drawer,
                                    unsigned int numFrames, unsigned int frame,
                                    uint32_t vertices, uint32_t indices)
 {
@@ -1086,19 +1085,19 @@ static bool _gfx_imgui_update_data(GFXImguiDrawer* drawer,
 	// In which case it will just take longer to purge.
 	while (drawer->data.size > 0)
 	{
-		_GFXDataElem* elem =
+		GFXDataElem_* elem =
 			gfx_deque_at(&drawer->data, drawer->data.size - 1);
 		if (elem->frame != frame)
 			break;
 
-		_GFX_IMGUI_CLEAR_DATA(elem);
+		GFX_IMGUI_CLEAR_DATA_(elem);
 		gfx_deque_pop(&drawer->data, 1);
 	}
 
 	// If there is a front-most element, check if it is sufficiently large.
 	if (drawer->data.size > 0)
 	{
-		_GFXDataElem* elem = gfx_deque_at(&drawer->data, 0);
+		GFXDataElem_* elem = gfx_deque_at(&drawer->data, 0);
 		if (elem->frame != UINT_MAX) // Already marked for purging.
 			goto build_new;
 
@@ -1125,7 +1124,7 @@ build_new:
 	if (!gfx_deque_push_front(&drawer->data, 1, NULL))
 		return 0;
 
-	_GFXDataElem* elem = gfx_deque_at(&drawer->data, 0);
+	GFXDataElem_* elem = gfx_deque_at(&drawer->data, 0);
 	elem->frame = UINT_MAX; // Not yet purged.
 	elem->data = NULL;
 
@@ -1175,7 +1174,7 @@ build_new:
 
 	// Cleanup on failure (of build new).
 clean_new:
-	_GFX_IMGUI_CLEAR_DATA(elem);
+	GFX_IMGUI_CLEAR_DATA_(elem);
 	gfx_deque_pop_front(&drawer->data, 1);
 
 	return 0;
@@ -1187,7 +1186,7 @@ clean_new:
  * @param drawer     Cannot be NULL.
  * @param igDrawData Cannot be NULL.
  */
-static void _gfx_cmd_imgui_state(GFXRecorder* recorder,
+static void gfx_cmd_imgui_state_(GFXRecorder* recorder,
                                  GFXImguiDrawer* drawer, const void* igDrawData)
 {
 	assert(recorder != NULL);
@@ -1247,14 +1246,14 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 		return;
 
 	// Make sure all vertex/index data is ready for the GPU.
-	_GFXDataElem* elem = NULL;
+	GFXDataElem_* elem = NULL;
 	uint32_t vertexOffset = 0;
 	uint32_t indexOffset = 0;
 
 	if (drawData->TotalVtxCount > 0 && drawData->TotalIdxCount > 0)
 	{
 		// Try to update the data held by this drawer.
-		if (!_gfx_imgui_update_data(drawer,
+		if (!gfx_imgui_update_data_(drawer,
 			numFrames, frame,
 			(uint32_t)drawData->TotalVtxCount,
 			(uint32_t)drawData->TotalIdxCount))
@@ -1304,7 +1303,7 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 	GFXScissor oldScissor = gfx_recorder_get_scissor(recorder);
 	GFXSet* currentSet = NULL;
 
-	_gfx_cmd_imgui_state(recorder, drawer, igDrawData);
+	gfx_cmd_imgui_state_(recorder, drawer, igDrawData);
 
 	// Loop over all draw commands and draw them.
 	for (int l = 0; l < drawData->CmdListsCount; ++l)
@@ -1318,7 +1317,7 @@ GFX_API void gfx_cmd_draw_imgui(GFXRecorder* recorder,
 			if (drawCmd->UserCallback != NULL)
 			{
 				if (drawCmd->UserCallback == ImDrawCallback_ResetRenderState)
-					_gfx_cmd_imgui_state(recorder, drawer, igDrawData);
+					gfx_cmd_imgui_state_(recorder, drawer, igDrawData);
 				else
 					drawCmd->UserCallback(drawList, drawCmd);
 

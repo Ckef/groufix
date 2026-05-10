@@ -7,32 +7,31 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 
 // Get Vulkan descriptor type.
-#define _GFX_GET_VK_DESCRIPTOR_TYPE(type, dynamic) \
-	((type) == _GFX_SHADER_BUFFER_UNIFORM ? (dynamic ? \
+#define GFX_GET_VK_DESCRIPTOR_TYPE_(type, dynamic) \
+	((type) == GFX_SHADER_BUFFER_UNIFORM_ ? (dynamic ? \
 		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : \
 		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) : \
-	(type) == _GFX_SHADER_BUFFER_STORAGE ? (dynamic ? \
+	(type) == GFX_SHADER_BUFFER_STORAGE_ ? (dynamic ? \
 		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC : \
 		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) : \
-	(type) == _GFX_SHADER_BUFFER_UNIFORM_TEXEL ? \
+	(type) == GFX_SHADER_BUFFER_UNIFORM_TEXEL_ ? \
 		VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER : \
-	(type) == _GFX_SHADER_BUFFER_STORAGE_TEXEL ? \
+	(type) == GFX_SHADER_BUFFER_STORAGE_TEXEL_ ? \
 		VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER : \
-	(type) == _GFX_SHADER_IMAGE_AND_SAMPLER ? \
+	(type) == GFX_SHADER_IMAGE_AND_SAMPLER_ ? \
 		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER : \
-	(type) == _GFX_SHADER_IMAGE_SAMPLED ? \
+	(type) == GFX_SHADER_IMAGE_SAMPLED_ ? \
 		VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : \
-	(type) == _GFX_SHADER_IMAGE_STORAGE ? \
+	(type) == GFX_SHADER_IMAGE_STORAGE_ ? \
 		VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : \
-	(type) == _GFX_SHADER_SAMPLER ? \
+	(type) == GFX_SHADER_SAMPLER_ ? \
 		VK_DESCRIPTOR_TYPE_SAMPLER : \
-	(type) == _GFX_SHADER_ATTACHMENT_INPUT ? \
+	(type) == GFX_SHADER_ATTACHMENT_INPUT_ ? \
 		VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT : \
 		0) /* Should not happen. */
 
@@ -40,50 +39,50 @@
 /****************************
  * Technique constant element definition.
  */
-typedef struct _GFXConstantElem
+typedef struct GFXConstantElem_
 {
 	uint32_t    stage; // Shader stage index.
 	uint32_t    id;
 	size_t      size;
 	GFXConstant value;
 
-} _GFXConstantElem;
+} GFXConstantElem_;
 
 
 /****************************
  * Technique immutable sampler element definition.
  */
-typedef struct _GFXSamplerElem
+typedef struct GFXSamplerElem_
 {
 	size_t     set;
 	GFXSampler sampler;
 
-} _GFXSamplerElem;
+} GFXSamplerElem_;
 
 
 /****************************
  * Technique binding element (immutable/dynamic) definition.
  */
-typedef struct _GFXBindingElem
+typedef struct GFXBindingElem_
 {
 	size_t set;
 	size_t binding;
 
-} _GFXBindingElem;
+} GFXBindingElem_;
 
 
 /****************************
  * Compares two shader resources, ignoring the location/set/id and binding.
  * @return Non-zero if equal.
  */
-static inline bool _gfx_cmp_resources(const _GFXShaderResource* l,
-                                      const _GFXShaderResource* r)
+static inline bool gfx_cmp_resources_(const GFXShaderResource_* l,
+                                      const GFXShaderResource_* r)
 {
 	// Do not count attachment inputs.
 	const bool isImage =
-		l->type == _GFX_SHADER_IMAGE_AND_SAMPLER ||
-		l->type == _GFX_SHADER_IMAGE_SAMPLED ||
-		l->type == _GFX_SHADER_IMAGE_STORAGE;
+		l->type == GFX_SHADER_IMAGE_AND_SAMPLER_ ||
+		l->type == GFX_SHADER_IMAGE_SAMPLED_ ||
+		l->type == GFX_SHADER_IMAGE_STORAGE_;
 
 	return
 		l->count == r->count &&
@@ -93,12 +92,12 @@ static inline bool _gfx_cmp_resources(const _GFXShaderResource* l,
 }
 
 /****************************
- * Finds a _GFXSamplerElem in a vector, optionally inserts it at
+ * Finds a GFXSamplerElem_ in a vector, optionally inserts it at
  * its correct sorted position.
- * @param vec Assumed to be sorted and store _GFXSamplerElem.
+ * @param vec Assumed to be sorted and store GFXSamplerElem_.
  * @return Index of the (new) element, SIZE_MAX on failure.
  */
-static size_t _gfx_find_sampler_elem(GFXVec* vec,
+static size_t gfx_find_sampler_elem_(GFXVec* vec,
                                      size_t set, size_t binding, size_t index,
                                      bool insert)
 {
@@ -109,7 +108,7 @@ static size_t _gfx_find_sampler_elem(GFXVec* vec,
 	while (l < r)
 	{
 		const size_t p = (l + r) >> 1;
-		_GFXSamplerElem* e = gfx_vec_at(vec, p);
+		GFXSamplerElem_* e = gfx_vec_at(vec, p);
 
 		const bool lesser = e->set < set ||
 			(e->set == set &&
@@ -131,7 +130,7 @@ static size_t _gfx_find_sampler_elem(GFXVec* vec,
 	// Insert anew.
 	if (insert && gfx_vec_insert(vec, 1, NULL, l))
 	{
-		_GFXSamplerElem* e = gfx_vec_at(vec, l);
+		GFXSamplerElem_* e = gfx_vec_at(vec, l);
 		e->set = set;
 		e->sampler.binding = binding;
 		e->sampler.index = index;
@@ -143,12 +142,12 @@ static size_t _gfx_find_sampler_elem(GFXVec* vec,
 }
 
 /****************************
- * Finds a _GFXBindingElem in a vector, optionally inserts it at
+ * Finds a GFXBindingElem_ in a vector, optionally inserts it at
  * its correct sorted position.
- * @param vec Assumed to be sorted and store _GFXBindingElem.
+ * @param vec Assumed to be sorted and store GFXBindingElem_.
  * @return Non-zero if it contains the (new) element.
  */
-static bool _gfx_find_binding_elem(GFXVec* vec, size_t set, size_t binding,
+static bool gfx_find_binding_elem_(GFXVec* vec, size_t set, size_t binding,
                                    bool insert)
 {
 	// Binary search to its position.
@@ -158,7 +157,7 @@ static bool _gfx_find_binding_elem(GFXVec* vec, size_t set, size_t binding,
 	while (l < r)
 	{
 		const size_t p = (l + r) >> 1;
-		_GFXBindingElem* e = gfx_vec_at(vec, p);
+		GFXBindingElem_* e = gfx_vec_at(vec, p);
 
 		const bool lesser = e->set < set ||
 			(e->set == set && e->binding < binding);
@@ -173,7 +172,7 @@ static bool _gfx_find_binding_elem(GFXVec* vec, size_t set, size_t binding,
 	if (insert)
 	{
 		// Insert anew.
-		_GFXBindingElem elem = { .set = set, .binding = binding };
+		GFXBindingElem_ elem = { .set = set, .binding = binding };
 		return gfx_vec_insert(vec, 1, &elem, l);
 	}
 
@@ -185,12 +184,12 @@ static bool _gfx_find_binding_elem(GFXVec* vec, size_t set, size_t binding,
  * Unknown what shader will be referenced, technique is assumed to be validated.
  * @return NULL if not present.
  */
-static _GFXShaderResource* _gfx_tech_get_resource(GFXTechnique* technique,
+static GFXShaderResource_* gfx_tech_get_resource_(GFXTechnique* technique,
                                                   size_t set, size_t binding)
 {
 	// Loop over all shaders in order (for locality).
 	// Then do a binary search for the resource with the given set/binding.
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 		if (technique->shaders[s] != NULL)
 		{
 			GFXShader* shader = technique->shaders[s];
@@ -200,7 +199,7 @@ static _GFXShaderResource* _gfx_tech_get_resource(GFXTechnique* technique,
 			while (l < r)
 			{
 				const size_t p = (l + r) >> 1;
-				_GFXShaderResource* res = shader->reflect.resources + p;
+				GFXShaderResource_* res = shader->reflect.resources + p;
 
 				const bool lesser = res->set < set ||
 					(res->set == set && res->binding < binding);
@@ -217,7 +216,7 @@ static _GFXShaderResource* _gfx_tech_get_resource(GFXTechnique* technique,
 }
 
 /****************************/
-void _gfx_tech_get_constants(GFXTechnique* technique,
+void gfx_tech_get_constants_(GFXTechnique* technique,
                              VkSpecializationInfo* infos,
                              VkSpecializationMapEntry* entries)
 {
@@ -227,7 +226,7 @@ void _gfx_tech_get_constants(GFXTechnique* technique,
 	assert(technique->constants.size == 0 || entries != NULL);
 
 	// Init info structs to empty.
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 		infos[s] = (VkSpecializationInfo){
 			.mapEntryCount = 0,
 			.pMapEntries = NULL,
@@ -245,9 +244,9 @@ void _gfx_tech_get_constants(GFXTechnique* technique,
 
 	for (size_t c = 0; c < technique->constants.size; ++c)
 	{
-		_GFXConstantElem* elem = gfx_vec_at(&technique->constants, c);
+		GFXConstantElem_* elem = gfx_vec_at(&technique->constants, c);
 		infos[elem->stage].mapEntryCount += 1;
-		infos[elem->stage].dataSize += sizeof(_GFXConstantElem);
+		infos[elem->stage].dataSize += sizeof(GFXConstantElem_);
 
 		// If we hit a new stage, set the map entry & data pointers.
 		if (elem->stage != currStage)
@@ -258,10 +257,10 @@ void _gfx_tech_get_constants(GFXTechnique* technique,
 			infos[elem->stage].pMapEntries = entries + c;
 			infos[elem->stage].pData =
 				// Point to the first value of the stage.
-				(char*)elem + offsetof(_GFXConstantElem, value);
+				(char*)elem + offsetof(GFXConstantElem_, value);
 
 			// Also chop off the first bit of the first constant elem.
-			infos[elem->stage].dataSize -= offsetof(_GFXConstantElem, value);
+			infos[elem->stage].dataSize -= offsetof(GFXConstantElem_, value);
 		}
 
 		// Output the map entry.
@@ -272,12 +271,12 @@ void _gfx_tech_get_constants(GFXTechnique* technique,
 		};
 
 		// Increase offset for next entry.
-		currOffset += (uint32_t)sizeof(_GFXConstantElem);
+		currOffset += (uint32_t)sizeof(GFXConstantElem_);
 	}
 }
 
 /****************************/
-void _gfx_tech_get_set_size(GFXTechnique* technique,
+void gfx_tech_get_set_size_(GFXTechnique* technique,
                             size_t set, size_t* numBindings, size_t* numEntries)
 {
 	assert(technique != NULL);
@@ -292,9 +291,9 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 	// Loop over all shaders in order (for locality).
 	// Then do a binary search for the right-most resource with the given set.
 	// Keep track of this right-most index for the next loop.
-	size_t rMost[_GFX_NUM_SHADER_STAGES];
+	size_t rMost[GFX_NUM_SHADER_STAGES_];
 
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 		if (technique->shaders[s] != NULL)
 		{
 			GFXShader* shader = technique->shaders[s];
@@ -305,7 +304,7 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 			while (l < r)
 			{
 				const size_t p = (l + r) >> 1;
-				_GFXShaderResource* res = shader->reflect.resources + p;
+				GFXShaderResource_* res = shader->reflect.resources + p;
 
 				if (res->set > set) r = p;
 				else l = p + 1;
@@ -316,7 +315,7 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 				continue;
 
 			// No resource with equal set.
-			_GFXShaderResource* rRes = shader->reflect.resources + (r-1);
+			GFXShaderResource_* rRes = shader->reflect.resources + (r-1);
 			if (rRes->set != set)
 				continue;
 
@@ -336,23 +335,23 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 	unsigned char counted[GFX_MAX(1, *numBindings)];
 	memset(counted, 0, *numBindings);
 
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 		if (technique->shaders[s] != NULL)
 		{
 			GFXShader* shader = technique->shaders[s];
 			for (size_t i = rMost[s]; i > shader->reflect.locations; --i)
 			{
 				// Stop if we passed the left-most element.
-				_GFXShaderResource* res = shader->reflect.resources + (i-1);
+				GFXShaderResource_* res = shader->reflect.resources + (i-1);
 				if (res->set != set) break;
 				if (counted[res->binding]) continue;
 
-				const bool isImmutable = _gfx_find_binding_elem(
+				const bool isImmutable = gfx_find_binding_elem_(
 					&technique->immutable, set, res->binding, 0);
 
 				// Note that we also check if the resource contains more
 				// than just an immutable sampler.
-				if (!isImmutable || res->type != _GFX_SHADER_SAMPLER)
+				if (!isImmutable || res->type != GFX_SHADER_SAMPLER_)
 					*numEntries += res->count;
 
 				counted[res->binding] = 1;
@@ -361,15 +360,15 @@ void _gfx_tech_get_set_size(GFXTechnique* technique,
 }
 
 /****************************/
-bool _gfx_tech_get_set_binding(GFXTechnique* technique,
-                               size_t set, size_t binding, _GFXSetBinding* out)
+bool gfx_tech_get_set_binding_(GFXTechnique* technique,
+                               size_t set, size_t binding, GFXSetBinding_* out)
 {
 	assert(technique != NULL);
 	assert(technique->layout != NULL); // Must be locked.
 	assert(set < technique->numSets);
 	assert(out != NULL);
 
-	_GFXShaderResource* res = _gfx_tech_get_resource(technique, set, binding);
+	GFXShaderResource_* res = gfx_tech_get_resource_(technique, set, binding);
 	if (res == NULL)
 	{
 		// Empty.
@@ -381,17 +380,17 @@ bool _gfx_tech_get_set_binding(GFXTechnique* technique,
 	// Note that gfx_tech_samplers and gfx_tech_dynamic already checked
 	// resource compatibility, we can assume they are correct.
 	const bool isImmutable =
-		_gfx_find_binding_elem(&technique->immutable, set, binding, 0);
+		gfx_find_binding_elem_(&technique->immutable, set, binding, 0);
 	const bool isDynamic =
-		_gfx_find_binding_elem(&technique->dynamic, set, binding, 0);
+		gfx_find_binding_elem_(&technique->dynamic, set, binding, 0);
 
-	out->type = _GFX_GET_VK_DESCRIPTOR_TYPE(res->type, isDynamic);
+	out->type = GFX_GET_VK_DESCRIPTOR_TYPE_(res->type, isDynamic);
 	out->viewType = res->viewType;
 	out->count = res->count;
 	out->size = res->size;
 
 	// Just as above, check if it contains more than an immutable sampler.
-	return !isImmutable || res->type != _GFX_SHADER_SAMPLER;
+	return !isImmutable || res->type != GFX_SHADER_SAMPLER_;
 }
 
 /****************************/
@@ -404,11 +403,11 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 
 	// Get the array of shaders to use.
 	// Use the last shader of each stage.
-	GFXShader* shads[_GFX_NUM_SHADER_STAGES];
+	GFXShader* shads[GFX_NUM_SHADER_STAGES_];
 	bool compute = 0;
 	bool nonCompute = 0;
 
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 		shads[s] = NULL; // Init all to empty.
 
 	for (size_t s = 0; s < numShaders; ++s)
@@ -434,7 +433,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 		}
 
 		// Must yield a valid index for all shaders (!).
-		shads[_GFX_GET_SHADER_STAGE_INDEX(shaders[s]->stage)] = shaders[s];
+		shads[GFX_GET_SHADER_STAGE_INDEX_(shaders[s]->stage)] = shaders[s];
 
 		if (shaders[s]->stage == GFX_STAGE_COMPUTE) compute = 1;
 		else nonCompute = 1;
@@ -456,8 +455,8 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	// This is super specific code, but we really want to ALWAYS do this check,
 	// if we did not check here, sets would have to check, and we essentially
 	// have a stale lingering technique that cannot be used...
-	size_t valPos[_GFX_NUM_SHADER_STAGES];
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s) valPos[s] = 0;
+	size_t valPos[GFX_NUM_SHADER_STAGES_];
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s) valPos[s] = 0;
 
 	// Also keep track of max #sets and #bindings.
 	// We need to create empty set layouts for missing set numbers AND
@@ -467,13 +466,13 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 
 	while (1)
 	{
-		_GFXShaderResource* cur = NULL;
+		GFXShaderResource_* cur = NULL;
 
 		// Get resource with lowest set/binding at this iteration.
-		for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 			if (shads[s] != NULL && valPos[s] < shads[s]->reflect.bindings)
 			{
-				_GFXShaderResource* res =
+				GFXShaderResource_* res =
 					shads[s]->reflect.resources +
 					shads[s]->reflect.locations + valPos[s];
 
@@ -490,17 +489,17 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 
 		// Check if all other matching resources of the iteration
 		// are compatible (and go to the next resource within that shader).
-		for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+		for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 			if (shads[s] != NULL && valPos[s] < shads[s]->reflect.bindings)
 			{
-				_GFXShaderResource* res =
+				GFXShaderResource_* res =
 					shads[s]->reflect.resources +
 					shads[s]->reflect.locations + valPos[s];
 
 				if (res->set != cur->set || res->binding != cur->binding)
 					continue;
 
-				if (!_gfx_cmp_resources(res, cur))
+				if (!gfx_cmp_resources_(res, cur))
 				{
 					gfx_log_error(
 						"Shaders have incompatible descriptor resources "
@@ -525,7 +524,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	// Allocate a new technique.
 	GFXTechnique* tech = malloc(
 		sizeof(GFXTechnique) +
-		sizeof(_GFXCacheElem*) * maxSets);
+		sizeof(GFXCacheElem_*) * maxSets);
 
 	if (tech == NULL)
 		goto error;
@@ -540,7 +539,7 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	tech->vk.layout = VK_NULL_HANDLE;
 	memcpy(tech->shaders, shads, sizeof(shads));
 
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 		if (shads[s] != NULL && shads[s]->reflect.push > 0)
 			tech->pushSize = GFX_MAX(tech->pushSize, shads[s]->reflect.push),
 			tech->pushStages |= shads[s]->stage;
@@ -548,16 +547,16 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	for (size_t l = 0; l < tech->numSets; ++l)
 		tech->setLayouts[l] = NULL;
 
-	gfx_vec_init(&tech->constants, sizeof(_GFXConstantElem));
-	gfx_vec_init(&tech->samplers, sizeof(_GFXSamplerElem));
-	gfx_vec_init(&tech->immutable, sizeof(_GFXBindingElem));
-	gfx_vec_init(&tech->dynamic, sizeof(_GFXBindingElem));
+	gfx_vec_init(&tech->constants, sizeof(GFXConstantElem_));
+	gfx_vec_init(&tech->samplers, sizeof(GFXSamplerElem_));
+	gfx_vec_init(&tech->immutable, sizeof(GFXBindingElem_));
+	gfx_vec_init(&tech->dynamic, sizeof(GFXBindingElem_));
 
 	// Link the technique into the renderer.
 	// Modifying the renderer, lock!
-	_gfx_mutex_lock(&renderer->lock);
+	gfx_mutex_lock_(&renderer->lock);
 	gfx_list_insert_after(&renderer->techniques, &tech->list, NULL);
-	_gfx_mutex_unlock(&renderer->lock);
+	gfx_mutex_unlock_(&renderer->lock);
 
 	return tech;
 
@@ -577,9 +576,9 @@ GFX_API void gfx_erase_tech(GFXTechnique* technique)
 
 	// Unlink itself from the renderer.
 	// Modifying the renderer, lock!
-	_gfx_mutex_lock(&renderer->lock);
+	gfx_mutex_lock_(&renderer->lock);
 	gfx_list_erase(&renderer->techniques, &technique->list);
-	_gfx_mutex_unlock(&renderer->lock);
+	gfx_mutex_unlock_(&renderer->lock);
 
 	// Destroy itself.
 	gfx_vec_clear(&technique->constants);
@@ -605,7 +604,7 @@ GFX_API GFXShader* gfx_tech_get_shader(GFXTechnique* technique, GFXShaderStage s
 	assert(stage != GFX_STAGE_ANY);
 	assert(GFX_IS_POWER_OF_TWO(stage)); // Only 1 stage can be set.
 
-	return technique->shaders[_GFX_GET_SHADER_STAGE_INDEX(stage)];
+	return technique->shaders[GFX_GET_SHADER_STAGE_INDEX_(stage)];
 }
 
 /****************************/
@@ -630,31 +629,31 @@ GFX_API GFXShaderResourceType gfx_tech_get_resource_type(GFXTechnique* technique
 {
 	assert(technique != NULL);
 
-	_GFXShaderResource* res =
-		_gfx_tech_get_resource(technique, set, binding);
+	GFXShaderResource_* res =
+		gfx_tech_get_resource_(technique, set, binding);
 
 	if (res == NULL)
 		return GFX_RESOURCE_UNKNOWN;
 
 	switch (res->type)
 	{
-	case _GFX_SHADER_BUFFER_UNIFORM:
+	case GFX_SHADER_BUFFER_UNIFORM_:
 		return GFX_RESOURCE_BUFFER_UNIFORM;
-	case _GFX_SHADER_BUFFER_STORAGE:
+	case GFX_SHADER_BUFFER_STORAGE_:
 		return GFX_RESOURCE_BUFFER_STORAGE;
-	case _GFX_SHADER_BUFFER_UNIFORM_TEXEL:
+	case GFX_SHADER_BUFFER_UNIFORM_TEXEL_:
 		return GFX_RESOURCE_BUFFER_UNIFORM_TEXEL;
-	case _GFX_SHADER_BUFFER_STORAGE_TEXEL:
+	case GFX_SHADER_BUFFER_STORAGE_TEXEL_:
 		return GFX_RESOURCE_BUFFER_STORAGE_TEXEL;
-	case _GFX_SHADER_IMAGE_AND_SAMPLER:
+	case GFX_SHADER_IMAGE_AND_SAMPLER_:
 		return GFX_RESOURCE_IMAGE_AND_SAMPLER;
-	case _GFX_SHADER_IMAGE_SAMPLED:
+	case GFX_SHADER_IMAGE_SAMPLED_:
 		return GFX_RESOURCE_IMAGE_SAMPLED;
-	case _GFX_SHADER_IMAGE_STORAGE:
+	case GFX_SHADER_IMAGE_STORAGE_:
 		return GFX_RESOURCE_IMAGE_STORAGE;
-	case _GFX_SHADER_ATTACHMENT_INPUT:
+	case GFX_SHADER_ATTACHMENT_INPUT_:
 		return GFX_RESOURCE_IMAGE_ATTACHMENT;
-	case _GFX_SHADER_SAMPLER:
+	case GFX_SHADER_SAMPLER_:
 		return GFX_RESOURCE_SAMPLER;
 
 	default:
@@ -668,8 +667,8 @@ GFX_API size_t gfx_tech_get_binding_size(GFXTechnique* technique,
 {
 	assert(technique != NULL);
 
-	_GFXShaderResource* res =
-		_gfx_tech_get_resource(technique, set, binding);
+	GFXShaderResource_* res =
+		gfx_tech_get_resource_(technique, set, binding);
 
 	return (res == NULL) ? 0 : res->count;
 }
@@ -680,8 +679,8 @@ GFX_API size_t gfx_tech_get_binding_block_size(GFXTechnique* technique,
 {
 	assert(technique != NULL);
 
-	_GFXShaderResource* res =
-		_gfx_tech_get_resource(technique, set, binding);
+	GFXShaderResource_* res =
+		gfx_tech_get_resource_(technique, set, binding);
 
 	return (res == NULL) ? 0 : res->size;
 }
@@ -722,7 +721,7 @@ GFX_API bool gfx_tech_constant(GFXTechnique* technique,
 	bool success = 1;
 
 	// Loop over all shader stages, set constants.
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 		// Cheat a little by fabricating each bit-flag from stage index.
 		if ((stage & ((uint32_t)1 << s)) && technique->shaders[s] != NULL)
 		{
@@ -732,7 +731,7 @@ GFX_API bool gfx_tech_constant(GFXTechnique* technique,
 			size_t i;
 			for (i = shader->reflect.constants; i > 0; --i)
 			{
-				_GFXShaderResource* res =
+				GFXShaderResource_* res =
 					shader->reflect.resources +
 					shader->reflect.locations +
 					shader->reflect.bindings + (i-1);
@@ -751,7 +750,7 @@ GFX_API bool gfx_tech_constant(GFXTechnique* technique,
 			while (l < r)
 			{
 				const size_t p = (l + r) >> 1;
-				_GFXConstantElem* e = gfx_vec_at(&technique->constants, p);
+				GFXConstantElem_* e = gfx_vec_at(&technique->constants, p);
 
 				const bool lesser =
 					e->stage < s || (e->stage == s && e->id < id);
@@ -771,7 +770,7 @@ GFX_API bool gfx_tech_constant(GFXTechnique* technique,
 			// Insert if not found.
 			if (l == r)
 			{
-				_GFXConstantElem elem = {
+				GFXConstantElem_ elem = {
 					.stage = (uint32_t)s,
 					.id = id,
 					.size = size,
@@ -807,12 +806,12 @@ GFX_API bool gfx_tech_samplers(GFXTechnique* technique,
 	for (size_t s = 0; s < numSamplers; ++s)
 	{
 		// Check if we can set a sampler to this resource.
-		_GFXShaderResource* res =
-			_gfx_tech_get_resource(technique, set, samplers[s].binding);
+		GFXShaderResource_* res =
+			gfx_tech_get_resource_(technique, set, samplers[s].binding);
 
 		if (res == NULL ||
-			(res->type != _GFX_SHADER_IMAGE_AND_SAMPLER &&
-			res->type != _GFX_SHADER_SAMPLER) ||
+			(res->type != GFX_SHADER_IMAGE_AND_SAMPLER_ &&
+			res->type != GFX_SHADER_SAMPLER_) ||
 			// Check if the index exists while we're at it :)
 			samplers[s].index >= res->count)
 		{
@@ -828,7 +827,7 @@ GFX_API bool gfx_tech_samplers(GFXTechnique* technique,
 		}
 
 		// Insert the sampler element.
-		size_t ind = _gfx_find_sampler_elem(
+		size_t ind = gfx_find_sampler_elem_(
 			&technique->samplers,
 			set, samplers[s].binding, samplers[s].index, 1);
 
@@ -840,11 +839,11 @@ GFX_API bool gfx_tech_samplers(GFXTechnique* technique,
 		}
 
 		// Set sampler values.
-		_GFXSamplerElem* elem = gfx_vec_at(&technique->samplers, ind);
+		GFXSamplerElem_* elem = gfx_vec_at(&technique->samplers, ind);
 		elem->sampler = samplers[s];
 
 		// And insert a binding element to make it immutable.
-		if (!_gfx_find_binding_elem(
+		if (!gfx_find_binding_elem_(
 			&technique->immutable, set, samplers[s].binding, 1))
 		{
 			// Erase the sampler altogether on failure.
@@ -869,12 +868,12 @@ GFX_API bool gfx_tech_immutable(GFXTechnique* technique,
 		return 0;
 
 	// Check if we can make this resoure immutable.
-	_GFXShaderResource* res =
-		_gfx_tech_get_resource(technique, set, binding);
+	GFXShaderResource_* res =
+		gfx_tech_get_resource_(technique, set, binding);
 
 	if (res == NULL ||
-		(res->type != _GFX_SHADER_IMAGE_AND_SAMPLER &&
-		res->type != _GFX_SHADER_SAMPLER))
+		(res->type != GFX_SHADER_IMAGE_AND_SAMPLER_ &&
+		res->type != GFX_SHADER_SAMPLER_))
 	{
 		// Nop.
 		gfx_log_warn(
@@ -887,7 +886,7 @@ GFX_API bool gfx_tech_immutable(GFXTechnique* technique,
 	}
 
 	// Insert the binding element.
-	return _gfx_find_binding_elem(&technique->immutable, set, binding, 1);
+	return gfx_find_binding_elem_(&technique->immutable, set, binding, 1);
 }
 
 /****************************/
@@ -902,12 +901,12 @@ GFX_API bool gfx_tech_dynamic(GFXTechnique* technique,
 		return 0;
 
 	// Check if we can make this resource dynamic.
-	_GFXShaderResource* res =
-		_gfx_tech_get_resource(technique, set, binding);
+	GFXShaderResource_* res =
+		gfx_tech_get_resource_(technique, set, binding);
 
 	if (res == NULL ||
-		(res->type != _GFX_SHADER_BUFFER_UNIFORM &&
-		res->type != _GFX_SHADER_BUFFER_STORAGE))
+		(res->type != GFX_SHADER_BUFFER_UNIFORM_ &&
+		res->type != GFX_SHADER_BUFFER_STORAGE_))
 	{
 		gfx_log_warn(
 			"Could not set a dynamic descriptor resource "
@@ -919,7 +918,7 @@ GFX_API bool gfx_tech_dynamic(GFXTechnique* technique,
 	}
 
 	// Insert the binding element.
-	return _gfx_find_binding_elem(&technique->dynamic, set, binding, 1);
+	return gfx_find_binding_elem_(&technique->dynamic, set, binding, 1);
 }
 
 /****************************/
@@ -938,8 +937,8 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 	// create, while simultaneously looping over all resources in all shaders.
 	// We kinda have to do it this difficult way,
 	// we need to know which shaders want access to each resource.
-	size_t resPos[_GFX_NUM_SHADER_STAGES];
-	for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s) resPos[s] = 0;
+	size_t resPos[GFX_NUM_SHADER_STAGES_];
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s) resPos[s] = 0;
 
 	// Use a vector for all bindings, samplers & handles of each set,
 	// otherwise this gets complicated...
@@ -957,18 +956,18 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 		// NOTE: _Always_ true!
 		for (size_t binding = 0; 1; ++binding)
 		{
-			_GFXShaderResource* cur = NULL;
+			GFXShaderResource_* cur = NULL;
 			GFXShaderStage stages = 0;
 			bool done = 1;
 
 			// Within all shaders, 'loop' to the relevant resource.
-			for (size_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+			for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 				if (technique->shaders[s] != NULL)
 				{
 					GFXShader* shader = technique->shaders[s];
 					if (resPos[s] >= shader->reflect.bindings) continue;
 
-					_GFXShaderResource* res =
+					GFXShaderResource_* res =
 						shader->reflect.resources +
 						shader->reflect.locations + resPos[s];
 
@@ -1001,13 +1000,13 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 
 			// Push the resource as a binding.
 			const bool isDynamic =
-				_gfx_find_binding_elem(&technique->dynamic, set, binding, 0);
+				gfx_find_binding_elem_(&technique->dynamic, set, binding, 0);
 
 			VkDescriptorSetLayoutBinding dslb = {
 				.binding            = (uint32_t)binding,
-				.descriptorType     = _GFX_GET_VK_DESCRIPTOR_TYPE(cur->type, isDynamic),
+				.descriptorType     = GFX_GET_VK_DESCRIPTOR_TYPE_(cur->type, isDynamic),
 				.descriptorCount    = (uint32_t)cur->count,
-				.stageFlags         = _GFX_GET_VK_SHADER_STAGE(stages),
+				.stageFlags         = GFX_GET_VK_SHADER_STAGE_(stages),
 				.pImmutableSamplers = NULL
 			};
 
@@ -1023,7 +1022,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 		{
 			VkDescriptorSetLayoutBinding* dslb = gfx_vec_at(&bindings, b);
 			samOffs[b] = samplers.size;
-			immutable[b] = (unsigned char)_gfx_find_binding_elem(
+			immutable[b] = (unsigned char)gfx_find_binding_elem_(
 				&technique->immutable, set, dslb->binding, 0);
 
 			if (!immutable[b]) continue;
@@ -1031,17 +1030,17 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 			// Welp, create 'm.
 			for (size_t i = 0; i < dslb->descriptorCount; ++i)
 			{
-				const size_t samplerInd = _gfx_find_sampler_elem(
+				const size_t samplerInd = gfx_find_sampler_elem_(
 					&technique->samplers, set, dslb->binding, i, 0);
 
 				const GFXSampler* samplerInp =
 					(samplerInd == SIZE_MAX) ? NULL :
-					&((_GFXSamplerElem*)gfx_vec_at(
+					&((GFXSamplerElem_*)gfx_vec_at(
 						&technique->samplers, samplerInd))->sampler;
 
 				// Use the sampler get func for defaults.
-				_GFXCacheElem* sampler =
-					_gfx_get_sampler(renderer, samplerInp);
+				GFXCacheElem_* sampler =
+					gfx_get_sampler_(renderer, samplerInp);
 
 				// Push the sampler and a handle.
 				const void* handle = sampler;
@@ -1077,7 +1076,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 
 		const void** handles = gfx_vec_at(&samplerHandles, 0);
 		technique->setLayouts[set] =
-			_gfx_cache_get(&renderer->cache, &dslci.sType, handles);
+			gfx_cache_get_(&renderer->cache, &dslci.sType, handles);
 
 		if (technique->setLayouts[set] == NULL)
 			goto reset;
@@ -1104,7 +1103,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 			handles[s] = technique->setLayouts[s];
 
 		VkPushConstantRange pcr = {
-			.stageFlags = _GFX_GET_VK_SHADER_STAGE(technique->pushStages),
+			.stageFlags = GFX_GET_VK_SHADER_STAGE_(technique->pushStages),
 			.offset     = 0,
 			.size       = technique->pushSize
 		};
@@ -1121,7 +1120,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 		};
 
 		technique->layout =
-			_gfx_cache_get(&renderer->cache, &plci.sType, handles);
+			gfx_cache_get_(&renderer->cache, &plci.sType, handles);
 
 		if (technique->layout == NULL)
 			goto reset;

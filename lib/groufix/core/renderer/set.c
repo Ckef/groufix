@@ -7,19 +7,18 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 
 // Fixed hash sizes.
-#define _GFX_BUFFER_HASH_SIZE \
-	(sizeof(_GFXBuffer*) + \
+#define GFX_BUFFER_HASH_SIZE_ \
+	(sizeof(GFXBuffer_*) + \
 	sizeof(VkDeviceSize) /* offset */ + \
 	sizeof(VkDeviceSize)) /* range */
 
-#define _GFX_IMAGE_HASH_SIZE \
-	(sizeof(_GFXImage*) /* NULL if an attachment */ + \
+#define GFX_IMAGE_HASH_SIZE_ \
+	(sizeof(GFXImage_*) /* NULL if an attachment */ + \
 	sizeof(size_t) /* SIZE_MAX if not an attachment */ + \
 	sizeof(VkImageViewType) + \
 	sizeof(VkFormat) + \
@@ -34,63 +33,63 @@
 	sizeof(uint32_t) /* numLayers */ + \
 	sizeof(VkImageLayout))
 
-#define _GFX_SAMPLER_HASH_SIZE \
-	(sizeof(_GFXCacheElem*))
+#define GFX_SAMPLER_HASH_SIZE_ \
+	(sizeof(GFXCacheElem_*))
 
-#define _GFX_VIEW_HASH_SIZE \
-	(sizeof(_GFXBuffer*) + \
+#define GFX_VIEW_HASH_SIZE_ \
+	(sizeof(GFXBuffer_*) + \
 	sizeof(VkFormat) + \
 	sizeof(VkDeviceSize) /* offset */ + \
 	sizeof(VkDeviceSize)) /* range */
 
 
 // Type checkers for Vulkan update info.
-#define _GFX_DESCRIPTOR_IS_BUFFER(type) \
+#define GFX_DESCRIPTOR_IS_BUFFER_(type) \
 	((type) == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || \
 	(type) == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER || \
 	(type) == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC || \
 	(type) == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC)
 
-#define _GFX_DESCRIPTOR_IS_IMAGE(type) \
+#define GFX_DESCRIPTOR_IS_IMAGE_(type) \
 	((type) == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || \
 	(type) == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE || \
 	(type) == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE || \
 	(type) == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT)
 
-#define _GFX_DESCRIPTOR_IS_SAMPLER(type) \
+#define GFX_DESCRIPTOR_IS_SAMPLER_(type) \
 	((type) == VK_DESCRIPTOR_TYPE_SAMPLER || \
 	(type) == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 
-#define _GFX_DESCRIPTOR_IS_VIEW(type) \
+#define GFX_DESCRIPTOR_IS_VIEW_(type) \
 	((type) == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER || \
 	(type) == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER)
 
 
 // Type checkers for groufix update info.
-#define _GFX_BINDING_IS_BUFFER(type) \
-	(_GFX_DESCRIPTOR_IS_BUFFER(type) || _GFX_DESCRIPTOR_IS_VIEW(type))
+#define GFX_BINDING_IS_BUFFER_(type) \
+	(GFX_DESCRIPTOR_IS_BUFFER_(type) || GFX_DESCRIPTOR_IS_VIEW_(type))
 
-#define _GFX_BINDING_IS_IMAGE(type) \
-	(_GFX_DESCRIPTOR_IS_IMAGE(type))
+#define GFX_BINDING_IS_IMAGE_(type) \
+	(GFX_DESCRIPTOR_IS_IMAGE_(type))
 
-#define _GFX_BINDING_IS_SAMPLER(type) \
-	(_GFX_DESCRIPTOR_IS_SAMPLER(type))
+#define GFX_BINDING_IS_SAMPLER_(type) \
+	(GFX_DESCRIPTOR_IS_SAMPLER_(type))
 
 
 // Hash getters.
-#define _GFX_ENTRY_HASH_SIZE(type) \
-	((_GFX_DESCRIPTOR_IS_BUFFER(type) ? _GFX_BUFFER_HASH_SIZE : 0) + \
-	(_GFX_DESCRIPTOR_IS_IMAGE(type) ? _GFX_IMAGE_HASH_SIZE : 0) + \
-	(_GFX_DESCRIPTOR_IS_SAMPLER(type) ? _GFX_SAMPLER_HASH_SIZE : 0) + \
-	(_GFX_DESCRIPTOR_IS_VIEW(type) ? _GFX_VIEW_HASH_SIZE : 0))
+#define GFX_ENTRY_HASH_SIZE_(type) \
+	((GFX_DESCRIPTOR_IS_BUFFER_(type) ? GFX_BUFFER_HASH_SIZE_ : 0) + \
+	(GFX_DESCRIPTOR_IS_IMAGE_(type) ? GFX_IMAGE_HASH_SIZE_ : 0) + \
+	(GFX_DESCRIPTOR_IS_SAMPLER_(type) ? GFX_SAMPLER_HASH_SIZE_ : 0) + \
+	(GFX_DESCRIPTOR_IS_VIEW_(type) ? GFX_VIEW_HASH_SIZE_ : 0))
 
-#define _GFX_ENTRY_GET_HASH(binding, entry) \
+#define GFX_ENTRY_GET_HASH_(binding, entry) \
 	(binding->hash + \
-	_GFX_ENTRY_HASH_SIZE(binding->type) * (size_t)(entry - binding->entries))
+	GFX_ENTRY_HASH_SIZE_(binding->type) * (size_t)(entry - binding->entries))
 
 
 // Hash writer.
-#define _GFX_WRITE_HASH(hash, value) \
+#define GFX_WRITE_HASH_(hash, value) \
 	do { \
 		memcpy(hash, &(value), sizeof(value)); \
 		hash += sizeof(value); \
@@ -102,10 +101,10 @@
  * destruction when they are no longer used by any virtual frames.
  * NOT thread-safe with respect gfx_renderer_(acquire|submit)!
  */
-static void _gfx_make_stale(GFXSet* set, bool lock,
+static void gfx_make_stale_(GFXSet* set, bool lock,
                             VkImageView imageView, VkBufferView bufferView)
 {
-	// _gfx_push_stale expects at least one resource!
+	// gfx_push_stale_ expects at least one resource!
 	if (imageView != VK_NULL_HANDLE || bufferView != VK_NULL_HANDLE)
 	{
 		// Explicitly not thread-safe, so we use the renderer's lock!
@@ -113,12 +112,12 @@ static void _gfx_make_stale(GFXSet* set, bool lock,
 		// alike are always prefered to updating sets.
 		// So aggressive locking is fine.
 		GFXRenderer* renderer = set->renderer;
-		if (lock) _gfx_mutex_lock(&renderer->lock);
+		if (lock) gfx_mutex_lock_(&renderer->lock);
 
-		_gfx_push_stale(renderer,
+		gfx_push_stale_(renderer,
 			VK_NULL_HANDLE, imageView, bufferView, VK_NULL_HANDLE);
 
-		if (lock) _gfx_mutex_unlock(&renderer->lock);
+		if (lock) gfx_mutex_unlock_(&renderer->lock);
 	}
 }
 
@@ -130,9 +129,9 @@ static void _gfx_make_stale(GFXSet* set, bool lock,
  * @param ivci   Cannot be NULL, output, actual used info.
  * @return Zero on failure.
  */
-static bool _gfx_make_view(_GFXContext* context,
-                           const _GFXSetBinding* binding,
-                           const _GFXSetEntry* entry,
+static bool gfx_make_view_(GFXContext_* context,
+                           const GFXSetBinding_* binding,
+                           const GFXSetEntry_* entry,
                            VkImage image, VkFormat vkFmt, const GFXFormat* fmt,
                            VkImageView* view, VkImageLayout* layout,
                            VkImageViewCreateInfo* ivci)
@@ -153,18 +152,18 @@ static bool _gfx_make_view(_GFXContext* context,
 		.pNext    = NULL,
 		.flags    = 0,
 		.image    = image,
-		.viewType = _GFX_GET_VK_IMAGE_VIEW_TYPE(viewType),
+		.viewType = GFX_GET_VK_IMAGE_VIEW_TYPE_(viewType),
 		.format   = vkFmt,
 
 		.components = {
-			.r = _GFX_GET_VK_COMPONENT_SWIZZLE(entry->swizzle.r),
-			.g = _GFX_GET_VK_COMPONENT_SWIZZLE(entry->swizzle.g),
-			.b = _GFX_GET_VK_COMPONENT_SWIZZLE(entry->swizzle.b),
-			.a = _GFX_GET_VK_COMPONENT_SWIZZLE(entry->swizzle.a)
+			.r = GFX_GET_VK_COMPONENT_SWIZZLE_(entry->swizzle.r),
+			.g = GFX_GET_VK_COMPONENT_SWIZZLE_(entry->swizzle.g),
+			.b = GFX_GET_VK_COMPONENT_SWIZZLE_(entry->swizzle.b),
+			.a = GFX_GET_VK_COMPONENT_SWIZZLE_(entry->swizzle.a)
 		},
 
 		.subresourceRange = {
-			.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(aspect),
+			.aspectMask     = GFX_GET_VK_IMAGE_ASPECT_(aspect),
 			.baseMipLevel   = entry->range.mipmap,
 			.baseArrayLayer = entry->range.layer,
 
@@ -175,7 +174,7 @@ static bool _gfx_make_view(_GFXContext* context,
 		}
 	};
 
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.CreateImageView(
 			context->vk.device, ivci, NULL, view),
 		{
@@ -204,19 +203,19 @@ static bool _gfx_make_view(_GFXContext* context,
  * Assumes all relevant data is initialized and valid.
  * Will ignore valid empty values in the groufix update info.
  */
-static void _gfx_set_update(GFXSet* set,
-                            _GFXSetBinding* binding, _GFXSetEntry* entry)
+static void gfx_set_update_(GFXSet* set,
+                            GFXSetBinding_* binding, GFXSetEntry_* entry)
 {
-	char* hash = _GFX_ENTRY_GET_HASH(binding, entry);
+	char* hash = GFX_ENTRY_GET_HASH_(binding, entry);
 
 	// Update buffer info.
-	if (_GFX_DESCRIPTOR_IS_BUFFER(binding->type))
+	if (GFX_DESCRIPTOR_IS_BUFFER_(binding->type))
 	{
-		_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
+		GFXUnpackRef_ unp = gfx_ref_unpack_(entry->ref);
 		if (unp.obj.buffer != NULL)
 		{
 			const uint64_t range =
-				_gfx_ref_size(entry->ref) - entry->range.offset;
+				gfx_ref_size_(entry->ref) - entry->range.offset;
 			const uint64_t maxRange =
 				(binding->size == 0) ? range : binding->size;
 
@@ -230,33 +229,33 @@ static void _gfx_set_update(GFXSet* set,
 			};
 
 			// Update hash.
-			_GFX_WRITE_HASH(hash, unp.obj.buffer);
-			_GFX_WRITE_HASH(hash, entry->vk.update.buffer.offset);
-			_GFX_WRITE_HASH(hash, entry->vk.update.buffer.range);
+			GFX_WRITE_HASH_(hash, unp.obj.buffer);
+			GFX_WRITE_HASH_(hash, entry->vk.update.buffer.offset);
+			GFX_WRITE_HASH_(hash, entry->vk.update.buffer.range);
 		}
 	}
 
 	// Update image info.
-	if (_GFX_DESCRIPTOR_IS_IMAGE(binding->type))
+	if (GFX_DESCRIPTOR_IS_IMAGE_(binding->type))
 	{
-		_GFXContext* context = set->renderer->cache.context;
+		GFXContext_* context = set->renderer->cache.context;
 
 		// Make the previous image view stale.
-		_gfx_make_stale(set, 1, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+		gfx_make_stale_(set, 1, entry->vk.update.image.imageView, VK_NULL_HANDLE);
 		entry->vk.update.image.imageView = VK_NULL_HANDLE;
 		entry->vk.update.image.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 		// Create new image view.
 		// If referencing an attachment, leave empty values,
 		// to be updated when used!
-		_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
+		GFXUnpackRef_ unp = gfx_ref_unpack_(entry->ref);
 		if (unp.obj.image != NULL)
 		{
 			VkImageView view;
 			VkImageLayout layout;
 			VkImageViewCreateInfo ivci;
 
-			if (_gfx_make_view(context,
+			if (gfx_make_view_(context,
 				binding, entry,
 				unp.obj.image->vk.image, unp.obj.image->vk.format,
 				&unp.obj.image->base.format, &view, &layout,
@@ -273,32 +272,32 @@ static void _gfx_set_update(GFXSet* set,
 			const uint8_t swizzleB = (uint8_t)ivci.components.b;
 			const uint8_t swizzleA = (uint8_t)ivci.components.a;
 
-			_GFX_WRITE_HASH(hash, unp.obj.image);
-			_GFX_WRITE_HASH(hash, noIndex);
-			_GFX_WRITE_HASH(hash, ivci.viewType);
-			_GFX_WRITE_HASH(hash, ivci.format);
-			_GFX_WRITE_HASH(hash, swizzleR);
-			_GFX_WRITE_HASH(hash, swizzleG);
-			_GFX_WRITE_HASH(hash, swizzleB);
-			_GFX_WRITE_HASH(hash, swizzleA);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.aspectMask);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseMipLevel);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.levelCount);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseArrayLayer);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.layerCount);
-			_GFX_WRITE_HASH(hash, layout);
+			GFX_WRITE_HASH_(hash, unp.obj.image);
+			GFX_WRITE_HASH_(hash, noIndex);
+			GFX_WRITE_HASH_(hash, ivci.viewType);
+			GFX_WRITE_HASH_(hash, ivci.format);
+			GFX_WRITE_HASH_(hash, swizzleR);
+			GFX_WRITE_HASH_(hash, swizzleG);
+			GFX_WRITE_HASH_(hash, swizzleB);
+			GFX_WRITE_HASH_(hash, swizzleA);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.aspectMask);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.baseMipLevel);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.levelCount);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.baseArrayLayer);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.layerCount);
+			GFX_WRITE_HASH_(hash, layout);
 		}
 	}
 
 	// Update sampler info.
-	if (_GFX_DESCRIPTOR_IS_SAMPLER(binding->type))
+	if (GFX_DESCRIPTOR_IS_SAMPLER_(binding->type))
 	{
-		_GFXCacheElem* sampler = entry->sampler;
+		GFXCacheElem_* sampler = entry->sampler;
 
 		if (sampler == NULL)
 		{
 			// Get the default sampler.
-			sampler = _gfx_get_sampler(set->renderer, NULL);
+			sampler = gfx_get_sampler_(set->renderer, NULL);
 			if (sampler == NULL)
 				gfx_log_error("Could not create default sampler for a set.");
 		}
@@ -308,21 +307,21 @@ static void _gfx_set_update(GFXSet* set,
 			entry->vk.update.image.sampler = sampler->vk.sampler;
 
 			// Update hash.
-			_GFX_WRITE_HASH(hash, entry->sampler);
+			GFX_WRITE_HASH_(hash, entry->sampler);
 		}
 	}
 
 	// Update buffer view info.
-	if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
+	if (GFX_DESCRIPTOR_IS_VIEW_(binding->type))
 	{
-		_GFXContext* context = set->renderer->cache.context;
+		GFXContext_* context = set->renderer->cache.context;
 
 		// Make the previous buffer view stale.
-		_gfx_make_stale(set, 1, VK_NULL_HANDLE, entry->vk.update.view);
+		gfx_make_stale_(set, 1, VK_NULL_HANDLE, entry->vk.update.view);
 		entry->vk.update.view = VK_NULL_HANDLE;
 
 		// Create a new buffer view.
-		_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
+		GFXUnpackRef_ unp = gfx_ref_unpack_(entry->ref);
 		if (unp.obj.buffer != NULL && entry->vk.format != VK_FORMAT_UNDEFINED)
 		{
 			VkBufferViewCreateInfo bvci = {
@@ -336,12 +335,12 @@ static void _gfx_set_update(GFXSet* set,
 				.range =
 					// Resolve zero buffer size.
 					(entry->range.size == 0) ?
-						_gfx_ref_size(entry->ref) - entry->range.offset :
+						gfx_ref_size_(entry->ref) - entry->range.offset :
 						entry->range.size
 			};
 
 			VkBufferView view;
-			_GFX_VK_CHECK(
+			GFX_VK_CHECK_(
 				context->vk.CreateBufferView(
 					context->vk.device, &bvci, NULL, &view),
 				{
@@ -352,10 +351,10 @@ static void _gfx_set_update(GFXSet* set,
 			entry->vk.update.view = view;
 
 			// Update hash.
-			_GFX_WRITE_HASH(hash, unp.obj.buffer);
-			_GFX_WRITE_HASH(hash, bvci.format);
-			_GFX_WRITE_HASH(hash, bvci.offset);
-			_GFX_WRITE_HASH(hash, bvci.range);
+			GFX_WRITE_HASH_(hash, unp.obj.buffer);
+			GFX_WRITE_HASH_(hash, bvci.format);
+			GFX_WRITE_HASH_(hash, bvci.offset);
+			GFX_WRITE_HASH_(hash, bvci.range);
 		}
 	}
 }
@@ -363,12 +362,12 @@ static void _gfx_set_update(GFXSet* set,
 /****************************
  * Check if any Vulkan update info has become outdated because the referenced
  * attachment got rebuilt, and overwrites the current groufix update info.
- * @see _gfx_set_update, equivalent assumptions.
+ * @see gfx_set_update_, equivalent assumptions.
  */
-static void _gfx_set_update_attachs(GFXSet* set)
+static void gfx_set_update_attachs_(GFXSet* set)
 {
 	GFXRenderer* renderer = set->renderer;
-	_GFXContext* context = renderer->cache.context;
+	GFXContext_* context = renderer->cache.context;
 
 	// Super early exit!
 	if (set->numAttachs == 0)
@@ -383,9 +382,9 @@ static void _gfx_set_update_attachs(GFXSet* set)
 	// every time we bind a set to a recorder.
 	for (size_t b = 0; b < set->numBindings; ++b)
 	{
-		_GFXSetBinding* binding = &set->bindings[b];
+		GFXSetBinding_* binding = &set->bindings[b];
 
-		if (!_GFX_DESCRIPTOR_IS_IMAGE(binding->type))
+		if (!GFX_DESCRIPTOR_IS_IMAGE_(binding->type))
 			continue;
 
 		if (binding->entries == NULL)
@@ -395,7 +394,7 @@ static void _gfx_set_update_attachs(GFXSet* set)
 		{
 			// We check against the packed reference type,
 			// so we do not unnecessarily unpack.
-			_GFXSetEntry* entry = &binding->entries[e];
+			GFXSetEntry_* entry = &binding->entries[e];
 			if (entry->ref.type != GFX_REF_ATTACHMENT)
 				continue;
 
@@ -403,13 +402,13 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			++attachCount;
 
 			// Go check if we need to update.
-			_GFXUnpackRef unp = _gfx_ref_unpack(entry->ref);
-			_GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+			GFXUnpackRef_ unp = gfx_ref_unpack_(entry->ref);
+			GFXImageAttach_* attach = GFX_UNPACK_REF_ATTACH_(unp);
 
 			uint_least32_t gen =
 				atomic_load_explicit(&entry->gen, memory_order_relaxed);
 
-			if (attach == NULL || gen == _GFX_ATTACH_GEN(attach))
+			if (attach == NULL || gen == GFX_ATTACH_GEN_(attach))
 				goto next;
 
 			// Ok at this point we have an attachment that is to be updated.
@@ -418,13 +417,13 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			VkImageLayout layout;
 			VkImageViewCreateInfo ivci;
 
-			bool success = _gfx_make_view(context,
+			bool success = gfx_make_view_(context,
 				binding, entry,
 				attach->vk.image, attach->vk.format,
 				&attach->base.format, &view, &layout,
 				&ivci);
 
-			char* hash = _GFX_ENTRY_GET_HASH(binding, entry);
+			char* hash = GFX_ENTRY_GET_HASH_(binding, entry);
 
 			// Ok we created a view, now we want to write it to the
 			// Vulkan update info of the set.
@@ -434,51 +433,51 @@ static void _gfx_set_update_attachs(GFXSet* set)
 			// This is why we use the atomic generation, to skip this lock.
 			// Unfortunately we want the info and generation update to be
 			// one atomic operation, so we need to lock before updating gen.
-			_gfx_mutex_lock(&renderer->lock);
+			gfx_mutex_lock_(&renderer->lock);
 
 			// Check again in case another thread just finished updating.
 			gen = atomic_load_explicit(&entry->gen, memory_order_relaxed);
 
-			if (gen == _GFX_ATTACH_GEN(attach))
+			if (gen == GFX_ATTACH_GEN_(attach))
 			{
-				_gfx_make_stale(set, 0, view, VK_NULL_HANDLE);
+				gfx_make_stale_(set, 0, view, VK_NULL_HANDLE);
 				goto unlock;
 			}
 
 			// Let's first make the previous image view stale.
-			_gfx_make_stale(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+			gfx_make_stale_(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
 			entry->vk.update.image.imageView = view;
 			entry->vk.update.image.imageLayout = layout;
 
 			// Update hash.
-			const _GFXImage* noImage = NULL;
+			const GFXImage_* noImage = NULL;
 			const size_t backingInd = (size_t)unp.value;
 			const uint8_t swizzleR = (uint8_t)ivci.components.r;
 			const uint8_t swizzleG = (uint8_t)ivci.components.g;
 			const uint8_t swizzleB = (uint8_t)ivci.components.b;
 			const uint8_t swizzleA = (uint8_t)ivci.components.a;
 
-			_GFX_WRITE_HASH(hash, noImage);
-			_GFX_WRITE_HASH(hash, backingInd);
-			_GFX_WRITE_HASH(hash, ivci.viewType);
-			_GFX_WRITE_HASH(hash, ivci.format);
-			_GFX_WRITE_HASH(hash, swizzleR);
-			_GFX_WRITE_HASH(hash, swizzleG);
-			_GFX_WRITE_HASH(hash, swizzleB);
-			_GFX_WRITE_HASH(hash, swizzleA);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.aspectMask);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseMipLevel);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.levelCount);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.baseArrayLayer);
-			_GFX_WRITE_HASH(hash, ivci.subresourceRange.layerCount);
-			_GFX_WRITE_HASH(hash, layout);
+			GFX_WRITE_HASH_(hash, noImage);
+			GFX_WRITE_HASH_(hash, backingInd);
+			GFX_WRITE_HASH_(hash, ivci.viewType);
+			GFX_WRITE_HASH_(hash, ivci.format);
+			GFX_WRITE_HASH_(hash, swizzleR);
+			GFX_WRITE_HASH_(hash, swizzleG);
+			GFX_WRITE_HASH_(hash, swizzleB);
+			GFX_WRITE_HASH_(hash, swizzleA);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.aspectMask);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.baseMipLevel);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.levelCount);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.baseArrayLayer);
+			GFX_WRITE_HASH_(hash, ivci.subresourceRange.layerCount);
+			GFX_WRITE_HASH_(hash, layout);
 
 			// Update the stored build generation last!
-			gen = success ? _GFX_ATTACH_GEN(attach) : 0;
+			gen = success ? GFX_ATTACH_GEN_(attach) : 0;
 			atomic_store_explicit(&entry->gen, gen, memory_order_relaxed);
 
 		unlock:
-			_gfx_mutex_unlock(&renderer->lock);
+			gfx_mutex_unlock_(&renderer->lock);
 
 			// Early exit when all attachments are found!
 		next:
@@ -489,16 +488,16 @@ static void _gfx_set_update_attachs(GFXSet* set)
 }
 
 /****************************/
-_GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
+GFXPoolElem_* gfx_set_get_(GFXSet* set, GFXPoolSub_* sub)
 {
 	assert(set != NULL);
 	assert(sub != NULL);
 
 	// Update referenced renderer attachments!
-	_gfx_set_update_attachs(set);
+	gfx_set_update_attachs_(set);
 
 	// Get the descriptor set.
-	_GFXPoolElem* elem = _gfx_pool_get(
+	GFXPoolElem_* elem = gfx_pool_get_(
 		&set->renderer->pool, sub,
 		set->setLayout, set->key,
 		set->first != NULL ? &set->first->vk.update : NULL);
@@ -514,7 +513,7 @@ _GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub)
  * that a set has queried from the renderer's pool.
  * Thread-safe outside recording!
  */
-static void _gfx_set_recycle(GFXSet* set)
+static void gfx_set_recycle_(GFXSet* set)
 {
 	// Only recycle if the set has been used & reset used flag.
 	if (atomic_exchange_explicit(&set->used, 0, memory_order_relaxed))
@@ -532,9 +531,9 @@ static void _gfx_set_recycle(GFXSet* set)
 		// thread-safe, so we use the renderer's lock!
 		// Just like making the views stale, this should be a rare path to
 		// go down to and aggressive locking is fine.
-		_gfx_mutex_lock(&renderer->lock);
-		_gfx_pool_recycle(&renderer->pool, set->key, renderer->numFrames);
-		_gfx_mutex_unlock(&renderer->lock);
+		gfx_mutex_lock_(&renderer->lock);
+		gfx_pool_recycle_(&renderer->pool, set->key, renderer->numFrames);
+		gfx_mutex_unlock_(&renderer->lock);
 	}
 }
 
@@ -544,7 +543,7 @@ static void _gfx_set_recycle(GFXSet* set)
  * @param update  Non-zero to update & recycle on change.
  * @param changed Outputs whether update info was actually changed.
  */
-static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
+static bool gfx_set_resources_(GFXSet* set, bool update, bool* changed,
                                size_t numResources, const GFXSetResource* resources)
 {
 	assert(set != NULL);
@@ -582,11 +581,11 @@ static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
 		}
 
 		// Check if the types match.
-		_GFXSetBinding* binding = &set->bindings[res->binding];
+		GFXSetBinding_* binding = &set->bindings[res->binding];
 		if (
 			GFX_REF_IS_NULL(res->ref) ||
-			(GFX_REF_IS_BUFFER(res->ref) && !_GFX_BINDING_IS_BUFFER(binding->type)) ||
-			(GFX_REF_IS_IMAGE(res->ref) && !_GFX_BINDING_IS_IMAGE(binding->type)))
+			(GFX_REF_IS_BUFFER(res->ref) && !GFX_BINDING_IS_BUFFER_(binding->type)) ||
+			(GFX_REF_IS_IMAGE(res->ref) && !GFX_BINDING_IS_IMAGE_(binding->type)))
 		{
 			gfx_log_warn(
 				"Could not set descriptor resource "
@@ -601,12 +600,12 @@ static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
 		// Check if it is even a different reference.
 		// For this we want to unpack the reference, as we want to check the
 		// underlying resource, not the top-level reference.
-		_GFXSetEntry* entry = &binding->entries[res->index];
-		_GFXUnpackRef cur = _gfx_ref_unpack(entry->ref);
-		_GFXUnpackRef new = _gfx_ref_unpack(res->ref);
+		GFXSetEntry_* entry = &binding->entries[res->index];
+		GFXUnpackRef_ cur = gfx_ref_unpack_(entry->ref);
+		GFXUnpackRef_ new = gfx_ref_unpack_(res->ref);
 
 		// Also a good place to do a quick context check.
-		if (_GFX_UNPACK_REF_CONTEXT(new) != renderer->cache.context)
+		if (GFX_UNPACK_REF_CONTEXT_(new) != renderer->cache.context)
 		{
 			gfx_log_warn(
 				"Could not set descriptor resource "
@@ -634,15 +633,15 @@ static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
 
 		// If equal (including offset & size), just skip it, not a failure.
 		if (
-			_GFX_UNPACK_REF_IS_EQUAL(cur, new) &&
+			GFX_UNPACK_REF_IS_EQUAL_(cur, new) &&
 			cur.value == new.value &&
-			_gfx_ref_size(entry->ref) == _gfx_ref_size(res->ref))
+			gfx_ref_size_(entry->ref) == gfx_ref_size_(res->ref))
 		{
 			continue;
 		}
 
 		// Update the `numAttachs` field of the set.
-		// Check the packed reference just like in _gfx_set_update_attachs.
+		// Check the packed reference just like in gfx_set_update_attachs_.
 		if (entry->ref.type == GFX_REF_ATTACHMENT) --set->numAttachs;
 		if (res->ref.type == GFX_REF_ATTACHMENT) ++set->numAttachs;
 
@@ -656,10 +655,10 @@ static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
 			// If not yet recycled, recycle the set,
 			// we're possibly referencing resources that may be freed or sm.
 			if (!recycled)
-				_gfx_set_recycle(set),
+				gfx_set_recycle_(set),
 				recycled = 1;
 
-			_gfx_set_update(set, binding, entry);
+			gfx_set_update_(set, binding, entry);
 		}
 	}
 
@@ -672,7 +671,7 @@ static bool _gfx_set_resources(GFXSet* set, bool update, bool* changed,
  * @param update  Non-zero to update on change.
  * @param changed Outputs whether update info was actually changed.
  */
-static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
+static bool gfx_set_views_(GFXSet* set, bool update, bool* changed,
                            size_t numViews, const GFXView* views)
 {
 	assert(set != NULL);
@@ -708,10 +707,10 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
 		}
 
 		// Check if is viewable (i.e. a buffer or image).
-		_GFXSetBinding* binding = &set->bindings[view->binding];
+		GFXSetBinding_* binding = &set->bindings[view->binding];
 		if (
-			!_GFX_BINDING_IS_BUFFER(binding->type) &&
-			!_GFX_BINDING_IS_IMAGE(binding->type))
+			!GFX_BINDING_IS_BUFFER_(binding->type) &&
+			!GFX_BINDING_IS_IMAGE_(binding->type))
 		{
 			gfx_log_warn(
 				"Could not set view of descriptor resource "
@@ -725,12 +724,12 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
 
 		// Resolve format here, as we do not store the groufix format.
 		// Do not modify the entry before succesfully resolved!
-		_GFXSetEntry* entry = &binding->entries[view->index];
-		if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
+		GFXSetEntry_* entry = &binding->entries[view->index];
+		if (GFX_DESCRIPTOR_IS_VIEW_(binding->type))
 		{
 			VkFormat vkFmt = VK_FORMAT_UNDEFINED;
 			GFXFormat gfxFmt = view->format;
-			_GFX_RESOLVE_FORMAT(gfxFmt, vkFmt, renderer->heap->allocator.device,
+			GFX_RESOLVE_FORMAT_(gfxFmt, vkFmt, renderer->heap->allocator.device,
 				((VkFormatProperties){
 					.linearTilingFeatures = 0,
 					.optimalTilingFeatures = 0,
@@ -768,10 +767,10 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
 		{
 			// If not yet recycled, recycle the set,
 			if (!recycled)
-				_gfx_set_recycle(set),
+				gfx_set_recycle_(set),
 				recycled = 1;
 
-			_gfx_set_update(set, binding, entry);
+			gfx_set_update_(set, binding, entry);
 		}
 	}
 
@@ -783,7 +782,7 @@ static bool _gfx_set_views(GFXSet* set, bool update, bool* changed,
  * @see gfx_set_groups.
  * @param update Non-zero to update on change.
  */
-static bool _gfx_set_groups(GFXSet* set, bool update,
+static bool gfx_set_groups_(GFXSet* set, bool update,
                             size_t numGroups, const GFXSetGroup* groups)
 {
 	assert(set != NULL);
@@ -798,7 +797,7 @@ static bool _gfx_set_groups(GFXSet* set, bool update,
 	for (size_t g = 0; g < numGroups; ++g)
 	{
 		const GFXSetGroup* sGroup = &groups[g];
-		_GFXGroup* group = (_GFXGroup*)sGroup->group;
+		GFXGroup_* group = (GFXGroup_*)sGroup->group;
 
 		// Check if the resource exists (in both the set and group).
 		if (
@@ -826,16 +825,16 @@ static bool _gfx_set_groups(GFXSet* set, bool update,
 
 		for (size_t b = 0; b < maxBindings; ++b)
 		{
-			_GFXSetBinding* sBinding = &set->bindings[sGroup->binding + b];
+			GFXSetBinding_* sBinding = &set->bindings[sGroup->binding + b];
 			GFXBinding* gBinding = &group->bindings[sGroup->offset + b].base;
 
 			// Check if the types match.
 			// Note that we only have images and not-images.
 			if (
 				(gBinding->type == GFX_BINDING_IMAGE &&
-					!_GFX_BINDING_IS_IMAGE(sBinding->type)) ||
+					!GFX_BINDING_IS_IMAGE_(sBinding->type)) ||
 				(gBinding->type != GFX_BINDING_IMAGE &&
-					!_GFX_BINDING_IS_BUFFER(sBinding->type)))
+					!GFX_BINDING_IS_BUFFER_(sBinding->type)))
 			{
 				gfx_log_warn(
 					"Could not set descriptor resources "
@@ -856,9 +855,9 @@ static bool _gfx_set_groups(GFXSet* set, bool update,
 				// Try to set the resource.
 				// And a view if we want to set a texel format!
 				// Copy values from the group's binding, and let
-				// _gfx_set_resources and _gfx_set_views validate it all.
+				// gfx_set_resources_ and gfx_set_views_ validate it all.
 				// Not possible from API to start index at > 0, but meh.
-				_GFXSetEntry* entry = &sBinding->entries[i];
+				GFXSetEntry_* entry = &sBinding->entries[i];
 
 				GFXSetResource setRes = {
 					.binding = sGroup->binding + b,
@@ -881,20 +880,20 @@ static bool _gfx_set_groups(GFXSet* set, bool update,
 				bool vChanged = 0, rChanged = 0;
 
 				if (gBinding->type == GFX_BINDING_BUFFER_TEXEL)
-					if (!_gfx_set_views(set, 0, &vChanged, 1, &view))
+					if (!gfx_set_views_(set, 0, &vChanged, 1, &view))
 						success = 0;
 
-				if (!_gfx_set_resources(set, 0, &rChanged, 1, &setRes))
+				if (!gfx_set_resources_(set, 0, &rChanged, 1, &setRes))
 					success = 0;
 
 				if (update && (vChanged || rChanged))
 				{
 					// If not yet recycled, recycle the set,
 					if (!recycled)
-						_gfx_set_recycle(set),
+						gfx_set_recycle_(set),
 						recycled = 1;
 
-					_gfx_set_update(set, sBinding, entry);
+					gfx_set_update_(set, sBinding, entry);
 				}
 			}
 		}
@@ -908,7 +907,7 @@ static bool _gfx_set_groups(GFXSet* set, bool update,
  * @see gfx_set_samplers.
  * @param update Non-zero to update on change.
  */
-static bool _gfx_set_samplers(GFXSet* set, bool update,
+static bool gfx_set_samplers_(GFXSet* set, bool update,
                               size_t numSamplers, const GFXSampler* samplers)
 {
 	assert(set != NULL);
@@ -930,7 +929,7 @@ static bool _gfx_set_samplers(GFXSet* set, bool update,
 		if (
 			samp->binding >= set->numBindings ||
 			samp->index >= set->bindings[samp->binding].count ||
-			!_GFX_BINDING_IS_SAMPLER(set->bindings[samp->binding].type))
+			!GFX_BINDING_IS_SAMPLER_(set->bindings[samp->binding].type))
 		{
 			// Skip it if not.
 			gfx_log_warn(
@@ -946,7 +945,7 @@ static bool _gfx_set_samplers(GFXSet* set, bool update,
 		// Check if the sampler is not immutable.
 		// Note: It may still be immutable if it is a combined image/sampler,
 		// in this case Vulkan should ignore the sampler handle anyway...
-		_GFXSetBinding* binding = &set->bindings[samp->binding];
+		GFXSetBinding_* binding = &set->bindings[samp->binding];
 		if (binding->entries == NULL)
 		{
 			gfx_log_warn(
@@ -960,7 +959,7 @@ static bool _gfx_set_samplers(GFXSet* set, bool update,
 		}
 
 		// Create/get the sampler.
-		_GFXCacheElem* sampler = _gfx_get_sampler(renderer, samp);
+		GFXCacheElem_* sampler = gfx_get_sampler_(renderer, samp);
 		if (sampler == NULL)
 		{
 			gfx_log_warn(
@@ -973,7 +972,7 @@ static bool _gfx_set_samplers(GFXSet* set, bool update,
 		}
 
 		// If equal just skip it, not a failure.
-		_GFXSetEntry* entry = &binding->entries[samp->index];
+		GFXSetEntry_* entry = &binding->entries[samp->index];
 		if (entry->sampler == sampler)
 			continue;
 
@@ -984,10 +983,10 @@ static bool _gfx_set_samplers(GFXSet* set, bool update,
 		{
 			// If not yet recycled, recycle the set,
 			if (!recycled)
-				_gfx_set_recycle(set),
+				gfx_set_recycle_(set),
 				recycled = 1;
 
-			_gfx_set_update(set, binding, entry);
+			gfx_set_update_(set, binding, entry);
 		}
 	}
 
@@ -1020,29 +1019,29 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	// Get the number of bindings & entries to allocate.
 	size_t numBindings;
 	size_t numEntries;
-	_gfx_tech_get_set_size(technique, set, &numBindings, &numEntries);
+	gfx_tech_get_set_size_(technique, set, &numBindings, &numEntries);
 
 	// Allocate a new set.
 	const size_t structSize = GFX_ALIGN_UP(
-		sizeof(GFXSet) + sizeof(_GFXSetBinding) * numBindings,
-		alignof(_GFXSetEntry));
+		sizeof(GFXSet) + sizeof(GFXSetBinding_) * numBindings,
+		alignof(GFXSetEntry_));
 
 	const size_t updateSize = GFX_ALIGN_UP(
-		structSize + sizeof(_GFXSetEntry) * numEntries,
-		alignof(_GFXHashKey));
+		structSize + sizeof(GFXSetEntry_) * numEntries,
+		alignof(GFXHashKey_));
 
 	const size_t maxHashSize =
 		GFX_MAX(GFX_MAX(GFX_MAX(GFX_MAX(
-			_GFX_BUFFER_HASH_SIZE,
-			_GFX_IMAGE_HASH_SIZE),
-			_GFX_SAMPLER_HASH_SIZE),
-			(_GFX_IMAGE_HASH_SIZE + _GFX_SAMPLER_HASH_SIZE)),
-			_GFX_VIEW_HASH_SIZE);
+			GFX_BUFFER_HASH_SIZE_,
+			GFX_IMAGE_HASH_SIZE_),
+			GFX_SAMPLER_HASH_SIZE_),
+			(GFX_IMAGE_HASH_SIZE_ + GFX_SAMPLER_HASH_SIZE_)),
+			GFX_VIEW_HASH_SIZE_);
 
 	GFXSet* aset = malloc(
 		updateSize +
-		sizeof(_GFXHashKey) +
-		sizeof(_GFXCacheElem*) + numEntries * maxHashSize);
+		sizeof(GFXHashKey_) +
+		sizeof(GFXCacheElem_*) + numEntries * maxHashSize);
 
 	if (aset == NULL)
 		goto error;
@@ -1056,27 +1055,27 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	atomic_store_explicit(&aset->used, 0, memory_order_relaxed);
 
 	// Setup hash key.
-	_GFXHashKey* key = (_GFXHashKey*)((char*)aset + updateSize);
+	GFXHashKey_* key = (GFXHashKey_*)((char*)aset + updateSize);
 	aset->key = key;
-	key->len = sizeof(_GFXCacheElem*);
-	memcpy(key->bytes, &aset->setLayout, sizeof(_GFXCacheElem*));
-	memset(key->bytes + sizeof(_GFXCacheElem*), 0, numEntries * maxHashSize);
+	key->len = sizeof(GFXCacheElem_*);
+	memcpy(key->bytes, &aset->setLayout, sizeof(GFXCacheElem_*));
+	memset(key->bytes + sizeof(GFXCacheElem_*), 0, numEntries * maxHashSize);
 
 	// Get all the bindings.
 	aset->first = numEntries > 0 ?
-		(_GFXSetEntry*)((char*)aset + structSize) : NULL;
+		(GFXSetEntry_*)((char*)aset + structSize) : NULL;
 
-	_GFXSetEntry* entryPtr = aset->first;
-	char* hashPtr = key->bytes + sizeof(_GFXCacheElem*);
+	GFXSetEntry_* entryPtr = aset->first;
+	char* hashPtr = key->bytes + sizeof(GFXCacheElem_*);
 
 	for (size_t b = 0; b < numBindings; ++b)
 	{
-		_GFXSetBinding* binding = &aset->bindings[b];
+		GFXSetBinding_* binding = &aset->bindings[b];
 
 		size_t entries = 0;
 		// If this returns 0, we do not use any update entries,
 		// even though binding->count might be > 0!
-		if (_gfx_tech_get_set_binding(technique, set, b, binding))
+		if (gfx_tech_get_set_binding_(technique, set, b, binding))
 			entries = binding->count;
 
 		// Count number of dynamic buffers.
@@ -1090,7 +1089,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		binding->entries = entries > 0 ? entryPtr : NULL;
 		binding->hash = entries > 0 ? hashPtr : NULL;
 
-		const size_t hashLen = _GFX_ENTRY_HASH_SIZE(binding->type) * entries;
+		const size_t hashLen = GFX_ENTRY_HASH_SIZE_(binding->type) * entries;
 		entryPtr += entries;
 		hashPtr += hashLen;
 		key->len += hashLen;
@@ -1098,7 +1097,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		// Initialize entries to empty.
 		for (size_t e = 0; e < entries; ++e)
 		{
-			_GFXSetEntry* entry = &binding->entries[e];
+			GFXSetEntry_* entry = &binding->entries[e];
 			entry->ref = GFX_REF_NULL;
 			entry->swizzle = GFX_SWIZZLE_IDENTITY;
 			entry->viewType = GFX_VIEW_2D;
@@ -1107,22 +1106,22 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 			atomic_store_explicit(&entry->gen, 0, memory_order_relaxed);
 
 			// Set range, leave undefined if only a sampler.
-			if (_GFX_BINDING_IS_BUFFER(binding->type))
+			if (GFX_BINDING_IS_BUFFER_(binding->type))
 				entry->range = GFX_RANGE_WHOLE_BUFFER;
 
-			else if (_GFX_BINDING_IS_IMAGE(binding->type))
+			else if (GFX_BINDING_IS_IMAGE_(binding->type))
 				// Can specify all aspect flags, will be filtered later on.
 				entry->range = GFX_RANGE_WHOLE_IMAGE;
 
 			// Set update info.
-			if (_GFX_DESCRIPTOR_IS_BUFFER(binding->type))
+			if (GFX_DESCRIPTOR_IS_BUFFER_(binding->type))
 				entry->vk.update.buffer = (VkDescriptorBufferInfo){
 					.buffer = VK_NULL_HANDLE,
 					.offset = 0,
 					.range = 0
 				};
 
-			else if(_GFX_DESCRIPTOR_IS_VIEW(binding->type))
+			else if(GFX_DESCRIPTOR_IS_VIEW_(binding->type))
 				entry->vk.update.view = VK_NULL_HANDLE;
 
 			else
@@ -1140,29 +1139,29 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 	bool changed; // Placeholder.
 
 	if (numGroups > 0)
-		_gfx_set_groups(aset, 0, numGroups, groups);
+		gfx_set_groups_(aset, 0, numGroups, groups);
 	if (numResources > 0)
-		_gfx_set_resources(aset, 0, &changed, numResources, resources);
+		gfx_set_resources_(aset, 0, &changed, numResources, resources);
 	if (numViews > 0)
-		_gfx_set_views(aset, 0, &changed, numViews, views);
+		gfx_set_views_(aset, 0, &changed, numViews, views);
 	if (numSamplers > 0)
-		_gfx_set_samplers(aset, 0, numSamplers, samplers);
+		gfx_set_samplers_(aset, 0, numSamplers, samplers);
 
 	// And then loop over all things to manually update them.
 	// Because all current handles are VK_NULL_HANDLE,
 	// we do not push stales and we're still thread-safe :)
 	for (size_t b = 0; b < numBindings; ++b)
 	{
-		_GFXSetBinding* binding = &aset->bindings[b];
+		GFXSetBinding_* binding = &aset->bindings[b];
 		if (binding->entries != NULL) for (size_t e = 0; e < binding->count; ++e)
-			_gfx_set_update(aset, binding, &binding->entries[e]);
+			gfx_set_update_(aset, binding, &binding->entries[e]);
 	}
 
 	// Link the set into the renderer.
 	// Modifying the renderer, lock!
-	_gfx_mutex_lock(&renderer->lock);
+	gfx_mutex_lock_(&renderer->lock);
 	gfx_list_insert_after(&renderer->sets, &aset->list, NULL);
-	_gfx_mutex_unlock(&renderer->lock);
+	gfx_mutex_unlock_(&renderer->lock);
 
 	return aset;
 
@@ -1182,32 +1181,32 @@ GFX_API void gfx_erase_set(GFXSet* set)
 	GFXRenderer* renderer = set->renderer;
 
 	// Modifying the renderer, lock!
-	_gfx_mutex_lock(&renderer->lock);
+	gfx_mutex_lock_(&renderer->lock);
 
 	// Unlink itself from the renderer.
 	gfx_list_erase(&renderer->sets, &set->list);
 
 	// We have to loop over all descriptors and
 	// make the image and buffer views stale.
-	// Keep the lock so _gfx_make_stale doesn't repeatedly re-acquire.
+	// Keep the lock so gfx_make_stale_ doesn't repeatedly re-acquire.
 	for (size_t b = 0; b < set->numBindings; ++b)
 	{
-		_GFXSetBinding* binding = &set->bindings[b];
+		GFXSetBinding_* binding = &set->bindings[b];
 		if (binding->entries != NULL) for (size_t e = 0; e < binding->count; ++e)
 		{
-			_GFXSetEntry* entry = &binding->entries[e];
-			if (_GFX_DESCRIPTOR_IS_IMAGE(binding->type))
-				_gfx_make_stale(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
-			else if (_GFX_DESCRIPTOR_IS_VIEW(binding->type))
-				_gfx_make_stale(set, 0, VK_NULL_HANDLE, entry->vk.update.view);
+			GFXSetEntry_* entry = &binding->entries[e];
+			if (GFX_DESCRIPTOR_IS_IMAGE_(binding->type))
+				gfx_make_stale_(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+			else if (GFX_DESCRIPTOR_IS_VIEW_(binding->type))
+				gfx_make_stale_(set, 0, VK_NULL_HANDLE, entry->vk.update.view);
 		}
 	}
 
-	_gfx_mutex_unlock(&renderer->lock);
+	gfx_mutex_unlock_(&renderer->lock);
 
 	// And recycle all matching descriptor sets,
 	// none of the resources may be referenced anymore!
-	_gfx_set_recycle(set);
+	gfx_set_recycle_(set);
 
 	free(set);
 }
@@ -1335,7 +1334,7 @@ GFX_API bool gfx_set_resources(GFXSet* set,
 	// Relies on stand-in function for asserts.
 
 	bool changed; // Placeholder.
-	return _gfx_set_resources(set, 1, &changed, numResources, resources);
+	return gfx_set_resources_(set, 1, &changed, numResources, resources);
 }
 
 /****************************/
@@ -1344,7 +1343,7 @@ GFX_API bool gfx_set_groups(GFXSet* set,
 {
 	// Relies on stand-in function for asserts.
 
-	return _gfx_set_groups(set, 1, numGroups, groups);
+	return gfx_set_groups_(set, 1, numGroups, groups);
 }
 
 /****************************/
@@ -1354,7 +1353,7 @@ GFX_API bool gfx_set_views(GFXSet* set,
 	// Relies on stand-in function for asserts.
 
 	bool changed; // Placeholder.
-	return _gfx_set_views(set, 1, &changed, numViews, views);
+	return gfx_set_views_(set, 1, &changed, numViews, views);
 }
 
 /****************************/
@@ -1363,5 +1362,5 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
 {
 	// Relies on stand-in function for asserts.
 
-	return _gfx_set_samplers(set, 1, numSamplers, samplers);
+	return gfx_set_samplers_(set, 1, numSamplers, samplers);
 }

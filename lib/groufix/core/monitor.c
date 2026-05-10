@@ -7,17 +7,16 @@
  */
 
 #include "groufix/core.h"
-#include <assert.h>
 #include <stdlib.h>
 
 
 /****************************
  * Allocates and initializes a new groufix monitor from a GLFW handle.
- * Automatically appends the monitor to _groufix.monitors.
+ * Automatically appends the monitor to groufix_.monitors.
  * @param handle Cannot be NULL.
  * @return NULL on failure.
  */
-static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
+static GFXMonitor_* gfx_alloc_monitor_(GLFWmonitor* handle)
 {
 	assert(handle != NULL);
 
@@ -27,14 +26,14 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
 	// Allocate an array of video modes at the end of the monitor.
 	// Always allocate the video mode count GLFW reports, we might allocate
 	// a bit extra, but who cares.
-	_GFXMonitor* monitor = malloc(
-		sizeof(_GFXMonitor) +
+	GFXMonitor_* monitor = malloc(
+		sizeof(GFXMonitor_) +
 		sizeof(GFXVideoMode) * (size_t)vidCount);
 
 	if (monitor == NULL)
 		return NULL;
 
-	if (!gfx_vec_push(&_groufix.monitors, 1, &monitor))
+	if (!gfx_vec_push(&groufix_.monitors, 1, &monitor))
 	{
 		free(monitor);
 		return NULL;
@@ -87,16 +86,16 @@ static _GFXMonitor* _gfx_alloc_monitor(GLFWmonitor* handle)
  * On monitor connect or disconnect.
  * @param event Zero if it is disconnected, non-zero if it is connected.
  */
-static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
+static void gfx_glfw_monitor_(GLFWmonitor* handle, int event)
 {
 	const bool conn = (event == GLFW_CONNECTED);
-	_GFXMonitor* monitor;
+	GFXMonitor_* monitor;
 
 	if (conn)
 	{
 		// On connect, allocate a new monitor and
 		// attempt to insert it into the configuration.
-		monitor = _gfx_alloc_monitor(handle);
+		monitor = gfx_alloc_monitor_(handle);
 		if (monitor == NULL)
 		{
 			gfx_log_fatal("Could not initialize a newly connected monitor.");
@@ -118,7 +117,7 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 		monitor = glfwGetMonitorUserPointer(handle);
 
 		// Then shrink the configuration.
-		gfx_vec_pop(&_groufix.monitors, 1);
+		gfx_vec_pop(&groufix_.monitors, 1);
 
 		// Wanna know about it?
 		gfx_log_info(
@@ -136,36 +135,36 @@ static void _gfx_glfw_monitor(GLFWmonitor* handle, int event)
 
 	for (size_t i = 0; i < (size_t)count; ++i)
 	{
-		_GFXMonitor* h = glfwGetMonitorUserPointer(handles[i]);
-		*(_GFXMonitor**)gfx_vec_at(&_groufix.monitors, i) = h;
+		GFXMonitor_* h = glfwGetMonitorUserPointer(handles[i]);
+		*(GFXMonitor_**)gfx_vec_at(&groufix_.monitors, i) = h;
 	}
 
 	// Finally, call the event if given, and free the monitor on disconnect.
-	if (_groufix.monitorEvent != NULL)
-		_groufix.monitorEvent(&monitor->base, conn);
+	if (groufix_.monitorEvent != NULL)
+		groufix_.monitorEvent(&monitor->base, conn);
 
 	if (!conn)
 		free(monitor);
 }
 
 /****************************/
-bool _gfx_monitors_init(void)
+bool gfx_monitors_init_(void)
 {
-	assert(_groufix.monitors.size == 0);
+	assert(groufix_.monitors.size == 0);
 
 	// Get all GLFW monitors.
 	int count;
 	GLFWmonitor** handles = glfwGetMonitors(&count);
 
 	// Reserve some data and create groufix monitors.
-	if (!gfx_vec_reserve(&_groufix.monitors, (size_t)count))
+	if (!gfx_vec_reserve(&groufix_.monitors, (size_t)count))
 		goto terminate;
 
 	for (size_t i = 0; i < (size_t)count; ++i)
-		if (_gfx_alloc_monitor(handles[i]) == NULL)
+		if (gfx_alloc_monitor_(handles[i]) == NULL)
 			goto terminate;
 
-	if (_groufix.monitors.size > 0)
+	if (groufix_.monitors.size > 0)
 	{
 		// Let's see the connected monitors :)
 		GFXBufWriter* logger = gfx_logger_info();
@@ -173,9 +172,9 @@ bool _gfx_monitors_init(void)
 		{
 			gfx_io_writef(logger, "Detected monitors:\n");
 
-			for (size_t i = 0; i < _groufix.monitors.size; ++i)
+			for (size_t i = 0; i < groufix_.monitors.size; ++i)
 			{
-				_GFXMonitor** monitor = gfx_vec_at(&_groufix.monitors, i);
+				GFXMonitor_** monitor = gfx_vec_at(&groufix_.monitors, i);
 				const GLFWvidmode* vid = glfwGetVideoMode((*monitor)->handle);
 
 				gfx_io_writef(logger,
@@ -189,7 +188,7 @@ bool _gfx_monitors_init(void)
 	}
 
 	// Make sure we get configuration change events.
-	glfwSetMonitorCallback(_gfx_glfw_monitor);
+	glfwSetMonitorCallback(gfx_glfw_monitor_);
 
 	return 1;
 
@@ -197,22 +196,22 @@ bool _gfx_monitors_init(void)
 	// Cleanup on failure.
 terminate:
 	gfx_log_error("Could not initialize all connected monitors.");
-	_gfx_monitors_terminate();
+	gfx_monitors_terminate_();
 
 	return 0;
 }
 
 /****************************/
-void _gfx_monitors_terminate(void)
+void gfx_monitors_terminate_(void)
 {
 	// In case it did not initialize, make it a no-op.
-	if (_groufix.monitors.size == 0)
+	if (groufix_.monitors.size == 0)
 		return;
 
 	// First just deallocate all monitors.
-	for (size_t i = 0; i < _groufix.monitors.size; ++i)
+	for (size_t i = 0; i < groufix_.monitors.size; ++i)
 	{
-		_GFXMonitor** monitor = gfx_vec_at(&_groufix.monitors, i);
+		GFXMonitor_** monitor = gfx_vec_at(&groufix_.monitors, i);
 
 		glfwSetMonitorUserPointer((*monitor)->handle, NULL);
 		free(*monitor);
@@ -220,44 +219,44 @@ void _gfx_monitors_terminate(void)
 
 	// Clear data.
 	glfwSetMonitorCallback(NULL);
-	gfx_vec_clear(&_groufix.monitors);
+	gfx_vec_clear(&groufix_.monitors);
 }
 
 /****************************/
 GFX_API void gfx_monitor_event_set(void (*event)(GFXMonitor*, bool))
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
 	// Yeah just set the event callback.
-	_groufix.monitorEvent = event;
+	groufix_.monitorEvent = event;
 }
 
 /****************************/
 GFX_API size_t gfx_get_num_monitors(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
-	return _groufix.monitors.size;
+	return groufix_.monitors.size;
 }
 
 /****************************/
 GFX_API GFXMonitor* gfx_get_monitor(size_t index)
 {
-	assert(atomic_load(&_groufix.initialized));
-	assert(index < _groufix.monitors.size);
+	assert(atomic_load(&groufix_.initialized));
+	assert(index < groufix_.monitors.size);
 
-	return *(GFXMonitor**)gfx_vec_at(&_groufix.monitors, index);
+	return *(GFXMonitor**)gfx_vec_at(&groufix_.monitors, index);
 }
 
 /****************************/
 GFX_API GFXMonitor* gfx_get_primary_monitor(void)
 {
-	assert(atomic_load(&_groufix.initialized));
-	assert(_groufix.monitors.size > 0);
+	assert(atomic_load(&groufix_.initialized));
+	assert(groufix_.monitors.size > 0);
 
 	// Just return the first,
 	// due to GLFW guarantees this should be the primary.
-	return *(GFXMonitor**)gfx_vec_at(&_groufix.monitors, 0);
+	return *(GFXMonitor**)gfx_vec_at(&groufix_.monitors, 0);
 }
 
 /****************************/
@@ -265,16 +264,16 @@ GFX_API size_t gfx_monitor_get_num_modes(GFXMonitor* monitor)
 {
 	assert(monitor != NULL);
 
-	return ((_GFXMonitor*)monitor)->numModes;
+	return ((GFXMonitor_*)monitor)->numModes;
 }
 
 /****************************/
 GFX_API GFXVideoMode gfx_monitor_get_mode(GFXMonitor* monitor, size_t index)
 {
 	assert(monitor != NULL);
-	assert(index < ((_GFXMonitor*)monitor)->numModes);
+	assert(index < ((GFXMonitor_*)monitor)->numModes);
 
-	return ((_GFXMonitor*)monitor)->modes[index];
+	return ((GFXMonitor_*)monitor)->modes[index];
 }
 
 /****************************/
@@ -285,7 +284,7 @@ GFX_API GFXVideoMode gfx_monitor_get_current_mode(GFXMonitor* monitor)
 	// We don't lookup the video mode array,
 	// instead we cheat a little and take GLFW's current mode.
 	const GLFWvidmode* vid =
-		glfwGetVideoMode(((_GFXMonitor*)monitor)->handle);
+		glfwGetVideoMode(((GFXMonitor_*)monitor)->handle);
 
 	return (GFXVideoMode){
 		.width = (uint32_t)vid->width,

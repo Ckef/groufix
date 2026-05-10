@@ -8,7 +8,6 @@
 
 #include "groufix/assets/image.h"
 #include "groufix/core/log.h"
-#include <assert.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_FAILURE_USERMSG
@@ -20,7 +19,7 @@
 
 
 // Checks if the format has features to support the requested usage.
-#define _GFX_STB_FMT_SUPPORTED(usage, feats) \
+#define GFX_STB_FMT_SUPPORTED_(usage, feats) \
 	((feats & GFX_FORMAT_IMAGE_WRITE) && \
 	((feats & GFX_FORMAT_SAMPLED_IMAGE) || !(usage & GFX_IMAGE_SAMPLED)) && \
 	((feats & GFX_FORMAT_SAMPLED_IMAGE_LINEAR) || !(usage & GFX_IMAGE_SAMPLED_LINEAR)) && \
@@ -37,7 +36,7 @@
  *  - If it is unsigned 16 bits integers.
  *  - How many components per pixel it has.
  */
-static GFXFormat _gfx_stb_image_fmt(bool ishdr, bool is16, int comps)
+static GFXFormat gfx_stb_image_fmt_(bool ishdr, bool is16, int comps)
 {
 	const unsigned char depth =
 		ishdr ? 32 : is16 ? 16 : 8;
@@ -113,14 +112,14 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 	// This will eventually result in an 8-bit format with 4 components,
 	// which is required to be supported by Vulkan!
 	GFXDevice* device = gfx_heap_get_device(heap);
-	GFXFormat fmt = _gfx_stb_image_fmt(sIshdr, sIs16, sComps);
+	GFXFormat fmt = gfx_stb_image_fmt_(sIshdr, sIs16, sComps);
 	GFXFormatFeatures feats = gfx_format_support(fmt, device);
 
 	int comps = sComps;
 	bool ishdr = sIshdr;
 	bool is16 = sIs16;
 
-	while (!_GFX_STB_FMT_SUPPORTED(usage, feats))
+	while (!GFX_STB_FMT_SUPPORTED_(usage, feats))
 	{
 		// Try smaller type first, then bigger order.
 		if (flags & GFX_IMAGE_TYPE_BEFORE_ORDER)
@@ -157,12 +156,12 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 			else break; // None found.
 		}
 
-		fmt = _gfx_stb_image_fmt(ishdr, is16, comps);
+		fmt = gfx_stb_image_fmt_(ishdr, is16, comps);
 		feats = gfx_format_support(fmt, device);
 	}
 
 	// Uh oh.
-	if (!_GFX_STB_FMT_SUPPORTED(usage, feats))
+	if (!GFX_STB_FMT_SUPPORTED_(usage, feats))
 	{
 		gfx_log_error(
 			"No suitable supported format to load image from stream.");

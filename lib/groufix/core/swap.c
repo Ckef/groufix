@@ -7,7 +7,6 @@
  */
 
 #include "groufix/core.h"
-#include <assert.h>
 #include <stdlib.h>
 
 
@@ -15,7 +14,7 @@
  * Retrieves whether the GLFW recreate signal was set (and resets the signal).
  * @return Non-zero if the recreate signal was set.
  */
-static inline bool _gfx_swapchain_sig(_GFXWindow* window)
+static inline bool gfx_swapchain_sig_(GFXWindow_* window)
 {
 	return atomic_exchange_explicit(
 		&window->frame.recreate, 0, memory_order_relaxed);
@@ -27,7 +26,7 @@ static inline bool _gfx_swapchain_sig(_GFXWindow* window)
  * @param formats Cannot be NULL.
  * @return Chosen index into formats.
  */
-static uint32_t _gfx_swapchain_pick_format(_GFXDevice* device,
+static uint32_t gfx_swapchain_pick_format_(GFXDevice_* device,
                                            uint32_t count,
                                            const VkSurfaceFormatKHR* formats)
 {
@@ -43,7 +42,7 @@ static uint32_t _gfx_swapchain_pick_format(_GFXDevice* device,
 	{
 		if (
 			formats[f].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
-			_gfx_parse_format(device, formats[f].format).type == GFX_SRGB)
+			gfx_parse_format_(device, formats[f].format).type == GFX_SRGB)
 		{
 			index = f;
 			break;
@@ -75,14 +74,14 @@ static uint32_t _gfx_swapchain_pick_format(_GFXDevice* device,
  * The current contents of flags is taken in consideration for its new value,
  * only thrown out when overridden.
  */
-static bool _gfx_swapchain_recreate(_GFXWindow* window,
-                                    _GFXRecreateFlags* flags)
+static bool gfx_swapchain_recreate_(GFXWindow_* window,
+                                    GFXRecreateFlags_* flags)
 {
 	assert(window != NULL);
 	assert(flags != NULL);
 
-	_GFXDevice* device = window->device;
-	_GFXContext* context = window->context;
+	GFXDevice_* device = window->device;
+	GFXContext_* context = window->context;
 
 	// Preemptively release the images, as those will not be relevant anymore.
 	// We do not free the images as the count will likely never change.
@@ -94,7 +93,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 	// Also reset the recreate signal, in case it was set again, in this
 	// scenario we don't need to recreate AGAIN because we already have the
 	// correct inputs at this point.
-	_gfx_mutex_lock(&window->frame.lock);
+	gfx_mutex_lock_(&window->frame.lock);
 
 	atomic_store_explicit(&window->frame.recreate, 0, memory_order_relaxed);
 
@@ -102,7 +101,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 	const uint32_t height = window->frame.rHeight;
 	const GFXWindowFlags wFlags = window->frame.flags;
 
-	_gfx_mutex_unlock(&window->frame.lock);
+	gfx_mutex_unlock_(&window->frame.lock);
 
 	// If the size is 0x0, do not create anything.
 	if (width == 0 || height == 0)
@@ -110,7 +109,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 		// If something exists, mark it as old.
 		if (window->vk.swapchain != VK_NULL_HANDLE)
 		{
-			*flags |= (_GFX_RECREATE | _GFX_RESIZE);
+			*flags |= (GFX_RECREATE_ | GFX_RESIZE_);
 			window->vk.oldSwapchain = window->vk.swapchain;
 			window->vk.swapchain = VK_NULL_HANDLE;
 		}
@@ -124,16 +123,16 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 
 	// Ok we are recreating, add flags to the recreate output as necessary,
 	// in case the swapchain got rejected because it was already out of date..
-	*flags |= _GFX_RECREATE;
+	*flags |= GFX_RECREATE_;
 
 	// Get all formats, present modes and capabilities of the device.
 	uint32_t fCount;
 	uint32_t mCount;
 
-	_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
+	GFX_VK_CHECK_(groufix_.vk.GetPhysicalDeviceSurfaceFormatsKHR(
 		device->vk.device, window->vk.surface, &fCount, NULL), goto clean);
 
-	_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfacePresentModesKHR(
+	GFX_VK_CHECK_(groufix_.vk.GetPhysicalDeviceSurfacePresentModesKHR(
 		device->vk.device, window->vk.surface, &mCount, NULL), goto clean);
 
 	if (fCount == 0 || mCount == 0)
@@ -145,13 +144,13 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 		VkSurfaceFormatKHR formats[fCount];
 		VkPresentModeKHR modes[mCount];
 
-		_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+		GFX_VK_CHECK_(groufix_.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(
 			device->vk.device, window->vk.surface, &sc), goto clean);
 
-		_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
+		GFX_VK_CHECK_(groufix_.vk.GetPhysicalDeviceSurfaceFormatsKHR(
 			device->vk.device, window->vk.surface, &fCount, formats), goto clean);
 
-		_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfacePresentModesKHR(
+		GFX_VK_CHECK_(groufix_.vk.GetPhysicalDeviceSurfacePresentModesKHR(
 			device->vk.device, window->vk.surface, &mCount, modes), goto clean);
 
 		// Decide on the number of required present images.
@@ -167,11 +166,11 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 			GFX_CLAMP(imageCount, sc.minImageCount, sc.maxImageCount);
 
 		// Decide on the image format + color space to use.
-		uint32_t f = _gfx_swapchain_pick_format(device, fCount, formats);
+		uint32_t f = gfx_swapchain_pick_format_(device, fCount, formats);
 
 		if (window->frame.format != formats[f].format)
 		{
-			*flags |= _GFX_REFORMAT;
+			*flags |= GFX_REFORMAT_;
 			window->frame.format = formats[f].format;
 		}
 
@@ -194,7 +193,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 			window->frame.width != extent.width ||
 			window->frame.height != extent.height)
 		{
-			*flags |= _GFX_RESIZE;
+			*flags |= GFX_RESIZE_;
 			window->frame.width = extent.width;
 			window->frame.height = extent.height;
 		}
@@ -259,7 +258,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 				(window->access[1] != UINT32_MAX) ? window->access : NULL
 		};
 
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.CreateSwapchainKHR(
 				context->vk.device, &sci, NULL, &window->vk.swapchain),
 			goto clean);
@@ -284,7 +283,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 		// Query all the images associated with the swapchain
 		// and remember them for later usage.
 		uint32_t count = 0;
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.GetSwapchainImagesKHR(
 				context->vk.device, window->vk.swapchain, &count, NULL),
 			goto clean);
@@ -295,7 +294,7 @@ static bool _gfx_swapchain_recreate(_GFXWindow* window,
 
 		gfx_vec_push(&window->frame.images, count, NULL);
 
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.GetSwapchainImagesKHR(
 				context->vk.device, window->vk.swapchain, &count,
 				window->frame.images.data),
@@ -328,7 +327,7 @@ clean:
 }
 
 /****************************/
-bool _gfx_swapchain_format(_GFXWindow* window)
+bool gfx_swapchain_format_(GFXWindow_* window)
 {
 	assert(window != NULL);
 
@@ -337,44 +336,44 @@ bool _gfx_swapchain_format(_GFXWindow* window)
 		return 1;
 
 	// If not, get all formats of the device.
-	_GFXDevice* device = window->device;
+	GFXDevice_* device = window->device;
 
 	uint32_t fCount;
-	_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
+	GFX_VK_CHECK_(groufix_.vk.GetPhysicalDeviceSurfaceFormatsKHR(
 		device->vk.device, window->vk.surface, &fCount, NULL), return 0);
 
 	if (fCount == 0) return 0;
 
 	VkSurfaceFormatKHR formats[fCount];
-	_GFX_VK_CHECK(_groufix.vk.GetPhysicalDeviceSurfaceFormatsKHR(
+	GFX_VK_CHECK_(groufix_.vk.GetPhysicalDeviceSurfaceFormatsKHR(
 		device->vk.device, window->vk.surface, &fCount, formats), return 0);
 
 	// Then pick & set.
-	uint32_t f = _gfx_swapchain_pick_format(device, fCount, formats);
+	uint32_t f = gfx_swapchain_pick_format_(device, fCount, formats);
 	window->frame.format = formats[f].format;
 
 	return 1;
 }
 
 /****************************/
-uint32_t _gfx_swapchain_acquire(_GFXWindow* window, VkSemaphore available,
-                                _GFXRecreateFlags* flags)
+uint32_t gfx_swapchain_acquire_(GFXWindow_* window, VkSemaphore available,
+                                GFXRecreateFlags_* flags)
 {
 	assert(window != NULL);
 	assert(flags != NULL);
 
 	*flags = 0;
-	_GFXContext* context = window->context;
+	GFXContext_* context = window->context;
 
 	// We check the recreate signal, just before acquiring a new image.
 	// If we acquired without recreating, the new image would be useless.
-	// If there is no swapchain, _gfx_swapchain_recreate will reset the signal.
+	// If there is no swapchain, gfx_swapchain_recreate_ will reset the signal.
 	bool recreate =
 		window->vk.swapchain == VK_NULL_HANDLE ||
-		_gfx_swapchain_sig(window);
+		gfx_swapchain_sig_(window);
 
 recreate:
-	if (recreate && !_gfx_swapchain_recreate(window, flags))
+	if (recreate && !gfx_swapchain_recreate_(window, flags))
 		goto error;
 
 	// Check non-error invalidity, could happen when framebuffer size is 0x0.
@@ -416,7 +415,7 @@ recreate:
 
 	// If something else happened, treat as fatal error.
 	default:
-		_GFX_VK_CHECK(result, {});
+		GFX_VK_CHECK_(result, {});
 	}
 
 
@@ -430,10 +429,10 @@ error:
 }
 
 /****************************/
-void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
+void gfx_swapchains_present_(GFXQueue_ present, VkSemaphore rendered,
                              size_t num,
-                             _GFXWindow** windows, const uint32_t* indices,
-                             _GFXRecreateFlags* flags)
+                             GFXWindow_** windows, const uint32_t* indices,
+                             GFXRecreateFlags_* flags)
 {
 	assert(rendered != VK_NULL_HANDLE);
 	assert(num > 0);
@@ -442,7 +441,7 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 	assert(flags != NULL);
 
 	// Just take a random context lol (they're required to be same anyway).
-	_GFXContext* context = windows[0]->context;
+	GFXContext_* context = windows[0]->context;
 
 	// Now queue a presentation request.
 	// This would swap all the acquired images to the screen :)
@@ -466,9 +465,9 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 	};
 
 	// Lock queue and submit.
-	_gfx_mutex_lock(present.lock);
+	gfx_mutex_lock_(present.lock);
 	context->vk.QueuePresentKHR(present.vk.queue, &pi);
-	_gfx_mutex_unlock(present.lock);
+	gfx_mutex_unlock_(present.lock);
 
 	// Now go over each window and handle the results as appropriate.
 	for (size_t i = 0; i < num; ++i)
@@ -476,20 +475,20 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 		flags[i] = 0; // Default flags to 0.
 
 		// Check if the recreate signal was set, makes sure it's reset also.
-		bool recreate = _gfx_swapchain_sig(windows[i]);
+		bool recreate = gfx_swapchain_sig_(windows[i]);
 
 		switch (results[i])
 		{
 		// If success, only try to recreate if necessary.
 		case VK_SUCCESS:
-			if (recreate) _gfx_swapchain_recreate(windows[i], flags + i);
+			if (recreate) gfx_swapchain_recreate_(windows[i], flags + i);
 			break;
 
 		// If swapchain is suboptimal for some reason, recreate it.
 		// We did a lot of work and everything is submitted, so this is a good
 		// opportunity to recreate (as opposed to after image acquisition).
 		case VK_SUBOPTIMAL_KHR:
-			_gfx_swapchain_recreate(windows[i], flags + i);
+			gfx_swapchain_recreate_(windows[i], flags + i);
 			break;
 
 		// If swapchain is out of date, recreate it and return.
@@ -500,12 +499,12 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 				"instead try to recreate the swapchain.",
 				windows[i]->device->name);
 
-			_gfx_swapchain_recreate(windows[i], flags + i);
+			gfx_swapchain_recreate_(windows[i], flags + i);
 			break;
 
 		// If something else happened, treat as fatal error.
 		default:
-			_GFX_VK_CHECK(results[i], {});
+			GFX_VK_CHECK_(results[i], {});
 			gfx_log_fatal(
 				"[ %s ] could not present an image to a swapchain.",
 				windows[i]->device->name);
@@ -514,11 +513,11 @@ void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
 }
 
 /****************************/
-void _gfx_swapchain_purge(_GFXWindow* window)
+void gfx_swapchain_purge_(GFXWindow_* window)
 {
 	assert(window != NULL);
 
-	_GFXContext* context = window->context;
+	GFXContext_* context = window->context;
 
 	// Destroy all retired swapchains!
 	for (size_t i = 0; i < window->vk.retired.size; ++i)

@@ -7,8 +7,8 @@
  */
 
 
-#ifndef _GFX_CORE_H
-#define _GFX_CORE_H
+#ifndef GFX_CORE_H_
+#define GFX_CORE_H_
 
 #include "groufix/containers/io.h"
 #include "groufix/containers/list.h"
@@ -25,43 +25,43 @@
 
 
 // Least Vulkan version that must be supported.
-#define _GFX_VK_API_VERSION VK_MAKE_API_VERSION(0,1,1,0)
+#define GFX_VK_API_VERSION_ VK_MAKE_API_VERSION(0,1,1,0)
 
 // Vulkan function pointer.
-#define _GFX_VK_PFN(pName) PFN_vk##pName pName
+#define GFX_VK_PFN_(pName) PFN_vk##pName pName
 
 // Auto log the result of a call with return type VkResult.
-#define _GFX_VK_CHECK(eval, action) \
+#define GFX_VK_CHECK_(eval, action) \
 	do { \
-		VkResult _gfx_vk_result = eval; \
-		if (_gfx_vk_result != VK_SUCCESS) { \
+		VkResult gfx_vk_result_ = eval; \
+		if (gfx_vk_result_ != VK_SUCCESS) { \
 			gfx_log_error("Vulkan: %s", \
-				_gfx_vulkan_result_string(_gfx_vk_result)); \
+				gfx_vulkan_result_string_(gfx_vk_result_)); \
 			action; \
 		} \
 	} while (0)
 
 // User device handle (can be NULL) to internal handle, assigned to an lvalue.
-#define _GFX_GET_DEVICE(lvalue, device) \
+#define GFX_GET_DEVICE_(lvalue, device) \
 	do { \
-		lvalue = (_GFXDevice*)(device == NULL ? \
+		lvalue = (GFXDevice_*)(device == NULL ? \
 			gfx_get_primary_device() : device); \
 	} while (0)
 
 // Ensures a Vulkan context exists for a device and assignes it to an lvalue.
-#define _GFX_GET_CONTEXT(lvalue, device, action) \
+#define GFX_GET_CONTEXT_(lvalue, device, action) \
 	do { \
-		lvalue = _gfx_device_init_context((_GFXDevice*)(device == NULL ? \
+		lvalue = gfx_device_init_context_((GFXDevice_*)(device == NULL ? \
 			gfx_get_primary_device() : device)); \
 		if (lvalue == NULL) \
 			action; \
 	} while (0)
 
 // Resolves a constrained input/output format and assigns it to another lvalue.
-#define _GFX_RESOLVE_FORMAT(ioFmt, vkFmt, device, props, action) \
+#define GFX_RESOLVE_FORMAT_(ioFmt, vkFmt, device, props, action) \
 	do { \
-		VkFormatProperties _gfx_vk_props = props; \
-		vkFmt = _gfx_resolve_format(device, &(ioFmt), &_gfx_vk_props); \
+		VkFormatProperties gfx_vk_props_ = props; \
+		vkFmt = gfx_resolve_format_(device, &(ioFmt), &gfx_vk_props_); \
 		if (vkFmt == VK_FORMAT_UNDEFINED) \
 			action; \
 	} while (0)
@@ -70,7 +70,7 @@
 /**
  * Thread local data.
  */
-typedef struct _GFXThreadState
+typedef struct GFXThreadState_
 {
 	uintmax_t id;
 
@@ -83,27 +83,27 @@ typedef struct _GFXThreadState
 
 	} log;
 
-} _GFXThreadState;
+} GFXThreadState_;
 
 
 /**
  * groufix global data, i.e. groufix state.
  */
-typedef struct _GFXState
+typedef struct GFXState_
 {
 	atomic_bool initialized;
 
 	// Only pre-initialized field besides `initialized`.
 	GFXLogLevel logDef;
 
-	_GFXClock clock;
+	GFXClock_ clock;
 
-	GFXVec  devices;  // Stores _GFXDevice (never changes, so not dynamic).
-	GFXList contexts; // References _GFXContext.
-	GFXVec  monitors; // Stores _GFXMonitor* (pointers for access by index).
-	GFXVec  gamepads; // Stores _GFXGamepad* (pointers for access by index).
+	GFXVec  devices;  // Stores GFXDevice_ (never changes, so not dynamic).
+	GFXList contexts; // References GFXContext_.
+	GFXVec  monitors; // Stores GFXMonitor_* (pointers for access by index).
+	GFXVec  gamepads; // Stores GFXGamepad_* (pointers for access by index).
 
-	_GFXMutex contextLock;
+	GFXMutex_ contextLock;
 
 	// Monitor configuration change.
 	void (*monitorEvent)(GFXMonitor*, bool);
@@ -115,8 +115,8 @@ typedef struct _GFXState
 	// Thread local data access.
 	struct
 	{
-		_GFXThreadKey key; // Stores _GFXThreadState*.
-		_GFXMutex     ioLock;
+		GFXThreadKey_ key; // Stores GFXThreadState_*.
+		GFXMutex_     ioLock;
 
 		// Next thread id.
 		atomic_uintmax_t id;
@@ -132,37 +132,37 @@ typedef struct _GFXState
 		VkDebugUtilsMessengerEXT messenger;
 #endif
 
-		_GFX_VK_PFN(CreateInstance);
-		_GFX_VK_PFN(EnumerateInstanceVersion);
+		GFX_VK_PFN_(CreateInstance);
+		GFX_VK_PFN_(EnumerateInstanceVersion);
 
 #if !defined (NDEBUG)
-		_GFX_VK_PFN(CreateDebugUtilsMessengerEXT);
-		_GFX_VK_PFN(DestroyDebugUtilsMessengerEXT);
+		GFX_VK_PFN_(CreateDebugUtilsMessengerEXT);
+		GFX_VK_PFN_(DestroyDebugUtilsMessengerEXT);
 #endif
-		_GFX_VK_PFN(CreateDevice);
-		_GFX_VK_PFN(DestroyInstance);
-		_GFX_VK_PFN(DestroySurfaceKHR);
+		GFX_VK_PFN_(CreateDevice);
+		GFX_VK_PFN_(DestroyInstance);
+		GFX_VK_PFN_(DestroySurfaceKHR);
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
-		_GFX_VK_PFN(EnumerateDeviceExtensionProperties);
+		GFX_VK_PFN_(EnumerateDeviceExtensionProperties);
 #endif
-		_GFX_VK_PFN(EnumeratePhysicalDeviceGroups);
-		_GFX_VK_PFN(EnumeratePhysicalDevices);
-		_GFX_VK_PFN(GetDeviceProcAddr);
-		_GFX_VK_PFN(GetPhysicalDeviceFeatures);
-		_GFX_VK_PFN(GetPhysicalDeviceFeatures2);
-		_GFX_VK_PFN(GetPhysicalDeviceFormatProperties);
-		_GFX_VK_PFN(GetPhysicalDeviceMemoryProperties);
-		_GFX_VK_PFN(GetPhysicalDeviceProperties);
-		_GFX_VK_PFN(GetPhysicalDeviceProperties2);
-		_GFX_VK_PFN(GetPhysicalDeviceQueueFamilyProperties);
-		_GFX_VK_PFN(GetPhysicalDeviceSurfaceCapabilitiesKHR);
-		_GFX_VK_PFN(GetPhysicalDeviceSurfaceFormatsKHR);
-		_GFX_VK_PFN(GetPhysicalDeviceSurfacePresentModesKHR);
-		_GFX_VK_PFN(GetPhysicalDeviceSurfaceSupportKHR);
+		GFX_VK_PFN_(EnumeratePhysicalDeviceGroups);
+		GFX_VK_PFN_(EnumeratePhysicalDevices);
+		GFX_VK_PFN_(GetDeviceProcAddr);
+		GFX_VK_PFN_(GetPhysicalDeviceFeatures);
+		GFX_VK_PFN_(GetPhysicalDeviceFeatures2);
+		GFX_VK_PFN_(GetPhysicalDeviceFormatProperties);
+		GFX_VK_PFN_(GetPhysicalDeviceMemoryProperties);
+		GFX_VK_PFN_(GetPhysicalDeviceProperties);
+		GFX_VK_PFN_(GetPhysicalDeviceProperties2);
+		GFX_VK_PFN_(GetPhysicalDeviceQueueFamilyProperties);
+		GFX_VK_PFN_(GetPhysicalDeviceSurfaceCapabilitiesKHR);
+		GFX_VK_PFN_(GetPhysicalDeviceSurfaceFormatsKHR);
+		GFX_VK_PFN_(GetPhysicalDeviceSurfacePresentModesKHR);
+		GFX_VK_PFN_(GetPhysicalDeviceSurfaceSupportKHR);
 
 	} vk;
 
-} _GFXState;
+} GFXState_;
 
 
 /****************************
@@ -172,7 +172,7 @@ typedef struct _GFXState
 /**
  * Logical (actually created) Vulkan queue family.
  */
-typedef struct _GFXQueueSet
+typedef struct GFXQueueSet_
 {
 	GFXListNode list; // Base-type.
 
@@ -182,19 +182,19 @@ typedef struct _GFXQueueSet
 	uint32_t     family;   // Vulkan family index.
 
 	size_t       count;
-	_GFXMutex    locks[]; // Count mutexes, one for each queue.
+	GFXMutex_    locks[]; // Count mutexes, one for each queue.
 
-} _GFXQueueSet;
+} GFXQueueSet_;
 
 
 /**
  * Logical Vulkan queue handle.
  */
-typedef struct _GFXQueue
+typedef struct GFXQueue_
 {
 	uint32_t   family; // Vulkan family index.
 	uint32_t   index;  // Vulkan queue index.
-	_GFXMutex* lock;
+	GFXMutex_* lock;
 
 
 	// Vulkan fields.
@@ -204,23 +204,23 @@ typedef struct _GFXQueue
 
 	} vk;
 
-} _GFXQueue;
+} GFXQueue_;
 
 
 /**
  * Logical Vulkan context.
  */
-typedef struct _GFXContext
+typedef struct GFXContext_
 {
 	GFXListNode list; // Base-type.
-	GFXList     sets; // References _GFXQueueSet.
+	GFXList     sets; // References GFXQueueSet_.
 
 
 	// Supported feature flags.
 	enum
 	{
-		_GFX_SUPPORT_GEOMETRY_SHADER     = 0x0001,
-		_GFX_SUPPORT_TESSELLATION_SHADER = 0x0002
+		GFX_SUPPORT_GEOMETRY_SHADER_     = 0x0001,
+		GFX_SUPPORT_TESSELLATION_SHADER_ = 0x0002
 
 	} features;
 
@@ -230,13 +230,13 @@ typedef struct _GFXContext
 	{
 		// Memory limit.
 		uint32_t  maxAllocs;
-		_GFXMutex allocLock;
+		GFXMutex_ allocLock;
 
 		atomic_uint_fast32_t allocs;
 
 		// Sampler limit.
 		uint32_t  maxSamplers;
-		_GFXMutex samplerLock;
+		GFXMutex_ samplerLock;
 
 		atomic_uint_fast32_t samplers;
 
@@ -251,99 +251,99 @@ typedef struct _GFXContext
 	{
 		VkDevice device;
 
-		_GFX_VK_PFN(AcquireNextImageKHR);
-		_GFX_VK_PFN(AllocateCommandBuffers);
-		_GFX_VK_PFN(AllocateDescriptorSets);
-		_GFX_VK_PFN(AllocateMemory);
-		_GFX_VK_PFN(BeginCommandBuffer);
-		_GFX_VK_PFN(BindBufferMemory);
-		_GFX_VK_PFN(BindImageMemory);
-		_GFX_VK_PFN(CmdBeginRenderPass);
-		_GFX_VK_PFN(CmdBindDescriptorSets);
-		_GFX_VK_PFN(CmdBindIndexBuffer);
-		_GFX_VK_PFN(CmdBindPipeline);
-		_GFX_VK_PFN(CmdBindVertexBuffers);
-		_GFX_VK_PFN(CmdBlitImage);
-		_GFX_VK_PFN(CmdCopyBuffer);
-		_GFX_VK_PFN(CmdCopyImage);
-		_GFX_VK_PFN(CmdCopyBufferToImage);
-		_GFX_VK_PFN(CmdCopyImageToBuffer);
-		_GFX_VK_PFN(CmdDispatch);
-		_GFX_VK_PFN(CmdDispatchBase);
-		_GFX_VK_PFN(CmdDispatchIndirect);
-		_GFX_VK_PFN(CmdDraw);
-		_GFX_VK_PFN(CmdDrawIndexed);
-		_GFX_VK_PFN(CmdDrawIndexedIndirect);
-		_GFX_VK_PFN(CmdDrawIndirect);
-		_GFX_VK_PFN(CmdEndRenderPass);
-		_GFX_VK_PFN(CmdExecuteCommands);
-		_GFX_VK_PFN(CmdNextSubpass);
-		_GFX_VK_PFN(CmdPipelineBarrier);
-		_GFX_VK_PFN(CmdPushConstants);
-		_GFX_VK_PFN(CmdResolveImage);
-		_GFX_VK_PFN(CmdSetLineWidth);
-		_GFX_VK_PFN(CmdSetScissor);
-		_GFX_VK_PFN(CmdSetViewport);
-		_GFX_VK_PFN(CreateBuffer);
-		_GFX_VK_PFN(CreateBufferView);
-		_GFX_VK_PFN(CreateCommandPool);
-		_GFX_VK_PFN(CreateComputePipelines);
-		_GFX_VK_PFN(CreateDescriptorPool);
-		_GFX_VK_PFN(CreateDescriptorSetLayout);
-		_GFX_VK_PFN(CreateDescriptorUpdateTemplate);
-		_GFX_VK_PFN(CreateFence);
-		_GFX_VK_PFN(CreateFramebuffer);
-		_GFX_VK_PFN(CreateGraphicsPipelines);
-		_GFX_VK_PFN(CreateImage);
-		_GFX_VK_PFN(CreateImageView);
-		_GFX_VK_PFN(CreatePipelineCache);
-		_GFX_VK_PFN(CreatePipelineLayout);
-		_GFX_VK_PFN(CreateRenderPass);
-		_GFX_VK_PFN(CreateSampler);
-		_GFX_VK_PFN(CreateSemaphore);
-		_GFX_VK_PFN(CreateShaderModule);
-		_GFX_VK_PFN(CreateSwapchainKHR);
-		_GFX_VK_PFN(DestroyBuffer);
-		_GFX_VK_PFN(DestroyBufferView);
-		_GFX_VK_PFN(DestroyCommandPool);
-		_GFX_VK_PFN(DestroyDescriptorPool);
-		_GFX_VK_PFN(DestroyDescriptorSetLayout);
-		_GFX_VK_PFN(DestroyDescriptorUpdateTemplate);
-		_GFX_VK_PFN(DestroyDevice);
-		_GFX_VK_PFN(DestroyFence);
-		_GFX_VK_PFN(DestroyFramebuffer);
-		_GFX_VK_PFN(DestroyImage);
-		_GFX_VK_PFN(DestroyImageView);
-		_GFX_VK_PFN(DestroyPipeline);
-		_GFX_VK_PFN(DestroyPipelineCache);
-		_GFX_VK_PFN(DestroyPipelineLayout);
-		_GFX_VK_PFN(DestroyRenderPass);
-		_GFX_VK_PFN(DestroySampler);
-		_GFX_VK_PFN(DestroySemaphore);
-		_GFX_VK_PFN(DestroyShaderModule);
-		_GFX_VK_PFN(DestroySwapchainKHR);
-		_GFX_VK_PFN(DeviceWaitIdle);
-		_GFX_VK_PFN(EndCommandBuffer);
-		_GFX_VK_PFN(FreeCommandBuffers);
-		_GFX_VK_PFN(FreeMemory);
-		_GFX_VK_PFN(GetBufferMemoryRequirements);
-		_GFX_VK_PFN(GetBufferMemoryRequirements2);
-		_GFX_VK_PFN(GetDeviceQueue);
-		_GFX_VK_PFN(GetFenceStatus);
-		_GFX_VK_PFN(GetImageMemoryRequirements);
-		_GFX_VK_PFN(GetImageMemoryRequirements2);
-		_GFX_VK_PFN(GetPipelineCacheData);
-		_GFX_VK_PFN(GetSwapchainImagesKHR);
-		_GFX_VK_PFN(MapMemory);
-		_GFX_VK_PFN(MergePipelineCaches);
-		_GFX_VK_PFN(QueuePresentKHR);
-		_GFX_VK_PFN(QueueSubmit);
-		_GFX_VK_PFN(ResetCommandPool);
-		_GFX_VK_PFN(ResetDescriptorPool);
-		_GFX_VK_PFN(ResetFences);
-		_GFX_VK_PFN(UnmapMemory);
-		_GFX_VK_PFN(UpdateDescriptorSetWithTemplate);
-		_GFX_VK_PFN(WaitForFences);
+		GFX_VK_PFN_(AcquireNextImageKHR);
+		GFX_VK_PFN_(AllocateCommandBuffers);
+		GFX_VK_PFN_(AllocateDescriptorSets);
+		GFX_VK_PFN_(AllocateMemory);
+		GFX_VK_PFN_(BeginCommandBuffer);
+		GFX_VK_PFN_(BindBufferMemory);
+		GFX_VK_PFN_(BindImageMemory);
+		GFX_VK_PFN_(CmdBeginRenderPass);
+		GFX_VK_PFN_(CmdBindDescriptorSets);
+		GFX_VK_PFN_(CmdBindIndexBuffer);
+		GFX_VK_PFN_(CmdBindPipeline);
+		GFX_VK_PFN_(CmdBindVertexBuffers);
+		GFX_VK_PFN_(CmdBlitImage);
+		GFX_VK_PFN_(CmdCopyBuffer);
+		GFX_VK_PFN_(CmdCopyImage);
+		GFX_VK_PFN_(CmdCopyBufferToImage);
+		GFX_VK_PFN_(CmdCopyImageToBuffer);
+		GFX_VK_PFN_(CmdDispatch);
+		GFX_VK_PFN_(CmdDispatchBase);
+		GFX_VK_PFN_(CmdDispatchIndirect);
+		GFX_VK_PFN_(CmdDraw);
+		GFX_VK_PFN_(CmdDrawIndexed);
+		GFX_VK_PFN_(CmdDrawIndexedIndirect);
+		GFX_VK_PFN_(CmdDrawIndirect);
+		GFX_VK_PFN_(CmdEndRenderPass);
+		GFX_VK_PFN_(CmdExecuteCommands);
+		GFX_VK_PFN_(CmdNextSubpass);
+		GFX_VK_PFN_(CmdPipelineBarrier);
+		GFX_VK_PFN_(CmdPushConstants);
+		GFX_VK_PFN_(CmdResolveImage);
+		GFX_VK_PFN_(CmdSetLineWidth);
+		GFX_VK_PFN_(CmdSetScissor);
+		GFX_VK_PFN_(CmdSetViewport);
+		GFX_VK_PFN_(CreateBuffer);
+		GFX_VK_PFN_(CreateBufferView);
+		GFX_VK_PFN_(CreateCommandPool);
+		GFX_VK_PFN_(CreateComputePipelines);
+		GFX_VK_PFN_(CreateDescriptorPool);
+		GFX_VK_PFN_(CreateDescriptorSetLayout);
+		GFX_VK_PFN_(CreateDescriptorUpdateTemplate);
+		GFX_VK_PFN_(CreateFence);
+		GFX_VK_PFN_(CreateFramebuffer);
+		GFX_VK_PFN_(CreateGraphicsPipelines);
+		GFX_VK_PFN_(CreateImage);
+		GFX_VK_PFN_(CreateImageView);
+		GFX_VK_PFN_(CreatePipelineCache);
+		GFX_VK_PFN_(CreatePipelineLayout);
+		GFX_VK_PFN_(CreateRenderPass);
+		GFX_VK_PFN_(CreateSampler);
+		GFX_VK_PFN_(CreateSemaphore);
+		GFX_VK_PFN_(CreateShaderModule);
+		GFX_VK_PFN_(CreateSwapchainKHR);
+		GFX_VK_PFN_(DestroyBuffer);
+		GFX_VK_PFN_(DestroyBufferView);
+		GFX_VK_PFN_(DestroyCommandPool);
+		GFX_VK_PFN_(DestroyDescriptorPool);
+		GFX_VK_PFN_(DestroyDescriptorSetLayout);
+		GFX_VK_PFN_(DestroyDescriptorUpdateTemplate);
+		GFX_VK_PFN_(DestroyDevice);
+		GFX_VK_PFN_(DestroyFence);
+		GFX_VK_PFN_(DestroyFramebuffer);
+		GFX_VK_PFN_(DestroyImage);
+		GFX_VK_PFN_(DestroyImageView);
+		GFX_VK_PFN_(DestroyPipeline);
+		GFX_VK_PFN_(DestroyPipelineCache);
+		GFX_VK_PFN_(DestroyPipelineLayout);
+		GFX_VK_PFN_(DestroyRenderPass);
+		GFX_VK_PFN_(DestroySampler);
+		GFX_VK_PFN_(DestroySemaphore);
+		GFX_VK_PFN_(DestroyShaderModule);
+		GFX_VK_PFN_(DestroySwapchainKHR);
+		GFX_VK_PFN_(DeviceWaitIdle);
+		GFX_VK_PFN_(EndCommandBuffer);
+		GFX_VK_PFN_(FreeCommandBuffers);
+		GFX_VK_PFN_(FreeMemory);
+		GFX_VK_PFN_(GetBufferMemoryRequirements);
+		GFX_VK_PFN_(GetBufferMemoryRequirements2);
+		GFX_VK_PFN_(GetDeviceQueue);
+		GFX_VK_PFN_(GetFenceStatus);
+		GFX_VK_PFN_(GetImageMemoryRequirements);
+		GFX_VK_PFN_(GetImageMemoryRequirements2);
+		GFX_VK_PFN_(GetPipelineCacheData);
+		GFX_VK_PFN_(GetSwapchainImagesKHR);
+		GFX_VK_PFN_(MapMemory);
+		GFX_VK_PFN_(MergePipelineCaches);
+		GFX_VK_PFN_(QueuePresentKHR);
+		GFX_VK_PFN_(QueueSubmit);
+		GFX_VK_PFN_(ResetCommandPool);
+		GFX_VK_PFN_(ResetDescriptorPool);
+		GFX_VK_PFN_(ResetFences);
+		GFX_VK_PFN_(UnmapMemory);
+		GFX_VK_PFN_(UpdateDescriptorSetWithTemplate);
+		GFX_VK_PFN_(WaitForFences);
 
 	} vk;
 
@@ -352,7 +352,7 @@ typedef struct _GFXContext
 	size_t           numDevices;
 	VkPhysicalDevice devices[];
 
-} _GFXContext;
+} GFXContext_;
 
 
 /****************************
@@ -362,7 +362,7 @@ typedef struct _GFXContext
 /**
  * Internal physical device.
  */
-typedef struct _GFXDevice
+typedef struct GFXDevice_
 {
 	GFXDevice    base;
 	uint32_t     api; // Vulkan API version.
@@ -374,8 +374,8 @@ typedef struct _GFXDevice
 	bool         subset; // If it is a non-conformant Vulkan implementation.
 #endif
 
-	_GFXContext* context;
-	_GFXMutex    lock; // For initial context access.
+	GFXContext_* context;
+	GFXMutex_    lock; // For initial context access.
 
 	// Stores { GFXFormat, VkFormat, VkFormatProperties }.
 	GFXVec formats;
@@ -388,13 +388,13 @@ typedef struct _GFXDevice
 
 	} vk;
 
-} _GFXDevice;
+} GFXDevice_;
 
 
 /**
  * Internal monitor.
  */
-typedef struct _GFXMonitor
+typedef struct GFXMonitor_
 {
 	GFXMonitor   base;
 	GLFWmonitor* handle;
@@ -402,31 +402,31 @@ typedef struct _GFXMonitor
 	size_t       numModes;
 	GFXVideoMode modes[]; // Available video modes.
 
-} _GFXMonitor;
+} GFXMonitor_;
 
 
 /**
  * Internal gamepad.
  */
-typedef struct _GFXGamepad
+typedef struct GFXGamepad_
 {
 	GFXGamepad base;
 	int        jid;
 
-} _GFXGamepad;
+} GFXGamepad_;
 
 
 /**
  * Internal window.
  */
-typedef struct _GFXWindow
+typedef struct GFXWindow_
 {
 	GFXWindow    base;
 	GLFWwindow*  handle;
 	GFXList      events; // References { GFXListNode, GFXWindowEvents, ... }.
 
-	_GFXDevice*  device; // Associated GPU to build a swapchain on.
-	_GFXContext* context;
+	GFXDevice_*  device; // Associated GPU to build a swapchain on.
+	GFXContext_* context;
 	uint32_t     access[2]; // All Vulkan families with image access (UINT32_MAX for empty).
 
 	// Swapchain 'lock' (window can only be used by one renderer).
@@ -448,7 +448,7 @@ typedef struct _GFXWindow
 		uint32_t       rWidth;  // Future width.
 		uint32_t       rHeight; // Future height.
 		GFXWindowFlags flags;   // Determines number of images.
-		_GFXMutex      lock;
+		GFXMutex_      lock;
 
 	} frame;
 
@@ -463,7 +463,7 @@ typedef struct _GFXWindow
 
 	} vk;
 
-} _GFXWindow;
+} GFXWindow_;
 
 
 /****************************
@@ -473,62 +473,62 @@ typedef struct _GFXWindow
 /**
  * The only instance of global groufix state data.
  */
-extern _GFXState _groufix;
+extern GFXState_ groufix_;
 
 
 /**
  * The default logger (defaults to stderr) when no groufix state is known.
  */
-extern GFXBufWriter _gfx_io_buf_def;
+extern GFXBufWriter gfx_io_buf_def_;
 
 
 /**
  * Reads the default log level from the
  * GROUFIX_DEFAULT_LOG_LEVEL environment variable,
- * if present, it overwrites _groufix.logDef.
+ * if present, it overwrites groufix_.logDef.
  */
-void _gfx_log_set_default_level(void);
+void gfx_log_set_default_level_(void);
 
 /**
  * Initializes global groufix state.
- * _groufix.initialized must be 0, on success it will be set to 1.
+ * groufix_.initialized must be 0, on success it will be set to 1.
  * @return Non-zero on success.
  *
  * This will initialize everything to an empty or non-active state.
  */
-bool _gfx_init(void);
+bool gfx_init_(void);
 
 /**
  * Terminates global groufix state.
- * _groufix.initialized must be 1, after this call it will be set to 0.
- * Must be called by the same thread that called _gfx_state_init.
+ * groufix_.initialized must be 1, after this call it will be set to 0.
+ * Must be called by the same thread that called gfx_state_init_.
  */
-void _gfx_terminate(void);
+void gfx_terminate_(void);
 
 /**
  * Allocates thread local state for the calling thread.
- * _groufix.initialized must be 1.
+ * groufix_.initialized must be 1.
  * May not be called when data is already allocated on the calling thread.
  * @return Non-zero on success.
  *
  * This will initialize everything to an empty or non-active state.
  */
-bool _gfx_create_local(void);
+bool gfx_create_local_(void);
 
 /**
  * Frees thread local state of the calling thread.
- * _groufix.initialized must be 1.
+ * groufix_.initialized must be 1.
  * May not be called when no data is allocated on the calling thread.
- * All threads with local data need to call this before _gfx_state_terminate.
+ * All threads with local data need to call this before gfx_state_terminate_.
  */
-void _gfx_destroy_local(void);
+void gfx_destroy_local_(void);
 
 /**
  * Retrieves thread local state of the calling thread.
- * _groufix.initialized must be 1.
+ * groufix_.initialized must be 1.
  * @return NULL if no state was allocated.
  */
-_GFXThreadState* _gfx_get_local(void);
+GFXThreadState_* gfx_get_local_(void);
 
 
 /****************************
@@ -538,66 +538,66 @@ _GFXThreadState* _gfx_get_local(void);
 /**
  * Retrieves a VkResult as a readable string.
  */
-const char* _gfx_vulkan_result_string(VkResult result);
+const char* gfx_vulkan_result_string_(VkResult result);
 
 /**
  * Initializes Vulkan state.
- * _groufix.vk.instance must be NULL.
- * Must be called by the same thread that called _gfx_state_init.
+ * groufix_.vk.instance must be NULL.
+ * Must be called by the same thread that called gfx_state_init_.
  * @return Non-zero on success.
  */
-bool _gfx_vulkan_init(void);
+bool gfx_vulkan_init_(void);
 
 /**
  * Terminates Vulkan state.
- * Must be called before _gfx_state_terminate, on the same thread.
+ * Must be called before gfx_state_terminate_, on the same thread.
  */
-void _gfx_vulkan_terminate(void);
+void gfx_vulkan_terminate_(void);
 
 /**
  * Initializes internal physical device (e.g. GPU) configuration.
- * _groufix.devices.size must be 0.
- * Must be called by the same thread that called _gfx_vulkan_init.
+ * groufix_.devices.size must be 0.
+ * Must be called by the same thread that called gfx_vulkan_init_.
  * @return Non-zero on success.
  */
-bool _gfx_devices_init(void);
+bool gfx_devices_init_(void);
 
 /**
  * Terminates internal device configuration.
  * This will make sure all divices AND contexts are destroyed.
- * Must be called before _gfx_vulkan_terminate, on the same thread.
+ * Must be called before gfx_vulkan_terminate_, on the same thread.
  */
-void _gfx_devices_terminate(void);
+void gfx_devices_terminate_(void);
 
 /**
  * Initializes internal monitor configuration.
- * _groufix.monitors.size must be 0.
- * Must be called by the same thread that called _gfx_state_init.
+ * groufix_.monitors.size must be 0.
+ * Must be called by the same thread that called gfx_state_init_.
  * @return Non-zero on success.
  */
-bool _gfx_monitors_init(void);
+bool gfx_monitors_init_(void);
 
 /**
  * Terminates internal monitor configuration.
  * This will make sure all monitors are destroyed.
- * Must be called before _gfx_state_terminate, on the same thread.
+ * Must be called before gfx_state_terminate_, on the same thread.
  */
-void _gfx_monitors_terminate(void);
+void gfx_monitors_terminate_(void);
 
 /**
  * Initializes internal gamepad configuration.
- * _groufix.gamepads.size must be 0.
- * Must be called by the same thread that called _gfx_state_init.
+ * groufix_.gamepads.size must be 0.
+ * Must be called by the same thread that called gfx_state_init_.
  * @return Non-zero on success.
  */
-bool _gfx_gamepads_init(void);
+bool gfx_gamepads_init_(void);
 
 /**
  * Terminates internal gamepad configuration.
  * This will make sure all gamepads are destroyed.
- * Must be called before _gfx_state_terminate, on the same thread.
+ * Must be called before gfx_state_terminate_, on the same thread.
  */
-void _gfx_gamepads_terminate(void);
+void gfx_gamepads_terminate_(void);
 
 /**
  * Initializes the groufix/Vulkan format 'dictionary',
@@ -605,7 +605,7 @@ void _gfx_gamepads_terminate(void);
  * @param device Cannot be NULL.
  * @return Non-zero on success.
  */
-bool _gfx_device_init_formats(_GFXDevice* device);
+bool gfx_device_init_formats_(GFXDevice_* device);
 
 /**
  * Resolves a (potentially 'fuzzy') format to a supported Vulkan format.
@@ -615,7 +615,7 @@ bool _gfx_device_init_formats(_GFXDevice* device);
  * @param props  Must-have format properties, may be NULL.
  * @return VK_FORMAT_UNDEFINED if not supported.
  */
-VkFormat _gfx_resolve_format(_GFXDevice* device,
+VkFormat gfx_resolve_format_(GFXDevice_* device,
                              GFXFormat* fmt, const VkFormatProperties* props);
 
 /**
@@ -624,7 +624,7 @@ VkFormat _gfx_resolve_format(_GFXDevice* device,
  * @param fmt    Vulkan format, can be any.
  * @return GFX_FORMAT_EMPTY if not supported.
  */
-GFXFormat _gfx_parse_format(_GFXDevice* device, VkFormat fmt);
+GFXFormat gfx_parse_format_(GFXDevice_* device, VkFormat fmt);
 
 /**
  * Initializes the Vulkan context, no-op if it already exists
@@ -636,7 +636,7 @@ GFXFormat _gfx_parse_format(_GFXDevice* device, VkFormat fmt);
  * Once this function returned succesfully at least once for a given device,
  * we can read device->index and device->context directly without locking.
  */
-_GFXContext* _gfx_device_init_context(_GFXDevice* device);
+GFXContext_* gfx_device_init_context_(GFXDevice_* device);
 
 /**
  * Picks a queue set (i.e. Vulkan family) supporting the given abilities.
@@ -648,24 +648,24 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device);
  * VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_TRANSFER_BIT or VK_QUEUE_COMPUTE_BIT
  * flags are set, this function is guaranteed to succeed.
  */
-_GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
+GFXQueueSet_* gfx_pick_family_(GFXContext_* context, uint32_t* family,
                                VkQueueFlags flags, bool present);
 
 /**
  * Picks a queue from the queue set supporting the given abilities.
  * @param queue Outputs the handle to the picked queue, cannot be NULL.
- * @see _gfx_pick_family.
+ * @see gfx_pick_family_.
  */
-_GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
+GFXQueueSet_* gfx_pick_queue_(GFXContext_* context, GFXQueue_* queue,
                               VkQueueFlags flags, bool present);
 
 /**
  * Retrieves the index of a queue supporting the given abilities.
  * Useful when no queue is used, but identification is necessary.
  * @param set Must support flags and present.
- * @see _gfx_pick_queue.
+ * @see gfx_pick_queue_.
  */
-uint32_t _gfx_queue_index(_GFXQueueSet* set,
+uint32_t gfx_queue_index_(GFXQueueSet_* set,
                           VkQueueFlags flags, bool present);
 
 /**
@@ -677,7 +677,7 @@ uint32_t _gfx_queue_index(_GFXQueueSet* set,
  * families is overwritten with the Vulkan family indices to use.
  * If less than 3 families are to be used, trailing UINT32_MAXs are inserted.
  */
-uint32_t _gfx_filter_families(GFXMemoryFlags flags, uint32_t* families);
+uint32_t gfx_filter_families_(GFXMemoryFlags flags, uint32_t* families);
 
 
 /****************************
@@ -687,15 +687,15 @@ uint32_t _gfx_filter_families(GFXMemoryFlags flags, uint32_t* families);
 /**
  * Image/Swapchain recreate flags.
  */
-typedef enum _GFXRecreateFlags
+typedef enum GFXRecreateFlags_
 {
-	_GFX_RECREATE = 0x0001, // Always set if other flags are set.
-	_GFX_REFORMAT = 0x0002,
-	_GFX_RESIZE   = 0x0004,
+	GFX_RECREATE_ = 0x0001, // Always set if other flags are set.
+	GFX_REFORMAT_ = 0x0002,
+	GFX_RESIZE_   = 0x0004,
 
-	_GFX_RECREATE_ALL = 0x0007
+	GFX_RECREATE_ALL_ = 0x0007
 
-} _GFXRecreateFlags;
+} GFXRecreateFlags_;
 
 
 /**
@@ -703,7 +703,7 @@ typedef enum _GFXRecreateFlags
  * This is used to ensure no two objects try to use the swapchain.
  * @return Non-zero if swapchain was not yet claimed.
  */
-static inline bool _gfx_swapchain_try_lock(_GFXWindow* window)
+static inline bool gfx_swapchain_try_lock_(GFXWindow_* window)
 {
 	return !atomic_exchange_explicit(&window->swap, 1, memory_order_acquire);
 }
@@ -712,7 +712,7 @@ static inline bool _gfx_swapchain_try_lock(_GFXWindow* window)
  * Atomically 'unclaims' the swapchain.
  * Used to allow other objects to claim the swapchain again.
  */
-static inline void _gfx_swapchain_unlock(_GFXWindow* window)
+static inline void gfx_swapchain_unlock_(GFXWindow_* window)
 {
 	atomic_store_explicit(&window->swap, 0, memory_order_release);
 }
@@ -724,7 +724,7 @@ static inline void _gfx_swapchain_unlock(_GFXWindow* window)
  *
  * Not thread-affine, but also not thread-safe.
  */
-bool _gfx_swapchain_format(_GFXWindow* window);
+bool gfx_swapchain_format_(GFXWindow_* window);
 
 /**
  * Acquires the next available image from the swapchain of a window.
@@ -736,36 +736,36 @@ bool _gfx_swapchain_format(_GFXWindow* window);
  * Not thread-affine, but also not thread-safe.
  * Recreate flags are also set if resized to 0x0 and resources are destroyed.
  */
-uint32_t _gfx_swapchain_acquire(_GFXWindow* window, VkSemaphore available,
-                                _GFXRecreateFlags* flags);
+uint32_t gfx_swapchain_acquire_(GFXWindow_* window, VkSemaphore available,
+                                GFXRecreateFlags_* flags);
 
 /**
  * Submits presentation to a given queue for the swapchains of multiple windows.
- * _gfx_swapchain_acquire must have returned succesfully before this call.
+ * gfx_swapchain_acquire_ must have returned succesfully before this call.
  * @param present  Must be a queue from the same Vulkan context as all windows.
  * @param rendered Cannot be VK_NULL_HANDLE, semaphore to wait on.
  * @param num      Number of input and output params, must be > 0.
  * @param windows  Must all share the same Vulkan context.
- * @param indices  Must be indices retrieved by _gfx_swapchain_acquire.
+ * @param indices  Must be indices retrieved by gfx_swapchain_acquire_.
  * @param flags    Outputs how the swapchains have been recreated.
  *
  * Not thread-affine, but also not thread-safe.
  * Recreate flags are also set if resized to 0x0 and resources are destroyed.
  */
-void _gfx_swapchains_present(_GFXQueue present, VkSemaphore rendered,
+void gfx_swapchains_present_(GFXQueue_ present, VkSemaphore rendered,
                              size_t num,
-                             _GFXWindow** windows, const uint32_t* indices,
-                             _GFXRecreateFlags* flags);
+                             GFXWindow_** windows, const uint32_t* indices,
+                             GFXRecreateFlags_* flags);
 
 /**
  * Destroys all retired swapchain images that are left behind when the
  * swapchain gets recreated on either acquisition or presentation.
  * @param window Cannot be NULL.
  *
- * Should be called after _gfx_swapchain_(acquire|present) to free resources.
+ * Should be called after gfx_swapchain_(acquire|present)_ to free resources.
  * Not thread-affine, but also not thread-safe.
  */
-void _gfx_swapchain_purge(_GFXWindow* window);
+void gfx_swapchain_purge_(GFXWindow_* window);
 
 
 #endif

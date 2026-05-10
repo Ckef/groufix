@@ -89,32 +89,32 @@
 
 
 // Failure & success printing.
-#define _TEST_PRINT_FAIL(name) \
+#define TEST_PRINT_FAIL_(name) \
 	fprintf(stderr, "\n** %s test failed\n\n", name)
 
-#define _TEST_PRINT_SUCCESS(name) \
+#define TEST_PRINT_SUCCESS_(name) \
 	fprintf(stderr, "\n** %s test successful\n\n", name)
 
 
 // Describes a test function that can be called.
 #define TEST_DESCRIBE(tName, base) \
-	static TestState _test_state_##tName = { .state = TEST_IDLE, .name = #tName }; \
-	void _test_func_##tName(TestBase* base, TestState* _test_state)
+	static TestState test_state_##tName##_ = { .state = TEST_IDLE, .name = #tName }; \
+	void test_func_##tName##_(TestBase* base, TestState* test_state_)
 
 
 // Forces the test to fail.
 #define TEST_FAIL() \
-	_test_fail(_test_state)
+	test_fail_(test_state_)
 
 
 // Runs a test function from within another test function.
 #define TEST_RUN(tName) \
 	do { \
-		if (_test_state_##tName.state == TEST_IDLE) { \
-			_test_state_##tName.state = TEST_RUNNING; \
-			_test_func_##tName(&_test_base, &_test_state_##tName); \
-			_TEST_PRINT_SUCCESS(#tName); \
-			_test_state_##tName.state = TEST_IDLE; \
+		if (test_state_##tName##_.state == TEST_IDLE) { \
+			test_state_##tName##_.state = TEST_RUNNING; \
+			test_func_##tName##_(&test_base_, &test_state_##tName##_); \
+			TEST_PRINT_SUCCESS_(#tName); \
+			test_state_##tName##_.state = TEST_IDLE; \
 		} \
 	} while (0)
 
@@ -122,10 +122,10 @@
 // Runs a test in a new thread.
 #define TEST_RUN_THREAD(tName) \
 	do { \
-		if (_test_state_##tName.state == TEST_IDLE) { \
-			_test_state_##tName.state = TEST_RUNNING_THRD; \
-			_test_state_##tName.f = _test_func_##tName; \
-			if (pthread_create(&_test_state_##tName.thrd, NULL, _test_thrd, &_test_state_##tName)) \
+		if (test_state_##tName##_.state == TEST_IDLE) { \
+			test_state_##tName##_.state = TEST_RUNNING_THRD; \
+			test_state_##tName##_.f = test_func_##tName##_; \
+			if (pthread_create(&test_state_##tName##_.thrd, NULL, test_thrd_, &test_state_##tName##_)) \
 				TEST_FAIL(); \
 		} \
 	} while (0)
@@ -134,10 +134,10 @@
 // Joins a threaded test function.
 #define TEST_JOIN(tName) \
 	do { \
-		if (_test_state_##tName.state == TEST_RUNNING_THRD) { \
-			void* _test_ret; \
-			pthread_join(_test_state_##tName.thrd, &_test_ret); \
-			_test_state_##tName.state = TEST_IDLE; \
+		if (test_state_##tName##_.state == TEST_RUNNING_THRD) { \
+			void* test_ret_; \
+			pthread_join(test_state_##tName##_.thrd, &test_ret_); \
+			test_state_##tName##_.state = TEST_IDLE; \
 		} \
 	} while(0)
 
@@ -145,13 +145,13 @@
 // Main entry point for a test program, runs the given test name.
 #define TEST_MAIN(tName) \
 	int main(void) { \
-		_test_init(&_test_state_##tName); \
-		_test_state_##tName.state = TEST_RUNNING; \
-		_test_func_##tName(&_test_base, &_test_state_##tName); \
-		_test_state_##tName.state = TEST_IDLE; \
-		_test_end(&_test_state_##tName); \
+		test_init_(&test_state_##tName##_); \
+		test_state_##tName##_.state = TEST_RUNNING; \
+		test_func_##tName##_(&test_base_, &test_state_##tName##_); \
+		test_state_##tName##_.state = TEST_IDLE; \
+		test_end_(&test_state_##tName##_); \
 	} \
-	int _test_unused_for_semicolon
+	int test_unused_for_semicolon_
 
 
 /**
@@ -159,9 +159,9 @@
  * default event handlers & callbacks and
  * number of frames to create.
  */
-#define TEST_BASE _test_base
-#define TEST_EVT_KEY_RELEASE _test_key_release
-#define TEST_CALLBACK_RENDER _test_default_render
+#define TEST_BASE test_base_
+#define TEST_EVT_KEY_RELEASE test_key_release_
+#define TEST_CALLBACK_RENDER test_default_render_
 
 #ifndef TEST_NUM_FRAMES
 	#define TEST_NUM_FRAMES 2
@@ -220,7 +220,7 @@ typedef struct TestState
 /**
  * 'Global' instance of the test base state.
  */
-static TestBase _test_base =
+static TestBase test_base_ =
 {
 	.device = NULL,
 	.window = NULL,
@@ -243,7 +243,7 @@ static TestBase _test_base =
 
 #if !defined (TEST_SKIP_CREATE_SCENE)
 
-static const char* _test_glsl_vertex =
+static const char* test_glsl_vertex_ =
 	"#version 450\n"
 	"layout(row_major, set = 0, binding = 0) uniform UBO {\n"
 	"  mat4 mvp;\n"
@@ -263,7 +263,7 @@ static const char* _test_glsl_vertex =
 	"}\n";
 
 
-static const char* _test_glsl_fragment =
+static const char* test_glsl_fragment_ =
 	"#version 450\n"
 	"layout(set = 0, binding = 1) uniform sampler2D tex;\n"
 	"layout(location = 0) in vec3 fColor;\n"
@@ -284,38 +284,38 @@ static const char* _test_glsl_fragment =
 /**
  * Clears the base test state.
  */
-static void _test_clear(void)
+static void test_clear_(void)
 {
-	gfx_destroy_renderer(_test_base.renderer);
-	gfx_destroy_shader(_test_base.vertex);
-	gfx_destroy_shader(_test_base.fragment);
-	gfx_destroy_heap(_test_base.heap);
-	gfx_destroy_dep(_test_base.dep);
-	gfx_destroy_window(_test_base.window);
+	gfx_destroy_renderer(test_base_.renderer);
+	gfx_destroy_shader(test_base_.vertex);
+	gfx_destroy_shader(test_base_.fragment);
+	gfx_destroy_heap(test_base_.heap);
+	gfx_destroy_dep(test_base_.dep);
+	gfx_destroy_window(test_base_.window);
 	gfx_terminate();
 
-	// Don't bother resetting _test_base as we will exit() anyway.
+	// Don't bother resetting test_base_ as we will exit() anyway.
 }
 
 /**
  * Forces the test to fail and exits the program.
  */
-static void _test_fail(TestState* test)
+static void test_fail_(TestState* test)
 {
-	_test_clear();
+	test_clear_();
 
-	_TEST_PRINT_FAIL(test->name);
+	TEST_PRINT_FAIL_(test->name);
 	exit(EXIT_FAILURE);
 }
 
 /**
  * End (i.e. exit) the test program.
  */
-static void _test_end(TestState* test)
+static void test_end_(TestState* test)
 {
-	_test_clear();
+	test_clear_();
 
-	_TEST_PRINT_SUCCESS(test->name);
+	TEST_PRINT_SUCCESS_(test->name);
 	exit(EXIT_SUCCESS);
 }
 
@@ -325,16 +325,16 @@ static void _test_end(TestState* test)
 /**
  * Thread entry point for a test.
  */
-static void* _test_thrd(void* arg)
+static void* test_thrd_(void* arg)
 {
 	TestState* test = arg;
 
 	if (!gfx_attach())
-		_test_fail(test);
+		test_fail_(test);
 
-	test->f(&_test_base, test);
+	test->f(&test_base_, test);
 	gfx_detach();
-	_TEST_PRINT_SUCCESS(test->name);
+	TEST_PRINT_SUCCESS_(test->name);
 
 	return NULL;
 }
@@ -347,7 +347,7 @@ static void* _test_thrd(void* arg)
 /**
  * Default key release event handler.
  */
-static bool _test_key_release(GFXWindow* window,
+static bool test_key_release_(GFXWindow* window,
                               GFXKey key, int scan, GFXModifier mod, void* data)
 {
 	switch (key)
@@ -387,11 +387,11 @@ static bool _test_key_release(GFXWindow* window,
 /**
  * Default render callback.
  */
-static void _test_default_render(GFXRecorder* recorder, void* ptr)
+static void test_default_render_(GFXRecorder* recorder, void* ptr)
 {
 	// Record stuff.
-	gfx_cmd_bind(recorder, _test_base.technique, 0, 1, 0, &_test_base.set, NULL);
-	gfx_cmd_draw_prim(recorder, &_test_base.renderable, 1, 0);
+	gfx_cmd_bind(recorder, test_base_.technique, 0, 1, 0, &test_base_.set, NULL);
+	gfx_cmd_draw_prim(recorder, &test_base_.renderable, 1, 0);
 }
 
 #endif
@@ -400,70 +400,70 @@ static void _test_default_render(GFXRecorder* recorder, void* ptr)
 /**
  * Initializes the test base program.
  */
-static void _test_init(TestState* _test_state)
+static void test_init_(TestState* test_state_)
 {
 	// Initialize.
 	if (!gfx_init())
 		TEST_FAIL();
 
 	// Create a heap & dependency.
-	_test_base.heap = gfx_create_heap(_test_base.device);
-	if (_test_base.heap == NULL)
+	test_base_.heap = gfx_create_heap(test_base_.device);
+	if (test_base_.heap == NULL)
 		TEST_FAIL();
 
-	_test_base.dep = gfx_create_dep(_test_base.device, TEST_NUM_FRAMES);
-	if (_test_base.dep == NULL)
+	test_base_.dep = gfx_create_dep(test_base_.device, TEST_NUM_FRAMES);
+	if (test_base_.dep == NULL)
 		TEST_FAIL();
 
 	// Create a renderer.
-	_test_base.renderer = gfx_create_renderer(_test_base.heap, TEST_NUM_FRAMES);
-	if (_test_base.renderer == NULL)
+	test_base_.renderer = gfx_create_renderer(test_base_.heap, TEST_NUM_FRAMES);
+	if (test_base_.renderer == NULL)
 		TEST_FAIL();
 
 	// Add a single recorder.
-	_test_base.recorder = gfx_renderer_add_recorder(_test_base.renderer);
-	if (_test_base.recorder == NULL)
+	test_base_.recorder = gfx_renderer_add_recorder(test_base_.renderer);
+	if (test_base_.recorder == NULL)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_WINDOW)
 	// Create a window.
-	_test_base.window = gfx_create_window(
+	test_base_.window = gfx_create_window(
 		GFX_WINDOW_RESIZABLE | GFX_WINDOW_DOUBLE_BUFFER,
-		_test_base.device, NULL,
+		test_base_.device, NULL,
 		(GFXVideoMode){ 600, 400, 0 }, "groufix");
 
-	if (_test_base.window == NULL)
+	if (test_base_.window == NULL)
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_EVENT_HANDLERS)
 	// Register the default key events.
-	_test_base.window->events.key.release = TEST_EVT_KEY_RELEASE;
+	test_base_.window->events.key.release = TEST_EVT_KEY_RELEASE;
 #endif
 
 	// Attach the window at index 0.
-	if (!gfx_renderer_attach_window(_test_base.renderer, 0, _test_base.window))
+	if (!gfx_renderer_attach_window(test_base_.renderer, 0, test_base_.window))
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
 	// Add a single pass that writes to the window.
-	_test_base.pass = gfx_renderer_add_pass(
-		_test_base.renderer, GFX_PASS_RENDER, 0, 0, NULL);
+	test_base_.pass = gfx_renderer_add_pass(
+		test_base_.renderer, GFX_PASS_RENDER, 0, 0, NULL);
 
-	if (_test_base.pass == NULL)
+	if (test_base_.pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_consume(_test_base.pass, 0,
+	if (!gfx_pass_consume(test_base_.pass, 0,
 		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
 	{
 		TEST_FAIL();
 	}
 
-	gfx_pass_clear(_test_base.pass, 0,
+	gfx_pass_clear(test_base_.pass, 0,
 		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
 
 	// Preemptively inject a general wait dependency.
-	gfx_pass_inject(_test_base.pass,
-		1, (GFXInject[]){ gfx_dep_wait(_test_base.dep) });
+	gfx_pass_inject(test_base_.pass,
+		1, (GFXInject[]){ gfx_dep_wait(test_base_.dep) });
 
 #if !defined (TEST_SKIP_CREATE_SCENE)
 	// Allocate a primitive.
@@ -478,7 +478,7 @@ static void _test_init(TestState* _test_state)
 		-0.5f,  0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 1.0f
 	};
 
-	_test_base.primitive = gfx_alloc_prim(_test_base.heap,
+	test_base_.primitive = gfx_alloc_prim(test_base_.heap,
 		GFX_MEMORY_WRITE,
 		GFX_BUFFER_NONE,
 		GFX_TOPO_TRIANGLE_STRIP,
@@ -503,17 +503,17 @@ static void _test_init(TestState* _test_state)
 			}
 		});
 
-	if (_test_base.primitive == NULL)
+	if (test_base_.primitive == NULL)
 		TEST_FAIL();
 
-	GFXBufferRef vert = gfx_ref_prim_vertices(_test_base.primitive, 0);
-	GFXBufferRef ind = gfx_ref_prim_indices(_test_base.primitive);
+	GFXBufferRef vert = gfx_ref_prim_vertices(test_base_.primitive, 0);
+	GFXBufferRef ind = gfx_ref_prim_indices(test_base_.primitive);
 
 	if (!gfx_write(vertexData, vert, GFX_TRANSFER_ASYNC, 1, 1,
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(vertexData) }},
 		(GFXRegion[]){{ .offset = 0, .size = 0 }},
 		(GFXInject[]){
-			gfx_dep_sig(_test_base.dep,
+			gfx_dep_sig(test_base_.dep,
 				GFX_ACCESS_VERTEX_READ, GFX_STAGE_ANY)
 		}))
 	{
@@ -524,7 +524,7 @@ static void _test_init(TestState* _test_state)
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(indexData) }},
 		(GFXRegion[]){{ .offset = 0, .size = 0 }},
 		(GFXInject[]){
-			gfx_dep_sig(_test_base.dep,
+			gfx_dep_sig(test_base_.dep,
 				GFX_ACCESS_INDEX_READ, GFX_STAGE_ANY)
 		}))
 	{
@@ -546,7 +546,7 @@ static void _test_init(TestState* _test_state)
 		0, 255, 0, 255
 	};
 
-	GFXImage* image = gfx_alloc_image(_test_base.heap,
+	GFXImage* image = gfx_alloc_image(test_base_.heap,
 		GFX_IMAGE_2D, GFX_MEMORY_WRITE,
 		GFX_IMAGE_SAMPLED, GFX_FORMAT_R8_UNORM, 1, 1,
 		4, 4, 1);
@@ -554,7 +554,7 @@ static void _test_init(TestState* _test_state)
 	if (image == NULL)
 		TEST_FAIL();
 
-	GFXGroup* group = gfx_alloc_group(_test_base.heap,
+	GFXGroup* group = gfx_alloc_group(test_base_.heap,
 		GFX_MEMORY_WRITE,
 		GFX_BUFFER_UNIFORM,
 		2, (GFXBinding[]){
@@ -581,7 +581,7 @@ static void _test_init(TestState* _test_state)
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(uboData) }},
 		(GFXRegion[]){{ .offset = 0, .size = 0 }},
 		(GFXInject[]){
-			gfx_dep_sig(_test_base.dep,
+			gfx_dep_sig(test_base_.dep,
 				GFX_ACCESS_UNIFORM_READ, GFX_STAGE_VERTEX)
 		}))
 	{
@@ -601,7 +601,7 @@ static void _test_init(TestState* _test_state)
 			.width = 4,  .height = 4, .depth = 1
 		}},
 		(GFXInject[]){
-			gfx_dep_sig(_test_base.dep,
+			gfx_dep_sig(test_base_.dep,
 				GFX_ACCESS_SAMPLED_READ, GFX_STAGE_FRAGMENT)
 		}))
 	{
@@ -610,47 +610,47 @@ static void _test_init(TestState* _test_state)
 
 	// We've allocated & populated all GPU memory,
 	// flush all the currently pending operations.
-	if (!gfx_heap_flush(_test_base.heap))
+	if (!gfx_heap_flush(test_base_.heap))
 		TEST_FAIL();
 
 	// Create some shaders.
-	_test_base.vertex =
-		gfx_create_shader(GFX_STAGE_VERTEX, _test_base.device);
-	if (_test_base.vertex == NULL)
+	test_base_.vertex =
+		gfx_create_shader(GFX_STAGE_VERTEX, test_base_.device);
+	if (test_base_.vertex == NULL)
 		TEST_FAIL();
 
-	_test_base.fragment =
-		gfx_create_shader(GFX_STAGE_FRAGMENT, _test_base.device);
-	if (_test_base.fragment == NULL)
+	test_base_.fragment =
+		gfx_create_shader(GFX_STAGE_FRAGMENT, test_base_.device);
+	if (test_base_.fragment == NULL)
 		TEST_FAIL();
 
 	// Compile GLSL into the shaders.
 	GFXStringReader str;
 
-	if (!gfx_shader_compile(_test_base.vertex, GFX_GLSL, 1,
-		gfx_string_reader(&str, _test_glsl_vertex), NULL, NULL, NULL))
+	if (!gfx_shader_compile(test_base_.vertex, GFX_GLSL, 1,
+		gfx_string_reader(&str, test_glsl_vertex_), NULL, NULL, NULL))
 	{
 		TEST_FAIL();
 	}
 
-	if (!gfx_shader_compile(_test_base.fragment, GFX_GLSL, 1,
-		gfx_string_reader(&str, _test_glsl_fragment), NULL, NULL, NULL))
+	if (!gfx_shader_compile(test_base_.fragment, GFX_GLSL, 1,
+		gfx_string_reader(&str, test_glsl_fragment_), NULL, NULL, NULL))
 	{
 		TEST_FAIL();
 	}
 
 	// Add a single technique & set immutable samplers.
-	_test_base.technique = gfx_renderer_add_tech(_test_base.renderer, 2,
-		(GFXShader*[]){ _test_base.vertex, _test_base.fragment });
+	test_base_.technique = gfx_renderer_add_tech(test_base_.renderer, 2,
+		(GFXShader*[]){ test_base_.vertex, test_base_.fragment });
 
-	if (_test_base.technique == NULL)
+	if (test_base_.technique == NULL)
 		TEST_FAIL();
 
-	gfx_tech_immutable(_test_base.technique, 0, 1); // Warns on fail.
+	gfx_tech_immutable(test_base_.technique, 0, 1); // Warns on fail.
 
 	// Add a single set.
-	_test_base.set = gfx_renderer_add_set(_test_base.renderer,
-		_test_base.technique, 0,
+	test_base_.set = gfx_renderer_add_set(test_base_.renderer,
+		test_base_.technique, 0,
 		0, 1, 0, 0,
 		NULL,
 		(GFXSetGroup[]){{
@@ -662,12 +662,12 @@ static void _test_init(TestState* _test_state)
 		NULL,
 		NULL);
 
-	if (_test_base.set == NULL)
+	if (test_base_.set == NULL)
 		TEST_FAIL();
 
 	// Init the default renderable.
-	gfx_renderable(&_test_base.renderable,
-		_test_base.pass, _test_base.technique, _test_base.primitive, NULL);
+	gfx_renderable(&test_base_.renderable,
+		test_base_.pass, test_base_.technique, test_base_.primitive, NULL);
 
 #endif // TEST_SKIP_CREATE_SCENE
 #endif // TEST_SKIP_CREATE_RENDER_GRAPH

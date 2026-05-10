@@ -7,8 +7,8 @@
  */
 
 
-#ifndef _GFX_CORE_OBJECTS_H
-#define _GFX_CORE_OBJECTS_H
+#ifndef GFX_CORE_OBJECTS_H_
+#define GFX_CORE_OBJECTS_H_
 
 #include "groufix/containers/deque.h"
 #include "groufix/containers/list.h"
@@ -17,7 +17,7 @@
 #include "groufix/core.h"
 
 
-#define _GFX_GET_VK_BUFFER_USAGE(flags, usage) \
+#define GFX_GET_VK_BUFFER_USAGE_(flags, usage) \
 	(((flags) & GFX_MEMORY_READ ? \
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT : (VkBufferUsageFlags)0) | \
 	((flags) & GFX_MEMORY_WRITE ? \
@@ -37,7 +37,7 @@
 	((usage) & GFX_BUFFER_STORAGE_TEXEL ? \
 		VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT : (VkBufferUsageFlags)0))
 
-#define _GFX_GET_VK_IMAGE_TYPE(type) \
+#define GFX_GET_VK_IMAGE_TYPE_(type) \
 	((type) == GFX_IMAGE_1D ? VK_IMAGE_TYPE_1D : \
 	(type) == GFX_IMAGE_2D ? VK_IMAGE_TYPE_2D : \
 	(type) == GFX_IMAGE_3D ? VK_IMAGE_TYPE_3D : \
@@ -45,7 +45,7 @@
 	(type) == GFX_IMAGE_CUBE ? VK_IMAGE_TYPE_2D : \
 	VK_IMAGE_TYPE_2D)
 
-#define _GFX_GET_VK_IMAGE_VIEW_TYPE(type) \
+#define GFX_GET_VK_IMAGE_VIEW_TYPE_(type) \
 	((type) == GFX_VIEW_1D ? VK_IMAGE_VIEW_TYPE_1D : \
 	(type) == GFX_VIEW_1D_ARRAY ? VK_IMAGE_VIEW_TYPE_1D_ARRAY : \
 	(type) == GFX_VIEW_2D ? VK_IMAGE_VIEW_TYPE_2D : \
@@ -55,7 +55,7 @@
 	(type) == GFX_VIEW_3D ? VK_IMAGE_VIEW_TYPE_3D : \
 	VK_IMAGE_VIEW_TYPE_2D)
 
-#define _GFX_GET_VK_IMAGE_ASPECT(aspect) \
+#define GFX_GET_VK_IMAGE_ASPECT_(aspect) \
 	(((aspect) & GFX_IMAGE_COLOR ? \
 		VK_IMAGE_ASPECT_COLOR_BIT : (VkImageAspectFlags)0) | \
 	((aspect) & GFX_IMAGE_DEPTH ? \
@@ -63,7 +63,7 @@
 	((aspect) & GFX_IMAGE_STENCIL ? \
 		VK_IMAGE_ASPECT_STENCIL_BIT : (VkImageAspectFlags)0))
 
-#define _GFX_GET_VK_IMAGE_USAGE(flags, usage, fmt) \
+#define GFX_GET_VK_IMAGE_USAGE_(flags, usage, fmt) \
 	(((flags) & GFX_MEMORY_READ ? \
 		VK_IMAGE_USAGE_TRANSFER_SRC_BIT : (VkImageUsageFlags)0) | \
 	((flags) & GFX_MEMORY_WRITE ? \
@@ -85,7 +85,7 @@
 	((usage) & GFX_IMAGE_TRANSIENT ? \
 		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : (VkImageUsageFlags)0))
 
-#define _GFX_GET_VK_COMPONENT_SWIZZLE(swizzle) \
+#define GFX_GET_VK_COMPONENT_SWIZZLE_(swizzle) \
 	((swizzle) == GFX_SWIZZLE_ZERO ? VK_COMPONENT_SWIZZLE_ZERO : \
 	(swizzle) == GFX_SWIZZLE_ONE ? VK_COMPONENT_SWIZZLE_ONE : \
 	(swizzle) == GFX_SWIZZLE_R ? VK_COMPONENT_SWIZZLE_R : \
@@ -94,7 +94,7 @@
 	(swizzle) == GFX_SWIZZLE_A ? VK_COMPONENT_SWIZZLE_A : \
 	VK_COMPONENT_SWIZZLE_IDENTITY)
 
-#define _GFX_GET_VK_SAMPLE_COUNT(count) \
+#define GFX_GET_VK_SAMPLE_COUNT_(count) \
 	/* Vulkan sample counts are the hexadecimal equivalent. */ \
 	((count) == 1 ? VK_SAMPLE_COUNT_1_BIT : \
 	(count) == 2 ? VK_SAMPLE_COUNT_2_BIT : \
@@ -105,7 +105,7 @@
 	(count) == 64 ? VK_SAMPLE_COUNT_64_BIT : \
 	VK_SAMPLE_COUNT_1_BIT)
 
-#define _GFX_GET_VK_FORMAT_FEATURES(flags, usage, fmt) \
+#define GFX_GET_VK_FORMAT_FEATURES_(flags, usage, fmt) \
 	(((flags) & GFX_MEMORY_READ ? \
 		VK_FORMAT_FEATURE_TRANSFER_SRC_BIT : (VkFormatFeatureFlags)0) | \
 	((flags) & GFX_MEMORY_WRITE ? \
@@ -125,7 +125,7 @@
 	((usage) & GFX_IMAGE_BLEND ? \
 		VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT : (VkFormatFeatureFlags)0))
 
-#define _GFX_GET_VK_PRIMITIVE_TOPOLOGY(topo) \
+#define GFX_GET_VK_PRIMITIVE_TOPOLOGY_(topo) \
 	((topo) == GFX_TOPO_POINT_LIST ? \
 		VK_PRIMITIVE_TOPOLOGY_POINT_LIST : \
 	(topo) == GFX_TOPO_LINE_LIST ? \
@@ -150,34 +150,34 @@
 		VK_PRIMITIVE_TOPOLOGY_PATCH_LIST : \
 		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
 
-#define _GFX_GET_VK_CULL_MODE(cull) \
+#define GFX_GET_VK_CULL_MODE_(cull) \
 	(((cull) == GFX_CULL_FRONT ? \
 		VK_CULL_MODE_FRONT_BIT : (VkCullModeFlags)0) | \
 	((cull) == GFX_CULL_BACK ? \
 		VK_CULL_MODE_BACK_BIT : (VkCullModeFlags)0))
 
-#define _GFX_GET_VK_POLYGON_MODE(mode) \
+#define GFX_GET_VK_POLYGON_MODE_(mode) \
 	((mode) == GFX_RASTER_POINT ? VK_POLYGON_MODE_POINT : \
 	(mode) == GFX_RASTER_LINE ? VK_POLYGON_MODE_LINE : \
 	(mode) == GFX_RASTER_FILL ? VK_POLYGON_MODE_FILL : \
 	VK_POLYGON_MODE_FILL)
 
-#define _GFX_GET_VK_FRONT_FACE(front) \
+#define GFX_GET_VK_FRONT_FACE_(front) \
 	((front) == GFX_FRONT_FACE_CCW ? VK_FRONT_FACE_COUNTER_CLOCKWISE : \
 	(front) == GFX_FRONT_FACE_CW ? VK_FRONT_FACE_CLOCKWISE : \
 	VK_FRONT_FACE_CLOCKWISE)
 
-#define _GFX_GET_VK_FILTER(filter) \
+#define GFX_GET_VK_FILTER_(filter) \
 	((filter) == GFX_FILTER_NEAREST ? VK_FILTER_NEAREST : \
 	(filter) == GFX_FILTER_LINEAR ? VK_FILTER_LINEAR : \
 	VK_FILTER_NEAREST)
 
-#define _GFX_GET_VK_MIPMAP_MODE(filter) \
+#define GFX_GET_VK_MIPMAP_MODE_(filter) \
 	((filter) == GFX_FILTER_NEAREST ? VK_SAMPLER_MIPMAP_MODE_NEAREST : \
 	(filter) == GFX_FILTER_LINEAR ? VK_SAMPLER_MIPMAP_MODE_LINEAR : \
 	VK_SAMPLER_MIPMAP_MODE_NEAREST)
 
-#define _GFX_GET_VK_REDUCTION_MODE(mode) \
+#define GFX_GET_VK_REDUCTION_MODE_(mode) \
 	((mode) == GFX_FILTER_MODE_AVERAGE ? \
 		VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE : \
 	(mode) == GFX_FILTER_MODE_MIN ? \
@@ -186,7 +186,7 @@
 		VK_SAMPLER_REDUCTION_MODE_MAX : \
 		VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE)
 
-#define _GFX_GET_VK_ADDRESS_MODE(wrap) \
+#define GFX_GET_VK_ADDRESS_MODE_(wrap) \
 	((wrap) == GFX_WRAP_REPEAT ? \
 		VK_SAMPLER_ADDRESS_MODE_REPEAT : \
 	(wrap) == GFX_WRAP_REPEAT_MIRROR ? \
@@ -199,7 +199,7 @@
 		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER : \
 		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
 
-#define _GFX_GET_VK_LOGIC_OP(op) \
+#define GFX_GET_VK_LOGIC_OP_(op) \
 	((op) == GFX_LOGIC_NO_OP ? VK_LOGIC_OP_COPY : \
 	(op) == GFX_LOGIC_CLEAR ? VK_LOGIC_OP_CLEAR : \
 	(op) == GFX_LOGIC_SET ? VK_LOGIC_OP_SET : \
@@ -218,7 +218,7 @@
 	(op) == GFX_LOGIC_EQUAL ? VK_LOGIC_OP_EQUIVALENT : \
 	VK_LOGIC_OP_COPY)
 
-#define _GFX_GET_VK_BLEND_OP(op) \
+#define GFX_GET_VK_BLEND_OP_(op) \
 	((op) == GFX_BLEND_NO_OP ? VK_BLEND_OP_ADD : \
 	(op) == GFX_BLEND_ADD ? VK_BLEND_OP_ADD : \
 	(op) == GFX_BLEND_SUBTRACT ? VK_BLEND_OP_SUBTRACT : \
@@ -227,7 +227,7 @@
 	(op) == GFX_BLEND_MAX ? VK_BLEND_OP_MAX : \
 	VK_BLEND_OP_ADD)
 
-#define _GFX_GET_VK_BLEND_FACTOR(factor) \
+#define GFX_GET_VK_BLEND_FACTOR_(factor) \
 	((factor) == GFX_FACTOR_ZERO ? VK_BLEND_FACTOR_ZERO : \
 	(factor) == GFX_FACTOR_ONE ? VK_BLEND_FACTOR_ONE : \
 	(factor) == GFX_FACTOR_SRC ? VK_BLEND_FACTOR_SRC_COLOR : \
@@ -245,7 +245,7 @@
 	(factor) == GFX_FACTOR_ONE_MINUS_CONSTANT_ALPHA ? VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA : \
 	VK_BLEND_FACTOR_ZERO)
 
-#define _GFX_GET_VK_COMPARE_OP(op) \
+#define GFX_GET_VK_COMPARE_OP_(op) \
 	((op) == GFX_CMP_NEVER ?  VK_COMPARE_OP_NEVER : \
 	(op) == GFX_CMP_LESS ? VK_COMPARE_OP_LESS : \
 	(op) == GFX_CMP_LESS_EQUAL ? VK_COMPARE_OP_LESS_OR_EQUAL : \
@@ -256,7 +256,7 @@
 	(op) == GFX_CMP_ALWAYS ? VK_COMPARE_OP_ALWAYS : \
 	VK_COMPARE_OP_ALWAYS)
 
-#define _GFX_GET_VK_STENCIL_OP(op) \
+#define GFX_GET_VK_STENCIL_OP_(op) \
 	((op) == GFX_STENCIL_KEEP ? VK_STENCIL_OP_KEEP : \
 	(op) == GFX_STENCIL_ZERO ? VK_STENCIL_OP_ZERO : \
 	(op) == GFX_STENCIL_REPLACE ? VK_STENCIL_OP_REPLACE : \
@@ -267,7 +267,7 @@
 	(op) == GFX_STENCIL_DECR_WRAP ? VK_STENCIL_OP_DECREMENT_AND_WRAP : \
 	VK_STENCIL_OP_KEEP)
 
-#define _GFX_GET_VK_SHADER_STAGE(stage) \
+#define GFX_GET_VK_SHADER_STAGE_(stage) \
 	(((stage) & GFX_STAGE_VERTEX ? \
 		VK_SHADER_STAGE_VERTEX_BIT : (VkShaderStageFlagBits)0) | \
 	((stage) & GFX_STAGE_TESS_CONTROL ? \
@@ -281,7 +281,7 @@
 	((stage) & GFX_STAGE_COMPUTE ? \
 		VK_SHADER_STAGE_COMPUTE_BIT : (VkShaderStageFlagBits)0))
 
-#define _GFX_GET_VK_ACCESS_FLAGS(mask, fmt) \
+#define GFX_GET_VK_ACCESS_FLAGS_(mask, fmt) \
 	(((mask) & GFX_ACCESS_VERTEX_READ ? \
 		VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT : (VkAccessFlags)0) | \
 	((mask) & GFX_ACCESS_INDEX_READ ? \
@@ -317,7 +317,7 @@
 	((mask) & GFX_ACCESS_HOST_WRITE ? \
 		VK_ACCESS_HOST_WRITE_BIT : (VkAccessFlags)0))
 
-#define _GFX_GET_VK_PIPELINE_STAGE(mask, stage, fmt) \
+#define GFX_GET_VK_PIPELINE_STAGE_(mask, stage, fmt) \
 	(((mask) & GFX_ACCESS_VERTEX_READ ? \
 		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT : (VkPipelineStageFlags)0) | \
 	((mask) & GFX_ACCESS_INDEX_READ ? \
@@ -357,7 +357,7 @@
 	((mask) & GFX_ACCESS_HOST_WRITE ? \
 		VK_PIPELINE_STAGE_HOST_BIT : (VkPipelineStageFlags)0))
 
-#define _GFX_GET_VK_IMAGE_LAYOUT(mask, fmt) \
+#define GFX_GET_VK_IMAGE_LAYOUT_(mask, fmt) \
 	((mask) == 0 ? \
 		VK_IMAGE_LAYOUT_UNDEFINED : /* Default is to discard. */ \
 	!((mask) & ~(GFXAccessMask)(GFX_ACCESS_TRANSFER_READ | GFX_ACCESS_MODIFIERS)) ? \
@@ -384,12 +384,12 @@
 
 
 // Helper to remove unsupported pipeline stages.
-#define _GFX_MOD_VK_PIPELINE_STAGE(vkStage, context) \
+#define GFX_MOD_VK_PIPELINE_STAGE_(vkStage, context) \
 	((vkStage) & \
-		~((!((context)->features & _GFX_SUPPORT_GEOMETRY_SHADER) ? \
+		~((!((context)->features & GFX_SUPPORT_GEOMETRY_SHADER_) ? \
 			VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT : \
 			(VkPipelineStageFlags)0) | \
-		(!((context)->features & _GFX_SUPPORT_TESSELLATION_SHADER) ? \
+		(!((context)->features & GFX_SUPPORT_TESSELLATION_SHADER_) ? \
 			VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | \
 			VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT : \
 			(VkPipelineStageFlags)0)))
@@ -404,7 +404,7 @@
  * and total #stages that exist.
  * Indices are ordered the same as GFXShaderStage bit-flags!
  */
-#define _GFX_GET_SHADER_STAGE_INDEX(stage) \
+#define GFX_GET_SHADER_STAGE_INDEX_(stage) \
 	((stage) == GFX_STAGE_VERTEX ? 0 : \
 	(stage) == GFX_STAGE_TESS_CONTROL ? 1 : \
 	(stage) == GFX_STAGE_TESS_EVALUATION ? 2 : \
@@ -413,13 +413,13 @@
 	(stage) == GFX_STAGE_COMPUTE ? 5 : \
 	6) /* Should not happen. */
 
-#define _GFX_NUM_SHADER_STAGES 6
+#define GFX_NUM_SHADER_STAGES_ 6
 
 
 /**
  * Reflected shader resource.
  */
-typedef struct _GFXShaderResource
+typedef struct GFXShaderResource_
 {
 	union {
 		uint32_t location;
@@ -442,22 +442,22 @@ typedef struct _GFXShaderResource
 	// Resource type.
 	enum
 	{
-		_GFX_SHADER_VERTEX_INPUT,
-		_GFX_SHADER_FRAGMENT_OUTPUT,
-		_GFX_SHADER_BUFFER_UNIFORM, // Can be dynamic.
-		_GFX_SHADER_BUFFER_STORAGE, // Can be dynamic.
-		_GFX_SHADER_BUFFER_UNIFORM_TEXEL,
-		_GFX_SHADER_BUFFER_STORAGE_TEXEL,
-		_GFX_SHADER_IMAGE_AND_SAMPLER,
-		_GFX_SHADER_IMAGE_SAMPLED,
-		_GFX_SHADER_IMAGE_STORAGE,
-		_GFX_SHADER_SAMPLER,
-		_GFX_SHADER_ATTACHMENT_INPUT,
-		_GFX_SHADER_CONSTANT
+		GFX_SHADER_VERTEX_INPUT_,
+		GFX_SHADER_FRAGMENT_OUTPUT_,
+		GFX_SHADER_BUFFER_UNIFORM_, // Can be dynamic.
+		GFX_SHADER_BUFFER_STORAGE_, // Can be dynamic.
+		GFX_SHADER_BUFFER_UNIFORM_TEXEL_,
+		GFX_SHADER_BUFFER_STORAGE_TEXEL_,
+		GFX_SHADER_IMAGE_AND_SAMPLER_,
+		GFX_SHADER_IMAGE_SAMPLED_,
+		GFX_SHADER_IMAGE_STORAGE_,
+		GFX_SHADER_SAMPLER_,
+		GFX_SHADER_ATTACHMENT_INPUT_,
+		GFX_SHADER_CONSTANT_
 
 	} type;
 
-} _GFXShaderResource;
+} GFXShaderResource_;
 
 
 /**
@@ -465,8 +465,8 @@ typedef struct _GFXShaderResource
  */
 struct GFXShader
 {
-	_GFXDevice*  device; // Associated GPU to use as target environment.
-	_GFXContext* context;
+	GFXDevice_*  device; // Associated GPU to use as target environment.
+	GFXContext_* context;
 	uintptr_t    handle;
 
 	GFXShaderStage stage;
@@ -485,7 +485,7 @@ struct GFXShader
 		//  inputs/outputs (sorted on location).
 		//  descriptor bindings (sorted on set, then binding).
 		//  constants (unsorted).
-		_GFXShaderResource* resources;
+		GFXShaderResource_* resources;
 
 	} reflect;
 
@@ -506,10 +506,10 @@ struct GFXShader
 /**
  * Staging buffer.
  */
-typedef struct _GFXStaging
+typedef struct GFXStaging_
 {
 	GFXListNode  list;  // Base-type.
-	_GFXMemAlloc alloc; // Stores the size.
+	GFXMemAlloc_ alloc; // Stores the size.
 
 
 	// Vulkan fields.
@@ -520,15 +520,15 @@ typedef struct _GFXStaging
 
 	} vk;
 
-} _GFXStaging;
+} GFXStaging_;
 
 
 /**
  * Transfer operation(s).
  */
-typedef struct _GFXTransfer
+typedef struct GFXTransfer_
 {
-	GFXList stagings; // References _GFXStaging, automatically freed.
+	GFXList stagings; // References GFXStaging_, automatically freed.
 	bool    flushed;
 
 
@@ -540,20 +540,20 @@ typedef struct _GFXTransfer
 
 	} vk;
 
-} _GFXTransfer;
+} GFXTransfer_;
 
 
 /**
  * Transfer operation pool.
  */
-typedef struct _GFXTransferPool
+typedef struct GFXTransferPool_
 {
-	GFXDeque  transfers; // Stores _GFXTransfer.
+	GFXDeque  transfers; // Stores GFXTransfer_.
 	GFXVec    injs;      // Stores GFXInject.
-	_GFXQueue queue;
-	_GFXMutex lock;
+	GFXQueue_ queue;
+	GFXMutex_ lock;
 
-	struct _GFXInjection* injection;
+	struct GFXInjection_* injection;
 
 	// #blocking threads.
 	atomic_uintmax_t blocking;
@@ -566,7 +566,7 @@ typedef struct _GFXTransferPool
 
 	} vk;
 
-} _GFXTransferPool;
+} GFXTransferPool_;
 
 
 /**
@@ -574,21 +574,21 @@ typedef struct _GFXTransferPool
  */
 struct GFXHeap
 {
-	_GFXAllocator allocator; // Has both _GFXDevice* and _GFXContext*.
-	_GFXMutex     lock;      // For allocation.
+	GFXAllocator_ allocator; // Has both GFXDevice_* and GFXContext_*.
+	GFXMutex_     lock;      // For allocation.
 
-	GFXList buffers;    // References _GFXBuffer.
-	GFXList images;     // References _GFXImage.
-	GFXList primitives; // References _GFXPrimitive.
-	GFXList groups;     // References _GFXGroup.
+	GFXList buffers;    // References GFXBuffer_.
+	GFXList images;     // References GFXImage_.
+	GFXList primitives; // References GFXPrimitive_.
+	GFXList groups;     // References GFXGroup_.
 
 
 	// Operation resources,
 	//  for both the graphics and transfer queues.
 	struct
 	{
-		_GFXTransferPool graphics;
-		_GFXTransferPool transfer;
+		GFXTransferPool_ graphics;
+		GFXTransferPool_ transfer;
 		uint32_t         compute; // Family index only.
 
 	} ops;
@@ -598,13 +598,13 @@ struct GFXHeap
 /**
  * Internal buffer.
  */
-typedef struct _GFXBuffer
+typedef struct GFXBuffer_
 {
 	GFXBuffer   base;
 	GFXHeap*    heap;
 	GFXListNode list;
 
-	_GFXMemAlloc alloc;
+	GFXMemAlloc_ alloc;
 
 
 	// Vulkan fields.
@@ -614,19 +614,19 @@ typedef struct _GFXBuffer
 
 	} vk;
 
-} _GFXBuffer;
+} GFXBuffer_;
 
 
 /**
  * Internal image.
  */
-typedef struct _GFXImage
+typedef struct GFXImage_
 {
 	GFXImage    base;
 	GFXHeap*    heap;
 	GFXListNode list;
 
-	_GFXMemAlloc alloc;
+	GFXMemAlloc_ alloc;
 
 
 	// Vulkan fields.
@@ -637,28 +637,28 @@ typedef struct _GFXImage
 
 	} vk;
 
-} _GFXImage;
+} GFXImage_;
 
 
 /**
  * Primitive buffer (i.e. Vulkan vertex input binding).
  */
-typedef struct _GFXPrimBuffer
+typedef struct GFXPrimBuffer_
 {
-	_GFXBuffer* buffer;
+	GFXBuffer_* buffer;
 	uint64_t    offset; // Offset to bind at.
 	uint32_t    stride;
 	uint64_t    size; // Total size (including the last attribute) in bytes.
 
 	VkVertexInputRate rate;
 
-} _GFXPrimBuffer;
+} GFXPrimBuffer_;
 
 
 /**
  * Internal vertex attribute.
  */
-typedef struct _GFXAttribute
+typedef struct GFXAttribute_
 {
 	GFXAttribute base;
 	uint32_t     binding; // Vulkan input binding.
@@ -671,50 +671,50 @@ typedef struct _GFXAttribute
 
 	} vk;
 
-} _GFXAttribute;
+} GFXAttribute_;
 
 
 /**
  * Internal primitive geometry (superset of buffer).
  */
-typedef struct _GFXPrimitive
+typedef struct GFXPrimitive_
 {
 	GFXPrimitive base;
-	_GFXBuffer   buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
+	GFXBuffer_   buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
 	GFXBufferRef index;  // May be GFX_REF_NULL.
 
 	size_t          numBindings;
-	_GFXPrimBuffer* bindings; // Vulkan input bindings.
+	GFXPrimBuffer_* bindings; // Vulkan input bindings.
 
 	size_t        numAttribs;
-	_GFXAttribute attribs[]; // No reference is GFX_REF_NULL.
+	GFXAttribute_ attribs[]; // No reference is GFX_REF_NULL.
 
-} _GFXPrimitive;
+} GFXPrimitive_;
 
 
 /**
  * Internal group binding.
  */
-typedef struct _GFXBinding
+typedef struct GFXBinding_
 {
 	GFXBinding base;
 	uint64_t   stride; // Element stride in bytes.
 
-} _GFXBinding;
+} GFXBinding_;
 
 
 /**
  * Internal resource group (superset of buffer).
  */
-typedef struct _GFXGroup
+typedef struct GFXGroup_
 {
 	GFXGroup   base;
-	_GFXBuffer buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
+	GFXBuffer_ buffer; // vk.buffer is VK_NULL_HANDLE if nothing is allocated.
 
 	size_t      numBindings;
-	_GFXBinding bindings[]; // No reference is GFX_REF_NULL.
+	GFXBinding_ bindings[]; // No reference is GFX_REF_NULL.
 
-} _GFXGroup;
+} GFXGroup_;
 
 
 /****************************
@@ -722,22 +722,22 @@ typedef struct _GFXGroup
  ****************************/
 
 /**
- * Retrieve build generation from a _GFXImageAttach or _GFXRenderPass pointer.
+ * Retrieve build generation from a GFXImageAttach_ or GFXRenderPass_ pointer.
  */
-#define _GFX_ATTACH_GEN(attach) \
-	(((_GFXAttach*)((char*)(attach) - offsetof(_GFXAttach, image)))->gen)
+#define GFX_ATTACH_GEN_(attach) \
+	(((GFXAttach_*)((char*)(attach) - offsetof(GFXAttach_, image)))->gen)
 
-#define _GFX_PASS_GEN(pass) \
-	(((_GFXRenderPass*)(pass))->gen)
+#define GFX_PASS_GEN_(pass) \
+	(((GFXRenderPass_*)(pass))->gen)
 
 
 /**
  * Attachment backing.
  */
-typedef struct _GFXBacking
+typedef struct GFXBacking_
 {
 	GFXListNode  list; // Base-type.
-	_GFXMemAlloc alloc;
+	GFXMemAlloc_ alloc;
 
 	unsigned int purge; // If stale, index of frame to purge at.
 
@@ -749,16 +749,16 @@ typedef struct _GFXBacking
 
 	} vk;
 
-} _GFXBacking;
+} GFXBacking_;
 
 
 /**
  * Image (implicit) attachment.
  */
-typedef struct _GFXImageAttach
+typedef struct GFXImageAttach_
 {
 	GFXAttachment base;
-	GFXList       backings; // References _GFXBacking.
+	GFXList       backings; // References GFXBacking_.
 
 	// Resolved size.
 	uint32_t width;
@@ -777,26 +777,26 @@ typedef struct _GFXImageAttach
 
 	} vk;
 
-} _GFXImageAttach;
+} GFXImageAttach_;
 
 
 /**
  * Window attachment.
  */
-typedef struct _GFXWindowAttach
+typedef struct GFXWindowAttach_
 {
-	_GFXWindow*       window;
-	_GFXRecreateFlags flags; // Used by virtual frames, from last submission.
+	GFXWindow_*       window;
+	GFXRecreateFlags_ flags; // Used by virtual frames, from last submission.
 
 	// Inherits all resources from window.
 
-} _GFXWindowAttach;
+} GFXWindowAttach_;
 
 
 /**
  * Internal attachment.
  */
-typedef struct _GFXAttach
+typedef struct GFXAttach_
 {
 	// Build generation (to update set entries), persistent, never 0!
 	uint32_t gen;
@@ -805,9 +805,9 @@ typedef struct _GFXAttach
 	// Attachment type.
 	enum
 	{
-		_GFX_ATTACH_EMPTY,
-		_GFX_ATTACH_IMAGE,
-		_GFX_ATTACH_WINDOW
+		GFX_ATTACH_EMPTY_,
+		GFX_ATTACH_IMAGE_,
+		GFX_ATTACH_WINDOW_
 
 	} type;
 
@@ -815,17 +815,17 @@ typedef struct _GFXAttach
 	// Attachment data.
 	union
 	{
-		_GFXImageAttach image;
-		_GFXWindowAttach window;
+		GFXImageAttach_ image;
+		GFXWindowAttach_ window;
 	};
 
-} _GFXAttach;
+} GFXAttach_;
 
 
 /**
  * Recording command pool.
  */
-typedef struct _GFXRecorderPool
+typedef struct GFXRecorderPool_
 {
 	size_t used; // #used buffers in cmds.
 
@@ -838,7 +838,7 @@ typedef struct _GFXRecorderPool
 
 	} vk;
 
-} _GFXRecorderPool;
+} GFXRecorderPool_;
 
 
 /**
@@ -848,8 +848,8 @@ struct GFXRecorder
 {
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
-	_GFXContext* context; // For locality.
-	_GFXPoolSub  sub;     // For descriptor access.
+	GFXContext_* context; // For locality.
+	GFXPoolSub_  sub;     // For descriptor access.
 
 
 	// Recording input.
@@ -867,8 +867,8 @@ struct GFXRecorder
 		GFXViewport    viewport;
 		GFXScissor     scissor;
 		float          lineWidth;
-		_GFXCacheElem* pipeline;
-		_GFXPrimitive* primitive;
+		GFXCacheElem_* pipeline;
+		GFXPrimitive_* primitive;
 
 	} state;
 
@@ -882,16 +882,16 @@ struct GFXRecorder
 
 
 	unsigned int     current; // Current virtual frame index.
-	_GFXRecorderPool pools[]; // Two { graphics, compute } for each virtual frame.
+	GFXRecorderPool_ pools[]; // Two { graphics, compute } for each virtual frame.
 };
 
 
 /**
  * Frame synchronization (swapchain acquisition) object.
  */
-typedef struct _GFXFrameSync
+typedef struct GFXFrameSync_
 {
-	_GFXWindow* window;
+	GFXWindow_* window;
 	size_t      backing; // Attachment index.
 	uint32_t    image;   // Swapchain image index (or UINT32_MAX).
 
@@ -903,13 +903,13 @@ typedef struct _GFXFrameSync
 
 	} vk;
 
-} _GFXFrameSync;
+} GFXFrameSync_;
 
 
 /**
  * Frame recording pool.
  */
-typedef struct _GFXFramePool
+typedef struct GFXFramePool_
 {
 	// Vulkan fields.
 	struct
@@ -920,7 +920,7 @@ typedef struct _GFXFramePool
 
 	} vk;
 
-} _GFXFramePool;
+} GFXFramePool_;
 
 
 /**
@@ -931,14 +931,14 @@ struct GFXFrame
 	unsigned int index;
 
 	GFXVec refs;  // Stores size_t, for each attachment; index into syncs (or SIZE_MAX).
-	GFXVec syncs; // Stores _GFXFrameSync, one for each window attachment.
+	GFXVec syncs; // Stores GFXFrameSync_, one for each window attachment.
 
-	_GFXFramePool graphics;
-	_GFXFramePool compute;
+	GFXFramePool_ graphics;
+	GFXFramePool_ compute;
 
 	enum {
-		_GFX_FRAME_GRAPHICS = 0x0001,
-		_GFX_FRAME_COMPUTE  = 0x0002
+		GFX_FRAME_GRAPHICS_ = 0x0001,
+		GFX_FRAME_COMPUTE_  = 0x0002
 
 	} submitted;
 
@@ -957,17 +957,17 @@ struct GFXFrame
  */
 struct GFXRenderer
 {
-	GFXHeap*  heap;  // Has both _GFXDevice* and _GFXContext*.
-	_GFXCache cache; // Has _GFXContext*.
-	_GFXPool  pool;  // Has _GFXContext*.
-	_GFXQueue graphics;
-	_GFXQueue present;
-	_GFXQueue compute;
+	GFXHeap*  heap;  // Has both GFXDevice_* and GFXContext_*.
+	GFXCache_ cache; // Has GFXContext_*.
+	GFXPool_  pool;  // Has GFXContext_*.
+	GFXQueue_ graphics;
+	GFXQueue_ present;
+	GFXQueue_ compute;
 
 	GFXList   recorders;  // References GFXRecorder.
 	GFXList   techniques; // References GFXTechnique.
 	GFXList   sets;       // References GFXSet.
-	_GFXMutex lock;       // For recorders, techniques & sets (and stales).
+	GFXMutex_ lock;       // For recorders, techniques & sets (and stales).
 
 	// Current virtual frame state.
 	bool recording;
@@ -979,12 +979,12 @@ struct GFXRenderer
 	// Render backing (i.e. attachments).
 	struct
 	{
-		GFXVec attachs; // Stores _GFXAttach.
+		GFXVec attachs; // Stores GFXAttach_.
 
 		enum {
-			_GFX_BACKING_INVALID,
-			_GFX_BACKING_VALIDATED,
-			_GFX_BACKING_BUILT
+			GFX_BACKING_INVALID_,
+			GFX_BACKING_VALIDATED_,
+			GFX_BACKING_BUILT_
 
 		} state;
 
@@ -1003,11 +1003,11 @@ struct GFXRenderer
 		size_t culledCompute;
 
 		enum {
-			_GFX_GRAPH_EMPTY,
-			_GFX_GRAPH_INVALID, // Needs to purge.
-			_GFX_GRAPH_VALIDATED,
-			_GFX_GRAPH_WARMED,
-			_GFX_GRAPH_BUILT
+			GFX_GRAPH_EMPTY_,
+			GFX_GRAPH_INVALID_, // Needs to purge.
+			GFX_GRAPH_VALIDATED_,
+			GFX_GRAPH_WARMED_,
+			GFX_GRAPH_BUILT_
 
 		} state;
 
@@ -1034,7 +1034,7 @@ struct GFXRenderer
 /**
  * Internal attachment consumption.
  */
-typedef struct _GFXConsume
+typedef struct GFXConsume_
 {
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
@@ -1046,8 +1046,8 @@ typedef struct _GFXConsume
 	size_t          resolve; // Or SIZE_MAX.
 
 	enum {
-		_GFX_CONSUME_VIEWED = 0x0001, // Set to use view.type.
-		_GFX_CONSUME_BLEND  = 0x0002  // Set to use blend operation states.
+		GFX_CONSUME_VIEWED_ = 0x0001, // Set to use view.type.
+		GFX_CONSUME_BLEND_  = 0x0002  // Set to use blend operation states.
 
 	} flags;
 
@@ -1067,27 +1067,27 @@ typedef struct _GFXConsume
 		VkImageLayout final;
 
 		enum {
-			_GFX_CONSUME_IS_FIRST = 0x0001,
-			_GFX_CONSUME_IS_LAST  = 0x0002
+			GFX_CONSUME_IS_FIRST_ = 0x0001,
+			GFX_CONSUME_IS_LAST_  = 0x0002
 
 		} state; // Subpass chain state.
 
 
 		// Non-NULL to form a dependency.
-		const struct _GFXConsume* prev;
+		const struct GFXConsume_* prev;
 
 		// Non-NULL regardless of dependencies.
-		const struct _GFXConsume* next;
+		const struct GFXConsume_* next;
 
 	} out;
 
-} _GFXConsume;
+} GFXConsume_;
 
 
 /**
  * Internal pass-dependency injection.
  */
-typedef struct _GFXDepend
+typedef struct GFXDepend_
 {
 	GFXInject inj;
 	GFXPass*  source;
@@ -1104,7 +1104,7 @@ typedef struct _GFXDepend
 
 	} out;
 
-} _GFXDepend;
+} GFXDepend_;
 
 
 /**
@@ -1122,10 +1122,10 @@ struct GFXPass
 	unsigned int childs;  // Number of unculled (!) passes this is a parent of.
 	bool         culled;
 
-	// Stores _GFXConsume.
+	// Stores GFXConsume_.
 	GFXVec consumes;
 
-	// Stores _GFXDepend, from pass depend.
+	// Stores GFXDepend_, from pass depend.
 	GFXVec deps;
 
 	// Stores GFXInject, from pass inject.
@@ -1145,7 +1145,7 @@ struct GFXPass
 /**
  * Internal render pass.
  */
-typedef struct _GFXRenderPass
+typedef struct GFXRenderPass_
 {
 	GFXPass  base;
 	uint32_t gen; // Build generation (to invalidate pipelines).
@@ -1163,8 +1163,8 @@ typedef struct _GFXRenderPass
 		unsigned char   samples; // Minimum necesary, set on warmup.
 
 		enum {
-			_GFX_PASS_DEPTH   = 0x0001,
-			_GFX_PASS_STENCIL = 0x0002
+			GFX_PASS_DEPTH_   = 0x0001,
+			GFX_PASS_STENCIL_ = 0x0002
 
 		} enabled; // Set on warmup.
 
@@ -1174,8 +1174,8 @@ typedef struct _GFXRenderPass
 	// Graph output (relative to neighbouring passes).
 	struct
 	{
-		struct _GFXRenderPass* master; // First subpass, NULL if this.
-		struct _GFXRenderPass* next;   // Next subpass in the chain, NULL if last.
+		struct GFXRenderPass_* master; // First subpass, NULL if this.
+		struct GFXRenderPass_* next;   // Next subpass in the chain, NULL if last.
 
 		uint32_t subpass;   // Subpass index.
 		uint32_t subpasses; // Number of subpasses (undefined if not master).
@@ -1191,7 +1191,7 @@ typedef struct _GFXRenderPass
 		uint32_t fHeight;
 		uint32_t fLayers;
 
-		_GFXCacheElem* pass; // Built on warmup.
+		GFXCacheElem_* pass; // Built on warmup.
 
 	} build;
 
@@ -1202,24 +1202,24 @@ typedef struct _GFXRenderPass
 		VkRenderPass pass;   // For locality.
 		GFXVec       clears; // Stores VkClearValue.
 		GFXVec       blends; // Stores { GFXBlendOpState (x2), char }.
-		GFXVec       views;  // Stores { _GFXConsume*, VkImageView }.
+		GFXVec       views;  // Stores { GFXConsume_*, VkImageView }.
 		GFXVec       frames; // Stores { VkImageView, VkFramebuffer }.
 
 	} vk;
 
-} _GFXRenderPass;
+} GFXRenderPass_;
 
 
 /**
  * Internal compute pass.
  */
-typedef struct _GFXComputePass
+typedef struct GFXComputePass_
 {
 	GFXPass base;
 
 	// Nothing special to do for compute passes.
 
-} _GFXComputePass;
+} GFXComputePass_;
 
 
 /**
@@ -1230,7 +1230,7 @@ struct GFXTechnique
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
 
-	GFXShader*     shaders[_GFX_NUM_SHADER_STAGES]; // May contain NULL.
+	GFXShader*     shaders[GFX_NUM_SHADER_STAGES_]; // May contain NULL.
 	size_t         numSets;
 	size_t         maxBindings;
 	uint32_t       pushSize;
@@ -1254,21 +1254,21 @@ struct GFXTechnique
 
 
 	// Locking output.
-	_GFXCacheElem* layout;       // Pipeline layout, NULL until locked.
-	_GFXCacheElem* setLayouts[]; // Set layouts (sorted), all NULL until locked.
+	GFXCacheElem_* layout;       // Pipeline layout, NULL until locked.
+	GFXCacheElem_* setLayouts[]; // Set layouts (sorted), all NULL until locked.
 };
 
 
 /**
  * Set update entry (i.e. descriptor info).
  */
-typedef struct _GFXSetEntry
+typedef struct GFXSetEntry_
 {
 	GFXReference   ref; // GFX_REF_NULL if empty or sampler.
 	GFXRange       range;
 	GFXSwizzleMap  swizzle;
 	GFXViewType    viewType; // For attachment inputs ONLY!.
-	_GFXCacheElem* sampler;  // May be NULL.
+	GFXCacheElem_* sampler;  // May be NULL.
 
 	// For attachment references.
 	atomic_uint_least32_t gen;
@@ -1288,23 +1288,23 @@ typedef struct _GFXSetEntry
 
 	} vk;
 
-} _GFXSetEntry;
+} GFXSetEntry_;
 
 
 /**
  * Set binding (i.e. descriptor binding info).
  */
-typedef struct _GFXSetBinding
+typedef struct GFXSetBinding_
 {
 	VkDescriptorType type;     // Undefined if empty.
 	GFXViewType      viewType; // Undefined if not a 'non-attachment image'.
 
 	size_t        count;   // 0 = empty binding.
 	size_t        size;    // 0 = not a struct, empty or unknown.
-	_GFXSetEntry* entries; // NULL if empty or immutable samplers only.
+	GFXSetEntry_* entries; // NULL if empty or immutable samplers only.
 	char*         hash;
 
-} _GFXSetBinding;
+} GFXSetBinding_;
 
 
 /**
@@ -1314,9 +1314,9 @@ struct GFXSet
 {
 	GFXListNode    list; // Base-type.
 	GFXRenderer*   renderer;
-	_GFXCacheElem* setLayout;
-	_GFXSetEntry*  first;
-	_GFXHashKey*   key;
+	GFXCacheElem_* setLayout;
+	GFXSetEntry_*  first;
+	GFXHashKey_*   key;
 
 	// If used since last modification.
 	atomic_bool used;
@@ -1325,7 +1325,7 @@ struct GFXSet
 	size_t numDynamics; // #dynamic buffer entries.
 	size_t numBindings;
 
-	_GFXSetBinding bindings[]; // Sorted, no gaps.
+	GFXSetBinding_ bindings[]; // Sorted, no gaps.
 };
 
 
@@ -1337,7 +1337,7 @@ struct GFXSet
  * Unpacked memory resource reference.
  * Access is not thread-safe with respect to the referenced object (!).
  */
-typedef struct _GFXUnpackRef
+typedef struct GFXUnpackRef_
 {
 	// Unpacked reference value(s),
 	//  buffer offset | attachment index | 0.
@@ -1347,13 +1347,13 @@ typedef struct _GFXUnpackRef
 	// Referenced object (all mutually exclusive).
 	struct
 	{
-		_GFXBuffer*  buffer;
-		_GFXImage*   image;
+		GFXBuffer_*  buffer;
+		GFXImage_*   image;
 		GFXRenderer* renderer;
 
 	} obj;
 
-} _GFXUnpackRef;
+} GFXUnpackRef_;
 
 
 /**
@@ -1361,7 +1361,7 @@ typedef struct _GFXUnpackRef
  * Only checks for resource equality, offsets are ignored.
  * Getters will resolve to NULL or 0 if none found.
  */
-#define _GFX_UNPACK_REF_IS_EQUAL(refa, refb) \
+#define GFX_UNPACK_REF_IS_EQUAL_(refa, refb) \
 	(((refa).obj.buffer != NULL && \
 		(refa).obj.buffer == (refb).obj.buffer) || \
 	((refa).obj.image != NULL && \
@@ -1369,7 +1369,7 @@ typedef struct _GFXUnpackRef
 	((refa).obj.renderer != NULL && (refa).value == (refb).value && \
 		(refa).obj.renderer == (refb).obj.renderer))
 
-#define _GFX_UNPACK_REF_CONTEXT(ref) \
+#define GFX_UNPACK_REF_CONTEXT_(ref) \
 	((ref).obj.buffer != NULL ? \
 		(ref).obj.buffer->heap->allocator.context : \
 	(ref).obj.image != NULL ? \
@@ -1377,14 +1377,14 @@ typedef struct _GFXUnpackRef
 	(ref).obj.renderer != NULL ? \
 		(ref).obj.renderer->cache.context : NULL)
 
-#define _GFX_UNPACK_REF_HEAP(ref) \
+#define GFX_UNPACK_REF_HEAP_(ref) \
 	((ref).obj.buffer != NULL ? (ref).obj.buffer->heap : \
 	(ref).obj.image != NULL ? (ref).obj.image->heap : \
 	(ref).obj.renderer != NULL ? (ref).obj.renderer->heap : NULL)
 
-#define _GFX_UNPACK_REF_ATTACH(ref) \
+#define GFX_UNPACK_REF_ATTACH_(ref) \
 	((ref).obj.renderer == NULL ? NULL : \
-		&((_GFXAttach*)gfx_vec_at( \
+		&((GFXAttach_*)gfx_vec_at( \
 			&(ref).obj.renderer->backing.attachs, (ref).value))->image)
 
 /**
@@ -1392,16 +1392,16 @@ typedef struct _GFXUnpackRef
  * Meant for the debug build, where we validate flags and usages.
  */
 #if defined (NDEBUG)
-	#define _GFX_UNPACK_REF_FLAGS(ref) \
-		_Static_assert(0, "Use _GFX_UNPACK_REF_FLAGS in debug mode only.")
+	#define GFX_UNPACK_REF_FLAGS_(ref) \
+		static_assert(0, "Use GFX_UNPACK_REF_FLAGS_ in debug mode only.")
 #else
-	#define _GFX_UNPACK_REF_FLAGS(ref) \
+	#define GFX_UNPACK_REF_FLAGS_(ref) \
 		((ref).obj.buffer != NULL ? \
 			(ref).obj.buffer->base.flags : \
 		(ref).obj.image != NULL ? \
 			(ref).obj.image->base.flags : \
 		(ref).obj.renderer != NULL ? \
-			_GFX_UNPACK_REF_ATTACH(ref)->base.flags : 0)
+			GFX_UNPACK_REF_ATTACH_(ref)->base.flags : 0)
 #endif
 
 
@@ -1411,7 +1411,7 @@ typedef struct _GFXUnpackRef
  * underlying resource (e.g. the size claimed for a group buffer).
  * @return Zero if ref is not a buffer reference.
  */
-uint64_t _gfx_ref_size(GFXReference ref);
+uint64_t gfx_ref_size_(GFXReference ref);
 
 /**
  * Resolves & validates a memory reference, meaning:
@@ -1421,7 +1421,7 @@ uint64_t _gfx_ref_size(GFXReference ref);
  * Assumes no self-references exist!
  * Returns GFX_REF_NULL and warns when the reference is invalid.
  */
-GFXReference _gfx_ref_resolve(GFXReference ref);
+GFXReference gfx_ref_resolve_(GFXReference ref);
 
 /**
  * Resolves & unpacks a memory resource reference, meaning:
@@ -1431,7 +1431,7 @@ GFXReference _gfx_ref_resolve(GFXReference ref);
  * Returns empty (all NULL's) and warns when the reference is invalid.
  * If in debug mode & out of bounds, it silently warns.
  */
-_GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
+GFXUnpackRef_ gfx_ref_unpack_(GFXReference ref);
 
 
 /****************************
@@ -1441,28 +1441,28 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref);
 /**
  * Injection type checkers for a GFXInject.
  */
-#define _GFX_INJ_IS_SIGNAL(inj) \
+#define GFX_INJ_IS_SIGNAL_(inj) \
 	((inj).type == GFX_INJ_SIGNAL || \
 	(inj).type == GFX_INJ_SIGNAL_RANGE || \
 	(inj).type == GFX_INJ_SIGNAL_FROM || \
 	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
 
-#define _GFX_INJ_IS_RANGED(inj) \
+#define GFX_INJ_IS_RANGED_(inj) \
 	((inj).type == GFX_INJ_SIGNAL_RANGE || \
 	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
 
-#define _GFX_INJ_IS_SOURCED(inj) \
+#define GFX_INJ_IS_SOURCED_(inj) \
 	((inj).type == GFX_INJ_SIGNAL_FROM || \
 	(inj).type == GFX_INJ_SIGNAL_RANGE_FROM)
 
-#define _GFX_INJ_IS_WAIT(inj) \
+#define GFX_INJ_IS_WAIT_(inj) \
 	((inj).type == GFX_INJ_WAIT)
 
 
 /**
  * Dependency injection metadata.
  */
-typedef struct _GFXInjection
+typedef struct GFXInjection_
 {
 	// Operation input, must be pre-initialized!
 	struct
@@ -1470,9 +1470,9 @@ typedef struct _GFXInjection
 		GFXRenderer* renderer; // To signal attachments.
 		size_t       numRefs;  // May be zero!
 
-		const _GFXUnpackRef* refs;
+		const GFXUnpackRef_* refs;
 		const GFXAccessMask* masks;
-		const uint64_t*      sizes; // Must contain _gfx_ref_size(..)!
+		const uint64_t*      sizes; // Must contain gfx_ref_size_(..)!
 
 		// Vulkan family & queue index.
 		struct { uint32_t family, index; } queue;
@@ -1513,15 +1513,15 @@ typedef struct _GFXInjection
 
 	} out;
 
-} _GFXInjection;
+} GFXInjection_;
 
 
 /**
  * Synchronization (metadata) object.
  */
-typedef struct _GFXSync
+typedef struct GFXSync_
 {
-	_GFXUnpackRef ref;
+	GFXUnpackRef_ ref;
 	GFXRange      range; // Unpacked, i.e. normalized offset & non-zero size.
 	unsigned int  waits; // #wait commands left to recycle (if used).
 
@@ -1529,18 +1529,18 @@ typedef struct _GFXSync
 	uint32_t gen;
 
 	// Claimed by (injections can be async), may be NULL.
-	const _GFXInjection* inj;
+	const GFXInjection_* inj;
 
 
 	// Stage in the object's lifecycle.
 	enum
 	{
-		_GFX_SYNC_UNUSED, // Only `flags` and `vk.signaled` are defined.
-		_GFX_SYNC_PREPARE,
-		_GFX_SYNC_PREPARE_CATCH, // Within the same injection.
-		_GFX_SYNC_PENDING,
-		_GFX_SYNC_CATCH,
-		_GFX_SYNC_USED
+		GFX_SYNC_UNUSED_, // Only `flags` and `vk.signaled` are defined.
+		GFX_SYNC_PREPARE_,
+		GFX_SYNC_PREPARE_CATCH_, // Within the same injection.
+		GFX_SYNC_PENDING_,
+		GFX_SYNC_CATCH_,
+		GFX_SYNC_USED_
 
 	} stage;
 
@@ -1548,9 +1548,9 @@ typedef struct _GFXSync
 	// Synchronization flags.
 	enum
 	{
-		_GFX_SYNC_SEMAPHORE  = 0x0001, // If `vk.signaled` is used.
-		_GFX_SYNC_BARRIER    = 0x0002, // Set to inject barrier on catch.
-		_GFX_SYNC_MEM_HAZARD = 0x0004  // Memory barrier required if set.
+		GFX_SYNC_SEMAPHORE_  = 0x0001, // If `vk.signaled` is used.
+		GFX_SYNC_BARRIER_    = 0x0002, // Set to inject barrier on catch.
+		GFX_SYNC_MEM_HAZARD_ = 0x0004  // Memory barrier required if set.
 
 	} flags;
 
@@ -1581,7 +1581,7 @@ typedef struct _GFXSync
 
 	} vk;
 
-} _GFXSync;
+} GFXSync_;
 
 
 /**
@@ -1589,14 +1589,14 @@ typedef struct _GFXSync
  */
 struct GFXDependency
 {
-	_GFXDevice*  device;
-	_GFXContext* context;
+	GFXDevice_*  device;
+	GFXContext_* context;
 
 	unsigned int waitCapacity;
 
 	size_t    sems;  // #semaphores at the front of `syncs`.
-	GFXDeque  syncs; // Stores _GFXSync.
-	_GFXMutex lock;
+	GFXDeque  syncs; // Stores GFXSync_.
+	GFXMutex_ lock;
 
 	// Vulkan family & queue indices.
 	struct { uint32_t family, index; } graphics;
@@ -1609,7 +1609,7 @@ struct GFXDependency
  * Starts a new dependency injection (initializes metadata).
  * The object pointed to by injection cannot be moved or copied!
  */
-static inline void _gfx_injection(_GFXInjection* injection)
+static inline void gfx_injection_(GFXInjection_* injection)
 {
 	injection->bars.srcStage = 0;
 	injection->bars.dstStage = 0;
@@ -1628,31 +1628,31 @@ static inline void _gfx_injection(_GFXInjection* injection)
 }
 
 /**
- * Flushes all stored barriers injected by _gfx_injection_push.
- * Automatically flushed by a successful call to _gfx_deps_(catch|prepare).
+ * Flushes all stored barriers injected by gfx_injection_push_.
+ * Automatically flushed by a successful call to gfx_deps_(catch|prepare)_.
  * @param context   Cannot be NULL.
  * @param cmd       To record all barriers to, cannot be VK_NULL_HANDLE.
  * @param injection Barrier metadata to flush, cannot be NULL.
  *
- * Must be called before _gfx_deps_(abort|finish)!
+ * Must be called before gfx_deps_(abort|finish)_!
  */
-void _gfx_injection_flush(_GFXContext* context, VkCommandBuffer cmd,
-                          _GFXInjection* injection);
+void gfx_injection_flush_(GFXContext_* context, VkCommandBuffer cmd,
+                          GFXInjection_* injection);
 
 /**
- * Pushes an execution/memory barrier for the next _gfx_injection_flush.
+ * Pushes an execution/memory barrier for the next gfx_injection_flush_.
  * Should be used internally to inject barriers without using dependency objects.
  * @param injection Barrier metadata to append to, cannot be NULL.
  * @return Zero on failure.
  *
  * Can only set one of `mb`, `bmb` and `imb` to non-NULL!
  */
-bool _gfx_injection_push(VkPipelineStageFlags srcStage,
+bool gfx_injection_push_(VkPipelineStageFlags srcStage,
                          VkPipelineStageFlags dstStage,
                          const VkMemoryBarrier* mb,
                          const VkBufferMemoryBarrier* bmb,
                          const VkImageMemoryBarrier* imb,
-                         _GFXInjection* injection);
+                         GFXInjection_* injection);
 
 /**
  * Completes dependency injections by catching pending signal commands.
@@ -1662,71 +1662,71 @@ bool _gfx_injection_push(VkPipelineStageFlags srcStage,
  * @param numInjs   Number of given injection commands.
  * @param injs      Given injection commands.
  * @param injection Input & output injection metadata, cannot be NULL.
- * @param Zero on failure, must call _gfx_deps_abort.
+ * @param Zero on failure, must call gfx_deps_abort_.
  *
  * Thread-safe with respect to all dependency objects!
  *
  * Can be called any number of times using the same injection metadata pointer.
- * However, after the first call to `_gfx_deps_abort` or `_gfx_deps_finish`,
- * neither `_gfx_deps_catch` nor `_gfx_deps_prepare` can be called anymore.
+ * However, after the first call to `gfx_deps_abort_` or `gfx_deps_finish_`,
+ * neither `gfx_deps_catch_` nor `gfx_deps_prepare_` can be called anymore.
  *
- * Every injection command passed to _gfx_deps_(catch|prepare) must
- * subsequently be passed to a call to _gfx_deps_abort or _gfx_deps_finish.
+ * Every injection command passed to gfx_deps_(catch|prepare)_ must
+ * subsequently be passed to a call to gfx_deps_abort_ or gfx_deps_finish_.
  * These subsequent calls MUST take the same injection metadata pointer.
  *
  * Inbetween calls injection->inp may be altered.
  * In fact, they must be altered if operation references were given.
  *
- * Right before the first call to _gfx_deps_(abort|finish),
+ * Right before the first call to gfx_deps_(abort|finish)_,
  * all output arrays in injection may be externally realloc'd,
  * they will be properly freed when aborted or finished.
  */
-bool _gfx_deps_catch(_GFXContext* context, VkCommandBuffer cmd,
+bool gfx_deps_catch_(GFXContext_* context, VkCommandBuffer cmd,
                      size_t numInjs, const GFXInject* injs,
-                     _GFXInjection* injection);
+                     GFXInjection_* injection);
 
 /**
  * Starts dependency injections by preparing new signal commands.
  * Only operates on commands that reference a dependency object.
  * @param blocking Non-zero to indicate the operation is blocking.
- * @see _gfx_deps_catch.
+ * @see gfx_deps_catch_.
  *
  * Thread-safe with respect to all dependency objects!
  *
  * All commands are _always_ already visible to subsequent calls to
- * _gfx_deps_catch taking the same injection metadata pointer.
+ * gfx_deps_catch_ taking the same injection metadata pointer.
  */
-bool _gfx_deps_prepare(_GFXContext* context, VkCommandBuffer cmd,
+bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
                        bool blocking,
                        size_t numInjs, const GFXInject* injs,
-                       _GFXInjection* injection);
+                       GFXInjection_* injection);
 
 /**
  * Aborts a dependency injection, cleaning all metadata.
- * @see _gfx_deps_catch.
+ * @see gfx_deps_catch_.
  *
  * Thread-safe with respect to all dependency objects!
  * The content of injection is invalidated after this call.
  *
  * Each injection metadata object must be called at least once with
- * either _gfx_deps_abort OR _gfx_deps_catch for ALL injection commands.
+ * either gfx_deps_abort_ OR gfx_deps_catch_ for ALL injection commands.
  * If no injection commands were given, one of these functions must still
  * be called with numInjs == 0!
  * NEVER can both calls be used for the same injection metadata pointer!
  */
-void _gfx_deps_abort(size_t numInjs, const GFXInject* injs,
-                     _GFXInjection* injection);
+void gfx_deps_abort_(size_t numInjs, const GFXInject* injs,
+                     GFXInjection_* injection);
 
 /**
  * Finalizes a dependency injection, all signal commands are made visible for
  * future wait commands and all wait commands are finalized and cleaned up.
- * @see _gfx_deps_catch.
+ * @see gfx_deps_catch_.
  *
  * Thread-safe with respect to all dependency objects!
  * The content of injection is invalidated after this call.
  */
-void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
-                      _GFXInjection* injection);
+void gfx_deps_finish_(size_t numInjs, const GFXInject* injs,
+                      GFXInjection_* injection);
 
 
 /****************************
@@ -1741,8 +1741,8 @@ void _gfx_deps_finish(size_t numInjs, const GFXInject* injs,
  * Thread-safe with respect to the heap!
  * Leaves the `purge` index and `list` base-type uninitialized!
  */
-_GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
-                                const _GFXImageAttach* attach);
+GFXBacking_* gfx_alloc_backing_(GFXHeap* heap,
+                                const GFXImageAttach_* attach);
 
 /**
  * Frees a backing image.
@@ -1752,7 +1752,7 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
  * Thread-safe with respect to the heap!
  * Does not unlink itself from anything!
  */
-void _gfx_free_backing(GFXHeap* heap, _GFXBacking* backing);
+void gfx_free_backing_(GFXHeap* heap, GFXBacking_* backing);
 
 /**
  * Allocates a staging buffer from a heap.
@@ -1763,7 +1763,7 @@ void _gfx_free_backing(GFXHeap* heap, _GFXBacking* backing);
  * Thread-safe with respect to the heap!
  * Leaves the `list` base-type uninitialized!
  */
-_GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
+GFXStaging_* gfx_alloc_staging_(GFXHeap* heap,
                                 VkBufferUsageFlags usage, uint64_t size);
 
 /**
@@ -1774,7 +1774,7 @@ _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
  * Thread-safe with respect to the heap!
  * Does not unlink itself from anything!
  */
-void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
+void gfx_free_staging_(GFXHeap* heap, GFXStaging_* staging);
 
 /**
  * Frees all staging buffers of a transfer operation.
@@ -1784,7 +1784,7 @@ void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging);
  * Thread-safe with respect to the heap!
  * Leaves `transfer->stagings` cleared.
  */
-void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer);
+void gfx_free_stagings_(GFXHeap* heap, GFXTransfer_* transfer);
 
 /**
  * Flushes the last (current) transfer operation of a transfer pool.
@@ -1795,7 +1795,7 @@ void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer);
  *
  * Not thread-safe with respect to the heap or pool!
  */
-bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool);
+bool gfx_flush_transfer_(GFXHeap* heap, GFXTransferPool_* pool);
 
 
 /****************************
@@ -1804,7 +1804,7 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool);
 
 /**
  * Retrieves a graphics pipeline from the renderer's cache (or warms it up).
- * Essentially a wrapper for _gfx_cache_(get|warmup).
+ * Essentially a wrapper for gfx_cache_(get|warmup)_.
  * @param renderable Cannot be NULL.
  * @param elem       Output cache element, cannot be NULL if warmup is zero.
  * @param warmup     Non-zero to only warmup and not retrieve.
@@ -1812,19 +1812,19 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool);
  *
  * Completely thread-safe with respect to the renderable!
  */
-bool _gfx_renderable_pipeline(GFXRenderable* renderable,
-                              _GFXCacheElem** elem, bool warmup);
+bool gfx_renderable_pipeline_(GFXRenderable* renderable,
+                              GFXCacheElem_** elem, bool warmup);
 
 /**
  * Retrieves a compute pipeline from the renderer's cache (or warms it up).
- * Essentially a wrapper for _gfx_cache_(get|warmup).
+ * Essentially a wrapper for gfx_cache_(get|warmup)_.
  * @param computable Cannot be NULL.
- * @see _gfx_renderable_pipeline.
+ * @see gfx_renderable_pipeline_.
  *
  * Completely thread-safe with respect to the computable!
  */
-bool _gfx_computable_pipeline(GFXComputable* computable,
-                              _GFXCacheElem** elem, bool warmup);
+bool gfx_computable_pipeline_(GFXComputable* computable,
+                              GFXCacheElem_** elem, bool warmup);
 
 
 /****************************
@@ -1838,7 +1838,7 @@ bool _gfx_computable_pipeline(GFXComputable* computable,
  * @param index    Index of the virtual frame.
  * @return Zero on failure.
  */
-bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index);
+bool gfx_frame_init_(GFXRenderer* renderer, GFXFrame* frame, unsigned int index);
 
 /**
  * Clears a virtual frame of a renderer.
@@ -1847,7 +1847,7 @@ bool _gfx_frame_init(GFXRenderer* renderer, GFXFrame* frame, unsigned int index)
  *
  * This will block until the frame is done rendering!
  */
-void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame);
+void gfx_frame_clear_(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Retrieves the swapchain image index associated with an attachment.
@@ -1855,7 +1855,7 @@ void _gfx_frame_clear(GFXRenderer* renderer, GFXFrame* frame);
  * @param index Attachment index.
  * @return The swapchain image index, or UINT32_MAX if none associated.
  */
-uint32_t _gfx_frame_get_swapchain_index(GFXFrame* frame, size_t index);
+uint32_t gfx_frame_get_swapchain_index_(GFXFrame* frame, size_t index);
 
 /**
  * Blocks until all pending submissions of a virtual frame are done
@@ -1866,10 +1866,10 @@ uint32_t _gfx_frame_get_swapchain_index(GFXFrame* frame, size_t index);
  * @return Non-zero if successfully synchronized.
  *
  * If resetting, this cannot be called again until a call
- * to _gfx_frame_submit has been made.
+ * to gfx_frame_submit_ has been made.
  * Failure is considered fatal, frame cannot be used.
  */
-bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset);
+bool gfx_frame_sync_(GFXRenderer* renderer, GFXFrame* frame, bool reset);
 
 /**
  * Acquires all relevant resources for a virtual frame to be recorded.
@@ -1877,22 +1877,22 @@ bool _gfx_frame_sync(GFXRenderer* renderer, GFXFrame* frame, bool reset);
  * @param frame    Cannot be NULL.
  * @return Zero if the frame (or renderer) could not be built.
  *
- * This may call _gfx_sync_frames internally on-swapchain recreate!
- * Cannot be called again until a call to _gfx_frame_submit has been made.
+ * This may call gfx_sync_frames_ internally on-swapchain recreate!
+ * Cannot be called again until a call to gfx_frame_submit_ has been made.
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
-bool _gfx_frame_acquire(GFXRenderer* renderer, GFXFrame* frame);
+bool gfx_frame_acquire_(GFXRenderer* renderer, GFXFrame* frame);
 
 /**
  * Records & submits a virtual frame.
- * Must be called exactly once for each call to _gfx_frame_acquire.
+ * Must be called exactly once for each call to gfx_frame_acquire_.
  * @param renderer Cannot be NULL.
  * @param frame    Cannot be NULL.
  * @return Zero if the frame could not be submitted.
  *
  * Failure is considered fatal, swapchains could be left in an incomplete state.
  */
-bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);
+bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame);
 
 
 /****************************
@@ -1903,13 +1903,13 @@ bool _gfx_frame_submit(GFXRenderer* renderer, GFXFrame* frame);
  * Initializes the render backing of a renderer.
  * @param renderer Cannot be NULL.
  */
-void _gfx_render_backing_init(GFXRenderer* renderer);
+void gfx_render_backing_init_(GFXRenderer* renderer);
 
 /**
  * Clears the render backing of a renderer, destroying all images.
  * @param renderer Cannot be NULL.
  */
-void _gfx_render_backing_clear(GFXRenderer* renderer);
+void gfx_render_backing_clear_(GFXRenderer* renderer);
 
 /**
  * Builds not yet built resources of the render backing.
@@ -1917,34 +1917,34 @@ void _gfx_render_backing_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero if the entire backing is in a built state.
  */
-bool _gfx_render_backing_build(GFXRenderer* renderer);
+bool gfx_render_backing_build_(GFXRenderer* renderer);
 
 /**
  * (Re)builds all relevant render backing resources.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
- * @param flags    Must contain the _GFX_RECREATE bit.
+ * @param flags    Must contain the GFX_RECREATE_ bit.
  */
-void _gfx_render_backing_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags);
+void gfx_render_backing_rebuild_(GFXRenderer* renderer, GFXRecreateFlags_ flags);
 
 /**
  * Purges all relevant render backing resources.
  * Use to destroy stale backings to be purged at the current frame index.
  * @param renderer Cannot be NULL.
  */
-void _gfx_render_backing_purge(GFXRenderer* renderer);
+void gfx_render_backing_purge_(GFXRenderer* renderer);
 
 /**
  * Initializes the render graph of a renderer.
  * @param renderer Cannot be NULL.
  */
-void _gfx_render_graph_init(GFXRenderer* renderer);
+void gfx_render_graph_init_(GFXRenderer* renderer);
 
 /**
  * Clears the render graph of a renderer, destroying all passes.
  * @param renderer Cannot be NULL.
  */
-void _gfx_render_graph_clear(GFXRenderer* renderer);
+void gfx_render_graph_clear_(GFXRenderer* renderer);
 
 /**
  * Builds the Vulkan render passes if not present yet.
@@ -1952,10 +1952,10 @@ void _gfx_render_graph_clear(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero on success.
  *
- * This will call the relevant _gfx_pass_(destruct|warmup) calls.
+ * This will call the relevant gfx_pass_(destruct|warmup)_ calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
-bool _gfx_render_graph_warmup(GFXRenderer* renderer);
+bool gfx_render_graph_warmup_(GFXRenderer* renderer);
 
 /**
  * (Re)builds the render graph and all its resources.
@@ -1963,40 +1963,40 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer);
  * @param renderer Cannot be NULL.
  * @return Non-zero if the entire graph is in a built state.
  *
- * This will call the relevant _gfx_pass_(destruct|build) calls.
+ * This will call the relevant gfx_pass_(destruct|build)_ calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
-bool _gfx_render_graph_build(GFXRenderer* renderer);
+bool gfx_render_graph_build_(GFXRenderer* renderer);
 
 /**
  * Rebuilds all relevant render graph resources.
  * Suitable for on-swapchain recreate (e.g. a window resize or smth).
  * @param renderer Cannot be NULL.
- * @param flags    Must contain the _GFX_RECREATE bit.
+ * @param flags    Must contain the GFX_RECREATE_ bit.
  *
- * This will call the relevant _gfx_pass_rebuild calls.
+ * This will call the relevant gfx_pass_rebuild_ calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
-void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags);
+void gfx_render_graph_rebuild_(GFXRenderer* renderer, GFXRecreateFlags_ flags);
 
 /**
  * Immediately destruct all render graph resources.
  * @param renderer Cannot be NULL.
  *
  * Must be called before detaching any attachment!
- * This will call the relevant _gfx_pass_destruct calls.
+ * This will call the relevant gfx_pass_destruct_ calls.
  * Thus not thread-safe with respect to pushing stale resources!
  */
-void _gfx_render_graph_destruct(GFXRenderer* renderer);
+void gfx_render_graph_destruct_(GFXRenderer* renderer);
 
 /**
  * Invalidates the render graph, forcing it to first destruct everything
- * the next time _gfx_render_graph_(warmup|build) is called.
- * If _gfx_render_graph_rebuild is called before that, it is rendered a no-op.
+ * the next time gfx_render_graph_(warmup|build)_ is called.
+ * If gfx_render_graph_rebuild_ is called before that, it is rendered a no-op.
  * Suitable for consumptions have changed or new attachments are described.
  * @param renderer Cannot be NULL.
  */
-void _gfx_render_graph_invalidate(GFXRenderer* renderer);
+void gfx_render_graph_invalidate_(GFXRenderer* renderer);
 
 
 /****************************
@@ -2015,7 +2015,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer);
  * Leaves the `list` base-type uninitialized!
  * Additionally, the `level` field is left at zero.
  */
-GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
+GFXPass* gfx_create_pass_(GFXRenderer* renderer, GFXPassType type,
                           bool culled,
                           size_t numParents, GFXPass** parents);
 
@@ -2026,7 +2026,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
  * MUST first destruct render graph (except when destroying all passes)!
  * Does not unlink itself from anything!
  */
-void _gfx_destroy_pass(GFXPass* pass);
+void gfx_destroy_pass_(GFXPass* pass);
 
 /**
  * Retrieves the current framebuffer of a pass with respect to a frame.
@@ -2034,7 +2034,7 @@ void _gfx_destroy_pass(GFXPass* pass);
  * @param frame Cannot be NULL.
  * @return VK_NULL_HANDLE if unknown.
  */
-VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame);
+VkFramebuffer gfx_pass_framebuffer_(GFXRenderPass_* rPass, GFXFrame* frame);
 
 /**
  * Builds the Vulkan render pass if not present yet.
@@ -2042,42 +2042,42 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame);
  * @param rPass Cannot be NULL, cannot be culled and must be a master pass!
  * @return Non-zero on success.
  *
- * Before the initial call to _gfx_pass_(warmup|build) and once after a call
- * to _gfx_pass_destruct, the following MUST be set of ALL passes and
+ * Before the initial call to gfx_pass_(warmup|build)_ and once after a call
+ * to gfx_pass_destruct_, the following MUST be set of ALL passes and
  * consumptions to influence the build:
  *  rPass->out.*
  *  rPass->base.consumes[*]->out.*
  */
-bool _gfx_pass_warmup(_GFXRenderPass* rPass);
+bool gfx_pass_warmup_(GFXRenderPass_* rPass);
 
 /**
  * Builds the Vulkan framebuffer (and others) if not present yet.
  * @param rPass Cannot be NULL, cannot be culled and must be a master pass!
  * @return Non-zero if completely valid and built.
  *
- * @see _gfx_pass_warmup for influencing the build.
+ * @see gfx_pass_warmup_ for influencing the build.
  */
-bool _gfx_pass_build(_GFXRenderPass* rPass);
+bool gfx_pass_build_(GFXRenderPass_* rPass);
 
 /**
  * Rebuilds Vulkan objects, does NOT build not yet built objects!
  * @param rPass Cannot be NULL, cannot be culled and must be a master pass!
- * @param flags Must contain the _GFX_RECREATE bit.
+ * @param flags Must contain the GFX_RECREATE_ bit.
  * @return Non-zero if rebuilt successfully.
  *
  * Not thread-safe with respect to pushing stale resources!
  */
-bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags);
+bool gfx_pass_rebuild_(GFXRenderPass_* rPass, GFXRecreateFlags_ flags);
 
 /**
  * Destructs all Vulkan objects, non-recursively. As opposed to
- * _gfx_pass_(warmup|build|rebuild), this must be called for all passes!
+ * gfx_pass_(warmup|build|rebuild)_, this must be called for all passes!
  * @param rPass Cannot be NULL.
  *
  * Must be called before its attachments are changed!
  * Not thread-safe with respect to pushing stale resources!
  */
-void _gfx_pass_destruct(_GFXRenderPass* rPass);
+void gfx_pass_destruct_(GFXRenderPass_* rPass);
 
 
 /****************************
@@ -2085,12 +2085,12 @@ void _gfx_pass_destruct(_GFXRenderPass* rPass);
  ****************************/
 
 /**
- * Retrieves a sampler from the renderer's cache (wrapper for _gfx_cache_get).
+ * Retrieves a sampler from the renderer's cache (wrapper for gfx_cache_get_).
  * @param renderer Cannot be NULL.
  * @param sampler  Sampler values to use, NULL for the default sampler.
  * @return NULL on failure.
  */
-_GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
+GFXCacheElem_* gfx_get_sampler_(GFXRenderer* renderer,
                                 const GFXSampler* sampler);
 
 /**
@@ -2106,7 +2106,7 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
  * All handles are invalidated after this call.
  * Failure is considered fatal, resources are prematurely destroyed.
  */
-bool _gfx_push_stale(GFXRenderer* renderer,
+bool gfx_push_stale_(GFXRenderer* renderer,
                      VkFramebuffer framebuffer,
                      VkImageView imageView,
                      VkBufferView bufferView,
@@ -2121,7 +2121,7 @@ bool _gfx_push_stale(GFXRenderer* renderer,
  * Not reentrant nor thread-safe with respect to any frame.
  * Failure is considered fatal, frames cannot be used.
  */
-bool _gfx_sync_frames(GFXRenderer* renderer);
+bool gfx_sync_frames_(GFXRenderer* renderer);
 
 /**
  * Resets a recording pool, i.e. resets all command buffers
@@ -2129,7 +2129,7 @@ bool _gfx_sync_frames(GFXRenderer* renderer);
  * @param recorder Cannot be NULL.
  * @return Non-zero if successfully reset.
  */
-bool _gfx_recorder_reset(GFXRecorder* recorder);
+bool gfx_recorder_reset_(GFXRecorder* recorder);
 
 /**
  * Records the recording output of a recorder into a given command buffer.
@@ -2138,18 +2138,18 @@ bool _gfx_recorder_reset(GFXRecorder* recorder);
  * @param order    Buffers that were output with this order will be recorded.
  * @param cmd      Cannot be NULL, must be in the render pass of `order` (!).
  */
-void _gfx_recorder_record(GFXRecorder* recorder,
+void gfx_recorder_record_(GFXRecorder* recorder,
                           unsigned int order, VkCommandBuffer cmd);
 
 /**
  * Retrieves all Vulkan specialization constant info and map entries.
  * @param technique Cannot be NULL, must be locked.
- * @param infos     `_GFX_NUM_SHADER_STAGES` VkSpecilizationInfo structs.
+ * @param infos     `GFX_NUM_SHADER_STAGES_` VkSpecilizationInfo structs.
  * @param entries   `technique->constants.size` VkSpecializationMapEntry structs.
  *
  * All output entries are sorted on { stage, constantID }.
  */
-void _gfx_tech_get_constants(GFXTechnique* technique,
+void gfx_tech_get_constants_(GFXTechnique* technique,
                              VkSpecializationInfo* infos,
                              VkSpecializationMapEntry* entries);
 
@@ -2157,23 +2157,23 @@ void _gfx_tech_get_constants(GFXTechnique* technique,
  * Computes the size of a specific descriptor set layout within a technique.
  * @param technique   Cannot be NULL, must be locked.
  * @param set         Must be < technique->numSets.
- * @param numBindings Outputs the number of _GFXSetBinding's necessary.
- * @param numEntries  Outputs the number of _GFXSetEntry's necessary.
+ * @param numBindings Outputs the number of GFXSetBinding_'s necessary.
+ * @param numEntries  Outputs the number of GFXSetEntry_'s necessary.
  */
-void _gfx_tech_get_set_size(GFXTechnique* technique,
+void gfx_tech_get_set_size_(GFXTechnique* technique,
                             size_t set, size_t* numBindings, size_t* numEntries);
 
 /**
  * Retrieves a descriptor set binding from a technique and populates the
- * `type`, `viewType`, `count` and `size` fields of a _GFXSetBinding struct.
+ * `type`, `viewType`, `count` and `size` fields of a GFXSetBinding_ struct.
  * @param technique Cannot be NULL, must be locked.
  * @param set       Must be < technique->numSets.
  * @param binding   Descriptor binding number.
- * @param out       Output _GFXSetBinding to populate.
- * @return Zero if this binding DOES NOT occupy any _GFXSetEntry's!
+ * @param out       Output GFXSetBinding_ to populate.
+ * @return Zero if this binding DOES NOT occupy any GFXSetEntry_'s!
  */
-bool _gfx_tech_get_set_binding(GFXTechnique* technique,
-                               size_t set, size_t binding, _GFXSetBinding* out);
+bool gfx_tech_get_set_binding_(GFXTechnique* technique,
+                               size_t set, size_t binding, GFXSetBinding_* out);
 
 /**
  * Retrieves, allocates or recycles a Vulkan descriptor set of the given set.
@@ -2182,10 +2182,10 @@ bool _gfx_tech_get_set_binding(GFXTechnique* technique,
  * @return NULL on failure.
  *
  * Thread-safe with respect to the set and other subordinates,
- * essentially a wrapper for _gfx_pool_get.
+ * essentially a wrapper for gfx_pool_get_.
  * However, can never run concurrently with other set functions.
  */
-_GFXPoolElem* _gfx_set_get(GFXSet* set, _GFXPoolSub* sub);
+GFXPoolElem_* gfx_set_get_(GFXSet* set, GFXPoolSub_* sub);
 
 
 #endif

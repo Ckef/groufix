@@ -7,12 +7,11 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 #include <stdlib.h>
 
 
 // Get pointer to a renderer from a pointer to one of its frames.
-#define _GFX_RENDERER_FROM_FRAME(frame) \
+#define GFX_RENDERER_FROM_FRAME_(frame) \
 	((GFXRenderer*)((char*)(frame) - \
 		(sizeof(GFXFrame) * ((GFXFrame*)(frame))->index) - \
 		offsetof(GFXRenderer, frames)))
@@ -21,7 +20,7 @@
 /****************************
  * Stale resource (to be destroyed after acquisition).
  */
-typedef struct _GFXStale
+typedef struct GFXStale_
 {
 	unsigned int frame; // Index of last frame that used this resource.
 
@@ -36,11 +35,11 @@ typedef struct _GFXStale
 
 	} vk;
 
-} _GFXStale;
+} GFXStale_;
 
 
 /****************************/
-_GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
+GFXCacheElem_* gfx_get_sampler_(GFXRenderer* renderer,
                                 const GFXSampler* sampler)
 {
 	assert(renderer != NULL);
@@ -85,7 +84,7 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
 		if (sampler->mode != GFX_FILTER_MODE_AVERAGE)
 		{
 			srmci.pNext = &srmci;
-			srmci.reductionMode = _GFX_GET_VK_REDUCTION_MODE(sampler->mode);
+			srmci.reductionMode = GFX_GET_VK_REDUCTION_MODE_(sampler->mode);
 		}
 
 		if (sampler->flags & GFX_SAMPLER_ANISOTROPY)
@@ -97,25 +96,25 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
 		if (sampler->flags & GFX_SAMPLER_COMPARE)
 		{
 			sci.compareEnable = VK_TRUE;
-			sci.compareOp = _GFX_GET_VK_COMPARE_OP(sampler->cmp);
+			sci.compareOp = GFX_GET_VK_COMPARE_OP_(sampler->cmp);
 		}
 
 		if (sampler->flags & GFX_SAMPLER_UNNORMALIZED)
 			sci.unnormalizedCoordinates = VK_TRUE;
 
-		sci.magFilter    = _GFX_GET_VK_FILTER(sampler->magFilter);
-		sci.minFilter    = _GFX_GET_VK_FILTER(sampler->minFilter);
-		sci.mipmapMode   = _GFX_GET_VK_MIPMAP_MODE(sampler->mipFilter);
-		sci.addressModeU = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapU);
-		sci.addressModeV = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapV);
-		sci.addressModeW = _GFX_GET_VK_ADDRESS_MODE(sampler->wrapW);
+		sci.magFilter    = GFX_GET_VK_FILTER_(sampler->magFilter);
+		sci.minFilter    = GFX_GET_VK_FILTER_(sampler->minFilter);
+		sci.mipmapMode   = GFX_GET_VK_MIPMAP_MODE_(sampler->mipFilter);
+		sci.addressModeU = GFX_GET_VK_ADDRESS_MODE_(sampler->wrapU);
+		sci.addressModeV = GFX_GET_VK_ADDRESS_MODE_(sampler->wrapV);
+		sci.addressModeW = GFX_GET_VK_ADDRESS_MODE_(sampler->wrapW);
 		sci.mipLodBias   = sampler->mipLodBias;
 		sci.minLod       = sampler->minLod;
 		sci.maxLod       = sampler->maxLod;
 	}
 
 	// Create an actual sampler object.
-	return _gfx_cache_get(&renderer->cache, &sci.sType, NULL);
+	return gfx_cache_get_(&renderer->cache, &sci.sType, NULL);
 }
 
 /****************************
@@ -123,12 +122,12 @@ _GFXCacheElem* _gfx_get_sampler(GFXRenderer* renderer,
  * @param renderer Cannot be NULL.
  * @param stale    Cannot be NULL, not removed from renderer!
  */
-static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
+static inline void gfx_destroy_stale_(GFXRenderer* renderer, GFXStale_* stale)
 {
 	assert(renderer != NULL);
 	assert(stale != NULL);
 
-	_GFXContext* context = renderer->cache.context;
+	GFXContext_* context = renderer->cache.context;
 
 	// Yep just destroy all resources.
 	context->vk.DestroyFramebuffer(
@@ -142,7 +141,7 @@ static inline void _gfx_destroy_stale(GFXRenderer* renderer, _GFXStale* stale)
 }
 
 /****************************/
-bool _gfx_push_stale(GFXRenderer* renderer,
+bool gfx_push_stale_(GFXRenderer* renderer,
                      VkFramebuffer framebuffer,
                      VkImageView imageView,
                      VkBufferView bufferView,
@@ -159,7 +158,7 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 	const unsigned int index =
 		(renderer->current + renderer->numFrames - 1) % renderer->numFrames;
 
-	_GFXStale stale = {
+	GFXStale_ stale = {
 		.frame = index,
 		.vk = {
 			.framebuffer = framebuffer,
@@ -172,7 +171,7 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 	// If we have a single frame which is public, nothing is rendering,
 	// thus we can immediately destroy.
 	if (renderer->numFrames <= 1 && renderer->public != NULL)
-		_gfx_destroy_stale(renderer, &stale);
+		gfx_destroy_stale_(renderer, &stale);
 
 	// Try to push the stale resource otherwise.
 	else if (!gfx_deque_push(&renderer->stales, 1, &stale))
@@ -181,7 +180,7 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 			"Stale resources could not be pushed, "
 			"prematurely destroyed instead...");
 
-		_gfx_destroy_stale(renderer, &stale);
+		gfx_destroy_stale_(renderer, &stale);
 		return 0;
 	}
 
@@ -189,15 +188,15 @@ bool _gfx_push_stale(GFXRenderer* renderer,
 }
 
 /****************************/
-bool _gfx_sync_frames(GFXRenderer* renderer)
+bool gfx_sync_frames_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	_GFXContext* context = renderer->cache.context;
+	GFXContext_* context = renderer->cache.context;
 
 	// Get all the 'done rendering' fences of all virtual frames.
 	// Skip if it is the public frame, as its fence is not awaitable
-	// inbetween _gfx_frame_sync and _gfx_frame_submit!
+	// inbetween gfx_frame_sync_ and gfx_frame_submit_!
 	uint32_t numFences =
 		(renderer->numFrames - (renderer->public != NULL ? 1 : 0)) * 2;
 
@@ -210,15 +209,15 @@ bool _gfx_sync_frames(GFXRenderer* renderer)
 	for (unsigned int f = 0; f < renderer->numFrames; ++f)
 		if (renderer->frames + f != renderer->public)
 		{
-			if (renderer->frames[f].submitted & _GFX_FRAME_GRAPHICS)
+			if (renderer->frames[f].submitted & GFX_FRAME_GRAPHICS_)
 				fences[numFences++] = renderer->frames[f].graphics.vk.done;
-			if (renderer->frames[f].submitted & _GFX_FRAME_COMPUTE)
+			if (renderer->frames[f].submitted & GFX_FRAME_COMPUTE_)
 				fences[numFences++] = renderer->frames[f].compute.vk.done;
 		}
 
 	// Wait for all of them.
 	if (numFences > 0)
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.WaitForFences(
 				context->vk.device, numFences, fences, VK_TRUE, UINT64_MAX),
 			{
@@ -235,8 +234,8 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames)
 	assert(heap != NULL);
 	assert(frames > 0);
 
-	_GFXDevice* device = heap->allocator.device;
-	_GFXContext* context = heap->allocator.context;
+	GFXDevice_* device = heap->allocator.device;
+	GFXContext_* context = heap->allocator.context;
 
 	// Allocate a new renderer.
 	GFXRenderer* rend = malloc(
@@ -248,37 +247,37 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames)
 
 	// Pick the graphics, presentation and compute queues.
 	// Do this first so all other things know the families!
-	_gfx_pick_queue(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
-	_gfx_pick_queue(context, &rend->present, 0, 1);
-	_gfx_pick_queue(context, &rend->compute, VK_QUEUE_COMPUTE_BIT, 0);
+	gfx_pick_queue_(context, &rend->graphics, VK_QUEUE_GRAPHICS_BIT, 0);
+	gfx_pick_queue_(context, &rend->present, 0, 1);
+	gfx_pick_queue_(context, &rend->compute, VK_QUEUE_COMPUTE_BIT, 0);
 
 	// Initialize the technique/set lock first.
-	if (!_gfx_mutex_init(&rend->lock))
+	if (!gfx_mutex_init_(&rend->lock))
 		goto clean;
 
 	// Initialize the cache and pool second.
-	if (!_gfx_cache_init(&rend->cache, device, sizeof(_GFXSetEntry)))
+	if (!gfx_cache_init_(&rend->cache, device, sizeof(GFXSetEntry_)))
 		goto clean_lock;
 
 	// Keep descriptor sets 4x the amount of frames we have.
 	// Offset by 1 to account for the first frame using it.
-	if (!_gfx_pool_init(&rend->pool, device, (frames << 2) + 1))
+	if (!gfx_pool_init_(&rend->pool, device, (frames << 2) + 1))
 	{
-		_gfx_cache_clear(&rend->cache);
+		gfx_cache_clear_(&rend->cache);
 		goto clean_cache;
 	}
 
 	// Then initialize the render backing & graph.
 	// Technically it doesn't matter, but let's do it in dependency order.
-	_gfx_render_backing_init(rend);
-	_gfx_render_graph_init(rend);
+	gfx_render_backing_init_(rend);
+	gfx_render_graph_init_(rend);
 
 	// And lastly initialize the virtual frames,
 	// Note each index corresponds to their location in memory.
 	for (unsigned int f = 0; f < frames; ++f)
-		if (!_gfx_frame_init(rend, &rend->frames[f], f))
+		if (!gfx_frame_init_(rend, &rend->frames[f], f))
 		{
-			while (f > 0) _gfx_frame_clear(rend, &rend->frames[--f]);
+			while (f > 0) gfx_frame_clear_(rend, &rend->frames[--f]);
 			goto clean_renderer;
 		}
 
@@ -292,20 +291,20 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames)
 	gfx_list_init(&rend->recorders);
 	gfx_list_init(&rend->techniques);
 	gfx_list_init(&rend->sets);
-	gfx_deque_init(&rend->stales, sizeof(_GFXStale));
+	gfx_deque_init(&rend->stales, sizeof(GFXStale_));
 
 	return rend;
 
 
 	// Cleanup on failure.
 clean_renderer:
-	_gfx_render_graph_clear(rend);
-	_gfx_render_backing_clear(rend);
-	_gfx_pool_clear(&rend->pool);
+	gfx_render_graph_clear_(rend);
+	gfx_render_backing_clear_(rend);
+	gfx_pool_clear_(&rend->pool);
 clean_cache:
-	_gfx_cache_clear(&rend->cache);
+	gfx_cache_clear_(&rend->cache);
 clean_lock:
-	_gfx_mutex_clear(&rend->lock);
+	gfx_mutex_clear_(&rend->lock);
 clean:
 	gfx_log_error("Could not create a new renderer.");
 	free(rend);
@@ -326,7 +325,7 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 
 	// Clear all frames, will block until rendering is done.
 	for (unsigned int f = 0; f < renderer->numFrames; ++f)
-		_gfx_frame_clear(renderer, &renderer->frames[f]);
+		gfx_frame_clear_(renderer, &renderer->frames[f]);
 
 	// Erase all recorders, techniques and sets.
 	while (renderer->recorders.head != NULL)
@@ -345,19 +344,19 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	// Destroy all stale resources.
 	// Just before this, clear the render backing & graph,
 	// as they might still be pushing stale resources!
-	_gfx_render_graph_clear(renderer);
-	_gfx_render_backing_clear(renderer);
+	gfx_render_graph_clear_(renderer);
+	gfx_render_backing_clear_(renderer);
 
 	for (size_t s = 0; s < renderer->stales.size; ++s)
-		_gfx_destroy_stale(renderer, gfx_deque_at(&renderer->stales, s));
+		gfx_destroy_stale_(renderer, gfx_deque_at(&renderer->stales, s));
 
 	gfx_deque_clear(&renderer->stales);
 
 	// Then clear the cache & pool.
-	_gfx_pool_clear(&renderer->pool);
-	_gfx_cache_clear(&renderer->cache);
+	gfx_pool_clear_(&renderer->pool);
+	gfx_cache_clear_(&renderer->cache);
 
-	_gfx_mutex_clear(&renderer->lock);
+	gfx_mutex_clear_(&renderer->lock);
 	free(renderer);
 }
 
@@ -393,7 +392,7 @@ GFX_API bool gfx_renderer_load_cache(GFXRenderer* renderer, const GFXReader* src
 	assert(renderer != NULL);
 	assert(src != NULL);
 
-	return _gfx_cache_load(&renderer->cache, src);
+	return gfx_cache_load_(&renderer->cache, src);
 }
 
 /****************************/
@@ -402,7 +401,7 @@ GFX_API bool gfx_renderer_store_cache(GFXRenderer* renderer, const GFXWriter* ds
 	assert(renderer != NULL);
 	assert(dst != NULL);
 
-	return _gfx_cache_store(&renderer->cache, dst);
+	return gfx_cache_store_(&renderer->cache, dst);
 }
 
 /****************************/
@@ -427,16 +426,16 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 		gfx_frame_submit(renderer->public);
 
 	// We set the next frame to submit as the publicly accessible frame.
-	// This makes it so _gfx_sync_frames does not block for it anymore!
+	// This makes it so gfx_sync_frames_ does not block for it anymore!
 	renderer->public = &renderer->frames[renderer->current];
 
 	// Synchronize & reset the frame :)
-	_gfx_frame_sync(renderer, renderer->public, 1);
+	gfx_frame_sync_(renderer, renderer->public, 1);
 
 	// Purge render backing, MUST happen before acquiring/building.
 	// When (re)building, backings will be made stale with this frame's index.
 	// Which causes it to fail, as it will only destroy one per frame.
-	_gfx_render_backing_purge(renderer);
+	gfx_render_backing_purge_(renderer);
 
 	// Destroy all stale resources that were last used by this frame.
 	// All previous frames should have destroyed all indices before the ones
@@ -444,10 +443,10 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	// If they did not, it means a frame was lost, which is fatal anyway.
 	while (renderer->stales.size > 0)
 	{
-		_GFXStale* stale = gfx_deque_at(&renderer->stales, 0);
+		GFXStale_* stale = gfx_deque_at(&renderer->stales, 0);
 		if (stale->frame != renderer->current) break;
 
-		_gfx_destroy_stale(renderer, stale);
+		gfx_destroy_stale_(renderer, stale);
 		gfx_deque_pop_front(&renderer->stales, 1);
 	}
 
@@ -466,10 +465,10 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame)
 GFX_API void gfx_frame_start(GFXFrame* frame)
 {
 	assert(frame != NULL);
-	assert(frame == _GFX_RENDERER_FROM_FRAME(frame)->public);
+	assert(frame == GFX_RENDERER_FROM_FRAME_(frame)->public);
 
 	GFXRenderer* renderer =
-		_GFX_RENDERER_FROM_FRAME(frame);
+		GFX_RENDERER_FROM_FRAME_(frame);
 
 	// Skip if already started.
 	if (!renderer->recording)
@@ -478,7 +477,7 @@ GFX_API void gfx_frame_start(GFXFrame* frame)
 		renderer->recording = 1;
 
 		// Acquire the frame's swapchain etc :)
-		_gfx_frame_acquire(renderer, frame);
+		gfx_frame_acquire_(renderer, frame);
 	}
 }
 
@@ -486,16 +485,16 @@ GFX_API void gfx_frame_start(GFXFrame* frame)
 GFX_API void gfx_frame_submit(GFXFrame* frame)
 {
 	assert(frame != NULL);
-	assert(frame == _GFX_RENDERER_FROM_FRAME(frame)->public);
+	assert(frame == GFX_RENDERER_FROM_FRAME_(frame)->public);
 
 	GFXRenderer* renderer =
-		_GFX_RENDERER_FROM_FRAME(frame);
+		GFX_RENDERER_FROM_FRAME_(frame);
 
 	// If not started yet, force start.
 	if (!renderer->recording) gfx_frame_start(frame);
 
 	// Submit the frame :)
-	_gfx_frame_submit(renderer, frame);
+	gfx_frame_submit_(renderer, frame);
 
 	// Signal that we are done recording.
 	renderer->recording = 0;
@@ -533,7 +532,7 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 	assert(pass != wait);
 	assert(numInjs == 0 || injs != NULL);
 
-	_GFXContext* context =
+	GFXContext_* context =
 		pass->renderer->cache.context;
 
 	if (pass->renderer != wait->renderer)
@@ -551,7 +550,7 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 		// necessary.
 		// Once submitting, we can determine what to do based on the
 		// source/target fields!
-		_GFXDepend depend = {
+		GFXDepend_ depend = {
 			.source = pass,
 			.target = wait
 		};
@@ -559,17 +558,17 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 		for (size_t i = 0; i < numInjs; ++i)
 		{
 			depend.inj = injs[i];
-			depend.inj.ref = _gfx_ref_resolve(depend.inj.ref);
+			depend.inj.ref = gfx_ref_resolve_(depend.inj.ref);
 
 			if (depend.inj.dep == NULL)
 			{
 				// No dependency object, do checks here!
 				// Check the context the resource was built on.
-				_GFXUnpackRef unp = _gfx_ref_unpack(depend.inj.ref);
+				GFXUnpackRef_ unp = gfx_ref_unpack_(depend.inj.ref);
 
 				if (
 					!GFX_REF_IS_NULL(depend.inj.ref) &&
-					_GFX_UNPACK_REF_CONTEXT(unp) != context)
+					GFX_UNPACK_REF_CONTEXT_(unp) != context)
 				{
 					gfx_log_warn(
 						"Dependency signal command ignored, given "
@@ -620,7 +619,7 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 				// Unless it's a wait command.
 				// Note we do not do any checking, this is done in dep.c!
 				if (
-					!_GFX_INJ_IS_WAIT(depend.inj) &&
+					!GFX_INJ_IS_WAIT_(depend.inj) &&
 					!gfx_vec_push(&pass->deps, 1, &depend))
 				{
 					goto clean;
@@ -631,9 +630,9 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 				size_t w = 0;
 				for (; w < wait->deps.size; ++w)
 				{
-					_GFXDepend* wDepend = gfx_vec_at(&wait->deps, w);
+					GFXDepend_* wDepend = gfx_vec_at(&wait->deps, w);
 					if (
-						_GFX_INJ_IS_WAIT(wDepend->inj) &&
+						GFX_INJ_IS_WAIT_(wDepend->inj) &&
 						wDepend->inj.dep == depend.inj.dep)
 					{
 						break;
@@ -652,7 +651,7 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 		}
 
 		// Invalidate the graph, maybe new subpass dependencies.
-		_gfx_render_graph_invalidate(pass->renderer);
+		gfx_render_graph_invalidate_(pass->renderer);
 
 		return;
 
@@ -685,7 +684,7 @@ GFX_API void gfx_renderer_undepend(GFXRenderer* renderer)
 	}
 
 	// Invalidate the graph, subpass dependencies are gone.
-	_gfx_render_graph_invalidate(renderer);
+	gfx_render_graph_invalidate_(renderer);
 }
 
 /****************************/
@@ -694,7 +693,7 @@ GFX_API void gfx_renderer_block(GFXRenderer* renderer)
 	assert(renderer != NULL);
 
 	// Just ignore the result.
-	_gfx_sync_frames(renderer);
+	gfx_sync_frames_(renderer);
 }
 
 /****************************/
@@ -703,11 +702,11 @@ GFX_API void gfx_frame_block(GFXFrame* frame)
 	assert(frame != NULL);
 
 	GFXRenderer* renderer =
-		_GFX_RENDERER_FROM_FRAME(frame);
+		GFX_RENDERER_FROM_FRAME_(frame);
 
 	// If this is the public frame, do nothing.
 	if (frame != renderer->public)
 		// Synchronize the frame without resetting,
 		// this way we only reset during acquisition.
-		_gfx_frame_sync(renderer, frame, 0);
+		gfx_frame_sync_(renderer, frame, 0);
 }

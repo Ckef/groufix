@@ -7,7 +7,6 @@
  */
 
 #include "groufix/containers/io.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,7 +14,7 @@
 /****************************
  * gfx_io_stdout implementation of the write function.
  */
-static long long _gfx_stdout(const GFXWriter* str, const void* data, size_t len)
+static long long gfx_stdout_(const GFXWriter* str, const void* data, size_t len)
 {
 	return (long long)fwrite(data, 1, len, stdout);
 }
@@ -23,7 +22,7 @@ static long long _gfx_stdout(const GFXWriter* str, const void* data, size_t len)
 /****************************
  * gfx_io_stderr implementation of the write function.
  */
-static long long _gfx_stderr(const GFXWriter* str, const void* data, size_t len)
+static long long gfx_stderr_(const GFXWriter* str, const void* data, size_t len)
 {
 	return (long long)fwrite(data, 1, len, stderr);
 }
@@ -31,7 +30,7 @@ static long long _gfx_stderr(const GFXWriter* str, const void* data, size_t len)
 /****************************
  * gfx_io_stdnul implementation of the write function.
  */
-static long long _gfx_stdnul(const GFXWriter* str, const void* data, size_t len)
+static long long gfx_stdnul_(const GFXWriter* str, const void* data, size_t len)
 {
 	return (long long)len;
 }
@@ -39,7 +38,7 @@ static long long _gfx_stdnul(const GFXWriter* str, const void* data, size_t len)
 /****************************
  * GFXBinReader implementation of the len function.
  */
-static long long _gfx_bin_reader_len(const GFXReader* str)
+static long long gfx_bin_reader_len_(const GFXReader* str)
 {
 	GFXBinReader* reader = GFX_IO_OBJ(str, GFXBinReader, reader);
 
@@ -49,7 +48,7 @@ static long long _gfx_bin_reader_len(const GFXReader* str)
 /****************************
  * GFXBinReader implementation of the read function.
  */
-static long long _gfx_bin_reader_read(const GFXReader* str, void* data, size_t len)
+static long long gfx_bin_reader_read_(const GFXReader* str, void* data, size_t len)
 {
 	GFXBinReader* reader = GFX_IO_OBJ(str, GFXBinReader, reader);
 
@@ -69,7 +68,7 @@ static long long _gfx_bin_reader_read(const GFXReader* str, void* data, size_t l
 /****************************
  * GFXBinReader implementation of the get function.
  */
-static const void* _gfx_bin_reader_get(const GFXReader* str)
+static const void* gfx_bin_reader_get_(const GFXReader* str)
 {
 	GFXBinReader* reader = GFX_IO_OBJ(str, GFXBinReader, reader);
 
@@ -79,7 +78,7 @@ static const void* _gfx_bin_reader_get(const GFXReader* str)
 /****************************
  * GFXStringReader implementation of the len function.
  */
-static long long _gfx_string_reader_len(const GFXReader* str)
+static long long gfx_string_reader_len_(const GFXReader* str)
 {
 	GFXStringReader* reader = GFX_IO_OBJ(str, GFXStringReader, reader);
 
@@ -89,7 +88,7 @@ static long long _gfx_string_reader_len(const GFXReader* str)
 /****************************
  * GFXStringReader implementation of the read function.
  */
-static long long _gfx_string_reader_read(const GFXReader* str, void* data, size_t len)
+static long long gfx_string_reader_read_(const GFXReader* str, void* data, size_t len)
 {
 	GFXStringReader* reader = GFX_IO_OBJ(str, GFXStringReader, reader);
 
@@ -108,7 +107,7 @@ static long long _gfx_string_reader_read(const GFXReader* str, void* data, size_
 /****************************
  * GFXStringReader implementation of the get function.
  */
-static const void* _gfx_string_reader_get(const GFXReader* str)
+static const void* gfx_string_reader_get_(const GFXReader* str)
 {
 	GFXStringReader* reader = GFX_IO_OBJ(str, GFXStringReader, reader);
 
@@ -118,7 +117,7 @@ static const void* _gfx_string_reader_get(const GFXReader* str)
 /****************************
  * GFXBufWriter implementation of the write function.
  */
-static long long _gfx_buf_writer_write(const GFXWriter* str, const void* data, size_t len)
+static long long gfx_buf_writer_write_(const GFXWriter* str, const void* data, size_t len)
 {
 	GFXBufWriter* writer = GFX_IO_OBJ(str, GFXBufWriter, writer);
 
@@ -176,7 +175,7 @@ static long long _gfx_buf_writer_write(const GFXWriter* str, const void* data, s
 /****************************
  * GFXFile implementation of the len function.
  */
-static long long _gfx_file_len(const GFXReader* str)
+static long long gfx_file_len_(const GFXReader* str)
 {
 	GFXFile* file = GFX_IO_OBJ(str, GFXFile, reader);
 	if (file->handle == NULL) return -1;
@@ -207,7 +206,7 @@ static long long _gfx_file_len(const GFXReader* str)
 /****************************
  * GFXFile implementation of the read function.
  */
-static long long _gfx_file_read(const GFXReader* str, void* data, size_t len)
+static long long gfx_file_read_(const GFXReader* str, void* data, size_t len)
 {
 	GFXFile* file = GFX_IO_OBJ(str, GFXFile, reader);
 	if (file->handle == NULL) return -1;
@@ -219,7 +218,7 @@ static long long _gfx_file_read(const GFXReader* str, void* data, size_t len)
 /****************************
  * GFXFile implementation of the get function.
  */
-static const void* _gfx_file_get(const GFXReader* str)
+static const void* gfx_file_get_(const GFXReader* str)
 {
 	return NULL; // Unsupported.
 }
@@ -227,7 +226,7 @@ static const void* _gfx_file_get(const GFXReader* str)
 /****************************
  * GFXFile implementation of the write function.
  */
-static long long _gfx_file_write(const GFXWriter* str, const void* data, size_t len)
+static long long gfx_file_write_(const GFXWriter* str, const void* data, size_t len)
 {
 	GFXFile* file = GFX_IO_OBJ(str, GFXFile, writer);
 	if (file->handle == NULL) return -1;
@@ -239,7 +238,7 @@ static long long _gfx_file_write(const GFXWriter* str, const void* data, size_t 
 /****************************
  * GFXFileIncluder implementation of the resolve function.
  */
-static const GFXReader* _gfx_file_includer_resolve(const GFXIncluder* inc, const char* uri)
+static const GFXReader* gfx_file_includer_resolve_(const GFXIncluder* inc, const char* uri)
 {
 	GFXFileIncluder* includer = GFX_IO_OBJ(inc, GFXFileIncluder, includer);
 
@@ -277,7 +276,7 @@ static const GFXReader* _gfx_file_includer_resolve(const GFXIncluder* inc, const
 /****************************
  * GFXFileIncluder implementation of the release function.
  */
-static void _gfx_file_includer_release(const GFXIncluder* inc, const GFXReader* str)
+static void gfx_file_includer_release_(const GFXIncluder* inc, const GFXReader* str)
 {
 	GFXFile* file = GFX_IO_OBJ(str, GFXFile, reader);
 
@@ -287,9 +286,9 @@ static void _gfx_file_includer_release(const GFXIncluder* inc, const GFXReader* 
 
 
 /****************************/
-GFXBufWriter _gfx_io_buf_def =
+GFXBufWriter gfx_io_buf_def_ =
 {
-	.writer = { .write = _gfx_buf_writer_write },
+	.writer = { .write = gfx_buf_writer_write_ },
 
 	.dest = GFX_IO_STDERR,
 	.len = 0
@@ -299,21 +298,21 @@ GFXBufWriter _gfx_io_buf_def =
 /****************************/
 const GFXWriter gfx_io_stdout =
 {
-	.write = _gfx_stdout
+	.write = gfx_stdout_
 };
 
 
 /****************************/
 const GFXWriter gfx_io_stderr =
 {
-	.write = _gfx_stderr
+	.write = gfx_stderr_
 };
 
 
 /****************************/
 const GFXWriter gfx_io_stdnul =
 {
-	.write = _gfx_stdnul
+	.write = gfx_stdnul_
 };
 
 
@@ -472,9 +471,9 @@ GFX_API GFXReader* gfx_bin_reader(GFXBinReader* str, size_t len, const void* bin
 	assert(str != NULL);
 	assert(len == 0 || bin != NULL);
 
-	str->reader.len = _gfx_bin_reader_len;
-	str->reader.read = _gfx_bin_reader_read;
-	str->reader.get = _gfx_bin_reader_get;
+	str->reader.len = gfx_bin_reader_len_;
+	str->reader.read = gfx_bin_reader_read_;
+	str->reader.get = gfx_bin_reader_get_;
 
 	str->len = len;
 	str->pos = 0;
@@ -489,9 +488,9 @@ GFX_API GFXReader* gfx_string_reader(GFXStringReader* str, const char* string)
 	assert(str != NULL);
 	assert(string != NULL);
 
-	str->reader.len = _gfx_string_reader_len;
-	str->reader.read = _gfx_string_reader_read;
-	str->reader.get = _gfx_string_reader_get;
+	str->reader.len = gfx_string_reader_len_;
+	str->reader.read = gfx_string_reader_read_;
+	str->reader.get = gfx_string_reader_get_;
 
 	str->pos = 0;
 	str->str = string;
@@ -505,7 +504,7 @@ GFX_API GFXWriter* gfx_buf_writer(GFXBufWriter* str, const GFXWriter* dest)
 	assert(str != NULL);
 	assert(dest != NULL);
 
-	str->writer.write = _gfx_buf_writer_write;
+	str->writer.write = gfx_buf_writer_write_;
 
 	str->dest = dest;
 	str->len = 0;
@@ -520,10 +519,10 @@ GFX_API bool gfx_file_init(GFXFile* file, const char* name, const char* mode)
 	assert(name != NULL);
 	assert(mode != NULL);
 
-	file->reader.len = _gfx_file_len;
-	file->reader.read = _gfx_file_read;
-	file->reader.get = _gfx_file_get;
-	file->writer.write = _gfx_file_write;
+	file->reader.len = gfx_file_len_;
+	file->reader.read = gfx_file_read_;
+	file->reader.get = gfx_file_get_;
+	file->writer.write = gfx_file_write_;
 
 	file->handle = fopen(name, mode);
 
@@ -549,8 +548,8 @@ GFX_API bool gfx_file_includer_init(GFXFileIncluder* inc, const char* path, cons
 	assert(path != NULL);
 	assert(mode != NULL);
 
-	inc->includer.resolve = _gfx_file_includer_resolve;
-	inc->includer.release = _gfx_file_includer_release;
+	inc->includer.resolve = gfx_file_includer_resolve_;
+	inc->includer.release = gfx_file_includer_release_;
 
 	// Allocate new memory to store the path & mode.
 	const size_t pathLen = strlen(path);

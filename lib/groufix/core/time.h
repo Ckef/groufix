@@ -7,8 +7,8 @@
  */
 
 
-#ifndef _GFX_CORE_TIME_H
-#define _GFX_CORE_TIME_H
+#ifndef GFX_CORE_TIME_H_
+#define GFX_CORE_TIME_H_
 
 #include "groufix/def.h"
 
@@ -22,7 +22,7 @@
 /**
  * High resolution clock, suitable for time measurement.
  */
-typedef struct _GFXClock
+typedef struct GFXClock_
 {
 #if defined (GFX_UNIX)
 	clockid_t id;
@@ -34,14 +34,14 @@ typedef struct _GFXClock
 	// Ticks per second, read-only.
 	int64_t frequency;
 
-} _GFXClock;
+} GFXClock_;
 
 
 /**
  * Initializes (and starts) a high resolution clock.
  * Does not need to be cleared, hence no _init postfix.
  */
-static inline void _gfx_clock(_GFXClock* clock)
+static inline void gfx_clock_(GFXClock_* clock)
 {
 #if defined (GFX_UNIX)
 	if (!clock_gettime(CLOCK_MONOTONIC, &clock->start))
@@ -66,9 +66,9 @@ static inline void _gfx_clock(_GFXClock* clock)
 
 /**
  * Retrieves monotic (if supported) time from a high resolution clock.
- * @return Ticks since _gfx_clock was called.
+ * @return Ticks since gfx_clock_ was called.
  */
-static inline int64_t _gfx_clock_get_time(_GFXClock* clock)
+static inline int64_t gfx_clock_get_time_(GFXClock_* clock)
 {
 #if defined (GFX_UNIX)
 	struct timespec ts;

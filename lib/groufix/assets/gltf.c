@@ -9,7 +9,6 @@
 #include "groufix/assets/gltf.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/log.h"
-#include <assert.h>
 #include <ctype.h>
 #include <math.h>
 #include <stdlib.h>
@@ -19,7 +18,7 @@
 #include "cgltf.h"
 
 
-#define _GFX_GLTF_ERROR_STRING(result) \
+#define GFX_GLTF_ERROR_STRING_(result) \
 	((result) == cgltf_result_success ? \
 		"success" : \
 	(result) == cgltf_result_data_too_short ? \
@@ -36,7 +35,7 @@
 		"legacy glTF" : \
 		"unknown error")
 
-#define _GFX_GLTF_NODE_FLAGS(cnode) \
+#define GFX_GLTF_NODE_FLAGS_(cnode) \
 	((cnode->has_translation ? \
 		GFX_GLTF_NODE_TRANSLATION : 0) | \
 	(cnode->has_rotation ? \
@@ -44,7 +43,7 @@
 	(cnode->has_scale ? \
 		GFX_GLTF_NODE_SCALE : 0))
 
-#define _GFX_GLTF_MATERIAL_FLAGS(cmat) \
+#define GFX_GLTF_MATERIAL_FLAGS_(cmat) \
 	((cmat->has_pbr_metallic_roughness ? \
 		GFX_GLTF_MATERIAL_PBR_METALLIC_ROUGHNESS : 0) | \
 	(cmat->has_pbr_specular_glossiness ? \
@@ -70,7 +69,7 @@
 	(cmat->double_sided ? \
 		GFX_GLTF_MATERIAL_DOUBLE_SIDED : 0))
 
-#define _GFX_GLTF_ALPHA_MODE(mode) \
+#define GFX_GLTF_ALPHA_MODE_(mode) \
 	((mode) == cgltf_alpha_mode_opaque ? \
 		GFX_GLTF_ALPHA_OPAQUE : \
 	(mode) == cgltf_alpha_mode_mask ? \
@@ -79,7 +78,7 @@
 		GFX_GLTF_ALPHA_BLEND : \
 		GFX_GLTF_ALPHA_OPAQUE)
 
-#define _GFX_GLTF_TOPOLOGY(topo) \
+#define GFX_GLTF_TOPOLOGY_(topo) \
 	((topo) == cgltf_primitive_type_points ? \
 		GFX_TOPO_POINT_LIST : \
 	(topo) == cgltf_primitive_type_lines ? \
@@ -96,12 +95,12 @@
 		GFX_TOPO_TRIANGLE_FAN : \
 		GFX_TOPO_TRIANGLE_LIST)
 
-#define _GFX_GLTF_INDEX_SIZE(type) \
+#define GFX_GLTF_INDEX_SIZE_(type) \
 	((type) == cgltf_component_type_r_8u ? sizeof(uint8_t) : \
 	(type) == cgltf_component_type_r_16u ? sizeof(uint16_t) : \
 	(type) == cgltf_component_type_r_32u ? sizeof(uint32_t) : 0)
 
-#define _GFX_GLTF_FILTER(magFilter) \
+#define GFX_GLTF_FILTER_(magFilter) \
 	((magFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
 	(magFilter) == 0x2601 ? GFX_FILTER_LINEAR : \
 	(magFilter) == 0x2700 ? GFX_FILTER_NEAREST : \
@@ -109,7 +108,7 @@
 	(magFilter) == 0x2702 ? GFX_FILTER_NEAREST : \
 	(magFilter) == 0x2703 ? GFX_FILTER_LINEAR : GFX_FILTER_NEAREST)
 
-#define _GFX_GLTF_MIP_FILTER(minFilter) \
+#define GFX_GLTF_MIP_FILTER_(minFilter) \
 	((minFilter) == 0x2600 ? GFX_FILTER_NEAREST : \
 	(minFilter) == 0x2601 ? GFX_FILTER_NEAREST : \
 	(minFilter) == 0x2700 ? GFX_FILTER_NEAREST : \
@@ -117,7 +116,7 @@
 	(minFilter) == 0x2702 ? GFX_FILTER_LINEAR : \
 	(minFilter) == 0x2703 ? GFX_FILTER_LINEAR : GFX_FILTER_NEAREST)
 
-#define _GFX_GLTF_WRAPPING(wrap) \
+#define GFX_GLTF_WRAPPING_(wrap) \
 	((wrap) == 0x2901 ? GFX_WRAP_REPEAT : \
 	(wrap) == 0x8370 ? GFX_WRAP_REPEAT_MIRROR : \
 	(wrap) == 0x812f ? GFX_WRAP_CLAMP_TO_EDGE : \
@@ -126,26 +125,26 @@
 
 
 // Helpers to transform glTF data array pointers to groufix.
-#define _GFX_FROM_GLTF(vec, array, pElem) \
+#define GFX_FROM_GLTF_(vec, array, pElem) \
 	((pElem) != NULL ? gfx_vec_at(&(vec), (size_t)((pElem) - (array))) : NULL)
 
-#define _GFX_FROM_GLTF_ACCESSOR(pAccessor) \
+#define GFX_FROM_GLTF_ACCESSOR_(pAccessor) \
 	((pAccessor) != NULL && (pAccessor)->buffer_view != NULL ? \
-		_GFX_FROM_GLTF( \
+		GFX_FROM_GLTF_( \
 			buffers, data->buffers, (pAccessor)->buffer_view->buffer) : NULL)
 
-#define _GFX_FROM_GLTF_TEXVIEW(view) \
+#define GFX_FROM_GLTF_TEXVIEW_(view) \
 	(GFXGltfTexture){ \
 		.image = (view).texture != NULL ? \
-			*(GFXImage**)_GFX_FROM_GLTF( \
+			*(GFXImage**)GFX_FROM_GLTF_( \
 				images, data->images, (view).texture->image) : NULL, \
 		.sampler = (view).texture != NULL ? \
-			_GFX_FROM_GLTF( \
+			GFX_FROM_GLTF_( \
 				samplers, data->samplers, (view).texture->sampler) : NULL \
 	}
 
 // Decode a hexadecimal digit.
-#define _GFX_UNHEX(digit) \
+#define GFX_UNHEX_(digit) \
 	(unsigned char)( \
 		(unsigned)(digit - '0') < 10 ? (digit - '0') : \
 		(unsigned)(digit - 'A') < 6 ? (digit - 'A') + 10 : \
@@ -157,7 +156,7 @@
  * Compares (case insensitive) two NULL-terminated strings.
  * One of the strings may terminate with '_', its remains will be ignored.
  */
-static bool _gfx_gltf_cmp_attributes(const char* l, const char* r)
+static bool gfx_gltf_cmp_attributes_(const char* l, const char* r)
 {
 	if (l == NULL || r == NULL)
 		return 0;
@@ -173,7 +172,7 @@ static bool _gfx_gltf_cmp_attributes(const char* l, const char* r)
  * Constructs a vertex attribute format from the glTF accessor type,
  * component type and normalized flag.
  */
-static GFXFormat _gfx_gltf_attribute_fmt(cgltf_component_type cType,
+static GFXFormat gfx_gltf_attribute_fmt_(cgltf_component_type cType,
                                          cgltf_type type,
                                          cgltf_bool normalized)
 {
@@ -232,7 +231,7 @@ static GFXFormat _gfx_gltf_attribute_fmt(cgltf_component_type cType,
  *   q = [x,y,z,w] (rotation quaternion)
  *   s = [x,y,z]   (scale vector)
  */
-static void _gfx_gltf_to_mat(float* m,
+static void gfx_gltf_to_mat_(float* m,
                              const float* t, const float* q, const float* s)
 {
 	// Quaternion -> matrix.
@@ -269,7 +268,7 @@ static void _gfx_gltf_to_mat(float* m,
  * Decodes an encoded URI into a newly allocated string.
  * @return Must call free() on success!
  */
-static char* _gfx_gltf_decode_uri(const char* uri)
+static char* gfx_gltf_decode_uri_(const char* uri)
 {
 	const size_t len = strlen(uri);
 
@@ -287,10 +286,10 @@ static char* _gfx_gltf_decode_uri(const char* uri)
 	{
 		if (*i == '%')
 		{
-			unsigned char c0 = _GFX_UNHEX(i[1]);
+			unsigned char c0 = GFX_UNHEX_(i[1]);
 			if (c0 < 16)
 			{
-				unsigned char c1 = _GFX_UNHEX(i[2]);
+				unsigned char c1 = GFX_UNHEX_(i[2]);
 				if (c1 < 16)
 				{
 					*(w++) = (char)(c0 * 16 + c1);
@@ -311,7 +310,7 @@ static char* _gfx_gltf_decode_uri(const char* uri)
  * Gets the base64 part from a data URI.
  * @return NULL if not a base64 data uri, pointer to the base64 data otherwise.
  */
-static const char* _gfx_gltf_get_base64(const char* uri)
+static const char* gfx_gltf_get_base64_(const char* uri)
 {
 	const char* comma =
 		strchr(uri, ',');
@@ -329,7 +328,7 @@ static const char* _gfx_gltf_get_base64(const char* uri)
  * @param size Size of the output buffer (_NOT_ of src) in bytes, fails if 0.
  * @return Must call free() on success!
  */
-static void* _gfx_gltf_decode_base64(size_t size, const char* src)
+static void* gfx_gltf_decode_base64_(size_t size, const char* src)
 {
 	if (size == 0) return NULL; // Empty is explicit error.
 
@@ -379,7 +378,7 @@ static void* _gfx_gltf_decode_base64(size_t size, const char* src)
  * @param size Output length of the returned buffer.
  * @return NULL on failure.
  */
-static void* _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
+static void* gfx_gltf_include_buffer_(const GFXIncluder* inc, const char* uri,
                                       size_t* size)
 {
 	assert(uri != NULL);
@@ -395,7 +394,7 @@ static void* _gfx_gltf_include_buffer(const GFXIncluder* inc, const char* uri,
 	}
 
 	// Resolve the URI.
-	char* dec = _gfx_gltf_decode_uri(uri);
+	char* dec = gfx_gltf_decode_uri_(uri);
 	if (dec == NULL)
 	{
 		gfx_log_error("Could not decode buffer URI: %s.", uri);
@@ -446,7 +445,7 @@ clean:
  * @param src Source to decode, cannot be NULL, must be NULL-terminated.
  * @return NULL on failure.
  */
-static GFXImage* _gfx_gltf_decode_image(const char* src,
+static GFXImage* gfx_gltf_decode_image_(const char* src,
                                         GFXHeap* heap, GFXDependency* dep,
                                         GFXImageFlags flags, GFXImageUsage usage)
 {
@@ -462,7 +461,7 @@ static GFXImage* _gfx_gltf_decode_image(const char* src,
 		// Add to account for missing padding.
 		+ ((len & 3) == 3 ? 2 : (len & 3) == 2 ? 1 : 0);
 
-	void* bin = _gfx_gltf_decode_base64(size, src);
+	void* bin = gfx_gltf_decode_base64_(size, src);
 	if (bin == NULL)
 	{
 		gfx_log_error("Failed to decode base64 image data URI.");
@@ -489,7 +488,7 @@ static GFXImage* _gfx_gltf_decode_image(const char* src,
  * @param uri Data URI to resolve, cannot be NULL, must be NULL-terminated.
  * @return NULL on failure.
  */
-static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri,
+static GFXImage* gfx_gltf_include_image_(const GFXIncluder* inc, const char* uri,
                                          GFXHeap* heap, GFXDependency* dep,
                                          GFXImageFlags flags, GFXImageUsage usage)
 {
@@ -505,7 +504,7 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
 	}
 
 	// Resolve the URI.
-	char* dec = _gfx_gltf_decode_uri(uri);
+	char* dec = gfx_gltf_decode_uri_(uri);
 	if (dec == NULL)
 	{
 		gfx_log_error("Could not decode image URI: %s.", uri);
@@ -538,7 +537,7 @@ static GFXImage* _gfx_gltf_include_image(const GFXIncluder* inc, const char* uri
  * @param buffer May be NULL, on which it will fail (same if size is 0).
  * @return Non-zero on success.
  */
-static bool _gfx_gltf_buffer_alloc(GFXHeap* heap, GFXDependency* dep,
+static bool gfx_gltf_buffer_alloc_(GFXHeap* heap, GFXDependency* dep,
                                    GFXGltfBuffer* buffer)
 {
 	assert(heap != NULL);
@@ -592,7 +591,7 @@ static bool _gfx_gltf_buffer_alloc(GFXHeap* heap, GFXDependency* dep,
  *
  * attribOrder's size must be cprim->attributes_count.
  */
-static size_t _gfx_gltf_order_attributes(const cgltf_primitive* cprim,
+static size_t gfx_gltf_order_attributes_(const cgltf_primitive* cprim,
                                          const GFXGltfOptions* options,
                                          size_t* attribOrder)
 {
@@ -623,7 +622,7 @@ static size_t _gfx_gltf_order_attributes(const cgltf_primitive* cprim,
 		{
 			// See if they match any glTF attributes.
 			for (size_t ca = 0; ca < cprim->attributes_count; ++ca)
-				if (!attribUsed[ca] && _gfx_gltf_cmp_attributes(
+				if (!attribUsed[ca] && gfx_gltf_cmp_attributes_(
 					options->attributeOrder[o],
 					cprim->attributes[ca].name))
 				{
@@ -685,7 +684,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	{
 		gfx_log_error(
 			"Failed to load glTF, %s.",
-			_GFX_GLTF_ERROR_STRING(res));
+			GFX_GLTF_ERROR_STRING_(res));
 
 		cgltf_free(data);
 		gfx_io_raw_clear(&source, src);
@@ -737,14 +736,14 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		if (uri != NULL && strncmp(uri, "data:", 5) == 0)
 		{
 			// Decode as base64.
-			const char* base64 = _gfx_gltf_get_base64(uri);
+			const char* base64 = gfx_gltf_get_base64_(uri);
 			if (base64 == NULL)
 			{
 				gfx_log_error("Buffer data URIs can only be base64.");
 				goto clean;
 			}
 
-			buffer.bin = _gfx_gltf_decode_base64(buffer.size, base64);
+			buffer.bin = gfx_gltf_decode_base64_(buffer.size, base64);
 			if (buffer.bin == NULL)
 			{
 				gfx_log_error("Failed to decode base64 buffer data URI.");
@@ -755,7 +754,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		// Check if actual URI.
 		else if (uri != NULL)
 		{
-			buffer.bin = _gfx_gltf_include_buffer(inc, uri, &buffer.size);
+			buffer.bin = gfx_gltf_include_buffer_(inc, uri, &buffer.size);
 			if (buffer.bin == NULL) goto clean;
 		}
 
@@ -789,21 +788,21 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		if (uri != NULL && strncmp(uri, "data:", 5) == 0)
 		{
 			// Decode as base64.
-			const char* base64 = _gfx_gltf_get_base64(uri);
+			const char* base64 = gfx_gltf_get_base64_(uri);
 			if (base64 == NULL)
 			{
 				gfx_log_error("Image data URIs can only be base64.");
 				goto clean;
 			}
 
-			image = _gfx_gltf_decode_image(base64, heap, dep, flags, usage);
+			image = gfx_gltf_decode_image_(base64, heap, dep, flags, usage);
 			if (image == NULL) goto clean;
 		}
 
 		// Check if actual URI.
 		else if (uri != NULL)
 		{
-			image = _gfx_gltf_include_image(inc, uri, heap, dep, flags, usage);
+			image = gfx_gltf_include_image_(inc, uri, heap, dep, flags, usage);
 			if (image == NULL) goto clean;
 		}
 
@@ -811,7 +810,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		else if (cview != NULL)
 		{
 			GFXGltfBuffer* buffer =
-				_GFX_FROM_GLTF(buffers, data->buffers, cview->buffer);
+				GFX_FROM_GLTF_(buffers, data->buffers, cview->buffer);
 
 			// Load the image.
 			if (buffer == NULL || buffer->bin == NULL)
@@ -852,12 +851,12 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	{
 		// Insert sampler.
 		GFXGltfSampler sampler = {
-			.minFilter = _GFX_GLTF_FILTER(data->samplers[s].min_filter),
-			.magFilter = _GFX_GLTF_FILTER(data->samplers[s].mag_filter),
-			.mipFilter = _GFX_GLTF_MIP_FILTER(data->samplers[s].min_filter),
+			.minFilter = GFX_GLTF_FILTER_(data->samplers[s].min_filter),
+			.magFilter = GFX_GLTF_FILTER_(data->samplers[s].mag_filter),
+			.mipFilter = GFX_GLTF_MIP_FILTER_(data->samplers[s].min_filter),
 
-			.wrapU = _GFX_GLTF_WRAPPING(data->samplers[s].wrap_s),
-			.wrapV = _GFX_GLTF_WRAPPING(data->samplers[s].wrap_t),
+			.wrapU = GFX_GLTF_WRAPPING_(data->samplers[s].wrap_s),
+			.wrapV = GFX_GLTF_WRAPPING_(data->samplers[s].wrap_t),
 		};
 
 		if (!gfx_vec_push(&samplers, 1, &sampler))
@@ -871,13 +870,13 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 		// Insert material.
 		GFXGltfMaterial material = {
-			.flags = _GFX_GLTF_MATERIAL_FLAGS(cmat),
+			.flags = GFX_GLTF_MATERIAL_FLAGS_(cmat),
 
 			.pbr = {
 				// Metallic roughness.
-				.baseColor = _GFX_FROM_GLTF_TEXVIEW(
+				.baseColor = GFX_FROM_GLTF_TEXVIEW_(
 					cmat->pbr_metallic_roughness.base_color_texture),
-				.metallicRoughness = _GFX_FROM_GLTF_TEXVIEW(
+				.metallicRoughness = GFX_FROM_GLTF_TEXVIEW_(
 					cmat->pbr_metallic_roughness.metallic_roughness_texture),
 
 				.baseColorFactors = {
@@ -895,9 +894,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 					cmat->ior.ior,
 
 				// Specular glossiness.
-				.diffuse = _GFX_FROM_GLTF_TEXVIEW(
+				.diffuse = GFX_FROM_GLTF_TEXVIEW_(
 					cmat->pbr_specular_glossiness.diffuse_texture),
-				.specularGlossiness = _GFX_FROM_GLTF_TEXVIEW(
+				.specularGlossiness = GFX_FROM_GLTF_TEXVIEW_(
 					cmat->pbr_specular_glossiness.specular_glossiness_texture),
 
 				.diffuseFactors = {
@@ -918,11 +917,11 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			},
 
 			// Standard.
-			.normal = _GFX_FROM_GLTF_TEXVIEW(cmat->normal_texture),
-			.occlusion = _GFX_FROM_GLTF_TEXVIEW(cmat->occlusion_texture),
-			.emissive = _GFX_FROM_GLTF_TEXVIEW(cmat->emissive_texture),
+			.normal = GFX_FROM_GLTF_TEXVIEW_(cmat->normal_texture),
+			.occlusion = GFX_FROM_GLTF_TEXVIEW_(cmat->occlusion_texture),
+			.emissive = GFX_FROM_GLTF_TEXVIEW_(cmat->emissive_texture),
 
-			.alphaMode = _GFX_GLTF_ALPHA_MODE(cmat->alpha_mode),
+			.alphaMode = GFX_GLTF_ALPHA_MODE_(cmat->alpha_mode),
 
 			.normalScale = cmat->normal_texture.scale,
 			.occlusionStrength = cmat->occlusion_texture.scale,
@@ -936,11 +935,11 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			},
 
 			// Clearcoat.
-			.clearcoat = _GFX_FROM_GLTF_TEXVIEW(
+			.clearcoat = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->clearcoat.clearcoat_texture),
-			.clearcoatRoughness = _GFX_FROM_GLTF_TEXVIEW(
+			.clearcoatRoughness = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->clearcoat.clearcoat_roughness_texture),
-			.clearcoatNormal = _GFX_FROM_GLTF_TEXVIEW(
+			.clearcoatNormal = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->clearcoat.clearcoat_normal_texture),
 
 			.clearcoatFactor =
@@ -949,9 +948,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				cmat->clearcoat.clearcoat_roughness_factor,
 
 			// Iridescence.
-			.iridescence = _GFX_FROM_GLTF_TEXVIEW(
+			.iridescence = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->iridescence.iridescence_texture),
-			.iridescenceThickness = _GFX_FROM_GLTF_TEXVIEW(
+			.iridescenceThickness = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->iridescence.iridescence_thickness_texture),
 
 			.iridescenceFactor =
@@ -964,9 +963,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				cmat->iridescence.iridescence_thickness_max,
 
 			// Sheen.
-			.sheenColor = _GFX_FROM_GLTF_TEXVIEW(
+			.sheenColor = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->sheen.sheen_color_texture),
-			.sheenRoughness = _GFX_FROM_GLTF_TEXVIEW(
+			.sheenRoughness = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->sheen.sheen_roughness_texture),
 
 			.sheenColorFactors = {
@@ -979,9 +978,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				cmat->sheen.sheen_roughness_factor,
 
 			// Specular.
-			.specular = _GFX_FROM_GLTF_TEXVIEW(
+			.specular = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->specular.specular_texture),
-			.specularColor = _GFX_FROM_GLTF_TEXVIEW(
+			.specularColor = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->specular.specular_color_texture),
 
 			.specularFactor =
@@ -994,14 +993,14 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			},
 
 			// Transmission.
-			.transmission = _GFX_FROM_GLTF_TEXVIEW(
+			.transmission = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->transmission.transmission_texture),
 
 			.transmissionFactor =
 				cmat->transmission.transmission_factor,
 
 			// Volume.
-			.thickness = _GFX_FROM_GLTF_TEXVIEW(
+			.thickness = GFX_FROM_GLTF_TEXVIEW_(
 				cmat->volume.thickness_texture),
 
 			.thicknessFactor = cmat->volume.thickness_factor,
@@ -1030,9 +1029,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				cprim->indices != NULL ? cprim->indices->count : 0;
 			const char indexSize =
 				cprim->indices != NULL ?
-				_GFX_GLTF_INDEX_SIZE(cprim->indices->component_type) : 0;
+				GFX_GLTF_INDEX_SIZE_(cprim->indices->component_type) : 0;
 			GFXGltfBuffer* indexBuffer =
-				_GFX_FROM_GLTF_ACCESSOR(cprim->indices);
+				GFX_FROM_GLTF_ACCESSOR_(cprim->indices);
 
 			if (cprim->attributes_count == 0)
 			{
@@ -1046,7 +1045,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
-			if (numIndices > 0 && !_gfx_gltf_buffer_alloc(heap, dep, indexBuffer))
+			if (numIndices > 0 && !gfx_gltf_buffer_alloc_(heap, dep, indexBuffer))
 			{
 				gfx_log_error("Failed to allocate index buffer.");
 				goto clean;
@@ -1057,7 +1056,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			// Calculate the actual order to consume the attributes in.
 			size_t attribOrder[cprim->attributes_count];
 			size_t numAttributes =
-				_gfx_gltf_order_attributes(cprim, options, attribOrder);
+				gfx_gltf_order_attributes_(cprim, options, attribOrder);
 
 			size_t numVertices = SIZE_MAX;
 			GFXAttribute attributes[numAttributes];
@@ -1072,9 +1071,9 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 					numVertices, cattr->data->count);
 
 				GFXGltfBuffer* buffer =
-					_GFX_FROM_GLTF_ACCESSOR(cattr->data);
+					GFX_FROM_GLTF_ACCESSOR_(cattr->data);
 
-				if (!_gfx_gltf_buffer_alloc(heap, dep, buffer))
+				if (!gfx_gltf_buffer_alloc_(heap, dep, buffer))
 				{
 					gfx_log_error("Failed to allocate vertex buffer.");
 					goto clean;
@@ -1084,7 +1083,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 					.offset = (uint32_t)cattr->data->offset,
 					.rate = GFX_RATE_VERTEX,
 
-					.format = _gfx_gltf_attribute_fmt(
+					.format = gfx_gltf_attribute_fmt_(
 						cattr->data->component_type,
 						cattr->data->type,
 						cattr->data->normalized),
@@ -1109,7 +1108,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 			// Allocate primitive.
 			GFXPrimitive* prim = gfx_alloc_prim(heap,
-				0, 0, _GFX_GLTF_TOPOLOGY(cprim->type),
+				0, 0, GFX_GLTF_TOPOLOGY_(cprim->type),
 				(uint32_t)numIndices, indexSize,
 				(uint32_t)numVertices,
 				numIndices > 0 ? gfx_ref_buffer_at(
@@ -1122,7 +1121,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			// Insert primitive.
 			GFXGltfPrimitive primitive = {
 				.primitive = prim,
-				.material = _GFX_FROM_GLTF(
+				.material = GFX_FROM_GLTF_(
 					materials, data->materials, cprim->material)
 			};
 
@@ -1157,7 +1156,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 
 		// Insert node.
 		GFXGltfNode node = {
-			.flags = _GFX_GLTF_NODE_FLAGS(cnode),
+			.flags = GFX_GLTF_NODE_FLAGS_(cnode),
 
 			.parent = NULL,
 			.children = NULL,
@@ -1167,7 +1166,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 			.scale = { 1.0f, 1.0f, 1.0f },
 
-			.mesh = _GFX_FROM_GLTF(meshes, data->meshes, cnode->mesh)
+			.mesh = GFX_FROM_GLTF_(meshes, data->meshes, cnode->mesh)
 		};
 
 		if (cnode->has_translation)
@@ -1182,7 +1181,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 		if (cnode->has_matrix)
 			memcpy(node.matrix, cnode->matrix, sizeof(node.matrix));
 		else
-			_gfx_gltf_to_mat(node.matrix, node.translation, node.rotation, node.scale);
+			gfx_gltf_to_mat_(node.matrix, node.translation, node.rotation, node.scale);
 
 		if (!gfx_vec_push(&nodes, 1, &node))
 			goto clean;
@@ -1207,7 +1206,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 	for (size_t n = 0; n < data->nodes_count; ++n)
 	{
 		GFXGltfNode* node = gfx_vec_at(&nodes, n);
-		node->parent = _GFX_FROM_GLTF(
+		node->parent = GFX_FROM_GLTF_(
 			nodes, data->nodes, data->nodes[n].parent);
 	}
 
@@ -1227,7 +1226,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			nodePtrsLoc += node->numChildren;
 
 			for (size_t np = 0; np < node->numChildren; ++np)
-				node->children[np] = _GFX_FROM_GLTF(
+				node->children[np] = GFX_FROM_GLTF_(
 					nodes, data->nodes, data->nodes[n].children[np]);
 		}
 
@@ -1239,13 +1238,13 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			nodePtrsLoc += scene->numNodes;
 
 			for (size_t np = 0; np < scene->numNodes; ++np)
-				scene->nodes[np] = _GFX_FROM_GLTF(
+				scene->nodes[np] = GFX_FROM_GLTF_(
 					nodes, data->nodes, data->scenes[s].nodes[np]);
 		}
 	}
 
 	// Set default scene.
-	result->scene = _GFX_FROM_GLTF(scenes, data->scenes, data->scene);
+	result->scene = GFX_FROM_GLTF_(scenes, data->scenes, data->scene);
 
 	// We are done building groufix objects, free gltf things.
 	cgltf_free(data);

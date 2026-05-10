@@ -9,7 +9,6 @@
 #include "groufix/core/objects.h"
 #include "shaderc/shaderc.h"
 #include "spirv_cross_c.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,11 +17,11 @@
 static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 
 
-#define _GFX_GET_LANGUAGE_STRING(language) \
+#define GFX_GET_LANGUAGE_STRING_(language) \
 	((language) == GFX_GLSL ? "glsl" : \
 	(language) == GFX_HLSL ? "hlsl" : "*")
 
-#define _GFX_GET_STAGE_STRING(stage) \
+#define GFX_GET_STAGE_STRING_(stage) \
 	((stage) == GFX_STAGE_VERTEX ? \
 		"vertex" : \
 	(stage) == GFX_STAGE_TESS_CONTROL ? \
@@ -36,14 +35,14 @@ static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 	(stage) == GFX_STAGE_COMPUTE ? \
 		"compute" : "unknown")
 
-#define _GFX_GET_SHADERC_LANGUAGE(language) \
+#define GFX_GET_SHADERC_LANGUAGE_(language) \
 	((language) == GFX_GLSL ? \
 		shaderc_source_language_glsl : \
 	(language) == GFX_HLSL ? \
 		shaderc_source_language_hlsl : \
 		shaderc_source_language_glsl)
 
-#define _GFX_GET_SHADERC_KIND(stage) \
+#define GFX_GET_SHADERC_KIND_(stage) \
 	((stage) == GFX_STAGE_VERTEX ? \
 		shaderc_vertex_shader : \
 	(stage) == GFX_STAGE_TESS_CONTROL ? \
@@ -59,7 +58,7 @@ static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 		shaderc_glsl_infer_from_source)
 
 
-#define _GFX_GET_RESOURCES(type, list, size) \
+#define GFX_GET_RESOURCES_(type, list, size) \
 	do { \
 		result = spvc_resources_get_resource_list_for_type( \
 			resources, type, &list, &size); \
@@ -67,14 +66,14 @@ static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 			goto clean; \
 	} while (0)
 
-#define _GFX_RESOURCES_REFLECT(type, list, size) \
+#define GFX_RESOURCES_REFLECT_(type, list, size) \
 	do { \
 		for (size_t i = 0; i < size; ++i) \
-			_gfx_reflect_resource( \
+			gfx_reflect_resource_( \
 				shader, compiler, type, list + i, rList + (rInd++)); \
 	} while (0)
 
-#define _GFX_SET_SHADERC_LIMIT(shc, vk) \
+#define GFX_SET_SHADERC_LIMIT_(shc, vk) \
 	do { \
 		shaderc_compile_options_set_limit(options, \
 			shaderc_limit_##shc, (int)pdp.limits.vk); \
@@ -84,7 +83,7 @@ static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 /****************************
  * Default shaderc include error.
  */
-const static shaderc_include_result _gfx_shaderc_def_error = {
+const static shaderc_include_result gfx_shaderc_def_error_ = {
 	.source_name = "",
 	.source_name_length = 0,
 	.content =
@@ -97,7 +96,7 @@ const static shaderc_include_result _gfx_shaderc_def_error = {
 /****************************
  * Callback for SPIRV-Cross errors.
  */
-static void _gfx_spirv_cross_error(void* userData, const char* error)
+static void gfx_spirv_cross_error_(void* userData, const char* error)
 {
 	// Just log it as a groufix error.
 	gfx_log_error("SPIRV-Cross: %s", error);
@@ -106,7 +105,7 @@ static void _gfx_spirv_cross_error(void* userData, const char* error)
 /****************************
  * Resolve callback for the shaderc includer.
  */
-static shaderc_include_result* _gfx_shaderc_resolve(void* ptr, const char* req,
+static shaderc_include_result* gfx_shaderc_resolve_(void* ptr, const char* req,
                                                     int type, const char* src,
                                                     size_t depth)
 {
@@ -115,11 +114,11 @@ static shaderc_include_result* _gfx_shaderc_resolve(void* ptr, const char* req,
 	// Allocate new source name so we can return it.
 	const size_t sourceLen = strlen(req);
 	if (sourceLen == 0)
-		return (shaderc_include_result*)&_gfx_shaderc_def_error;
+		return (shaderc_include_result*)&gfx_shaderc_def_error_;
 
 	char* sourceName = malloc(sourceLen + 1);
 	if (sourceName == NULL)
-		return (shaderc_include_result*)&_gfx_shaderc_def_error;
+		return (shaderc_include_result*)&gfx_shaderc_def_error_;
 
 	strcpy(sourceName, req);
 
@@ -128,7 +127,7 @@ static shaderc_include_result* _gfx_shaderc_resolve(void* ptr, const char* req,
 	if (result == NULL)
 	{
 		free(sourceName);
-		return (shaderc_include_result*)&_gfx_shaderc_def_error;
+		return (shaderc_include_result*)&gfx_shaderc_def_error_;
 	}
 
 	// Set it to an error state so we can goto on error!
@@ -182,10 +181,10 @@ clean_name:
 /****************************
  * Release callback for the shaderc includer.
  */
-static void _gfx_shaderc_release(void* ptr, shaderc_include_result* result)
+static void gfx_shaderc_release_(void* ptr, shaderc_include_result* result)
 {
 	// Nothing to do if it was the default error.
-	if (result != (shaderc_include_result*)&_gfx_shaderc_def_error)
+	if (result != (shaderc_include_result*)&gfx_shaderc_def_error_)
 	{
 		if (result->source_name_length > 0)
 		{
@@ -202,10 +201,10 @@ static void _gfx_shaderc_release(void* ptr, shaderc_include_result* result)
  * then insertion-sorts it backwards into the shader->reflect.resources array.
  * Make sure to reflect vert/frag io resources first!
  */
-static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
+static void gfx_reflect_resource_(GFXShader* shader, spvc_compiler compiler,
                                   spvc_resource_type type,
                                   const spvc_reflected_resource* in,
-                                  _GFXShaderResource* out)
+                                  GFXShaderResource_* out)
 {
 	// Get all metadata.
 	const spvc_type hType =
@@ -296,43 +295,43 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 	switch (type)
 	{
 	case SPVC_RESOURCE_TYPE_STAGE_INPUT:
-		out->type = _GFX_SHADER_VERTEX_INPUT;
+		out->type = GFX_SHADER_VERTEX_INPUT_;
 		break;
 
 	case SPVC_RESOURCE_TYPE_STAGE_OUTPUT:
-		out->type = _GFX_SHADER_FRAGMENT_OUTPUT;
+		out->type = GFX_SHADER_FRAGMENT_OUTPUT_;
 		break;
 
 	case SPVC_RESOURCE_TYPE_SUBPASS_INPUT:
-		out->type = _GFX_SHADER_ATTACHMENT_INPUT;
+		out->type = GFX_SHADER_ATTACHMENT_INPUT_;
 		break;
 
 	case SPVC_RESOURCE_TYPE_UNIFORM_BUFFER:
-		out->type = _GFX_SHADER_BUFFER_UNIFORM;
+		out->type = GFX_SHADER_BUFFER_UNIFORM_;
 		break;
 
 	case SPVC_RESOURCE_TYPE_STORAGE_BUFFER:
-		out->type = _GFX_SHADER_BUFFER_STORAGE;
+		out->type = GFX_SHADER_BUFFER_STORAGE_;
 		break;
 
 	case SPVC_RESOURCE_TYPE_STORAGE_IMAGE:
 		out->type = imageDim == SpvDimBuffer ?
-			_GFX_SHADER_BUFFER_STORAGE_TEXEL :
-			_GFX_SHADER_IMAGE_STORAGE;
+			GFX_SHADER_BUFFER_STORAGE_TEXEL_ :
+			GFX_SHADER_IMAGE_STORAGE_;
 		break;
 
 	case SPVC_RESOURCE_TYPE_SAMPLED_IMAGE:
-		out->type = _GFX_SHADER_IMAGE_AND_SAMPLER;
+		out->type = GFX_SHADER_IMAGE_AND_SAMPLER_;
 		break;
 
 	case SPVC_RESOURCE_TYPE_SEPARATE_IMAGE:
 		out->type = imageDim == SpvDimBuffer ?
-			_GFX_SHADER_BUFFER_UNIFORM_TEXEL :
-			_GFX_SHADER_IMAGE_SAMPLED;
+			GFX_SHADER_BUFFER_UNIFORM_TEXEL_ :
+			GFX_SHADER_IMAGE_SAMPLED_;
 		break;
 
 	case SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS:
-		out->type = _GFX_SHADER_SAMPLER;
+		out->type = GFX_SHADER_SAMPLER_;
 		break;
 
 	default:
@@ -341,11 +340,11 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 
 	// Now we have all information, it needs to be insertion-sorted
 	// backwards into the shader->reflect.resources array.
-	_GFXShaderResource t = *out;
+	GFXShaderResource_ t = *out;
 
 	while (out != shader->reflect.resources)
 	{
-		_GFXShaderResource* bef = out-1;
+		GFXShaderResource_* bef = out-1;
 
 		// Check if the previous position needs to go to the right.
 		// NOTE: We assume all vert/frag io resources are inserted before
@@ -354,8 +353,8 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
 			// Compare locations if it is a vert/frag io.
 			bef->location > t.location :
 			// Check if it is not a vert/frag io AND compare set/binding.
-			bef->type != _GFX_SHADER_VERTEX_INPUT &&
-			bef->type != _GFX_SHADER_FRAGMENT_OUTPUT &&
+			bef->type != GFX_SHADER_VERTEX_INPUT_ &&
+			bef->type != GFX_SHADER_FRAGMENT_OUTPUT_ &&
 				(bef->set > t.set ||
 					(bef->set == t.set && bef->binding > t.binding));
 
@@ -376,7 +375,7 @@ static void _gfx_reflect_resource(GFXShader* shader, spvc_compiler compiler,
  *
  * Reflection data is not cleaned on failure!
  */
-static bool _gfx_shader_reflect(GFXShader* shader,
+static bool gfx_shader_reflect_(GFXShader* shader,
                                 size_t size, const uint32_t* code)
 {
 	assert(shader != NULL);
@@ -395,7 +394,7 @@ static bool _gfx_shader_reflect(GFXShader* shader,
 		goto error;
 
 	// Set error callback.
-	spvc_context_set_error_callback(context, _gfx_spirv_cross_error, NULL);
+	spvc_context_set_error_callback(context, gfx_spirv_cross_error_, NULL);
 
 	// Parse SPIR-V!
 	// Size is rounded down.
@@ -439,19 +438,19 @@ static bool _gfx_shader_reflect(GFXShader* shader,
 		numImgs = 0, numSimgs = 0, numSepimgs = 0, numSamps = 0;
 
 	if (shader->stage == GFX_STAGE_VERTEX)
-		_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
+		GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
 
 	else if (shader->stage == GFX_STAGE_FRAGMENT)
-		_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
+		GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
 
-	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_PUSH_CONSTANT, pushs, numPushs);
-	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
-	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
-	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
-	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
-	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
-	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
-	_GFX_GET_RESOURCES(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
+	GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_PUSH_CONSTANT, pushs, numPushs);
+	GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
+	GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
+	GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
+	GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
+	GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
+	GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
+	GFX_GET_RESOURCES_(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
 
 	// Get specialization constants.
 	const spvc_specialization_constant* consts = NULL;
@@ -477,8 +476,8 @@ static bool _gfx_shader_reflect(GFXShader* shader,
 		shader->reflect.bindings > 0 ||
 		shader->reflect.constants > 0)
 	{
-		_GFXShaderResource* rList = malloc(
-			sizeof(_GFXShaderResource) *
+		GFXShaderResource_* rList = malloc(
+			sizeof(GFXShaderResource_) *
 				(shader->reflect.locations +
 				shader->reflect.bindings +
 				shader->reflect.constants));
@@ -487,36 +486,36 @@ static bool _gfx_shader_reflect(GFXShader* shader,
 			goto clean;
 
 		// We keep track of the position to insert at.
-		// _gfx_reflect_resource will insertion-sort them into place.
+		// gfx_reflect_resource_ will insertion-sort them into place.
 		shader->reflect.resources = rList;
 		size_t rInd = 0;
 
 		// Make sure to reflect vert/frag io resources first!
-		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
-		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
+		GFX_RESOURCES_REFLECT_(SPVC_RESOURCE_TYPE_STAGE_INPUT, inps, numInps);
+		GFX_RESOURCES_REFLECT_(SPVC_RESOURCE_TYPE_STAGE_OUTPUT, outs, numOuts);
 
-		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
-		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
-		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
-		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
-		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
-		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
-		_GFX_RESOURCES_REFLECT(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
+		GFX_RESOURCES_REFLECT_(SPVC_RESOURCE_TYPE_SUBPASS_INPUT, subs, numSubs);
+		GFX_RESOURCES_REFLECT_(SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, ubos, numUbos);
+		GFX_RESOURCES_REFLECT_(SPVC_RESOURCE_TYPE_STORAGE_BUFFER, sbos, numSbos);
+		GFX_RESOURCES_REFLECT_(SPVC_RESOURCE_TYPE_STORAGE_IMAGE, imgs, numImgs);
+		GFX_RESOURCES_REFLECT_(SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, simgs, numSimgs);
+		GFX_RESOURCES_REFLECT_(SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, sepimgs, numSepimgs);
+		GFX_RESOURCES_REFLECT_(SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, samps, numSamps);
 
 		// And just stick in the specialization constants at the end.
 		for (size_t i = 0; i < numConsts; ++i)
 		{
-			_GFXShaderResource* out = rList + (rInd++);
+			GFXShaderResource_* out = rList + (rInd++);
 			out->id = consts[i].constant_id;
 			out->count = 1;
-			out->type = _GFX_SHADER_CONSTANT;
+			out->type = GFX_SHADER_CONSTANT_;
 		}
 
 		// Count number of used descriptor sets (which should be sorted!).
 		uint32_t curSet = UINT32_MAX;
 		for (size_t b = 0; b < shader->reflect.bindings; ++b)
 		{
-			_GFXShaderResource* res = rList + shader->reflect.locations + b;
+			GFXShaderResource_* res = rList + shader->reflect.locations + b;
 			if (curSet == UINT32_MAX || res->set > curSet)
 			{
 				++shader->reflect.sets;
@@ -554,7 +553,7 @@ clean:
 error:
 	gfx_log_error(
 		"Reflection on %s shader failed.",
-		_GFX_GET_STAGE_STRING(shader->stage));
+		GFX_GET_STAGE_STRING_(shader->stage));
 
 	return 0;
 }
@@ -566,17 +565,17 @@ error:
  * @param size   Must be a multiple of sizeof(uint32_t).
  * @return Zero on failure.
  */
-static bool _gfx_shader_build(GFXShader* shader,
+static bool gfx_shader_build_(GFXShader* shader,
                               size_t size, const uint32_t* code)
 {
 	assert(shader != NULL);
 	assert(shader->vk.module == VK_NULL_HANDLE);
 	assert(size % sizeof(uint32_t) == 0);
 
-	_GFXContext* context = shader->context;
+	GFXContext_* context = shader->context;
 
 	// First perform reflection.
-	if (!_gfx_shader_reflect(shader, size, code))
+	if (!gfx_shader_reflect_(shader, size, code))
 		goto clean_reflect;
 
 	// Then create the Vulkan shader module.
@@ -589,7 +588,7 @@ static bool _gfx_shader_build(GFXShader* shader,
 		.pCode    = code
 	};
 
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.CreateShaderModule(
 			context->vk.device, &smci, NULL, &shader->vk.module),
 		{
@@ -607,7 +606,7 @@ static bool _gfx_shader_build(GFXShader* shader,
 		"    #descriptor sets: %"GFX_PRIs".\n"
 		"    #descriptor bindings: %"GFX_PRIs".\n"
 		"    #specialization constants: %"GFX_PRIs".\n",
-		_GFX_GET_STAGE_STRING(shader->stage),
+		GFX_GET_STAGE_STRING_(shader->stage),
 		size / sizeof(uint32_t), size,
 		shader->reflect.push,
 		shader->reflect.locations,
@@ -635,7 +634,7 @@ clean_reflect:
 /****************************
  * Generates a unique-ish 'ID' for the shader to use as hashable cache handles.
  */
-static inline uintptr_t _gfx_shader_handle(_GFXContext* context)
+static inline uintptr_t gfx_shader_handle_(GFXContext_* context)
 {
 	uintptr_t handle = atomic_fetch_add_explicit(
 		&context->limits.shaders, 1, memory_order_relaxed);
@@ -660,10 +659,10 @@ GFX_API GFXShader* gfx_create_shader(GFXShaderStage stage, GFXDevice* device)
 
 	// Get context associated with the device.
 	// We need the device to set the compiler's target environment.
-	_GFX_GET_DEVICE(shader->device, device);
-	_GFX_GET_CONTEXT(shader->context, device, goto clean);
+	GFX_GET_DEVICE_(shader->device, device);
+	GFX_GET_CONTEXT_(shader->context, device, goto clean);
 
-	shader->handle = _gfx_shader_handle(shader->context);
+	shader->handle = gfx_shader_handle_(shader->context);
 	shader->stage = stage;
 	shader->vk.module = VK_NULL_HANDLE;
 
@@ -691,7 +690,7 @@ GFX_API void gfx_destroy_shader(GFXShader* shader)
 	if (shader == NULL)
 		return;
 
-	_GFXContext* context = shader->context;
+	GFXContext_* context = shader->context;
 
 	// Free reflection metadata.
 	free(shader->reflect.resources);
@@ -721,7 +720,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	assert(shader != NULL);
 	assert(src != NULL);
 
-	_GFXDevice* device = shader->device;
+	GFXDevice_* device = shader->device;
 
 	// Already has a shader module.
 	if (shader->vk.module != VK_NULL_HANDLE)
@@ -735,7 +734,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	{
 		gfx_log_error(
 			"Could not read source from stream to compile %s shader.",
-			_GFX_GET_STAGE_STRING(shader->stage));
+			GFX_GET_STAGE_STRING_(shader->stage));
 
 		return 0;
 	}
@@ -752,14 +751,14 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	{
 		gfx_log_error(
 			"Could not initialize resources to compile %s shader.",
-			_GFX_GET_STAGE_STRING(shader->stage));
+			GFX_GET_STAGE_STRING_(shader->stage));
 
 		goto clean_compiler;
 	}
 
 	// Set source language.
 	shaderc_compile_options_set_source_language(
-		options, _GFX_GET_SHADERC_LANGUAGE(language));
+		options, GFX_GET_SHADERC_LANGUAGE_(language));
 
 	// Set target environment.
 	// Omits patch version (Shaderc doesn't understand it).
@@ -779,8 +778,8 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	if (inc != NULL)
 		shaderc_compile_options_set_include_callbacks(
 			options,
-			_gfx_shaderc_resolve,
-			_gfx_shaderc_release,
+			gfx_shaderc_resolve_,
+			gfx_shaderc_release_,
 			(GFXIncluder*)inc);
 
 	// Add all these options only if we compile for this specific platform.
@@ -793,53 +792,53 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 		// GPU limits.
 		VkPhysicalDeviceProperties pdp;
-		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
+		groufix_.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
-		_GFX_SET_SHADERC_LIMIT(max_clip_distances, maxClipDistances);
-		_GFX_SET_SHADERC_LIMIT(max_cull_distances, maxCullDistances);
-		_GFX_SET_SHADERC_LIMIT(max_viewports, maxViewports);
+		GFX_SET_SHADERC_LIMIT_(max_clip_distances, maxClipDistances);
+		GFX_SET_SHADERC_LIMIT_(max_cull_distances, maxCullDistances);
+		GFX_SET_SHADERC_LIMIT_(max_viewports, maxViewports);
 
-		_GFX_SET_SHADERC_LIMIT(max_combined_clip_and_cull_distances,
+		GFX_SET_SHADERC_LIMIT_(max_combined_clip_and_cull_distances,
 			maxCombinedClipAndCullDistances);
-		_GFX_SET_SHADERC_LIMIT(max_vertex_output_components,
+		GFX_SET_SHADERC_LIMIT_(max_vertex_output_components,
 			maxVertexOutputComponents);
-		_GFX_SET_SHADERC_LIMIT(max_tess_control_total_output_components,
+		GFX_SET_SHADERC_LIMIT_(max_tess_control_total_output_components,
 			maxTessellationControlTotalOutputComponents);
-		_GFX_SET_SHADERC_LIMIT(max_tess_evaluation_input_components,
+		GFX_SET_SHADERC_LIMIT_(max_tess_evaluation_input_components,
 			maxTessellationEvaluationInputComponents);
-		_GFX_SET_SHADERC_LIMIT(max_tess_evaluation_output_components,
+		GFX_SET_SHADERC_LIMIT_(max_tess_evaluation_output_components,
 			maxTessellationEvaluationOutputComponents);
-		_GFX_SET_SHADERC_LIMIT(max_tess_gen_level,
+		GFX_SET_SHADERC_LIMIT_(max_tess_gen_level,
 			maxTessellationGenerationLevel);
-		_GFX_SET_SHADERC_LIMIT(max_geometry_input_components,
+		GFX_SET_SHADERC_LIMIT_(max_geometry_input_components,
 			maxGeometryInputComponents);
-		_GFX_SET_SHADERC_LIMIT(max_geometry_output_components,
+		GFX_SET_SHADERC_LIMIT_(max_geometry_output_components,
 			maxGeometryOutputComponents);
-		_GFX_SET_SHADERC_LIMIT(max_geometry_output_vertices,
+		GFX_SET_SHADERC_LIMIT_(max_geometry_output_vertices,
 			maxGeometryOutputVertices);
-		_GFX_SET_SHADERC_LIMIT(max_geometry_total_output_components,
+		GFX_SET_SHADERC_LIMIT_(max_geometry_total_output_components,
 			maxGeometryTotalOutputComponents);
-		_GFX_SET_SHADERC_LIMIT(max_fragment_input_components,
+		GFX_SET_SHADERC_LIMIT_(max_fragment_input_components,
 			maxFragmentInputComponents);
-		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_count_x,
+		GFX_SET_SHADERC_LIMIT_(max_compute_work_group_count_x,
 			maxComputeWorkGroupCount[0]);
-		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_count_y,
+		GFX_SET_SHADERC_LIMIT_(max_compute_work_group_count_y,
 			maxComputeWorkGroupCount[1]);
-		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_count_z,
+		GFX_SET_SHADERC_LIMIT_(max_compute_work_group_count_z,
 			maxComputeWorkGroupCount[2]);
-		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_size_x,
+		GFX_SET_SHADERC_LIMIT_(max_compute_work_group_size_x,
 			maxComputeWorkGroupSize[0]);
-		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_size_y,
+		GFX_SET_SHADERC_LIMIT_(max_compute_work_group_size_y,
 			maxComputeWorkGroupSize[1]);
-		_GFX_SET_SHADERC_LIMIT(max_compute_work_group_size_z,
+		GFX_SET_SHADERC_LIMIT_(max_compute_work_group_size_z,
 			maxComputeWorkGroupSize[2]);
 	}
 
 	// Compile the shader.
 	shaderc_compilation_result_t result = shaderc_compile_into_spv(
 		compiler, (const char*)source, (size_t)len,
-		_GFX_GET_SHADERC_KIND(shader->stage),
-		_GFX_GET_LANGUAGE_STRING(language),
+		GFX_GET_SHADERC_KIND_(shader->stage),
+		GFX_GET_LANGUAGE_STRING_(language),
 		"main",
 		options);
 
@@ -855,7 +854,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 		gfx_log_error(
 			"Could not compile %s shader:\n%s",
-			_GFX_GET_STAGE_STRING(shader->stage), msg);
+			GFX_GET_STAGE_STRING_(shader->stage), msg);
 
 		goto clean_result;
 	}
@@ -881,7 +880,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 		"Successfully compiled %s shader:\n"
 		"    Output size: %"GFX_PRIs" words (%"GFX_PRIs" bytes).\n"
 		"    #warnings: %"GFX_PRIs".\n%s%s",
-		_GFX_GET_STAGE_STRING(shader->stage),
+		GFX_GET_STAGE_STRING_(shader->stage),
 		size / sizeof(uint32_t), size,
 		warnings,
 		warnings > 0 ? "\n" : "",
@@ -894,11 +893,11 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 			size);
 
 	// Lastly, attempt to build the shader module.
-	if (!_gfx_shader_build(shader, wordSize, (const uint32_t*)bytes))
+	if (!gfx_shader_build_(shader, wordSize, (const uint32_t*)bytes))
 	{
 		gfx_log_error(
 			"Failed to load compiled %s shader.",
-			_GFX_GET_STAGE_STRING(shader->stage));
+			GFX_GET_STAGE_STRING_(shader->stage));
 
 		goto clean_result;
 	}
@@ -943,7 +942,7 @@ GFX_API bool gfx_shader_load(GFXShader* shader, const GFXReader* src)
 	{
 		gfx_log_error(
 			"Could not read source from stream to load %s shader.",
-			_GFX_GET_STAGE_STRING(shader->stage));
+			GFX_GET_STAGE_STRING_(shader->stage));
 
 		return 0;
 	}
@@ -953,11 +952,11 @@ GFX_API bool gfx_shader_load(GFXShader* shader, const GFXReader* src)
 	const size_t wordSize =
 		((size_t)len / sizeof(uint32_t)) * sizeof(uint32_t);
 
-	bool built = _gfx_shader_build(shader, wordSize, source);
+	bool built = gfx_shader_build_(shader, wordSize, source);
 	if (!built)
 		gfx_log_error(
 			"Failed to load %s shader.",
-			_GFX_GET_STAGE_STRING(shader->stage));
+			GFX_GET_STAGE_STRING_(shader->stage));
 
 	gfx_io_raw_clear(&source, src);
 

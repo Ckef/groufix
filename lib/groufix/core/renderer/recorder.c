@@ -7,7 +7,6 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 #include <stdlib.h>
 
 
@@ -26,7 +25,7 @@ static_assert(
 
 
 // Get Vulkan index type.
-#define _GFX_GET_VK_INDEX_TYPE(size) \
+#define GFX_GET_VK_INDEX_TYPE_(size) \
 	((size) == sizeof(uint8_t) ? VK_INDEX_TYPE_UINT8 : \
 	(size) == sizeof(uint16_t) ? VK_INDEX_TYPE_UINT16 : \
 	(size) == sizeof(uint32_t) ? VK_INDEX_TYPE_UINT32 : \
@@ -36,19 +35,19 @@ static_assert(
 /****************************
  * Recording command buffer element definition.
  */
-typedef struct _GFXCmdElem
+typedef struct GFXCmdElem_
 {
 	unsigned int    order; // Pass order.
 	VkCommandBuffer cmd;
 
-} _GFXCmdElem;
+} GFXCmdElem_;
 
 
 /****************************
  * Compares two user defined viewport descriptions.
  * @return Non-zero if equal.
  */
-static inline bool _gfx_cmp_viewports(const GFXViewport* l,
+static inline bool gfx_cmp_viewports_(const GFXViewport* l,
                                       const GFXViewport* r)
 {
 	// Cannot use memcmp because of padding.
@@ -76,7 +75,7 @@ static inline bool _gfx_cmp_viewports(const GFXViewport* l,
  * Compares two user defined scissor descriptions.
  * @return Non-zero if equal.
  */
-static inline bool _gfx_cmp_scissors(const GFXScissor* l,
+static inline bool gfx_cmp_scissors_(const GFXScissor* l,
                                      const GFXScissor* r)
 {
 	// Cannot use memcmp because of padding.
@@ -101,7 +100,7 @@ static inline bool _gfx_cmp_scissors(const GFXScissor* l,
  * Converts a GFXViewport into a VkViewport,
  * taking into account a given framebuffer width/height.
  */
-static inline VkViewport _gfx_get_viewport(const GFXViewport* viewport,
+static inline VkViewport gfx_get_viewport_(const GFXViewport* viewport,
                                            uint32_t fWidth, uint32_t fHeight)
 {
 	VkViewport vkViewport = {
@@ -131,7 +130,7 @@ static inline VkViewport _gfx_get_viewport(const GFXViewport* viewport,
  * Converts a GFXScissor into a VkRect2D,
  * taking into account a given framebuffer width/height.
  */
-static inline VkRect2D _gfx_get_scissor(const GFXScissor* scissor,
+static inline VkRect2D gfx_get_scissor_(const GFXScissor* scissor,
                                         uint32_t fWidth, uint32_t fHeight)
 {
 	VkRect2D vkScissor;
@@ -160,17 +159,17 @@ static inline VkRect2D _gfx_get_scissor(const GFXScissor* scissor,
  * @param renderable Cannot be NULL, assumed to be validated.
  * @return Zero on failure.
  */
-static bool _gfx_recorder_bind_renderable(GFXRecorder* recorder,
+static bool gfx_recorder_bind_renderable_(GFXRecorder* recorder,
                                           GFXRenderable* renderable)
 {
 	assert(recorder != NULL);
 	assert(renderable != NULL);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Get pipeline from renderable.
-	_GFXCacheElem* elem;
-	if (!_gfx_renderable_pipeline(renderable, &elem, 0))
+	GFXCacheElem_* elem;
+	if (!gfx_renderable_pipeline_(renderable, &elem, 0))
 		return 0;
 
 	// Bind as graphics pipeline.
@@ -190,17 +189,17 @@ static bool _gfx_recorder_bind_renderable(GFXRecorder* recorder,
  * @param computable Cannot be NULL, assumed to be validated.
  * @return Zero on failure.
  */
-static bool _gfx_recorder_bind_computable(GFXRecorder* recorder,
+static bool gfx_recorder_bind_computable_(GFXRecorder* recorder,
                                           GFXComputable* computable)
 {
 	assert(recorder != NULL);
 	assert(computable != NULL);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Get pipeline from computable.
-	_GFXCacheElem* elem;
-	if (!_gfx_computable_pipeline(computable, &elem, 0))
+	GFXCacheElem_* elem;
+	if (!gfx_computable_pipeline_(computable, &elem, 0))
 		return 0;
 
 	// Bind as compute pipeline.
@@ -219,14 +218,14 @@ static bool _gfx_recorder_bind_computable(GFXRecorder* recorder,
  * @param recorder  Cannot be NULL, assumed to be in a callback.
  * @param primitive Cannot be NULL.
  */
-static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
+static void gfx_recorder_bind_primitive_(GFXRecorder* recorder,
                                          GFXPrimitive* primitive)
 {
 	assert(recorder != NULL);
 	assert(primitive != NULL);
 
-	_GFXContext* context = recorder->context;
-	_GFXPrimitive* prim = (_GFXPrimitive*)primitive;
+	GFXContext_* context = recorder->context;
+	GFXPrimitive_* prim = (GFXPrimitive_*)primitive;
 
 	// Bind vertex & index buffers.
 	if (recorder->state.primitive != prim)
@@ -245,13 +244,13 @@ static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
 
 		if (primitive->numIndices > 0)
 		{
-			_GFXUnpackRef index =
-				_gfx_ref_unpack(gfx_ref_prim_indices(primitive));
+			GFXUnpackRef_ index =
+				gfx_ref_unpack_(gfx_ref_prim_indices(primitive));
 
 			context->vk.CmdBindIndexBuffer(recorder->inp.cmd,
 				index.obj.buffer->vk.buffer,
 				index.value,
-				_GFX_GET_VK_INDEX_TYPE(primitive->indexSize));
+				GFX_GET_VK_INDEX_TYPE_(primitive->indexSize));
 		}
 	}
 }
@@ -263,15 +262,15 @@ static void _gfx_recorder_bind_primitive(GFXRecorder* recorder,
  * @param type     Type of the pass, to inform pool selection.
  * @return The command buffer, NULL on failure.
  */
-static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder,
+static VkCommandBuffer gfx_recorder_claim_(GFXRecorder* recorder,
                                            GFXPassType type)
 {
 	assert(recorder != NULL);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Select recorder pool.
-	_GFXRecorderPool* pool = &recorder->pools[
+	GFXRecorderPool_* pool = &recorder->pools[
 		type != GFX_PASS_COMPUTE_ASYNC ?
 			recorder->current * 2 :
 			recorder->current * 2 + 1];
@@ -295,7 +294,7 @@ static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder,
 	};
 
 	VkCommandBuffer* cmd = gfx_vec_at(&pool->vk.cmds, pool->used);
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.AllocateCommandBuffers(
 			context->vk.device, &cbai, cmd),
 		{
@@ -313,7 +312,7 @@ static VkCommandBuffer _gfx_recorder_claim(GFXRecorder* recorder,
  * @param recorder Cannot be NULL.
  * @return Zero on failure.
  */
-static bool _gfx_recorder_output(GFXRecorder* recorder,
+static bool gfx_recorder_output_(GFXRecorder* recorder,
                                  unsigned int order, VkCommandBuffer cmd)
 {
 	// Find the right spot to insert at.
@@ -323,14 +322,14 @@ static bool _gfx_recorder_output(GFXRecorder* recorder,
 	for (loc = recorder->out.cmds.size; loc > 0; --loc)
 	{
 		unsigned int cOrder =
-			((_GFXCmdElem*)gfx_vec_at(&recorder->out.cmds, loc-1))->order;
+			((GFXCmdElem_*)gfx_vec_at(&recorder->out.cmds, loc-1))->order;
 
 		if (cOrder <= order)
 			break;
 	}
 
 	// Insert at found position.
-	_GFXCmdElem elem = {
+	GFXCmdElem_ elem = {
 		.order = order,
 		.cmd = cmd
 	};
@@ -339,11 +338,11 @@ static bool _gfx_recorder_output(GFXRecorder* recorder,
 }
 
 /****************************/
-bool _gfx_recorder_reset(GFXRecorder* recorder)
+bool gfx_recorder_reset_(GFXRecorder* recorder)
 {
 	assert(recorder != NULL);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Clear output.
 	gfx_vec_release(&recorder->out.cmds);
@@ -352,7 +351,7 @@ bool _gfx_recorder_reset(GFXRecorder* recorder)
 	recorder->current = recorder->renderer->current;
 
 	// Then reset both graphics & compute.
-	_GFXRecorderPool* pools = &recorder->pools[recorder->current * 2];
+	GFXRecorderPool_* pools = &recorder->pools[recorder->current * 2];
 
 	for (unsigned int p = 0; p < 2; ++p)
 	{
@@ -370,7 +369,7 @@ bool _gfx_recorder_reset(GFXRecorder* recorder)
 		}
 
 		// Try to reset the command pool.
-		_GFX_VK_CHECK(context->vk.ResetCommandPool(
+		GFX_VK_CHECK_(context->vk.ResetCommandPool(
 			context->vk.device, pools[p].vk.pool, 0), return 0);
 
 		// No command buffers are in use anymore.
@@ -381,13 +380,13 @@ bool _gfx_recorder_reset(GFXRecorder* recorder)
 }
 
 /****************************/
-void _gfx_recorder_record(GFXRecorder* recorder,
+void gfx_recorder_record_(GFXRecorder* recorder,
                           unsigned int order, VkCommandBuffer cmd)
 {
 	assert(recorder != NULL);
 	assert(cmd != NULL);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Do a binary search to find the left-most command buffer of this order.
 	size_t l = 0;
@@ -396,7 +395,7 @@ void _gfx_recorder_record(GFXRecorder* recorder,
 	while (l < r)
 	{
 		const size_t p = (l + r) >> 1;
-		const _GFXCmdElem* e = gfx_vec_at(&recorder->out.cmds, p);
+		const GFXCmdElem_* e = gfx_vec_at(&recorder->out.cmds, p);
 
 		if (e->order < order) l = p + 1;
 		else r = p;
@@ -405,7 +404,7 @@ void _gfx_recorder_record(GFXRecorder* recorder,
 	// Then find the right-most command buffer of this order.
 	while (r < recorder->out.cmds.size)
 	{
-		const _GFXCmdElem* e = gfx_vec_at(&recorder->out.cmds, r);
+		const GFXCmdElem_* e = gfx_vec_at(&recorder->out.cmds, r);
 		if (e->order > order) break;
 		else ++r;
 	}
@@ -415,7 +414,7 @@ void _gfx_recorder_record(GFXRecorder* recorder,
 	{
 		VkCommandBuffer buffs[r-l];
 		for (size_t i = l; i < r; ++i) buffs[i-l] =
-			((_GFXCmdElem*)gfx_vec_at(&recorder->out.cmds, i))->cmd;
+			((GFXCmdElem_*)gfx_vec_at(&recorder->out.cmds, i))->cmd;
 
 		context->vk.CmdExecuteCommands(cmd, (uint32_t)(r-l), buffs);
 	}
@@ -427,12 +426,12 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	assert(renderer != NULL);
 	assert(!renderer->recording);
 
-	_GFXContext* context = renderer->cache.context;
+	GFXContext_* context = renderer->cache.context;
 
 	// Allocate a new recorder.
 	GFXRecorder* rec = malloc(
 		sizeof(GFXRecorder) +
-		sizeof(_GFXRecorderPool) * renderer->numFrames * 2);
+		sizeof(GFXRecorderPool_) * renderer->numFrames * 2);
 
 	if (rec == NULL)
 		goto error;
@@ -458,7 +457,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
 		// Graphics pool.
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.CreateCommandPool(
 				context->vk.device, &gcpci, NULL, &rec->pools[i*2].vk.pool),
 			{
@@ -466,7 +465,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 			});
 
 		// Compute pool.
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.CreateCommandPool(
 				context->vk.device, &ccpci, NULL, &rec->pools[i*2+1].vk.pool),
 			{
@@ -499,7 +498,7 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	rec->current = 0;
 	rec->inp.pass = NULL;
 	rec->inp.cmd = NULL;
-	gfx_vec_init(&rec->out.cmds, sizeof(_GFXCmdElem));
+	gfx_vec_init(&rec->out.cmds, sizeof(GFXCmdElem_));
 
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
@@ -518,12 +517,12 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// Init subordinate & link the recorder into the renderer.
 	// Modifying the renderer, lock!
 	// Also using this lock for access to the pool!
-	_gfx_mutex_lock(&renderer->lock);
+	gfx_mutex_lock_(&renderer->lock);
 
-	_gfx_pool_sub(&renderer->pool, &rec->sub);
+	gfx_pool_sub_(&renderer->pool, &rec->sub);
 	gfx_list_insert_after(&renderer->recorders, &rec->list, NULL);
 
-	_gfx_mutex_unlock(&renderer->lock);
+	gfx_mutex_unlock_(&renderer->lock);
 
 	return rec;
 
@@ -544,10 +543,10 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 
 	// Unlink itself from the renderer & undo subordinate.
 	// Locking for renderer and access to the pool!
-	_gfx_mutex_lock(&renderer->lock);
+	gfx_mutex_lock_(&renderer->lock);
 
 	gfx_list_erase(&renderer->recorders, &recorder->list);
-	_gfx_pool_unsub(&renderer->pool, &recorder->sub);
+	gfx_pool_unsub_(&renderer->pool, &recorder->sub);
 
 	// Stay locked; we need to make the command pools stale,
 	// as its command buffers might still be in use by pending virtual frames!
@@ -555,15 +554,15 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
 		// Graphics & compute pools.
-		_gfx_push_stale(renderer,
+		gfx_push_stale_(renderer,
 			VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE,
 			recorder->pools[i*2].vk.pool);
-		_gfx_push_stale(renderer,
+		gfx_push_stale_(renderer,
 			VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE,
 			recorder->pools[i*2+1].vk.pool);
 	}
 
-	_gfx_mutex_unlock(&renderer->lock);
+	gfx_mutex_unlock_(&renderer->lock);
 
 	// Free all the memory.
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
@@ -596,21 +595,21 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	assert(cb != NULL);
 
 	GFXRenderer* rend = recorder->renderer;
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Ignore if pass is culled.
 	if (pass->culled) return;
 
 	// The pass must be a render pass.
-	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+	GFXRenderPass_* rPass = (GFXRenderPass_*)pass;
 	if (pass->type != GFX_PASS_RENDER) goto error;
 
 	// Check for the presence of a framebuffer.
-	VkFramebuffer framebuffer = _gfx_pass_framebuffer(rPass, rend->public);
+	VkFramebuffer framebuffer = gfx_pass_framebuffer_(rPass, rend->public);
 	if (framebuffer == VK_NULL_HANDLE) goto error;
 
 	// Then, claim a command buffer to use.
-	VkCommandBuffer cmd = _gfx_recorder_claim(recorder, pass->type);
+	VkCommandBuffer cmd = gfx_recorder_claim_(recorder, pass->type);
 	if (cmd == NULL) goto error;
 
 	// Start recording with it.
@@ -636,14 +635,14 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 		}}
 	};
 
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.BeginCommandBuffer(cmd, &cbbi),
 		goto error);
 
 	// Set viewport & scissor state.
-	VkViewport viewport = _gfx_get_viewport(
+	VkViewport viewport = gfx_get_viewport_(
 		&rPass->state.viewport, rPass->build.fWidth, rPass->build.fHeight);
-	VkRect2D scissor = _gfx_get_scissor(
+	VkRect2D scissor = gfx_get_scissor_(
 		&rPass->state.scissor, rPass->build.fWidth, rPass->build.fHeight);
 
 	recorder->state.viewport = rPass->state.viewport;
@@ -665,13 +664,13 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	recorder->inp.pass = NULL;
 	recorder->inp.cmd = NULL;
 
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.EndCommandBuffer(cmd),
 		goto error);
 
 	// Now insert the command buffer in its correct position.
 	// Which is in submission order of the passes.
-	if (!_gfx_recorder_output(recorder, pass->order, cmd))
+	if (!gfx_recorder_output_(recorder, pass->order, cmd))
 		goto error;
 
 	return;
@@ -693,7 +692,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 	assert(pass->renderer == recorder->renderer);
 	assert(cb != NULL);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Ignore if pass is culled.
 	if (pass->culled) return;
@@ -702,7 +701,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 	if (pass->type == GFX_PASS_RENDER) goto error;
 
 	// Then, claim a command buffer to use.
-	VkCommandBuffer cmd = _gfx_recorder_claim(recorder, pass->type);
+	VkCommandBuffer cmd = gfx_recorder_claim_(recorder, pass->type);
 	if (cmd == NULL) goto error;
 
 	// Start recording with it.
@@ -726,7 +725,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 		}}
 	};
 
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.BeginCommandBuffer(cmd, &cbbi),
 		goto error);
 
@@ -741,13 +740,13 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 	recorder->inp.pass = NULL;
 	recorder->inp.cmd = NULL;
 
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.EndCommandBuffer(cmd),
 		goto error);
 
 	// Now insert the command buffer in its correct position.
 	// Which is in submission order of the passes.
-	if (!_gfx_recorder_output(recorder, pass->order, cmd))
+	if (!gfx_recorder_output_(recorder, pass->order, cmd))
 		goto error;
 
 	return;
@@ -784,9 +783,9 @@ GFX_API void gfx_recorder_get_size(GFXRecorder* recorder,
 	assert(layers != NULL);
 
 	if (recorder->inp.pass && recorder->inp.pass->type == GFX_PASS_RENDER)
-		*width = ((_GFXRenderPass*)recorder->inp.pass)->build.fWidth,
-		*height = ((_GFXRenderPass*)recorder->inp.pass)->build.fHeight,
-		*layers = ((_GFXRenderPass*)recorder->inp.pass)->build.fLayers;
+		*width = ((GFXRenderPass_*)recorder->inp.pass)->build.fWidth,
+		*height = ((GFXRenderPass_*)recorder->inp.pass)->build.fHeight,
+		*layers = ((GFXRenderPass_*)recorder->inp.pass)->build.fLayers;
 	else
 		// Output 0,0,0 if no associated pass.
 		*width = 0,
@@ -804,9 +803,9 @@ GFX_API void gfx_pass_get_size(GFXPass* pass,
 	assert(layers != NULL);
 
 	if (!pass->culled && pass->type == GFX_PASS_RENDER)
-		*width = ((_GFXRenderPass*)pass)->build.fWidth,
-		*height = ((_GFXRenderPass*)pass)->build.fHeight,
-		*layers = ((_GFXRenderPass*)pass)->build.fLayers;
+		*width = ((GFXRenderPass_*)pass)->build.fWidth,
+		*height = ((GFXRenderPass_*)pass)->build.fHeight,
+		*layers = ((GFXRenderPass_*)pass)->build.fLayers;
 	else
 		*width = 0,
 		*height = 0,
@@ -877,7 +876,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(sets != NULL);
 	assert(numDynamics == 0 || offsets != NULL);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Check technique.
 	if (technique->layout == NULL)
@@ -896,7 +895,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 
 	for (size_t s = 0; s < numSets; ++s)
 	{
-		_GFXPoolElem* elem = _gfx_set_get(sets[s], &recorder->sub);
+		GFXPoolElem_* elem = gfx_set_get_(sets[s], &recorder->sub);
 		if (elem == NULL)
 		{
 			gfx_log_error(
@@ -912,7 +911,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 
 	// Record the bind command.
 	const VkPipelineBindPoint bindPoint =
-		technique->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)] == NULL ?
+		technique->shaders[GFX_GET_SHADER_STAGE_INDEX_(GFX_STAGE_COMPUTE)] == NULL ?
 		VK_PIPELINE_BIND_POINT_GRAPHICS :
 		VK_PIPELINE_BIND_POINT_COMPUTE;
 
@@ -955,7 +954,7 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(size <= technique->pushSize - offset);
 	assert(data != NULL);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Check technique.
 	if (technique->layout == NULL)
@@ -974,7 +973,7 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
 	// Record the push command.
 	context->vk.CmdPushConstants(recorder->inp.cmd,
 		technique->vk.layout,
-		_GFX_GET_VK_SHADER_STAGE(technique->pushStages),
+		GFX_GET_VK_SHADER_STAGE_(technique->pushStages),
 		offset, size, data);
 }
 
@@ -996,14 +995,14 @@ GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
 		(firstVertex < renderable->primitive->numVertices &&
 		vertices <= renderable->primitive->numVertices - firstVertex));
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Take entire primitive if asked.
 	if (vertices == 0)
 		vertices = renderable->primitive->numVertices - firstVertex;
 
 	// Bind pipeline.
-	if (!_gfx_recorder_bind_renderable(recorder, renderable))
+	if (!gfx_recorder_bind_renderable_(recorder, renderable))
 	{
 		gfx_log_error(
 			"Failed to get Vulkan graphics pipeline during draw command; "
@@ -1014,7 +1013,7 @@ GFX_API void gfx_cmd_draw(GFXRecorder* recorder, GFXRenderable* renderable,
 
 	// Bind primitive.
 	if (renderable->primitive != NULL)
-		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
+		gfx_recorder_bind_primitive_(recorder, renderable->primitive);
 
 	// Record the draw command.
 	context->vk.CmdDraw(recorder->inp.cmd,
@@ -1040,14 +1039,14 @@ GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderab
 		(firstIndex < renderable->primitive->numIndices &&
 		indices <= renderable->primitive->numIndices - firstIndex));
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Take entire primitive if asked.
 	if (indices == 0)
 		indices = renderable->primitive->numIndices - firstIndex;
 
 	// Bind pipeline.
-	if (!_gfx_recorder_bind_renderable(recorder, renderable))
+	if (!gfx_recorder_bind_renderable_(recorder, renderable))
 	{
 		gfx_log_error(
 			"Failed to get Vulkan graphics pipeline during draw command; "
@@ -1058,7 +1057,7 @@ GFX_API void gfx_cmd_draw_indexed(GFXRecorder* recorder, GFXRenderable* renderab
 
 	// Bind primitive.
 	if (renderable->primitive != NULL)
-		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
+		gfx_recorder_bind_primitive_(recorder, renderable->primitive);
 
 	// Record the draw command.
 	context->vk.CmdDrawIndexed(recorder->inp.cmd,
@@ -1098,13 +1097,13 @@ GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
 	assert(count <= 1 || stride == 0 ||
 		(stride % 4 == 0 && stride >= sizeof(GFXDrawCmd)));
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Tightly packed if asked.
 	if (stride == 0) stride = sizeof(GFXDrawCmd);
 
 	// Unpack reference & validate.
-	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+	GFXUnpackRef_ unp = gfx_ref_unpack_(ref);
 	if (unp.obj.buffer == NULL)
 	{
 		gfx_log_error(
@@ -1115,7 +1114,7 @@ GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
 	}
 
 	// Bind pipeline.
-	if (!_gfx_recorder_bind_renderable(recorder, renderable))
+	if (!gfx_recorder_bind_renderable_(recorder, renderable))
 	{
 		gfx_log_error(
 			"Failed to get Vulkan graphics pipeline during draw command; "
@@ -1126,7 +1125,7 @@ GFX_API void gfx_cmd_draw_from(GFXRecorder* recorder, GFXRenderable* renderable,
 
 	// Bind primitive.
 	if (renderable->primitive != NULL)
-		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
+		gfx_recorder_bind_primitive_(recorder, renderable->primitive);
 
 	// Record the draw command.
 	context->vk.CmdDrawIndirect(recorder->inp.cmd,
@@ -1149,13 +1148,13 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
 	assert(count <= 1 || stride == 0 ||
 		(stride % 4 == 0 && stride >= sizeof(GFXDrawIndexedCmd)));
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Tightly packed if asked.
 	if (stride == 0) stride = sizeof(GFXDrawIndexedCmd);
 
 	// Unpack reference & validate.
-	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+	GFXUnpackRef_ unp = gfx_ref_unpack_(ref);
 	if (unp.obj.buffer == NULL)
 	{
 		gfx_log_error(
@@ -1166,7 +1165,7 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
 	}
 
 	// Bind pipeline.
-	if (!_gfx_recorder_bind_renderable(recorder, renderable))
+	if (!gfx_recorder_bind_renderable_(recorder, renderable))
 	{
 		gfx_log_error(
 			"Failed to get Vulkan graphics pipeline during draw command; "
@@ -1177,7 +1176,7 @@ GFX_API void gfx_cmd_draw_indexed_from(GFXRecorder* recorder, GFXRenderable* ren
 
 	// Bind primitive.
 	if (renderable->primitive != NULL)
-		_gfx_recorder_bind_primitive(recorder, renderable->primitive);
+		gfx_recorder_bind_primitive_(recorder, renderable->primitive);
 
 	// Record the draw command.
 	context->vk.CmdDrawIndexedIndirect(recorder->inp.cmd,
@@ -1199,10 +1198,10 @@ GFX_API void gfx_cmd_dispatch(GFXRecorder* recorder, GFXComputable* computable,
 	assert(yCount > 0);
 	assert(zCount > 0);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Bind pipeline.
-	if (!_gfx_recorder_bind_computable(recorder, computable))
+	if (!gfx_recorder_bind_computable_(recorder, computable))
 	{
 		gfx_log_error(
 			"Failed to get Vulkan compute pipeline during dispatch command; "
@@ -1231,10 +1230,10 @@ GFX_API void gfx_cmd_dispatch_base(GFXRecorder* recorder, GFXComputable * comput
 	assert(yCount > 0);
 	assert(zCount > 0);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Bind pipeline.
-	if (!_gfx_recorder_bind_computable(recorder, computable))
+	if (!gfx_recorder_bind_computable_(recorder, computable))
 	{
 		gfx_log_error(
 			"Failed to get Vulkan compute pipeline during dispatch command; "
@@ -1261,10 +1260,10 @@ GFX_API void gfx_cmd_dispatch_from(GFXRecorder* recorder, GFXComputable* computa
 	assert(computable->technique != NULL);
 	assert(computable->technique->renderer == recorder->renderer);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Unpack reference & validate.
-	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+	GFXUnpackRef_ unp = gfx_ref_unpack_(ref);
 	if (unp.obj.buffer == NULL)
 	{
 		gfx_log_error(
@@ -1275,7 +1274,7 @@ GFX_API void gfx_cmd_dispatch_from(GFXRecorder* recorder, GFXComputable* computa
 	}
 
 	// Bind pipeline.
-	if (!_gfx_recorder_bind_computable(recorder, computable))
+	if (!gfx_recorder_bind_computable_(recorder, computable))
 	{
 		gfx_log_error(
 			"Failed to get Vulkan compute pipeline during dispatch command; "
@@ -1297,13 +1296,13 @@ GFX_API void gfx_cmd_set_viewport(GFXRecorder* recorder, GFXViewport viewport)
 	assert(recorder->inp.pass->type == GFX_PASS_RENDER);
 	assert(recorder->inp.cmd != NULL);
 
-	_GFXContext* context = recorder->context;
-	_GFXRenderPass* rPass = (_GFXRenderPass*)recorder->inp.pass;
+	GFXContext_* context = recorder->context;
+	GFXRenderPass_* rPass = (GFXRenderPass_*)recorder->inp.pass;
 
 	// Compare & set viewport state.
-	if (!_gfx_cmp_viewports(&recorder->state.viewport, &viewport))
+	if (!gfx_cmp_viewports_(&recorder->state.viewport, &viewport))
 	{
-		VkViewport vkViewport = _gfx_get_viewport(
+		VkViewport vkViewport = gfx_get_viewport_(
 			&viewport, rPass->build.fWidth, rPass->build.fHeight);
 
 		context->vk.CmdSetViewport(recorder->inp.cmd, 0, 1, &vkViewport);
@@ -1319,13 +1318,13 @@ GFX_API void gfx_cmd_set_scissor(GFXRecorder* recorder, GFXScissor scissor)
 	assert(recorder->inp.pass->type == GFX_PASS_RENDER);
 	assert(recorder->inp.cmd != NULL);
 
-	_GFXContext* context = recorder->context;
-	_GFXRenderPass* rPass = (_GFXRenderPass*)recorder->inp.pass;
+	GFXContext_* context = recorder->context;
+	GFXRenderPass_* rPass = (GFXRenderPass_*)recorder->inp.pass;
 
 	// Compare & set scissor state.
-	if (!_gfx_cmp_scissors(&recorder->state.scissor, &scissor))
+	if (!gfx_cmp_scissors_(&recorder->state.scissor, &scissor))
 	{
-		VkRect2D vkScissor = _gfx_get_scissor(
+		VkRect2D vkScissor = gfx_get_scissor_(
 			&scissor, rPass->build.fWidth, rPass->build.fHeight);
 
 		context->vk.CmdSetScissor(recorder->inp.cmd, 0, 1, &vkScissor);
@@ -1341,7 +1340,7 @@ GFX_API void gfx_cmd_set_line_width(GFXRecorder* recorder, float lineWidth)
 	assert(recorder->inp.pass->type == GFX_PASS_RENDER);
 	assert(recorder->inp.cmd != NULL);
 
-	_GFXContext* context = recorder->context;
+	GFXContext_* context = recorder->context;
 
 	// Compare & set line width state.
 	if (recorder->state.lineWidth != lineWidth)

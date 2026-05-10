@@ -7,15 +7,14 @@
  */
 
 #include "groufix/core.h"
-#include <assert.h>
 #include <string.h>
 
 
-#define _GFX_GET_INSTANCE_PROC_ADDR(pName) \
+#define GFX_GET_INSTANCE_PROC_ADDR_(pName) \
 	do { \
-		_groufix.vk.pName = (PFN_vk##pName)glfwGetInstanceProcAddress( \
-			_groufix.vk.instance, "vk"#pName); \
-		if (_groufix.vk.pName == NULL) { \
+		groufix_.vk.pName = (PFN_vk##pName)glfwGetInstanceProcAddress( \
+			groufix_.vk.instance, "vk"#pName); \
+		if (groufix_.vk.pName == NULL) { \
 			gfx_log_error("Could not load vk"#pName"."); \
 			goto clean; \
 		} \
@@ -27,7 +26,7 @@
 /****************************
  * Callback for Vulkan debug messages.
  */
-static VkBool32 VKAPI_PTR _gfx_vulkan_message(
+static VkBool32 VKAPI_PTR gfx_vulkan_message_(
 	VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT             messageType,
 	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -70,7 +69,7 @@ static VkBool32 VKAPI_PTR _gfx_vulkan_message(
 
 
 /****************************/
-const char* _gfx_vulkan_result_string(VkResult result)
+const char* gfx_vulkan_result_string_(VkResult result)
 {
 	switch (result)
 	{
@@ -156,19 +155,19 @@ const char* _gfx_vulkan_result_string(VkResult result)
 }
 
 /****************************/
-bool _gfx_vulkan_init(void)
+bool gfx_vulkan_init_(void)
 {
-	assert(_groufix.vk.instance == NULL);
+	assert(groufix_.vk.instance == NULL);
 
 	// Set this to NULL so we don't accidentally call garbage on cleanup.
-	_groufix.vk.DestroyInstance = NULL;
+	groufix_.vk.DestroyInstance = NULL;
 
 	// So first things first, we need to create a Vulkan instance.
 	// For this we load the global level vkCreateInstance function and
 	// we tell it what extensions we need, these include GLFW extensions.
 	// Also, load _all_ global level Vulkan functions here.
-	_GFX_GET_INSTANCE_PROC_ADDR(CreateInstance);
-	_GFX_GET_INSTANCE_PROC_ADDR(EnumerateInstanceVersion);
+	GFX_GET_INSTANCE_PROC_ADDR_(CreateInstance);
+	GFX_GET_INSTANCE_PROC_ADDR_(EnumerateInstanceVersion);
 
 	uint32_t glfwCount;
 	const char** glfwExtensions =
@@ -205,14 +204,14 @@ bool _gfx_vulkan_init(void)
 		// Ok now go create a Vulkan instance.
 		// But check for the supported version first.
 		uint32_t version = 0;
-		_groufix.vk.EnumerateInstanceVersion(&version);
+		groufix_.vk.EnumerateInstanceVersion(&version);
 
-		if (version < _GFX_VK_API_VERSION)
+		if (version < GFX_VK_API_VERSION_)
 		{
 			gfx_log_error("Vulkan instance does not support version %u.%u.%u.",
-				(unsigned int)VK_API_VERSION_MAJOR(_GFX_VK_API_VERSION),
-				(unsigned int)VK_API_VERSION_MINOR(_GFX_VK_API_VERSION),
-				(unsigned int)VK_API_VERSION_PATCH(_GFX_VK_API_VERSION));
+				(unsigned int)VK_API_VERSION_MAJOR(GFX_VK_API_VERSION_),
+				(unsigned int)VK_API_VERSION_MINOR(GFX_VK_API_VERSION_),
+				(unsigned int)VK_API_VERSION_PATCH(GFX_VK_API_VERSION_));
 
 			goto clean;
 		}
@@ -223,7 +222,7 @@ bool _gfx_vulkan_init(void)
 
 			.pNext           = NULL,
 			.flags           = 0,
-			.pfnUserCallback = _gfx_vulkan_message,
+			.pfnUserCallback = gfx_vulkan_message_,
 			.pUserData       = NULL,
 			.messageSeverity =
 				VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
@@ -272,8 +271,8 @@ bool _gfx_vulkan_init(void)
 		};
 
 		bool res = 1;
-		_GFX_VK_CHECK(_groufix.vk.CreateInstance(
-			&ici, NULL, &_groufix.vk.instance), res = 0);
+		GFX_VK_CHECK_(groufix_.vk.CreateInstance(
+			&ici, NULL, &groufix_.vk.instance), res = 0);
 
 		if (!res)
 		{
@@ -311,36 +310,36 @@ bool _gfx_vulkan_init(void)
 
 		// Now load all instance level Vulkan functions.
 		// Load vkDestroyInstance first so we can clean properly.
-		_GFX_GET_INSTANCE_PROC_ADDR(DestroyInstance);
+		GFX_GET_INSTANCE_PROC_ADDR_(DestroyInstance);
 #if !defined (NDEBUG)
-		_GFX_GET_INSTANCE_PROC_ADDR(CreateDebugUtilsMessengerEXT);
-		_GFX_GET_INSTANCE_PROC_ADDR(DestroyDebugUtilsMessengerEXT);
+		GFX_GET_INSTANCE_PROC_ADDR_(CreateDebugUtilsMessengerEXT);
+		GFX_GET_INSTANCE_PROC_ADDR_(DestroyDebugUtilsMessengerEXT);
 #endif
-		_GFX_GET_INSTANCE_PROC_ADDR(CreateDevice);
-		_GFX_GET_INSTANCE_PROC_ADDR(DestroySurfaceKHR);
+		GFX_GET_INSTANCE_PROC_ADDR_(CreateDevice);
+		GFX_GET_INSTANCE_PROC_ADDR_(DestroySurfaceKHR);
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
-		_GFX_GET_INSTANCE_PROC_ADDR(EnumerateDeviceExtensionProperties);
+		GFX_GET_INSTANCE_PROC_ADDR_(EnumerateDeviceExtensionProperties);
 #endif
-		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDeviceGroups);
-		_GFX_GET_INSTANCE_PROC_ADDR(EnumeratePhysicalDevices);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetDeviceProcAddr);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceFeatures);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceFeatures2);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceFormatProperties);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceMemoryProperties);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceProperties2);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceQueueFamilyProperties);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfaceCapabilitiesKHR);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfaceFormatsKHR);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfacePresentModesKHR);
-		_GFX_GET_INSTANCE_PROC_ADDR(GetPhysicalDeviceSurfaceSupportKHR);
+		GFX_GET_INSTANCE_PROC_ADDR_(EnumeratePhysicalDeviceGroups);
+		GFX_GET_INSTANCE_PROC_ADDR_(EnumeratePhysicalDevices);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetDeviceProcAddr);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceFeatures);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceFeatures2);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceFormatProperties);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceMemoryProperties);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceProperties);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceProperties2);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceQueueFamilyProperties);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceSurfaceCapabilitiesKHR);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceSurfaceFormatsKHR);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceSurfacePresentModesKHR);
+		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceSurfaceSupportKHR);
 
 
 #if !defined (NDEBUG)
 		// Register the Vulkan debug messenger callback.
-		_GFX_VK_CHECK(_groufix.vk.CreateDebugUtilsMessengerEXT(
-			_groufix.vk.instance, &dumci, NULL, &_groufix.vk.messenger), goto clean);
+		GFX_VK_CHECK_(groufix_.vk.CreateDebugUtilsMessengerEXT(
+			groufix_.vk.instance, &dumci, NULL, &groufix_.vk.messenger), goto clean);
 #endif
 
 		return 1;
@@ -352,29 +351,29 @@ clean:
 	gfx_log_error("Could not create or initialize a Vulkan instance.");
 
 	// If vkDestroyInstance is available, properly clean the instance.
-	if (_groufix.vk.DestroyInstance != NULL)
-		_groufix.vk.DestroyInstance(_groufix.vk.instance, NULL);
+	if (groufix_.vk.DestroyInstance != NULL)
+		groufix_.vk.DestroyInstance(groufix_.vk.instance, NULL);
 
-	_groufix.vk.instance = NULL;
+	groufix_.vk.instance = NULL;
 
 	return 0;
 }
 
 /****************************/
-void _gfx_vulkan_terminate(void)
+void gfx_vulkan_terminate_(void)
 {
 	// No assert, this function is a no-op if Vulkan is not initialized.
-	if (_groufix.vk.instance == NULL)
+	if (groufix_.vk.instance == NULL)
 		return;
 
 	// Destroy the debug messenger and Vulkan instance.
 #if !defined (NDEBUG)
-	_groufix.vk.DestroyDebugUtilsMessengerEXT(
-		_groufix.vk.instance, _groufix.vk.messenger, NULL);
+	groufix_.vk.DestroyDebugUtilsMessengerEXT(
+		groufix_.vk.instance, groufix_.vk.messenger, NULL);
 #endif
-	_groufix.vk.DestroyInstance(
-		_groufix.vk.instance, NULL);
+	groufix_.vk.DestroyInstance(
+		groufix_.vk.instance, NULL);
 
 	// Signal that termination is done.
-	_groufix.vk.instance = NULL;
+	groufix_.vk.instance = NULL;
 }

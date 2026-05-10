@@ -7,7 +7,6 @@
  */
 
 #include "groufix/containers/vec.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,7 +14,7 @@
 /****************************
  * Increases the capacity such that it satisfies a minimum.
  */
-static bool _gfx_vec_grow(GFXVec* vec, size_t minCapacity)
+static bool gfx_vec_grow_(GFXVec* vec, size_t minCapacity)
 {
 	if (vec->capacity < minCapacity)
 	{
@@ -37,7 +36,7 @@ static bool _gfx_vec_grow(GFXVec* vec, size_t minCapacity)
 /****************************
  * Shrinks the capacity such that size > capacity/4.
  */
-static void _gfx_vec_shrink(GFXVec* vec)
+static void gfx_vec_shrink_(GFXVec* vec)
 {
 	// If we have more elements than capacity/4, don't shrink.
 	size_t cap = vec->capacity >> 1;
@@ -136,7 +135,7 @@ GFX_API bool gfx_vec_push(GFXVec* vec, size_t numElems, const void* elems)
 	assert(vec != NULL);
 	assert(numElems > 0);
 
-	if (!_gfx_vec_grow(vec, vec->size + numElems))
+	if (!gfx_vec_grow_(vec, vec->size + numElems))
 		return 0;
 
 	if (elems != NULL) memcpy(
@@ -157,7 +156,7 @@ GFX_API bool gfx_vec_insert(GFXVec* vec, size_t numElems, const void* elems,
 	assert(numElems > 0);
 	assert(index <= vec->size);
 
-	if (!_gfx_vec_grow(vec, vec->size + numElems))
+	if (!gfx_vec_grow_(vec, vec->size + numElems))
 		return 0;
 
 	// If inserting before the end, move elements to the right.
@@ -183,7 +182,7 @@ GFX_API void gfx_vec_pop(GFXVec* vec, size_t numElems)
 	assert(numElems > 0);
 
 	vec->size = (vec->size <= numElems) ? 0 : vec->size - numElems;
-	_gfx_vec_shrink(vec);
+	gfx_vec_shrink_(vec);
 }
 
 /****************************/
@@ -206,5 +205,5 @@ GFX_API void gfx_vec_erase(GFXVec* vec, size_t numElems, size_t index)
 		vec->size -= numElems;
 	}
 
-	_gfx_vec_shrink(vec);
+	gfx_vec_shrink_(vec);
 }

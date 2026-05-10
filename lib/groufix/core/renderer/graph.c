@@ -7,11 +7,10 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 
 
 // Check if a consumption has attachment access.
-#define _GFX_CONSUME_IS_ATTACH(con) \
+#define GFX_CONSUME_IS_ATTACH_(con) \
 	(con->mask & \
 		(GFX_ACCESS_ATTACHMENT_INPUT | \
 		GFX_ACCESS_ATTACHMENT_READ | \
@@ -22,15 +21,15 @@
 /****************************
  * Compares two consumptions for view compatibility.
  * If compatible, they can be shared between subpasses.
- * Assumes _GFX_CONSUME_IS_ATTACH holds true for both l and r.
+ * Assumes GFX_CONSUME_IS_ATTACH_ holds true for both l and r.
  * @return Non-zero if equal/compatible.
  */
-static inline bool _gfx_cmp_consume(const _GFXConsume* l, const _GFXConsume* r)
+static inline bool gfx_cmp_consume_(const GFXConsume_* l, const GFXConsume_* r)
 {
-	const bool isViewed = l->flags & _GFX_CONSUME_VIEWED;
+	const bool isViewed = l->flags & GFX_CONSUME_VIEWED_;
 
 	return
-		isViewed == (bool)(r->flags & _GFX_CONSUME_VIEWED) &&
+		isViewed == (bool)(r->flags & GFX_CONSUME_VIEWED_) &&
 		(!isViewed || l->view.type == r->view.type) &&
 		(l->view.range.aspect == r->view.range.aspect) &&
 		(l->view.range.mipmap == r->view.range.mipmap) &&
@@ -47,15 +46,15 @@ static inline bool _gfx_cmp_consume(const _GFXConsume* l, const _GFXConsume* r)
  * Checks if a consumption is a potential backing window as attachment.
  * @return The window attachment index, SIZE_MAX if not present.
  */
-static size_t _gfx_get_backing(GFXRenderer* renderer, const _GFXConsume* con)
+static size_t gfx_get_backing_(GFXRenderer* renderer, const GFXConsume_* con)
 {
-	const _GFXAttach* at =
+	const GFXAttach_* at =
 		gfx_vec_at(&renderer->backing.attachs, con->view.index);
 
 	if (
 		con->view.index < renderer->backing.attachs.size &&
-		_GFX_CONSUME_IS_ATTACH(con) &&
-		at->type == _GFX_ATTACH_WINDOW &&
+		GFX_CONSUME_IS_ATTACH_(con) &&
+		at->type == GFX_ATTACH_WINDOW_ &&
 		(con->view.range.aspect & GFX_IMAGE_COLOR) &&
 		(con->mask &
 			(GFX_ACCESS_ATTACHMENT_READ |
@@ -73,7 +72,7 @@ static size_t _gfx_get_backing(GFXRenderer* renderer, const _GFXConsume* con)
  * a given pass type of a given renderer, auto logs errors.
  * @return Non-zero if compatible.
  */
-static bool _gfx_check_parents(GFXRenderer* renderer, GFXPassType type,
+static bool gfx_check_parents_(GFXRenderer* renderer, GFXPassType type,
                                size_t numParents, GFXPass** parents)
 {
 	// Check if all parents are compatible.
@@ -117,7 +116,7 @@ static bool _gfx_check_parents(GFXRenderer* renderer, GFXPassType type,
  * @param pass The pass which will potentially get its new parents set.
  * @return Non-zero if no cycles will be created.
  */
-static bool _gfx_check_cycles(GFXPass* pass,
+static bool gfx_check_cycles_(GFXPass* pass,
                               size_t numParents, GFXPass** parents)
 {
 	// For all given parents, check
@@ -130,7 +129,7 @@ static bool _gfx_check_cycles(GFXPass* pass,
 		}
 
 		// If no cycle detected yet, check the parents of this parent.
-		if (!_gfx_check_cycles(pass,
+		if (!gfx_check_cycles_(pass,
 			parents[p]->parents.size, parents[p]->parents.data))
 		{
 			return 0;
@@ -150,12 +149,12 @@ static bool _gfx_check_cycles(GFXPass* pass,
  * @return Candidate's score, the higher the better, zero if not a candidate.
  *
  * consumes must hold `renderer->backing.attachs.size` pointers, for each
- * attachment it must hold the _GFXConsume* of rPass (or NULL if not consumed).
+ * attachment it must hold the GFXConsume_* of rPass (or NULL if not consumed).
  */
-static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
-                                      _GFXRenderPass* rPass,
-                                      _GFXRenderPass* rCandidate,
-                                      _GFXConsume** consumes)
+static uint64_t gfx_pass_merge_score_(GFXRenderer* renderer,
+                                      GFXRenderPass_* rPass,
+                                      GFXRenderPass_* rCandidate,
+                                      GFXConsume_** consumes)
 {
 	assert(renderer != NULL);
 	assert(rPass != NULL);
@@ -187,7 +186,7 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 	const size_t backing = rPass->out.backing;
 
 	// Loop over the entire chain as it currently is, beginning at master.
-	_GFXRenderPass* rCurr =
+	GFXRenderPass_* rCurr =
 		(rCandidate->out.master == NULL) ?
 		rCandidate : rCandidate->out.master;
 
@@ -204,10 +203,10 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 		// For each pass, check all consumptions.
 		for (size_t i = 0; i < rCurr->base.consumes.size; ++i)
 		{
-			_GFXConsume* con = gfx_vec_at(&rCurr->base.consumes, i);
+			GFXConsume_* con = gfx_vec_at(&rCurr->base.consumes, i);
 			if (con->view.index < renderer->backing.attachs.size)
 			{
-				_GFXConsume* childCon = consumes[con->view.index];
+				GFXConsume_* childCon = consumes[con->view.index];
 				if (childCon == NULL) continue;
 
 				// Check if either pass consumes an attachment with
@@ -219,22 +218,22 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
 				// attachment in the same pass, it will not be preserved,
 				// allow this case!
 				if (
-					(_GFX_CONSUME_IS_ATTACH(con) &&
-					!_GFX_CONSUME_IS_ATTACH(childCon)) ||
+					(GFX_CONSUME_IS_ATTACH_(con) &&
+					!GFX_CONSUME_IS_ATTACH_(childCon)) ||
 
-					(_GFX_CONSUME_IS_ATTACH(childCon) &&
-					!_GFX_CONSUME_IS_ATTACH(con)))
+					(GFX_CONSUME_IS_ATTACH_(childCon) &&
+					!GFX_CONSUME_IS_ATTACH_(con)))
 				{
 					return 0;
 				}
 
 				// If they both consume as attachment...
 				if (
-					_GFX_CONSUME_IS_ATTACH(con) &&
-					_GFX_CONSUME_IS_ATTACH(childCon))
+					GFX_CONSUME_IS_ATTACH_(con) &&
+					GFX_CONSUME_IS_ATTACH_(childCon))
 				{
 					// Check view compatibility.
-					if (!_gfx_cmp_consume(con, childCon)) return 0;
+					if (!gfx_cmp_consume_(con, childCon)) return 0;
 
 					// Count consumptions for each pass.
 					++sharedAttachs;
@@ -260,8 +259,8 @@ static uint64_t _gfx_pass_merge_score(GFXRenderer* renderer,
  *
  * Must be called for all passes in submission order!
  */
-static void _gfx_pass_merge(GFXRenderer* renderer,
-                            _GFXRenderPass* rPass, _GFXConsume** consumes)
+static void gfx_pass_merge_(GFXRenderer* renderer,
+                            GFXRenderPass_* rPass, GFXConsume_** consumes)
 {
 	assert(renderer != NULL);
 	assert(rPass != NULL);
@@ -286,7 +285,7 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 
 	for (size_t i = 0; i < rPass->base.consumes.size; ++i)
 	{
-		_GFXConsume* con = gfx_vec_at(&rPass->base.consumes, i);
+		GFXConsume_* con = gfx_vec_at(&rPass->base.consumes, i);
 		if (con->view.index < renderer->backing.attachs.size)
 		{
 			consumes[con->view.index] = con;
@@ -298,13 +297,13 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 	if (!canMerge) return;
 
 	// Start looping over all parents to find the best.
-	_GFXRenderPass* merge = NULL;
+	GFXRenderPass_* merge = NULL;
 	uint64_t score = 0;
 
 	for (size_t p = 0; p < rPass->base.parents.size; ++p)
 	{
-		_GFXRenderPass* rCandidate =
-			*(_GFXRenderPass**)gfx_vec_at(&rPass->base.parents, p);
+		GFXRenderPass_* rCandidate =
+			*(GFXRenderPass_**)gfx_vec_at(&rPass->base.parents, p);
 
 		// Again, ignore non-render passes.
 		if (rCandidate->base.type != GFX_PASS_RENDER) continue;
@@ -317,7 +316,7 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 
 		// Calculate score.
 		uint64_t pScore =
-			_gfx_pass_merge_score(renderer, rPass, rCandidate, consumes);
+			gfx_pass_merge_score_(renderer, rPass, rCandidate, consumes);
 
 		// Note: if pScore == 0, it will always be rejected!
 		if (pScore > score)
@@ -327,7 +326,7 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
 	// Link it into the chain.
 	if (merge != NULL)
 	{
-		_GFXRenderPass* master =
+		GFXRenderPass_* master =
 			(merge->out.master == NULL) ? merge : merge->out.master;
 
 		merge->out.next = rPass;
@@ -353,8 +352,8 @@ static void _gfx_pass_merge(GFXRenderer* renderer,
  * Must be called for all passes in submission order!
  * consumes must hold `renderer->backing.attachs.size` pointers.
  */
-static void _gfx_pass_resolve(GFXRenderer* renderer,
-                              GFXPass* pass, _GFXConsume** consumes,
+static void gfx_pass_resolve_(GFXRenderer* renderer,
+                              GFXPass* pass, GFXConsume_** consumes,
                               GFXPass*** ptrToNext)
 {
 	assert(renderer != NULL);
@@ -372,7 +371,7 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 	// when they will be submitted (ergo when dependencies are relevant).
 	if (pass->type == GFX_PASS_RENDER)
 	{
-		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+		GFXRenderPass_* rPass = (GFXRenderPass_*)pass;
 
 		// Skip if not last.
 		if (rPass->out.next != NULL) return;
@@ -399,32 +398,32 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 		// Start looping over all consumptions & resolve them.
 		for (size_t i = 0; i < subpass->consumes.size; ++i)
 		{
-			_GFXConsume* con =
+			GFXConsume_* con =
 				gfx_vec_at(&subpass->consumes, i);
-			const _GFXAttach* at =
+			const GFXAttach_* at =
 				gfx_vec_at(&renderer->backing.attachs, con->view.index);
 
 			// Default of empty in case we skip this consumption.
 			con->out.subpass = index;
 			con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 			con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
-			con->out.state = _GFX_CONSUME_IS_FIRST | _GFX_CONSUME_IS_LAST;
+			con->out.state = GFX_CONSUME_IS_FIRST_ | GFX_CONSUME_IS_LAST_;
 			con->out.prev = NULL;
 			con->out.next = NULL;
 
 			// Validate existence of the attachment.
 			if (
 				con->view.index >= renderer->backing.attachs.size ||
-				at->type == _GFX_ATTACH_EMPTY)
+				at->type == GFX_ATTACH_EMPTY_)
 			{
 				continue;
 			}
 
 			// Get previous consumption from the previous resolve calls.
-			_GFXConsume* prev = consumes[con->view.index];
+			GFXConsume_* prev = consumes[con->view.index];
 
 			// Compute initial/final layout based on neighbours.
-			if (at->type == _GFX_ATTACH_WINDOW)
+			if (at->type == GFX_ATTACH_WINDOW_)
 			{
 				if (prev == NULL)
 					con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -437,7 +436,7 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 			else
 			{
 				VkImageLayout layout =
-					_GFX_GET_VK_IMAGE_LAYOUT(con->mask, at->image.base.format);
+					GFX_GET_VK_IMAGE_LAYOUT_(con->mask, at->image.base.format);
 
 				if (prev == NULL)
 					con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -457,8 +456,8 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 				// Set subpass chain state if previous is of the same chain.
 				if (thisChain[con->view.index])
 				{
-					prev->out.state &= ~(unsigned int)_GFX_CONSUME_IS_LAST;
-					con->out.state &= ~(unsigned int)_GFX_CONSUME_IS_FIRST;
+					prev->out.state &= ~(unsigned int)GFX_CONSUME_IS_LAST_;
+					con->out.state &= ~(unsigned int)GFX_CONSUME_IS_FIRST_;
 				}
 
 				// Insert dependency (i.e. execution barrier) if necessary:
@@ -481,14 +480,14 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 		// Also resolve all dependencies.
 		for (size_t i = 0; i < subpass->deps.size; ++i)
 		{
-			_GFXDepend* dep = gfx_vec_at(&subpass->deps, i);
-			_GFXRenderPass* source = (_GFXRenderPass*)dep->source;
-			_GFXRenderPass* target = (_GFXRenderPass*)dep->target;
+			GFXDepend_* dep = gfx_vec_at(&subpass->deps, i);
+			GFXRenderPass_* source = (GFXRenderPass_*)dep->source;
+			GFXRenderPass_* target = (GFXRenderPass_*)dep->target;
 
 			// Unpack resource references to get a format.
 			// Can't store actual VkImage handles because those might change!
-			_GFXUnpackRef unp = _gfx_ref_unpack(dep->inj.ref);
-			const _GFXImageAttach* attach = _GFX_UNPACK_REF_ATTACH(unp);
+			GFXUnpackRef_ unp = gfx_ref_unpack_(dep->inj.ref);
+			const GFXImageAttach_* attach = GFX_UNPACK_REF_ATTACH_(unp);
 
 			dep->out.fmt = GFX_FORMAT_EMPTY; // Always set format.
 
@@ -513,15 +512,15 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
 			// Whether or not we are dealing with a layout transition.
 			dep->out.transition =
 				!GFX_FORMAT_IS_EMPTY(dep->out.fmt) &&
-				_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.maskf, dep->out.fmt) !=
-				_GFX_GET_VK_IMAGE_LAYOUT(dep->inj.mask, dep->out.fmt);
+				GFX_GET_VK_IMAGE_LAYOUT_(dep->inj.maskf, dep->out.fmt) !=
+				GFX_GET_VK_IMAGE_LAYOUT_(dep->inj.mask, dep->out.fmt);
 		}
 
 		// Next subpass.
 		if (subpass->type != GFX_PASS_RENDER)
 			subpass = NULL;
 		else
-			subpass = (GFXPass*)((_GFXRenderPass*)subpass)->out.next,
+			subpass = (GFXPass*)((GFXRenderPass_*)subpass)->out.next,
 			++index;
 	}
 }
@@ -533,10 +532,10 @@ static void _gfx_pass_resolve(GFXRenderer* renderer,
  * and sets the `order` field of all passes :)
  * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */
-static void _gfx_render_graph_analyze(GFXRenderer* renderer)
+static void gfx_render_graph_analyze_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
-	assert(renderer->graph.state < _GFX_GRAPH_VALIDATED);
+	assert(renderer->graph.state < GFX_GRAPH_VALIDATED_);
 
 	// We want to see if we can merge render passes into a chain of
 	// subpasses, useful for tiled renderers n such :)
@@ -544,16 +543,16 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 	// We ignore non-parents, so no merging happens if no connection is
 	// indicated through the user API.
 	// Loop in submission order so parents are processed before children.
-	// Also, allocate the `consumes` for _gfx_pass_(merge|resolve) here.
+	// Also, allocate the `consumes` for gfx_pass_(merge|resolve)_ here.
 	const size_t numAttachs = renderer->backing.attachs.size;
-	_GFXConsume* consumes[GFX_MAX(1, numAttachs)];
+	GFXConsume_* consumes[GFX_MAX(1, numAttachs)];
 
 	for (
 		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 		pass != renderer->graph.firstCompute;
 		pass = (GFXPass*)pass->list.next)
 	{
-		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+		GFXRenderPass_* rPass = (GFXRenderPass_*)pass;
 
 		// No need to merge non-render passes.
 		if (rPass->base.type != GFX_PASS_RENDER) continue;
@@ -568,7 +567,7 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 
 		for (size_t c = 0; c < rPass->base.consumes.size; ++c)
 		{
-			const size_t backing = _gfx_get_backing(
+			const size_t backing = gfx_get_backing_(
 				renderer, gfx_vec_at(&rPass->base.consumes, c));
 
 			if (backing != SIZE_MAX)
@@ -579,7 +578,7 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		}
 
 		// Now, merge it with one of its parents.
-		_gfx_pass_merge(renderer, rPass, consumes);
+		gfx_pass_merge_(renderer, rPass, consumes);
 	}
 
 	// Then we loop over all passes in submission order whilst
@@ -605,18 +604,18 @@ static void _gfx_render_graph_analyze(GFXRenderer* renderer)
 		if (pass->culled) continue;
 
 		// Resolve!
-		_gfx_pass_resolve(renderer, pass, consumes, &ptrToNext);
+		gfx_pass_resolve_(renderer, pass, consumes, &ptrToNext);
 
 		// Set order.
 		pass->order = order++;
 	}
 
 	// Its now validated!
-	renderer->graph.state = _GFX_GRAPH_VALIDATED;
+	renderer->graph.state = GFX_GRAPH_VALIDATED_;
 }
 
 /****************************/
-void _gfx_render_graph_init(GFXRenderer* renderer)
+void gfx_render_graph_init_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
@@ -629,14 +628,14 @@ void _gfx_render_graph_init(GFXRenderer* renderer)
 	renderer->graph.culledCompute = 0;
 
 	// No graph is a valid graph.
-	renderer->graph.state = _GFX_GRAPH_BUILT;
+	renderer->graph.state = GFX_GRAPH_BUILT_;
 
 	// Just in case.
 	renderer->graph.out.first = NULL;
 }
 
 /****************************/
-void _gfx_render_graph_clear(GFXRenderer* renderer)
+void gfx_render_graph_clear_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
@@ -645,28 +644,28 @@ void _gfx_render_graph_clear(GFXRenderer* renderer)
 	{
 		GFXPass* pass = (GFXPass*)renderer->graph.passes.head;
 		gfx_list_erase(&renderer->graph.passes, &pass->list);
-		_gfx_destroy_pass(pass);
+		gfx_destroy_pass_(pass);
 	}
 
 	gfx_list_clear(&renderer->graph.passes);
 }
 
 /****************************/
-bool _gfx_render_graph_warmup(GFXRenderer* renderer)
+bool gfx_render_graph_warmup_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
 	// Already done.
-	if (renderer->graph.state >= _GFX_GRAPH_WARMED)
+	if (renderer->graph.state >= GFX_GRAPH_WARMED_)
 		return 1;
 
 	// With the same logic as building; we destruct all things first.
-	if (renderer->graph.state == _GFX_GRAPH_INVALID)
-		_gfx_render_graph_destruct(renderer);
+	if (renderer->graph.state == GFX_GRAPH_INVALID_)
+		gfx_render_graph_destruct_(renderer);
 
 	// If not valid yet, analyze the graph.
-	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
-		_gfx_render_graph_analyze(renderer);
+	if (renderer->graph.state < GFX_GRAPH_VALIDATED_)
+		gfx_render_graph_analyze_(renderer);
 
 	// And then make sure all render passes are warmped up!
 	size_t failed = 0;
@@ -678,7 +677,7 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			// No need to worry about destructing, state remains 'validated'.
-			failed += !_gfx_pass_warmup((_GFXRenderPass*)pass);
+			failed += !gfx_pass_warmup_((GFXRenderPass_*)pass);
 	}
 
 	if (failed > 0)
@@ -691,29 +690,29 @@ bool _gfx_render_graph_warmup(GFXRenderer* renderer)
 	}
 
 	// Not completely built, but it can be invalidated.
-	renderer->graph.state = _GFX_GRAPH_WARMED;
+	renderer->graph.state = GFX_GRAPH_WARMED_;
 
 	return 1;
 }
 
 /****************************/
-bool _gfx_render_graph_build(GFXRenderer* renderer)
+bool gfx_render_graph_build_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
 	// Already done.
-	if (renderer->graph.state == _GFX_GRAPH_BUILT)
+	if (renderer->graph.state == GFX_GRAPH_BUILT_)
 		return 1;
 
 	// When the graph is not valid, it needs to be entirely rebuilt.
 	// Optimizations such as merging passes may change,
 	// we want to capture these changes.
-	if (renderer->graph.state == _GFX_GRAPH_INVALID)
-		_gfx_render_graph_destruct(renderer);
+	if (renderer->graph.state == GFX_GRAPH_INVALID_)
+		gfx_render_graph_destruct_(renderer);
 
 	// If not valid yet, analyze the graph.
-	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
-		_gfx_render_graph_analyze(renderer);
+	if (renderer->graph.state < GFX_GRAPH_VALIDATED_)
+		gfx_render_graph_analyze_(renderer);
 
 	// So now make sure all the render passes in the graph are built.
 	size_t failed = 0;
@@ -726,7 +725,7 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 		if (pass->type == GFX_PASS_RENDER)
 			// The pass itself should log errors.
 			// No need to worry about destructing, state remains 'validated'.
-			failed += !_gfx_pass_build((_GFXRenderPass*)pass);
+			failed += !gfx_pass_build_((GFXRenderPass_*)pass);
 	}
 
 	if (failed > 0)
@@ -739,24 +738,24 @@ bool _gfx_render_graph_build(GFXRenderer* renderer)
 	}
 
 	// Yep it's built.
-	renderer->graph.state = _GFX_GRAPH_BUILT;
+	renderer->graph.state = GFX_GRAPH_BUILT_;
 
 	return 1;
 }
 
 /****************************/
-void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
+void gfx_render_graph_rebuild_(GFXRenderer* renderer, GFXRecreateFlags_ flags)
 {
 	assert(renderer != NULL);
-	assert(flags & _GFX_RECREATE);
+	assert(flags & GFX_RECREATE_);
 
 	// Nothing to rebuild if no build attempt was even made.
-	if (renderer->graph.state < _GFX_GRAPH_VALIDATED)
+	if (renderer->graph.state < GFX_GRAPH_VALIDATED_)
 		return;
 
 	// (Re)build all render passes.
 	// If we fail, just ignore and signal we're not built.
-	// Will be tried again in _gfx_render_graph_build.
+	// Will be tried again in gfx_render_graph_build_.
 	size_t failed = 0;
 
 	for (
@@ -765,7 +764,7 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 		pass = pass->out.next)
 	{
 		if (pass->type == GFX_PASS_RENDER)
-			failed += !_gfx_pass_rebuild((_GFXRenderPass*)pass, flags);
+			failed += !gfx_pass_rebuild_((GFXRenderPass_*)pass, flags);
 	}
 
 	if (failed > 0)
@@ -775,12 +774,12 @@ void _gfx_render_graph_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 			failed);
 
 		// The graph is not invalid, but incomplete.
-		renderer->graph.state = _GFX_GRAPH_VALIDATED;
+		renderer->graph.state = GFX_GRAPH_VALIDATED_;
 	}
 }
 
 /****************************/
-void _gfx_render_graph_destruct(GFXRenderer* renderer)
+void gfx_render_graph_destruct_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
@@ -793,22 +792,22 @@ void _gfx_render_graph_destruct(GFXRenderer* renderer)
 		pass = (GFXPass*)pass->list.next)
 	{
 		if (pass->type == GFX_PASS_RENDER)
-			_gfx_pass_destruct((_GFXRenderPass*)pass);
+			gfx_pass_destruct_((GFXRenderPass_*)pass);
 	}
 
 	// The graph is now empty.
-	renderer->graph.state = _GFX_GRAPH_EMPTY;
+	renderer->graph.state = GFX_GRAPH_EMPTY_;
 }
 
 /****************************/
-void _gfx_render_graph_invalidate(GFXRenderer* renderer)
+void gfx_render_graph_invalidate_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
 	// Just set the flag, it is used to destruct everything at the start of
 	// the next build call. This way we can re-analyze it.
-	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
-		renderer->graph.state = _GFX_GRAPH_INVALID;
+	if (renderer->graph.state != GFX_GRAPH_EMPTY_)
+		renderer->graph.state = GFX_GRAPH_INVALID_;
 }
 
 /****************************
@@ -819,7 +818,7 @@ void _gfx_render_graph_invalidate(GFXRenderer* renderer)
  *
  * Recursively calls itself for all descendants of pass if !firstInsert.
  */
-static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
+static void gfx_render_graph_insert_(GFXRenderer* renderer, GFXPass* pass,
                                      bool firstInsert)
 {
 	assert(renderer != NULL);
@@ -929,7 +928,7 @@ static void _gfx_render_graph_insert(GFXRenderer* renderer, GFXPass* pass,
 				// If so, recurse!
 				// Get the next possible child before re-inserting.
 				GFXPass* nnext = (GFXPass*)next->list.next;
-				_gfx_render_graph_insert(renderer, next, 0);
+				gfx_render_graph_insert_(renderer, next, 0);
 
 				next = nnext;
 			}
@@ -946,18 +945,18 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	assert(numParents == 0 || parents != NULL);
 
 	// Check if all parents are compatible.
-	if (!_gfx_check_parents(renderer, type, numParents, parents))
+	if (!gfx_check_parents_(renderer, type, numParents, parents))
 		goto error;
 
 	// Create a new pass.
 	GFXPass* pass =
-		_gfx_create_pass(renderer, type, culled, numParents, parents);
+		gfx_create_pass_(renderer, type, culled, numParents, parents);
 
 	if (pass == NULL)
 		goto error;
 
 	// Insert the pass into the render graph.
-	_gfx_render_graph_insert(renderer, pass, 1);
+	gfx_render_graph_insert_(renderer, pass, 1);
 
 	// Increase pass count.
 	if (pass->type != GFX_PASS_COMPUTE_ASYNC)
@@ -982,11 +981,11 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
 	// We added a pass, we need to re-analyze
 	// because we may have new parent/child links.
 	// No need to do this if culled.
-	if (!pass->culled && renderer->graph.state != _GFX_GRAPH_EMPTY)
+	if (!pass->culled && renderer->graph.state != GFX_GRAPH_EMPTY_)
 		renderer->graph.state =
 			// If the first pass, no need to purge, just set to empty.
 			(renderer->graph.passes.head != renderer->graph.passes.tail) ?
-				_GFX_GRAPH_INVALID : _GFX_GRAPH_EMPTY;
+				GFX_GRAPH_INVALID_ : GFX_GRAPH_EMPTY_;
 
 	return pass;
 
@@ -1012,12 +1011,12 @@ GFX_API void gfx_erase_pass(GFXPass* pass)
 	// then the entire subpass chain might get destructed multiple times,
 	// which is simply inefficient.
 	// Do this even when culled, in case it wasn't culled before!
-	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
+	if (renderer->graph.state != GFX_GRAPH_EMPTY_)
 	{
 		// Use renderer's lock for pushing stale resources!
-		_gfx_mutex_lock(&renderer->lock);
-		_gfx_render_graph_destruct(renderer);
-		_gfx_mutex_unlock(&renderer->lock);
+		gfx_mutex_lock_(&renderer->lock);
+		gfx_render_graph_destruct_(renderer);
+		gfx_mutex_unlock_(&renderer->lock);
 	}
 
 	// Unlink itself from the render graph.
@@ -1046,9 +1045,9 @@ GFX_API void gfx_erase_pass(GFXPass* pass)
 			--renderer->graph.culledCompute;
 	}
 
-	// And finally, destroy the pass. The call to _gfx_render_graph_destruct
+	// And finally, destroy the pass. The call to gfx_render_graph_destruct_
 	// ensures we are allowed to destroy the pass!
-	_gfx_destroy_pass(pass);
+	gfx_destroy_pass_(pass);
 }
 
 /****************************/
@@ -1062,11 +1061,11 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
 	GFXRenderer* renderer = pass->renderer;
 
 	// Check if all parents are compatible, will also check for NULL parents!
-	if (!_gfx_check_parents(renderer, pass->type, numParents, parents))
+	if (!gfx_check_parents_(renderer, pass->type, numParents, parents))
 		goto error;
 
 	// Then check for cycles in the graph.
-	if (!_gfx_check_cycles(pass, numParents, parents))
+	if (!gfx_check_cycles_(pass, numParents, parents))
 		goto error;
 
 	// Attempt to allocate enough memory for new parents.
@@ -1076,8 +1075,8 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
 	// Invalidate the graph.
 	// Order might change due to parent updates, but this does not matter
 	// for destruction, so we can get away with just invalidating the graph!
-	if (renderer->graph.state != _GFX_GRAPH_EMPTY)
-		renderer->graph.state = _GFX_GRAPH_INVALID;
+	if (renderer->graph.state != GFX_GRAPH_EMPTY_)
+		renderer->graph.state = GFX_GRAPH_INVALID_;
 
 	// If not culled, decrease + increase the child count of all parents.
 	if (!pass->culled)
@@ -1095,7 +1094,7 @@ GFX_API bool gfx_pass_set_parents(GFXPass* pass,
 		gfx_vec_push(&pass->parents, numParents, parents);
 
 	// Re-insert into passes list.
-	_gfx_render_graph_insert(renderer, pass, 0);
+	gfx_render_graph_insert_(renderer, pass, 0);
 
 	return 1;
 
@@ -1112,7 +1111,7 @@ error:
  * @see gfx_pass_(cull|uncull).
  * @param cull Zero to uncull, non-zero to cull.
  */
-static void _gfx_pass_set_cull(GFXPass* pass, bool cull)
+static void gfx_pass_set_cull_(GFXPass* pass, bool cull)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
@@ -1124,8 +1123,8 @@ static void _gfx_pass_set_cull(GFXPass* pass, bool cull)
 	if (pass->culled != cull)
 	{
 		// Invalidate the graph & set the new culled state.
-		if (renderer->graph.state != _GFX_GRAPH_EMPTY)
-			renderer->graph.state = _GFX_GRAPH_INVALID;
+		if (renderer->graph.state != GFX_GRAPH_EMPTY_)
+			renderer->graph.state = GFX_GRAPH_INVALID_;
 
 		pass->culled = cull;
 
@@ -1158,7 +1157,7 @@ GFX_API void gfx_pass_cull(GFXPass* pass)
 {
 	// Relies on stand-in function for asserts.
 
-	_gfx_pass_set_cull(pass, 1);
+	gfx_pass_set_cull_(pass, 1);
 }
 
 /****************************/
@@ -1166,7 +1165,7 @@ GFX_API void gfx_pass_uncull(GFXPass* pass)
 {
 	// Relies on stand-in function for asserts.
 
-	_gfx_pass_set_cull(pass, 0);
+	gfx_pass_set_cull_(pass, 0);
 }
 
 /****************************/

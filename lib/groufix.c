@@ -7,13 +7,12 @@
  */
 
 #include "groufix/core.h"
-#include <assert.h>
 
 
 /****************************
  * Callback for GLFW errors.
  */
-static void _gfx_glfw_error(int error, const char* description)
+static void gfx_glfw_error_(int error, const char* description)
 {
 	// Just log it as a groufix error,
 	// this should already take care of threading.
@@ -24,14 +23,14 @@ static void _gfx_glfw_error(int error, const char* description)
 GFX_API bool gfx_init(void)
 {
 	// Already initialized, just do nothing.
-	if (atomic_load(&_groufix.initialized))
+	if (atomic_load(&groufix_.initialized))
 		return 1;
 
 	// Before anything, get the log level from env.
-	_gfx_log_set_default_level();
+	gfx_log_set_default_level_();
 
 	// Initialize global state.
-	if (!_gfx_init())
+	if (!gfx_init_())
 	{
 		gfx_log_fatal("Could not initialize global state.");
 		return 0;
@@ -45,7 +44,7 @@ GFX_API bool gfx_init(void)
 		goto terminate;
 
 	// Init GLFW and the Vulkan loader.
-	glfwSetErrorCallback(_gfx_glfw_error);
+	glfwSetErrorCallback(gfx_glfw_error_);
 
 	if (!glfwInit())
 		goto terminate;
@@ -56,16 +55,16 @@ GFX_API bool gfx_init(void)
 	gfx_log_info("GLFW initialized succesfully, Vulkan loader found.");
 
 	// Initialize all other internal state.
-	if (!_gfx_vulkan_init())
+	if (!gfx_vulkan_init_())
 		goto terminate;
 
-	if (!_gfx_devices_init())
+	if (!gfx_devices_init_())
 		goto terminate;
 
-	if (!_gfx_monitors_init())
+	if (!gfx_monitors_init_())
 		goto terminate;
 
-	if (!_gfx_gamepads_init())
+	if (!gfx_gamepads_init_())
 		goto terminate;
 
 	gfx_log_info("All internal state initialized succesfully, ready.");
@@ -85,19 +84,19 @@ terminate:
 GFX_API void gfx_terminate(void)
 {
 	// Not yet initialized, just do nothing.
-	if (!atomic_load(&_groufix.initialized))
+	if (!atomic_load(&groufix_.initialized))
 		return;
 
 	// Terminate the contents of the engine.
-	_gfx_gamepads_terminate();
-	_gfx_monitors_terminate();
-	_gfx_devices_terminate();
-	_gfx_vulkan_terminate();
+	gfx_gamepads_terminate_();
+	gfx_monitors_terminate_();
+	gfx_devices_terminate_();
+	gfx_vulkan_terminate_();
 	glfwTerminate();
 
 	// Detach and terminate.
 	gfx_detach();
-	_gfx_terminate();
+	gfx_terminate_();
 
 	gfx_log_info("All internal state terminated.");
 }
@@ -106,15 +105,15 @@ GFX_API void gfx_terminate(void)
 GFX_API bool gfx_attach(void)
 {
 	// Not yet initialized, cannot attach.
-	if (!atomic_load(&_groufix.initialized))
+	if (!atomic_load(&groufix_.initialized))
 		return 0;
 
 	// Already attached.
-	if (_gfx_get_local())
+	if (gfx_get_local_())
 		return 1;
 
 	// Create thread local state.
-	if (!_gfx_create_local())
+	if (!gfx_create_local_())
 	{
 		gfx_log_error("Could not attach a thread.");
 		return 0;
@@ -130,35 +129,35 @@ GFX_API bool gfx_attach(void)
 GFX_API void gfx_detach(void)
 {
 	// Not yet initialized or attached.
-	if (!atomic_load(&_groufix.initialized) || !_gfx_get_local())
+	if (!atomic_load(&groufix_.initialized) || !gfx_get_local_())
 		return;
 
 	// Every thread may have one last say :)
 	gfx_log_info("Detaching self from groufix.");
 
-	_gfx_destroy_local();
+	gfx_destroy_local_();
 }
 
 /****************************/
 GFX_API int64_t gfx_time(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
-	return _gfx_clock_get_time(&_groufix.clock);
+	return gfx_clock_get_time_(&groufix_.clock);
 }
 
 /****************************/
 GFX_API int64_t gfx_time_frequency(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
-	return _groufix.clock.frequency;
+	return groufix_.clock.frequency;
 }
 
 /****************************/
 GFX_API void gfx_poll_events(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
 	glfwPollEvents();
 }
@@ -166,7 +165,7 @@ GFX_API void gfx_poll_events(void)
 /****************************/
 GFX_API void gfx_wait_events(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
 	glfwWaitEvents();
 }
@@ -174,7 +173,7 @@ GFX_API void gfx_wait_events(void)
 /****************************/
 GFX_API void gfx_wake(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
 	glfwPostEmptyEvent();
 }

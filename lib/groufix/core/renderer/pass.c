@@ -7,18 +7,17 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 #include <stdlib.h>
 
 
 // Detect whether a render pass is warmed.
-#define _GFX_PASS_IS_WARMED(rPass) (rPass->vk.pass != VK_NULL_HANDLE)
+#define GFX_PASS_IS_WARMED_(rPass) (rPass->vk.pass != VK_NULL_HANDLE)
 
 // Detect whether a render pass is built.
-#define _GFX_PASS_IS_BUILT(rPass) (rPass->vk.frames.size > 0)
+#define GFX_PASS_IS_BUILT_(rPass) (rPass->vk.frames.size > 0)
 
 // Auto log on any zero or mismatching framebuffer dimensions.
-#define _GFX_VALIDATE_DIMS(rPass, width, height, layers, action) \
+#define GFX_VALIDATE_DIMS_(rPass, width, height, layers, action) \
 	do { \
 		if ((width) == 0 || (height) == 0 || (layers) == 0) \
 		{ \
@@ -54,30 +53,30 @@
 /****************************
  * Image view (for all framebuffers) element definition.
  */
-typedef struct _GFXViewElem
+typedef struct GFXViewElem_
 {
-	const _GFXConsume* consume;
+	const GFXConsume_* consume;
 	VkImageView        view; // Remains VK_NULL_HANDLE if a swapchain.
 
-} _GFXViewElem;
+} GFXViewElem_;
 
 
 /****************************
  * Frame (framebuffer + swapchain view) element definition.
  */
-typedef struct _GFXFrameElem
+typedef struct GFXFrameElem_
 {
 	VkImageView   view; // Swapchain view, may be VK_NULL_HANDLE.
 	VkFramebuffer buffer;
 
-} _GFXFrameElem;
+} GFXFrameElem_;
 
 
 /****************************
  * Compares two user defined rasterization state descriptions.
  * @return Non-zero if equal.
  */
-static inline bool _gfx_cmp_raster(const GFXRasterState* l,
+static inline bool gfx_cmp_raster_(const GFXRasterState* l,
                                    const GFXRasterState* r)
 {
 	return
@@ -92,7 +91,7 @@ static inline bool _gfx_cmp_raster(const GFXRasterState* l,
  * Compares two user defined blend state descriptions.
  * @return Non-zero if equal.
  */
-static inline bool _gfx_cmp_blend(const GFXBlendState* l,
+static inline bool gfx_cmp_blend_(const GFXBlendState* l,
                                   const GFXBlendState* r)
 {
 	return
@@ -113,7 +112,7 @@ static inline bool _gfx_cmp_blend(const GFXBlendState* l,
  * Compares two user defined depth state descriptions.
  * @return Non-zero if equal.
  */
-static inline bool _gfx_cmp_depth(const GFXDepthState* l,
+static inline bool gfx_cmp_depth_(const GFXDepthState* l,
                                   const GFXDepthState* r)
 {
 	return
@@ -128,7 +127,7 @@ static inline bool _gfx_cmp_depth(const GFXDepthState* l,
  * Compares two user defined stencil operation states.
  * @return Non-zero if equal.
  */
-static inline bool _gfx_cmp_stencil(const GFXStencilOpState* l,
+static inline bool gfx_cmp_stencil_(const GFXStencilOpState* l,
                                     const GFXStencilOpState* r)
 {
 	return
@@ -145,7 +144,7 @@ static inline bool _gfx_cmp_stencil(const GFXStencilOpState* l,
  * Increases the pass 'generation'; invalidating any renderable/computable
  * pipeline that references this pass.
  */
-static inline void _gfx_pass_gen(_GFXRenderPass* rPass)
+static inline void gfx_pass_gen_(GFXRenderPass_* rPass)
 {
 	if (++rPass->gen == 0) gfx_log_warn(
 		"Pass build generation reached maximum (%"PRIu32") and overflowed; "
@@ -156,11 +155,11 @@ static inline void _gfx_pass_gen(_GFXRenderPass* rPass)
 /****************************
  * Stand-in function for all the gfx_pass_consume* variants.
  * The `flags`, `mask`, `stage` and `view` fields of consume must be set.
- * As for `flags`, _GFX_CONSUME_BLEND may _NOT_ be set.
+ * As for `flags`, GFX_CONSUME_BLEND_ may _NOT_ be set.
  * @see gfx_pass_consume*.
  * @param consume Cannot be NULL.
  */
-static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
+static bool gfx_pass_consume_(GFXPass* pass, GFXConsume_* consume)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
@@ -173,7 +172,7 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 	consume->mask &= ~(GFXAccessMask)GFX_ACCESS_HOST_READ_WRITE;
 
 	// Try to find it first.
-	_GFXConsume* con;
+	GFXConsume_* con;
 
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
@@ -181,11 +180,11 @@ static bool _gfx_pass_consume(GFXPass* pass, _GFXConsume* consume)
 		if (con->view.index == consume->view.index)
 		{
 			// Keep old clear, blend & resolve values.
-			_GFXConsume t = *con;
+			GFXConsume_ t = *con;
 			*con = *consume;
 
-			if (t.flags & _GFX_CONSUME_BLEND)
-				con->flags |= _GFX_CONSUME_BLEND;
+			if (t.flags & GFX_CONSUME_BLEND_)
+				con->flags |= GFX_CONSUME_BLEND_;
 
 			con->cleared = t.cleared;
 			con->clear = t.clear;
@@ -220,7 +219,7 @@ invalidate:
 	// Changed a pass, the graph is invalidated.
 	// This makes it so the graph will destruct this pass before anything else.
 	// This also means the graph will be re-analyzed!
-	if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
+	if (!pass->culled) gfx_render_graph_invalidate_(pass->renderer);
 
 	return 1;
 }
@@ -232,33 +231,33 @@ invalidate:
  *
  * Not thread-safe with respect to pushing stale resources!
  */
-static void _gfx_pass_destruct_partial(_GFXRenderPass* rPass,
-                                       _GFXRecreateFlags flags)
+static void gfx_pass_destruct_partial_(GFXRenderPass_* rPass,
+                                       GFXRecreateFlags_ flags)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
 
 	// The recreate flag is always set if anything is set and signals
 	// that the actual images have been recreated.
-	if (flags & _GFX_RECREATE)
+	if (flags & GFX_RECREATE_)
 	{
 		// Make all framebuffers and views stale,
 		// they might still be in use by pending virtual frames.
 		// NOT locked using the renderer's lock;
-		// this is why _gfx_pass_(build|destruct) are not thread-safe.
+		// this is why gfx_pass_(build|destruct)_ are not thread-safe.
 		for (size_t i = 0; i < rPass->vk.frames.size; ++i)
 		{
-			_GFXFrameElem* elem = gfx_vec_at(&rPass->vk.frames, i);
-			_gfx_push_stale(rPass->base.renderer,
+			GFXFrameElem_* elem = gfx_vec_at(&rPass->vk.frames, i);
+			gfx_push_stale_(rPass->base.renderer,
 				elem->buffer, elem->view,
 				VK_NULL_HANDLE, VK_NULL_HANDLE);
 		}
 
 		for (size_t i = 0; i < rPass->vk.views.size; ++i)
 		{
-			_GFXViewElem* elem = gfx_vec_at(&rPass->vk.views, i);
+			GFXViewElem_* elem = gfx_vec_at(&rPass->vk.views, i);
 			if (elem->view != VK_NULL_HANDLE)
-				_gfx_push_stale(rPass->base.renderer,
+				gfx_push_stale_(rPass->base.renderer,
 					VK_NULL_HANDLE, elem->view,
 					VK_NULL_HANDLE, VK_NULL_HANDLE);
 
@@ -279,14 +278,14 @@ static void _gfx_pass_destruct_partial(_GFXRenderPass* rPass,
 
 	// Second, check if the Vulkan render pass needs to be reconstructed.
 	// This object is cached, so no need to destroy anything.
-	if (flags & _GFX_REFORMAT)
+	if (flags & GFX_REFORMAT_)
 	{
 		rPass->build.pass = NULL;
 		rPass->vk.pass = VK_NULL_HANDLE;
 
 		// Increase generation; the render pass is used in pipelines,
 		// ergo we need to invalidate current pipelines using it.
-		_gfx_pass_gen(rPass);
+		gfx_pass_gen_(rPass);
 	}
 }
 
@@ -294,10 +293,10 @@ static void _gfx_pass_destruct_partial(_GFXRenderPass* rPass,
  * Destructs a subset of all Vulkan objects of an entire subpass chain.
  * @param rPass Cannot be NULL, must be first in the subpass chain.
  *
- * @see _gfx_pass_destruct_partial.
+ * @see gfx_pass_destruct_partial_.
  */
-static void _gfx_passes_destruct_partial(_GFXRenderPass* rPass,
-                                         _GFXRecreateFlags flags)
+static void gfx_passes_destruct_partial_(GFXRenderPass_* rPass,
+                                         GFXRecreateFlags_ flags)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
@@ -305,16 +304,16 @@ static void _gfx_passes_destruct_partial(_GFXRenderPass* rPass,
 
 	// Loop over all subpasses and destruct them!
 	for (
-		_GFXRenderPass* subpass = rPass;
+		GFXRenderPass_* subpass = rPass;
 		subpass != NULL;
 		subpass = subpass->out.next)
 	{
-		_gfx_pass_destruct_partial(subpass, flags);
+		gfx_pass_destruct_partial_(subpass, flags);
 	}
 }
 
 /****************************/
-GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
+GFXPass* gfx_create_pass_(GFXRenderer* renderer, GFXPassType type,
                           bool culled,
                           size_t numParents, GFXPass** parents)
 {
@@ -324,7 +323,7 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	// Allocate a new pass.
 	const size_t structSize =
 		(type == GFX_PASS_RENDER) ?
-		sizeof(_GFXRenderPass) : sizeof(_GFXComputePass);
+		sizeof(GFXRenderPass_) : sizeof(GFXComputePass_);
 
 	GFXPass* pass = malloc(structSize);
 	if (pass == NULL) return NULL;
@@ -352,14 +351,14 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 	pass->childs = 0;
 	pass->culled = culled;
 
-	gfx_vec_init(&pass->consumes, sizeof(_GFXConsume));
-	gfx_vec_init(&pass->deps, sizeof(_GFXDepend));
+	gfx_vec_init(&pass->consumes, sizeof(GFXConsume_));
+	gfx_vec_init(&pass->deps, sizeof(GFXDepend_));
 	gfx_vec_init(&pass->injs, sizeof(GFXInject));
 
 	// Initialize as render pass.
 	if (type == GFX_PASS_RENDER)
 	{
-		_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+		GFXRenderPass_* rPass = (GFXRenderPass_*)pass;
 		rPass->gen = 0;
 
 		// Initialize building stuff.
@@ -382,8 +381,8 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 
 		gfx_vec_init(&rPass->vk.clears, sizeof(VkClearValue));
 		gfx_vec_init(&rPass->vk.blends, blendsSize);
-		gfx_vec_init(&rPass->vk.views, sizeof(_GFXViewElem));
-		gfx_vec_init(&rPass->vk.frames, sizeof(_GFXFrameElem));
+		gfx_vec_init(&rPass->vk.views, sizeof(GFXViewElem_));
+		gfx_vec_init(&rPass->vk.frames, sizeof(GFXFrameElem_));
 
 		// And finally some default state.
 		rPass->state.samples = 1;
@@ -454,13 +453,13 @@ GFXPass* _gfx_create_pass(GFXRenderer* renderer, GFXPassType type,
 }
 
 /****************************/
-void _gfx_destroy_pass(GFXPass* pass)
+void gfx_destroy_pass_(GFXPass* pass)
 {
 	assert(pass != NULL);
 
 	// Destruct as render pass.
 	if (pass->type == GFX_PASS_RENDER)
-		_gfx_pass_destruct((_GFXRenderPass*)pass);
+		gfx_pass_destruct_((GFXRenderPass_*)pass);
 
 	// Destroy the rest.
 	gfx_vec_clear(&pass->parents);
@@ -472,7 +471,7 @@ void _gfx_destroy_pass(GFXPass* pass)
 }
 
 /****************************/
-VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
+VkFramebuffer gfx_pass_framebuffer_(GFXRenderPass_* rPass, GFXFrame* frame)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
@@ -485,16 +484,16 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
 
 	// Just a single framebuffer.
 	if (rPass->vk.frames.size == 1)
-		return ((_GFXFrameElem*)gfx_vec_at(&rPass->vk.frames, 0))->buffer;
+		return ((GFXFrameElem_*)gfx_vec_at(&rPass->vk.frames, 0))->buffer;
 
 	// Query the swapchain image index.
 	const uint32_t image =
-		_gfx_frame_get_swapchain_index(frame, rPass->out.backing);
+		gfx_frame_get_swapchain_index_(frame, rPass->out.backing);
 
 	// Validate & return.
 	return rPass->vk.frames.size <= image ?
 		VK_NULL_HANDLE :
-		((_GFXFrameElem*)gfx_vec_at(&rPass->vk.frames, image))->buffer;
+		((GFXFrameElem_*)gfx_vec_at(&rPass->vk.frames, image))->buffer;
 }
 
 /****************************
@@ -503,7 +502,7 @@ VkFramebuffer _gfx_pass_framebuffer(_GFXRenderPass* rPass, GFXFrame* frame)
  * @param rPass Cannot be NULL, must be first in the subpass chain and not culled.
  * @return Zero on failure.
  */
-static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
+static bool gfx_pass_filter_attachments_(GFXRenderPass_* rPass)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
@@ -524,7 +523,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 	// Start looping over all consumptions,
 	// including all consumptions of all next subpasses.
 	for (
-		_GFXRenderPass* subpass = rPass;
+		GFXRenderPass_* subpass = rPass;
 		subpass != NULL;
 		subpass = subpass->out.next)
 	{
@@ -532,9 +531,9 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 
 		for (size_t i = 0; i < subpass->base.consumes.size; ++i)
 		{
-			const _GFXConsume* con =
+			const GFXConsume_* con =
 				gfx_vec_at(&subpass->base.consumes, i);
-			const _GFXAttach* at =
+			const GFXAttach_* at =
 				gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 			// Validate that we want to access it as attachment.
@@ -555,7 +554,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			// Validate existence of the attachment.
 			if (
 				con->view.index >= rend->backing.attachs.size ||
-				at->type == _GFX_ATTACH_EMPTY)
+				at->type == GFX_ATTACH_EMPTY_)
 			{
 				gfx_log_warn(
 					"Consumption of attachment at index %"GFX_PRIs" "
@@ -566,7 +565,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			}
 
 			// If a window, check for duplicates.
-			if (at->type == _GFX_ATTACH_WINDOW)
+			if (at->type == GFX_ATTACH_WINDOW_)
 			{
 				// Check against the pre-analyzed backing window index.
 				if (con->view.index != rPass->out.backing)
@@ -601,12 +600,12 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
 			// At this point, we want to reference this consumption,
 			// which references an attachment that may or may not have
 			// already been referenced by a consumption from a previous pass.
-			if (con->out.state & _GFX_CONSUME_IS_FIRST)
+			if (con->out.state & GFX_CONSUME_IS_FIRST_)
 			{
 				// If it is the first (either a single pass or in a chain),
 				// add the new view element refercing this consumption chain,
 				// referencing the attachment in turn.
-				_GFXViewElem elem = { .consume = con, .view = VK_NULL_HANDLE };
+				GFXViewElem_ elem = { .consume = con, .view = VK_NULL_HANDLE };
 				if (!gfx_vec_push(&rPass->vk.views, 1, &elem))
 				{
 					gfx_vec_release(&rPass->vk.views);
@@ -626,7 +625,7 @@ static bool _gfx_pass_filter_attachments(_GFXRenderPass* rPass)
  * @param index Attachment index to find.
  * @return Index into VkRenderPassCreateInfo::pAttachments.
  */
-static uint32_t _gfx_pass_find_attachment(_GFXRenderPass* rPass, size_t index)
+static uint32_t gfx_pass_find_attachment_(GFXRenderPass_* rPass, size_t index)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
@@ -638,7 +637,7 @@ static uint32_t _gfx_pass_find_attachment(_GFXRenderPass* rPass, size_t index)
 	// Find the view made for the consumption of the attachment at index.
 	for (size_t i = 0; i < rPass->vk.views.size; ++i)
 	{
-		const _GFXViewElem* view = gfx_vec_at(&rPass->vk.views, i);
+		const GFXViewElem_* view = gfx_vec_at(&rPass->vk.views, i);
 		if (view->consume->view.index == index) return (uint32_t)i;
 	}
 
@@ -646,7 +645,7 @@ static uint32_t _gfx_pass_find_attachment(_GFXRenderPass* rPass, size_t index)
 }
 
 /****************************/
-bool _gfx_pass_warmup(_GFXRenderPass* rPass)
+bool gfx_pass_warmup_(GFXRenderPass_* rPass)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
@@ -654,25 +653,25 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	assert(rPass->out.master == NULL);
 
 	GFXRenderer* rend = rPass->base.renderer;
-	_GFXContext* context = rend->cache.context;
+	GFXContext_* context = rend->cache.context;
 
 	// Pass is already warmed.
-	if (_GFX_PASS_IS_WARMED(rPass))
+	if (GFX_PASS_IS_WARMED_(rPass))
 		return 1;
 
 	// Ok so we need to know about all pass attachments.
 	// Filter consumptions into attachment views.
-	if (!_gfx_pass_filter_attachments(rPass))
+	if (!gfx_pass_filter_attachments_(rPass))
 		return 0;
 
 	// We need to build all Vulkan subpasses corresponding to the whole
 	// subpass chain. We're gonna simultaneously loop over all consumptions
 	// and subpasses, in a single loop.
 	const size_t numViews = rPass->vk.views.size;
-	const _GFXConsume* consumes[GFX_MAX(1, numViews)];
+	const GFXConsume_* consumes[GFX_MAX(1, numViews)];
 
 	for (size_t i = 0; i < numViews; ++i) consumes[i] =
-		((_GFXViewElem*)gfx_vec_at(&rPass->vk.views, i))->consume;
+		((GFXViewElem_*)gfx_vec_at(&rPass->vk.views, i))->consume;
 
 	// Prepare Vulkan pass data.
 	// Use vectors for attachments & dependencies...
@@ -700,7 +699,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// Start looping over all subpasses & consumptions,
 	// including all next subpasses & their consumptions.
 	for (
-		_GFXRenderPass* subpass = rPass;
+		GFXRenderPass_* subpass = rPass;
 		subpass != NULL;
 		subpass = subpass->out.next)
 	{
@@ -731,11 +730,11 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 		for (size_t i = 0; i < numViews; ++i)
 		{
 			// Get current consumption, advance if of the previous subpass.
-			const _GFXConsume* con = consumes[i];
+			const GFXConsume_* con = consumes[i];
 
 			if (con != NULL && con->out.subpass < subpass->out.subpass)
 				consumes[i] = con =
-					(con->out.state & _GFX_CONSUME_IS_LAST) ?
+					(con->out.state & GFX_CONSUME_IS_LAST_) ?
 					NULL : con->out.next;
 
 			// This subpass does _not_ consume this attachment.
@@ -747,7 +746,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			{
 				// Has it been consumed by a previous subpass?
 				// Reference as preserve attachment.
-				if (!(con->out.state & _GFX_CONSUME_IS_FIRST))
+				if (!(con->out.state & GFX_CONSUME_IS_FIRST_))
 				{
 					const uint32_t ref = (uint32_t)i;
 
@@ -759,13 +758,13 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			}
 
 			// This subpass _does_ consume this attachment.
-			const _GFXAttach* at =
+			const GFXAttach_* at =
 				gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 			bool isColor = 0;
 
 			// Swapchain.
-			if (at->type == _GFX_ATTACH_WINDOW)
+			if (at->type == GFX_ATTACH_WINDOW_)
 			{
 				// Reference as color attachment.
 				if (con->mask & (
@@ -785,7 +784,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				}
 
 				// Describe the attachment.
-				if (con->out.state & _GFX_CONSUME_IS_FIRST)
+				if (con->out.state & GFX_CONSUME_IS_FIRST_)
 				{
 					// Initialize (first pass to use it).
 					const bool clear =
@@ -807,7 +806,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					ad[i].initialLayout = con->out.initial;
 				}
 
-				if (con->out.state & _GFX_CONSUME_IS_LAST)
+				if (con->out.state & GFX_CONSUME_IS_LAST_)
 				{
 					// Finalize (last pass to use it).
 					ad[i].storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
@@ -825,7 +824,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 				const GFXFormat fmt = at->image.base.format;
 
 				const uint32_t resolveInd =
-					_gfx_pass_find_attachment(rPass, con->resolve);
+					gfx_pass_find_attachment_(rPass, con->resolve);
 
 				const bool aspect = // Whether the viewed aspect exists.
 					con->view.range.aspect & GFX_IMAGE_ASPECT_FROM_FORMAT(fmt);
@@ -834,7 +833,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					unused :
 					(VkAttachmentReference){
 						.attachment = (uint32_t)i,
-						.layout     = _GFX_GET_VK_IMAGE_LAYOUT(con->mask, fmt)
+						.layout     = GFX_GET_VK_IMAGE_LAYOUT_(con->mask, fmt)
 					};
 
 				const VkAttachmentReference resolveRef =
@@ -878,13 +877,13 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 
 						// Adjust state enables.
 						subpass->state.enabled =
-							(GFX_FORMAT_HAS_DEPTH(fmt) ? _GFX_PASS_DEPTH : 0) |
-							(GFX_FORMAT_HAS_STENCIL(fmt) ? _GFX_PASS_STENCIL : 0);
+							(GFX_FORMAT_HAS_DEPTH(fmt) ? GFX_PASS_DEPTH_ : 0) |
+							(GFX_FORMAT_HAS_STENCIL(fmt) ? GFX_PASS_STENCIL_ : 0);
 					}
 				}
 
 				// Describe the attachment.
-				if (con->out.state & _GFX_CONSUME_IS_FIRST)
+				if (con->out.state & GFX_CONSUME_IS_FIRST_)
 				{
 					// Initialize (first pass to use it).
 					const bool firstClear =
@@ -922,7 +921,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 					ad[i].initialLayout = con->out.initial;
 				}
 
-				if (con->out.state & _GFX_CONSUME_IS_LAST)
+				if (con->out.state & GFX_CONSUME_IS_LAST_)
 				{
 					// Finalize (last pass to use it).
 					ad[i].storeOp = (con->mask & GFX_ACCESS_DISCARD) ?
@@ -949,7 +948,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 
 				*(blend + 0) = con->color;
 				*(blend + 1) = con->alpha;
-				*(char*)(blend + 2) = (char)(con->flags & _GFX_CONSUME_BLEND);
+				*(char*)(blend + 2) = (char)(con->flags & GFX_CONSUME_BLEND_);
 			}
 		}
 
@@ -961,7 +960,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 
 		for (size_t i = 0; i < numDeps; ++i)
 		{
-			_GFXDepend* depend = gfx_vec_at(&subpass->base.deps, i);
+			GFXDepend_* depend = gfx_vec_at(&subpass->base.deps, i);
 			if (!depend->out.subpass) continue;
 
 			// Use empty formats, only relevant for attachments.
@@ -970,20 +969,20 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 			const GFXFormat emptyFmt = GFX_FORMAT_EMPTY;
 
 			const VkPipelineStageFlags srcStageMask =
-				_GFX_GET_VK_PIPELINE_STAGE(
+				GFX_GET_VK_PIPELINE_STAGE_(
 					depend->inj.maskf, depend->inj.stagef, emptyFmt);
 
 			const VkPipelineStageFlags dstStageMask =
-				_GFX_GET_VK_PIPELINE_STAGE(
+				GFX_GET_VK_PIPELINE_STAGE_(
 					depend->inj.mask, depend->inj.stage, emptyFmt);
 
 			VkSubpassDependency dependency = {
-				.srcSubpass    = ((_GFXRenderPass*)depend->source)->out.subpass,
-				.dstSubpass    = ((_GFXRenderPass*)depend->target)->out.subpass,
-				.srcStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
-				.dstStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-				.srcAccessMask = _GFX_GET_VK_ACCESS_FLAGS(depend->inj.maskf, emptyFmt),
-				.dstAccessMask = _GFX_GET_VK_ACCESS_FLAGS(depend->inj.mask, emptyFmt),
+				.srcSubpass    = ((GFXRenderPass_*)depend->source)->out.subpass,
+				.dstSubpass    = ((GFXRenderPass_*)depend->target)->out.subpass,
+				.srcStageMask  = GFX_MOD_VK_PIPELINE_STAGE_(srcStageMask, context),
+				.dstStageMask  = GFX_MOD_VK_PIPELINE_STAGE_(dstStageMask, context),
+				.srcAccessMask = GFX_GET_VK_ACCESS_FLAGS_(depend->inj.maskf, emptyFmt),
+				.dstAccessMask = GFX_GET_VK_ACCESS_FLAGS_(depend->inj.mask, emptyFmt),
 			};
 
 			if (!gfx_vec_push(&dependencies, 1, &dependency))
@@ -997,32 +996,32 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 
 		for (size_t i = 0; i < numCons; ++i)
 		{
-			const _GFXConsume* con = gfx_vec_at(&subpass->base.consumes, i);
-			const _GFXConsume* prev = con->out.prev;
-			const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+			const GFXConsume_* con = gfx_vec_at(&subpass->base.consumes, i);
+			const GFXConsume_* prev = con->out.prev;
+			const GFXAttach_* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 			// Will validate existence of the attachment, checked by graph!
-			if (prev == NULL || (con->out.state & _GFX_CONSUME_IS_FIRST))
+			if (prev == NULL || (con->out.state & GFX_CONSUME_IS_FIRST_))
 				continue;
 
 			// Get format from attachment again...
-			const GFXFormat fmt = (at->type == _GFX_ATTACH_IMAGE) ?
+			const GFXFormat fmt = (at->type == GFX_ATTACH_IMAGE_) ?
 				// Pick empty format for windows, which results in non-depth/stencil
 				// access flags and pipeline stages, which is what we want :)
 				at->image.base.format : GFX_FORMAT_EMPTY;
 
 			const VkPipelineStageFlags srcStageMask =
-				_GFX_GET_VK_PIPELINE_STAGE(prev->mask, prev->stage, fmt);
+				GFX_GET_VK_PIPELINE_STAGE_(prev->mask, prev->stage, fmt);
 			const VkPipelineStageFlags dstStageMask =
-				_GFX_GET_VK_PIPELINE_STAGE(con->mask, con->stage, fmt);
+				GFX_GET_VK_PIPELINE_STAGE_(con->mask, con->stage, fmt);
 
 			VkSubpassDependency dependency = {
 				.srcSubpass    = prev->out.subpass,
 				.dstSubpass    = con->out.subpass,
-				.srcStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(srcStageMask, context),
-				.dstStageMask  = _GFX_MOD_VK_PIPELINE_STAGE(dstStageMask, context),
-				.srcAccessMask = _GFX_GET_VK_ACCESS_FLAGS(prev->mask, fmt),
-				.dstAccessMask = _GFX_GET_VK_ACCESS_FLAGS(con->mask, fmt),
+				.srcStageMask  = GFX_MOD_VK_PIPELINE_STAGE_(srcStageMask, context),
+				.dstStageMask  = GFX_MOD_VK_PIPELINE_STAGE_(dstStageMask, context),
+				.srcAccessMask = GFX_GET_VK_ACCESS_FLAGS_(prev->mask, fmt),
+				.dstAccessMask = GFX_GET_VK_ACCESS_FLAGS_(con->mask, fmt),
 			};
 
 			if (!gfx_vec_push(&dependencies, 1, &dependency))
@@ -1070,8 +1069,8 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 
 	for (size_t i = 0; i < numViews; ++i)
 	{
-		const _GFXConsume* con =
-			((_GFXViewElem*)gfx_vec_at(&rPass->vk.views, i))->consume;
+		const GFXConsume_* con =
+			((GFXViewElem_*)gfx_vec_at(&rPass->vk.views, i))->consume;
 
 		gfx_vec_push(&rPass->vk.clears, 1, &con->clear.vk);
 	}
@@ -1092,7 +1091,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	};
 
 	// Remember the cache element for locality!
-	rPass->build.pass = _gfx_cache_get(&rend->cache, &rpci.sType, NULL);
+	rPass->build.pass = gfx_cache_get_(&rend->cache, &rpci.sType, NULL);
 	if (rPass->build.pass == NULL) goto clean;
 
 	rPass->vk.pass = rPass->build.pass->vk.pass;
@@ -1107,7 +1106,7 @@ bool _gfx_pass_warmup(_GFXRenderPass* rPass)
 	// Lastly, propogate the pass to all subpasses.
 	// This so pipeline creation doesn't have to know about the master pass.
 	for (
-		_GFXRenderPass* subpass = rPass->out.next;
+		GFXRenderPass_* subpass = rPass->out.next;
 		subpass != NULL;
 		subpass = subpass->out.next)
 	{
@@ -1130,7 +1129,7 @@ clean:
 }
 
 /****************************/
-bool _gfx_pass_build(_GFXRenderPass* rPass)
+bool gfx_pass_build_(GFXRenderPass_* rPass)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
@@ -1138,15 +1137,15 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	assert(rPass->out.master == NULL);
 
 	GFXRenderer* rend = rPass->base.renderer;
-	_GFXContext* context = rend->cache.context;
+	GFXContext_* context = rend->cache.context;
 
 	// Pass is already built.
-	if (_GFX_PASS_IS_BUILT(rPass))
+	if (GFX_PASS_IS_BUILT_(rPass))
 		return 1;
 
 	// Do a warmup, i.e. make sure the Vulkan render pass is built.
 	// This will log an error for us!
-	if (!_gfx_pass_warmup(rPass))
+	if (!gfx_pass_warmup_(rPass))
 		return 0;
 
 	// We're gonna need to create all image views.
@@ -1155,18 +1154,18 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	const size_t numViews = rPass->vk.views.size;
 	VkImageView views[GFX_MAX(1, numViews)];
 
-	const _GFXAttach* backing = NULL;
-	const _GFXConsume* backingCon = NULL;
+	const GFXAttach_* backing = NULL;
+	const GFXConsume_* backingCon = NULL;
 	size_t backingInd = SIZE_MAX;
 
 	for (size_t i = 0; i < numViews; ++i)
 	{
-		_GFXViewElem* view = gfx_vec_at(&rPass->vk.views, i);
-		const _GFXConsume* con = view->consume;
-		const _GFXAttach* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		GFXViewElem_* view = gfx_vec_at(&rPass->vk.views, i);
+		const GFXConsume_* con = view->consume;
+		const GFXAttach_* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
 
 		// Swapchain.
-		if (at->type == _GFX_ATTACH_WINDOW)
+		if (at->type == GFX_ATTACH_WINDOW_)
 		{
 			// To be filled in below.
 			backing = at;
@@ -1175,7 +1174,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 			views[i] = VK_NULL_HANDLE;
 
 			// Validate dimensions.
-			_GFX_VALIDATE_DIMS(rPass,
+			GFX_VALIDATE_DIMS_(rPass,
 				at->window.window->frame.width,
 				at->window.window->frame.height, 1,
 				goto skip_pass);
@@ -1186,7 +1185,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 		{
 			// Validate dimensions.
 			// Do this first to avoid creating a non-existing image view.
-			_GFX_VALIDATE_DIMS(rPass,
+			GFX_VALIDATE_DIMS_(rPass,
 				at->image.width, at->image.height,
 				(con->view.range.numLayers == 0) ?
 					at->image.base.layers - con->view.range.layer :
@@ -1206,8 +1205,8 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 				.flags    = 0,
 				.image    = at->image.vk.image,
 				.format   = at->image.vk.format,
-				.viewType = (con->flags & _GFX_CONSUME_VIEWED) ?
-					_GFX_GET_VK_IMAGE_VIEW_TYPE(con->view.type) :
+				.viewType = (con->flags & GFX_CONSUME_VIEWED_) ?
+					GFX_GET_VK_IMAGE_VIEW_TYPE_(con->view.type) :
 					// Go head and translate from image to view type inline.
 					(at->image.base.type == GFX_IMAGE_1D ? VK_IMAGE_VIEW_TYPE_1D :
 					at->image.base.type == GFX_IMAGE_2D ? VK_IMAGE_VIEW_TYPE_2D :
@@ -1217,14 +1216,14 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 					VK_IMAGE_VIEW_TYPE_2D),
 
 				.components = {
-					.r = _GFX_GET_VK_COMPONENT_SWIZZLE(con->view.swizzle.r),
-					.g = _GFX_GET_VK_COMPONENT_SWIZZLE(con->view.swizzle.g),
-					.b = _GFX_GET_VK_COMPONENT_SWIZZLE(con->view.swizzle.b),
-					.a = _GFX_GET_VK_COMPONENT_SWIZZLE(con->view.swizzle.a)
+					.r = GFX_GET_VK_COMPONENT_SWIZZLE_(con->view.swizzle.r),
+					.g = GFX_GET_VK_COMPONENT_SWIZZLE_(con->view.swizzle.g),
+					.b = GFX_GET_VK_COMPONENT_SWIZZLE_(con->view.swizzle.b),
+					.a = GFX_GET_VK_COMPONENT_SWIZZLE_(con->view.swizzle.a)
 				},
 
 				.subresourceRange = {
-					.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(aspect),
+					.aspectMask     = GFX_GET_VK_IMAGE_ASPECT_(aspect),
 					.baseMipLevel   = con->view.range.mipmap,
 					.baseArrayLayer = con->view.range.layer,
 
@@ -1236,7 +1235,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 			};
 
 			VkImageView* vkView = views + i;
-			_GFX_VK_CHECK(
+			GFX_VK_CHECK_(
 				context->vk.CreateImageView(
 					context->vk.device, &ivci, NULL, vkView),
 				goto clean);
@@ -1249,7 +1248,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	// propogate them to all subpasses.
 	// This so the user can still query this through recorders for any pass.
 	for (
-		_GFXRenderPass* subpass = rPass->out.next;
+		GFXRenderPass_* subpass = rPass->out.next;
 		subpass != NULL;
 		subpass = subpass->out.next)
 	{
@@ -1270,13 +1269,13 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 
 	for (size_t i = 0; i < frames; ++i)
 	{
-		_GFXFrameElem elem = { .view = VK_NULL_HANDLE };
+		GFXFrameElem_ elem = { .view = VK_NULL_HANDLE };
 
 		// If there is a swapchain ..
 		if (backingInd != SIZE_MAX)
 		{
 			// .. create another image view for each swapchain image.
-			_GFXWindow* window = backing->window.window;
+			GFXWindow_* window = backing->window.window;
 			VkImage image = *(VkImage*)gfx_vec_at(&window->frame.images, i);
 
 			VkImageViewCreateInfo ivci = {
@@ -1289,10 +1288,10 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 				.format   = window->frame.format,
 
 				.components = {
-					.r = _GFX_GET_VK_COMPONENT_SWIZZLE(backingCon->view.swizzle.r),
-					.g = _GFX_GET_VK_COMPONENT_SWIZZLE(backingCon->view.swizzle.g),
-					.b = _GFX_GET_VK_COMPONENT_SWIZZLE(backingCon->view.swizzle.b),
-					.a = _GFX_GET_VK_COMPONENT_SWIZZLE(backingCon->view.swizzle.a)
+					.r = GFX_GET_VK_COMPONENT_SWIZZLE_(backingCon->view.swizzle.r),
+					.g = GFX_GET_VK_COMPONENT_SWIZZLE_(backingCon->view.swizzle.g),
+					.b = GFX_GET_VK_COMPONENT_SWIZZLE_(backingCon->view.swizzle.b),
+					.a = GFX_GET_VK_COMPONENT_SWIZZLE_(backingCon->view.swizzle.a)
 				},
 
 				.subresourceRange = {
@@ -1304,7 +1303,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 				}
 			};
 
-			_GFX_VK_CHECK(
+			GFX_VK_CHECK_(
 				context->vk.CreateImageView(
 					context->vk.device, &ivci, NULL, &elem.view),
 				goto clean);
@@ -1327,7 +1326,7 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 			.layers          = GFX_MAX(1, rPass->build.fLayers)
 		};
 
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.CreateFramebuffer(
 				context->vk.device, &fci, NULL, &elem.buffer),
 			{
@@ -1347,49 +1346,49 @@ bool _gfx_pass_build(_GFXRenderPass* rPass)
 	// Cleanup on failure.
 clean:
 	// Get rid of built things of entire subpass chain; avoid dangling views.
-	_gfx_passes_destruct_partial(rPass, _GFX_RECREATE);
+	gfx_passes_destruct_partial_(rPass, GFX_RECREATE_);
 	return 0;
 
 
 	// Identical cleanup on skip.
 skip_pass:
-	_gfx_passes_destruct_partial(rPass, _GFX_RECREATE);
+	gfx_passes_destruct_partial_(rPass, GFX_RECREATE_);
 	return 1;
 }
 
 /****************************/
-bool _gfx_pass_rebuild(_GFXRenderPass* rPass, _GFXRecreateFlags flags)
+bool gfx_pass_rebuild_(GFXRenderPass_* rPass, GFXRecreateFlags_ flags)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
 	assert(!rPass->base.culled);
 	assert(rPass->out.master == NULL);
-	assert(flags & _GFX_RECREATE);
+	assert(flags & GFX_RECREATE_);
 
 	// Remember if we're warmed or entirely built.
-	const bool warmed = _GFX_PASS_IS_WARMED(rPass);
-	const bool built = _GFX_PASS_IS_BUILT(rPass);
+	const bool warmed = GFX_PASS_IS_WARMED_(rPass);
+	const bool built = GFX_PASS_IS_BUILT_(rPass);
 
 	// Then we destroy the things we want to recreate (of the entire chain!).
-	_gfx_passes_destruct_partial(rPass, flags);
+	gfx_passes_destruct_partial_(rPass, flags);
 
 	// Then re-perform the remembered bits :)
 	if (built)
-		return _gfx_pass_build(rPass);
+		return gfx_pass_build_(rPass);
 	else if (warmed)
-		return _gfx_pass_warmup(rPass);
+		return gfx_pass_warmup_(rPass);
 
 	return 1;
 }
 
 /****************************/
-void _gfx_pass_destruct(_GFXRenderPass* rPass)
+void gfx_pass_destruct_(GFXRenderPass_* rPass)
 {
 	assert(rPass != NULL);
 	assert(rPass->base.type == GFX_PASS_RENDER);
 
 	// Destruct all partial things (of only this pass!).
-	_gfx_pass_destruct_partial(rPass, _GFX_RECREATE_ALL);
+	gfx_pass_destruct_partial_(rPass, GFX_RECREATE_ALL_);
 
 	// Clear memory.
 	gfx_vec_clear(&rPass->vk.clears);
@@ -1445,7 +1444,7 @@ GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
 {
 	// Relies on stand-in function for asserts.
 
-	_GFXConsume consume = {
+	GFXConsume_ consume = {
 		.flags = 0,
 		.mask = mask,
 		.stage = stage,
@@ -1457,7 +1456,7 @@ GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
 		}
 	};
 
-	return _gfx_pass_consume(pass, &consume);
+	return gfx_pass_consume_(pass, &consume);
 }
 
 /****************************/
@@ -1467,7 +1466,7 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 {
 	// Relies on stand-in function for asserts.
 
-	_GFXConsume consume = {
+	GFXConsume_ consume = {
 		.flags = 0,
 		.mask = mask,
 		.stage = stage,
@@ -1478,7 +1477,7 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 		}
 	};
 
-	return _gfx_pass_consume(pass, &consume);
+	return gfx_pass_consume_(pass, &consume);
 }
 
 /****************************/
@@ -1490,14 +1489,14 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 
 	view.index = index; // Purely for function call consistency.
 
-	_GFXConsume consume = {
-		.flags = _GFX_CONSUME_VIEWED,
+	GFXConsume_ consume = {
+		.flags = GFX_CONSUME_VIEWED_,
 		.mask = mask,
 		.stage = stage,
 		.view = view
 	};
 
-	return _gfx_pass_consume(pass, &consume);
+	return gfx_pass_consume_(pass, &consume);
 }
 
 /****************************/
@@ -1511,7 +1510,7 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 	// Find and set.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
 			// Set clear value, preserve other if only 1 of depth/stencil.
@@ -1523,8 +1522,8 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 			con->cleared = aspect;
 			con->clear.gfx = value; // Type-punned into a VkClearValue!
 
-			// Same as _gfx_pass_consume, invalidate for destruction.
-			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
+			// Same as gfx_pass_consume_, invalidate for destruction.
+			if (!pass->culled) gfx_render_graph_invalidate_(pass->renderer);
 			break;
 		}
 	}
@@ -1549,15 +1548,15 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 	// Find and set.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
-			con->flags |= _GFX_CONSUME_BLEND;
+			con->flags |= GFX_CONSUME_BLEND_;
 			con->color = color;
 			con->alpha = alpha;
 
-			// Same as _gfx_pass_consume, invalidate for destruction.
-			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
+			// Same as gfx_pass_consume_, invalidate for destruction.
+			if (!pass->culled) gfx_render_graph_invalidate_(pass->renderer);
 			break;
 		}
 	}
@@ -1573,7 +1572,7 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
 	size_t i;
 	for (i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == resolve)
 			break;
 	}
@@ -1581,13 +1580,13 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
 	// If it is, find and set.
 	if (i > 0) for (i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
 			con->resolve = resolve;
 
-			// Same as _gfx_pass_consume, invalidate for destruction.
-			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
+			// Same as gfx_pass_consume_, invalidate for destruction.
+			if (!pass->culled) gfx_render_graph_invalidate_(pass->renderer);
 			break;
 		}
 	}
@@ -1602,26 +1601,26 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 	// Find any that resolve to index.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->resolve == index)
 		{
 			con->resolve = SIZE_MAX;
 
 			// Same as below, invalidate for destruction.
-			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
+			if (!pass->culled) gfx_render_graph_invalidate_(pass->renderer);
 		}
 	}
 
 	// Find and erase.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
-		_GFXConsume* con = gfx_vec_at(&pass->consumes, i-1);
+		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
 		if (con->view.index == index)
 		{
 			gfx_vec_erase(&pass->consumes, 1, i-1);
 
-			// Same as _gfx_pass_consume, invalidate for destruction.
-			if (!pass->culled) _gfx_render_graph_invalidate(pass->renderer);
+			// Same as gfx_pass_consume_, invalidate for destruction.
+			if (!pass->culled) gfx_render_graph_invalidate_(pass->renderer);
 			break;
 		}
 	}
@@ -1634,36 +1633,36 @@ GFX_API void gfx_pass_set_state(GFXPass* pass, GFXRenderState state)
 	assert(!pass->renderer->recording);
 
 	// No-op if not a render pass.
-	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+	GFXRenderPass_* rPass = (GFXRenderPass_*)pass;
 	if (pass->type != GFX_PASS_RENDER) return;
 
 	// Set new values, check if changed.
 	bool gen = 0;
 
 	if (state.raster != NULL)
-		gen = gen || !_gfx_cmp_raster(&rPass->state.raster, state.raster),
+		gen = gen || !gfx_cmp_raster_(&rPass->state.raster, state.raster),
 		rPass->state.raster = *state.raster,
 		// Fix sample count.
 		rPass->state.raster.samples =
-			_GFX_GET_VK_SAMPLE_COUNT(rPass->state.raster.samples);
+			GFX_GET_VK_SAMPLE_COUNT_(rPass->state.raster.samples);
 
 	if (state.blend != NULL)
-		gen = gen || !_gfx_cmp_blend(&rPass->state.blend, state.blend),
+		gen = gen || !gfx_cmp_blend_(&rPass->state.blend, state.blend),
 		rPass->state.blend = *state.blend;
 
 	if (state.depth != NULL)
-		gen = gen || !_gfx_cmp_depth(&rPass->state.depth, state.depth),
+		gen = gen || !gfx_cmp_depth_(&rPass->state.depth, state.depth),
 		rPass->state.depth = *state.depth;
 
 	if (state.stencil != NULL)
 		gen = gen ||
-			!_gfx_cmp_stencil(&rPass->state.stencil.front, &state.stencil->front) ||
-			!_gfx_cmp_stencil(&rPass->state.stencil.back, &state.stencil->back),
+			!gfx_cmp_stencil_(&rPass->state.stencil.front, &state.stencil->front) ||
+			!gfx_cmp_stencil_(&rPass->state.stencil.back, &state.stencil->back),
 		rPass->state.stencil = *state.stencil;
 
 	// If changed, increase generation to invalidate pipelines.
 	if (gen)
-		_gfx_pass_gen(rPass);
+		gfx_pass_gen_(rPass);
 }
 
 /****************************/
@@ -1673,10 +1672,10 @@ GFX_API GFXRenderState gfx_pass_get_state(GFXPass* pass)
 
 	if (pass->type == GFX_PASS_RENDER)
 		return (GFXRenderState){
-			.raster = &((_GFXRenderPass*)pass)->state.raster,
-			.blend = &((_GFXRenderPass*)pass)->state.blend,
-			.depth = &((_GFXRenderPass*)pass)->state.depth,
-			.stencil = &((_GFXRenderPass*)pass)->state.stencil
+			.raster = &((GFXRenderPass_*)pass)->state.raster,
+			.blend = &((GFXRenderPass_*)pass)->state.blend,
+			.depth = &((GFXRenderPass_*)pass)->state.depth,
+			.stencil = &((GFXRenderPass_*)pass)->state.stencil
 		};
 	else
 		return (GFXRenderState){
@@ -1694,7 +1693,7 @@ GFX_API void gfx_pass_set_viewport(GFXPass* pass, GFXViewport viewport)
 	assert(!pass->renderer->recording);
 
 	// No-op if not a render pass.
-	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+	GFXRenderPass_* rPass = (GFXRenderPass_*)pass;
 	if (pass->type != GFX_PASS_RENDER) return;
 
 	// Set viewport.
@@ -1707,7 +1706,7 @@ GFX_API GFXViewport gfx_pass_get_viewport(GFXPass* pass)
 	assert(pass != NULL);
 
 	if (pass->type == GFX_PASS_RENDER)
-		return ((_GFXRenderPass*)pass)->state.viewport;
+		return ((GFXRenderPass_*)pass)->state.viewport;
 	else
 		return (GFXViewport){
 			.size = GFX_SIZE_ABSOLUTE,
@@ -1727,7 +1726,7 @@ GFX_API void gfx_pass_set_scissor(GFXPass* pass, GFXScissor scissor)
 	assert(!pass->renderer->recording);
 
 	// No-op if not a render pass.
-	_GFXRenderPass* rPass = (_GFXRenderPass*)pass;
+	GFXRenderPass_* rPass = (GFXRenderPass_*)pass;
 	if (pass->type != GFX_PASS_RENDER) return;
 
 	// Set scissor.
@@ -1740,7 +1739,7 @@ GFX_API GFXScissor gfx_pass_get_scissor(GFXPass* pass)
 	assert(pass != NULL);
 
 	if (pass->type == GFX_PASS_RENDER)
-		return ((_GFXRenderPass*)pass)->state.scissor;
+		return ((GFXRenderPass_*)pass)->state.scissor;
 	else
 		return (GFXScissor){
 			.size = GFX_SIZE_ABSOLUTE,

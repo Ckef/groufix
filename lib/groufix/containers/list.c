@@ -7,7 +7,6 @@
  */
 
 #include "groufix/containers/list.h"
-#include <assert.h>
 
 
 /****************************/

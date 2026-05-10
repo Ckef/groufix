@@ -7,7 +7,6 @@
  */
 
 #include "groufix/core.h"
-#include <assert.h>
 #include <stdlib.h>
 
 
@@ -15,7 +14,7 @@
  * Logs info about all connected gamepads.
  * @param head Header message (incl. \n!) after which all gamepads are listed.
  */
-static void _gfx_log_gamepads(const char* head)
+static void gfx_log_gamepads_(const char* head)
 {
 	// Let's see the connected gamepads :)
 	GFXBufWriter* logger = gfx_logger_info();
@@ -23,10 +22,10 @@ static void _gfx_log_gamepads(const char* head)
 	{
 		gfx_io_writef(logger, head);
 
-		for (size_t i = 0; i < _groufix.gamepads.size; ++i)
+		for (size_t i = 0; i < groufix_.gamepads.size; ++i)
 		{
-			_GFXGamepad* gamepad =
-				*(_GFXGamepad**)gfx_vec_at(&_groufix.gamepads, i);
+			GFXGamepad_* gamepad =
+				*(GFXGamepad_**)gfx_vec_at(&groufix_.gamepads, i);
 
 			gfx_io_writef(logger,
 				"    [ %s ] (%s - %s%s)\n",
@@ -42,22 +41,22 @@ static void _gfx_log_gamepads(const char* head)
 
 /****************************
  * Allocates and initializes a new groufix gamepad from a GLFW joystick id.
- * Automatically appends the gamepad to _groufix.gamepads.
+ * Automatically appends the gamepad to groufix_.gamepads.
  * @param jid Must be >= 0 and <= GLFW_JOYSTICK_LAST.
  * @return NULL on failure.
  *
  * glfwJoystickPresent(jid) must return GLFW_TRUE.
  */
-static _GFXGamepad* _gfx_alloc_gamepad(int jid)
+static GFXGamepad_* gfx_alloc_gamepad_(int jid)
 {
 	assert(jid >= 0);
 	assert(jid <= GLFW_JOYSTICK_LAST);
 
 	// Allocate a new gamepad.
-	_GFXGamepad* gamepad = malloc(sizeof(_GFXGamepad));
+	GFXGamepad_* gamepad = malloc(sizeof(GFXGamepad_));
 	if (gamepad == NULL) return NULL;
 
-	if (!gfx_vec_push(&_groufix.gamepads, 1, &gamepad))
+	if (!gfx_vec_push(&groufix_.gamepads, 1, &gamepad))
 	{
 		free(gamepad);
 		return NULL;
@@ -81,16 +80,16 @@ static _GFXGamepad* _gfx_alloc_gamepad(int jid)
  * On joystick connect or disconnect.
  * @param event Zero if it is disconnected, non-zero if it is connected.
  */
-static void _gfx_glfw_joystick(int jid, int event)
+static void gfx_glfw_joystick_(int jid, int event)
 {
 	const bool conn = (event == GLFW_CONNECTED);
-	_GFXGamepad* gamepad;
+	GFXGamepad_* gamepad;
 
 	if (conn)
 	{
 		// On connect, allocate a new gamepad and
 		// attempt to insert it into the configuration.
-		gamepad = _gfx_alloc_gamepad(jid);
+		gamepad = gfx_alloc_gamepad_(jid);
 		if (gamepad == NULL)
 		{
 			gfx_log_fatal("Could not initialize a newly connected gamepad.");
@@ -112,7 +111,7 @@ static void _gfx_glfw_joystick(int jid, int event)
 		gamepad = glfwGetJoystickUserPointer(jid);
 
 		// Then shrink the configuration.
-		gfx_vec_pop(&_groufix.gamepads, 1);
+		gfx_vec_pop(&groufix_.gamepads, 1);
 
 		// Wanna know about it?
 		gfx_log_info(
@@ -132,37 +131,37 @@ static void _gfx_glfw_joystick(int jid, int event)
 
 	for (int ijid = 0; ijid <= GLFW_JOYSTICK_LAST; ++ijid)
 	{
-		_GFXGamepad* g = glfwGetJoystickUserPointer(ijid);
+		GFXGamepad_* g = glfwGetJoystickUserPointer(ijid);
 
 		// If disconnecting, make sure we're not re-inserting the same jid!
 		if (g != NULL && (conn || ijid != jid))
-			*(_GFXGamepad**)gfx_vec_at(&_groufix.gamepads, i++) = g;
+			*(GFXGamepad_**)gfx_vec_at(&groufix_.gamepads, i++) = g;
 	}
 
 	// Finally, call the event if given, and free the gamepad on disconnect.
-	if (_groufix.gamepadEvent != NULL)
-		_groufix.gamepadEvent(&gamepad->base, conn);
+	if (groufix_.gamepadEvent != NULL)
+		groufix_.gamepadEvent(&gamepad->base, conn);
 
 	if (!conn)
 		free(gamepad);
 }
 
 /****************************/
-bool _gfx_gamepads_init(void)
+bool gfx_gamepads_init_(void)
 {
-	assert(_groufix.gamepads.size == 0);
+	assert(groufix_.gamepads.size == 0);
 
 	// Create all gamepads.
 	for (int jid = 0; jid <= GLFW_JOYSTICK_LAST; ++jid)
-		if (glfwJoystickPresent(jid) && _gfx_alloc_gamepad(jid) == NULL)
+		if (glfwJoystickPresent(jid) && gfx_alloc_gamepad_(jid) == NULL)
 			goto terminate;
 
 	// Only log if there are actual gamepads.
-	if (_groufix.gamepads.size > 0)
-		_gfx_log_gamepads("Detected gamepads:\n");
+	if (groufix_.gamepads.size > 0)
+		gfx_log_gamepads_("Detected gamepads:\n");
 
 	// Make sure we get configuration change events.
-	glfwSetJoystickCallback(_gfx_glfw_joystick);
+	glfwSetJoystickCallback(gfx_glfw_joystick_);
 
 	return 1;
 
@@ -170,22 +169,22 @@ bool _gfx_gamepads_init(void)
 	// Cleanup on failure.
 terminate:
 	gfx_log_error("Could not initialize all connected gamepads.");
-	_gfx_gamepads_terminate();
+	gfx_gamepads_terminate_();
 
 	return 0;
 }
 
 /****************************/
-void _gfx_gamepads_terminate(void)
+void gfx_gamepads_terminate_(void)
 {
 	// In case it did not initialize, make it a no-op.
-	if (_groufix.gamepads.size == 0)
+	if (groufix_.gamepads.size == 0)
 		return;
 
 	// First just deallocate all gamepads.
-	for (size_t i = 0; i < _groufix.gamepads.size; ++i)
+	for (size_t i = 0; i < groufix_.gamepads.size; ++i)
 	{
-		_GFXGamepad** gamepad = gfx_vec_at(&_groufix.gamepads, i);
+		GFXGamepad_** gamepad = gfx_vec_at(&groufix_.gamepads, i);
 
 		glfwSetJoystickUserPointer((*gamepad)->jid, NULL);
 		free(*gamepad);
@@ -193,34 +192,34 @@ void _gfx_gamepads_terminate(void)
 
 	// Clear data.
 	glfwSetJoystickCallback(NULL);
-	gfx_vec_clear(&_groufix.gamepads);
+	gfx_vec_clear(&groufix_.gamepads);
 }
 
 /****************************/
 GFX_API void gfx_gamepad_event_set(void (*event)(GFXGamepad*, bool))
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
 	// Yeah just set the event callback.
-	_groufix.gamepadEvent = event;
+	groufix_.gamepadEvent = event;
 }
 
 /****************************/
 GFX_API size_t gfx_get_num_gamepads(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
-	return _groufix.gamepads.size;
+	return groufix_.gamepads.size;
 }
 
 /****************************/
 GFX_API GFXGamepad* gfx_get_gamepad(size_t index)
 {
-	assert(atomic_load(&_groufix.initialized));
-	assert(_groufix.gamepads.size > 0);
-	assert(index < _groufix.gamepads.size);
+	assert(atomic_load(&groufix_.initialized));
+	assert(groufix_.gamepads.size > 0);
+	assert(index < groufix_.gamepads.size);
 
-	return *(GFXGamepad**)gfx_vec_at(&_groufix.gamepads, index);
+	return *(GFXGamepad**)gfx_vec_at(&groufix_.gamepads, index);
 }
 
 /****************************/
@@ -230,7 +229,7 @@ GFX_API bool gfx_gamepad_get_state(GFXGamepad* gamepad, GFXGamepadState* state)
 	assert(state != NULL);
 
 	GLFWgamepadstate glfwState;
-	if (!glfwGetGamepadState(((_GFXGamepad*)gamepad)->jid, &glfwState))
+	if (!glfwGetGamepadState(((GFXGamepad_*)gamepad)->jid, &glfwState))
 		return 0;
 
 	for (GFXGamepadButton b = 0; b < GFX_GAMEPAD_NUM_BUTTONS; ++b)
@@ -245,7 +244,7 @@ GFX_API bool gfx_gamepad_get_state(GFXGamepad* gamepad, GFXGamepadState* state)
 /****************************/
 GFX_API bool gfx_gamepad_mappings_update(const GFXReader* src)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 	assert(src != NULL);
 
 	// Read the source, unfortunately we need a NULL-terminated string.
@@ -272,18 +271,18 @@ GFX_API bool gfx_gamepad_mappings_update(const GFXReader* src)
 
 	// Lastly, fix all existing gamepads.
 	// These may now have new availability & names.
-	for (size_t i = 0; i < _groufix.gamepads.size; ++i)
+	for (size_t i = 0; i < groufix_.gamepads.size; ++i)
 	{
-		_GFXGamepad* gamepad =
-			*(_GFXGamepad**)gfx_vec_at(&_groufix.gamepads, i);
+		GFXGamepad_* gamepad =
+			*(GFXGamepad_**)gfx_vec_at(&groufix_.gamepads, i);
 
 		gamepad->base.name = glfwGetGamepadName(gamepad->jid);
 		gamepad->base.available = glfwJoystickIsGamepad(gamepad->jid) == GLFW_TRUE;
 	}
 
 	// Always log something.
-	if (_groufix.gamepads.size > 0)
-		_gfx_log_gamepads("Gamepad mappings updated, detected gamepads:\n");
+	if (groufix_.gamepads.size > 0)
+		gfx_log_gamepads_("Gamepad mappings updated, detected gamepads:\n");
 	else
 		gfx_log_info("Gamepad mappings updated.");
 

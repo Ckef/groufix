@@ -7,12 +7,11 @@
  */
 
 #include "groufix/core.h"
-#include <assert.h>
 #include <stdlib.h>
 
 
 /****************************/
-_GFXState _groufix =
+GFXState_ groufix_ =
 {
 	.initialized = 0,
 	.logDef = GFX_LOG_DEFAULT
@@ -20,79 +19,79 @@ _GFXState _groufix =
 
 
 /****************************/
-bool _gfx_init(void)
+bool gfx_init_(void)
 {
-	assert(!atomic_load(&_groufix.initialized));
+	assert(!atomic_load(&groufix_.initialized));
 
 	// Initialize thread local data.
-	if (!_gfx_thread_key_init(&_groufix.thread.key))
+	if (!gfx_thread_key_init_(&groufix_.thread.key))
 		return 0;
 
-	if (!_gfx_mutex_init(&_groufix.thread.ioLock))
+	if (!gfx_mutex_init_(&groufix_.thread.ioLock))
 		goto clean_key;
 
-	atomic_store_explicit(&_groufix.thread.id, 0, memory_order_relaxed);
+	atomic_store_explicit(&groufix_.thread.id, 0, memory_order_relaxed);
 
 	// Initialize other things.
-	if (!_gfx_mutex_init(&_groufix.contextLock))
+	if (!gfx_mutex_init_(&groufix_.contextLock))
 		goto clean_io;
 
-	gfx_vec_init(&_groufix.devices, sizeof(_GFXDevice));
-	gfx_list_init(&_groufix.contexts);
-	gfx_vec_init(&_groufix.monitors, sizeof(_GFXMonitor*));
-	gfx_vec_init(&_groufix.gamepads, sizeof(_GFXGamepad*));
+	gfx_vec_init(&groufix_.devices, sizeof(GFXDevice_));
+	gfx_list_init(&groufix_.contexts);
+	gfx_vec_init(&groufix_.monitors, sizeof(GFXMonitor_*));
+	gfx_vec_init(&groufix_.gamepads, sizeof(GFXGamepad_*));
 
-	_groufix.monitorEvent = NULL;
-	_groufix.gamepadEvent = NULL;
-	_groufix.vk.instance = NULL;
+	groufix_.monitorEvent = NULL;
+	groufix_.gamepadEvent = NULL;
+	groufix_.vk.instance = NULL;
 
 	// Start clock as last.
-	_gfx_clock(&_groufix.clock);
+	gfx_clock_(&groufix_.clock);
 
 	// Signal that initialization is done.
-	atomic_store(&_groufix.initialized, 1);
+	atomic_store(&groufix_.initialized, 1);
 
 	return 1;
 
 
 	// Cleanup on failure.
 clean_io:
-	_gfx_mutex_clear(&_groufix.thread.ioLock);
+	gfx_mutex_clear_(&groufix_.thread.ioLock);
 clean_key:
-	_gfx_thread_key_clear(_groufix.thread.key);
+	gfx_thread_key_clear_(groufix_.thread.key);
 
 	return 0;
 }
 
 /****************************/
-void _gfx_terminate(void)
+void gfx_terminate_(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
-	gfx_vec_clear(&_groufix.devices);
-	gfx_list_clear(&_groufix.contexts);
-	gfx_vec_clear(&_groufix.monitors);
-	gfx_vec_clear(&_groufix.gamepads);
+	gfx_vec_clear(&groufix_.devices);
+	gfx_list_clear(&groufix_.contexts);
+	gfx_vec_clear(&groufix_.monitors);
+	gfx_vec_clear(&groufix_.gamepads);
 
-	_gfx_thread_key_clear(_groufix.thread.key);
-	_gfx_mutex_clear(&_groufix.thread.ioLock);
-	_gfx_mutex_clear(&_groufix.contextLock);
+	gfx_thread_key_clear_(groufix_.thread.key);
+	gfx_mutex_clear_(&groufix_.thread.ioLock);
+	gfx_mutex_clear_(&groufix_.contextLock);
 
 	// Signal that termination is done.
-	atomic_store(&_groufix.initialized, 0);
+	atomic_store(&groufix_.initialized, 0);
 }
 
 /****************************/
-bool _gfx_create_local(void)
+bool gfx_create_local_(void)
 {
-	assert(atomic_load(&_groufix.initialized));
-	assert(!_gfx_thread_key_get(_groufix.thread.key));
+	assert(atomic_load(&groufix_.initialized));
+	assert(!gfx_thread_key_get_(groufix_.thread.key));
 
 	// Allocate and set state.
-	_GFXThreadState* state = malloc(sizeof(_GFXThreadState));
+	GFXThreadState_* state = malloc(sizeof(GFXThreadState_));
 	if (state == NULL) return 0;
 
-	if (!_gfx_thread_key_set(_groufix.thread.key, state))
+	if (!gfx_thread_key_set_(groufix_.thread.key, state))
 	{
 		free(state);
 		return 0;
@@ -100,33 +99,33 @@ bool _gfx_create_local(void)
 
 	// Give it a unique id.
 	state->id =
-		atomic_fetch_add_explicit(&_groufix.thread.id, 1, memory_order_relaxed);
+		atomic_fetch_add_explicit(&groufix_.thread.id, 1, memory_order_relaxed);
 
 	// Initialize the logging stuff.
-	state->log.level = _groufix.logDef;
-	gfx_buf_writer(&state->log.out, _gfx_io_buf_def.dest);
+	state->log.level = groufix_.logDef;
+	gfx_buf_writer(&state->log.out, gfx_io_buf_def_.dest);
 
 	return 1;
 }
 
 /****************************/
-void _gfx_destroy_local(void)
+void gfx_destroy_local_(void)
 {
-	assert(atomic_load(&_groufix.initialized));
-	assert(_gfx_thread_key_get(_groufix.thread.key));
+	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_thread_key_get_(groufix_.thread.key));
 
 	// Get key and free it.
-	free(_gfx_thread_key_get(_groufix.thread.key));
+	free(gfx_thread_key_get_(groufix_.thread.key));
 
 	// I mean this better not fail...
-	_gfx_thread_key_set(_groufix.thread.key, NULL);
+	gfx_thread_key_set_(groufix_.thread.key, NULL);
 }
 
 /****************************/
-_GFXThreadState* _gfx_get_local(void)
+GFXThreadState_* gfx_get_local_(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
 	// Just return stored data.
-	return _gfx_thread_key_get(_groufix.thread.key);
+	return gfx_thread_key_get_(groufix_.thread.key);
 }

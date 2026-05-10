@@ -7,15 +7,14 @@
  */
 
 #include "groufix/core.h"
-#include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
 
-#define _GFX_GET_DEVICE_PROC_ADDR(pName) \
+#define GFX_GET_DEVICE_PROC_ADDR_(pName) \
 	do { \
-		context->vk.pName = (PFN_vk##pName)_groufix.vk.GetDeviceProcAddr( \
+		context->vk.pName = (PFN_vk##pName)groufix_.vk.GetDeviceProcAddr( \
 			context->vk.device, "vk"#pName); \
 		if (context->vk.pName == NULL) { \
 			gfx_log_error("Could not load vk"#pName"."); \
@@ -23,7 +22,7 @@
 		} \
 	} while (0)
 
-#define _GFX_GET_DEVICE_TYPE(vType) \
+#define GFX_GET_DEVICE_TYPE_(vType) \
 	((vType) == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? \
 		GFX_DEVICE_DISCRETE_GPU : \
 	(vType) == VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU ? \
@@ -36,19 +35,19 @@
 
 
 // Gets the complete set of queue flags (adding optional left out bits).
-#define _GFX_QUEUE_FLAGS_ALL(vFlags) \
+#define GFX_QUEUE_FLAGS_ALL_(vFlags) \
 	((vFlags) & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT) ? \
 		(vFlags) | VK_QUEUE_TRANSFER_BIT : (vFlags))
 
 // Counts the number of (relevant) set bits in a set of queue flags.
-#define _GFX_QUEUE_FLAGS_COUNT(vFlags) \
+#define GFX_QUEUE_FLAGS_COUNT_(vFlags) \
 	(((vFlags) & VK_QUEUE_GRAPHICS_BIT ? 1 : 0) + \
 	((vFlags) & VK_QUEUE_COMPUTE_BIT ? 1 : 0) + \
 	((vFlags) & VK_QUEUE_TRANSFER_BIT ? 1 : 0))
 
 
 // Gets device version support & features support per version (all lvalues).
-#define _GFX_GET_DEVICE_FEATURES(device, \
+#define GFX_GET_DEVICE_FEATURES_(device, \
 		vk11, vk12, vk13, vk14, \
 		pdf, pdv11f, pdv12f, pdv13f, pdv14f) \
 	do { \
@@ -56,7 +55,7 @@
 		vk12 = (device)->api >= VK_MAKE_API_VERSION(0,1,2,0); \
 		vk13 = (device)->api >= VK_MAKE_API_VERSION(0,1,3,0); \
 		vk14 = (device)->api >= VK_MAKE_API_VERSION(0,1,4,0); \
-		_gfx_get_device_features(device, \
+		gfx_get_device_features_(device, \
 			&pdf, \
 			(vk11 ? &pdv11f : NULL), \
 			(vk12 ? &pdv12f : NULL), \
@@ -68,7 +67,7 @@
 /****************************
  * Stringified device types for logging.
  */
-static const char* _gfx_log_device_types[] = {
+static const char* gfx_log_device_types_[] = {
 	"GPU", "Virtual GPU", "Integrated GPU", "CPU", "Unknown device type"
 };
 
@@ -82,7 +81,7 @@ static const char* _gfx_log_device_types[] = {
  * This is _ALWAYS_ the order of queues adhered to in the entire engine.
  * If a queue is not present in a set, the next in order takes its place.
  */
-static const float _gfx_vk_queue_priorities[] = { 1.0f, 0.5f, 0.5f };
+static const float gfx_vk_queue_priorities_[] = { 1.0f, 0.5f, 0.5f };
 
 
 /****************************
@@ -90,7 +89,7 @@ static const float _gfx_vk_queue_priorities[] = { 1.0f, 0.5f, 0.5f };
  * All inputs must be NULL-terminated or NULL.
  * Comparison is case insensitive.
  */
-static bool _gfx_contains_substr(const char* str, const char* substr)
+static bool gfx_contains_substr_(const char* str, const char* substr)
 {
 	if (str == NULL || substr == NULL) return 0;
 
@@ -125,12 +124,12 @@ static bool _gfx_contains_substr(const char* str, const char* substr)
  * Checks whether a given physical Vulkan device exposes the
  * VK_KHR_portability_subset extension.
  */
-static bool _gfx_device_is_subset(VkPhysicalDevice device)
+static bool gfx_device_is_subset_(VkPhysicalDevice device)
 {
 	bool subset = 0;
 
 	uint32_t extCount;
-	_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
+	GFX_VK_CHECK_(groufix_.vk.EnumerateDeviceExtensionProperties(
 		device, NULL, &extCount, NULL), extCount = 0);
 
 	if (extCount > 0)
@@ -141,7 +140,7 @@ static bool _gfx_device_is_subset(VkPhysicalDevice device)
 
 		if (extProps != NULL)
 		{
-			_GFX_VK_CHECK(_groufix.vk.EnumerateDeviceExtensionProperties(
+			GFX_VK_CHECK_(groufix_.vk.EnumerateDeviceExtensionProperties(
 				device, NULL, &extCount, extProps), extCount = 0);
 
 			for (uint32_t e = 0; e < extCount; ++e)
@@ -176,7 +175,7 @@ static bool _gfx_device_is_subset(VkPhysicalDevice device)
  * All output structure for Vulkan >= 1.1 will link to one another in order
  * of increasing Vulkan version.
  */
-static void _gfx_get_device_features(_GFXDevice* device,
+static void gfx_get_device_features_(GFXDevice_* device,
                                      VkPhysicalDeviceFeatures* pdf,
                                      VkPhysicalDeviceVulkan11Features* pdv11f,
                                      VkPhysicalDeviceVulkan12Features* pdv12f,
@@ -217,10 +216,10 @@ static void _gfx_get_device_features(_GFXDevice* device,
 	};
 
 	if (!pdv11f && !pdv12f && !pdv13f && !pdv14f)
-		_groufix.vk.GetPhysicalDeviceFeatures(device->vk.device, pdf);
+		groufix_.vk.GetPhysicalDeviceFeatures(device->vk.device, pdf);
 	else
 	{
-		_groufix.vk.GetPhysicalDeviceFeatures2(device->vk.device, &pdf2);
+		groufix_.vk.GetPhysicalDeviceFeatures2(device->vk.device, &pdf2);
 		*pdf = pdf2.features;
 	}
 
@@ -357,7 +356,7 @@ static void _gfx_get_device_features(_GFXDevice* device,
  * @param index   Output device index into the group, cannot be NULL.
  * @return Zero on failure.
  */
-static bool _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
+static bool gfx_get_device_group_(GFXContext_* context, GFXDevice_* device,
                                   size_t* index)
 {
 	assert(context != NULL);
@@ -366,8 +365,8 @@ static bool _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
 
 	// Enumerate all device groups.
 	uint32_t cnt;
-	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDeviceGroups(
-		_groufix.vk.instance, &cnt, NULL), return 0);
+	GFX_VK_CHECK_(groufix_.vk.EnumeratePhysicalDeviceGroups(
+		groufix_.vk.instance, &cnt, NULL), return 0);
 
 	if (cnt == 0) return 0;
 
@@ -377,8 +376,8 @@ static bool _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
 		groups[g].sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES,
 		groups[g].pNext = NULL;
 
-	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDeviceGroups(
-		_groufix.vk.instance, &cnt, groups), return 0);
+	GFX_VK_CHECK_(groufix_.vk.EnumeratePhysicalDeviceGroups(
+		groufix_.vk.instance, &cnt, groups), return 0);
 
 	// Loop over all groups and see if one contains the device.
 	// We take the first device group we find it in, this assumes a device is
@@ -422,7 +421,7 @@ static bool _gfx_get_device_group(_GFXContext* context, _GFXDevice* device,
  * @param props Cannot be NULL if count > 0.
  * @return Index into props, UINT32_MAX if none found.
  */
-static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
+static uint32_t gfx_find_queue_family_(GFXDevice_* device, uint32_t count,
                                        const VkQueueFamilyProperties* props,
                                        VkQueueFlags flags, bool present)
 {
@@ -439,7 +438,7 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
 	for (uint32_t i = 0; i < count; ++i)
 	{
 		VkQueueFlags iFlags =
-			_GFX_QUEUE_FLAGS_ALL(props[i].queueFlags);
+			GFX_QUEUE_FLAGS_ALL_(props[i].queueFlags);
 
 		// If it does not include all required flags OR
 		// it needs presentation support but it doesn't have it,
@@ -449,7 +448,7 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
 		if (
 			(iFlags & flags) != flags ||
 			(present && !glfwGetPhysicalDevicePresentationSupport(
-				_groufix.vk.instance, device->vk.device, i)))
+				groufix_.vk.instance, device->vk.device, i)))
 		{
 			continue;
 		}
@@ -457,7 +456,7 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
 		// Evaluate if it's better, i.e. check which has less flags.
 		if (
 			found == UINT32_MAX ||
-			_GFX_QUEUE_FLAGS_COUNT(iFlags) < _GFX_QUEUE_FLAGS_COUNT(foundFlags))
+			GFX_QUEUE_FLAGS_COUNT_(iFlags) < GFX_QUEUE_FLAGS_COUNT_(foundFlags))
 		{
 			found = i;
 			foundFlags = iFlags;
@@ -475,7 +474,7 @@ static uint32_t _gfx_find_queue_family(_GFXDevice* device, uint32_t count,
  * families is overwritten with the Vulkan family indices to use.
  * Members may have the same output, and any may be UINT32_MAX if not found.
  */
-static void _gfx_find_queue_families(_GFXDevice* device, uint32_t count,
+static void gfx_find_queue_families_(GFXDevice_* device, uint32_t count,
                                      const VkQueueFamilyProperties* props,
                                      uint32_t* families)
 {
@@ -504,16 +503,16 @@ static void _gfx_find_queue_families(_GFXDevice* device, uint32_t count,
 	// Start with finding a graphics family,
 	// hopefully with presentation + compute.
 	// And find async (hopefully better) compute & transfer families.
-	*graphics = _gfx_find_queue_family(
+	*graphics = gfx_find_queue_family_(
 		device, count, props, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 1);
-	*compute = _gfx_find_queue_family(
+	*compute = gfx_find_queue_family_(
 		device, count, props, VK_QUEUE_COMPUTE_BIT, 0);
-	*transfer = _gfx_find_queue_family(
+	*transfer = gfx_find_queue_family_(
 		device, count, props, VK_QUEUE_TRANSFER_BIT, 0);
 
 	// Fallback to a graphics family with only presentation.
 	if (*graphics == UINT32_MAX)
-		*graphics = _gfx_find_queue_family(
+		*graphics = gfx_find_queue_family_(
 			device, count, props, VK_QUEUE_GRAPHICS_BIT, 1);
 
 	if (*graphics != UINT32_MAX)
@@ -522,14 +521,14 @@ static void _gfx_find_queue_families(_GFXDevice* device, uint32_t count,
 	{
 		// If no graphics family with presentation, find separate families.
 		// Again, hopefully there's a graphics family with only compute.
-		*graphics = _gfx_find_queue_family(
+		*graphics = gfx_find_queue_family_(
 			device, count, props, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0);
-		*present = _gfx_find_queue_family(
+		*present = gfx_find_queue_family_(
 			device, count, props, 0, 1);
 
 		// Fallback to a graphics-only family.
 		if (*graphics == UINT32_MAX)
-			*graphics = _gfx_find_queue_family(
+			*graphics = gfx_find_queue_family_(
 				device, count, props, VK_QUEUE_GRAPHICS_BIT, 0);
 	}
 }
@@ -542,7 +541,7 @@ static void _gfx_find_queue_families(_GFXDevice* device, uint32_t count,
  * @param flags      Flags this queue is specifically chosen for.
  * @return Non-zero on success.
  */
-static bool _gfx_alloc_queue_set(_GFXContext* context,
+static bool gfx_alloc_queue_set_(GFXContext_* context,
                                  VkDeviceQueueCreateInfo* createInfo,
                                  uint32_t family, size_t count,
                                  bool present,
@@ -551,10 +550,10 @@ static bool _gfx_alloc_queue_set(_GFXContext* context,
 	assert(context != NULL);
 	assert(createInfo != NULL);
 	assert(count > 0);
-	assert(count <= sizeof(_gfx_vk_queue_priorities)/sizeof(_gfx_vk_queue_priorities[0]));
+	assert(count <= sizeof(gfx_vk_queue_priorities_)/sizeof(gfx_vk_queue_priorities_[0]));
 
 	// Allocate a new queue set.
-	_GFXQueueSet* set = malloc(sizeof(_GFXQueueSet) + sizeof(_GFXMutex) * count);
+	GFXQueueSet_* set = malloc(sizeof(GFXQueueSet_) + sizeof(GFXMutex_) * count);
 	if (set == NULL) return 0;
 
 	set->flags    = flags;
@@ -564,9 +563,9 @@ static bool _gfx_alloc_queue_set(_GFXContext* context,
 
 	// Keep inserting a mutex for each queue and stop as soon as we fail.
 	for (set->count = 0; set->count < count; ++set->count)
-		if (!_gfx_mutex_init(&set->locks[set->count]))
+		if (!gfx_mutex_init_(&set->locks[set->count]))
 		{
-			while (set->count > 0) _gfx_mutex_clear(&set->locks[--set->count]);
+			while (set->count > 0) gfx_mutex_clear_(&set->locks[--set->count]);
 			free(set);
 
 			return 0;
@@ -583,7 +582,7 @@ static bool _gfx_alloc_queue_set(_GFXContext* context,
 		.flags            = 0,
 		.queueFamilyIndex = family,
 		.queueCount       = (uint32_t)count,
-		.pQueuePriorities = _gfx_vk_queue_priorities
+		.pQueuePriorities = gfx_vk_queue_priorities_
 	};
 
 	return 1;
@@ -591,15 +590,15 @@ static bool _gfx_alloc_queue_set(_GFXContext* context,
 
 /****************************
  * Creates an array of VkDeviceQueueCreateInfo structures and fills the
- * _GFXQueueSet list of context, on failure, no list elements are freed!
+ * GFXQueueSet_ list of context, on failure, no list elements are freed!
  * @param createInfos Output create infos, must call free() on success.
  * @param families    Output array storing { graphics, present, compute, transfer }.
  * @return Number of created queue sets.
  *
- * See _gfx_find_queue_families for the families parameter,
+ * See gfx_find_queue_families_ for the families parameter,
  * except this function guarantees none are UINT32_MAX if successful.
  */
-static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
+static uint32_t gfx_create_queue_sets_(GFXContext_* context, GFXDevice_* device,
                                        VkDeviceQueueCreateInfo** createInfos,
                                        uint32_t* families)
 {
@@ -611,16 +610,16 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 
 	// So get all queue families.
 	uint32_t fCount;
-	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+	groufix_.vk.GetPhysicalDeviceQueueFamilyProperties(
 		device->vk.device, &fCount, NULL);
 
 	VkQueueFamilyProperties props[fCount];
-	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(
+	groufix_.vk.GetPhysicalDeviceQueueFamilyProperties(
 		device->vk.device, &fCount, props);
 
 	// Find all queue families as follows:
 	//  { graphics, present, compute, transfer }.
-	_gfx_find_queue_families(device, fCount, props, families);
+	gfx_find_queue_families_(device, fCount, props, families);
 
 	const uint32_t* graphics = families + 0;
 	const uint32_t* present = families + 1;
@@ -674,9 +673,9 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 		size_t count = GFX_MIN(props[*graphics].queueCount,
 			computeIsGraphics + transferIsGraphics + 1);
 
-		success = success && _gfx_alloc_queue_set(context,
+		success = success && gfx_alloc_queue_set_(context,
 			(*createInfos) + (sets++), *graphics, count, presentIsGraphics,
-			_GFX_QUEUE_FLAGS_ALL(props[*graphics].queueFlags),
+			GFX_QUEUE_FLAGS_ALL_(props[*graphics].queueFlags),
 			VK_QUEUE_GRAPHICS_BIT |
 				(computeIsGraphics ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0) |
 				(transferIsGraphics ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
@@ -688,9 +687,9 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 		size_t count = GFX_MIN(props[*present].queueCount,
 			computeIsPresent + transferIsPresent + 1);
 
-		success = success && _gfx_alloc_queue_set(context,
+		success = success && gfx_alloc_queue_set_(context,
 			(*createInfos) + (sets++), *present, count, 1,
-			_GFX_QUEUE_FLAGS_ALL(props[*present].queueFlags),
+			GFX_QUEUE_FLAGS_ALL_(props[*present].queueFlags),
 				(computeIsPresent ? VK_QUEUE_COMPUTE_BIT : (VkQueueFlags)0) |
 				(transferIsPresent ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
 	}
@@ -701,9 +700,9 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 		size_t count = GFX_MIN(props[*compute].queueCount,
 			transferIsCompute + 1);
 
-		success = success && _gfx_alloc_queue_set(context,
+		success = success && gfx_alloc_queue_set_(context,
 			(*createInfos) + (sets++), *compute, count, 0,
-			_GFX_QUEUE_FLAGS_ALL(props[*compute].queueFlags),
+			GFX_QUEUE_FLAGS_ALL_(props[*compute].queueFlags),
 			VK_QUEUE_COMPUTE_BIT |
 				(transferIsCompute ? VK_QUEUE_TRANSFER_BIT : (VkQueueFlags)0));
 	}
@@ -711,9 +710,9 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
 	// Allocate a novel transfer queue set if necessary.
 	if (!transferIsGraphics && !transferIsPresent && !transferIsCompute)
 	{
-		success = success && _gfx_alloc_queue_set(context,
+		success = success && gfx_alloc_queue_set_(context,
 			(*createInfos) + (sets++), *transfer, 1, 0,
-			_GFX_QUEUE_FLAGS_ALL(props[*transfer].queueFlags),
+			GFX_QUEUE_FLAGS_ALL_(props[*transfer].queueFlags),
 			VK_QUEUE_TRANSFER_BIT);
 	}
 
@@ -732,21 +731,21 @@ static uint32_t _gfx_create_queue_sets(_GFXContext* context, _GFXDevice* device,
  * Destroys a context and all its resources.
  * @param context Cannot be NULL.
  */
-static void _gfx_destroy_context(_GFXContext* context)
+static void gfx_destroy_context_(GFXContext_* context)
 {
 	assert(context != NULL);
 
 	// Erase itself from the context list.
-	gfx_list_erase(&_groufix.contexts, &context->list);
+	gfx_list_erase(&groufix_.contexts, &context->list);
 
 	// Loop over all its queue sets and free their resources.
 	while (context->sets.head != NULL)
 	{
-		_GFXQueueSet* set = (_GFXQueueSet*)context->sets.head;
+		GFXQueueSet_* set = (GFXQueueSet_*)context->sets.head;
 		gfx_list_erase(&context->sets, context->sets.head);
 
 		for (size_t q = 0; q < set->count; ++q)
-			_gfx_mutex_clear(&set->locks[q]);
+			gfx_mutex_clear_(&set->locks[q]);
 
 		free(set);
 	}
@@ -759,8 +758,8 @@ static void _gfx_destroy_context(_GFXContext* context)
 	if (context->vk.DestroyDevice != NULL)
 		context->vk.DestroyDevice(context->vk.device, NULL);
 
-	_gfx_mutex_clear(&context->limits.samplerLock);
-	_gfx_mutex_clear(&context->limits.allocLock);
+	gfx_mutex_clear_(&context->limits.samplerLock);
+	gfx_mutex_clear_(&context->limits.allocLock);
 	gfx_list_clear(&context->sets);
 
 	free(context);
@@ -775,9 +774,9 @@ static void _gfx_destroy_context(_GFXContext* context)
  * device->context will remain NULL on failure, on success it will be set to
  * the newly created context (context->index will be set also).
  */
-static void _gfx_create_context(_GFXDevice* device)
+static void gfx_create_context_(GFXDevice_* device)
 {
-	assert(_groufix.vk.instance != NULL);
+	assert(groufix_.vk.instance != NULL);
 	assert(device != NULL);
 	assert(device->context == NULL);
 
@@ -791,12 +790,12 @@ static void _gfx_create_context(_GFXDevice* device)
 		goto error;
 	}
 
-	if (device->api < _GFX_VK_API_VERSION)
+	if (device->api < GFX_VK_API_VERSION_)
 	{
 		gfx_log_error("[ %s ] does not support Vulkan version %u.%u.%u.",
-			(unsigned int)VK_API_VERSION_MAJOR(_GFX_VK_API_VERSION),
-			(unsigned int)VK_API_VERSION_MINOR(_GFX_VK_API_VERSION),
-			(unsigned int)VK_API_VERSION_PATCH(_GFX_VK_API_VERSION),
+			(unsigned int)VK_API_VERSION_MAJOR(GFX_VK_API_VERSION_),
+			(unsigned int)VK_API_VERSION_MINOR(GFX_VK_API_VERSION_),
+			(unsigned int)VK_API_VERSION_PATCH(GFX_VK_API_VERSION_),
 			device->name);
 
 		goto error;
@@ -805,8 +804,8 @@ static void _gfx_create_context(_GFXDevice* device)
 	// Allocate a new context, we are allocating an array of physical devices
 	// at the end, just allocate the maximum number, who cares..
 	// These are used to check if a future device can use this context.
-	_GFXContext* context = malloc(
-		sizeof(_GFXContext) +
+	GFXContext_* context = malloc(
+		sizeof(GFXContext_) +
 		sizeof(VkPhysicalDevice) * VK_MAX_DEVICE_GROUP_SIZE);
 
 	if (context == NULL)
@@ -815,20 +814,20 @@ static void _gfx_create_context(_GFXDevice* device)
 	// Get supported feature flags.
 	context->features =
 		(device->base.features.geometryShader ?
-			_GFX_SUPPORT_GEOMETRY_SHADER : 0) |
+			GFX_SUPPORT_GEOMETRY_SHADER_ : 0) |
 		(device->base.features.tessellationShader ?
-			_GFX_SUPPORT_TESSELLATION_SHADER : 0);
+			GFX_SUPPORT_TESSELLATION_SHADER_ : 0);
 
 	{
 		// Get allocation limits in a scope so pdp gets freed :)
 		VkPhysicalDeviceProperties pdp;
-		_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
+		groufix_.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
 		// Memory allocation limit.
 		context->limits.maxAllocs = pdp.limits.maxMemoryAllocationCount;
 		atomic_store(&context->limits.allocs, 0);
 
-		if (!_gfx_mutex_init(&context->limits.allocLock))
+		if (!gfx_mutex_init_(&context->limits.allocLock))
 		{
 			free(context);
 			goto error;
@@ -838,9 +837,9 @@ static void _gfx_create_context(_GFXDevice* device)
 		context->limits.maxSamplers = pdp.limits.maxSamplerAllocationCount;
 		atomic_store(&context->limits.samplers, 0);
 
-		if (!_gfx_mutex_init(&context->limits.samplerLock))
+		if (!gfx_mutex_init_(&context->limits.samplerLock))
 		{
-			_gfx_mutex_clear(&context->limits.allocLock);
+			gfx_mutex_clear_(&context->limits.allocLock);
 			free(context);
 			goto error;
 		}
@@ -850,10 +849,10 @@ static void _gfx_create_context(_GFXDevice* device)
 	}
 
 	// Insert itself in the context list.
-	gfx_list_insert_after(&_groufix.contexts, &context->list, NULL);
+	gfx_list_insert_after(&groufix_.contexts, &context->list, NULL);
 	gfx_list_init(&context->sets);
 
-	// From this point on we call _gfx_destroy_context on cleanup.
+	// From this point on we call gfx_destroy_context_ on cleanup.
 	// Set these to NULL so we don't accidentally call garbage on cleanup.
 	context->vk.DestroyDevice = NULL;
 	context->vk.DeviceWaitIdle = NULL;
@@ -861,7 +860,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	// Now find the device group which this device is part of.
 	// This fills numDevices and devices of context!
 	size_t index;
-	if (!_gfx_get_device_group(context, device, &index))
+	if (!gfx_get_device_group_(context, device, &index))
 		goto clean;
 
 	// Call the thing that allocates the desired queues (i.e. fills sets of context!)
@@ -872,7 +871,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	// probably have equivalent GPUs in an SLI/CrossFire setup anyway...
 	uint32_t sets;
 	uint32_t families[4];
-	if (!(sets = _gfx_create_queue_sets(context, device, &createInfos, families)))
+	if (!(sets = gfx_create_queue_sets_(context, device, &createInfos, families)))
 		goto clean;
 
 	// Get desired device feature structs for the next chain.
@@ -885,7 +884,7 @@ static void _gfx_create_context(_GFXDevice* device)
 	VkPhysicalDeviceVulkan13Features pdv13f;
 	VkPhysicalDeviceVulkan14Features pdv14f;
 
-	_GFX_GET_DEVICE_FEATURES(device,
+	GFX_GET_DEVICE_FEATURES_(device,
 		vk11, vk12, vk13, vk14,
 		pdf, pdv11f, pdv12f, pdv13f, pdv14f);
 
@@ -940,7 +939,7 @@ static void _gfx_create_context(_GFXDevice* device)
 		.pEnabledFeatures        = &pdf
 	};
 
-	_GFX_VK_CHECK(_groufix.vk.CreateDevice(
+	GFX_VK_CHECK_(groufix_.vk.CreateDevice(
 		device->vk.device, &dci, NULL, &context->vk.device), goto clean);
 
 #if !defined (NDEBUG)
@@ -958,18 +957,18 @@ static void _gfx_create_context(_GFXDevice* device)
 
 		for (GFXListNode* s = context->sets.head; s != NULL; s = s->next)
 		{
-			_GFXQueueSet* set = (_GFXQueueSet*)s;
+			GFXQueueSet_* set = (GFXQueueSet_*)s;
 			queueCount += set->count;
 
 			// Bit ugly, but we don't want extra computation when not debug!
 			if (set->family == families[0])
-				indices[0] = _gfx_queue_index(set, VK_QUEUE_GRAPHICS_BIT, 0);
+				indices[0] = gfx_queue_index_(set, VK_QUEUE_GRAPHICS_BIT, 0);
 			if (set->family == families[1])
-				indices[1] = _gfx_queue_index(set, 0, 1);
+				indices[1] = gfx_queue_index_(set, 0, 1);
 			if (set->family == families[2])
-				indices[2] = _gfx_queue_index(set, VK_QUEUE_COMPUTE_BIT, 0);
+				indices[2] = gfx_queue_index_(set, VK_QUEUE_COMPUTE_BIT, 0);
 			if (set->family == families[3])
-				indices[3] = _gfx_queue_index(set, VK_QUEUE_TRANSFER_BIT, 0);
+				indices[3] = gfx_queue_index_(set, VK_QUEUE_TRANSFER_BIT, 0);
 		}
 
 		gfx_io_writef(logger,
@@ -1005,100 +1004,100 @@ static void _gfx_create_context(_GFXDevice* device)
 
 	// Now load all device level Vulkan functions.
 	// Load vkDestroyDevice and vkDeviceWaitIdle first so we can clean properly.
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyDevice);
-	_GFX_GET_DEVICE_PROC_ADDR(DeviceWaitIdle);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyDevice);
+	GFX_GET_DEVICE_PROC_ADDR_(DeviceWaitIdle);
 
-	_GFX_GET_DEVICE_PROC_ADDR(AcquireNextImageKHR);
-	_GFX_GET_DEVICE_PROC_ADDR(AllocateCommandBuffers);
-	_GFX_GET_DEVICE_PROC_ADDR(AllocateDescriptorSets);
-	_GFX_GET_DEVICE_PROC_ADDR(AllocateMemory);
-	_GFX_GET_DEVICE_PROC_ADDR(BindBufferMemory);
-	_GFX_GET_DEVICE_PROC_ADDR(BindImageMemory);
-	_GFX_GET_DEVICE_PROC_ADDR(BeginCommandBuffer);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdBeginRenderPass);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdBindDescriptorSets);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdBindIndexBuffer);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdBindPipeline);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdBindVertexBuffers);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdBlitImage);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdCopyBuffer);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdCopyImage);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdCopyBufferToImage);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdCopyImageToBuffer);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdDispatch);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdDispatchBase);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdDispatchIndirect);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdDraw);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdDrawIndexed);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdDrawIndexedIndirect);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdDrawIndirect);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdEndRenderPass);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdExecuteCommands);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdNextSubpass);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdPipelineBarrier);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdPushConstants);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdResolveImage);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdSetLineWidth);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdSetScissor);
-	_GFX_GET_DEVICE_PROC_ADDR(CmdSetViewport);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateBuffer);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateBufferView);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateCommandPool);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateComputePipelines);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateDescriptorPool);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateDescriptorSetLayout);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateDescriptorUpdateTemplate);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateFence);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateFramebuffer);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateGraphicsPipelines);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateImage);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateImageView);
-	_GFX_GET_DEVICE_PROC_ADDR(CreatePipelineCache);
-	_GFX_GET_DEVICE_PROC_ADDR(CreatePipelineLayout);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateRenderPass);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateSampler);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateSemaphore);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateShaderModule);
-	_GFX_GET_DEVICE_PROC_ADDR(CreateSwapchainKHR);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyBuffer);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyBufferView);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyCommandPool);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyDescriptorPool);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyDescriptorSetLayout);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyDescriptorUpdateTemplate);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyFence);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyFramebuffer);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyImage);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyImageView);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipeline);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipelineCache);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyPipelineLayout);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyRenderPass);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroySampler);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroySemaphore);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroyShaderModule);
-	_GFX_GET_DEVICE_PROC_ADDR(DestroySwapchainKHR);
-	_GFX_GET_DEVICE_PROC_ADDR(EndCommandBuffer);
-	_GFX_GET_DEVICE_PROC_ADDR(FreeCommandBuffers);
-	_GFX_GET_DEVICE_PROC_ADDR(FreeMemory);
-	_GFX_GET_DEVICE_PROC_ADDR(GetBufferMemoryRequirements);
-	_GFX_GET_DEVICE_PROC_ADDR(GetBufferMemoryRequirements2);
-	_GFX_GET_DEVICE_PROC_ADDR(GetDeviceQueue);
-	_GFX_GET_DEVICE_PROC_ADDR(GetFenceStatus);
-	_GFX_GET_DEVICE_PROC_ADDR(GetImageMemoryRequirements);
-	_GFX_GET_DEVICE_PROC_ADDR(GetImageMemoryRequirements2);
-	_GFX_GET_DEVICE_PROC_ADDR(GetPipelineCacheData);
-	_GFX_GET_DEVICE_PROC_ADDR(GetSwapchainImagesKHR);
-	_GFX_GET_DEVICE_PROC_ADDR(MapMemory);
-	_GFX_GET_DEVICE_PROC_ADDR(MergePipelineCaches);
-	_GFX_GET_DEVICE_PROC_ADDR(QueuePresentKHR);
-	_GFX_GET_DEVICE_PROC_ADDR(QueueSubmit);
-	_GFX_GET_DEVICE_PROC_ADDR(ResetCommandPool);
-	_GFX_GET_DEVICE_PROC_ADDR(ResetDescriptorPool);
-	_GFX_GET_DEVICE_PROC_ADDR(ResetFences);
-	_GFX_GET_DEVICE_PROC_ADDR(UnmapMemory);
-	_GFX_GET_DEVICE_PROC_ADDR(UpdateDescriptorSetWithTemplate);
-	_GFX_GET_DEVICE_PROC_ADDR(WaitForFences);
+	GFX_GET_DEVICE_PROC_ADDR_(AcquireNextImageKHR);
+	GFX_GET_DEVICE_PROC_ADDR_(AllocateCommandBuffers);
+	GFX_GET_DEVICE_PROC_ADDR_(AllocateDescriptorSets);
+	GFX_GET_DEVICE_PROC_ADDR_(AllocateMemory);
+	GFX_GET_DEVICE_PROC_ADDR_(BindBufferMemory);
+	GFX_GET_DEVICE_PROC_ADDR_(BindImageMemory);
+	GFX_GET_DEVICE_PROC_ADDR_(BeginCommandBuffer);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdBeginRenderPass);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdBindDescriptorSets);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdBindIndexBuffer);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdBindPipeline);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdBindVertexBuffers);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdBlitImage);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdCopyBuffer);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdCopyImage);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdCopyBufferToImage);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdCopyImageToBuffer);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdDispatch);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdDispatchBase);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdDispatchIndirect);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdDraw);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdDrawIndexed);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdDrawIndexedIndirect);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdDrawIndirect);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdEndRenderPass);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdExecuteCommands);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdNextSubpass);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdPipelineBarrier);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdPushConstants);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdResolveImage);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdSetLineWidth);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdSetScissor);
+	GFX_GET_DEVICE_PROC_ADDR_(CmdSetViewport);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateBuffer);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateBufferView);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateCommandPool);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateComputePipelines);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateDescriptorPool);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateDescriptorSetLayout);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateDescriptorUpdateTemplate);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateFence);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateFramebuffer);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateGraphicsPipelines);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateImage);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateImageView);
+	GFX_GET_DEVICE_PROC_ADDR_(CreatePipelineCache);
+	GFX_GET_DEVICE_PROC_ADDR_(CreatePipelineLayout);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateRenderPass);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateSampler);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateSemaphore);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateShaderModule);
+	GFX_GET_DEVICE_PROC_ADDR_(CreateSwapchainKHR);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyBuffer);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyBufferView);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyCommandPool);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyDescriptorPool);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyDescriptorSetLayout);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyDescriptorUpdateTemplate);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyFence);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyFramebuffer);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyImage);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyImageView);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyPipeline);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyPipelineCache);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyPipelineLayout);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyRenderPass);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroySampler);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroySemaphore);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroyShaderModule);
+	GFX_GET_DEVICE_PROC_ADDR_(DestroySwapchainKHR);
+	GFX_GET_DEVICE_PROC_ADDR_(EndCommandBuffer);
+	GFX_GET_DEVICE_PROC_ADDR_(FreeCommandBuffers);
+	GFX_GET_DEVICE_PROC_ADDR_(FreeMemory);
+	GFX_GET_DEVICE_PROC_ADDR_(GetBufferMemoryRequirements);
+	GFX_GET_DEVICE_PROC_ADDR_(GetBufferMemoryRequirements2);
+	GFX_GET_DEVICE_PROC_ADDR_(GetDeviceQueue);
+	GFX_GET_DEVICE_PROC_ADDR_(GetFenceStatus);
+	GFX_GET_DEVICE_PROC_ADDR_(GetImageMemoryRequirements);
+	GFX_GET_DEVICE_PROC_ADDR_(GetImageMemoryRequirements2);
+	GFX_GET_DEVICE_PROC_ADDR_(GetPipelineCacheData);
+	GFX_GET_DEVICE_PROC_ADDR_(GetSwapchainImagesKHR);
+	GFX_GET_DEVICE_PROC_ADDR_(MapMemory);
+	GFX_GET_DEVICE_PROC_ADDR_(MergePipelineCaches);
+	GFX_GET_DEVICE_PROC_ADDR_(QueuePresentKHR);
+	GFX_GET_DEVICE_PROC_ADDR_(QueueSubmit);
+	GFX_GET_DEVICE_PROC_ADDR_(ResetCommandPool);
+	GFX_GET_DEVICE_PROC_ADDR_(ResetDescriptorPool);
+	GFX_GET_DEVICE_PROC_ADDR_(ResetFences);
+	GFX_GET_DEVICE_PROC_ADDR_(UnmapMemory);
+	GFX_GET_DEVICE_PROC_ADDR_(UpdateDescriptorSetWithTemplate);
+	GFX_GET_DEVICE_PROC_ADDR_(WaitForFences);
 
 
 	// Set device's reference to this context.
@@ -1111,7 +1110,7 @@ static void _gfx_create_context(_GFXDevice* device)
 
 	// Cleanup on failure.
 clean:
-	_gfx_destroy_context(context);
+	gfx_destroy_context_(context);
 	free(createInfos);
 error:
 	gfx_log_error(
@@ -1121,15 +1120,15 @@ error:
 }
 
 /****************************
- * Initializes a single _GFXDevice struct given a Vulkan device.
+ * Initializes a single GFXDevice_ struct given a Vulkan device.
  * @param dev Cannot be NULL.
  *
  * Only the following fields are left unset:
  *  dev->{ base.{ name, driverName, driverInfo }, lock, formats }
  */
-static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
+static void gfx_device_init_(GFXDevice_* dev, VkPhysicalDevice device)
 {
-	assert(_groufix.vk.instance != NULL);
+	assert(groufix_.vk.instance != NULL);
 	assert(device != NULL);
 
 	// Get some Vulkan properties.
@@ -1139,7 +1138,7 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 	};
 
 	VkPhysicalDeviceProperties* pdp = &pdp2.properties;
-	_groufix.vk.GetPhysicalDeviceProperties(device, pdp);
+	groufix_.vk.GetPhysicalDeviceProperties(device, pdp);
 
 	// Initial setup.
 	dev->api       = pdp->apiVersion;
@@ -1157,7 +1156,7 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 	// If we're including portability subset devices, we need to check if
 	// the device exposes VK_KHR_portability_subset.
 	// If it does, we need to enable the extension in the device.
-	dev->subset = _gfx_device_is_subset(device);
+	dev->subset = gfx_device_is_subset_(device);
 #endif
 
 	// Get all Vulkan device features as well.
@@ -1168,7 +1167,7 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 	VkPhysicalDeviceVulkan13Features pdv13f;
 	VkPhysicalDeviceVulkan14Features pdv14f;
 
-	_GFX_GET_DEVICE_FEATURES(dev,
+	GFX_GET_DEVICE_FEATURES_(dev,
 		vk11, vk12, vk13, vk14,
 		pdf, pdv11f, pdv12f, pdv13f, pdv14f);
 
@@ -1199,7 +1198,7 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 	};
 
 	pdp2.pNext = (vk12 ? (void*)&pddp : vk11 ? (void*)&pdv11p : NULL);
-	_groufix.vk.GetPhysicalDeviceProperties2(device, &pdp2);
+	groufix_.vk.GetPhysicalDeviceProperties2(device, &pdp2);
 
 	// Extra setup.
 	if (vk12)
@@ -1216,18 +1215,18 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 	// determine some of the features.
 	// Plus availability is based on the presence of all families.
 	uint32_t fCount;
-	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(device, &fCount, NULL);
+	groufix_.vk.GetPhysicalDeviceQueueFamilyProperties(device, &fCount, NULL);
 
 	VkQueueFamilyProperties props[fCount];
-	_groufix.vk.GetPhysicalDeviceQueueFamilyProperties(device, &fCount, props);
+	groufix_.vk.GetPhysicalDeviceQueueFamilyProperties(device, &fCount, props);
 
 	// Find all queue families as follows:
 	//  { graphics, present, compute, transfer }.
 	uint32_t families[4];
-	_gfx_find_queue_families(dev, fCount, props, families);
+	gfx_find_queue_families_(dev, fCount, props, families);
 
 	const bool available =
-		dev->api >= _GFX_VK_API_VERSION &&
+		dev->api >= GFX_VK_API_VERSION_ &&
 		families[0] != UINT32_MAX &&
 		families[1] != UINT32_MAX &&
 		families[2] != UINT32_MAX &&
@@ -1235,7 +1234,7 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 
 	// Then define the features and limits part of the new device :)
 	dev->base = (GFXDevice){
-		.type = _GFX_GET_DEVICE_TYPE(pdp->deviceType),
+		.type = GFX_GET_DEVICE_TYPE_(pdp->deviceType),
 		.name = NULL,
 		.driverName = NULL,
 		.driverInfo = NULL,
@@ -1387,27 +1386,27 @@ static void _gfx_device_init(_GFXDevice* dev, VkPhysicalDevice device)
 }
 
 /****************************/
-bool _gfx_devices_init(void)
+bool gfx_devices_init_(void)
 {
-	assert(_groufix.vk.instance != NULL);
-	assert(_groufix.devices.size == 0);
+	assert(groufix_.vk.instance != NULL);
+	assert(groufix_.devices.size == 0);
 
 	// Enumerate all devices.
 	uint32_t count;
-	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
-		_groufix.vk.instance, &count, NULL), count = 0);
+	GFX_VK_CHECK_(groufix_.vk.EnumeratePhysicalDevices(
+		groufix_.vk.instance, &count, NULL), count = 0);
 
 	VkPhysicalDevice devices[GFX_MAX(1, count)];
 	if (count == 0) goto terminate;
 
-	_GFX_VK_CHECK(_groufix.vk.EnumeratePhysicalDevices(
-		_groufix.vk.instance, &count, devices), goto terminate);
+	GFX_VK_CHECK_(groufix_.vk.EnumeratePhysicalDevices(
+		groufix_.vk.instance, &count, devices), goto terminate);
 
 	// Reserve and create groufix devices.
 	// The number or order of devices never changes after initialization,
 	// nor is there a user pointer for callbacks, as there are no callbacks.
 	// This means we do not have to dynamically allocate the devices.
-	if (!gfx_vec_reserve(&_groufix.devices, (size_t)count))
+	if (!gfx_vec_reserve(&groufix_.devices, (size_t)count))
 		goto terminate;
 
 	// Once before looping, get the env var for the primary device.
@@ -1418,19 +1417,19 @@ bool _gfx_devices_init(void)
 	for (uint32_t i = 0; i < count; ++i)
 	{
 		// Define a new device & init.
-		_GFXDevice dev;
-		_gfx_device_init(&dev, devices[i]);
+		GFXDevice_ dev;
+		gfx_device_init_(&dev, devices[i]);
 
 		// Find position to insert at, insert them in order of primary-ness.
 		// This makes it so the 'primary' device is at index 0.
 		// We also check if the env variable for the primary device is set.
-		const bool matchEnv = _gfx_contains_substr(dev.name, envPrimDevice);
+		const bool matchEnv = gfx_contains_substr_(dev.name, envPrimDevice);
 		size_t j;
 
-		for (j = 0; j < _groufix.devices.size; ++j)
+		for (j = 0; j < groufix_.devices.size; ++j)
 		{
-			_GFXDevice* d = gfx_vec_at(&_groufix.devices, j);
-			const bool dEnv = _gfx_contains_substr(d->name, envPrimDevice);
+			GFXDevice_* d = gfx_vec_at(&groufix_.devices, j);
+			const bool dEnv = gfx_contains_substr_(d->name, envPrimDevice);
 
 			// Compare the device against the current in the vector
 			// and check if we found the position or need to move on.
@@ -1461,7 +1460,7 @@ bool _gfx_devices_init(void)
 		}
 
 		// Actual insert.
-		gfx_vec_insert(&_groufix.devices, 1, &dev, j);
+		gfx_vec_insert(&groufix_.devices, 1, &dev, j);
 	}
 
 	// Now loop over 'm again to init
@@ -1470,23 +1469,23 @@ bool _gfx_devices_init(void)
 	// gets reallocated, thus we store & init these values and mutexes here.
 	for (uint32_t i = 0; i < count; ++i)
 	{
-		_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
+		GFXDevice_* dev = gfx_vec_at(&groufix_.devices, i);
 		dev->base.name = dev->name;
 		dev->base.driverName = dev->driverName;
 		dev->base.driverInfo = dev->driverInfo;
 
 		// Sneaky goto-based init/clear structure :o
-		if (!_gfx_mutex_init(&dev->lock))
+		if (!gfx_mutex_init_(&dev->lock))
 			goto clear_prev_devices;
-		if (_gfx_device_init_formats(dev))
+		if (gfx_device_init_formats_(dev))
 			continue; // Success!
 
-		_gfx_mutex_clear(&dev->lock);
+		gfx_mutex_clear_(&dev->lock);
 
 	clear_prev_devices:
 		// If it could not init, remove remaining devices and let
-		// _gfx_devices_terminate handle the rest.
-		gfx_vec_pop(&_groufix.devices, count - i);
+		// gfx_devices_terminate_ handle the rest.
+		gfx_vec_pop(&groufix_.devices, count - i);
 		goto terminate;
 	}
 
@@ -1498,11 +1497,11 @@ bool _gfx_devices_init(void)
 
 		for (uint32_t i = 0; i < count; ++i)
 		{
-			_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
+			GFXDevice_* dev = gfx_vec_at(&groufix_.devices, i);
 			gfx_io_writef(logger,
 				"    [ %s ] (%s | v%u.%u.%u%s)\n",
 				dev->name,
-				_gfx_log_device_types[dev->base.type],
+				gfx_log_device_types_[dev->base.type],
 				(unsigned int)VK_API_VERSION_MAJOR(dev->api),
 				(unsigned int)VK_API_VERSION_MINOR(dev->api),
 				(unsigned int)VK_API_VERSION_PATCH(dev->api),
@@ -1524,41 +1523,41 @@ bool _gfx_devices_init(void)
 	// Cleanup on failure.
 terminate:
 	gfx_log_error("Could not find or initialize physical devices.");
-	_gfx_devices_terminate();
+	gfx_devices_terminate_();
 
 	return 0;
 }
 
 /****************************/
-void _gfx_devices_terminate(void)
+void gfx_devices_terminate_(void)
 {
 	// Destroy all Vulkan contexts.
-	while (_groufix.contexts.head != NULL)
-		_gfx_destroy_context((_GFXContext*)_groufix.contexts.head);
+	while (groufix_.contexts.head != NULL)
+		gfx_destroy_context_((GFXContext_*)groufix_.contexts.head);
 
 	// And free all groufix devices, only entails clearing its mutex/formats.
 	// Devices are allocated in-place so no need to free anything else.
-	for (size_t i = 0; i < _groufix.devices.size; ++i)
+	for (size_t i = 0; i < groufix_.devices.size; ++i)
 	{
-		_GFXDevice* dev = gfx_vec_at(&_groufix.devices, i);
-		_gfx_mutex_clear(&dev->lock);
+		GFXDevice_* dev = gfx_vec_at(&groufix_.devices, i);
+		gfx_mutex_clear_(&dev->lock);
 		gfx_vec_clear(&dev->formats);
 	}
 
 	// Regular cleanup.
-	gfx_vec_clear(&_groufix.devices);
-	gfx_list_clear(&_groufix.contexts);
+	gfx_vec_clear(&groufix_.devices);
+	gfx_list_clear(&groufix_.contexts);
 }
 
 /****************************/
-_GFXContext* _gfx_device_init_context(_GFXDevice* device)
+GFXContext_* gfx_device_init_context_(GFXDevice_* device)
 {
 	assert(device != NULL);
 
 	// Lock the device's lock to sync access to the device's context.
 	// Once this call returns successfully the context will not be modified anymore,
 	// which means after this call, we can just read device->context directly.
-	_gfx_mutex_lock(&device->lock);
+	gfx_mutex_lock_(&device->lock);
 
 	if (device->context == NULL)
 	{
@@ -1566,13 +1565,13 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device)
 		// Other uses happen during initialization or termination,
 		// any other operation must happen inbetween those two
 		// function calls anyway so no need to lock in them.
-		_gfx_mutex_lock(&_groufix.contextLock);
+		gfx_mutex_lock_(&groufix_.contextLock);
 
 		// No context, go search for a compatible one.
 		for (
-			_GFXContext* context = (_GFXContext*)_groufix.contexts.head;
+			GFXContext_* context = (GFXContext_*)groufix_.contexts.head;
 			context != NULL;
-			context = (_GFXContext*)context->list.next)
+			context = (GFXContext_*)context->list.next)
 		{
 			for (size_t j = 0; j < context->numDevices; ++j)
 				if (context->devices[j] == device->vk.device)
@@ -1584,23 +1583,23 @@ _GFXContext* _gfx_device_init_context(_GFXDevice* device)
 
 		// If none found, create a new one.
 		// It returns if it was successful, but just ignore it...
-		_gfx_create_context(device);
+		gfx_create_context_(device);
 
 	unlock:
-		_gfx_mutex_unlock(&_groufix.contextLock);
+		gfx_mutex_unlock_(&groufix_.contextLock);
 	}
 
 	// Read the result before unlock just in case it failed,
 	// only when succeeded are we sure we don't write to it anymore.
-	_GFXContext* ret = device->context;
+	GFXContext_* ret = device->context;
 
-	_gfx_mutex_unlock(&device->lock);
+	gfx_mutex_unlock_(&device->lock);
 
 	return ret;
 }
 
 /****************************/
-_GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
+GFXQueueSet_* gfx_pick_family_(GFXContext_* context, uint32_t* family,
                                VkQueueFlags flags, bool present)
 {
 	assert(context != NULL);
@@ -1612,9 +1611,9 @@ _GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
 	// Therefore we just loop over the queue sets and pick the first that
 	// satisfies our requirements :)
 	for (
-		_GFXQueueSet* set = (_GFXQueueSet*)context->sets.head;
+		GFXQueueSet_* set = (GFXQueueSet_*)context->sets.head;
 		set != NULL;
-		set = (_GFXQueueSet*)set->list.next)
+		set = (GFXQueueSet_*)set->list.next)
 	{
 		// Check if the required flags and present bit are set.
 		if ((set->flags & flags) != flags || (present && !set->present))
@@ -1629,21 +1628,21 @@ _GFXQueueSet* _gfx_pick_family(_GFXContext* context, uint32_t* family,
 }
 
 /****************************/
-_GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
+GFXQueueSet_* gfx_pick_queue_(GFXContext_* context, GFXQueue_* queue,
                               VkQueueFlags flags, bool present)
 {
 	assert(context != NULL);
 	assert(queue != NULL);
 	assert(flags != 0 || present);
 
-	// Ok so we can abuse _gfx_pick_family and just take its data.
+	// Ok so we can abuse gfx_pick_family_ and just take its data.
 	uint32_t family;
-	_GFXQueueSet* set = _gfx_pick_family(context, &family, flags, present);
+	GFXQueueSet_* set = gfx_pick_family_(context, &family, flags, present);
 
 	if (set != NULL)
 	{
 		// Pick a queue from the set.
-		const uint32_t index = _gfx_queue_index(set, flags, present);
+		const uint32_t index = gfx_queue_index_(set, flags, present);
 
 		// Get queue & return it.
 		queue->family = family;
@@ -1660,7 +1659,7 @@ _GFXQueueSet* _gfx_pick_queue(_GFXContext* context, _GFXQueue* queue,
 }
 
 /****************************/
-uint32_t _gfx_queue_index(_GFXQueueSet* set,
+uint32_t gfx_queue_index_(GFXQueueSet_* set,
                           VkQueueFlags flags, bool present)
 {
 	assert(set != NULL);
@@ -1670,7 +1669,7 @@ uint32_t _gfx_queue_index(_GFXQueueSet* set,
 
 	// Pick a queue from the set.
 	// This is done according to the order defined by
-	// _gfx_vk_queue_priorities, every entry is checked for existence.
+	// gfx_vk_queue_priorities_, every entry is checked for existence.
 	// The graphics and presentation abilities always get the same index,
 	// so hopefully we submit and present on the same queue.
 	uint32_t index =
@@ -1701,7 +1700,7 @@ uint32_t _gfx_queue_index(_GFXQueueSet* set,
 }
 
 /****************************/
-uint32_t _gfx_filter_families(GFXMemoryFlags flags, uint32_t* families)
+uint32_t gfx_filter_families_(GFXMemoryFlags flags, uint32_t* families)
 {
 	assert(families != NULL);
 
@@ -1736,26 +1735,26 @@ uint32_t _gfx_filter_families(GFXMemoryFlags flags, uint32_t* families)
 /****************************/
 GFX_API size_t gfx_get_num_devices(void)
 {
-	assert(atomic_load(&_groufix.initialized));
+	assert(atomic_load(&groufix_.initialized));
 
-	return _groufix.devices.size;
+	return groufix_.devices.size;
 }
 
 /****************************/
 GFX_API GFXDevice* gfx_get_device(size_t index)
 {
-	assert(atomic_load(&_groufix.initialized));
-	assert(_groufix.devices.size > 0);
-	assert(index < _groufix.devices.size);
+	assert(atomic_load(&groufix_.initialized));
+	assert(groufix_.devices.size > 0);
+	assert(index < groufix_.devices.size);
 
-	return gfx_vec_at(&_groufix.devices, index);
+	return gfx_vec_at(&groufix_.devices, index);
 }
 
 /****************************/
 GFX_API GFXDevice* gfx_get_primary_device(void)
 {
-	assert(atomic_load(&_groufix.initialized));
-	assert(_groufix.devices.size > 0);
+	assert(atomic_load(&groufix_.initialized));
+	assert(groufix_.devices.size > 0);
 
-	return gfx_vec_at(&_groufix.devices, 0);
+	return gfx_vec_at(&groufix_.devices, 0);
 }

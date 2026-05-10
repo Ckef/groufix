@@ -7,7 +7,6 @@
  */
 
 #include "groufix/containers/deque.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,7 +15,7 @@
  * Reallocates the data to a new given capacity and moves the data
  * around appropriately (size must already fit if shrinking!).
  */
-static bool _gfx_deque_realloc(GFXDeque* deque, size_t capacity)
+static bool gfx_deque_realloc_(GFXDeque* deque, size_t capacity)
 {
 	size_t front = deque->front;
 	size_t move = GFX_MIN(deque->size, deque->capacity - front);
@@ -66,7 +65,7 @@ static bool _gfx_deque_realloc(GFXDeque* deque, size_t capacity)
 /****************************
  * Increases the capacity such that it satisfies a minimum.
  */
-static bool _gfx_deque_grow(GFXDeque* deque, size_t minCapacity)
+static bool gfx_deque_grow_(GFXDeque* deque, size_t minCapacity)
 {
 	if (deque->capacity >= minCapacity)
 		return 1;
@@ -76,13 +75,13 @@ static bool _gfx_deque_grow(GFXDeque* deque, size_t minCapacity)
 	size_t cap = (deque->capacity > 0) ? deque->capacity << 1 : 1;
 	while (cap < minCapacity) cap <<= 1;
 
-	return _gfx_deque_realloc(deque, cap);
+	return gfx_deque_realloc_(deque, cap);
 }
 
 /****************************
  * Shrinks the capacity such that size > capacity/4.
  */
-static void _gfx_deque_shrink(GFXDeque* deque)
+static void gfx_deque_shrink_(GFXDeque* deque)
 {
 	// If we have more elements than capacity/4, don't shrink.
 	size_t cap = deque->capacity >> 1;
@@ -100,7 +99,7 @@ static void _gfx_deque_shrink(GFXDeque* deque)
 		// Keep dividing by 2 if we can, just like a vector :)
 		while (deque->size <= (cap >> 2)) cap >>= 1;
 
-		_gfx_deque_realloc(deque, cap);
+		gfx_deque_realloc_(deque, cap);
 	}
 }
 
@@ -140,7 +139,7 @@ GFX_API bool gfx_deque_reserve(GFXDeque* deque, size_t numElems)
 		// Here we actually allocate the given size exactly,
 		// we do not round up to a power of 2.
 		// In case it never grows beyond this requested capacity.
-		return _gfx_deque_realloc(deque, numElems);
+		return gfx_deque_realloc_(deque, numElems);
 	}
 
 	return 1;
@@ -162,7 +161,7 @@ GFX_API bool gfx_deque_push(GFXDeque* deque, size_t numElems,
 	assert(deque != NULL);
 	assert(numElems > 0);
 
-	if (!_gfx_deque_grow(deque, deque->size + numElems))
+	if (!gfx_deque_grow_(deque, deque->size + numElems))
 		return 0;
 
 	if (elems != NULL)
@@ -197,7 +196,7 @@ GFX_API bool gfx_deque_push_front(GFXDeque* deque, size_t numElems,
 	assert(deque != NULL);
 	assert(numElems > 0);
 
-	if (!_gfx_deque_grow(deque, deque->size + numElems))
+	if (!gfx_deque_grow_(deque, deque->size + numElems))
 		return 0;
 
 	// Move front index backwards.
@@ -234,7 +233,7 @@ GFX_API void gfx_deque_pop(GFXDeque* deque, size_t numElems)
 	assert(numElems > 0);
 
 	deque->size = (deque->size <= numElems) ? 0 : deque->size - numElems;
-	_gfx_deque_shrink(deque);
+	gfx_deque_shrink_(deque);
 }
 
 /****************************/
@@ -245,5 +244,5 @@ GFX_API void gfx_deque_pop_front(GFXDeque* deque, size_t numElems)
 
 	deque->front = (deque->front + numElems) % deque->capacity;
 	deque->size = (deque->size <= numElems) ? 0 : deque->size - numElems;
-	_gfx_deque_shrink(deque);
+	gfx_deque_shrink_(deque);
 }

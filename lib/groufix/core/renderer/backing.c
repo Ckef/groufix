@@ -7,7 +7,6 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 #include <limits.h>
 
 
@@ -15,7 +14,7 @@
  * Compares two user defined attachment descriptions.
  * @return Non-zero if equal.
  */
-static inline bool _gfx_cmp_attachments(const GFXAttachment* l,
+static inline bool gfx_cmp_attachments_(const GFXAttachment* l,
                                         const GFXAttachment* r)
 {
 	// Cannot use memcmp because of padding.
@@ -47,7 +46,7 @@ static inline bool _gfx_cmp_attachments(const GFXAttachment* l,
  * Increases the attachment 'generation'; invalidating any set entries
  * that reference this attachment.
  */
-static inline void _gfx_attach_gen(_GFXAttach* attach)
+static inline void gfx_attach_gen_(GFXAttach_* attach)
 {
 	if (++attach->gen == 0)
 	{
@@ -67,17 +66,17 @@ static inline void _gfx_attach_gen(_GFXAttach* attach)
  * @param attach Must be an image attachment of non-zero size.
  * @return Non-zero on success.
  */
-static bool _gfx_link_backing(GFXRenderer* renderer, _GFXAttach* attach)
+static bool gfx_link_backing_(GFXRenderer* renderer, GFXAttach_* attach)
 {
 	assert(renderer != NULL);
 	assert(attach != NULL);
-	assert(attach->type == _GFX_ATTACH_IMAGE);
+	assert(attach->type == GFX_ATTACH_IMAGE_);
 	assert(attach->image.width > 0);
 	assert(attach->image.height > 0);
 	assert(attach->image.depth > 0);
 
 	// Allocate a new backing image.
-	_GFXBacking* backing = _gfx_alloc_backing(renderer->heap, &attach->image);
+	GFXBacking_* backing = gfx_alloc_backing_(renderer->heap, &attach->image);
 	if (backing == NULL) return 0;
 
 	// We set its purge index to UINT_MAX so it never gets purged, yet.
@@ -95,19 +94,19 @@ static bool _gfx_link_backing(GFXRenderer* renderer, _GFXAttach* attach)
  * @param attach  Must be an image attachment.
  * @param backing Must be a backing image in attach->image.backings.
  */
-static void _gfx_unlink_backing(GFXRenderer* renderer, _GFXAttach* attach,
-                                _GFXBacking* backing)
+static void gfx_unlink_backing_(GFXRenderer* renderer, GFXAttach_* attach,
+                                GFXBacking_* backing)
 {
 	assert(renderer != NULL);
 	assert(attach != NULL);
-	assert(attach->type == _GFX_ATTACH_IMAGE);
+	assert(attach->type == GFX_ATTACH_IMAGE_);
 	assert(backing != NULL);
 
 	// Unlink it from its attachment.
 	gfx_list_erase(&attach->image.backings, &backing->list);
 
 	// Free the memory.
-	_gfx_free_backing(renderer->heap, backing);
+	gfx_free_backing_(renderer->heap, backing);
 }
 
 /****************************
@@ -115,7 +114,7 @@ static void _gfx_unlink_backing(GFXRenderer* renderer, _GFXAttach* attach,
  * @param renderer Cannot be NULL.
  * @return The attachment at index, NULL on failure.
  */
-static _GFXAttach* _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
+static GFXAttach_* gfx_alloc_attachments_(GFXRenderer* renderer, size_t index)
 {
 	assert(renderer != NULL);
 
@@ -139,9 +138,9 @@ static _GFXAttach* _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
 	// Set all empty.
 	for (size_t i = 0; i < elems; ++i)
 	{
-		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index - i);
+		GFXAttach_* attach = gfx_vec_at(&renderer->backing.attachs, index - i);
 		attach->gen = 1;
-		attach->type = _GFX_ATTACH_EMPTY;
+		attach->type = GFX_ATTACH_EMPTY_;
 	}
 
 	return gfx_vec_at(&renderer->backing.attachs, index);
@@ -158,61 +157,61 @@ static _GFXAttach* _gfx_alloc_attachments(GFXRenderer* renderer, size_t index)
  * Does not alter the render backing state!
  * Will block until rendering is done if detaching!
  */
-static bool _gfx_detach_attachment(GFXRenderer* renderer, _GFXAttach* attach,
+static bool gfx_detach_attachment_(GFXRenderer* renderer, GFXAttach_* attach,
                                    bool clear)
 {
 	assert(renderer != NULL);
 	assert(attach != NULL);
 
 	// Nothing to detach.
-	if (attach->type == _GFX_ATTACH_EMPTY)
+	if (attach->type == GFX_ATTACH_EMPTY_)
 		return 0;
 
 	// Before detaching, we wait until all rendering is done.
 	// This so we can 'detach' (i.e. destroy) the associated resources.
 	if (!clear)
-		_gfx_sync_frames(renderer);
+		gfx_sync_frames_(renderer);
 
 	// Destruct the render graph, it references these images,
 	// so for safety we destruct it all beforehand.
 	// This is not thread-safe at all, so we re-use the renderer's lock.
-	_gfx_mutex_lock(&renderer->lock);
+	gfx_mutex_lock_(&renderer->lock);
 
 	if (!clear)
-		_gfx_render_graph_destruct(renderer);
+		gfx_render_graph_destruct_(renderer);
 
 	// Then, if it is an image, reset the descriptor pools,
 	// this image attachment may not be referenced anymore!
-	if (attach->type == _GFX_ATTACH_IMAGE)
+	if (attach->type == GFX_ATTACH_IMAGE_)
 	{
 		// Also not thread-safe as sets/recorders could call the pool.
-		_gfx_pool_reset(&renderer->pool);
-		_gfx_mutex_unlock(&renderer->lock);
+		gfx_pool_reset_(&renderer->pool);
+		gfx_mutex_unlock_(&renderer->lock);
 
 		// Ok also just unlink & free all images.
 		while (attach->image.backings.tail != NULL)
-			_gfx_unlink_backing(renderer, attach,
-				(_GFXBacking*)attach->image.backings.tail);
+			gfx_unlink_backing_(renderer, attach,
+				(GFXBacking_*)attach->image.backings.tail);
 
 		gfx_list_clear(&attach->image.backings);
 
 		// Increase generation; the images may be used in set entries,
 		// ergo we need to invalidate those entries.
-		_gfx_attach_gen(attach);
+		gfx_attach_gen_(attach);
 	}
 	else
 		// If not an image, unlock.
-		_gfx_mutex_unlock(&renderer->lock);
+		gfx_mutex_unlock_(&renderer->lock);
 
 	// Finally, if it is a window, unlock the window.
-	if (attach->type == _GFX_ATTACH_WINDOW)
+	if (attach->type == GFX_ATTACH_WINDOW_)
 	{
-		_gfx_swapchain_unlock(attach->window.window);
+		gfx_swapchain_unlock_(attach->window.window);
 		attach->window.window = NULL;
 	}
 
 	// Describe attachment as empty.
-	attach->type = _GFX_ATTACH_EMPTY;
+	attach->type = GFX_ATTACH_EMPTY_;
 
 	return 1;
 }
@@ -225,10 +224,10 @@ static bool _gfx_detach_attachment(GFXRenderer* renderer, _GFXAttach* attach,
  * the associated attachment has been resized.
  * Will also reset any signaled image attachment.
  */
-static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
+static bool gfx_render_backing_resolve_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
-	assert(renderer->backing.state < _GFX_BACKING_VALIDATED);
+	assert(renderer->backing.state < GFX_BACKING_VALIDATED_);
 
 	// Ok so we keep track of whether each attachment is resolved.
 	// If no attachments, make VLAs of size 1 for legality.
@@ -238,12 +237,12 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 	// Set initial resolved state.
 	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 	{
-		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, i);
+		GFXAttach_* attach = gfx_vec_at(&renderer->backing.attachs, i);
 
 		// If not an image attachment, consider it resolved.
 		if(
-			attach->type == _GFX_ATTACH_EMPTY ||
-			attach->type == _GFX_ATTACH_WINDOW)
+			attach->type == GFX_ATTACH_EMPTY_ ||
+			attach->type == GFX_ATTACH_WINDOW_)
 		{
 			resolved[i] = 1;
 			++totalResolved;
@@ -283,7 +282,7 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 			if (resolved[i])
 				continue;
 
-			_GFXAttach* attach =
+			GFXAttach_* attach =
 				gfx_vec_at(&renderer->backing.attachs, i);
 
 			// Referenced attachment does not exist.
@@ -294,11 +293,11 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 			if (!resolved[attach->image.base.ref])
 				continue;
 
-			_GFXAttach* ref = gfx_vec_at(
+			GFXAttach_* ref = gfx_vec_at(
 				&renderer->backing.attachs, attach->image.base.ref);
 
 			// Referenced attachment is empty.
-			if (ref->type == _GFX_ATTACH_EMPTY)
+			if (ref->type == GFX_ATTACH_EMPTY_)
 				continue;
 
 			// Resolve.
@@ -306,7 +305,7 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 			uint32_t height = 0;
 			uint32_t depth = 0;
 
-			if (ref->type == _GFX_ATTACH_WINDOW)
+			if (ref->type == GFX_ATTACH_WINDOW_)
 				width = ref->window.window->frame.width,
 				height = ref->window.window->frame.height,
 				depth = 1;
@@ -328,8 +327,8 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 				// If it is, check the active backing (i.e. most recent).
 				if (attach->image.backings.head != NULL)
 				{
-					_GFXBacking* backing =
-						(_GFXBacking*)attach->image.backings.head;
+					GFXBacking_* backing =
+						(GFXBacking_*)attach->image.backings.head;
 
 					// If it exists and was signaled, we cannot free it yet.
 					// Some operation might still use the resource.
@@ -339,7 +338,7 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 						backing->purge = renderer->current;
 					else
 						// If not signaled, just unlink & free the backing.
-						_gfx_unlink_backing(renderer, attach, backing);
+						gfx_unlink_backing_(renderer, attach, backing);
 				}
 
 				// Then we invalidate the most recent image!
@@ -350,7 +349,7 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 
 				// Increase generation; image may be used in set entries,
 				// ergo we need to invalidate those entries.
-				_gfx_attach_gen(attach);
+				gfx_attach_gen_(attach);
 			}
 
 			// Reset signaled state, resolved.
@@ -376,7 +375,7 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
 	}
 
 	// It's now validated!
-	renderer->backing.state = _GFX_BACKING_VALIDATED;
+	renderer->backing.state = GFX_BACKING_VALIDATED_;
 
 	return 1;
 }
@@ -386,21 +385,21 @@ static bool _gfx_render_backing_resolve(GFXRenderer* renderer)
  * @param renderer Cannot be NULL, its backing state must be validated.
  * @return Number of failed allocations (0 means success).
  */
-static size_t _gfx_render_backing_alloc(GFXRenderer* renderer)
+static size_t gfx_render_backing_alloc_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
-	assert(renderer->backing.state == _GFX_BACKING_VALIDATED);
+	assert(renderer->backing.state == GFX_BACKING_VALIDATED_);
 
 	// So yeah go and make sure all attachments have an image.
 	size_t failed = 0;
 
 	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 	{
-		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, i);
+		GFXAttach_* attach = gfx_vec_at(&renderer->backing.attachs, i);
 		if (
 			// Not an image attachment, or already built!
 			// Also do nothing when any dimension is zero.
-			attach->type != _GFX_ATTACH_IMAGE ||
+			attach->type != GFX_ATTACH_IMAGE_ ||
 			attach->image.vk.image != VK_NULL_HANDLE ||
 			attach->image.width == 0 ||
 			attach->image.height == 0 ||
@@ -410,29 +409,29 @@ static size_t _gfx_render_backing_alloc(GFXRenderer* renderer)
 		}
 
 		// Allocate & link the backing image!
-		failed += !_gfx_link_backing(renderer, attach);
+		failed += !gfx_link_backing_(renderer, attach);
 	}
 
 	if (failed == 0)
 		// Yey built.
-		renderer->backing.state = _GFX_BACKING_BUILT;
+		renderer->backing.state = GFX_BACKING_BUILT_;
 
 	return failed;
 }
 
 /****************************/
-void _gfx_render_backing_init(GFXRenderer* renderer)
+void gfx_render_backing_init_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
-	gfx_vec_init(&renderer->backing.attachs, sizeof(_GFXAttach));
+	gfx_vec_init(&renderer->backing.attachs, sizeof(GFXAttach_));
 
 	// No backing is a valid backing.
-	renderer->backing.state = _GFX_BACKING_BUILT;
+	renderer->backing.state = GFX_BACKING_BUILT_;
 }
 
 /****************************/
-void _gfx_render_backing_clear(GFXRenderer* renderer)
+void gfx_render_backing_clear_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
@@ -440,29 +439,29 @@ void _gfx_render_backing_clear(GFXRenderer* renderer)
 	// destroy all related resources AND unlock the windows.
 	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 	{
-		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, i);
-		_gfx_detach_attachment(renderer, attach, 1);
+		GFXAttach_* attach = gfx_vec_at(&renderer->backing.attachs, i);
+		gfx_detach_attachment_(renderer, attach, 1);
 	}
 
 	gfx_vec_clear(&renderer->backing.attachs);
 }
 
 /****************************/
-bool _gfx_render_backing_build(GFXRenderer* renderer)
+bool gfx_render_backing_build_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
 	// Already done.
-	if (renderer->backing.state == _GFX_BACKING_BUILT)
+	if (renderer->backing.state == GFX_BACKING_BUILT_)
 		return 1;
 
 	// Resolve if not yet done.
-	if (renderer->backing.state < _GFX_BACKING_VALIDATED)
-		if (!_gfx_render_backing_resolve(renderer))
+	if (renderer->backing.state < GFX_BACKING_VALIDATED_)
+		if (!gfx_render_backing_resolve_(renderer))
 			return 0;
 
 	// Build all attachments.
-	size_t failed = _gfx_render_backing_alloc(renderer);
+	size_t failed = gfx_render_backing_alloc_(renderer);
 
 	if (failed > 0)
 	{
@@ -477,32 +476,32 @@ bool _gfx_render_backing_build(GFXRenderer* renderer)
 }
 
 /****************************/
-void _gfx_render_backing_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
+void gfx_render_backing_rebuild_(GFXRenderer* renderer, GFXRecreateFlags_ flags)
 {
 	assert(renderer != NULL);
-	assert(flags & _GFX_RECREATE);
+	assert(flags & GFX_RECREATE_);
 
 	// Nothing to rebuild if not resized or nothing is built yet.
 	if (
-		!(flags & _GFX_RESIZE) ||
-		renderer->backing.state == _GFX_BACKING_INVALID)
+		!(flags & GFX_RESIZE_) ||
+		renderer->backing.state == GFX_BACKING_INVALID_)
 	{
 		return;
 	}
 
 	// Remember if we want to rebuild affected attachments,
 	// then invalidate the build for resolving.
-	const bool built = (renderer->backing.state == _GFX_BACKING_BUILT);
-	renderer->backing.state = _GFX_BACKING_INVALID;
+	const bool built = (renderer->backing.state == GFX_BACKING_BUILT_);
+	renderer->backing.state = GFX_BACKING_INVALID_;
 
 	// Re-resolve, this should log errors.
-	if (!_gfx_render_backing_resolve(renderer))
+	if (!gfx_render_backing_resolve_(renderer))
 		return;
 
 	if (built)
 	{
 		// Ok now rebuild all the affected attachments.
-		size_t failed = _gfx_render_backing_alloc(renderer);
+		size_t failed = gfx_render_backing_alloc_(renderer);
 
 		if (failed > 0)
 			gfx_log_error(
@@ -512,7 +511,7 @@ void _gfx_render_backing_rebuild(GFXRenderer* renderer, _GFXRecreateFlags flags)
 }
 
 /****************************/
-void _gfx_render_backing_purge(GFXRenderer* renderer)
+void gfx_render_backing_purge_(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
 
@@ -524,18 +523,18 @@ void _gfx_render_backing_purge(GFXRenderer* renderer)
 	// per frame anyway.
 	for (size_t i = 0; i < renderer->backing.attachs.size; ++i)
 	{
-		_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, i);
+		GFXAttach_* attach = gfx_vec_at(&renderer->backing.attachs, i);
 		if (
-			attach->type == _GFX_ATTACH_IMAGE &&
+			attach->type == GFX_ATTACH_IMAGE_ &&
 			// If head != tail, we have a not-most-recent backing.
 			attach->image.backings.head != attach->image.backings.tail)
 		{
-			_GFXBacking* backing =
-				(_GFXBacking*)attach->image.backings.tail;
+			GFXBacking_* backing =
+				(GFXBacking_*)attach->image.backings.tail;
 
 			// If its purge index is this frame, unlink & free it!
 			if (backing->purge == renderer->current)
-				_gfx_unlink_backing(renderer, attach, backing);
+				gfx_unlink_backing_(renderer, attach, backing);
 		}
 	}
 }
@@ -554,14 +553,14 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 	attachment.flags |= GFX_MEMORY_DEVICE_LOCAL;
 
 	// Fix sample count.
-	attachment.samples = _GFX_GET_VK_SAMPLE_COUNT(attachment.samples);
+	attachment.samples = GFX_GET_VK_SAMPLE_COUNT_(attachment.samples);
 
 	// Resolve attachment's format.
 	VkFormat vkFmt;
-	_GFX_RESOLVE_FORMAT(attachment.format, vkFmt, renderer->heap->allocator.device,
+	GFX_RESOLVE_FORMAT_(attachment.format, vkFmt, renderer->heap->allocator.device,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
-			.optimalTilingFeatures = _GFX_GET_VK_FORMAT_FEATURES(
+			.optimalTilingFeatures = GFX_GET_VK_FORMAT_FEATURES_(
 				attachment.flags, attachment.usage, attachment.format),
 			.bufferFeatures = 0
 		}), {
@@ -570,7 +569,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 		});
 
 	// Attachments are special, so we add some convenience errors.
-	VkImageUsageFlags usage = _GFX_GET_VK_IMAGE_USAGE(
+	VkImageUsageFlags usage = GFX_GET_VK_IMAGE_USAGE_(
 		attachment.flags, attachment.usage, attachment.format);
 
 	if ((usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) &&
@@ -588,29 +587,29 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 	}
 
 	// Make sure the attachment exists.
-	_GFXAttach* attach = _gfx_alloc_attachments(renderer, index);
+	GFXAttach_* attach = gfx_alloc_attachments_(renderer, index);
 	if (attach == NULL)
 		return 0;
 
 	// Check if the new attachment is equal to what is already stored.
 	// If so, nothing to do here.
 	if (
-		attach->type == _GFX_ATTACH_IMAGE &&
-		_gfx_cmp_attachments(&attachment, &attach->image.base))
+		attach->type == GFX_ATTACH_IMAGE_ &&
+		gfx_cmp_attachments_(&attachment, &attach->image.base))
 	{
 		return 1;
 	}
 
 	// Detach the current attachment.
-	if (!_gfx_detach_attachment(renderer, attach, 0))
+	if (!gfx_detach_attachment_(renderer, attach, 0))
 	{
 		// In case the attachment was already consumed anyway.
-		_gfx_render_graph_invalidate(renderer);
+		gfx_render_graph_invalidate_(renderer);
 	}
 
 	// Newly describe the attachment index.
-	attach->type = _GFX_ATTACH_IMAGE;
-	attach->image = (_GFXImageAttach){
+	attach->type = GFX_ATTACH_IMAGE_;
+	attach->image = (GFXImageAttach_){
 		.base = attachment,
 		.width = 0,
 		.height = 0,
@@ -625,7 +624,7 @@ GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
 	gfx_list_init(&attach->image.backings);
 
 	// New attachment is not yet resolved.
-	renderer->backing.state = _GFX_BACKING_INVALID;
+	renderer->backing.state = GFX_BACKING_INVALID_;
 
 	return 1;
 }
@@ -642,17 +641,17 @@ GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
 	// If so, nothing to do.
 	if (index < renderer->backing.attachs.size)
 	{
-		_GFXAttach* at = gfx_vec_at(&renderer->backing.attachs, index);
+		GFXAttach_* at = gfx_vec_at(&renderer->backing.attachs, index);
 		if (
-			at->type == _GFX_ATTACH_WINDOW &&
-			at->window.window == (_GFXWindow*)window)
+			at->type == GFX_ATTACH_WINDOW_ &&
+			at->window.window == (GFXWindow_*)window)
 		{
 			return 1;
 		}
 	}
 
 	// Check if the renderer and the window share the same context.
-	if (renderer->cache.context != ((_GFXWindow*)window)->context)
+	if (renderer->cache.context != ((GFXWindow_*)window)->context)
 	{
 		gfx_log_error(
 			"When attaching a window to a renderer they must be built on "
@@ -662,7 +661,7 @@ GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
 	}
 
 	// Try to lock the window to this attachment.
-	if (!_gfx_swapchain_try_lock((_GFXWindow*)window))
+	if (!gfx_swapchain_try_lock_((GFXWindow_*)window))
 	{
 		gfx_log_error(
 			"A window can only be attached to one attachment index of one "
@@ -673,29 +672,29 @@ GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
 
 	// Ready to attach..
 	// Make sure the attachment exists.
-	_GFXAttach* attach = _gfx_alloc_attachments(renderer, index);
+	GFXAttach_* attach = gfx_alloc_attachments_(renderer, index);
 	if (attach == NULL)
 	{
-		_gfx_swapchain_unlock((_GFXWindow*)window);
+		gfx_swapchain_unlock_((GFXWindow_*)window);
 		return 0;
 	}
 
 	// Detach the current attachment.
-	if (!_gfx_detach_attachment(renderer, attach, 0))
+	if (!gfx_detach_attachment_(renderer, attach, 0))
 	{
 		// Same as in gfx_renderer_attach.
-		_gfx_render_graph_invalidate(renderer);
+		gfx_render_graph_invalidate_(renderer);
 	}
 
 	// Initialize new window attachment.
-	attach->type = _GFX_ATTACH_WINDOW;
-	attach->window = (_GFXWindowAttach){
-		.window = (_GFXWindow*)window,
+	attach->type = GFX_ATTACH_WINDOW_;
+	attach->window = (GFXWindowAttach_){
+		.window = (GFXWindow_*)window,
 		.flags = 0
 	};
 
 	// Other attachment might be relative to this one.
-	renderer->backing.state = _GFX_BACKING_INVALID;
+	renderer->backing.state = GFX_BACKING_INVALID_;
 
 	return 1;
 }
@@ -706,10 +705,10 @@ GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer, size_t inde
 	assert(renderer != NULL);
 	assert(index < renderer->backing.attachs.size);
 
-	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
+	GFXAttach_* attach = gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Return attachment if it's there.
-	if (attach->type == _GFX_ATTACH_IMAGE)
+	if (attach->type == GFX_ATTACH_IMAGE_)
 		return attach->image.base;
 
 	return (GFXAttachment){
@@ -729,10 +728,10 @@ GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer, size_t index)
 	assert(renderer != NULL);
 	assert(index < renderer->backing.attachs.size);
 
-	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
+	GFXAttach_* attach = gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Return window if it's there.
-	if (attach->type == _GFX_ATTACH_WINDOW)
+	if (attach->type == GFX_ATTACH_WINDOW_)
 		return (GFXWindow*)attach->window.window;
 
 	return NULL;
@@ -745,10 +744,10 @@ GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index)
 	assert(!renderer->recording);
 	assert(index < renderer->backing.attachs.size);
 
-	_GFXAttach* attach = gfx_vec_at(&renderer->backing.attachs, index);
+	GFXAttach_* attach = gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Yeah well, detach :)
-	if (_gfx_detach_attachment(renderer, attach, 0))
+	if (gfx_detach_attachment_(renderer, attach, 0))
 		// Who knows what happens now.
-		renderer->backing.state = _GFX_BACKING_INVALID;
+		renderer->backing.state = GFX_BACKING_INVALID_;
 }

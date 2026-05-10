@@ -7,32 +7,31 @@
  */
 
 #include "groufix/core/mem.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 
 /****************************
- * Mirrors _GFXHashKey, but containing only one _GFXCacheElem*.
+ * Mirrors GFXHashKey_, but containing only one GFXCacheElem_*.
  */
-typedef struct _GFXRecycleKey
+typedef struct GFXRecycleKey_
 {
 	size_t len;
-	char bytes[sizeof(_GFXCacheElem*)];
+	char bytes[sizeof(GFXCacheElem_*)];
 
-} _GFXRecycleKey;
+} GFXRecycleKey_;
 
 
 /****************************
  * Helper to make all subordinates unclaim their allocating descriptor block,
  * and let them link all blocks into the pool's free list again.
  */
-static void _gfx_unclaim_pool_blocks(_GFXPool* pool)
+static void gfx_unclaim_pool_blocks_(GFXPool_* pool)
 {
 	for (
-		_GFXPoolSub* sub = (_GFXPoolSub*)pool->subs.head;
+		GFXPoolSub_* sub = (GFXPoolSub_*)pool->subs.head;
 		sub != NULL;
-		sub = (_GFXPoolSub*)sub->list.next)
+		sub = (GFXPoolSub_*)sub->list.next)
 	{
 		// If the block was full, the subordinate should already have linked
 		// it in the full list, so here we link it into the free list.
@@ -53,14 +52,14 @@ static void _gfx_unclaim_pool_blocks(_GFXPool* pool)
  * The block is not linked into the free or full list of the pool,
  * must manually be claimed by either the pool or a subordinate!
  */
-static _GFXPoolBlock* _gfx_alloc_pool_block(_GFXPool* pool)
+static GFXPoolBlock_* gfx_alloc_pool_block_(GFXPool_* pool)
 {
 	assert(pool != NULL);
 
-	_GFXContext* context = pool->context;
+	GFXContext_* context = pool->context;
 
 	// Allocate block.
-	_GFXPoolBlock* block = malloc(sizeof(_GFXPoolBlock));
+	GFXPoolBlock_* block = malloc(sizeof(GFXPoolBlock_));
 	if (block == NULL)
 		goto clean;
 
@@ -101,7 +100,7 @@ static _GFXPoolBlock* _gfx_alloc_pool_block(_GFXPool* pool)
 		}
 	};
 
-	_GFX_VK_CHECK(context->vk.CreateDescriptorPool(
+	GFX_VK_CHECK_(context->vk.CreateDescriptorPool(
 		context->vk.device, &dpci, NULL, &block->vk.pool), goto clean);
 
 	// Init the rest & return.
@@ -143,15 +142,15 @@ clean:
 
 /****************************
  * Frees a descriptor block, freeing GPU memory of all descriptor sets.
- * _GFXPoolElem objects from this pool are not erased from their hashtables!
+ * GFXPoolElem_ objects from this pool are not erased from their hashtables!
  * Does not unlink self from pool, must first be manually removed from any list!
  */
-static void _gfx_free_pool_block(_GFXPool* pool, _GFXPoolBlock* block)
+static void gfx_free_pool_block_(GFXPool_* pool, GFXPoolBlock_* block)
 {
 	assert(pool != NULL);
 	assert(block != NULL);
 
-	_GFXContext* context = pool->context;
+	GFXContext_* context = pool->context;
 
 	// Destroy descriptor pool, frees all descriptor sets for us.
 	context->vk.DestroyDescriptorPool(
@@ -164,23 +163,23 @@ static void _gfx_free_pool_block(_GFXPool* pool, _GFXPoolBlock* block)
 }
 
 /****************************
- * Recycles a yet-unrecycled _GFXPoolElem object holding a descriptor set.
- * No subordinate may hold an allocating block (see _gfx_unclaim_pool_blocks)!
+ * Recycles a yet-unrecycled GFXPoolElem_ object holding a descriptor set.
+ * No subordinate may hold an allocating block (see gfx_unclaim_pool_blocks_)!
  * If its descriptor block is now fully recycled, it will be automatically
  * destroyed & freed.
  * @param map  Must be the hashtable elem is currently stored in.
  * @param elem Element to recycle, will not be in map anymore after this call.
  * @return Non-zero if recycled, zero if erased.
  */
-static bool _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
-                                   _GFXPoolElem* elem)
+static bool gfx_recycle_pool_elem_(GFXPool_* pool, GFXMap* map,
+                                   GFXPoolElem_* elem)
 {
 	assert(pool != NULL);
 	assert(elem != NULL);
 	assert(map != NULL);
 	assert(map != &pool->recycled);
 
-	_GFXPoolBlock* block = elem->block;
+	GFXPoolBlock_* block = elem->block;
 	bool recycled = 1;
 
 	// Build a new key, only containing the cache element storing the
@@ -188,9 +187,9 @@ static bool _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	// descriptors anymore, but only for the layout.
 	// To get this, we know the first few bytes of a given key are required
 	// to hold this cache element :)
-	const _GFXHashKey* elemKey = gfx_map_key(map, elem);
+	const GFXHashKey_* elemKey = gfx_map_key(map, elem);
 
-	_GFXRecycleKey key;
+	GFXRecycleKey_ key;
 	key.len = sizeof(key.bytes);
 	memcpy(key.bytes, elemKey->bytes, sizeof(key.bytes));
 
@@ -198,7 +197,7 @@ static bool _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 	// Make sure to use the fast variants of map_(move|erase), so
 	// we can keep iterating outside this function!
 	if (!gfx_map_fmove(
-		map, &pool->recycled, elem, sizeof(_GFXRecycleKey), &key))
+		map, &pool->recycled, elem, sizeof(GFXRecycleKey_), &key))
 	{
 		// If that failed, erase it entirely, it will never be used again.
 		gfx_list_erase(&block->elems, &elem->list);
@@ -216,7 +215,7 @@ static bool _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 		// We know they are all in recycled as the number of in-use sets is 0.
 		while (block->elems.head != NULL)
 		{
-			_GFXPoolElem* bElem = (_GFXPoolElem*)block->elems.head;
+			GFXPoolElem_* bElem = (GFXPoolElem_*)block->elems.head;
 			gfx_list_erase(&block->elems, &bElem->list);
 			gfx_map_erase(&pool->recycled, bElem);
 		}
@@ -228,21 +227,21 @@ static bool _gfx_recycle_pool_elem(_GFXPool* pool, GFXMap* map,
 			&block->list);
 
 		// Then call the regular free.
-		_gfx_free_pool_block(pool, block);
+		gfx_free_pool_block_(pool, block);
 	}
 
 	return recycled;
 }
 
 /****************************
- * Makes yet-unstale _GFXPoolElem objects holding a descriptor set stale,
- * causing it to never be returned by _gfx_pool_get until truly recycled.
+ * Makes yet-unstale GFXPoolElem_ objects holding a descriptor set stale,
+ * causing it to never be returned by gfx_pool_get_ until truly recycled.
  * Might recycle the element immediately!
- * @see _gfx_recycle_pool_elem.
+ * @see gfx_recycle_pool_elem_.
  * @param flushes Gets truly recycled after #flushes.
  */
-static bool _gfx_make_pool_elem_stale(_GFXPool* pool, GFXMap* map,
-                                      _GFXPoolElem* elem, unsigned int flushes)
+static bool gfx_make_pool_elem_stale_(GFXPool_* pool, GFXMap* map,
+                                      GFXPoolElem_* elem, unsigned int flushes)
 {
 	assert(pool != NULL);
 	assert(elem != NULL);
@@ -256,7 +255,7 @@ static bool _gfx_make_pool_elem_stale(_GFXPool* pool, GFXMap* map,
 		atomic_load_explicit(&elem->flushes, memory_order_relaxed);
 
 	if (flushed >= flushes)
-		return _gfx_recycle_pool_elem(pool, map, elem);
+		return gfx_recycle_pool_elem_(pool, map, elem);
 
 	// Try to move the element to the stale hashtable.
 	// Make sure to use the fast variants of map_(move|erase), so
@@ -278,7 +277,7 @@ static bool _gfx_make_pool_elem_stale(_GFXPool* pool, GFXMap* map,
 }
 
 /****************************/
-bool _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes)
+bool gfx_pool_init_(GFXPool_* pool, GFXDevice_* device, unsigned int flushes)
 {
 	assert(pool != NULL);
 	assert(device != NULL);
@@ -288,12 +287,12 @@ bool _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes)
 	pool->flushes = flushes;
 
 	// Initialize the locks.
-	if (!_gfx_mutex_init(&pool->subLock))
+	if (!gfx_mutex_init_(&pool->subLock))
 		return 0;
 
-	if (!_gfx_mutex_init(&pool->recLock))
+	if (!gfx_mutex_init_(&pool->recLock))
 	{
-		_gfx_mutex_clear(&pool->subLock);
+		gfx_mutex_clear_(&pool->subLock);
 		return 0;
 	}
 
@@ -303,29 +302,29 @@ bool _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes)
 	gfx_list_init(&pool->subs);
 
 	gfx_map_init(&pool->immutable,
-		sizeof(_GFXPoolElem), _gfx_hash_murmur3, _gfx_hash_cmp);
+		sizeof(GFXPoolElem_), gfx_hash_murmur3_, gfx_hash_cmp_);
 	gfx_map_init(&pool->stale,
-		sizeof(_GFXPoolElem), _gfx_hash_murmur3, _gfx_hash_cmp);
+		sizeof(GFXPoolElem_), gfx_hash_murmur3_, gfx_hash_cmp_);
 	gfx_map_init(&pool->recycled,
-		sizeof(_GFXPoolElem), _gfx_hash_murmur3, _gfx_hash_cmp);
+		sizeof(GFXPoolElem_), gfx_hash_murmur3_, gfx_hash_cmp_);
 
 	return 1;
 }
 
 /****************************/
-void _gfx_pool_clear(_GFXPool* pool)
+void gfx_pool_clear_(GFXPool_* pool)
 {
 	assert(pool != NULL);
 
 	// Free all descriptor blocks.
 	// For this we first loop over all subordinates.
 	for (
-		_GFXPoolSub* sub = (_GFXPoolSub*)pool->subs.head;
+		GFXPoolSub_* sub = (GFXPoolSub_*)pool->subs.head;
 		sub != NULL;
-		sub = (_GFXPoolSub*)sub->list.next)
+		sub = (GFXPoolSub_*)sub->list.next)
 	{
 		if (sub->block != NULL)
-			_gfx_free_pool_block(pool, sub->block);
+			gfx_free_pool_block_(pool, sub->block);
 
 		// While we're at it, clear the mutable hashtables.
 		gfx_map_clear(&sub->mutable);
@@ -334,16 +333,16 @@ void _gfx_pool_clear(_GFXPool* pool)
 	// Then free all remaining blocks.
 	while (pool->free.head != NULL)
 	{
-		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->free.head;
+		GFXPoolBlock_* block = (GFXPoolBlock_*)pool->free.head;
 		gfx_list_erase(&pool->free, &block->list);
-		_gfx_free_pool_block(pool, block);
+		gfx_free_pool_block_(pool, block);
 	}
 
 	while (pool->full.head != NULL)
 	{
-		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->full.head;
+		GFXPoolBlock_* block = (GFXPoolBlock_*)pool->full.head;
 		gfx_list_erase(&pool->full, &block->list);
-		_gfx_free_pool_block(pool, block);
+		gfx_free_pool_block_(pool, block);
 	}
 
 	// Clear all the things.
@@ -355,19 +354,19 @@ void _gfx_pool_clear(_GFXPool* pool)
 	gfx_list_clear(&pool->full);
 	gfx_list_clear(&pool->subs);
 
-	_gfx_mutex_clear(&pool->recLock);
-	_gfx_mutex_clear(&pool->subLock);
+	gfx_mutex_clear_(&pool->recLock);
+	gfx_mutex_clear_(&pool->subLock);
 }
 
 /****************************/
-bool _gfx_pool_flush(_GFXPool* pool)
+bool gfx_pool_flush_(GFXPool_* pool)
 {
 	assert(pool != NULL);
 
 	// Firstly unclaim all subordinate blocks,
 	// in case any subordinate doesn't need to allocate anymore!
 	// Also allows us to recycle elements below :)
-	_gfx_unclaim_pool_blocks(pool);
+	gfx_unclaim_pool_blocks_(pool);
 
 	// So we keep track of success.
 	// This so at least all the flush counts of all elements in the
@@ -376,9 +375,9 @@ bool _gfx_pool_flush(_GFXPool* pool)
 
 	// So we loop over all subordinates and flush them.
 	for (
-		_GFXPoolSub* sub = (_GFXPoolSub*)pool->subs.head;
+		GFXPoolSub_* sub = (GFXPoolSub_*)pool->subs.head;
 		sub != NULL;
-		sub = (_GFXPoolSub*)sub->list.next)
+		sub = (GFXPoolSub_*)sub->list.next)
 	{
 		if (!gfx_map_merge(&pool->immutable, &sub->mutable))
 			success = 0;
@@ -395,18 +394,18 @@ bool _gfx_pool_flush(_GFXPool* pool)
 
 	// Start at the immutable table.
 	GFXMap* map = &pool->immutable;
-	_GFXPoolElem* elem;
+	GFXPoolElem_* elem;
 
 recycle:
 	elem = gfx_map_first(map);
 
 	while (elem != NULL)
 	{
-		_GFXPoolElem* next = gfx_map_next(map, elem);
+		GFXPoolElem_* next = gfx_map_next(map, elem);
 
 		// Recycle it if it has no more flushes to do (i.e. reaches 0).
 		if (atomic_fetch_sub_explicit(&elem->flushes, 1, memory_order_relaxed) == 1)
-			lost += !_gfx_recycle_pool_elem(pool, map, elem);
+			lost += !gfx_recycle_pool_elem_(pool, map, elem);
 
 		elem = next;
 	}
@@ -431,25 +430,25 @@ recycle:
 }
 
 /****************************/
-void _gfx_pool_reset(_GFXPool* pool)
+void gfx_pool_reset_(GFXPool_* pool)
 {
 	assert(pool != NULL);
 
-	_GFXContext* context = pool->context;
+	GFXContext_* context = pool->context;
 
 	// Firstly unclaim all subordinate blocks, just easier that way.
-	_gfx_unclaim_pool_blocks(pool);
+	gfx_unclaim_pool_blocks_(pool);
 
-	// Ok so get rid of all the _GFXPoolElem objects in all hashtables.
+	// Ok so get rid of all the GFXPoolElem_ objects in all hashtables.
 	// As they will soon store non-existent descriptor sets.
 	gfx_map_clear(&pool->immutable);
 	gfx_map_clear(&pool->stale);
 	gfx_map_clear(&pool->recycled);
 
 	for (
-		_GFXPoolSub* sub = (_GFXPoolSub*)pool->subs.head;
+		GFXPoolSub_* sub = (GFXPoolSub_*)pool->subs.head;
 		sub != NULL;
-		sub = (_GFXPoolSub*)sub->list.next)
+		sub = (GFXPoolSub_*)sub->list.next)
 	{
 		gfx_map_clear(&sub->mutable);
 	}
@@ -457,7 +456,7 @@ void _gfx_pool_reset(_GFXPool* pool)
 	// Then move all the full blocks to the free list.
 	while (pool->full.head != NULL)
 	{
-		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->full.head;
+		GFXPoolBlock_* block = (GFXPoolBlock_*)pool->full.head;
 		gfx_list_erase(&pool->full, &block->list);
 		gfx_list_insert_after(&pool->free, &block->list, NULL);
 
@@ -468,9 +467,9 @@ void _gfx_pool_reset(_GFXPool* pool)
 	// And reset all the blocks and their Vulkan descriptor pools.
 	// TODO: Free pools based on how many recycled descriptors there were.
 	for (
-		_GFXPoolBlock* block = (_GFXPoolBlock*)pool->free.head;
+		GFXPoolBlock_* block = (GFXPoolBlock_*)pool->free.head;
 		block != NULL;
-		block = (_GFXPoolBlock*)block->list.next)
+		block = (GFXPoolBlock_*)block->list.next)
 	{
 		gfx_list_clear(&block->elems);
 		atomic_store_explicit(&block->sets, 0, memory_order_relaxed);
@@ -481,14 +480,14 @@ void _gfx_pool_reset(_GFXPool* pool)
 }
 
 /****************************/
-void _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub)
+void gfx_pool_sub_(GFXPool_* pool, GFXPoolSub_* sub)
 {
 	assert(pool != NULL);
 	assert(sub != NULL);
 
 	// Initialize the subordinate.
 	gfx_map_init(&sub->mutable,
-		sizeof(_GFXPoolElem), _gfx_hash_murmur3, _gfx_hash_cmp);
+		sizeof(GFXPoolElem_), gfx_hash_murmur3_, gfx_hash_cmp_);
 
 	sub->block = NULL;
 
@@ -497,31 +496,31 @@ void _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub)
 }
 
 /****************************/
-void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub)
+void gfx_pool_unsub_(GFXPool_* pool, GFXPoolSub_* sub)
 {
 	assert(pool != NULL);
 	assert(sub != NULL);
 
 	// First unclaim all subordinate blocks,
 	// mostly so we can recycle on failure.
-	_gfx_unclaim_pool_blocks(pool);
+	gfx_unclaim_pool_blocks_(pool);
 
 	// Flush this subordinate & clear the hashtable.
 	// If it did not want to merge, the descriptor sets are lost...
 	if (!gfx_map_merge(&pool->immutable, &sub->mutable))
 	{
 		// Try to make every element stale instead...
-		// Same as in _gfx_pool_flush, we loop 'over' the moved nodes.
+		// Same as in gfx_pool_flush_, we loop 'over' the moved nodes.
 		size_t lost = 0;
-		_GFXPoolElem* elem = gfx_map_first(&sub->mutable);
+		GFXPoolElem_* elem = gfx_map_first(&sub->mutable);
 
 		while (elem != NULL)
 		{
-			_GFXPoolElem* next = gfx_map_next(&sub->mutable, elem);
+			GFXPoolElem_* next = gfx_map_next(&sub->mutable, elem);
 
 			// We don't actually know any #flushes to use for this,
 			// so just use the global #flushes of the pool.
-			lost += !_gfx_make_pool_elem_stale(
+			lost += !gfx_make_pool_elem_stale_(
 				pool, &sub->mutable, elem, pool->flushes);
 
 			elem = next;
@@ -540,8 +539,8 @@ void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub)
 }
 
 /****************************/
-void _gfx_pool_recycle(_GFXPool* pool,
-                       const _GFXHashKey* key, unsigned int flushes)
+void gfx_pool_recycle_(GFXPool_* pool,
+                       const GFXHashKey_* key, unsigned int flushes)
 {
 	assert(pool != NULL);
 	assert(key != NULL);
@@ -549,25 +548,25 @@ void _gfx_pool_recycle(_GFXPool* pool,
 	const uint64_t hash = pool->immutable.hash(key);
 
 	// First unclaim all subordinate blocks, so we can recycle elements.
-	_gfx_unclaim_pool_blocks(pool);
+	gfx_unclaim_pool_blocks_(pool);
 
 	// Then find all matching elements in all tables and make them stale!
 	// Obviously we only check all subordinate hashtables & the immutable one.
 	size_t lost = 0;
 
 	for (
-		_GFXPoolSub* sub = (_GFXPoolSub*)pool->subs.head;
+		GFXPoolSub_* sub = (GFXPoolSub_*)pool->subs.head;
 		sub != NULL;
-		sub = (_GFXPoolSub*)sub->list.next)
+		sub = (GFXPoolSub_*)sub->list.next)
 	{
 		// Again, gfx_map_fmove guarantees the node order stays the same.
 		// We use this to loop 'over' the moved nodes.
-		_GFXPoolElem* elem = gfx_map_hsearch(&sub->mutable, key, hash);
+		GFXPoolElem_* elem = gfx_map_hsearch(&sub->mutable, key, hash);
 		while (elem != NULL)
 		{
-			_GFXPoolElem* next = gfx_map_next_equal(&sub->mutable, elem);
+			GFXPoolElem_* next = gfx_map_next_equal(&sub->mutable, elem);
 
-			lost += !_gfx_make_pool_elem_stale(
+			lost += !gfx_make_pool_elem_stale_(
 				pool, &sub->mutable, elem, flushes);
 
 			elem = next;
@@ -575,12 +574,12 @@ void _gfx_pool_recycle(_GFXPool* pool,
 	}
 
 	// Same search structure as above.
-	_GFXPoolElem* elem = gfx_map_hsearch(&pool->immutable, key, hash);
+	GFXPoolElem_* elem = gfx_map_hsearch(&pool->immutable, key, hash);
 	while (elem != NULL)
 	{
-		_GFXPoolElem* next = gfx_map_next_equal(&pool->immutable, elem);
+		GFXPoolElem_* next = gfx_map_next_equal(&pool->immutable, elem);
 
-		lost += !_gfx_make_pool_elem_stale(
+		lost += !gfx_make_pool_elem_stale_(
 			pool, &pool->immutable, elem, flushes);
 
 		elem = next;
@@ -596,9 +595,9 @@ void _gfx_pool_recycle(_GFXPool* pool,
 }
 
 /****************************/
-_GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
-                            const _GFXCacheElem* setLayout,
-                            const _GFXHashKey* key, const void* update)
+GFXPoolElem_* gfx_pool_get_(GFXPool_* pool, GFXPoolSub_* sub,
+                            const GFXCacheElem_* setLayout,
+                            const GFXHashKey_* key, const void* update)
 {
 	assert(pool != NULL);
 	assert(sub != NULL);
@@ -606,7 +605,7 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	assert(setLayout->type == VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
 	assert(key != NULL);
 
-	_GFXContext* context = pool->context;
+	GFXContext_* context = pool->context;
 	const uint64_t hash = pool->immutable.hash(key);
 
 	// First we check the pool's immutable table.
@@ -614,7 +613,7 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	// meaning our element will most likely be here after 1 frame.
 	// Given this function is only allowed to run concurrently with itself,
 	// we don't need any locks :)
-	_GFXPoolElem* elem = gfx_map_hsearch(&pool->immutable, key, hash);
+	GFXPoolElem_* elem = gfx_map_hsearch(&pool->immutable, key, hash);
 	if (elem != NULL) goto found;
 
 	// If not found, we check the subordinate's table.
@@ -625,11 +624,11 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 	// When an element is found, we need to move it to the subordinate.
 	// Therefore the recycled table can change, and we need to lock it.
 	// First create a key real quick tho (from the first few bytes of `key`).
-	_GFXRecycleKey recKey;
+	GFXRecycleKey_ recKey;
 	recKey.len = sizeof(recKey.bytes);
 	memcpy(recKey.bytes, key->bytes, sizeof(recKey.bytes));
 
-	_gfx_mutex_lock(&pool->recLock);
+	gfx_mutex_lock_(&pool->recLock);
 
 	elem = gfx_map_search(&pool->recycled, &recKey);
 	if (elem != NULL)
@@ -637,20 +636,20 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 		// move it to the subordinate so we can unlock.
 		if (!gfx_map_hmove(
 			&pool->recycled, &sub->mutable,
-			elem, _gfx_hash_size(key), key, hash))
+			elem, gfx_hash_size_(key), key, hash))
 		{
-			_gfx_mutex_unlock(&pool->recLock);
+			gfx_mutex_unlock_(&pool->recLock);
 			return NULL;
 		}
 
-	_gfx_mutex_unlock(&pool->recLock);
+	gfx_mutex_unlock_(&pool->recLock);
 
 	// If we STILL have no element, allocate a new descriptor set.
 	if (elem == NULL)
 	{
 		// Try to get a new map element.
 		elem = gfx_map_hinsert(
-			&sub->mutable, NULL, _gfx_hash_size(key), key, hash);
+			&sub->mutable, NULL, gfx_hash_size_(key), key, hash);
 
 		if (elem == NULL) return NULL;
 
@@ -662,17 +661,17 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 		// We need to lock for this again.
 		if (sub->block == NULL)
 		{
-			_gfx_mutex_lock(&pool->subLock);
+			gfx_mutex_lock_(&pool->subLock);
 
-			sub->block = (_GFXPoolBlock*)pool->free.head;
+			sub->block = (GFXPoolBlock_*)pool->free.head;
 			if (sub->block != NULL)
 				gfx_list_erase(&pool->free, &sub->block->list);
 
-			_gfx_mutex_unlock(&pool->subLock);
+			gfx_mutex_unlock_(&pool->subLock);
 
 			// If we didn't manage to claim a block, make one ourselves...
 			if (sub->block == NULL)
-				if ((sub->block = _gfx_alloc_pool_block(pool)) == NULL)
+				if ((sub->block = gfx_alloc_pool_block_(pool)) == NULL)
 				{
 					// ...
 					gfx_map_erase(&sub->mutable, elem);
@@ -703,20 +702,20 @@ _GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
 			result == VK_ERROR_FRAGMENTED_POOL ||
 			result == VK_ERROR_OUT_OF_POOL_MEMORY)
 		{
-			_gfx_mutex_lock(&pool->subLock);
+			gfx_mutex_lock_(&pool->subLock);
 
 			// Don't forget to set the full flag!
 			sub->block->full = 1;
 			gfx_list_insert_after(&pool->full, &sub->block->list, NULL);
 
-			_gfx_mutex_unlock(&pool->subLock);
+			gfx_mutex_unlock_(&pool->subLock);
 
 			sub->block = NULL;
 			goto try_block;
 		}
 
 		// Success?
-		_GFX_VK_CHECK(result,
+		GFX_VK_CHECK_(result,
 			{
 				gfx_map_erase(&sub->mutable, elem);
 				return NULL;

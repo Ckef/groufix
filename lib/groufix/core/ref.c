@@ -9,22 +9,22 @@
 #include "groufix/core/objects.h"
 
 
-#define _GFX_BUFFER ((_GFXBuffer*)ref.obj)
-#define _GFX_IMAGE ((_GFXImage*)ref.obj)
-#define _GFX_PRIMITIVE ((_GFXPrimitive*)ref.obj)
-#define _GFX_ATTRIBUTE (((_GFXPrimitive*)ref.obj)->attribs + ref.values[0])
-#define _GFX_GROUP ((_GFXGroup*)ref.obj)
-#define _GFX_BINDING (((_GFXGroup*)ref.obj)->bindings + ref.values[0])
-#define _GFX_RENDERER ((GFXRenderer*)ref.obj)
+#define GFX_BUFFER_ ((GFXBuffer_*)ref.obj)
+#define GFX_IMAGE_ ((GFXImage_*)ref.obj)
+#define GFX_PRIMITIVE_ ((GFXPrimitive_*)ref.obj)
+#define GFX_ATTRIBUTE_ (((GFXPrimitive_*)ref.obj)->attribs + ref.values[0])
+#define GFX_GROUP_ ((GFXGroup_*)ref.obj)
+#define GFX_BINDING_ (((GFXGroup_*)ref.obj)->bindings + ref.values[0])
+#define GFX_RENDERER_ ((GFXRenderer*)ref.obj)
 
-#define _GFX_VATTRIBUTE(ref) ref.values[0]
-#define _GFX_VBINDING(ref) ref.values[0]
-#define _GFX_VATTACHMENT(ref) ref.values[0]
-#define _GFX_VINDEX(ref) ref.values[1]
+#define GFX_VATTRIBUTE_(ref) ref.values[0]
+#define GFX_VBINDING_(ref) ref.values[0]
+#define GFX_VATTACHMENT_(ref) ref.values[0]
+#define GFX_VINDEX_(ref) ref.values[1]
 
 
 // Auto log when a resolve-validation statement is untrue.
-#define _GFX_CHECK_RESOLVE(eval, warning) \
+#define GFX_CHECK_RESOLVE_(eval, warning) \
 	do { \
 		if (!(eval)) { \
 			gfx_log_warn(warning); \
@@ -34,9 +34,9 @@
 
 // Auto log when an unpack-validation statement is untrue.
 #if defined (NDEBUG)
-	#define _GFX_CHECK_UNPACK(...)
+	#define GFX_CHECK_UNPACK_(...)
 #else
-	#define _GFX_CHECK_UNPACK(eval, warning) \
+	#define GFX_CHECK_UNPACK_(eval, warning) \
 		do { \
 			if (!(eval)) /* No return, behaves as if ndebug. */ \
 				gfx_log_warn(warning); \
@@ -45,32 +45,32 @@
 
 
 /****************************/
-uint64_t _gfx_ref_size(GFXReference ref)
+uint64_t gfx_ref_size_(GFXReference ref)
 {
 	switch (ref.type)
 	{
 	case GFX_REF_BUFFER:
-		return _GFX_BUFFER->base.size - ref.offset;
+		return GFX_BUFFER_->base.size - ref.offset;
 
 	case GFX_REF_PRIMITIVE_VERTICES:
-		return _GFX_PRIMITIVE->bindings[_GFX_ATTRIBUTE->binding].size -
+		return GFX_PRIMITIVE_->bindings[GFX_ATTRIBUTE_->binding].size -
 			ref.offset;
 
 	case GFX_REF_PRIMITIVE_INDICES:
-		return ((uint64_t)_GFX_PRIMITIVE->base.indexSize *
-			_GFX_PRIMITIVE->base.numIndices) - ref.offset;
+		return ((uint64_t)GFX_PRIMITIVE_->base.indexSize *
+			GFX_PRIMITIVE_->base.numIndices) - ref.offset;
 
 	case GFX_REF_PRIMITIVE:
-		return _GFX_PRIMITIVE->buffer.base.size - ref.offset;
+		return GFX_PRIMITIVE_->buffer.base.size - ref.offset;
 
 	case GFX_REF_GROUP_BUFFER:
-		return _GFX_BINDING->stride * (_GFX_BINDING->base.numElements - 1) +
-			(_GFX_BINDING->base.type == GFX_BINDING_BUFFER ?
-				_GFX_BINDING->base.elementSize : _GFX_BINDING->stride) -
+		return GFX_BINDING_->stride * (GFX_BINDING_->base.numElements - 1) +
+			(GFX_BINDING_->base.type == GFX_BINDING_BUFFER ?
+				GFX_BINDING_->base.elementSize : GFX_BINDING_->stride) -
 			ref.offset;
 
 	case GFX_REF_GROUP:
-		return _GFX_GROUP->buffer.base.size - ref.offset;
+		return GFX_GROUP_->buffer.base.size - ref.offset;
 
 	default:
 		// All others are not a buffer.
@@ -79,7 +79,7 @@ uint64_t _gfx_ref_size(GFXReference ref)
 }
 
 /****************************/
-GFXReference _gfx_ref_resolve(GFXReference ref)
+GFXReference gfx_ref_resolve_(GFXReference ref)
 {
 	// Potential recursive reference.
 	GFXReference rec = GFX_REF_NULL;
@@ -91,70 +91,70 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 	switch (ref.type)
 	{
 	case GFX_REF_PRIMITIVE_VERTICES:
-		_GFX_CHECK_RESOLVE(
-			_GFX_VATTRIBUTE(ref) < _GFX_PRIMITIVE->numAttribs,
+		GFX_CHECK_RESOLVE_(
+			GFX_VATTRIBUTE_(ref) < GFX_PRIMITIVE_->numAttribs,
 			"Referencing a non-existent vertex buffer!");
 
-		rec = _GFX_ATTRIBUTE->base.buffer; // Must be a buffer.
+		rec = GFX_ATTRIBUTE_->base.buffer; // Must be a buffer.
 
 		// If referencing the primitive's buffer, just return the prim itself.
-		if (rec.obj == &_GFX_PRIMITIVE->buffer) rec = GFX_REF_NULL;
+		if (rec.obj == &GFX_PRIMITIVE_->buffer) rec = GFX_REF_NULL;
 		else rec.offset += ref.offset;
 		break;
 
 	case GFX_REF_PRIMITIVE_INDICES:
-		_GFX_CHECK_RESOLVE(
-			_GFX_PRIMITIVE->base.numIndices > 0,
+		GFX_CHECK_RESOLVE_(
+			GFX_PRIMITIVE_->base.numIndices > 0,
 			"Referencing a non-existent index buffer!");
 
-		rec = _GFX_PRIMITIVE->index; // Must be a buffer.
+		rec = GFX_PRIMITIVE_->index; // Must be a buffer.
 
 		// If referencing the primitive's buffer, just return the prim itself.
-		if (rec.obj == &_GFX_PRIMITIVE->buffer) rec = GFX_REF_NULL;
+		if (rec.obj == &GFX_PRIMITIVE_->buffer) rec = GFX_REF_NULL;
 		else rec.offset += ref.offset;
 		break;
 
 	case GFX_REF_PRIMITIVE:
-		_GFX_CHECK_RESOLVE(
-			_GFX_PRIMITIVE->buffer.vk.buffer != VK_NULL_HANDLE,
+		GFX_CHECK_RESOLVE_(
+			GFX_PRIMITIVE_->buffer.vk.buffer != VK_NULL_HANDLE,
 			"Referencing a primitive without newly allocated buffers!");
 
 		break;
 
 	case GFX_REF_GROUP_BUFFER:
-		_GFX_CHECK_RESOLVE(
-			_GFX_VBINDING(ref) < _GFX_GROUP->numBindings &&
-			_GFX_VINDEX(ref) < _GFX_BINDING->base.count,
+		GFX_CHECK_RESOLVE_(
+			GFX_VBINDING_(ref) < GFX_GROUP_->numBindings &&
+			GFX_VINDEX_(ref) < GFX_BINDING_->base.count,
 			"Referencing a non-existent group buffer!");
 
-		_GFX_CHECK_RESOLVE(
-			_GFX_BINDING->base.type == GFX_BINDING_BUFFER ||
-			_GFX_BINDING->base.type == GFX_BINDING_BUFFER_TEXEL,
+		GFX_CHECK_RESOLVE_(
+			GFX_BINDING_->base.type == GFX_BINDING_BUFFER ||
+			GFX_BINDING_->base.type == GFX_BINDING_BUFFER_TEXEL,
 			"Group buffer reference not a buffer!");
 
-		rec = _GFX_BINDING->base.buffers[_GFX_VINDEX(ref)]; // Must be a buffer.
+		rec = GFX_BINDING_->base.buffers[GFX_VINDEX_(ref)]; // Must be a buffer.
 
 		// If referencing the group's buffer, just return the group ref.
-		if (rec.obj == &_GFX_GROUP->buffer) rec = GFX_REF_NULL;
+		if (rec.obj == &GFX_GROUP_->buffer) rec = GFX_REF_NULL;
 		else rec.offset += ref.offset;
 		break;
 
 	case GFX_REF_GROUP_IMAGE:
-		_GFX_CHECK_RESOLVE(
-			_GFX_VBINDING(ref) < _GFX_GROUP->numBindings &&
-			_GFX_VINDEX(ref) < _GFX_BINDING->base.count,
+		GFX_CHECK_RESOLVE_(
+			GFX_VBINDING_(ref) < GFX_GROUP_->numBindings &&
+			GFX_VINDEX_(ref) < GFX_BINDING_->base.count,
 			"Referencing a non-existent group image!");
 
-		_GFX_CHECK_RESOLVE(
-			_GFX_BINDING->base.type == GFX_BINDING_IMAGE,
+		GFX_CHECK_RESOLVE_(
+			GFX_BINDING_->base.type == GFX_BINDING_IMAGE,
 			"Group image reference not an image!");
 
-		rec = _GFX_BINDING->base.images[_GFX_VINDEX(ref)]; // Must be an image.
+		rec = GFX_BINDING_->base.images[GFX_VINDEX_(ref)]; // Must be an image.
 		break;
 
 	case GFX_REF_GROUP:
-		_GFX_CHECK_RESOLVE(
-			_GFX_GROUP->buffer.vk.buffer != VK_NULL_HANDLE,
+		GFX_CHECK_RESOLVE_(
+			GFX_GROUP_->buffer.vk.buffer != VK_NULL_HANDLE,
 			"Referencing a group without newly allocated buffers!");
 
 		break;
@@ -162,15 +162,15 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 	case GFX_REF_ATTACHMENT:
 		// Note that this is not thread-safe with respect to the attachment
 		// vector, luckily references don't have to be thread-safe (!).
-		_GFX_CHECK_RESOLVE(
-			_GFX_VATTACHMENT(ref) < _GFX_RENDERER->backing.attachs.size,
+		GFX_CHECK_RESOLVE_(
+			GFX_VATTACHMENT_(ref) < GFX_RENDERER_->backing.attachs.size,
 			"Referencing a non-existent renderer attachment!");
 
 		// Actually dig into the attachment to check its type...
-		_GFX_CHECK_RESOLVE(
-			((_GFXAttach*)gfx_vec_at(
-				&_GFX_RENDERER->backing.attachs,
-				_GFX_VATTACHMENT(ref)))->type == _GFX_ATTACH_IMAGE,
+		GFX_CHECK_RESOLVE_(
+			((GFXAttach_*)gfx_vec_at(
+				&GFX_RENDERER_->backing.attachs,
+				GFX_VATTACHMENT_(ref)))->type == GFX_ATTACH_IMAGE_,
 			"Renderer attachment reference not an image attachment!");
 
 		break;
@@ -184,16 +184,16 @@ GFXReference _gfx_ref_resolve(GFXReference ref)
 	if (GFX_REF_IS_NULL(rec))
 		return ref;
 	else
-		return _gfx_ref_resolve(rec);
+		return gfx_ref_resolve_(rec);
 }
 
 /****************************/
-_GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
+GFXUnpackRef_ gfx_ref_unpack_(GFXReference ref)
 {
-	ref = _gfx_ref_resolve(ref);
+	ref = gfx_ref_resolve_(ref);
 
 	// Init empty.
-	_GFXUnpackRef unp = {
+	GFXUnpackRef_ unp = {
 		.value = 0,
 		.obj = { .buffer = NULL, .image = NULL, .renderer = NULL }
 	};
@@ -204,76 +204,76 @@ _GFXUnpackRef _gfx_ref_unpack(GFXReference ref)
 	switch (ref.type)
 	{
 	case GFX_REF_BUFFER:
-		unp.obj.buffer = _GFX_BUFFER;
+		unp.obj.buffer = GFX_BUFFER_;
 		unp.value = ref.offset;
 
-		_GFX_CHECK_UNPACK(
+		GFX_CHECK_UNPACK_(
 			unp.value < unp.obj.buffer->base.size,
 			"Buffer reference out of bounds!");
 
 		break;
 
 	case GFX_REF_IMAGE:
-		unp.obj.image = _GFX_IMAGE;
+		unp.obj.image = GFX_IMAGE_;
 		break;
 
 	case GFX_REF_PRIMITIVE_VERTICES:
-		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
+		unp.obj.buffer = &GFX_PRIMITIVE_->buffer;
 		unp.value = ref.offset;
 
-		_GFX_CHECK_UNPACK(
+		GFX_CHECK_UNPACK_(
 			unp.value < unp.obj.buffer->base.size,
 			"Vertex buffer reference out of bounds!");
 
 		break;
 
 	case GFX_REF_PRIMITIVE_INDICES:
-		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
+		unp.obj.buffer = &GFX_PRIMITIVE_->buffer;
 		unp.value = ref.offset +
 			// Augment offset into vertex/index buffer.
-			_GFX_PRIMITIVE->index.offset;
+			GFX_PRIMITIVE_->index.offset;
 
-		_GFX_CHECK_UNPACK(
+		GFX_CHECK_UNPACK_(
 			unp.value < unp.obj.buffer->base.size,
 			"Index buffer reference out of bounds!");
 
 		break;
 
 	case GFX_REF_PRIMITIVE:
-		unp.obj.buffer = &_GFX_PRIMITIVE->buffer;
+		unp.obj.buffer = &GFX_PRIMITIVE_->buffer;
 		unp.value = ref.offset;
 
-		_GFX_CHECK_UNPACK(
+		GFX_CHECK_UNPACK_(
 			unp.value < unp.obj.buffer->base.size,
 			"Primitive buffer reference out of bounds!");
 
 		break;
 
 	case GFX_REF_GROUP_BUFFER:
-		unp.obj.buffer = &_GFX_GROUP->buffer;
+		unp.obj.buffer = &GFX_GROUP_->buffer;
 		unp.value = ref.offset +
 			// Augment offset into the group's buffer.
-			_GFX_BINDING->base.buffers[_GFX_VINDEX(ref)].offset;
+			GFX_BINDING_->base.buffers[GFX_VINDEX_(ref)].offset;
 
-		_GFX_CHECK_UNPACK(
+		GFX_CHECK_UNPACK_(
 			unp.value < unp.obj.buffer->base.size,
 			"Group buffer reference out of bounds!");
 
 		break;
 
 	case GFX_REF_GROUP:
-		unp.obj.buffer = &_GFX_GROUP->buffer;
+		unp.obj.buffer = &GFX_GROUP_->buffer;
 		unp.value = ref.offset;
 
-		_GFX_CHECK_UNPACK(
+		GFX_CHECK_UNPACK_(
 			unp.value < unp.obj.buffer->base.size,
 			"Group buffer reference out of bounds!");
 
 		break;
 
 	case GFX_REF_ATTACHMENT:
-		unp.obj.renderer = _GFX_RENDERER;
-		unp.value = _GFX_VATTACHMENT(ref);
+		unp.obj.renderer = GFX_RENDERER_;
+		unp.value = GFX_VATTACHMENT_(ref);
 		break;
 
 	default:

@@ -10,6 +10,7 @@
 #ifndef GFX_DEF_H
 #define GFX_DEF_H
 
+#include <assert.h>
 #include <inttypes.h>
 #include <stdalign.h>
 #include <stdbool.h>

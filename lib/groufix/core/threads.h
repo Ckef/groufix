@@ -7,8 +7,8 @@
  */
 
 
-#ifndef _GFX_CORE_THREADS_H
-#define _GFX_CORE_THREADS_H
+#ifndef GFX_CORE_THREADS_H_
+#define GFX_CORE_THREADS_H_
 
 #include "groufix/def.h"
 
@@ -24,9 +24,9 @@
  * Thread local data key.
  */
 #if defined (GFX_UNIX)
-	typedef pthread_key_t _GFXThreadKey;
+	typedef pthread_key_t GFXThreadKey_;
 #elif defined (GFX_WIN32)
-	typedef DWORD         _GFXThreadKey;
+	typedef DWORD         GFXThreadKey_;
 #endif
 
 
@@ -34,9 +34,9 @@
  * Mutual exclusion lock.
  */
 #if defined (GFX_UNIX)
-	typedef pthread_mutex_t  _GFXMutex;
+	typedef pthread_mutex_t  GFXMutex_;
 #elif defined (GFX_WIN32)
-	typedef CRITICAL_SECTION _GFXMutex;
+	typedef CRITICAL_SECTION GFXMutex_;
 #endif
 
 
@@ -49,7 +49,7 @@
  * The object pointed to by key cannot be moved or copied!
  * @return Non-zero on success.
  */
-static inline bool _gfx_thread_key_init(_GFXThreadKey* key)
+static inline bool gfx_thread_key_init_(GFXThreadKey_* key)
 {
 #if defined (GFX_UNIX)
 	return !pthread_key_create(key, NULL);
@@ -64,7 +64,7 @@ static inline bool _gfx_thread_key_init(_GFXThreadKey* key)
 /**
  * Clears a thread local data key.
  */
-static inline void _gfx_thread_key_clear(_GFXThreadKey key)
+static inline void gfx_thread_key_clear_(GFXThreadKey_ key)
 {
 #if defined (GFX_UNIX)
 	pthread_key_delete(key);
@@ -79,7 +79,7 @@ static inline void _gfx_thread_key_clear(_GFXThreadKey key)
  * Associate a thread specific value with a local data key.
  * @return Non-zero on success.
  */
-static inline bool _gfx_thread_key_set(_GFXThreadKey key, const void* value)
+static inline bool gfx_thread_key_set_(GFXThreadKey_ key, const void* value)
 {
 #if defined (GFX_UNIX)
 	return !pthread_setspecific(key, value);
@@ -94,7 +94,7 @@ static inline bool _gfx_thread_key_set(_GFXThreadKey key, const void* value)
  * Retrieve the thread specific value associated with a local data key.
  * @return The stored value, NULL if no value is associated.
  */
-static inline void* _gfx_thread_key_get(_GFXThreadKey key)
+static inline void* gfx_thread_key_get_(GFXThreadKey_ key)
 {
 #if defined (GFX_UNIX)
 	return pthread_getspecific(key);
@@ -115,7 +115,7 @@ static inline void* _gfx_thread_key_get(_GFXThreadKey key)
  * The object pointed to by mutex cannot be moved or copied!
  * @return Non-zero on success.
  */
-static inline bool _gfx_mutex_init(_GFXMutex* mutex)
+static inline bool gfx_mutex_init_(GFXMutex_* mutex)
 {
 #if defined (GFX_UNIX)
 	return !pthread_mutex_init(mutex, NULL);
@@ -131,7 +131,7 @@ static inline bool _gfx_mutex_init(_GFXMutex* mutex)
  * Clears a mutex.
  * Clearing a locked mutex is undefined behaviour.
  */
-static inline void _gfx_mutex_clear(_GFXMutex* mutex)
+static inline void gfx_mutex_clear_(GFXMutex_* mutex)
 {
 #if defined (GFX_UNIX)
 	pthread_mutex_destroy(mutex);
@@ -146,7 +146,7 @@ static inline void _gfx_mutex_clear(_GFXMutex* mutex)
  * Blocks until the calling thread is granted ownership of the mutex.
  * Locking an already owned mutex is undefined behaviour.
  */
-static inline void _gfx_mutex_lock(_GFXMutex* mutex)
+static inline void gfx_mutex_lock_(GFXMutex_* mutex)
 {
 #if defined (GFX_UNIX)
 	pthread_mutex_lock(mutex);
@@ -161,7 +161,7 @@ static inline void _gfx_mutex_lock(_GFXMutex* mutex)
  * Try to get ownership of the mutex without blocking.
  * @return Non-zero if ownership was granted.
  */
-static inline bool _gfx_mutex_try_lock(_GFXMutex* mutex)
+static inline bool gfx_mutex_try_lock_(GFXMutex_* mutex)
 {
 #if defined (GFX_UNIX)
 	return !pthread_mutex_trylock(mutex);
@@ -176,7 +176,7 @@ static inline bool _gfx_mutex_try_lock(_GFXMutex* mutex)
  * Releases the mutex, making it available to other threads.
  * Unlocking an already unlocked mutex is undefined behaviour.
  */
-static inline void _gfx_mutex_unlock(_GFXMutex* mutex)
+static inline void gfx_mutex_unlock_(GFXMutex_* mutex)
 {
 #if defined (GFX_UNIX)
 	pthread_mutex_unlock(mutex);

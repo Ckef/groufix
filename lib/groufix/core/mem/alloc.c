@@ -7,65 +7,64 @@
  */
 
 #include "groufix/core/mem.h"
-#include <assert.h>
 #include <stdlib.h>
 
 
 // Maximum size for a heap to be considered 'small' (1 GiB).
 // If a heap is 'small', blocks will be the size of the heap divided by 8.
-#define _GFX_MAX_SMALL_HEAP_SIZE (1024ull * 1024 * 1024)
+#define GFX_MAX_SMALL_HEAP_SIZE_ (1024ull * 1024 * 1024)
 
 // Preferred memory block size of a 'large' heap (256 MiB).
-#define _GFX_DEF_LARGE_HEAP_BLOCK_SIZE (256ull * 1024 * 1024)
+#define GFX_DEF_LARGE_HEAP_BLOCK_SIZE_ (256ull * 1024 * 1024)
 
 
 // Get the size and offset of a key (as an lvalue) +
 // Get the strictest alignment (i.e. the least significant bit) of a key,
 // returns all 1's on no alignment, this so it always compares as stricter.
-#define _GFX_KEY_SIZE(key) \
+#define GFX_KEY_SIZE_(key) \
 	((VkDeviceSize*)(key))[0]
 
-#define _GFX_KEY_OFFSET(key) \
+#define GFX_KEY_OFFSET_(key) \
 	((VkDeviceSize*)(key))[1]
 
-#define _GFX_KEY_ALIGN(key) \
-	(_GFX_KEY_OFFSET(key) == 0 ? ~((VkDeviceSize)0) : \
-	_GFX_KEY_OFFSET(key) & (~_GFX_KEY_OFFSET(key) + 1))
+#define GFX_KEY_ALIGN_(key) \
+	(GFX_KEY_OFFSET_(key) == 0 ? ~((VkDeviceSize)0) : \
+	GFX_KEY_OFFSET_(key) & (~GFX_KEY_OFFSET_(key) + 1))
 
 
 // Get Vulkan memory property flag bits as a readable string.
-#define _GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, flag) \
+#define GFX_GET_VK_TYPE_FLAG_STRING_(pdmp, type, flag) \
 	((flag & (pdmp)->memoryTypes[type].propertyFlags) ? \
 		"        "#flag"\n" : "")
 
-#define _GFX_GET_VK_TYPE_EMPTY_STRING(pdmp, type) \
+#define GFX_GET_VK_TYPE_EMPTY_STRING_(pdmp, type) \
 	((pdmp)->memoryTypes[type].propertyFlags == 0 ? \
 		"None." : "")
 
-#define _GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(pdmp, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+#define GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING_(pdmp, type) \
+	GFX_GET_VK_TYPE_FLAG_STRING_(pdmp, type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
 
-#define _GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(pdmp, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+#define GFX_GET_VK_TYPE_HOST_VISIBLE_STRING_(pdmp, type) \
+	GFX_GET_VK_TYPE_FLAG_STRING_(pdmp, type, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
 
-#define _GFX_GET_VK_TYPE_HOST_COHERENT_STRING(pdmp, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+#define GFX_GET_VK_TYPE_HOST_COHERENT_STRING_(pdmp, type) \
+	GFX_GET_VK_TYPE_FLAG_STRING_(pdmp, type, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
-#define _GFX_GET_VK_TYPE_HOST_CACHED_STRING(pdmp, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
+#define GFX_GET_VK_TYPE_HOST_CACHED_STRING_(pdmp, type) \
+	GFX_GET_VK_TYPE_FLAG_STRING_(pdmp, type, VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
 
-#define _GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(pdmp, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)
+#define GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING_(pdmp, type) \
+	GFX_GET_VK_TYPE_FLAG_STRING_(pdmp, type, VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)
 
-#define _GFX_GET_VK_TYPE_PROTECTED_STRING(pdmp, type) \
-	_GFX_GET_VK_TYPE_FLAG_STRING(pdmp, type, VK_MEMORY_PROPERTY_PROTECTED_BIT)
+#define GFX_GET_VK_TYPE_PROTECTED_STRING_(pdmp, type) \
+	GFX_GET_VK_TYPE_FLAG_STRING_(pdmp, type, VK_MEMORY_PROPERTY_PROTECTED_BIT)
 
 
 // Gets suitable memory types (auto log when none found) assigned to two lvalue.
-#define _GFX_GET_MEM_TYPES(lreq, lopt, pdmp, required, optimal, types, action) \
+#define GFX_GET_MEM_TYPES_(lreq, lopt, pdmp, required, optimal, types, action) \
 	do { \
-		lreq = _gfx_get_mem_type(pdmp, required, types); \
-		lopt = _gfx_get_mem_type(pdmp, optimal, types); \
+		lreq = gfx_get_mem_type_(pdmp, required, types); \
+		lopt = gfx_get_mem_type_(pdmp, optimal, types); \
 		if (lreq == UINT32_MAX && lopt == UINT32_MAX) { \
 			gfx_log_error( \
 				"Could not find suitable Vulkan memory type for allocation."); \
@@ -79,16 +78,16 @@
  * First element is the size, second is the offset.
  * Orders on size first, then strictest alignment (i.e. LSB of offset).
  */
-static int _gfx_allocator_cmp(const void* l, const void* r)
+static int gfx_allocator_cmp_(const void* l, const void* r)
 {
 	const VkDeviceSize* kL = l;
 	const VkDeviceSize* kR = r;
 
 	return
-		(_GFX_KEY_SIZE(kL) < _GFX_KEY_SIZE(kR)) ? -1 :
-		(_GFX_KEY_SIZE(kL) > _GFX_KEY_SIZE(kR)) ?  1 :
-		(_GFX_KEY_ALIGN(kL) < _GFX_KEY_ALIGN(kR)) ? -1 :
-		(_GFX_KEY_ALIGN(kL) > _GFX_KEY_ALIGN(kR)) ?  1 : 0;
+		(GFX_KEY_SIZE_(kL) < GFX_KEY_SIZE_(kR)) ? -1 :
+		(GFX_KEY_SIZE_(kL) > GFX_KEY_SIZE_(kR)) ?  1 :
+		(GFX_KEY_ALIGN_(kL) < GFX_KEY_ALIGN_(kR)) ? -1 :
+		(GFX_KEY_ALIGN_(kL) > GFX_KEY_ALIGN_(kR)) ?  1 : 0;
 }
 
 /****************************
@@ -97,7 +96,7 @@ static int _gfx_allocator_cmp(const void* l, const void* r)
  * @param types Supported (i.e. required) memory type bits to choose from.
  * @return UINT32_MAX if none found.
  */
-static uint32_t _gfx_get_mem_type(const VkPhysicalDeviceMemoryProperties* pdmp,
+static uint32_t gfx_get_mem_type_(const VkPhysicalDeviceMemoryProperties* pdmp,
                                   VkMemoryPropertyFlags flags, uint32_t types)
 {
 	assert(pdmp != NULL);
@@ -134,7 +133,7 @@ static uint32_t _gfx_get_mem_type(const VkPhysicalDeviceMemoryProperties* pdmp,
  * To allocate Vulkan 'dedicated' memory, a buffer _OR_ image can be passed,
  * these will be passed to Vulkan if and only if minSize == maxSIze.
  */
-static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
+static GFXMemBlock_* gfx_alloc_mem_block_(GFXAllocator_* alloc,
                                           const VkPhysicalDeviceMemoryProperties* pdmp,
                                           uint32_t type,
                                           VkDeviceSize minSize, VkDeviceSize maxSize,
@@ -145,12 +144,12 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 	assert(minSize <= maxSize);
 	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
 
-	_GFXContext* context = alloc->context;
+	GFXContext_* context = alloc->context;
 
 	// Firstly, check against Vulkan's allocation limit & take the lock.
 	// We have to lock such that two concurrent allocations both fail properly
 	// if the limit only allows one more allocation.
-	_gfx_mutex_lock(&context->limits.allocLock);
+	gfx_mutex_lock_(&context->limits.allocLock);
 
 	if (atomic_load(&context->limits.allocs) >= context->limits.maxAllocs)
 	{
@@ -159,7 +158,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 			"of %"PRIu32" memory allocations has been reached.",
 			minSize, context->limits.maxAllocs);
 
-		_gfx_mutex_unlock(&context->limits.allocLock);
+		gfx_mutex_unlock_(&context->limits.allocLock);
 		return NULL;
 	}
 
@@ -169,7 +168,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 	// but honestly at that point something else is horribly wrong...
 	atomic_fetch_add(&context->limits.allocs, 1);
 
-	_gfx_mutex_unlock(&context->limits.allocLock);
+	gfx_mutex_unlock_(&context->limits.allocLock);
 
 	// Validate that we have enough memory.
 	const VkDeviceSize heapSize =
@@ -188,9 +187,9 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 	// Calculate block size in Vulkan units.
 	// If it is a 'small' heap, we allocate the heap's size divided by 8.
 	const VkDeviceSize prefBlockSize =
-		(heapSize <= _GFX_MAX_SMALL_HEAP_SIZE) ?
+		(heapSize <= GFX_MAX_SMALL_HEAP_SIZE_) ?
 		heapSize / 8 :
-		_GFX_DEF_LARGE_HEAP_BLOCK_SIZE;
+		GFX_DEF_LARGE_HEAP_BLOCK_SIZE_;
 
 	VkDeviceSize blockSize =
 		GFX_CLAMP(prefBlockSize, minSize, maxSize);
@@ -208,11 +207,11 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 	};
 
 	// Allocate block & init.
-	_GFXMemBlock* block = malloc(sizeof(_GFXMemBlock));
+	GFXMemBlock_* block = malloc(sizeof(GFXMemBlock_));
 	if (block == NULL)
 		goto clean;
 
-	if (!_gfx_mutex_init(&block->map.lock))
+	if (!gfx_mutex_init_(&block->map.lock))
 		goto clean;
 
 	// Allocate the actual Vulkan memory object.
@@ -234,7 +233,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 		if (result != VK_ERROR_OUT_OF_DEVICE_MEMORY)
 		{
 			// Success?
-			_GFX_VK_CHECK(result, goto clean_lock);
+			GFX_VK_CHECK_(result, goto clean_lock);
 			break;
 		}
 
@@ -243,7 +242,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 		// Can't go smaller than the minimum requested either..
 		if (i >= 3 || blockSize <= minSize)
 		{
-			_GFX_VK_CHECK(result, {});
+			GFX_VK_CHECK_(result, {});
 			goto clean_lock;
 		}
 
@@ -261,7 +260,7 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 	block->map.ptr = NULL;
 
 	gfx_list_init(&block->nodes.list);
-	gfx_tree_init(&block->nodes.free, sizeof(key), _gfx_allocator_cmp);
+	gfx_tree_init(&block->nodes.free, sizeof(key), gfx_allocator_cmp_);
 
 	// If an exact size, link the block into the full list.
 	// As there is no free root node, it will be regarded as full.
@@ -270,8 +269,8 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 	else
 	{
 		// If not an exact size however (!), insert a free root node.
-		_GFXMemNode* node = gfx_tree_insert(
-			&block->nodes.free, sizeof(_GFXMemNode), NULL, key);
+		GFXMemNode_* node = gfx_tree_insert(
+			&block->nodes.free, sizeof(GFXMemNode_), NULL, key);
 
 		// Ah well..
 		if (node == NULL)
@@ -295,13 +294,13 @@ static _GFXMemBlock* _gfx_alloc_mem_block(_GFXAllocator* alloc,
 		dedicated ? " (dedicated)" : "",
 		prefBlockSize,
 		heapSize,
-		_GFX_GET_VK_TYPE_EMPTY_STRING(pdmp, type),
-		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(pdmp, type),
-		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(pdmp, type),
-		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(pdmp, type),
-		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(pdmp, type),
-		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(pdmp, type),
-		_GFX_GET_VK_TYPE_PROTECTED_STRING(pdmp, type));
+		GFX_GET_VK_TYPE_EMPTY_STRING_(pdmp, type),
+		GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING_(pdmp, type),
+		GFX_GET_VK_TYPE_HOST_VISIBLE_STRING_(pdmp, type),
+		GFX_GET_VK_TYPE_HOST_COHERENT_STRING_(pdmp, type),
+		GFX_GET_VK_TYPE_HOST_CACHED_STRING_(pdmp, type),
+		GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING_(pdmp, type),
+		GFX_GET_VK_TYPE_PROTECTED_STRING_(pdmp, type));
 
 	return block;
 
@@ -312,7 +311,7 @@ clean_memory:
 	gfx_tree_clear(&block->nodes.free);
 	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
 clean_lock:
-	_gfx_mutex_clear(&block->map.lock);
+	gfx_mutex_clear_(&block->map.lock);
 clean:
 	gfx_log_error(
 		"Could not allocate a new %sVulkan memory object of %"PRIu64" bytes.",
@@ -331,12 +330,12 @@ fail_decrease:
 /****************************
  * Frees a memory block, also freeing the Vulkan memory object.
  */
-static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
+static void gfx_free_mem_block_(GFXAllocator_* alloc, GFXMemBlock_* block)
 {
 	assert(alloc != NULL);
 	assert(block != NULL);
 
-	_GFXContext* context = alloc->context;
+	GFXContext_* context = alloc->context;
 
 	// Free the Vulkan memory and decrease the allocation count afterwards.
 	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
@@ -349,12 +348,12 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 
 	gfx_list_clear(&block->nodes.list);
 	gfx_tree_clear(&block->nodes.free);
-	_gfx_mutex_clear(&block->map.lock);
+	gfx_mutex_clear_(&block->map.lock);
 
 #if !defined (NDEBUG)
 	// Get physical device memory properties if in debug.
 	VkPhysicalDeviceMemoryProperties pdmp;
-	_groufix.vk.GetPhysicalDeviceMemoryProperties(
+	groufix_.vk.GetPhysicalDeviceMemoryProperties(
 		alloc->device->vk.device, &pdmp);
 
 	gfx_log_debug(
@@ -362,20 +361,20 @@ static void _gfx_free_mem_block(_GFXAllocator* alloc, _GFXMemBlock* block)
 		"    Memory block size: %"PRIu64" bytes.\n"
 		"    Memory heap flags: %s\n%s%s%s%s%s%s",
 		block->size,
-		_GFX_GET_VK_TYPE_EMPTY_STRING(&pdmp, block->type),
-		_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(&pdmp, block->type),
-		_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(&pdmp, block->type),
-		_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(&pdmp, block->type),
-		_GFX_GET_VK_TYPE_HOST_CACHED_STRING(&pdmp, block->type),
-		_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(&pdmp, block->type),
-		_GFX_GET_VK_TYPE_PROTECTED_STRING(&pdmp, block->type));
+		GFX_GET_VK_TYPE_EMPTY_STRING_(&pdmp, block->type),
+		GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING_(&pdmp, block->type),
+		GFX_GET_VK_TYPE_HOST_VISIBLE_STRING_(&pdmp, block->type),
+		GFX_GET_VK_TYPE_HOST_COHERENT_STRING_(&pdmp, block->type),
+		GFX_GET_VK_TYPE_HOST_CACHED_STRING_(&pdmp, block->type),
+		GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING_(&pdmp, block->type),
+		GFX_GET_VK_TYPE_PROTECTED_STRING_(&pdmp, block->type));
 #endif
 
 	free(block);
 }
 
 /****************************/
-void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
+void gfx_allocator_init_(GFXAllocator_* alloc, GFXDevice_* device)
 {
 	assert(alloc != NULL);
 	assert(device != NULL);
@@ -388,22 +387,22 @@ void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device)
 	gfx_list_init(&alloc->full);
 
 	VkPhysicalDeviceProperties pdp;
-	_groufix.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
+	groufix_.vk.GetPhysicalDeviceProperties(device->vk.device, &pdp);
 
 	alloc->granularity = pdp.limits.bufferImageGranularity;
 }
 
 /****************************/
-void _gfx_allocator_clear(_GFXAllocator* alloc)
+void gfx_allocator_clear_(GFXAllocator_* alloc)
 {
 	assert(alloc != NULL);
 
 	// Free all memory.
 	while (alloc->free.head != NULL)
-		_gfx_free_mem_block(alloc, (_GFXMemBlock*)alloc->free.head);
+		gfx_free_mem_block_(alloc, (GFXMemBlock_*)alloc->free.head);
 
 	while (alloc->full.head != NULL)
-		_gfx_free_mem_block(alloc, (_GFXMemBlock*)alloc->full.head);
+		gfx_free_mem_block_(alloc, (GFXMemBlock_*)alloc->full.head);
 
 	// Kind of a no-op, but for consistency.
 	gfx_list_clear(&alloc->free);
@@ -411,7 +410,7 @@ void _gfx_allocator_clear(_GFXAllocator* alloc)
 }
 
 /****************************/
-bool _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, bool linear,
+bool gfx_alloc_(GFXAllocator_* alloc, GFXMemAlloc_* mem, bool linear,
                 VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
                 VkMemoryRequirements reqs)
 {
@@ -426,12 +425,12 @@ bool _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, bool linear,
 
 	// Get physical device memory properties.
 	VkPhysicalDeviceMemoryProperties pdmp;
-	_groufix.vk.GetPhysicalDeviceMemoryProperties(
+	groufix_.vk.GetPhysicalDeviceMemoryProperties(
 		alloc->device->vk.device, &pdmp);
 
 	// Get memory type index.
 	uint32_t tReq, tOpt;
-	_GFX_GET_MEM_TYPES(
+	GFX_GET_MEM_TYPES_(
 		tReq, tOpt, &pdmp, required, optimal, reqs.memoryTypeBits,
 		return 0);
 
@@ -447,16 +446,16 @@ bool _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, bool linear,
 	// Start with a defined memory type.
 	// Note that if neither types are defined we already returned.
 	uint32_t type = (tOpt == UINT32_MAX) ? tReq : tOpt;
-	_GFXMemBlock* block;
-	_GFXMemNode* node = NULL;
+	GFXMemBlock_* block;
+	GFXMemNode_* node = NULL;
 
 	// Goto here to try with another type :)
 try_search:
 
 	for (
-		block = (_GFXMemBlock*)alloc->free.head;
+		block = (GFXMemBlock_*)alloc->free.head;
 		block != NULL;
-		block = (_GFXMemBlock*)block->list.next)
+		block = (GFXMemBlock_*)block->list.next)
 	{
 		if (block->type != type)
 			continue;
@@ -478,8 +477,8 @@ try_search:
 			const VkDeviceSize* fKey = gfx_tree_key(&block->nodes.free, node);
 
 			// Check if granularity constraints apply.
-			_GFXMemAlloc* left = (_GFXMemAlloc*)node->list.prev;
-			_GFXMemAlloc* right = (_GFXMemAlloc*)node->list.next;
+			GFXMemAlloc_* left = (GFXMemAlloc_*)node->list.prev;
+			GFXMemAlloc_* right = (GFXMemAlloc_*)node->list.next;
 
 			// If neighbors exist, they must be an allocation.
 			const bool lGran = (left != NULL && left->linear != linear);
@@ -495,10 +494,10 @@ try_search:
 			const VkDeviceSize align = lGran ?
 				GFX_MAX(alloc->granularity, reqs.alignment) : reqs.alignment;
 			const VkDeviceSize offset =
-				GFX_ALIGN_UP(_GFX_KEY_OFFSET(fKey), align);
+				GFX_ALIGN_UP(GFX_KEY_OFFSET_(fKey), align);
 
 			VkDeviceSize waste =
-				offset - _GFX_KEY_OFFSET(fKey);
+				offset - GFX_KEY_OFFSET_(fKey);
 
 			// If right granularity applies, we want to align down.
 			// This is necessary because a free block also directly ends at
@@ -509,10 +508,10 @@ try_search:
 			// Check if we didn't waste all space and
 			// we have enough for the asked size.
 			if (
-				_GFX_KEY_SIZE(fKey) > waste &&
-				_GFX_KEY_SIZE(fKey) - waste >= reqs.size)
+				GFX_KEY_SIZE_(fKey) > waste &&
+				GFX_KEY_SIZE_(fKey) - waste >= reqs.size)
 			{
-				_GFX_KEY_OFFSET(key) = offset; // Set the key's offset value.
+				GFX_KEY_OFFSET_(key) = offset; // Set the key's offset value.
 				break;
 			}
 		}
@@ -524,9 +523,9 @@ try_search:
 	if (block == NULL)
 	{
 		// Uh oh the search failed, try to allocate a new memory block.
-		block = _gfx_alloc_mem_block(
+		block = gfx_alloc_mem_block_(
 			alloc, &pdmp, type, reqs.size,
-			GFX_MAX(reqs.size, _GFX_DEF_LARGE_HEAP_BLOCK_SIZE),
+			GFX_MAX(reqs.size, GFX_DEF_LARGE_HEAP_BLOCK_SIZE_),
 			VK_NULL_HANDLE, VK_NULL_HANDLE);
 
 		// Well this is not going well..
@@ -544,13 +543,13 @@ try_search:
 					"Allocation failed, will try to fallback to another "
 					"available memory heap:\n"
 					"    Memory heap flags (failed): %s\n%s%s%s%s%s%s",
-					_GFX_GET_VK_TYPE_EMPTY_STRING(&pdmp, type),
-					_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(&pdmp, type),
-					_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(&pdmp, type),
-					_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(&pdmp, type),
-					_GFX_GET_VK_TYPE_HOST_CACHED_STRING(&pdmp, type),
-					_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(&pdmp, type),
-					_GFX_GET_VK_TYPE_PROTECTED_STRING(&pdmp, type));
+					GFX_GET_VK_TYPE_EMPTY_STRING_(&pdmp, type),
+					GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING_(&pdmp, type),
+					GFX_GET_VK_TYPE_HOST_VISIBLE_STRING_(&pdmp, type),
+					GFX_GET_VK_TYPE_HOST_COHERENT_STRING_(&pdmp, type),
+					GFX_GET_VK_TYPE_HOST_CACHED_STRING_(&pdmp, type),
+					GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING_(&pdmp, type),
+					GFX_GET_VK_TYPE_PROTECTED_STRING_(&pdmp, type));
 
 				type = tReq;
 				goto try_search;
@@ -562,16 +561,16 @@ try_search:
 		// There's 1 free node, the entire block, just pick it :)
 		// We're at the beginning, so it always aligns, set offset of 0.
 		node = block->nodes.free.root;
-		_GFX_KEY_OFFSET(key) = 0;
+		GFX_KEY_OFFSET_(key) = 0;
 	}
 
 	// Claim the memory.
 	// i.e. output the allocation data.
-	*mem = (_GFXMemAlloc){
+	*mem = (GFXMemAlloc_){
 		.node   = { .free = 0 },
 		.block  = block,
-		.size   = _GFX_KEY_SIZE(key),
-		.offset = _GFX_KEY_OFFSET(key),
+		.size   = GFX_KEY_SIZE_(key),
+		.offset = GFX_KEY_OFFSET_(key),
 		.flags  = pdmp.memoryTypes[block->type].propertyFlags,
 		.linear = linear,
 		.vk     = { .memory = block->vk.memory }
@@ -592,9 +591,9 @@ try_search:
 	const VkDeviceSize* cKey = gfx_tree_key(&block->nodes.free, node);
 
 	const VkDeviceSize rOffset =
-		_GFX_KEY_OFFSET(key) + _GFX_KEY_SIZE(key);
+		GFX_KEY_OFFSET_(key) + GFX_KEY_SIZE_(key);
 	const VkDeviceSize rSize =
-		_GFX_KEY_SIZE(cKey) - (rOffset - _GFX_KEY_OFFSET(cKey));
+		GFX_KEY_SIZE_(cKey) - (rOffset - GFX_KEY_OFFSET_(cKey));
 
 	// The waste we created to the left is at most (alignment - 1) in size,
 	// ignoring granularity. Similarly, if memory to the right is smaller
@@ -625,7 +624,7 @@ try_search:
 }
 
 /****************************/
-bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+bool gfx_allocd_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
                  VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
                  VkMemoryRequirements reqs,
                  VkBuffer buffer, VkImage image)
@@ -638,22 +637,22 @@ bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 
 	// Get physical device memory properties.
 	VkPhysicalDeviceMemoryProperties pdmp;
-	_groufix.vk.GetPhysicalDeviceMemoryProperties(
+	groufix_.vk.GetPhysicalDeviceMemoryProperties(
 		alloc->device->vk.device, &pdmp);
 
 	// Get memory type index.
 	uint32_t tReq, tOpt;
-	_GFX_GET_MEM_TYPES(
+	GFX_GET_MEM_TYPES_(
 		tReq, tOpt, &pdmp, required, optimal, reqs.memoryTypeBits,
 		return 0);
 
 	// Allocate a memory block.
 	// No free root node is inserted by setting minSize == maxSize.
-	_GFXMemBlock* block = NULL;
+	GFXMemBlock_* block = NULL;
 
 	// First try the optimal memory type.
 	if (tOpt != UINT32_MAX)
-		block = _gfx_alloc_mem_block(
+		block = gfx_alloc_mem_block_(
 			alloc, &pdmp, tOpt, reqs.size, reqs.size, buffer, image);
 
 	// If we failed and there is a defined required type as fallback, try it.
@@ -666,15 +665,15 @@ bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 			"Dedicated allocation failed, will try to fallback to another "
 			"available memory heap:\n"
 			"    Memory heap flags (failed): %s\n%s%s%s%s%s%s",
-			_GFX_GET_VK_TYPE_EMPTY_STRING(&pdmp, tOpt),
-			_GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING(&pdmp, tOpt),
-			_GFX_GET_VK_TYPE_HOST_VISIBLE_STRING(&pdmp, tOpt),
-			_GFX_GET_VK_TYPE_HOST_COHERENT_STRING(&pdmp, tOpt),
-			_GFX_GET_VK_TYPE_HOST_CACHED_STRING(&pdmp, tOpt),
-			_GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING(&pdmp, tOpt),
-			_GFX_GET_VK_TYPE_PROTECTED_STRING(&pdmp, tOpt));
+			GFX_GET_VK_TYPE_EMPTY_STRING_(&pdmp, tOpt),
+			GFX_GET_VK_TYPE_DEVICE_LOCAL_STRING_(&pdmp, tOpt),
+			GFX_GET_VK_TYPE_HOST_VISIBLE_STRING_(&pdmp, tOpt),
+			GFX_GET_VK_TYPE_HOST_COHERENT_STRING_(&pdmp, tOpt),
+			GFX_GET_VK_TYPE_HOST_CACHED_STRING_(&pdmp, tOpt),
+			GFX_GET_VK_TYPE_LAZILY_ALLOCATED_STRING_(&pdmp, tOpt),
+			GFX_GET_VK_TYPE_PROTECTED_STRING_(&pdmp, tOpt));
 
-		block = _gfx_alloc_mem_block(
+		block = gfx_alloc_mem_block_(
 			alloc, &pdmp, tReq, reqs.size, reqs.size, buffer, image);
 	}
 
@@ -683,7 +682,7 @@ bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 
 	// Claim memory,
 	// i.e. output the allocation data.
-	*mem = (_GFXMemAlloc){
+	*mem = (GFXMemAlloc_){
 		.node   = { .free = 0 },
 		.block  = block,
 		.size   = reqs.size,
@@ -699,22 +698,22 @@ bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 }
 
 /****************************/
-void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
+void gfx_free_(GFXAllocator_* alloc, GFXMemAlloc_* mem)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
 
-	_GFXMemBlock* block = mem->block;
+	GFXMemBlock_* block = mem->block;
 
 	// Ok we have to deal with the list of memory nodes and the free tree..
 	// First the case that this allocation is the only memory node.
 	// Just free the memory block.
-	_GFXMemNode* left = (_GFXMemNode*)mem->node.list.prev;
-	_GFXMemNode* right = (_GFXMemNode*)mem->node.list.next;
+	GFXMemNode_* left = (GFXMemNode_*)mem->node.list.prev;
+	GFXMemNode_* right = (GFXMemNode_*)mem->node.list.next;
 
 	if (left == NULL && right == NULL)
 	{
-		_gfx_free_mem_block(alloc, block);
+		gfx_free_mem_block_(alloc, block);
 		return;
 	}
 
@@ -725,16 +724,16 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 	const VkDeviceSize lBound =
 		(left == NULL) ? 0 :
 		(left->free) ?
-			_GFX_KEY_OFFSET(gfx_tree_key(&block->nodes.free, left)) :
-			((_GFXMemAlloc*)left)->offset +
-			((_GFXMemAlloc*)left)->size;
+			GFX_KEY_OFFSET_(gfx_tree_key(&block->nodes.free, left)) :
+			((GFXMemAlloc_*)left)->offset +
+			((GFXMemAlloc_*)left)->size;
 
 	const VkDeviceSize rBound =
 		(right == NULL) ? block->size :
 		(right->free) ?
-			_GFX_KEY_OFFSET(gfx_tree_key(&block->nodes.free, right)) +
-			_GFX_KEY_SIZE(gfx_tree_key(&block->nodes.free, right)) :
-			((_GFXMemAlloc*)right)->offset;
+			GFX_KEY_OFFSET_(gfx_tree_key(&block->nodes.free, right)) +
+			GFX_KEY_SIZE_(gfx_tree_key(&block->nodes.free, right)) :
+			((GFXMemAlloc_*)right)->offset;
 
 	// Now modify the list and free tree to reflect the claimed space.
 	const VkDeviceSize key[2] = { rBound - lBound, lBound };
@@ -760,7 +759,7 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		if (block->nodes.list.head != block->nodes.list.tail)
 			gfx_tree_update(&block->nodes.free, lFree ? left : right, key);
 		else
-			_gfx_free_mem_block(alloc, block);
+			gfx_free_mem_block_(alloc, block);
 	}
 	else
 	{
@@ -769,8 +768,8 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 		// We know no free neighbour exists AND at least one neighbour exists,
 		// if no neighbour were to exist at all we exit early at the top.
 		// So just insert a new free node.
-		_GFXMemNode* node = gfx_tree_insert(
-			&block->nodes.free, sizeof(_GFXMemNode), NULL, key);
+		GFXMemNode_* node = gfx_tree_insert(
+			&block->nodes.free, sizeof(GFXMemNode_), NULL, key);
 
 		if (node == NULL)
 		{
@@ -778,7 +777,7 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 			gfx_log_warn(
 				"Could not insert a new free node whilst freeing an allocation "
 				"from a Vulkan memory object, potentially lost %"PRIu64" bytes.",
-				_GFX_KEY_SIZE(key));
+				GFX_KEY_SIZE_(key));
 		}
 		else
 		{
@@ -804,30 +803,30 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem)
 }
 
 /****************************/
-void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem)
+void* gfx_map_(GFXAllocator_* alloc, GFXMemAlloc_* mem)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
 	assert((mem->flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0);
 
 	void* ptr;
-	_GFXMemBlock* block = mem->block;
+	GFXMemBlock_* block = mem->block;
 
 	// Ok so we are going to map entire memory blocks, this way we can
 	// map any allocation in any memory block concurrently, because in reality
 	// there is only 1 mapping, ever.
 	// Lock access to the mapping so checking refs and the actual mapping of
 	// the Vulkan memory object are one atomic operation.
-	_gfx_mutex_lock(&block->map.lock);
+	gfx_mutex_lock_(&block->map.lock);
 
 	// If the block is not mapped yet, map it.
-	// refs must be >= 0 because of requirements of _gfx_unmap (!).
+	// refs must be >= 0 because of requirements of gfx_unmap_ (!).
 	if (block->map.refs == 0)
 	{
 		void* vkPtr;
-		_GFXContext* context = alloc->context;
+		GFXContext_* context = alloc->context;
 
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.MapMemory(
 				context->vk.device, block->vk.memory, 0, VK_WHOLE_SIZE, 0,
 				&vkPtr),
@@ -844,32 +843,32 @@ unlock:
 	ptr = (block->map.ptr == NULL) ? NULL :
 		(void*)((char*)block->map.ptr + mem->offset);
 
-	_gfx_mutex_unlock(&block->map.lock);
+	gfx_mutex_unlock_(&block->map.lock);
 
 	return ptr;
 }
 
 /****************************/
-void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem)
+void gfx_unmap_(GFXAllocator_* alloc, GFXMemAlloc_* mem)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
 
-	_GFXMemBlock* block = mem->block;
+	GFXMemBlock_* block = mem->block;
 
 	// Obviously we lock again so dereferencing and unmapping is atomic.
-	_gfx_mutex_lock(&block->map.lock);
+	gfx_mutex_lock_(&block->map.lock);
 
 	// Decrease reference count & unmap when we hit 0.
 	// This function is required to be called _exactly_ once (and no more)
-	// for every _gfx_map, therefore we can assume refs is > 0.
+	// for every gfx_map_, therefore we can assume refs is > 0.
 	if ((--block->map.refs) == 0)
 	{
-		_GFXContext* context = alloc->context;
+		GFXContext_* context = alloc->context;
 		context->vk.UnmapMemory(context->vk.device, block->vk.memory);
 
 		block->map.ptr = NULL;
 	}
 
-	_gfx_mutex_unlock(&block->map.lock);
+	gfx_mutex_unlock_(&block->map.lock);
 }

@@ -7,14 +7,13 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
 
 // Modify texel block size according to image aspect.
-#define _GFX_MOD_BLOCK_SIZE(blockSize, fmt, aspect) \
+#define GFX_MOD_BLOCK_SIZE_(blockSize, fmt, aspect) \
 	((aspect) & (GFX_IMAGE_DEPTH | GFX_IMAGE_STENCIL) ? \
 		(!((aspect) & GFX_IMAGE_STENCIL) ? \
 			(!GFX_FORMAT_HAS_DEPTH(fmt) ? blockSize : \
@@ -26,7 +25,7 @@
 
 
 // Modify destination region dimensions to use as source dimensions.
-#define _GFX_VK_WIDTH_DST_TO_SRC(dstWidth, srcFmt, dstFmt) \
+#define GFX_VK_WIDTH_DST_TO_SRC_(dstWidth, srcFmt, dstFmt) \
 	((GFX_FORMAT_IS_COMPRESSED(srcFmt) && !GFX_FORMAT_IS_COMPRESSED(dstFmt)) ? \
 		dstWidth * GFX_FORMAT_BLOCK_WIDTH(srcFmt) : \
 	(!GFX_FORMAT_IS_COMPRESSED(srcFmt) && GFX_FORMAT_IS_COMPRESSED(dstFmt)) ? \
@@ -34,7 +33,7 @@
 			GFX_FORMAT_BLOCK_WIDTH(dstFmt) : \
 		dstWidth)
 
-#define _GFX_VK_HEIGHT_DST_TO_SRC(dstHeight, srcFmt, dstFmt) \
+#define GFX_VK_HEIGHT_DST_TO_SRC_(dstHeight, srcFmt, dstFmt) \
 	((GFX_FORMAT_IS_COMPRESSED(srcFmt) && !GFX_FORMAT_IS_COMPRESSED(dstFmt)) ? \
 		dstHeight * GFX_FORMAT_BLOCK_HEIGHT(srcFmt) : \
 	(!GFX_FORMAT_IS_COMPRESSED(srcFmt) && GFX_FORMAT_IS_COMPRESSED(dstFmt)) ? \
@@ -46,24 +45,24 @@
 /****************************
  * Internal copy flags.
  */
-typedef enum _GFXCopyFlags
+typedef enum GFXCopyFlags_
 {
-	_GFX_COPY_REVERSED = 0x0001,
-	_GFX_COPY_SCALED   = 0x0002,
-	_GFX_COPY_RESOLVE  = 0x0004
+	GFX_COPY_REVERSED_ = 0x0001,
+	GFX_COPY_SCALED_   = 0x0002,
+	GFX_COPY_RESOLVE_  = 0x0004
 
-} _GFXCopyFlags;
+} GFXCopyFlags_;
 
 
 /****************************
  * Internal stage region (modified host region) definition.
  */
-typedef struct _GFXStageRegion
+typedef struct GFXStageRegion_
 {
 	uint64_t offset; // Relative to the staging buffer (NOT host pointer).
 	uint64_t size;
 
-} _GFXStageRegion;
+} GFXStageRegion_;
 
 
 /****************************
@@ -76,10 +75,10 @@ typedef struct _GFXStageRegion
  * @param stage      numRegion output regions.
  * @return Resulting size of the staging buffer necessary.
  */
-static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
+static uint64_t gfx_stage_compact_(const GFXUnpackRef_* ref, size_t numRegions,
                                    const GFXRegion* ptrRegions,
                                    const GFXRegion* refRegions,
-                                   _GFXStageRegion* stage)
+                                   GFXStageRegion_* stage)
 {
 	assert(ref != NULL);
 	assert(numRegions > 0);
@@ -90,10 +89,10 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 	// To calculate any region size when referencing an image,
 	// we need to get the type and format block size, width and height.
 	// We use GFX_FORMAT_EMPTY to indicate we're not dealing with an image.
-	_GFXImageAttach* attach =
-		_GFX_UNPACK_REF_ATTACH(*ref);
+	GFXImageAttach_* attach =
+		GFX_UNPACK_REF_ATTACH_(*ref);
 
-	VkImageType type = _GFX_GET_VK_IMAGE_TYPE(
+	VkImageType type = GFX_GET_VK_IMAGE_TYPE_(
 		(ref->obj.image != NULL) ? ref->obj.image->base.type :
 		(ref->obj.renderer != NULL) ? attach->base.type : 0);
 
@@ -146,19 +145,19 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 			const uint64_t last =
 				(z * (uint64_t)numRows + y) * (uint64_t)rowSize + x;
 			stage[r].size = (last + 1) *
-				_GFX_MOD_BLOCK_SIZE(blockSize, fmt, refRegions[r].aspect);
+				GFX_MOD_BLOCK_SIZE_(blockSize, fmt, refRegions[r].aspect);
 		}
 	}
 
 	// Ok now sort them on offset real quick.
 	// Just use insertion sort, number of regions shouldn't be large.
 	// Besides the below compacting algorithm is O(n^2) anyway.
-	_GFXStageRegion sort[numRegions];
+	GFXStageRegion_ sort[numRegions];
 	memcpy(sort, stage, sizeof(sort));
 
 	for (size_t i = 1; i < numRegions; ++i)
 	{
-		_GFXStageRegion t = sort[i];
+		GFXStageRegion_ t = sort[i];
 		size_t j = i;
 
 		while (j > 0 && sort[j-1].offset > t.offset)
@@ -178,7 +177,7 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
 	for (size_t r = 0; r < numRegions; ++r)
 	{
 		uint64_t displace = sort[0].offset; // Always subtract base offset.
-		_GFXStageRegion t = sort[0];        // Current disjoint region.
+		GFXStageRegion_ t = sort[0];        // Current disjoint region.
 
 		for (size_t s = 1; s < numRegions; ++s)
 		{
@@ -217,8 +216,8 @@ static uint64_t _gfx_stage_compact(const _GFXUnpackRef* ref, size_t numRegions,
  *
  * Not thread-safe with respect to the pool!
  */
-static void _gfx_claim_injection(_GFXTransferPool* pool, size_t numRefs,
-                                 const _GFXUnpackRef* refs,
+static void gfx_claim_injection_(GFXTransferPool_* pool, size_t numRefs,
+                                 const GFXUnpackRef_* refs,
                                  const GFXAccessMask* masks,
                                  const uint64_t* sizes)
 {
@@ -230,7 +229,7 @@ static void _gfx_claim_injection(_GFXTransferPool* pool, size_t numRefs,
 	// Allocate a new metadata object if not present.
 	if (pool->injection == NULL)
 	{
-		pool->injection = malloc(sizeof(_GFXInjection));
+		pool->injection = malloc(sizeof(GFXInjection_));
 		if (pool->injection == NULL)
 		{
 			gfx_log_error("Could not initialize transfer injection metadata.");
@@ -238,7 +237,7 @@ static void _gfx_claim_injection(_GFXTransferPool* pool, size_t numRefs,
 		}
 
 		// Start it.
-		_gfx_injection(pool->injection);
+		gfx_injection_(pool->injection);
 	}
 
 	// Fill it with the new operation input.
@@ -258,23 +257,23 @@ static void _gfx_claim_injection(_GFXTransferPool* pool, size_t numRefs,
  * @return NULL on failure.
  *
  * Note: leaves the `pool->lock` mutex locked, even on failure!
- * Use _gfx_pop_transfer to cleanup these resources on some other failure.
+ * Use gfx_pop_transfer_ to cleanup these resources on some other failure.
  */
-static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
+static GFXTransfer_* gfx_claim_transfer_(GFXHeap* heap, GFXTransferPool_* pool)
 {
 	assert(heap != NULL);
 	assert(pool != NULL);
 
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Immediately lock, we are modifying the transfer deque!
 	// This will be left locked no matter what.
-	_gfx_mutex_lock(&pool->lock);
+	gfx_mutex_lock_(&pool->lock);
 
 	// If there is an unflushed transfer, simply return it.
 	if (pool->transfers.size > 0)
 	{
-		_GFXTransfer* transfer =
+		GFXTransfer_* transfer =
 			gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
 
 		if (!transfer->flushed) return transfer;
@@ -286,11 +285,11 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	// Note we check if the host is blocking for any transfers,
 	// if so, we cannot reset the fence, so skip recycling...
 	const bool isBlocking = atomic_load(&pool->blocking) > 0;
-	_GFXTransfer newTransfer;
+	GFXTransfer_ newTransfer;
 
 	if (!isBlocking && pool->transfers.size > 0)
 	{
-		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, 0);
+		GFXTransfer_* transfer = gfx_deque_at(&pool->transfers, 0);
 
 		VkResult result = context->vk.GetFenceStatus(
 			context->vk.device, transfer->vk.done);
@@ -303,10 +302,10 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 			newTransfer = *transfer;
 			gfx_deque_pop_front(&pool->transfers, 1);
 
-			_gfx_free_stagings(heap, &newTransfer);
+			gfx_free_stagings_(heap, &newTransfer);
 			newTransfer.flushed = 0;
 
-			_GFX_VK_CHECK(
+			GFX_VK_CHECK_(
 				context->vk.ResetFences(
 					context->vk.device, 1, &newTransfer.vk.done),
 				goto clean);
@@ -318,7 +317,7 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 		if (result != VK_NOT_READY)
 		{
 			// Well nevermind...
-			_GFX_VK_CHECK(result, {});
+			GFX_VK_CHECK_(result, {});
 			goto error;
 		}
 	}
@@ -339,7 +338,7 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 		.commandBufferCount = 1
 	};
 
-	_GFX_VK_CHECK(context->vk.AllocateCommandBuffers(
+	GFX_VK_CHECK_(context->vk.AllocateCommandBuffers(
 		context->vk.device, &cbai, &newTransfer.vk.cmd), goto clean);
 
 	// And create fence.
@@ -349,7 +348,7 @@ static _GFXTransfer* _gfx_claim_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 		.flags = 0
 	};
 
-	_GFX_VK_CHECK(context->vk.CreateFence(
+	GFX_VK_CHECK_(context->vk.CreateFence(
 		context->vk.device, &fci, NULL, &newTransfer.vk.done), goto clean);
 
 finish:
@@ -364,7 +363,7 @@ finish:
 			.pInheritanceInfo = NULL
 		};
 
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.BeginCommandBuffer(newTransfer.vk.cmd, &cbbi),
 			goto clean);
 
@@ -399,17 +398,17 @@ error:
  * This call should only be called to cleanup on failure,
  * the last pushed transfer MUST NOT be flushed yet!
  */
-static void _gfx_pop_transfer(GFXHeap* heap, _GFXTransferPool* pool)
+static void gfx_pop_transfer_(GFXHeap* heap, GFXTransferPool_* pool)
 {
 	assert(heap != NULL);
 	assert(pool != NULL);
 	assert(pool->transfers.size > 0);
 
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Get the transfer object to pop.
 	// As per requirements, transfer->flushed will be zero!
-	_GFXTransfer* transfer = gfx_deque_at(
+	GFXTransfer_* transfer = gfx_deque_at(
 		&pool->transfers, pool->transfers.size - 1);
 
 	// Destroy its resources & pop it.
@@ -418,12 +417,12 @@ static void _gfx_pop_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	context->vk.DestroyFence(
 		context->vk.device, transfer->vk.done, NULL);
 
-	_gfx_free_stagings(heap, transfer);
+	gfx_free_stagings_(heap, transfer);
 	gfx_deque_pop(&pool->transfers, 1);
 
 	// And abort all injections made into it.
 	if (pool->injection != NULL)
-		_gfx_deps_abort(
+		gfx_deps_abort_(
 			pool->injs.size, gfx_vec_at(&pool->injs, 0),
 			pool->injection);
 
@@ -434,27 +433,27 @@ static void _gfx_pop_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 }
 
 /****************************/
-bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
+bool gfx_flush_transfer_(GFXHeap* heap, GFXTransferPool_* pool)
 {
 	assert(heap != NULL);
 	assert(pool != NULL);
 
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// See if we have any injection metadata to flush with & finish.
 	// Given `pool->injection` is always set to NULL whenever a transfer
 	// operation was flagged as flushed (see below),
 	// we know `transfer->flushed` to be zero in the next bit because we
 	// check for `pool->injection` to be non-NULL.
-	_GFXInjection* injection = pool->injection;
+	GFXInjection_* injection = pool->injection;
 
 	if (injection != NULL && pool->transfers.size > 0)
 	{
-		_GFXTransfer* transfer =
+		GFXTransfer_* transfer =
 			gfx_deque_at(&pool->transfers, pool->transfers.size - 1);
 
 		// Ok so first probably stop recording.
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.EndCommandBuffer(transfer->vk.cmd),
 			goto clean);
 
@@ -472,17 +471,17 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 			.pSignalSemaphores    = injection->out.sigs
 		};
 
-		_gfx_mutex_lock(pool->queue.lock);
+		gfx_mutex_lock_(pool->queue.lock);
 
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.QueueSubmit(
 				pool->queue.vk.queue, 1, &si, transfer->vk.done),
 			{
-				_gfx_mutex_unlock(pool->queue.lock);
+				gfx_mutex_unlock_(pool->queue.lock);
 				goto clean;
 			});
 
-		_gfx_mutex_unlock(pool->queue.lock);
+		gfx_mutex_unlock_(pool->queue.lock);
 
 		// After this we free `pool->injection` and set it to NULL,
 		// making the above guarantee hold.
@@ -492,7 +491,7 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	// Make all commands visible for future operations.
 	// This must be last so visibility happens exactly on return!
 	if (injection != NULL)
-		_gfx_deps_finish(
+		gfx_deps_finish_(
 			pool->injs.size, gfx_vec_at(&pool->injs, 0),
 			injection);
 
@@ -507,7 +506,7 @@ bool _gfx_flush_transfer(GFXHeap* heap, _GFXTransferPool* pool)
 	// Cleanup on failure.
 clean:
 	gfx_log_error("Heap flush failed; lost all prior operations.");
-	_gfx_pop_transfer(heap, pool);
+	gfx_pop_transfer_(heap, pool);
 
 	return 0;
 }
@@ -516,7 +515,7 @@ clean:
  * Copies data from a host pointer to a mapped resource or staging buffer.
  * @param ptr        Host pointer, cannot be NULL.
  * @param ref        Mapped resource or staging pointer, cannot be NULL.
- * @param cpFlags    All but _GFX_COPY_REVERSED are ignored.
+ * @param cpFlags    All but GFX_COPY_REVERSED_ are ignored.
  * @param numRegions Must be > 0.
  * @param ptrRegions Cannot be NULL, regions associated with ptr.
  * @param refRegions Reference regions (assumed to be buffer regions).
@@ -525,11 +524,11 @@ clean:
  * Either one of refRegions and stage must be set, the other must be NULL.
  * This allows use for either a mapped resource or a staging buffer.
  */
-static void _gfx_copy_host(void* ptr, void* ref,
-                           _GFXCopyFlags cpFlags, size_t numRegions,
+static void gfx_copy_host_(void* ptr, void* ref,
+                           GFXCopyFlags_ cpFlags, size_t numRegions,
                            const GFXRegion* ptrRegions,
                            const GFXRegion* refRegions,
-                           const _GFXStageRegion* stage)
+                           const GFXStageRegion_* stage)
 {
 	assert(ptr != NULL);
 	assert(ref != NULL);
@@ -546,8 +545,8 @@ static void _gfx_copy_host(void* ptr, void* ref,
 			(stage != NULL ? stage[r].offset : refRegions[r].offset);
 
 		memcpy(
-			cpFlags & _GFX_COPY_REVERSED ? src : dst,
-			cpFlags & _GFX_COPY_REVERSED ? dst : src,
+			cpFlags & GFX_COPY_REVERSED_ ? src : dst,
+			cpFlags & GFX_COPY_REVERSED_ ? dst : src,
 			stage != NULL ? stage[r].size : (ptrRegions[r].size == 0 ?
 				refRegions[r].size : ptrRegions[r].size));
 	}
@@ -556,13 +555,13 @@ static void _gfx_copy_host(void* ptr, void* ref,
 /****************************
  * Copies data from a resource or staging buffer to another resource.
  * @param heap       Cannot be NULL.
- * @param filter     Ignored if cpFlags does not contain _GFX_COPY_SCALED.
+ * @param filter     Ignored if cpFlags does not contain GFX_COPY_SCALED_.
  * @param numRefs    Must be >= 1 if staging != NULL, must be >= 2 otherwise.
  * @param numRegions Must be > 0.
  * @param staging    Staging buffer.
  * @param refs       Input references, cannot be NULL.
  * @param masks      Input access masks, cannot be NULL.
- * @param sizes      Must contain _gfx_ref_size(refs), cannot be NULL.
+ * @param sizes      Must contain gfx_ref_size_(refs), cannot be NULL.
  * @param stage      Staging regions, cannot be NULL if staging is not.
  * @param srcRegions Source regions, cannot be NULL.
  * @param dstRegions Destination regions, Cannot be NULL.
@@ -571,26 +570,26 @@ static void _gfx_copy_host(void* ptr, void* ref,
  *
  * Staging must be set OR numRefs must be >= 2.
  * This allows use of either a memory resource or a staging buffer.
- * If staging is _not_ set, _GFX_COPY_REVERSED must not be set.
- * If staging is set, _GFX_COPY_(SCALED|RESOLVE) must not be set.
+ * If staging is _not_ set, GFX_COPY_REVERSED_ must not be set.
+ * If staging is set, GFX_COPY_(SCALED|RESOLVE)_ must not be set.
  */
-static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
-                            _GFXCopyFlags cpFlags, GFXFilter filter,
+static int gfx_copy_device_(GFXHeap* heap, GFXTransferFlags flags,
+                            GFXCopyFlags_ cpFlags, GFXFilter filter,
                             size_t numRefs, size_t numRegions, size_t numInjs,
-                            _GFXStaging* staging,
-                            const _GFXUnpackRef* refs,
+                            GFXStaging_* staging,
+                            const GFXUnpackRef_* refs,
                             const GFXAccessMask* masks,
                             const uint64_t* sizes,
-                            const _GFXStageRegion* stage,
+                            const GFXStageRegion_* stage,
                             const GFXRegion* srcRegions,
                             const GFXRegion* dstRegions,
                             const GFXInject* injs)
 {
 	assert(heap != NULL);
-	assert(!(cpFlags & _GFX_COPY_REVERSED) || staging != NULL);
-	assert(!(cpFlags & _GFX_COPY_SCALED) || staging == NULL);
-	assert(!(cpFlags & _GFX_COPY_RESOLVE) || staging == NULL);
-	assert(!(cpFlags & _GFX_COPY_SCALED) || !(cpFlags & _GFX_COPY_RESOLVE));
+	assert(!(cpFlags & GFX_COPY_REVERSED_) || staging != NULL);
+	assert(!(cpFlags & GFX_COPY_SCALED_) || staging == NULL);
+	assert(!(cpFlags & GFX_COPY_RESOLVE_) || staging == NULL);
+	assert(!(cpFlags & GFX_COPY_SCALED_) || !(cpFlags & GFX_COPY_RESOLVE_));
 	assert(numRefs >= 1);
 	assert(numRefs >= 2 || staging != NULL);
 	assert(numRegions > 0);
@@ -602,21 +601,21 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	assert(dstRegions != NULL);
 	assert(numInjs == 0 || injs != NULL);
 
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
-	const bool rev = cpFlags & _GFX_COPY_REVERSED;
-	const bool blit = cpFlags & _GFX_COPY_SCALED;
-	const bool resolve = cpFlags & _GFX_COPY_RESOLVE;
+	const bool rev = cpFlags & GFX_COPY_REVERSED_;
+	const bool blit = cpFlags & GFX_COPY_SCALED_;
+	const bool resolve = cpFlags & GFX_COPY_RESOLVE_;
 
 	// First of all, get resources and metadata to copy.
 	// So we can check them before throwing away all previous operations.
 	// Note there can only be one single attachment,
 	// because there must be at least one heap involved!
-	const _GFXUnpackRef* src = (staging != NULL) ? NULL : &refs[0];
-	const _GFXUnpackRef* dst = (staging != NULL) ? &refs[0] : &refs[1];
-	const _GFXImageAttach* attach =
+	const GFXUnpackRef_* src = (staging != NULL) ? NULL : &refs[0];
+	const GFXUnpackRef_* dst = (staging != NULL) ? &refs[0] : &refs[1];
+	const GFXImageAttach_* attach =
 		(src != NULL && src->obj.renderer != NULL) ?
-		_GFX_UNPACK_REF_ATTACH(*src) : _GFX_UNPACK_REF_ATTACH(*dst);
+		GFX_UNPACK_REF_ATTACH_(*src) : GFX_UNPACK_REF_ATTACH_(*dst);
 
 	const VkBuffer srcBuffer =
 		(staging != NULL) ? staging->vk.buffer :
@@ -675,15 +674,15 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	// Note that this will lock `pool->lock` for us,
 	// we use this lock for recording as well!
 	// Pick transfer pool from the heap.
-	_GFXTransferPool* pool = (flags & GFX_TRANSFER_ASYNC) ?
+	GFXTransferPool_* pool = (flags & GFX_TRANSFER_ASYNC) ?
 		&heap->ops.transfer : &heap->ops.graphics;
 
-	_GFXTransfer* transfer = _gfx_claim_transfer(heap, pool);
+	GFXTransfer_* transfer = gfx_claim_transfer_(heap, pool);
 	if (transfer == NULL)
 		goto unlock;
 
 	// Then get us some injection metadata.
-	_gfx_claim_injection(pool, numRefs, refs, masks, sizes);
+	gfx_claim_injection_(pool, numRefs, refs, masks, sizes);
 	if (pool->injection == NULL)
 		goto clean;
 
@@ -692,7 +691,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 		goto clean;
 
 	// Inject wait commands.
-	if (!_gfx_deps_catch(
+	if (!gfx_deps_catch_(
 		context, transfer->vk.cmd, numInjs, injs, pool->injection))
 	{
 		goto clean;
@@ -741,13 +740,13 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	// Image -> image blit.
 	else if (blit && srcImage != VK_NULL_HANDLE && dstImage != VK_NULL_HANDLE)
 	{
-		// Note: _GFX_COPY_REVERSED is only allowed to be set when staging
+		// Note: GFX_COPY_REVERSED_ is only allowed to be set when staging
 		// is set. Meaning if it is set, image -> image copies cannot happen.
 		VkImageBlit cRegions[numRegions];
 		for (size_t r = 0; r < numRegions; ++r)
 		{
 			cRegions[r].srcSubresource = (VkImageSubresourceLayers){
-				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(srcRegions[r].aspect),
+				.aspectMask     = GFX_GET_VK_IMAGE_ASPECT_(srcRegions[r].aspect),
 				.mipLevel       = srcRegions[r].mipmap,
 				.baseArrayLayer = srcRegions[r].layer,
 				.layerCount     = srcRegions[r].numLayers
@@ -766,7 +765,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 			};
 
 			cRegions[r].dstSubresource = (VkImageSubresourceLayers){
-				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(dstRegions[r].aspect),
+				.aspectMask     = GFX_GET_VK_IMAGE_ASPECT_(dstRegions[r].aspect),
 				.mipLevel       = dstRegions[r].mipmap,
 				.baseArrayLayer = dstRegions[r].layer,
 				.layerCount     = dstRegions[r].numLayers
@@ -789,7 +788,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 			srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 			dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			(uint32_t)numRegions, cRegions,
-			_GFX_GET_VK_FILTER(filter));
+			GFX_GET_VK_FILTER_(filter));
 	}
 
 	// Image -> image copy or resolve.
@@ -807,7 +806,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 		for (size_t r = 0; r < numRegions; ++r)
 		{
 			cRegions[r].c.srcSubresource = (VkImageSubresourceLayers){
-				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(srcRegions[r].aspect),
+				.aspectMask     = GFX_GET_VK_IMAGE_ASPECT_(srcRegions[r].aspect),
 				.mipLevel       = srcRegions[r].mipmap,
 				.baseArrayLayer = srcRegions[r].layer,
 				.layerCount     = srcRegions[r].numLayers
@@ -820,7 +819,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 			};
 
 			cRegions[r].c.dstSubresource = (VkImageSubresourceLayers){
-				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(dstRegions[r].aspect),
+				.aspectMask     = GFX_GET_VK_IMAGE_ASPECT_(dstRegions[r].aspect),
 				.mipLevel       = dstRegions[r].mipmap,
 				.baseArrayLayer = dstRegions[r].layer,
 				.layerCount     = dstRegions[r].numLayers
@@ -837,10 +836,10 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 			// Again block depth is assumed to be 1 in all cases.
 			cRegions[r].c.extent = (VkExtent3D){
 				.width = (srcRegions[r].width == 0) ?
-					_GFX_VK_WIDTH_DST_TO_SRC(dstRegions[r].width, srcFormat, dstFormat) :
+					GFX_VK_WIDTH_DST_TO_SRC_(dstRegions[r].width, srcFormat, dstFormat) :
 					srcRegions[r].width,
 				.height = (srcRegions[r].height == 0) ?
-					_GFX_VK_HEIGHT_DST_TO_SRC(dstRegions[r].height, srcFormat, dstFormat) :
+					GFX_VK_HEIGHT_DST_TO_SRC_(dstRegions[r].height, srcFormat, dstFormat) :
 					srcRegions[r].height,
 				.depth = (srcRegions[r].depth == 0) ?
 					dstRegions[r].depth :
@@ -868,7 +867,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 		const GFXRegion* imgRegions =
 			(srcImage != VK_NULL_HANDLE) ? srcRegions : dstRegions;
 
-		// Note: _GFX_COPY_REVERSED is only allowed to be set when staging
+		// Note: GFX_COPY_REVERSED_ is only allowed to be set when staging
 		// is set. Meaning if it is set, it is always an image -> buffer copy.
 		VkBufferImageCopy cRegions[numRegions];
 		for (size_t r = 0; r < numRegions; ++r)
@@ -885,7 +884,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 			cRegions[r].bufferImageHeight = bufRegions[r].numRows;
 
 			cRegions[r].imageSubresource = (VkImageSubresourceLayers){
-				.aspectMask     = _GFX_GET_VK_IMAGE_ASPECT(imgRegions[r].aspect),
+				.aspectMask     = GFX_GET_VK_IMAGE_ASPECT_(imgRegions[r].aspect),
 				.mipLevel       = imgRegions[r].mipmap,
 				.baseArrayLayer = imgRegions[r].layer,
 				.layerCount     = imgRegions[r].numLayers
@@ -919,7 +918,7 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	}
 
 	// Inject signal commands.
-	if (!_gfx_deps_prepare(
+	if (!gfx_deps_prepare_(
 		context, transfer->vk.cmd,
 		flags & GFX_TRANSFER_BLOCK, numInjs, injs, pool->injection))
 	{
@@ -929,10 +928,10 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	// We're done recording, if we want to flush (or block), do so.
 	if (flags & (GFX_TRANSFER_FLUSH | GFX_TRANSFER_BLOCK))
 		// If this fails, it will cleanup for us, so only unlock :)
-		if (!_gfx_flush_transfer(heap, pool))
+		if (!gfx_flush_transfer_(heap, pool))
 			goto unlock;
 
-	// Manually unlock the lock left locked by _gfx_claim_transfer!
+	// Manually unlock the lock left locked by gfx_claim_transfer_!
 	// Make sure to remember the fence in case we want to block,
 	// at which point we must also increase the block count!
 	// We want to unlock BEFORE blocking, so other operations can start.
@@ -945,12 +944,12 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	else if (staging != NULL)
 		gfx_list_insert_after(&transfer->stagings, &staging->list, NULL);
 
-	_gfx_mutex_unlock(&pool->lock);
+	gfx_mutex_unlock_(&pool->lock);
 
 	// Ok so block if asked (+ decrease block count back down).
 	if (flags & GFX_TRANSFER_BLOCK)
 	{
-		_GFX_VK_CHECK(context->vk.WaitForFences(
+		GFX_VK_CHECK_(context->vk.WaitForFences(
 			context->vk.device, 1, &done, VK_TRUE, UINT64_MAX),
 		{
 			// We can't undo what we've done, treat as fatal :(
@@ -967,9 +966,9 @@ static int _gfx_copy_device(GFXHeap* heap, GFXTransferFlags flags,
 	// Cleanup on failure.
 clean:
 	gfx_log_warn("Transfer operation failed; lost all prior operations.");
-	_gfx_pop_transfer(heap, pool);
+	gfx_pop_transfer_(heap, pool);
 unlock:
-	_gfx_mutex_unlock(&pool->lock);
+	gfx_mutex_unlock_(&pool->lock);
 
 	return 0;
 }
@@ -992,11 +991,11 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 	flags |= GFX_TRANSFER_BLOCK;
 
 	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(src);
-	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(unp);
+	GFXUnpackRef_ unp = gfx_ref_unpack_(src);
+	GFXHeap* heap = GFX_UNPACK_REF_HEAP_(unp);
 
 #if !defined (NDEBUG)
-	GFXMemoryFlags mFlags = _GFX_UNPACK_REF_FLAGS(unp);
+	GFXMemoryFlags mFlags = GFX_UNPACK_REF_FLAGS_(unp);
 
 	// Validate memory flags.
 	if (!(mFlags & (GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_READ)))
@@ -1020,14 +1019,14 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 	// We either map or stage, staging may remain NULL.
 	// @see gfx_write for details.
 	void* ptr = NULL;
-	_GFXStaging* staging = NULL;
-	_GFXStageRegion stage[numRegions];
+	GFXStaging_* staging = NULL;
+	GFXStageRegion_ stage[numRegions];
 
 	// If it is a host visible buffer, map it.
 	if (unp.obj.buffer != NULL &&
 		(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
 	{
-		ptr = _gfx_map(&heap->allocator, &unp.obj.buffer->alloc);
+		ptr = gfx_map_(&heap->allocator, &unp.obj.buffer->alloc);
 
 		if (ptr == NULL) goto error;
 		ptr = (void*)((char*)ptr + unp.value);
@@ -1044,9 +1043,9 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 		// Therefore this is not necessarily optimal packing, however the
 		// solution would require even more faffin' about with image packing,
 		// so this is good enough :)
-		const uint64_t size = _gfx_stage_compact(
+		const uint64_t size = gfx_stage_compact_(
 			&unp, numRegions, dstRegions, srcRegions, stage);
-		staging = _gfx_alloc_staging(
+		staging = gfx_alloc_staging_(
 			heap, VK_BUFFER_USAGE_TRANSFER_DST_BIT, size);
 
 		if (staging == NULL)
@@ -1058,30 +1057,30 @@ GFX_API bool gfx_read(GFXReference src, void* dst,
 		// We can immediately do this as opposed to write!
 		// Prepare injection metadata.
 		const GFXAccessMask rMask = GFX_ACCESS_TRANSFER_READ;
-		const uint64_t rSize = _gfx_ref_size(src);
+		const uint64_t rSize = gfx_ref_size_(src);
 
-		if (!_gfx_copy_device(
-			heap, flags, _GFX_COPY_REVERSED, GFX_FILTER_NEAREST,
+		if (!gfx_copy_device_(
+			heap, flags, GFX_COPY_REVERSED_, GFX_FILTER_NEAREST,
 			1, numRegions, numInjs,
 			staging, &unp, &rMask, &rSize,
 			stage, dstRegions, srcRegions, injs))
 		{
-			_gfx_free_staging(heap, staging);
+			gfx_free_staging_(heap, staging);
 			goto error;
 		}
 	}
 
 	// Do the staging -> host copy.
-	_gfx_copy_host(
-		dst, ptr, _GFX_COPY_REVERSED, numRegions, dstRegions,
+	gfx_copy_host_(
+		dst, ptr, GFX_COPY_REVERSED_, numRegions, dstRegions,
 		(staging == NULL) ? srcRegions : NULL,
 		(staging == NULL) ? NULL : stage);
 
 	// Unmap if not staging, free staging otherwise (we always block).
 	if (staging == NULL)
-		_gfx_unmap(&heap->allocator, &unp.obj.buffer->alloc);
+		gfx_unmap_(&heap->allocator, &unp.obj.buffer->alloc);
 	else
-		_gfx_free_staging(heap, staging);
+		gfx_free_staging_(heap, staging);
 
 	return 1;
 
@@ -1108,11 +1107,11 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 	assert(numInjs == 0 || injs != NULL);
 
 	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(dst);
-	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(unp);
+	GFXUnpackRef_ unp = gfx_ref_unpack_(dst);
+	GFXHeap* heap = GFX_UNPACK_REF_HEAP_(unp);
 
 #if !defined (NDEBUG)
-	GFXMemoryFlags mFlags = _GFX_UNPACK_REF_FLAGS(unp);
+	GFXMemoryFlags mFlags = GFX_UNPACK_REF_FLAGS_(unp);
 
 	// Validate memory flags.
 	if (!(mFlags & (GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_WRITE)))
@@ -1135,8 +1134,8 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 
 	// We either map or stage, staging may remain NULL.
 	void* ptr = NULL;
-	_GFXStaging* staging = NULL;
-	_GFXStageRegion stage[numRegions];
+	GFXStaging_* staging = NULL;
+	GFXStageRegion_ stage[numRegions];
 
 	// If it is a host visible buffer, map it.
 	// We cannot map images because we do not allocate linear images (!)
@@ -1144,7 +1143,7 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 	if (unp.obj.buffer != NULL &&
 		(unp.obj.buffer->base.flags & GFX_MEMORY_HOST_VISIBLE))
 	{
-		ptr = _gfx_map(&heap->allocator, &unp.obj.buffer->alloc);
+		ptr = gfx_map_(&heap->allocator, &unp.obj.buffer->alloc);
 
 		if (ptr == NULL) goto error;
 		ptr = (void*)((char*)ptr + unp.value);
@@ -1158,9 +1157,9 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 	{
 		// Compact regions associated with the host,
 		// allocate a staging buffer for it :)
-		const uint64_t size = _gfx_stage_compact(
+		const uint64_t size = gfx_stage_compact_(
 			&unp, numRegions, srcRegions, dstRegions, stage);
-		staging = _gfx_alloc_staging(
+		staging = gfx_alloc_staging_(
 			heap, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size);
 
 		if (staging == NULL)
@@ -1170,7 +1169,7 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 	}
 
 	// Do the host -> staging copy.
-	_gfx_copy_host(
+	gfx_copy_host_(
 		(void*)src, ptr, 0, numRegions, srcRegions,
 		(staging == NULL) ? dstRegions : NULL,
 		(staging == NULL) ? NULL : stage);
@@ -1180,24 +1179,24 @@ GFX_API bool gfx_write(const void* src, GFXReference dst,
 	{
 		// Prepare injection metadata.
 		const GFXAccessMask rMask = GFX_ACCESS_TRANSFER_WRITE;
-		const uint64_t rSize = _gfx_ref_size(dst);
+		const uint64_t rSize = gfx_ref_size_(dst);
 
-		if (!_gfx_copy_device(
+		if (!gfx_copy_device_(
 			heap, flags, 0, GFX_FILTER_NEAREST,
 			1, numRegions, numInjs,
 			staging, &unp, &rMask, &rSize,
 			stage, srcRegions, dstRegions, injs))
 		{
-			_gfx_free_staging(heap, staging);
+			gfx_free_staging_(heap, staging);
 			goto error;
 		}
 	}
 
 	// Unmap if not staging, otherwise, free staging buffer IFF blocking.
 	if (staging == NULL)
-		_gfx_unmap(&heap->allocator, &unp.obj.buffer->alloc);
+		gfx_unmap_(&heap->allocator, &unp.obj.buffer->alloc);
 	else if (flags & GFX_TRANSFER_BLOCK)
-		_gfx_free_staging(heap, staging);
+		gfx_free_staging_(heap, staging);
 
 	return 1;
 
@@ -1210,36 +1209,36 @@ error:
 }
 
 /****************************
- * Stand-in function for gfx_(copy|blit|resolve), wrapper for _gfx_copy_device.
+ * Stand-in function for gfx_(copy|blit|resolve), wrapper for gfx_copy_device_.
  * @param cpFlags Internal copy flags that specifies the type of call.
  * @see gfx_(copy|blit|resolve).
  *
  * Does not assert the reference type!
  */
-static bool _gfx_copy(GFXReference src, GFXReference dst,
-                      GFXTransferFlags flags, _GFXCopyFlags cpFlags, GFXFilter filter,
+static bool gfx_copy_(GFXReference src, GFXReference dst,
+                      GFXTransferFlags flags, GFXCopyFlags_ cpFlags, GFXFilter filter,
                       size_t numRegions, size_t numInjs,
                       const GFXRegion* srcRegions, const GFXRegion* dstRegions,
                       const GFXInject* injs)
 {
-	assert(!(cpFlags & _GFX_COPY_REVERSED));
+	assert(!(cpFlags & GFX_COPY_REVERSED_));
 	assert(numRegions > 0);
 	assert(srcRegions != NULL);
 	assert(dstRegions != NULL);
 	assert(numInjs == 0 || injs != NULL);
 
 	// Prepare injection metadata.
-	const _GFXUnpackRef refs[2] =
-		{ _gfx_ref_unpack(src), _gfx_ref_unpack(dst) };
+	const GFXUnpackRef_ refs[2] =
+		{ gfx_ref_unpack_(src), gfx_ref_unpack_(dst) };
 
 	const GFXAccessMask rMasks[2] =
 		{ GFX_ACCESS_TRANSFER_READ, GFX_ACCESS_TRANSFER_WRITE };
 
 	const uint64_t rSizes[2] =
-		{ _gfx_ref_size(src), _gfx_ref_size(dst) };
+		{ gfx_ref_size_(src), gfx_ref_size_(dst) };
 
 	// Check that the resources share the same context.
-	if (_GFX_UNPACK_REF_CONTEXT(refs[0]) != _GFX_UNPACK_REF_CONTEXT(refs[1]))
+	if (GFX_UNPACK_REF_CONTEXT_(refs[0]) != GFX_UNPACK_REF_CONTEXT_(refs[1]))
 	{
 		gfx_log_error(
 			"When transfering from one memory resource to another they "
@@ -1249,8 +1248,8 @@ static bool _gfx_copy(GFXReference src, GFXReference dst,
 	}
 
 #if !defined (NDEBUG)
-	GFXMemoryFlags srcFlags = _GFX_UNPACK_REF_FLAGS(refs[0]);
-	GFXMemoryFlags dstFlags = _GFX_UNPACK_REF_FLAGS(refs[1]);
+	GFXMemoryFlags srcFlags = GFX_UNPACK_REF_FLAGS_(refs[0]);
+	GFXMemoryFlags dstFlags = GFX_UNPACK_REF_FLAGS_(refs[1]);
 
 	// Validate memory flags.
 	if (!(srcFlags & GFX_MEMORY_READ) || !(dstFlags & GFX_MEMORY_WRITE))
@@ -1276,10 +1275,10 @@ static bool _gfx_copy(GFXReference src, GFXReference dst,
 #endif
 
 	// Always take the heap from src.
-	GFXHeap* heap = _GFX_UNPACK_REF_HEAP(refs[0]);
+	GFXHeap* heap = GFX_UNPACK_REF_HEAP_(refs[0]);
 
 	// Do the resource -> resource copy.
-	if (!_gfx_copy_device(
+	if (!gfx_copy_device_(
 		heap, flags, cpFlags, filter,
 		2, numRegions, numInjs,
 		NULL, refs, rMasks, rSizes,
@@ -1287,8 +1286,8 @@ static bool _gfx_copy(GFXReference src, GFXReference dst,
 	{
 		gfx_log_error(
 			"%s operation failed.",
-			cpFlags & _GFX_COPY_SCALED ? "Blit" :
-			cpFlags & _GFX_COPY_RESOLVE ? "Resolve" :
+			cpFlags & GFX_COPY_SCALED_ ? "Blit" :
+			cpFlags & GFX_COPY_RESOLVE_ ? "Resolve" :
 			"Copy");
 
 		return 0;
@@ -1309,7 +1308,7 @@ GFX_API bool gfx_copy(GFXReference src, GFXReference dst,
 	assert(!GFX_REF_IS_NULL(src));
 	assert(!GFX_REF_IS_NULL(dst));
 
-	return _gfx_copy(
+	return gfx_copy_(
 		src, dst, flags, 0, 0,
 		numRegions, numInjs, srcRegions, dstRegions, injs);
 }
@@ -1326,8 +1325,8 @@ GFX_API bool gfx_blit(GFXImageRef src, GFXImageRef dst,
 	assert(GFX_REF_IS_IMAGE(src));
 	assert(GFX_REF_IS_IMAGE(dst));
 
-	return _gfx_copy(
-		src, dst, flags, _GFX_COPY_SCALED, filter,
+	return gfx_copy_(
+		src, dst, flags, GFX_COPY_SCALED_, filter,
 		numRegions, numInjs, srcRegions, dstRegions, injs);
 }
 
@@ -1343,8 +1342,8 @@ GFX_API bool gfx_resolve(GFXImageRef src, GFXImageRef dst,
 	assert(GFX_REF_IS_IMAGE(src));
 	assert(GFX_REF_IS_IMAGE(dst));
 
-	return _gfx_copy(
-		src, dst, flags, _GFX_COPY_RESOLVE, 0,
+	return gfx_copy_(
+		src, dst, flags, GFX_COPY_RESOLVE_, 0,
 		numRegions, numInjs, srcRegions, dstRegions, injs);
 }
 
@@ -1354,11 +1353,11 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	assert(GFX_REF_IS_BUFFER(ref));
 
 	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+	GFXUnpackRef_ unp = gfx_ref_unpack_(ref);
 
 #if !defined (NDEBUG)
 	// Validate host visibility.
-	if (!(GFX_MEMORY_HOST_VISIBLE & _GFX_UNPACK_REF_FLAGS(unp)))
+	if (!(GFX_MEMORY_HOST_VISIBLE & GFX_UNPACK_REF_FLAGS_(unp)))
 		gfx_log_warn(
 			"Not allowed to map a memory resource that was "
 			"not created with GFX_MEMORY_HOST_VISIBLE.");
@@ -1368,7 +1367,7 @@ GFX_API void* gfx_map(GFXBufferRef ref)
 	void* ptr = NULL;
 
 	if (unp.obj.buffer != NULL)
-		ptr = _gfx_map(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc),
+		ptr = gfx_map_(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc),
 		ptr = (ptr == NULL) ? NULL : (void*)((char*)ptr + unp.value);
 
 	return ptr;
@@ -1380,12 +1379,12 @@ GFX_API void gfx_unmap(GFXBufferRef ref)
 	assert(GFX_REF_IS_BUFFER(ref));
 
 	// Unpack reference.
-	_GFXUnpackRef unp = _gfx_ref_unpack(ref);
+	GFXUnpackRef_ unp = gfx_ref_unpack_(ref);
 
 	// Unmap the buffer.
 	// This function is required to be called _exactly_ once (and no more)
 	// for every gfx_map, given this is the exact same assumption as
-	// _gfx_unmap makes, this should all work out...
+	// gfx_unmap_ makes, this should all work out...
 	if (unp.obj.buffer != NULL)
-		_gfx_unmap(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
+		gfx_unmap_(&unp.obj.buffer->heap->allocator, &unp.obj.buffer->alloc);
 }

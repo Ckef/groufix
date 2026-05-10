@@ -7,8 +7,8 @@
  */
 
 
-#ifndef _GFX_CORE_MEM_H
-#define _GFX_CORE_MEM_H
+#ifndef GFX_CORE_MEM_H_
+#define GFX_CORE_MEM_H_
 
 #include "groufix/containers/io.h"
 #include "groufix/containers/list.h"
@@ -25,60 +25,60 @@
 /**
  * Hashable key definition.
  */
-typedef struct _GFXHashKey
+typedef struct GFXHashKey_
 {
 	size_t len;
 	char bytes[];
 
-} _GFXHashKey;
+} GFXHashKey_;
 
 
 /**
  * Hashable key builder.
  */
-typedef struct _GFXHashBuilder
+typedef struct GFXHashBuilder_
 {
 	GFXVec out;
 
-} _GFXHashBuilder;
+} GFXHashBuilder_;
 
 
 /**
  * Returns the total size (including key header) of a hash key in bytes.
  */
-static inline size_t _gfx_hash_size(const _GFXHashKey* key)
+static inline size_t gfx_hash_size_(const GFXHashKey_* key)
 {
-	return sizeof(_GFXHashKey) + sizeof(char) * key->len;
+	return sizeof(GFXHashKey_) + sizeof(char) * key->len;
 }
 
 /**
  * Pushes data on top of a hash key builder, extending its key.
  * @return A pointer to the pushed data, NULL on failure.
  */
-static inline void* _gfx_hash_builder_push(_GFXHashBuilder* b, size_t s, const void* d)
+static inline void* gfx_hash_builder_push_(GFXHashBuilder_* b, size_t s, const void* d)
 {
 	return !gfx_vec_push(&b->out, s, d) ? NULL : gfx_vec_at(&b->out, b->out.size - s);
 }
 
 /**
  * GFXMap key comparison function,
- * l and r are of type _GFXHashKey*, assumes packed data.
+ * l and r are of type GFXHashKey_*, assumes packed data.
  */
-int _gfx_hash_cmp(const void* l, const void* r);
+int gfx_hash_cmp_(const void* l, const void* r);
 
 /**
  * MurmurHash3 (32 bits) implementation as GFXMap hash function,
- * key is of type _GFXHashKey*.
+ * key is of type GFXHashKey_*.
  */
-uint64_t _gfx_hash_murmur3(const void* key);
+uint64_t gfx_hash_murmur3_(const void* key);
 
 /**
  * Initializes a hash key builder.
- * Needs to eventually be 'cleared' with a call to _gfx_hash_builder_get().
+ * Needs to eventually be 'cleared' with a call to gfx_hash_builder_get_().
  * @param builder Cannot be NULL.
  * @return Non-zero on success.
  */
-bool _gfx_hash_builder(_GFXHashBuilder* builder);
+bool gfx_hash_builder_(GFXHashBuilder_* builder);
 
 /**
  * Claims ownership over the memory allocated by a hash key builder.
@@ -86,7 +86,7 @@ bool _gfx_hash_builder(_GFXHashBuilder* builder);
  * @param builder Cannot be NULL.
  * @return Allocated key data, must call free().
  */
-_GFXHashKey* _gfx_hash_builder_get(_GFXHashBuilder* builder);
+GFXHashKey_* gfx_hash_builder_get_(GFXHashBuilder_* builder);
 
 
 /****************************
@@ -96,7 +96,7 @@ _GFXHashKey* _gfx_hash_builder_get(_GFXHashBuilder* builder);
 /**
  * Memory block (i.e. Vulkan memory object to be subdivided).
  */
-typedef struct _GFXMemBlock
+typedef struct GFXMemBlock_
 {
 	GFXListNode  list; // Base-type.
 	uint32_t     type; // Vulkan memory type index.
@@ -106,8 +106,8 @@ typedef struct _GFXMemBlock
 	// Related memory nodes.
 	struct
 	{
-		GFXTree free; // Stores { VkDeviceSize, VkDeviceSize } : _GFXMemNode.
-		GFXList list; // References _GFXMemNode | _GFXMemAlloc.
+		GFXTree free; // Stores { VkDeviceSize, VkDeviceSize } : GFXMemNode_.
+		GFXList list; // References GFXMemNode_ | GFXMemAlloc_.
 
 	} nodes;
 
@@ -117,7 +117,7 @@ typedef struct _GFXMemBlock
 	{
 		uintmax_t refs;
 		void*     ptr; // NULL if not mapped.
-		_GFXMutex lock;
+		GFXMutex_ lock;
 
 	} map;
 
@@ -129,28 +129,28 @@ typedef struct _GFXMemBlock
 
 	} vk;
 
-} _GFXMemBlock;
+} GFXMemBlock_;
 
 
 /**
  * Memory node, linked to neighbours in actual memory.
  */
-typedef struct _GFXMemNode
+typedef struct GFXMemNode_
 {
 	GFXListNode list; // Base-type.
 
-	bool free; // isa _GFXMemAlloc if zero, isa search tree node if non-zero.
+	bool free; // isa GFXMemAlloc_ if zero, isa search tree node if non-zero.
 
-} _GFXMemNode;
+} GFXMemNode_;
 
 
 /**
  * Allocated memory node (contains everything necessary for use).
  */
-typedef struct _GFXMemAlloc
+typedef struct GFXMemAlloc_
 {
-	_GFXMemNode   node; // Base-type.
-	_GFXMemBlock* block;
+	GFXMemNode_   node; // Base-type.
+	GFXMemBlock_* block;
 
 	VkDeviceSize  size;
 	VkDeviceSize  offset;
@@ -168,24 +168,24 @@ typedef struct _GFXMemAlloc
 
 	} vk;
 
-} _GFXMemAlloc;
+} GFXMemAlloc_;
 
 
 /**
  * Vulkan memory allocator definition.
  */
-typedef struct _GFXAllocator
+typedef struct GFXAllocator_
 {
-	_GFXDevice*  device; // For memory property queries.
-	_GFXContext* context;
+	GFXDevice_*  device; // For memory property queries.
+	GFXContext_* context;
 
-	GFXList free; // References _GFXMemBlock.
-	GFXList full; // References _GFXMemBlock.
+	GFXList free; // References GFXMemBlock_.
+	GFXList full; // References GFXMemBlock_.
 
 	// Constant, queried once.
 	VkDeviceSize granularity;
 
-} _GFXAllocator;
+} GFXAllocator_;
 
 
 /**
@@ -193,16 +193,16 @@ typedef struct _GFXAllocator
  * @param alloc  Cannot be NULL.
  * @param device Cannot be NULL.
  *
- * _gfx_device_init_context must have returned successfully at least once
+ * gfx_device_init_context_ must have returned successfully at least once
  * for the given device.
  */
-void _gfx_allocator_init(_GFXAllocator* alloc, _GFXDevice* device);
+void gfx_allocator_init_(GFXAllocator_* alloc, GFXDevice_* device);
 
 /**
  * Clears an allocator, freeing all allocations.
  * @param alloc Cannot be NULL.
  */
-void _gfx_allocator_clear(_GFXAllocator* alloc);
+void gfx_allocator_clear_(GFXAllocator_* alloc);
 
 /**
  * Allocate some Vulkan memory.
@@ -217,19 +217,19 @@ void _gfx_allocator_clear(_GFXAllocator* alloc);
  *
  * Not thread-safe at all.
  */
-bool _gfx_alloc(_GFXAllocator* alloc, _GFXMemAlloc* mem, bool linear,
+bool gfx_alloc_(GFXAllocator_* alloc, GFXMemAlloc_* mem, bool linear,
                 VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
                 VkMemoryRequirements reqs);
 
 /**
  * Allocate some 'dedicated' Vulkan memory,
  * meaning it will not be sub-allocated from a larger memory block.
- * @see _gfx_alloc.
+ * @see gfx_alloc_.
  *
  * To allocate Vulkan dedicated (for a Vulkan buffer or image) memory,
  * either a buffer _OR_ image can be passed.
  */
-bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+bool gfx_allocd_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
                  VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
                  VkMemoryRequirements reqs,
                  VkBuffer buffer, VkImage image);
@@ -243,7 +243,7 @@ bool _gfx_allocd(_GFXAllocator* alloc, _GFXMemAlloc* mem,
  * The content of mem is invalidated after this call.
  * Silently warns when not able to modify the free structure appropriately.
  */
-void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem);
+void gfx_free_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
 
 /**
  * Maps some Vulkan memory to a host virtual address pointer, this can be
@@ -255,17 +255,17 @@ void _gfx_free(_GFXAllocator* alloc, _GFXMemAlloc* mem);
  * This function is reentrant!
  * The given object must be allocated with VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT.
  */
-void* _gfx_map(_GFXAllocator* alloc, _GFXMemAlloc* mem);
+void* gfx_map_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
 
 /**
  * Unmaps Vulkan memory, invalidating a mapped pointer.
- * Must be called exactly once for every successful call to _gfx_map.
+ * Must be called exactly once for every successful call to gfx_map_.
  * @param alloc Cannot be NULL.
  * @param mem   Cannot be NULL, must be allocated from alloc.
  *
  * This function is reentrant!
  */
-void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem);
+void gfx_unmap_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
 
 
 /****************************
@@ -275,7 +275,7 @@ void _gfx_unmap(_GFXAllocator* alloc, _GFXMemAlloc* mem);
 /**
  * Cached element (i.e. cachable Vulkan object).
  */
-typedef struct _GFXCacheElem
+typedef struct GFXCacheElem_
 {
 	// Input structure type.
 	VkStructureType type;
@@ -296,23 +296,23 @@ typedef struct _GFXCacheElem
 
 	} vk;
 
-} _GFXCacheElem;
+} GFXCacheElem_;
 
 
 /**
  * Vulkan object cache definition.
  */
-typedef struct _GFXCache
+typedef struct GFXCache_
 {
-	_GFXContext* context;
+	GFXContext_* context;
 
-	GFXMap simple;    // Stores _GFXHashKey : _GFXCacheElem.
-	GFXMap immutable; // Stores _GFXHashKey : _GFXCacheElem.
-	GFXMap mutable;   // Stores _GFXHashKey : _GFXCacheElem.
+	GFXMap simple;    // Stores GFXHashKey_ : GFXCacheElem_.
+	GFXMap immutable; // Stores GFXHashKey_ : GFXCacheElem_.
+	GFXMap mutable;   // Stores GFXHashKey_ : GFXCacheElem_.
 
-	_GFXMutex simpleLock;
-	_GFXMutex lookupLock;
-	_GFXMutex createLock;
+	GFXMutex_ simpleLock;
+	GFXMutex_ lookupLock;
+	GFXMutex_ createLock;
 
 	size_t templateStride;
 
@@ -325,7 +325,7 @@ typedef struct _GFXCache
 
 	} vk;
 
-} _GFXCache;
+} GFXCache_;
 
 
 /**
@@ -335,16 +335,16 @@ typedef struct _GFXCache
  * @param templateStride Must be > 0.
  * @return Non-zero on success.
  *
- * _gfx_device_init_context must have returned successfully at least once
+ * gfx_device_init_context_ must have returned successfully at least once
  * for the given device.
  */
-bool _gfx_cache_init(_GFXCache* cache, _GFXDevice* device, size_t templateStride);
+bool gfx_cache_init_(GFXCache_* cache, GFXDevice_* device, size_t templateStride);
 
 /**
  * Clears a cache, destroying all objects.
  * @param cache Cannot be NULL.
  */
-void _gfx_cache_clear(_GFXCache* cache);
+void gfx_cache_clear_(GFXCache_* cache);
 
 /**
  * Flushes all elements in the mutable cache to the immutable cache.
@@ -352,9 +352,9 @@ void _gfx_cache_clear(_GFXCache* cache);
  * @return Non-zero on success.
  *
  * Not thread-safe at all.
- * @see _gfx_cache_get for the only exception.
+ * @see gfx_cache_get_ for the only exception.
  */
-bool _gfx_cache_flush(_GFXCache* cache);
+bool gfx_cache_flush_(GFXCache_* cache);
 
 /**
  * Retrieves an element from the cache.
@@ -368,7 +368,7 @@ bool _gfx_cache_flush(_GFXCache* cache);
  * However, cannot run concurrently with other calls.
  *
  * Except when anything other than a Vk*PipelineCreateInfo struct is given,
- * then it can run concurrently with _gfx_cache_flush and _gfx_cache_warmup.
+ * then it can run concurrently with gfx_cache_flush_ and gfx_cache_warmup_.
  *
  * The following handles must be passed for each info struct,
  * fields ignored by Vulkan must still be set to 'empty' for proper caching!
@@ -395,7 +395,7 @@ bool _gfx_cache_flush(_GFXCache* cache);
  *   1 for the shader module.
  *   1 for the pipeline layout.
  */
-_GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
+GFXCacheElem_* gfx_cache_get_(GFXCache_* cache,
                               const VkStructureType* createInfo,
                               const void** handles);
 
@@ -409,10 +409,10 @@ _GFXCacheElem* _gfx_cache_get(_GFXCache* cache,
  *
  * This function is reentrant,
  * However, cannot run concurrently with other calls.
- * @see _gfx_cache_get for the only exception.
- * @see _gfx_cache_get for the handles that must be passed.
+ * @see gfx_cache_get_ for the only exception.
+ * @see gfx_cache_get_ for the handles that must be passed.
  */
-bool _gfx_cache_warmup(_GFXCache* cache,
+bool gfx_cache_warmup_(GFXCache_* cache,
                        const VkStructureType* createInfo,
                        const void** handles);
 
@@ -424,7 +424,7 @@ bool _gfx_cache_warmup(_GFXCache* cache,
  *
  * Not thread-safe at all.
  */
-bool _gfx_cache_load(_GFXCache* cache, const GFXReader* src);
+bool gfx_cache_load_(GFXCache_* cache, const GFXReader* src);
 
 /**
  * Stores the current groufix pipeline cache data.
@@ -434,7 +434,7 @@ bool _gfx_cache_load(_GFXCache* cache, const GFXReader* src);
  *
  * Not thread-safe at all.
  */
-bool _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst);
+bool gfx_cache_store_(GFXCache_* cache, const GFXWriter* dst);
 
 
 /****************************
@@ -444,10 +444,10 @@ bool _gfx_cache_store(_GFXCache* cache, const GFXWriter* dst);
 /**
  * Pool descriptor block (i.e. Vulkan descriptor pool).
  */
-typedef struct _GFXPoolBlock
+typedef struct GFXPoolBlock_
 {
 	GFXListNode list;  // Base-type, undefined if claimed by subordinate.
-	GFXList     elems; // References _GFXPoolElem.
+	GFXList     elems; // References GFXPoolElem_.
 	bool        full;
 
 	// #in-use descriptor sets (i.e. not-recycled).
@@ -461,16 +461,16 @@ typedef struct _GFXPoolBlock
 
 	} vk;
 
-} _GFXPoolBlock;
+} GFXPoolBlock_;
 
 
 /**
  * Pooled element (i.e. Vulkan descriptor set).
  */
-typedef struct _GFXPoolElem
+typedef struct GFXPoolElem_
 {
 	GFXListNode    list; // Base-type.
-	_GFXPoolBlock* block;
+	GFXPoolBlock_* block;
 
 	// #flushes left to recycle.
 	atomic_uint flushes;
@@ -483,42 +483,42 @@ typedef struct _GFXPoolElem
 
 	} vk;
 
-} _GFXPoolElem;
+} GFXPoolElem_;
 
 
 /**
  * Pool subordinate (i.e. thread handle).
  */
-typedef struct _GFXPoolSub
+typedef struct GFXPoolSub_
 {
 	GFXListNode    list;    // Base-type.
-	GFXMap         mutable; // Stores _GFXHashKey : _GFXPoolElem.
-	_GFXPoolBlock* block;   // Currently claimed for new allocations.
+	GFXMap         mutable; // Stores GFXHashKey_ : GFXPoolElem_.
+	GFXPoolBlock_* block;   // Currently claimed for new allocations.
 
-} _GFXPoolSub;
+} GFXPoolSub_;
 
 
 /**
  * Vulkan descriptor allocator definition.
  */
-typedef struct _GFXPool
+typedef struct GFXPool_
 {
-	_GFXContext* context;
+	GFXContext_* context;
 
-	GFXList free; // References _GFXPoolBlock.
-	GFXList full; // References _GFXPoolBlock.
-	GFXList subs; // References _GFXPoolSub.
+	GFXList free; // References GFXPoolBlock_.
+	GFXList full; // References GFXPoolBlock_.
+	GFXList subs; // References GFXPoolSub_.
 
-	GFXMap immutable; // Stores _GFXHashKey : _GFXPoolElem.
-	GFXMap stale;     // Stores _GFXHashKey : _GFXPoolElem.
-	GFXMap recycled;  // Stores _GFXHashKey : _GFXPoolElem.
+	GFXMap immutable; // Stores GFXHashKey_ : GFXPoolElem_.
+	GFXMap stale;     // Stores GFXHashKey_ : GFXPoolElem_.
+	GFXMap recycled;  // Stores GFXHashKey_ : GFXPoolElem_.
 
-	_GFXMutex subLock; // For claiming blocks.
-	_GFXMutex recLock; // For recycling.
+	GFXMutex_ subLock; // For claiming blocks.
+	GFXMutex_ recLock; // For recycling.
 
 	unsigned int flushes;
 
-} _GFXPool;
+} GFXPool_;
 
 
 /**
@@ -528,16 +528,16 @@ typedef struct _GFXPool
  * @param flushes Number of flushes after which a descriptor set is recycled.
  * @return Non-zero on success.
  *
- * _gfx_device_init_context must have returned successfully at least once
+ * gfx_device_init_context_ must have returned successfully at least once
  * for the given device.
  */
-bool _gfx_pool_init(_GFXPool* pool, _GFXDevice* device, unsigned int flushes);
+bool gfx_pool_init_(GFXPool_* pool, GFXDevice_* device, unsigned int flushes);
 
 /**
  * Clears a pool, also clearing all subordinates.
  * @param pool Cannot be NULL.
  */
-void _gfx_pool_clear(_GFXPool* pool);
+void gfx_pool_clear_(GFXPool_* pool);
 
 /**
  * Flushes all subordinate descriptor caches to the immutable pool cache,
@@ -548,7 +548,7 @@ void _gfx_pool_clear(_GFXPool* pool);
  *
  * Not thread-safe at all.
  */
-bool _gfx_pool_flush(_GFXPool* pool);
+bool gfx_pool_flush_(GFXPool_* pool);
 
 /**
  * Resets all descriptor pools, freeing all descriptor sets,
@@ -559,7 +559,7 @@ bool _gfx_pool_flush(_GFXPool* pool);
  *
  * Not thread-safe at all.
  */
-void _gfx_pool_reset(_GFXPool* pool);
+void gfx_pool_reset_(GFXPool_* pool);
 
 /**
  * Initializes a new subordinate of the pool.
@@ -569,7 +569,7 @@ void _gfx_pool_reset(_GFXPool* pool);
  *
  * Not thread-safe at all.
  */
-void _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub);
+void gfx_pool_sub_(GFXPool_* pool, GFXPoolSub_* sub);
 
 /**
  * Clears ('undos') a subordinate.
@@ -578,26 +578,26 @@ void _gfx_pool_sub(_GFXPool* pool, _GFXPoolSub* sub);
  *
  * Not thread-safe at all.
  */
-void _gfx_pool_unsub(_GFXPool* pool, _GFXPoolSub* sub);
+void gfx_pool_unsub_(GFXPool_* pool, GFXPoolSub_* sub);
 
 /**
  * Forces recycling of all matching Vulkan descriptor sets.
  * Useful for when specific keys have been invalidated.
  * @param pool Cannot be NULL.
- * @param key  Matched against the keys passed in _gfx_pool_get.
+ * @param key  Matched against the keys passed in gfx_pool_get_.
  * @param flushes Number of flushes after which the descriptor set is recycled.
  *
- * Not thread-safe at all, unlike _gfx_pool_get!
+ * Not thread-safe at all, unlike gfx_pool_get_!
  * Note: when a set is recycled, its associated block might be freed if empty!
  */
-void _gfx_pool_recycle(_GFXPool* pool,
-                       const _GFXHashKey* key, unsigned int flushes);
+void gfx_pool_recycle_(GFXPool_* pool,
+                       const GFXHashKey_* key, unsigned int flushes);
 
 /**
  * Retrieves, allocates or recycles a Vulkan descriptor set from the pool.
  * @param pool      Cannot be NULL.
  * @param sub       Cannot be NULL.
- * @param setLayout Must be a descriptor set layout returned by _gfx_cache_get.
+ * @param setLayout Must be a descriptor set layout returned by gfx_cache_get_.
  * @param key       Must uniquely identify the given layout + descriptors.
  * @param update    Template-formatted data to update the descriptors with.
  * @return NULL on failure.
@@ -605,17 +605,17 @@ void _gfx_pool_recycle(_GFXPool* pool,
  * Thread-safe with respect to other subordinates.
  * However, can never run concurrently with other pool functions.
  *
- * The first bytes of key must be setLayout, pushed as a _GFXCacheElem*.
- * Naturally key must at least be of size sizeof(_GFXCacheElem*), the total
+ * The first bytes of key must be setLayout, pushed as a GFXCacheElem_*.
+ * Naturally key must at least be of size sizeof(GFXCacheElem_*), the total
  * size must be fixed for a given descriptor set layout.
  *
  * update must point to the first VkDescriptorImageInfo, VkDescriptorBufferInfo
  * or VkBufferView structure, with `templateStride` bytes inbetween consecutive
- * structures, as defined by the _GFXCache that setLayout was allocated from.
+ * structures, as defined by the GFXCache_ that setLayout was allocated from.
  */
-_GFXPoolElem* _gfx_pool_get(_GFXPool* pool, _GFXPoolSub* sub,
-                            const _GFXCacheElem* setLayout,
-                            const _GFXHashKey* key, const void* update);
+GFXPoolElem_* gfx_pool_get_(GFXPool_* pool, GFXPoolSub_* sub,
+                            const GFXCacheElem_* setLayout,
+                            const GFXHashKey_* key, const void* update);
 
 
 #endif

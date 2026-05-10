@@ -7,7 +7,6 @@
  */
 
 #include "groufix/core/mem.h"
-#include <assert.h>
 #include <string.h>
 
 #if defined (GFX_WIN32)
@@ -20,34 +19,34 @@ static_assert(sizeof(uint32_t) == 4, "MurmurHash3 blocks must be 4 bytes.");
 
 
 // 'Randomized' hash seed (generated on the web).
-#define _GFX_HASH_SEED ((uint32_t)0x4ac093e6)
+#define GFX_HASH_SEED_ ((uint32_t)0x4ac093e6)
 
 
 // Platform agnostic rotl.
 #if defined (GFX_WIN32)
-	#define _GFX_ROTL32(x, r) _rotl(x, r)
+	#define GFX_ROTL32_(x, r) _rotl(x, r)
 #else
-	#define _GFX_ROTL32(x, r) ((x << r) | (x >> (32 - r)))
+	#define GFX_ROTL32_(x, r) ((x << r) | (x >> (32 - r)))
 #endif
 
 
 /****************************/
-int _gfx_hash_cmp(const void* l, const void* r)
+int gfx_hash_cmp_(const void* l, const void* r)
 {
-	const _GFXHashKey* kL = l;
-	const _GFXHashKey* kR = r;
+	const GFXHashKey_* kL = l;
+	const GFXHashKey_* kR = r;
 
 	// Non-zero = inequal.
 	return kL->len != kR->len || memcmp(kL->bytes, kR->bytes, kL->len);
 }
 
 /****************************/
-uint64_t _gfx_hash_murmur3(const void* key)
+uint64_t gfx_hash_murmur3_(const void* key)
 {
-	const _GFXHashKey* cKey = key;
+	const GFXHashKey_* cKey = key;
 	const size_t nblocks = cKey->len / sizeof(uint32_t);
 
-	uint32_t h = _GFX_HASH_SEED;
+	uint32_t h = GFX_HASH_SEED_;
 
 	const uint32_t c1 = 0xcc9e2d51;
 	const uint32_t c2 = 0x1b873593;
@@ -60,11 +59,11 @@ uint64_t _gfx_hash_murmur3(const void* key)
 		uint32_t k = *(body - i);
 
 		k *= c1;
-		k = _GFX_ROTL32(k, 15);
+		k = GFX_ROTL32_(k, 15);
 		k *= c2;
 
 		h ^= k;
-		h = _GFX_ROTL32(h, 13);
+		h = GFX_ROTL32_(h, 13);
 		h = h*5 + 0xe6546b64;
 	}
 
@@ -83,7 +82,7 @@ uint64_t _gfx_hash_murmur3(const void* key)
 		k ^= tail[0];
 
 		k *= c1;
-		k = _GFX_ROTL32(k, 15);
+		k = GFX_ROTL32_(k, 15);
 		k *= c2;
 
 		h ^= k;
@@ -102,16 +101,16 @@ uint64_t _gfx_hash_murmur3(const void* key)
 }
 
 /****************************/
-bool _gfx_hash_builder(_GFXHashBuilder* builder)
+bool gfx_hash_builder_(GFXHashBuilder_* builder)
 {
 	assert(builder != NULL);
 
 	// We have no idea how large the key is gonna be,
 	// so we build it in a vector and claim its memory afterwards.
-	// Initialize with a _GFXHashKey as header.
+	// Initialize with a GFXHashKey_ as header.
 	gfx_vec_init(&builder->out, 1);
 
-	if (gfx_vec_push(&builder->out, sizeof(_GFXHashKey), NULL))
+	if (gfx_vec_push(&builder->out, sizeof(GFXHashKey_), NULL))
 		return 1;
 
 	gfx_vec_clear(&builder->out);
@@ -119,13 +118,13 @@ bool _gfx_hash_builder(_GFXHashBuilder* builder)
 }
 
 /****************************/
-_GFXHashKey* _gfx_hash_builder_get(_GFXHashBuilder* builder)
+GFXHashKey_* gfx_hash_builder_get_(GFXHashBuilder_* builder)
 {
 	assert(builder != NULL);
 
 	// Claim data, set length & return.
-	const size_t len = builder->out.size - sizeof(_GFXHashKey);
-	_GFXHashKey* key = gfx_vec_claim(&builder->out); // Implicitly clears.
+	const size_t len = builder->out.size - sizeof(GFXHashKey_);
+	GFXHashKey_* key = gfx_vec_claim(&builder->out); // Implicitly clears.
 	key->len = len;
 
 	return key;

@@ -7,32 +7,31 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 
 
-#define _GFX_BUFFER_FROM_LIST(node) \
-	GFX_LIST_ELEM(node, _GFXBuffer, list)
+#define GFX_BUFFER_FROM_LIST_(node) \
+	GFX_LIST_ELEM(node, GFXBuffer_, list)
 
-#define _GFX_IMAGE_FROM_LIST(node) \
-	GFX_LIST_ELEM(node, _GFXImage, list)
+#define GFX_IMAGE_FROM_LIST_(node) \
+	GFX_LIST_ELEM(node, GFXImage_, list)
 
-#define _GFX_PRIMITIVE_FROM_BUFFER(buff) \
-	((_GFXPrimitive*)((char*)(buff) - offsetof(_GFXPrimitive, buffer)))
+#define GFX_PRIMITIVE_FROM_BUFFER_(buff) \
+	((GFXPrimitive_*)((char*)(buff) - offsetof(GFXPrimitive_, buffer)))
 
-#define _GFX_PRIMITIVE_FROM_LIST(node) \
-	_GFX_PRIMITIVE_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
+#define GFX_PRIMITIVE_FROM_LIST_(node) \
+	GFX_PRIMITIVE_FROM_BUFFER_(GFX_BUFFER_FROM_LIST_(node))
 
-#define _GFX_GROUP_FROM_BUFFER(buff) \
-	((_GFXGroup*)((char*)(buff) - offsetof(_GFXGroup, buffer)))
+#define GFX_GROUP_FROM_BUFFER_(buff) \
+	((GFXGroup_*)((char*)(buff) - offsetof(GFXGroup_, buffer)))
 
-#define _GFX_GROUP_FROM_LIST(node) \
-	_GFX_GROUP_FROM_BUFFER(_GFX_BUFFER_FROM_LIST(node))
+#define GFX_GROUP_FROM_LIST_(node) \
+	GFX_GROUP_FROM_BUFFER_(GFX_BUFFER_FROM_LIST_(node))
 
 
 // Modifies flags (lvalue) according to resulting Vulkan memory flags.
-#define _GFX_MOD_MEMORY_FLAGS(flags, vFlags) \
+#define GFX_MOD_MEMORY_FLAGS_(flags, vFlags) \
 	flags = \
 		(flags & ~(GFXMemoryFlags)( \
 			GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_DEVICE_LOCAL)) | \
@@ -47,7 +46,7 @@
  * Extracts Vulkan memory flags (and implicitly memory type) from public flags.
  * @param dreqs Can be NULL to disallow a dedicated allocation.
  */
-static inline bool _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
+static inline bool gfx_alloc_mem_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
                                   bool linear, bool transient,
                                   GFXMemoryFlags flags,
                                   const VkMemoryRequirements* reqs,
@@ -87,26 +86,26 @@ static inline bool _gfx_alloc_mem(_GFXAllocator* alloc, _GFXMemAlloc* mem,
 	// Note that we do not check `dreqs->requiresDedicatedAllocation`, this
 	// is only relevant for external memory, which we do not use.
 	if (dreqs != NULL && dreqs->prefersDedicatedAllocation)
-		return _gfx_allocd(alloc, mem, required, optimal, *reqs, buffer, image);
+		return gfx_allocd_(alloc, mem, required, optimal, *reqs, buffer, image);
 	else
-		return _gfx_alloc(alloc, mem, linear, required, optimal, *reqs);
+		return gfx_alloc_(alloc, mem, linear, required, optimal, *reqs);
 }
 
 /****************************
  * Populates the `vk.buffer` and `alloc` fields
- * of a _GFXBuffer object, allocating a new Vulkan buffer in the process.
+ * of a GFXBuffer_ object, allocating a new Vulkan buffer in the process.
  * @param buffer Cannot be NULL, base.flags is appropriately modified.
  * @return Zero on failure.
  *
  * The `base` and `heap` fields of buffer must be properly initialized,
  * these values are read for the allocation!
  */
-static bool _gfx_buffer_alloc(_GFXBuffer* buffer)
+static bool gfx_buffer_alloc_(GFXBuffer_* buffer)
 {
 	assert(buffer != NULL);
 
 	GFXHeap* heap = buffer->heap;
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Get queue families to share with.
 	uint32_t families[3] = {
@@ -116,11 +115,11 @@ static bool _gfx_buffer_alloc(_GFXBuffer* buffer)
 	};
 
 	uint32_t fCount =
-		_gfx_filter_families(buffer->base.flags, families);
+		gfx_filter_families_(buffer->base.flags, families);
 
 	// Create a new Vulkan buffer.
 	VkBufferUsageFlags usage =
-		_GFX_GET_VK_BUFFER_USAGE(buffer->base.flags, buffer->base.usage);
+		GFX_GET_VK_BUFFER_USAGE_(buffer->base.flags, buffer->base.usage);
 
 	VkBufferCreateInfo bci = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -136,7 +135,7 @@ static bool _gfx_buffer_alloc(_GFXBuffer* buffer)
 
 	};
 
-	_GFX_VK_CHECK(context->vk.CreateBuffer(
+	GFX_VK_CHECK_(context->vk.CreateBuffer(
 		context->vk.device, &bci, NULL, &buffer->vk.buffer), return 0);
 
 	// Get memory requirements & do actual allocation.
@@ -159,7 +158,7 @@ static bool _gfx_buffer_alloc(_GFXBuffer* buffer)
 	context->vk.GetBufferMemoryRequirements2(
 		context->vk.device, &bmri2, &mr2);
 
-	if (!_gfx_alloc_mem(
+	if (!gfx_alloc_mem_(
 		&heap->allocator, &buffer->alloc, 1, 0, buffer->base.flags,
 		&mr2.memoryRequirements, &mdr,
 		buffer->vk.buffer, VK_NULL_HANDLE))
@@ -168,10 +167,10 @@ static bool _gfx_buffer_alloc(_GFXBuffer* buffer)
 	}
 
 	// Get public memory flags.
-	_GFX_MOD_MEMORY_FLAGS(buffer->base.flags, buffer->alloc.flags);
+	GFX_MOD_MEMORY_FLAGS_(buffer->base.flags, buffer->alloc.flags);
 
 	// Bind the buffer to the memory.
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.BindBufferMemory(
 			context->vk.device,
 			buffer->vk.buffer,
@@ -183,7 +182,7 @@ static bool _gfx_buffer_alloc(_GFXBuffer* buffer)
 
 	// Cleanup on failure.
 clean_alloc:
-	_gfx_free(&heap->allocator, &buffer->alloc);
+	gfx_free_(&heap->allocator, &buffer->alloc);
 clean:
 	context->vk.DestroyBuffer(
 		context->vk.device, buffer->vk.buffer, NULL);
@@ -192,40 +191,40 @@ clean:
 }
 
 /****************************
- * Frees all resources created by _gfx_buffer_alloc.
+ * Frees all resources created by gfx_buffer_alloc_.
  * @param buffer Cannot be NULL and vk.buffer cannot be VK_NULL_HANDLE.
  */
-static void _gfx_buffer_free(_GFXBuffer* buffer)
+static void gfx_buffer_free_(GFXBuffer_* buffer)
 {
 	assert(buffer != NULL);
 	assert(buffer->vk.buffer != VK_NULL_HANDLE);
 
 	GFXHeap* heap = buffer->heap;
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Destroy Vulkan buffer.
 	context->vk.DestroyBuffer(
 		context->vk.device, buffer->vk.buffer, NULL);
 
 	// Free the memory.
-	_gfx_free(&heap->allocator, &buffer->alloc);
+	gfx_free_(&heap->allocator, &buffer->alloc);
 }
 
 /****************************
  * Populates the `vk.image` and `alloc` fields
- * of a _GFXImage object, allocating a new Vulkan image in the process.
+ * of a GFXImage_ object, allocating a new Vulkan image in the process.
  * @param image Cannot be NULL, base.flags is appropriately modified.
  * @return Zero on failure.
  *
  * The `base`, `heap` and `vk.format` fields of image must be properly
  * initialized, these values are read for the allocation!
  */
-static bool _gfx_image_alloc(_GFXImage* image)
+static bool gfx_image_alloc_(GFXImage_* image)
 {
 	assert(image != NULL);
 
 	GFXHeap* heap = image->heap;
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Get queue families to share with.
 	uint32_t families[3] = {
@@ -235,7 +234,7 @@ static bool _gfx_image_alloc(_GFXImage* image)
 	};
 
 	uint32_t fCount =
-		_gfx_filter_families(image->base.flags, families);
+		gfx_filter_families_(image->base.flags, families);
 
 	// Create a new Vulkan image.
 	VkImageCreateFlags createFlags =
@@ -244,7 +243,7 @@ static bool _gfx_image_alloc(_GFXImage* image)
 		(image->base.type == GFX_IMAGE_CUBE) ?
 			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
 
-	VkImageUsageFlags usage = _GFX_GET_VK_IMAGE_USAGE(
+	VkImageUsageFlags usage = GFX_GET_VK_IMAGE_USAGE_(
 		image->base.flags, image->base.usage, image->base.format);
 
 	VkImageCreateInfo ici = {
@@ -252,7 +251,7 @@ static bool _gfx_image_alloc(_GFXImage* image)
 
 		.pNext                 = NULL,
 		.flags                 = createFlags,
-		.imageType             = _GFX_GET_VK_IMAGE_TYPE(image->base.type),
+		.imageType             = GFX_GET_VK_IMAGE_TYPE_(image->base.type),
 		.format                = image->vk.format,
 		.extent                = {
 			.width  = image->base.width,
@@ -271,7 +270,7 @@ static bool _gfx_image_alloc(_GFXImage* image)
 			VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
 	};
 
-	_GFX_VK_CHECK(context->vk.CreateImage(
+	GFX_VK_CHECK_(context->vk.CreateImage(
 		context->vk.device, &ici, NULL, &image->vk.image), return 0);
 
 	// Get memory requirements & do actual allocation.
@@ -294,7 +293,7 @@ static bool _gfx_image_alloc(_GFXImage* image)
 	context->vk.GetImageMemoryRequirements2(
 		context->vk.device, &imri2, &mr2);
 
-	if (!_gfx_alloc_mem(
+	if (!gfx_alloc_mem_(
 		&heap->allocator, &image->alloc, 0, 0, image->base.flags,
 		&mr2.memoryRequirements, &mdr,
 		VK_NULL_HANDLE, image->vk.image))
@@ -303,10 +302,10 @@ static bool _gfx_image_alloc(_GFXImage* image)
 	}
 
 	// Get public memory flags.
-	_GFX_MOD_MEMORY_FLAGS(image->base.flags, image->alloc.flags);
+	GFX_MOD_MEMORY_FLAGS_(image->base.flags, image->alloc.flags);
 
 	// Bind the image to the memory.
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.BindImageMemory(
 			context->vk.device,
 			image->vk.image,
@@ -318,7 +317,7 @@ static bool _gfx_image_alloc(_GFXImage* image)
 
 	// Cleanup on failure.
 clean_alloc:
-	_gfx_free(&heap->allocator, &image->alloc);
+	gfx_free_(&heap->allocator, &image->alloc);
 clean:
 	context->vk.DestroyImage(
 		context->vk.device, image->vk.image, NULL);
@@ -327,28 +326,28 @@ clean:
 }
 
 /****************************
- * Frees all resources created by _gfx_image_alloc.
+ * Frees all resources created by gfx_image_alloc_.
  * @param image Cannot be NULL and vk.image cannot be VK_NULL_HANDLE.
  */
-static void _gfx_image_free(_GFXImage* image)
+static void gfx_image_free_(GFXImage_* image)
 {
 	assert(image != NULL);
 	assert(image->vk.image != VK_NULL_HANDLE);
 
 	GFXHeap* heap = image->heap;
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Destroy Vulkan image.
 	context->vk.DestroyImage(
 		context->vk.device, image->vk.image, NULL);
 
 	// Free the memory.
-	_gfx_free(&heap->allocator, &image->alloc);
+	gfx_free_(&heap->allocator, &image->alloc);
 }
 
 /****************************/
-_GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
-                                const _GFXImageAttach* attach)
+GFXBacking_* gfx_alloc_backing_(GFXHeap* heap,
+                                const GFXImageAttach_* attach)
 {
 	assert(heap != NULL);
 	assert(attach != NULL);
@@ -356,10 +355,10 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
 	assert(attach->height > 0);
 	assert(attach->depth > 0);
 
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Allocate a new backing image.
-	_GFXBacking* backing = malloc(sizeof(_GFXBacking));
+	GFXBacking_* backing = malloc(sizeof(GFXBacking_));
 	if (backing == NULL) goto clean;
 
 	// Get queue families to share with.
@@ -370,7 +369,7 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
 	};
 
 	uint32_t fCount =
-		_gfx_filter_families(attach->base.flags, families);
+		gfx_filter_families_(attach->base.flags, families);
 
 	// Create a new Vulkan image.
 	VkImageCreateFlags createFlags =
@@ -379,7 +378,7 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
 		(attach->base.type == GFX_IMAGE_CUBE) ?
 			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
 
-	VkImageUsageFlags usage = _GFX_GET_VK_IMAGE_USAGE(
+	VkImageUsageFlags usage = GFX_GET_VK_IMAGE_USAGE_(
 		attach->base.flags, attach->base.usage, attach->base.format);
 
 	VkImageCreateInfo ici = {
@@ -387,7 +386,7 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
 
 		.pNext                 = NULL,
 		.flags                 = createFlags,
-		.imageType             = _GFX_GET_VK_IMAGE_TYPE(attach->base.type),
+		.imageType             = GFX_GET_VK_IMAGE_TYPE_(attach->base.type),
 		.format                = attach->vk.format,
 		.extent                = {
 			.width  = attach->width,
@@ -406,7 +405,7 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
 			VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
 	};
 
-	_GFX_VK_CHECK(context->vk.CreateImage(
+	GFX_VK_CHECK_(context->vk.CreateImage(
 		context->vk.device, &ici, NULL, &backing->vk.image), goto clean);
 
 	// Get memory requirements & do actual allocation.
@@ -434,9 +433,9 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
 
 	// Lock just before the allocation.
 	// Postponed until now because we can, don't block other allocations :)
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
-	if (!_gfx_alloc_mem(
+	if (!gfx_alloc_mem_(
 		&heap->allocator, &backing->alloc, 0, transient, attach->base.flags,
 		&mr2.memoryRequirements, &mdr,
 		VK_NULL_HANDLE, backing->vk.image))
@@ -445,7 +444,7 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
 	}
 
 	// Bind the image to the memory.
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.BindImageMemory(
 			context->vk.device,
 			backing->vk.image,
@@ -453,16 +452,16 @@ _GFXBacking* _gfx_alloc_backing(GFXHeap* heap,
 		goto clean_alloc);
 
 	// Unlock.
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	return backing;
 
 
 	// Cleanup on failure.
 clean_alloc:
-	_gfx_free(&heap->allocator, &backing->alloc);
+	gfx_free_(&heap->allocator, &backing->alloc);
 clean_image:
-	_gfx_mutex_unlock(&heap->lock); // Don't forget.
+	gfx_mutex_unlock_(&heap->lock); // Don't forget.
 
 	context->vk.DestroyImage(
 		context->vk.device, backing->vk.image, NULL);
@@ -476,37 +475,37 @@ clean:
 }
 
 /****************************/
-void _gfx_free_backing(GFXHeap* heap, _GFXBacking* backing)
+void gfx_free_backing_(GFXHeap* heap, GFXBacking_* backing)
 {
 	assert(heap != NULL);
 	assert(backing != NULL);
 
-	_GFXAllocator* alloc = &heap->allocator;
-	_GFXContext* context = alloc->context;
+	GFXAllocator_* alloc = &heap->allocator;
+	GFXContext_* context = alloc->context;
 
 	// Destroy Vulkan image.
 	context->vk.DestroyImage(
 		context->vk.device, backing->vk.image, NULL);
 
 	// Lock, free the memory & unlock.
-	_gfx_mutex_lock(&heap->lock);
-	_gfx_free(alloc, &backing->alloc);
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
+	gfx_free_(alloc, &backing->alloc);
+	gfx_mutex_unlock_(&heap->lock);
 
 	free(backing);
 }
 
 /****************************/
-_GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
+GFXStaging_* gfx_alloc_staging_(GFXHeap* heap,
                                 VkBufferUsageFlags usage, uint64_t size)
 {
 	assert(heap != NULL);
 	assert(size > 0);
 
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Allocate a new staging buffer.
-	_GFXStaging* staging = malloc(sizeof(_GFXStaging));
+	GFXStaging_* staging = malloc(sizeof(GFXStaging_));
 	if (staging == NULL) goto clean;
 
 	// Create a new Vulkan buffer.
@@ -523,7 +522,7 @@ _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
 		.pQueueFamilyIndices   = NULL
 	};
 
-	_GFX_VK_CHECK(context->vk.CreateBuffer(
+	GFX_VK_CHECK_(context->vk.CreateBuffer(
 		context->vk.device, &bci, NULL, &staging->vk.buffer), goto clean);
 
 	// Get memory requirements & do actual allocation.
@@ -535,9 +534,9 @@ _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
 
 	// Lock just before the allocation.
 	// Postponed until now because we can, allows many staging buffers :)
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
-	if (!_gfx_alloc_mem(
+	if (!gfx_alloc_mem_(
 		&heap->allocator, &staging->alloc, 1, 0, GFX_MEMORY_HOST_VISIBLE,
 		&mr, NULL, VK_NULL_HANDLE, VK_NULL_HANDLE))
 	{
@@ -545,7 +544,7 @@ _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
 	}
 
 	// Bind the buffer to the memory.
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.BindBufferMemory(
 			context->vk.device,
 			staging->vk.buffer,
@@ -553,19 +552,19 @@ _GFXStaging* _gfx_alloc_staging(GFXHeap* heap,
 		goto clean_alloc);
 
 	// Map the buffer & unlock.
-	if ((staging->vk.ptr = _gfx_map(&heap->allocator, &staging->alloc)) == NULL)
+	if ((staging->vk.ptr = gfx_map_(&heap->allocator, &staging->alloc)) == NULL)
 		goto clean_alloc;
 
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	return staging;
 
 
 	// Cleanup on failure.
 clean_alloc:
-	_gfx_free(&heap->allocator, &staging->alloc);
+	gfx_free_(&heap->allocator, &staging->alloc);
 clean_buffer:
-	_gfx_mutex_unlock(&heap->lock); // Don't forget.
+	gfx_mutex_unlock_(&heap->lock); // Don't forget.
 
 	context->vk.DestroyBuffer(
 		context->vk.device, staging->vk.buffer, NULL);
@@ -578,32 +577,32 @@ clean:
 }
 
 /****************************/
-void _gfx_free_staging(GFXHeap* heap, _GFXStaging* staging)
+void gfx_free_staging_(GFXHeap* heap, GFXStaging_* staging)
 {
 	assert(heap != NULL);
 	assert(staging != NULL);
 
-	_GFXAllocator* alloc = &heap->allocator;
-	_GFXContext* context = alloc->context;
+	GFXAllocator_* alloc = &heap->allocator;
+	GFXContext_* context = alloc->context;
 
 	// Firstly unmap, this so the map references of the underlying
 	// memory block don't get fckd by staging buffers.
-	_gfx_unmap(alloc, &staging->alloc);
+	gfx_unmap_(alloc, &staging->alloc);
 
 	// Destroy Vulkan buffer.
 	context->vk.DestroyBuffer(
 		context->vk.device, staging->vk.buffer, NULL);
 
 	// Lock, free the memory & unlock.
-	_gfx_mutex_lock(&heap->lock);
-	_gfx_free(alloc, &staging->alloc);
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
+	gfx_free_(alloc, &staging->alloc);
+	gfx_mutex_unlock_(&heap->lock);
 
 	free(staging);
 }
 
 /****************************/
-void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer)
+void gfx_free_stagings_(GFXHeap* heap, GFXTransfer_* transfer)
 {
 	assert(heap != NULL);
 	assert(transfer != NULL);
@@ -611,9 +610,9 @@ void _gfx_free_stagings(GFXHeap* heap, _GFXTransfer* transfer)
 	// Do as asked, free all staging buffers :)
 	while (transfer->stagings.head != NULL)
 	{
-		_GFXStaging* staging = (_GFXStaging*)transfer->stagings.head;
+		GFXStaging_* staging = (GFXStaging_*)transfer->stagings.head;
 		gfx_list_erase(&transfer->stagings, &staging->list);
-		_gfx_free_staging(heap, staging);
+		gfx_free_staging_(heap, staging);
 	}
 
 	gfx_list_clear(&transfer->stagings);
@@ -627,25 +626,25 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	if (heap == NULL)
 		goto clean;
 
-	if (!_gfx_mutex_init(&heap->lock))
+	if (!gfx_mutex_init_(&heap->lock))
 		goto clean;
 
-	if (!_gfx_mutex_init(&heap->ops.graphics.lock))
+	if (!gfx_mutex_init_(&heap->ops.graphics.lock))
 		goto clean_lock;
 
-	if (!_gfx_mutex_init(&heap->ops.transfer.lock))
+	if (!gfx_mutex_init_(&heap->ops.transfer.lock))
 		goto clean_graphics_lock;
 
 	// Get context associated with the device.
-	_GFXDevice* dev;
-	_GFXContext* context;
-	_GFX_GET_DEVICE(dev, device);
-	_GFX_GET_CONTEXT(context, device, goto clean_transfer_lock);
+	GFXDevice_* dev;
+	GFXContext_* context;
+	GFX_GET_DEVICE_(dev, device);
+	GFX_GET_CONTEXT_(context, device, goto clean_transfer_lock);
 
 	// Pick the graphics and transfer queues (and compute family).
-	_gfx_pick_queue(context, &heap->ops.graphics.queue, VK_QUEUE_GRAPHICS_BIT, 0);
-	_gfx_pick_queue(context, &heap->ops.transfer.queue, VK_QUEUE_TRANSFER_BIT, 0);
-	_gfx_pick_family(context, &heap->ops.compute, VK_QUEUE_COMPUTE_BIT, 0);
+	gfx_pick_queue_(context, &heap->ops.graphics.queue, VK_QUEUE_GRAPHICS_BIT, 0);
+	gfx_pick_queue_(context, &heap->ops.transfer.queue, VK_QUEUE_TRANSFER_BIT, 0);
+	gfx_pick_family_(context, &heap->ops.compute, VK_QUEUE_COMPUTE_BIT, 0);
 
 	// Create command pools (one for each queue).
 	// They are used for all memory resource operations.
@@ -662,19 +661,19 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	};
 
 	cpci.queueFamilyIndex = heap->ops.graphics.queue.family;
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.CreateCommandPool(
 			context->vk.device, &cpci, NULL, &heap->ops.graphics.vk.pool),
 		goto clean_pools);
 
 	cpci.queueFamilyIndex = heap->ops.transfer.queue.family;
-	_GFX_VK_CHECK(
+	GFX_VK_CHECK_(
 		context->vk.CreateCommandPool(
 			context->vk.device, &cpci, NULL, &heap->ops.transfer.vk.pool),
 		goto clean_pools);
 
 	// Initialize allocator things.
-	_gfx_allocator_init(&heap->allocator, dev);
+	gfx_allocator_init_(&heap->allocator, dev);
 	gfx_list_init(&heap->buffers);
 	gfx_list_init(&heap->images);
 	gfx_list_init(&heap->primitives);
@@ -684,8 +683,8 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	heap->ops.graphics.injection = NULL;
 	heap->ops.transfer.injection = NULL;
 
-	gfx_deque_init(&heap->ops.graphics.transfers, sizeof(_GFXTransfer));
-	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(_GFXTransfer));
+	gfx_deque_init(&heap->ops.graphics.transfers, sizeof(GFXTransfer_));
+	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(GFXTransfer_));
 	gfx_vec_init(&heap->ops.graphics.injs, sizeof(GFXInject));
 	gfx_vec_init(&heap->ops.transfer.injs, sizeof(GFXInject));
 	atomic_store(&heap->ops.graphics.blocking, 0);
@@ -701,11 +700,11 @@ clean_pools:
 	context->vk.DestroyCommandPool(
 		context->vk.device, heap->ops.transfer.vk.pool, NULL);
 clean_transfer_lock:
-	_gfx_mutex_clear(&heap->ops.transfer.lock);
+	gfx_mutex_clear_(&heap->ops.transfer.lock);
 clean_graphics_lock:
-	_gfx_mutex_clear(&heap->ops.graphics.lock);
+	gfx_mutex_clear_(&heap->ops.graphics.lock);
 clean_lock:
-	_gfx_mutex_clear(&heap->lock);
+	gfx_mutex_clear_(&heap->lock);
 clean:
 	gfx_log_error("Could not create a new heap.");
 	free(heap);
@@ -719,27 +718,27 @@ GFX_API void gfx_destroy_heap(GFXHeap* heap)
 	if (heap == NULL)
 		return;
 
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Destroy operation resources first so we can wait on them.
 	// First destroy the graphics queue pool.
-	_GFXTransferPool* pool = &heap->ops.graphics;
+	GFXTransferPool_* pool = &heap->ops.graphics;
 
 destroy_pool:
 	// Oh uh, just flush it first to make sure all is done.
 	// This will get rid of the `injection` and `injs` fields for us.
 	// Also, we don't lock, as we're in the destroy call!
-	_gfx_flush_transfer(heap, pool);
+	gfx_flush_transfer_(heap, pool);
 
 	// Note we loop from front to back, in the same order we purge/recycle.
 	// We wait for each operation individually, to gradually release memory.
 	// Command buffers are implicitly freed by destroying the command pool.
 	for (size_t t = 0; t < pool->transfers.size; ++t)
 	{
-		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, t);
+		GFXTransfer_* transfer = gfx_deque_at(&pool->transfers, t);
 
 		if (transfer->flushed)
-			_GFX_VK_CHECK(
+			GFX_VK_CHECK_(
 				context->vk.WaitForFences(
 					context->vk.device, 1, &transfer->vk.done,
 					VK_TRUE, UINT64_MAX),
@@ -748,7 +747,7 @@ destroy_pool:
 		context->vk.DestroyFence(
 			context->vk.device, transfer->vk.done, NULL);
 
-		_gfx_free_stagings(heap, transfer);
+		gfx_free_stagings_(heap, transfer);
 	}
 
 	// Destroy pool, transfers deque & lock.
@@ -756,7 +755,7 @@ destroy_pool:
 		context->vk.device, pool->vk.pool, NULL);
 
 	gfx_deque_clear(&pool->transfers);
-	_gfx_mutex_clear(&pool->lock);
+	gfx_mutex_clear_(&pool->lock);
 
 	// Then destroy transfer queue pool.
 	if (pool == &heap->ops.graphics)
@@ -767,24 +766,24 @@ destroy_pool:
 
 	// Free all things.
 	while (heap->buffers.head != NULL) gfx_free_buffer(
-		(GFXBuffer*)_GFX_BUFFER_FROM_LIST(heap->buffers.head));
+		(GFXBuffer*)GFX_BUFFER_FROM_LIST_(heap->buffers.head));
 
 	while (heap->images.head != NULL) gfx_free_image(
-		(GFXImage*)_GFX_IMAGE_FROM_LIST(heap->images.head));
+		(GFXImage*)GFX_IMAGE_FROM_LIST_(heap->images.head));
 
 	while (heap->primitives.head != NULL) gfx_free_prim(
-		(GFXPrimitive*)_GFX_PRIMITIVE_FROM_LIST(heap->primitives.head));
+		(GFXPrimitive*)GFX_PRIMITIVE_FROM_LIST_(heap->primitives.head));
 
 	while (heap->groups.head != NULL) gfx_free_group(
-		(GFXGroup*)_GFX_GROUP_FROM_LIST(heap->groups.head));
+		(GFXGroup*)GFX_GROUP_FROM_LIST_(heap->groups.head));
 
 	// Clear allocator.
-	_gfx_allocator_clear(&heap->allocator);
+	gfx_allocator_clear_(&heap->allocator);
 	gfx_list_clear(&heap->buffers);
 	gfx_list_clear(&heap->images);
 	gfx_list_clear(&heap->primitives);
 	gfx_list_clear(&heap->groups);
-	_gfx_mutex_clear(&heap->lock);
+	gfx_mutex_clear_(&heap->lock);
 
 	free(heap);
 }
@@ -806,15 +805,15 @@ GFX_API bool gfx_heap_flush(GFXHeap* heap)
 	bool success = 1;
 
 	// First flush the graphics queue pool.
-	_GFXTransferPool* pool = &heap->ops.graphics;
+	GFXTransferPool_* pool = &heap->ops.graphics;
 
 flush:
-	// Lock, because _gfx_flush_transfer does not.
-	_gfx_mutex_lock(&pool->lock);
+	// Lock, because gfx_flush_transfer_ does not.
+	gfx_mutex_lock_(&pool->lock);
 
-	success = success && _gfx_flush_transfer(heap, pool);
+	success = success && gfx_flush_transfer_(heap, pool);
 
-	_gfx_mutex_unlock(&pool->lock);
+	gfx_mutex_unlock_(&pool->lock);
 
 	// Then purge transfer queue pool.
 	if (pool == &heap->ops.graphics)
@@ -833,12 +832,12 @@ GFX_API bool gfx_heap_block(GFXHeap* heap)
 
 	bool success = 1;
 
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// Ok so we are gonna gather ALL the fences and wait on them.
 	// Gonna access all transfer deques, lock all!
-	_gfx_mutex_lock(&heap->ops.graphics.lock);
-	_gfx_mutex_lock(&heap->ops.transfer.lock);
+	gfx_mutex_lock_(&heap->ops.graphics.lock);
+	gfx_mutex_lock_(&heap->ops.transfer.lock);
 
 	// Dynamically allocate some mem, no idea how many fences there are..
 	const size_t numFences =
@@ -865,7 +864,7 @@ GFX_API bool gfx_heap_block(GFXHeap* heap)
 gather_fences:
 	for (size_t t = 0; t < transfers->size; ++t)
 	{
-		_GFXTransfer* transfer = gfx_deque_at(transfers, t);
+		GFXTransfer_* transfer = gfx_deque_at(transfers, t);
 		if (transfer->flushed) fences[waitFences++] = transfer->vk.done;
 	}
 
@@ -881,12 +880,12 @@ gather_fences:
 	atomic_fetch_add(&heap->ops.graphics.blocking, 1);
 	atomic_fetch_add(&heap->ops.transfer.blocking, 1);
 
-	_gfx_mutex_unlock(&heap->ops.graphics.lock);
-	_gfx_mutex_unlock(&heap->ops.transfer.lock);
+	gfx_mutex_unlock_(&heap->ops.graphics.lock);
+	gfx_mutex_unlock_(&heap->ops.transfer.lock);
 
 	// Wait for all the fences.
 	if (waitFences > 0)
-		_GFX_VK_CHECK(
+		GFX_VK_CHECK_(
 			context->vk.WaitForFences(
 				context->vk.device, waitFences, fences,
 				VK_TRUE, UINT64_MAX),
@@ -903,8 +902,8 @@ gather_fences:
 
 	// Early unlock & exit.
 early_exit:
-	_gfx_mutex_unlock(&heap->ops.graphics.lock);
-	_gfx_mutex_unlock(&heap->ops.transfer.lock);
+	gfx_mutex_unlock_(&heap->ops.graphics.lock);
+	gfx_mutex_unlock_(&heap->ops.transfer.lock);
 
 	return success;
 }
@@ -914,14 +913,14 @@ GFX_API void gfx_heap_purge(GFXHeap* heap)
 {
 	assert(heap != NULL);
 
-	_GFXContext* context = heap->allocator.context;
+	GFXContext_* context = heap->allocator.context;
 
 	// First purge the graphics queue pool.
-	_GFXTransferPool* pool = &heap->ops.graphics;
+	GFXTransferPool_* pool = &heap->ops.graphics;
 
 purge:
 	// Lock so we can free command buffers.
-	_gfx_mutex_lock(&pool->lock);
+	gfx_mutex_lock_(&pool->lock);
 
 	// Check the front-most transfer operation, continue
 	// until one is not done yet, it's a round-robin.
@@ -933,7 +932,7 @@ purge:
 	{
 		// Check if the transfer is flushed & done.
 		// If it is not, we are done purging.
-		_GFXTransfer* transfer = gfx_deque_at(&pool->transfers, 0);
+		GFXTransfer_* transfer = gfx_deque_at(&pool->transfers, 0);
 		if (!transfer->flushed)
 			break;
 
@@ -946,9 +945,9 @@ purge:
 		if (result != VK_SUCCESS)
 		{
 			// Woopsie daisy :o
-			_gfx_mutex_unlock(&pool->lock);
+			gfx_mutex_unlock_(&pool->lock);
 
-			_GFX_VK_CHECK(result, {});
+			GFX_VK_CHECK_(result, {});
 			gfx_log_warn("Heap purge failed.");
 			return;
 		}
@@ -959,13 +958,13 @@ purge:
 		context->vk.DestroyFence(
 			context->vk.device, transfer->vk.done, NULL);
 
-		_gfx_free_stagings(heap, transfer);
+		gfx_free_stagings_(heap, transfer);
 
 		// And pop it.
 		gfx_deque_pop_front(&pool->transfers, 1);
 	}
 
-	_gfx_mutex_unlock(&pool->lock);
+	gfx_mutex_unlock_(&pool->lock);
 
 	// Then purge transfer queue pool.
 	if (pool == &heap->ops.graphics)
@@ -986,7 +985,7 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
 	assert(size > 0);
 
 	// Allocate a new buffer & initialize.
-	_GFXBuffer* buffer = malloc(sizeof(_GFXBuffer));
+	GFXBuffer_* buffer = malloc(sizeof(GFXBuffer_));
 	if (buffer == NULL)
 		goto clean;
 
@@ -997,18 +996,18 @@ GFX_API GFXBuffer* gfx_alloc_buffer(GFXHeap* heap,
 
 	// Allocate the Vulkan buffer.
 	// Now we will actually modify the heap, so we lock!
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
-	if (!_gfx_buffer_alloc(buffer))
+	if (!gfx_buffer_alloc_(buffer))
 	{
-		_gfx_mutex_unlock(&heap->lock);
+		gfx_mutex_unlock_(&heap->lock);
 		goto clean;
 	}
 
 	// Link into the heap & unlock.
 	gfx_list_insert_after(&heap->buffers, &buffer->list, NULL);
 
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	return &buffer->base;
 
@@ -1027,16 +1026,16 @@ GFX_API void gfx_free_buffer(GFXBuffer* buffer)
 	if (buffer == NULL)
 		return;
 
-	_GFXBuffer* buff = (_GFXBuffer*)buffer;
+	GFXBuffer_* buff = (GFXBuffer_*)buffer;
 	GFXHeap* heap = buff->heap;
 
 	// Unlink from heap & free.
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
 	gfx_list_erase(&heap->buffers, &buff->list);
-	_gfx_buffer_free(buff);
+	gfx_buffer_free_(buff);
 
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	free(buff);
 }
@@ -1046,7 +1045,7 @@ GFX_API GFXHeap* gfx_buffer_get_heap(GFXBuffer* buffer)
 {
 	assert(buffer != NULL);
 
-	return ((_GFXBuffer*)buffer)->heap;
+	return ((GFXBuffer_*)buffer)->heap;
 }
 
 /****************************/
@@ -1074,11 +1073,11 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 
 	// Firstly, resolve the given format.
 	VkFormat vkFmt;
-	_GFX_RESOLVE_FORMAT(format, vkFmt, heap->allocator.device,
+	GFX_RESOLVE_FORMAT_(format, vkFmt, heap->allocator.device,
 		((VkFormatProperties){
 			.linearTilingFeatures = 0,
 			.optimalTilingFeatures =
-				_GFX_GET_VK_FORMAT_FEATURES(flags, usage, format),
+				GFX_GET_VK_FORMAT_FEATURES_(flags, usage, format),
 			.bufferFeatures = 0
 		}), {
 			gfx_log_error("Image format does not support memory flags or image usage.");
@@ -1086,7 +1085,7 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 		});
 
 	// Allocate a new image & initialize.
-	_GFXImage* image = malloc(sizeof(_GFXImage));
+	GFXImage_* image = malloc(sizeof(GFXImage_));
 	if (image == NULL)
 		goto clean;
 
@@ -1105,18 +1104,18 @@ GFX_API GFXImage* gfx_alloc_image(GFXHeap* heap,
 
 	// Allocate the Vulkan image.
 	// Now we will actually modify the heap, so we lock!
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
-	if (!_gfx_image_alloc(image))
+	if (!gfx_image_alloc_(image))
 	{
-		_gfx_mutex_unlock(&heap->lock);
+		gfx_mutex_unlock_(&heap->lock);
 		goto clean;
 	}
 
 	// Link into the heap & unlock.
 	gfx_list_insert_after(&heap->images, &image->list, NULL);
 
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	return &image->base;
 
@@ -1136,16 +1135,16 @@ GFX_API void gfx_free_image(GFXImage* image)
 	if (image == NULL)
 		return;
 
-	_GFXImage* img = (_GFXImage*)image;
+	GFXImage_* img = (GFXImage_*)image;
 	GFXHeap* heap = img->heap;
 
 	// Unlink from heap & free.
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
 	gfx_list_erase(&heap->images, &img->list);
-	_gfx_image_free(img);
+	gfx_image_free_(img);
 
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	free(img);
 }
@@ -1155,7 +1154,7 @@ GFX_API GFXHeap* gfx_image_get_heap(GFXImage* image)
 {
 	assert(image != NULL);
 
-	return ((_GFXImage*)image)->heap;
+	return ((GFXImage_*)image)->heap;
 }
 
 /****************************/
@@ -1184,12 +1183,12 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	// we just take the maximum amount (#attributes).
 	// Make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
-		sizeof(_GFXPrimitive) + sizeof(_GFXAttribute) * numAttribs,
-		alignof(_GFXPrimBuffer));
+		sizeof(GFXPrimitive_) + sizeof(GFXAttribute_) * numAttribs,
+		alignof(GFXPrimBuffer_));
 
-	_GFXPrimitive* prim = malloc(
+	GFXPrimitive_* prim = malloc(
 		structSize +
-		sizeof(_GFXPrimBuffer) * numAttribs);
+		sizeof(GFXPrimBuffer_) * numAttribs);
 
 	if (prim == NULL)
 		goto clean;
@@ -1199,17 +1198,17 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	// While we're at it, compute the size of the vertex buffer to allocate.
 	prim->numAttribs = numAttribs;
 	prim->numBindings = 0;
-	prim->bindings = (_GFXPrimBuffer*)((char*)prim + structSize);
+	prim->bindings = (GFXPrimBuffer_*)((char*)prim + structSize);
 
 	uint64_t verSize = 0;
 
 	for (size_t a = 0; a < numAttribs; ++a)
 	{
 		// Set values & resolve format.
-		_GFXAttribute* attrib = &prim->attribs[a];
+		GFXAttribute_* attrib = &prim->attribs[a];
 		attrib->base = attribs[a];
 
-		_GFX_RESOLVE_FORMAT(
+		GFX_RESOLVE_FORMAT_(
 			attrib->base.format, attrib->vk.format, heap->allocator.device,
 			((VkFormatProperties){
 				.linearTilingFeatures = 0,
@@ -1227,7 +1226,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		// We store the resolved (!) attribute references.
 		// If no reference, insert a reference to the newly allocated buffer.
 		// And get the primitive buffer we need to merge with the others.
-		_GFXPrimBuffer pBuff = {
+		GFXPrimBuffer_ pBuff = {
 			.stride = attrib->base.stride,
 			.rate = (attrib->base.rate == GFX_RATE_INSTANCE) ?
 				VK_VERTEX_INPUT_RATE_INSTANCE :
@@ -1236,7 +1235,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 			// Size up to and including the last vertex.
 			// Or just the reference size if instance rate.
 			.size = (attrib->base.rate == GFX_RATE_INSTANCE) ?
-				_gfx_ref_size(attrib->base.buffer) :
+				gfx_ref_size_(attrib->base.buffer) :
 				attrib->base.offset +
 				attrib->base.stride * ((uint64_t)numVertices - 1) +
 				GFX_FORMAT_BLOCK_SIZE(attrib->base.format) / CHAR_BIT
@@ -1254,8 +1253,8 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 		else
 		{
 			// Resolve & validate reference type and its context.
-			attrib->base.buffer = _gfx_ref_resolve(attrib->base.buffer);
-			_GFXUnpackRef unp = _gfx_ref_unpack(attrib->base.buffer);
+			attrib->base.buffer = gfx_ref_resolve_(attrib->base.buffer);
+			GFXUnpackRef_ unp = gfx_ref_unpack_(attrib->base.buffer);
 
 			pBuff.buffer = unp.obj.buffer;
 			pBuff.offset = unp.value;
@@ -1269,7 +1268,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 				goto clean;
 			}
 
-			if (_GFX_UNPACK_REF_CONTEXT(unp) != heap->allocator.context)
+			if (GFX_UNPACK_REF_CONTEXT_(unp) != heap->allocator.context)
 			{
 				gfx_log_error(
 					"A buffer referenced by a primitive geometry must be "
@@ -1316,8 +1315,8 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	else
 	{
 		// Resolve & validate reference type and its context.
-		prim->index = _gfx_ref_resolve(index);
-		_GFXUnpackRef unp = _gfx_ref_unpack(prim->index);
+		prim->index = gfx_ref_resolve_(index);
+		GFXUnpackRef_ unp = gfx_ref_unpack_(prim->index);
 
 		if (!GFX_REF_IS_BUFFER(index))
 		{
@@ -1328,7 +1327,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 			goto clean;
 		}
 
-		if (_GFX_UNPACK_REF_CONTEXT(unp) != heap->allocator.context)
+		if (GFX_UNPACK_REF_CONTEXT_(unp) != heap->allocator.context)
 		{
 			gfx_log_error(
 				"A buffer referenced by a primitive geometry must be "
@@ -1358,13 +1357,13 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	prim->buffer.vk.buffer = VK_NULL_HANDLE;
 
 	// Now we will actually modify the heap, so we lock!
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
 	if (prim->buffer.base.size > 0)
 	{
-		if (!_gfx_buffer_alloc(&prim->buffer))
+		if (!gfx_buffer_alloc_(&prim->buffer))
 		{
-			_gfx_mutex_unlock(&heap->lock);
+			gfx_mutex_unlock_(&heap->lock);
 			goto clean;
 		}
 
@@ -1376,7 +1375,7 @@ GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
 	// Link into the heap & unlock.
 	gfx_list_insert_after(&heap->primitives, &prim->buffer.list, NULL);
 
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	return &prim->base;
 
@@ -1395,18 +1394,18 @@ GFX_API void gfx_free_prim(GFXPrimitive* primitive)
 	if (primitive == NULL)
 		return;
 
-	_GFXPrimitive* prim = (_GFXPrimitive*)primitive;
+	GFXPrimitive_* prim = (GFXPrimitive_*)primitive;
 	GFXHeap* heap = prim->buffer.heap;
 
 	// Unlink from heap & free.
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
 	gfx_list_erase(&heap->primitives, &prim->buffer.list);
 
 	if (prim->buffer.vk.buffer != VK_NULL_HANDLE)
-		_gfx_buffer_free(&prim->buffer);
+		gfx_buffer_free_(&prim->buffer);
 
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	free(prim);
 }
@@ -1416,7 +1415,7 @@ GFX_API GFXHeap* gfx_prim_get_heap(GFXPrimitive* primitive)
 {
 	assert(primitive != NULL);
 
-	return ((_GFXPrimitive*)primitive)->buffer.heap;
+	return ((GFXPrimitive_*)primitive)->buffer.heap;
 }
 
 /****************************/
@@ -1424,18 +1423,18 @@ GFX_API size_t gfx_prim_get_num_attribs(GFXPrimitive* primitive)
 {
 	assert(primitive != NULL);
 
-	return ((_GFXPrimitive*)primitive)->numAttribs;
+	return ((GFXPrimitive_*)primitive)->numAttribs;
 }
 
 /****************************/
 GFX_API GFXAttribute gfx_prim_get_attrib(GFXPrimitive* primitive, size_t attrib)
 {
 	assert(primitive != NULL);
-	assert(attrib < ((_GFXPrimitive*)primitive)->numAttribs);
+	assert(attrib < ((GFXPrimitive_*)primitive)->numAttribs);
 
 	// Don't return the actually stored attribute.
 	// NULL-ify the buffer field, don't expose it.
-	GFXAttribute attr = ((_GFXPrimitive*)primitive)->attribs[attrib].base;
+	GFXAttribute attr = ((GFXPrimitive_*)primitive)->attribs[attrib].base;
 	attr.buffer = GFX_REF_NULL;
 
 	return attr;
@@ -1455,8 +1454,8 @@ GFX_API uint64_t gfx_prim_get_indices_offset(GFXPrimitive* primitive)
 {
 	assert(primitive != NULL);
 
-	const GFXBufferRef* ref = &((_GFXPrimitive*)primitive)->index;
-	return ref->obj == &((_GFXPrimitive*)primitive)->buffer ? ref->offset : 0;
+	const GFXBufferRef* ref = &((GFXPrimitive_*)primitive)->index;
+	return ref->obj == &((GFXPrimitive_*)primitive)->buffer ? ref->offset : 0;
 }
 
 /****************************/
@@ -1477,10 +1476,10 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	// We allocate references at the tail of the group,
 	// make sure to adhere to its alignment requirements!
 	const size_t structSize = GFX_ALIGN_UP(
-		sizeof(_GFXGroup) + sizeof(_GFXBinding) * numBindings,
+		sizeof(GFXGroup_) + sizeof(GFXBinding_) * numBindings,
 		alignof(GFXReference));
 
-	_GFXGroup* group = malloc(
+	GFXGroup_* group = malloc(
 		structSize +
 		sizeof(GFXReference) * numRefs);
 
@@ -1514,7 +1513,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	for (size_t b = 0; b < numBindings; ++b)
 	{
 		// Set values for each binding.
-		_GFXBinding* bind = &group->bindings[b];
+		GFXBinding_* bind = &group->bindings[b];
 		bind->base = bindings[b];
 
 		// If no buffers/images or buffers of no size, just no.
@@ -1616,8 +1615,8 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 			else
 			{
 				// Resolve & validate reference types and its context.
-				refPtr[r] = _gfx_ref_resolve(srcPtr[r]);
-				_GFXUnpackRef unp = _gfx_ref_unpack(refPtr[r]);
+				refPtr[r] = gfx_ref_resolve_(srcPtr[r]);
+				GFXUnpackRef_ unp = gfx_ref_unpack_(refPtr[r]);
 
 				if (
 					(!GFX_REF_IS_BUFFER(srcPtr[r]) &&
@@ -1633,7 +1632,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 					goto clean;
 				}
 
-				if (_GFX_UNPACK_REF_CONTEXT(unp) != heap->allocator.context)
+				if (GFX_UNPACK_REF_CONTEXT_(unp) != heap->allocator.context)
 				{
 					gfx_log_error(
 						"A resource group binding description's resource "
@@ -1662,13 +1661,13 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	group->buffer.vk.buffer = VK_NULL_HANDLE;
 
 	// Now we will actually modify the heap, so we lock!
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
 	if (group->buffer.base.size > 0)
 	{
-		if (!_gfx_buffer_alloc(&group->buffer))
+		if (!gfx_buffer_alloc_(&group->buffer))
 		{
-			_gfx_mutex_unlock(&heap->lock);
+			gfx_mutex_unlock_(&heap->lock);
 			goto clean;
 		}
 
@@ -1680,7 +1679,7 @@ GFX_API GFXGroup* gfx_alloc_group(GFXHeap* heap,
 	// Link into the heap & unlock.
 	gfx_list_insert_after(&heap->groups, &group->buffer.list, NULL);
 
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	return &group->base;
 
@@ -1699,18 +1698,18 @@ GFX_API void gfx_free_group(GFXGroup* group)
 	if (group == NULL)
 		return;
 
-	_GFXGroup* grp = (_GFXGroup*)group;
+	GFXGroup_* grp = (GFXGroup_*)group;
 	GFXHeap* heap = grp->buffer.heap;
 
 	// Unlink from heap & free.
-	_gfx_mutex_lock(&heap->lock);
+	gfx_mutex_lock_(&heap->lock);
 
 	gfx_list_erase(&heap->groups, &grp->buffer.list);
 
 	if (grp->buffer.vk.buffer != VK_NULL_HANDLE)
-		_gfx_buffer_free(&grp->buffer);
+		gfx_buffer_free_(&grp->buffer);
 
-	_gfx_mutex_unlock(&heap->lock);
+	gfx_mutex_unlock_(&heap->lock);
 
 	free(group);
 }
@@ -1720,7 +1719,7 @@ GFX_API GFXHeap* gfx_group_get_heap(GFXGroup* group)
 {
 	assert(group != NULL);
 
-	return ((_GFXGroup*)group)->buffer.heap;
+	return ((GFXGroup_*)group)->buffer.heap;
 }
 
 /****************************/
@@ -1728,18 +1727,18 @@ GFX_API size_t gfx_group_get_num_bindings(GFXGroup* group)
 {
 	assert(group != NULL);
 
-	return ((_GFXGroup*)group)->numBindings;
+	return ((GFXGroup_*)group)->numBindings;
 }
 
 /****************************/
 GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 {
 	assert(group != NULL);
-	assert(binding < ((_GFXGroup*)group)->numBindings);
+	assert(binding < ((GFXGroup_*)group)->numBindings);
 
 	// Don't return the actually stored binding.
 	// NULL-ify the buffers or images field, don't expose it.
-	GFXBinding bind = ((_GFXGroup*)group)->bindings[binding].base;
+	GFXBinding bind = ((GFXGroup_*)group)->bindings[binding].base;
 
 	switch (bind.type)
 	{
@@ -1757,9 +1756,9 @@ GFX_API GFXBinding gfx_group_get_binding(GFXGroup* group, size_t binding)
 GFX_API uint64_t gfx_group_get_binding_stride(GFXGroup* group, size_t binding)
 {
 	assert(group != NULL);
-	assert(binding < ((_GFXGroup*)group)->numBindings);
+	assert(binding < ((GFXGroup_*)group)->numBindings);
 
-	return ((_GFXGroup*)group)->bindings[binding].stride;
+	return ((GFXGroup_*)group)->bindings[binding].stride;
 }
 
 /****************************/
@@ -1767,13 +1766,13 @@ GFX_API uint64_t gfx_group_get_binding_offset(GFXGroup* group,
                                               size_t binding, size_t index)
 {
 	assert(group != NULL);
-	assert(binding < ((_GFXGroup*)group)->numBindings);
-	assert(index < ((_GFXGroup*)group)->bindings[binding].base.count);
+	assert(binding < ((GFXGroup_*)group)->numBindings);
+	assert(index < ((GFXGroup_*)group)->bindings[binding].base.count);
 
-	const GFXBinding* bind = &((_GFXGroup*)group)->bindings[binding].base;
+	const GFXBinding* bind = &((GFXGroup_*)group)->bindings[binding].base;
 	const GFXBufferRef* ref = &bind->buffers[index];
 
 	return
 		(bind->type != GFX_BINDING_IMAGE &&
-		ref->obj == &((_GFXGroup*)group)->buffer) ? ref->offset : 0;
+		ref->obj == &((GFXGroup_*)group)->buffer) ? ref->offset : 0;
 }

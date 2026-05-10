@@ -7,13 +7,12 @@
  */
 
 #include "groufix/core/objects.h"
-#include <assert.h>
 
 
 /****************************
  * Spin-locks a renderable for pipeline retrieval.
  */
-static inline void _gfx_renderable_lock(GFXRenderable* renderable)
+static inline void gfx_renderable_lock_(GFXRenderable* renderable)
 {
 	bool l = 0;
 
@@ -35,47 +34,47 @@ static inline void _gfx_renderable_lock(GFXRenderable* renderable)
 /****************************
  * Unlocks a renderable for pipeline retrieval.
  */
-static inline void _gfx_renderable_unlock(GFXRenderable* renderable)
+static inline void gfx_renderable_unlock_(GFXRenderable* renderable)
 {
 	atomic_store_explicit(&renderable->lock, 0, memory_order_release);
 }
 
 /****************************/
-bool _gfx_renderable_pipeline(GFXRenderable* renderable,
-                              _GFXCacheElem** elem, bool warmup)
+bool gfx_renderable_pipeline_(GFXRenderable* renderable,
+                              GFXCacheElem_** elem, bool warmup)
 {
 	assert(renderable != NULL);
 	assert(warmup || elem != NULL);
 
-	_GFXRenderPass* rPass = (_GFXRenderPass*)renderable->pass;
+	GFXRenderPass_* rPass = (GFXRenderPass_*)renderable->pass;
 
 	// Firstly, spin-lock the renderable and check if we have an up-to-date
 	// pipeline, if so, we can just return :)
 	// Immediately unlock afterwards for maximum concurrency!
-	_gfx_renderable_lock(renderable);
+	gfx_renderable_lock_(renderable);
 
 	if (
 		renderable->pipeline != (uintptr_t)NULL &&
-		renderable->gen == _GFX_PASS_GEN(rPass))
+		renderable->gen == GFX_PASS_GEN_(rPass))
 	{
 		if (!warmup) *elem = (void*)renderable->pipeline;
-		_gfx_renderable_unlock(renderable);
+		gfx_renderable_unlock_(renderable);
 		return 1;
 	}
 
-	_gfx_renderable_unlock(renderable);
+	gfx_renderable_unlock_(renderable);
 
 	// We do not have a pipeline, create a new one.
 	// Multiple threads could end up creating the same new pipeline, but
 	// this is not expected to be a consistently occuring event so it's fine.
 	GFXTechnique* tech = renderable->technique;
-	_GFXPrimitive* prim = (_GFXPrimitive*)renderable->primitive;
+	GFXPrimitive_* prim = (GFXPrimitive_*)renderable->primitive;
 
-	const void* handles[_GFX_NUM_SHADER_STAGES + 2];
+	const void* handles[GFX_NUM_SHADER_STAGES_ + 2];
 	uint32_t numShaders = 0;
 
 	// Set & validate hashing handles.
-	for (uint32_t s = 0; s < _GFX_NUM_SHADER_STAGES; ++s)
+	for (uint32_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 		if (tech->shaders[s] != NULL)
 			// Shader pointers will be converted to handles down below.
 			handles[numShaders++] = tech->shaders[s];
@@ -136,9 +135,9 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	{
 		prsci.rasterizerDiscardEnable = VK_FALSE;
 
-		prsci.polygonMode = _GFX_GET_VK_POLYGON_MODE(raster->mode);
-		prsci.cullMode = _GFX_GET_VK_CULL_MODE(raster->cull);
-		prsci.frontFace = _GFX_GET_VK_FRONT_FACE(raster->front);
+		prsci.polygonMode = GFX_GET_VK_POLYGON_MODE_(raster->mode);
+		prsci.cullMode = GFX_GET_VK_CULL_MODE_(raster->cull);
+		prsci.frontFace = GFX_GET_VK_FRONT_FACE_(raster->front);
 	}
 
 	// Build blend info.
@@ -171,22 +170,22 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		{
 			pcbas[i].blendEnable = VK_TRUE;
 			pcbas[i].srcColorBlendFactor =
-				_GFX_GET_VK_BLEND_FACTOR(color->srcFactor);
+				GFX_GET_VK_BLEND_FACTOR_(color->srcFactor);
 			pcbas[i].dstColorBlendFactor =
-				_GFX_GET_VK_BLEND_FACTOR(color->dstFactor);
+				GFX_GET_VK_BLEND_FACTOR_(color->dstFactor);
 			pcbas[i].colorBlendOp =
-				_GFX_GET_VK_BLEND_OP(color->op);
+				GFX_GET_VK_BLEND_OP_(color->op);
 		}
 
 		if (alpha->op != GFX_BLEND_NO_OP)
 		{
 			pcbas[i].blendEnable = VK_TRUE;
 			pcbas[i].srcAlphaBlendFactor =
-				_GFX_GET_VK_BLEND_FACTOR(alpha->srcFactor);
+				GFX_GET_VK_BLEND_FACTOR_(alpha->srcFactor);
 			pcbas[i].dstAlphaBlendFactor =
-				_GFX_GET_VK_BLEND_FACTOR(alpha->dstFactor);
+				GFX_GET_VK_BLEND_FACTOR_(alpha->dstFactor);
 			pcbas[i].alphaBlendOp =
-				_GFX_GET_VK_BLEND_OP(alpha->op);
+				GFX_GET_VK_BLEND_OP_(alpha->op);
 		}
 	}
 
@@ -207,7 +206,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		if (blend->logic != GFX_LOGIC_NO_OP)
 		{
 			pcbsci.logicOpEnable = VK_TRUE;
-			pcbsci.logicOp = _GFX_GET_VK_LOGIC_OP(blend->logic);
+			pcbsci.logicOp = GFX_GET_VK_LOGIC_OP_(blend->logic);
 		}
 		else
 		{
@@ -245,10 +244,10 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		.maxDepthBounds        = 1.0f
 	};
 
-	if (!noRaster && (rPass->state.enabled & _GFX_PASS_DEPTH))
+	if (!noRaster && (rPass->state.enabled & GFX_PASS_DEPTH_))
 	{
 		pdssci.depthTestEnable = VK_TRUE;
-		pdssci.depthCompareOp = _GFX_GET_VK_COMPARE_OP(depth->cmp);
+		pdssci.depthCompareOp = GFX_GET_VK_COMPARE_OP_(depth->cmp);
 
 		if (depth->flags & GFX_DEPTH_WRITE)
 			pdssci.depthWriteEnable = VK_TRUE;
@@ -261,25 +260,25 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 		}
 	}
 
-	if (!noRaster && (rPass->state.enabled & _GFX_PASS_STENCIL))
+	if (!noRaster && (rPass->state.enabled & GFX_PASS_STENCIL_))
 	{
 		pdssci.stencilTestEnable = VK_TRUE;
 
 		pdssci.front = (VkStencilOpState){
-			.failOp = _GFX_GET_VK_STENCIL_OP(stencil->front.fail),
-			.passOp = _GFX_GET_VK_STENCIL_OP(stencil->front.pass),
-			.depthFailOp = _GFX_GET_VK_STENCIL_OP(stencil->front.depthFail),
-			.compareOp = _GFX_GET_VK_COMPARE_OP(stencil->front.cmp),
+			.failOp = GFX_GET_VK_STENCIL_OP_(stencil->front.fail),
+			.passOp = GFX_GET_VK_STENCIL_OP_(stencil->front.pass),
+			.depthFailOp = GFX_GET_VK_STENCIL_OP_(stencil->front.depthFail),
+			.compareOp = GFX_GET_VK_COMPARE_OP_(stencil->front.cmp),
 			.compareMask = stencil->front.cmpMask,
 			.writeMask = stencil->front.writeMask,
 			.reference = stencil->front.reference
 		};
 
 		pdssci.back = (VkStencilOpState){
-			.failOp = _GFX_GET_VK_STENCIL_OP(stencil->back.fail),
-			.passOp = _GFX_GET_VK_STENCIL_OP(stencil->back.pass),
-			.depthFailOp = _GFX_GET_VK_STENCIL_OP(stencil->back.depthFail),
-			.compareOp = _GFX_GET_VK_COMPARE_OP(stencil->back.cmp),
+			.failOp = GFX_GET_VK_STENCIL_OP_(stencil->back.fail),
+			.passOp = GFX_GET_VK_STENCIL_OP_(stencil->back.pass),
+			.depthFailOp = GFX_GET_VK_STENCIL_OP_(stencil->back.depthFail),
+			.compareOp = GFX_GET_VK_COMPARE_OP_(stencil->back.cmp),
 			.compareMask = stencil->back.cmpMask,
 			.writeMask = stencil->back.writeMask,
 			.reference = stencil->back.reference
@@ -289,22 +288,22 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 	// Build shader info.
 	const size_t numConsts = tech->constants.size;
 	VkPipelineShaderStageCreateInfo pstci[GFX_MAX(1, numShaders)];
-	VkSpecializationInfo si[_GFX_NUM_SHADER_STAGES];
+	VkSpecializationInfo si[GFX_NUM_SHADER_STAGES_];
 	VkSpecializationMapEntry sme[GFX_MAX(1, numConsts)];
 
-	_gfx_tech_get_constants(tech, si, sme);
+	gfx_tech_get_constants_(tech, si, sme);
 
 	for (uint32_t s = 0; s < numShaders; ++s)
 	{
 		const GFXShader* shader = handles[s];
-		const uint32_t stage = _GFX_GET_SHADER_STAGE_INDEX(shader->stage);
+		const uint32_t stage = GFX_GET_SHADER_STAGE_INDEX_(shader->stage);
 
 		pstci[s] = (VkPipelineShaderStageCreateInfo){
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 
 			.pNext  = NULL,
 			.flags  = 0,
-			.stage  = _GFX_GET_VK_SHADER_STAGE(shader->stage),
+			.stage  = GFX_GET_VK_SHADER_STAGE_(shader->stage),
 			.module = shader->vk.module,
 			.pName  = "main",
 
@@ -356,7 +355,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 		.pDepthStencilState =
 			// Even if rasterization is disabled, Vulkan expects this.
-			rPass->state.enabled & (_GFX_PASS_DEPTH | _GFX_PASS_STENCIL) ?
+			rPass->state.enabled & (GFX_PASS_DEPTH_ | GFX_PASS_STENCIL_) ?
 			&pdssci : NULL,
 
 		.pVertexInputState = (VkPipelineVertexInputStateCreateInfo[]){{
@@ -375,9 +374,10 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 			.pNext    = NULL,
 			.flags    = 0,
-			.topology = prim != NULL ?
-				_GFX_GET_VK_PRIMITIVE_TOPOLOGY(prim->base.topology) :
-				_GFX_GET_VK_PRIMITIVE_TOPOLOGY(raster->topo),
+			.topology =
+				GFX_GET_VK_PRIMITIVE_TOPOLOGY_(prim != NULL ?
+					prim->base.topology :
+					raster->topo),
 
 			.primitiveRestartEnable = VK_FALSE
 		}},
@@ -404,7 +404,7 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 			.alphaToCoverageEnable = VK_FALSE,
 			.alphaToOneEnable      = VK_FALSE,
 			.rasterizationSamples  =
-				_GFX_GET_VK_SAMPLE_COUNT(noRaster ?
+				GFX_GET_VK_SAMPLE_COUNT_(noRaster ?
 					rPass->state.samples :
 					GFX_MAX(raster->samples, rPass->state.samples))
 		}},
@@ -425,37 +425,37 @@ bool _gfx_renderable_pipeline(GFXRenderable* renderable,
 
 	if (warmup)
 		// If asked to warmup, just do that :)
-		return _gfx_cache_warmup(&tech->renderer->cache, &gpci.sType, handles);
+		return gfx_cache_warmup_(&tech->renderer->cache, &gpci.sType, handles);
 	else
 	{
 		// Otherwise, actually retrieve the pipeline.
-		*elem = _gfx_cache_get(&tech->renderer->cache, &gpci.sType, handles);
+		*elem = gfx_cache_get_(&tech->renderer->cache, &gpci.sType, handles);
 
 		// Finally, update the stored pipeline!
 		// Skip this step on failure tho.
 		if (*elem == NULL) return 0;
 
-		_gfx_renderable_lock(renderable);
+		gfx_renderable_lock_(renderable);
 
 		renderable->pipeline = (uintptr_t)(void*)*elem;
-		renderable->gen = _GFX_PASS_GEN(rPass);
+		renderable->gen = GFX_PASS_GEN_(rPass);
 
-		_gfx_renderable_unlock(renderable);
+		gfx_renderable_unlock_(renderable);
 
 		return 1;
 	}
 }
 
 /****************************/
-bool _gfx_computable_pipeline(GFXComputable* computable,
-                              _GFXCacheElem** elem, bool warmup)
+bool gfx_computable_pipeline_(GFXComputable* computable,
+                              GFXCacheElem_** elem, bool warmup)
 {
 	assert(computable != NULL);
 	assert(warmup || elem != NULL);
 
 	// Unlike for renderables,
 	// we can just check the pipeline and return when it's there!
-	_GFXCacheElem* pipeline = (void*)atomic_load_explicit(
+	GFXCacheElem_* pipeline = (void*)atomic_load_explicit(
 		&computable->pipeline, memory_order_relaxed);
 
 	if (pipeline != NULL)
@@ -470,7 +470,7 @@ bool _gfx_computable_pipeline(GFXComputable* computable,
 	const void* handles[2];
 
 	// Set & validate hashing handles.
-	const uint32_t stage = _GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE);
+	const uint32_t stage = GFX_GET_SHADER_STAGE_INDEX_(GFX_STAGE_COMPUTE);
 	const GFXShader* shader = tech->shaders[stage];
 
 	if (shader == NULL)
@@ -490,10 +490,10 @@ bool _gfx_computable_pipeline(GFXComputable* computable,
 
 	// Build create info.
 	const size_t numConsts = tech->constants.size;
-	VkSpecializationInfo si[_GFX_NUM_SHADER_STAGES];
+	VkSpecializationInfo si[GFX_NUM_SHADER_STAGES_];
 	VkSpecializationMapEntry sme[GFX_MAX(1, numConsts)];
 
-	_gfx_tech_get_constants(tech, si, sme);
+	gfx_tech_get_constants_(tech, si, sme);
 
 	VkComputePipelineCreateInfo cpci = {
 		.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
@@ -521,11 +521,11 @@ bool _gfx_computable_pipeline(GFXComputable* computable,
 
 	if (warmup)
 		// If asked to warmup, just do that :)
-		return _gfx_cache_warmup(&tech->renderer->cache, &cpci.sType, handles);
+		return gfx_cache_warmup_(&tech->renderer->cache, &cpci.sType, handles);
 	else
 	{
 		// Otherwise, actually retrieve the pipeline.
-		*elem = _gfx_cache_get(&tech->renderer->cache, &cpci.sType, handles);
+		*elem = gfx_cache_get_(&tech->renderer->cache, &cpci.sType, handles);
 
 		// Finally, update the stored pipeline!
 		// Skip this step on failure tho.
@@ -552,7 +552,7 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 	if (
 		pass->renderer != tech->renderer ||
 		(prim != NULL &&
-			((_GFXPrimitive*)prim)->buffer.heap->allocator.context !=
+			((GFXPrimitive_*)prim)->buffer.heap->allocator.context !=
 			pass->renderer->cache.context))
 	{
 		gfx_log_error(
@@ -573,7 +573,7 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 	}
 
 	// Renderables cannot hold compute shaders!
-	if (tech->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)] != NULL)
+	if (tech->shaders[GFX_GET_SHADER_STAGE_INDEX_(GFX_STAGE_COMPUTE)] != NULL)
 	{
 		gfx_log_error(
 			"Could not initialize renderable; cannot hold a compute shader.");
@@ -604,9 +604,9 @@ GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable)
 	// To build pipelines, we need the Vulkan render pass.
 	// This is the exact reason we can warmup all passes of the render graph!
 	// Sadly this is not thread-safe at all, so we re-use the renderer's lock.
-	_gfx_mutex_lock(&renderer->lock);
-	bool success = _gfx_render_graph_warmup(renderer);
-	_gfx_mutex_unlock(&renderer->lock);
+	gfx_mutex_lock_(&renderer->lock);
+	bool success = gfx_render_graph_warmup_(renderer);
+	gfx_mutex_unlock_(&renderer->lock);
 
 	if (!success)
 	{
@@ -615,7 +615,7 @@ GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable)
 	}
 
 	// Then build it.
-	if (!_gfx_renderable_pipeline(renderable, NULL, 1))
+	if (!gfx_renderable_pipeline_(renderable, NULL, 1))
 	{
 		gfx_log_error("Could not warm renderable; pipeline not built.");
 		return 0;
@@ -632,7 +632,7 @@ GFX_API bool gfx_computable(GFXComputable* computable,
 	assert(tech != NULL);
 
 	// Computables can only hold compute shaders!
-	if (tech->shaders[_GFX_GET_SHADER_STAGE_INDEX(GFX_STAGE_COMPUTE)] == NULL)
+	if (tech->shaders[GFX_GET_SHADER_STAGE_INDEX_(GFX_STAGE_COMPUTE)] == NULL)
 	{
 		gfx_log_error(
 			"Could not initialize computable; can only hold a compute shader.");
@@ -654,7 +654,7 @@ GFX_API bool gfx_computable_warmup(GFXComputable* computable)
 	assert(computable != NULL);
 
 	// Just build it.
-	if (!_gfx_computable_pipeline(computable, NULL, 1))
+	if (!gfx_computable_pipeline_(computable, NULL, 1))
 	{
 		gfx_log_error("Could not warm computable; pipeline not built.");
 		return 0;
