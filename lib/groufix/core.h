@@ -228,20 +228,14 @@ typedef struct GFXContext_
 	// Allocation limits (queried once).
 	struct
 	{
-		// Memory limit.
-		uint32_t  maxAllocs;
-		GFXMutex_ allocLock;
+		// Limits.
+		uint32_t maxAllocs;
+		uint32_t maxSamplers;
 
+		// Counters.
 		atomic_uint_fast32_t allocs;
-
-		// Sampler limit.
-		uint32_t  maxSamplers;
-		GFXMutex_ samplerLock;
-
 		atomic_uint_fast32_t samplers;
-
-		// Allocated shaders.
-		atomic_uintptr_t shaders;
+		atomic_uintptr_t     shaders;
 
 	} limits;
 

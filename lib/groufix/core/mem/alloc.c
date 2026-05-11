@@ -121,6 +121,34 @@ static uint32_t gfx_get_mem_type_(const VkPhysicalDeviceMemoryProperties* pdmp,
 }
 
 /****************************
+ * Checks and increases the allocation limit of a context.
+ * @return Non-zero if allowed to allocate more memory.
+ */
+static inline bool gfx_check_alloc_limit_(GFXContext_* context)
+{
+	// We cannot just add, as we might overflow.
+	// So first read the current count, check if it exceeds the limit.
+	uint_fast32_t numAllocs =
+		atomic_load_explicit(&context->limits.allocs, memory_order_relaxed);
+
+	if (numAllocs >= context->limits.maxAllocs)
+		return 0;
+
+	// If it does not, use a weak CAS loop to try and claim the next increment.
+	// On every failed attempt, compare against the limit again.
+	// We do not lock anything so memory order can be relaxed.
+	while (!atomic_compare_exchange_weak_explicit(
+		&context->limits.allocs, &numAllocs, numAllocs + 1,
+		memory_order_relaxed, memory_order_relaxed))
+	{
+		if (numAllocs >= context->limits.maxAllocs)
+			return 0;
+	}
+
+	return 1;
+}
+
+/****************************
  * Allocates and initializes a new Vulkan memory 'block' to be subdivided.
  * @param minSize Use to force a minimum allocation (beyond default block sizes).
  * @param maxSize Use to force a maximum allocation.
@@ -146,30 +174,6 @@ static GFXMemBlock_* gfx_alloc_mem_block_(GFXAllocator_* alloc,
 
 	GFXContext_* context = alloc->context;
 
-	// Firstly, check against Vulkan's allocation limit & take the lock.
-	// We have to lock such that two concurrent allocations both fail properly
-	// if the limit only allows one more allocation.
-	gfx_mutex_lock_(&context->limits.allocLock);
-
-	if (atomic_load(&context->limits.allocs) >= context->limits.maxAllocs)
-	{
-		gfx_log_error(
-			"Cannot allocate %"PRIu64" bytes because physical device limit "
-			"of %"PRIu32" memory allocations has been reached.",
-			minSize, context->limits.maxAllocs);
-
-		gfx_mutex_unlock_(&context->limits.allocLock);
-		return NULL;
-	}
-
-	// Increase the count & unlock.
-	// On failure of allocation, we just decrease the count back down.
-	// This might prevent other allocations when near the limit,
-	// but honestly at that point something else is horribly wrong...
-	atomic_fetch_add(&context->limits.allocs, 1);
-
-	gfx_mutex_unlock_(&context->limits.allocLock);
-
 	// Validate that we have enough memory.
 	const VkDeviceSize heapSize =
 		pdmp->memoryHeaps[pdmp->memoryTypes[type].heapIndex].size;
@@ -181,7 +185,21 @@ static GFXMemBlock_* gfx_alloc_mem_block_(GFXAllocator_* alloc,
 			"%"PRIu64" bytes from.",
 			heapSize, minSize);
 
-		goto fail_decrease;
+		return NULL;
+	}
+
+	// Secondly, check against Vulkan's allocation limit & increase count.
+	// On failure of allocation, we just decrease the count back down.
+	// This might prevent other allocations when near the limit,
+	// but honestly at that point something else is horribly wrong...
+	if (!gfx_check_alloc_limit_(context))
+	{
+		gfx_log_error(
+			"Cannot allocate %"PRIu64" bytes because physical device limit "
+			"of %"PRIu32" memory allocations has been reached.",
+			minSize, context->limits.maxAllocs);
+
+		return NULL;
 	}
 
 	// Calculate block size in Vulkan units.
@@ -309,20 +327,22 @@ static GFXMemBlock_* gfx_alloc_mem_block_(GFXAllocator_* alloc,
 clean_memory:
 	gfx_list_clear(&block->nodes.list);
 	gfx_tree_clear(&block->nodes.free);
-	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
+
+	context->vk.FreeMemory(
+		context->vk.device, block->vk.memory, NULL);
 clean_lock:
 	gfx_mutex_clear_(&block->map.lock);
 clean:
+	// Decrease allocation count on failure.
+	atomic_fetch_sub_explicit(
+		&context->limits.allocs, 1, memory_order_relaxed);
+
 	gfx_log_error(
 		"Could not allocate a new %sVulkan memory object of %"PRIu64" bytes.",
 		dedicated ? "(dedicated) " : "",
 		blockSize);
 
 	free(block);
-
-	// Decrease allocation count on failure.
-fail_decrease:
-	atomic_fetch_sub(&context->limits.allocs, 1);
 
 	return NULL;
 }
@@ -338,8 +358,11 @@ static void gfx_free_mem_block_(GFXAllocator_* alloc, GFXMemBlock_* block)
 	GFXContext_* context = alloc->context;
 
 	// Free the Vulkan memory and decrease the allocation count afterwards.
-	context->vk.FreeMemory(context->vk.device, block->vk.memory, NULL);
-	atomic_fetch_sub(&context->limits.allocs, 1);
+	context->vk.FreeMemory(
+		context->vk.device, block->vk.memory, NULL);
+
+	atomic_fetch_sub_explicit(
+		&context->limits.allocs, 1, memory_order_relaxed);
 
 	// Unlink from the allocator and free all remaining block things.
 	gfx_list_erase(

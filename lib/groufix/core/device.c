@@ -758,8 +758,6 @@ static void gfx_destroy_context_(GFXContext_* context)
 	if (context->vk.DestroyDevice != NULL)
 		context->vk.DestroyDevice(context->vk.device, NULL);
 
-	gfx_mutex_clear_(&context->limits.samplerLock);
-	gfx_mutex_clear_(&context->limits.allocLock);
 	gfx_list_clear(&context->sets);
 
 	free(context);
@@ -825,27 +823,14 @@ static void gfx_create_context_(GFXDevice_* device)
 
 		// Memory allocation limit.
 		context->limits.maxAllocs = pdp.limits.maxMemoryAllocationCount;
-		atomic_store(&context->limits.allocs, 0);
-
-		if (!gfx_mutex_init_(&context->limits.allocLock))
-		{
-			free(context);
-			goto error;
-		}
+		atomic_store_explicit(&context->limits.allocs, 0, memory_order_relaxed);
 
 		// Sampler allocation limit.
 		context->limits.maxSamplers = pdp.limits.maxSamplerAllocationCount;
-		atomic_store(&context->limits.samplers, 0);
-
-		if (!gfx_mutex_init_(&context->limits.samplerLock))
-		{
-			gfx_mutex_clear_(&context->limits.allocLock);
-			free(context);
-			goto error;
-		}
+		atomic_store_explicit(&context->limits.samplers, 0, memory_order_relaxed);
 
 		// Shader allocations.
-		atomic_store(&context->limits.shaders, 0);
+		atomic_store_explicit(&context->limits.shaders, 0, memory_order_relaxed);
 	}
 
 	// Insert itself in the context list.
