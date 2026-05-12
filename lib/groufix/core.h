@@ -225,7 +225,7 @@ typedef struct GFXContext_
 	} features;
 
 
-	// Allocation limits (queried once).
+	// Memory limits (queried once).
 	struct
 	{
 		// Limits.
@@ -530,26 +530,6 @@ GFXThreadState_* gfx_get_local_(void);
  ****************************/
 
 /**
- * Checks and increases a limit of a context.
- * @return Non-zero if the limit could be increased.
- */
-static inline bool gfx_check_limit_(atomic_uint_fast32_t* count, uint32_t max)
-{
-	// We cannot just add, as we might overflow.
-	// So first read the current count, check if it exceeds the limit.
-	uint_fast32_t num = atomic_load_explicit(count, memory_order_relaxed);
-
-	// If it does not, use a weak CAS loop to try and claim the next increment.
-	// On every failed attempt, compare against the limit again.
-	// We do not lock anything so memory order can be relaxed.
-	while (num < max) if (atomic_compare_exchange_weak_explicit(
-		count, &num, num + 1,
-		memory_order_relaxed, memory_order_relaxed)) return 1;
-
-	return 0;
-}
-
-/**
  * Retrieves a VkResult as a readable string.
  */
 const char* gfx_vulkan_result_string_(VkResult result);
@@ -692,6 +672,13 @@ uint32_t gfx_queue_index_(GFXQueueSet_* set,
  * If less than 3 families are to be used, trailing UINT32_MAXs are inserted.
  */
 uint32_t gfx_filter_families_(GFXMemoryFlags flags, uint32_t* families);
+
+/**
+ * Atomically checks and increases a memory limit of a context.
+ * @param limit Must be the limit associated with count, cannot change.
+ * @return Non-zero if the limit could be increased.
+ */
+bool gfx_check_limit_(atomic_uint_fast32_t* count, uint32_t limit);
 
 
 /****************************

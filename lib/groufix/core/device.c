@@ -1718,6 +1718,24 @@ uint32_t gfx_filter_families_(GFXMemoryFlags flags, uint32_t* families)
 }
 
 /****************************/
+bool gfx_check_limit_(atomic_uint_fast32_t* count, uint32_t limit)
+{
+	// We cannot just add, as we might overflow.
+	// So first read the current count, check if it exceeds the limit.
+	uint_fast32_t num = atomic_load_explicit(count, memory_order_relaxed);
+
+	// If it does not, use a weak CAS loop to try and claim the next increment.
+	// On every failed attempt, compare against the limit again.
+	// We do not lock anything so memory order can be relaxed.
+	while (num < limit)
+		if (atomic_compare_exchange_weak_explicit(
+			count, &num, num + 1,
+			memory_order_relaxed, memory_order_relaxed)) return 1;
+
+	return 0;
+}
+
+/****************************/
 GFX_API size_t gfx_get_num_devices(void)
 {
 	assert(atomic_load(&groufix_.initialized));
