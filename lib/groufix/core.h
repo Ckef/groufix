@@ -530,6 +530,26 @@ GFXThreadState_* gfx_get_local_(void);
  ****************************/
 
 /**
+ * Checks and increases a limit of a context.
+ * @return Non-zero if the limit could be increased.
+ */
+static inline bool gfx_check_limit_(atomic_uint_fast32_t* count, uint32_t max)
+{
+	// We cannot just add, as we might overflow.
+	// So first read the current count, check if it exceeds the limit.
+	uint_fast32_t num = atomic_load_explicit(count, memory_order_relaxed);
+
+	// If it does not, use a weak CAS loop to try and claim the next increment.
+	// On every failed attempt, compare against the limit again.
+	// We do not lock anything so memory order can be relaxed.
+	while (num < max) if (atomic_compare_exchange_weak_explicit(
+		count, &num, num + 1,
+		memory_order_relaxed, memory_order_relaxed)) return 1;
+
+	return 0;
+}
+
+/**
  * Retrieves a VkResult as a readable string.
  */
 const char* gfx_vulkan_result_string_(VkResult result);

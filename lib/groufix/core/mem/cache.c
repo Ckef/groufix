@@ -58,34 +58,6 @@ typedef struct GFXPipelineCacheHeader_
 
 
 /****************************
- * Checks and increases the sampler limit of a context.
- * @return Non-zero if allowed to create more samplers.
- */
-static inline bool gfx_check_sampler_limit_(GFXContext_* context)
-{
-	// We cannot just add, as we might overflow.
-	// So first read the current count, check if it exceeds the limit.
-	uint_fast32_t numSamplers =
-		atomic_load_explicit(&context->limits.samplers, memory_order_relaxed);
-
-	if (numSamplers >= context->limits.maxSamplers)
-		return 0;
-
-	// If it does not, use a weak CAS loop to try and claim the next increment.
-	// On every failed attempt, compare against the limit again.
-	// We do not lock anything so memory order can be relaxed.
-	while (!atomic_compare_exchange_weak_explicit(
-		&context->limits.samplers, &numSamplers, numSamplers + 1,
-		memory_order_relaxed, memory_order_relaxed))
-	{
-		if (numSamplers >= context->limits.maxSamplers)
-			return 0;
-	}
-
-	return 1;
-}
-
-/****************************
  * Allocates & builds a hashable key value from a Vk*CreateInfo struct
  * with given replace handles for non-hashable fields.
  * @return Key value, must call free() on success (NULL on failure).
@@ -718,7 +690,8 @@ static bool gfx_cache_create_elem_(GFXCache_* cache, GFXCacheElem_* elem,
 
 	case VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO:
 		// For samplers we have to check against Vulkan's allocation limit.
-		if (!gfx_check_sampler_limit_(context))
+		if (!gfx_check_limit_(
+			&context->limits.samplers, context->limits.maxSamplers))
 		{
 			gfx_log_error(
 				"Cannot allocate sampler because physical device limit "

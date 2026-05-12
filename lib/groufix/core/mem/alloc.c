@@ -121,34 +121,6 @@ static uint32_t gfx_get_mem_type_(const VkPhysicalDeviceMemoryProperties* pdmp,
 }
 
 /****************************
- * Checks and increases the allocation limit of a context.
- * @return Non-zero if allowed to allocate more memory.
- */
-static inline bool gfx_check_alloc_limit_(GFXContext_* context)
-{
-	// We cannot just add, as we might overflow.
-	// So first read the current count, check if it exceeds the limit.
-	uint_fast32_t numAllocs =
-		atomic_load_explicit(&context->limits.allocs, memory_order_relaxed);
-
-	if (numAllocs >= context->limits.maxAllocs)
-		return 0;
-
-	// If it does not, use a weak CAS loop to try and claim the next increment.
-	// On every failed attempt, compare against the limit again.
-	// We do not lock anything so memory order can be relaxed.
-	while (!atomic_compare_exchange_weak_explicit(
-		&context->limits.allocs, &numAllocs, numAllocs + 1,
-		memory_order_relaxed, memory_order_relaxed))
-	{
-		if (numAllocs >= context->limits.maxAllocs)
-			return 0;
-	}
-
-	return 1;
-}
-
-/****************************
  * Allocates and initializes a new Vulkan memory 'block' to be subdivided.
  * @param minSize Use to force a minimum allocation (beyond default block sizes).
  * @param maxSize Use to force a maximum allocation.
@@ -192,7 +164,7 @@ static GFXMemBlock_* gfx_alloc_mem_block_(GFXAllocator_* alloc,
 	// On failure of allocation, we just decrease the count back down.
 	// This might prevent other allocations when near the limit,
 	// but honestly at that point something else is horribly wrong...
-	if (!gfx_check_alloc_limit_(context))
+	if (!gfx_check_limit_(&context->limits.allocs, context->limits.maxAllocs))
 	{
 		gfx_log_error(
 			"Cannot allocate %"PRIu64" bytes because physical device limit "
