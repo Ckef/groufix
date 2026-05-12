@@ -7,7 +7,7 @@ _groufix_ is a cross-platform, thread-friendly and hardware accelerated graphics
 The engine currently supports the following targets:
 
 - __Unix__-like ([GCC](https://gcc.gnu.org/), [Clang](https://clang.llvm.org/))
-- __Windows__ (XP+) ([Mingw-w64](https://www.mingw-w64.org/))
+- __Windows__ (Vista+) ([Mingw-w64](https://www.mingw-w64.org/))
 - __macOS__ (_experimental_) (_Xcode Command Line Tools_) ([MoltenVK](https://github.com/KhronosGroup/MoltenVK))
 
 

@@ -49,16 +49,16 @@
 
 
 /**
- * Windows XP minimum.
+ * Windows Vista minimum.
  */
 #if defined (GFX_WIN32)
-	#if WINVER < 0x0501
+	#if WINVER < 0x0600
 		#undef WINVER
-		#define WINVER 0x0501
+		#define WINVER 0x0600
 	#endif
-	#if _WIN32_WINNT < 0x0501
+	#if _WIN32_WINNT < 0x0600
 		#undef _WIN32_WINNT
-		#define _WIN32_WINNT 0x0501
+		#define _WIN32_WINNT 0x0600
 	#endif
 #endif
 

@@ -34,9 +34,19 @@
  * Mutual exclusion lock.
  */
 #if defined (GFX_UNIX)
-	typedef pthread_mutex_t  GFXMutex_;
+	typedef pthread_mutex_t GFXMutex_;
 #elif defined (GFX_WIN32)
-	typedef CRITICAL_SECTION GFXMutex_;
+	typedef SRWLOCK         GFXMutex_;
+#endif
+
+
+/**
+ * Readers/Writer lock.
+ */
+#if defined (GFX_UNIX)
+	typedef pthread_rwlock_t GFXRWLock_;
+#elif defined (GFX_WIN32)
+	typedef SRWLOCK          GFXRWLock_;
 #endif
 
 
@@ -121,7 +131,7 @@ static inline bool gfx_mutex_init_(GFXMutex_* mutex)
 	return !pthread_mutex_init(mutex, NULL);
 
 #elif defined (GFX_WIN32)
-	InitializeCriticalSection(mutex);
+	InitializeSRWLock(mutex);
 	return 1;
 
 #endif
@@ -137,7 +147,7 @@ static inline void gfx_mutex_clear_(GFXMutex_* mutex)
 	pthread_mutex_destroy(mutex);
 
 #elif defined (GFX_WIN32)
-	DeleteCriticalSection(mutex);
+	/* No-op */
 
 #endif
 }
@@ -145,6 +155,8 @@ static inline void gfx_mutex_clear_(GFXMutex_* mutex)
 /**
  * Blocks until the calling thread is granted ownership of the mutex.
  * Locking an already owned mutex is undefined behaviour.
+ *
+ * Non-recursive!
  */
 static inline void gfx_mutex_lock_(GFXMutex_* mutex)
 {
@@ -152,7 +164,7 @@ static inline void gfx_mutex_lock_(GFXMutex_* mutex)
 	pthread_mutex_lock(mutex);
 
 #elif defined (GFX_WIN32)
-	EnterCriticalSection(mutex);
+	AcquireSRWLockExclusive(mutex);
 
 #endif
 }
@@ -160,6 +172,8 @@ static inline void gfx_mutex_lock_(GFXMutex_* mutex)
 /**
  * Try to get ownership of the mutex without blocking.
  * @return Non-zero if ownership was granted.
+ *
+ * Non-recursive!
  */
 static inline bool gfx_mutex_try_lock_(GFXMutex_* mutex)
 {
@@ -167,7 +181,7 @@ static inline bool gfx_mutex_try_lock_(GFXMutex_* mutex)
 	return !pthread_mutex_trylock(mutex);
 
 #elif defined (GFX_WIN32)
-	return TryEnterCriticalSection(mutex);
+	return TryAcquireSRWLockExclusive(mutex);
 
 #endif
 }
@@ -182,7 +196,142 @@ static inline void gfx_mutex_unlock_(GFXMutex_* mutex)
 	pthread_mutex_unlock(mutex);
 
 #elif defined (GFX_WIN32)
-	LeaveCriticalSection(mutex);
+	ReleaseSRWLockExclusive(mutex);
+
+#endif
+}
+
+
+/****************************
+ * Readers/Writer lock.
+ ****************************/
+
+/**
+ * Initializes a readers/writer lock.
+ * The object pointed to by lock cannot be moved or copied!
+ * @return Non-zero on success.
+ */
+static inline bool gfx_rwlock_init_(GFXRWLock_* lock)
+{
+#if defined (GFX_UNIX)
+	return !pthread_rwlock_init(lock, NULL);
+
+#elif defined (GFX_WIN32)
+	InitializeSRWLock(lock);
+	return 1;
+
+#endif
+}
+
+/**
+ * Clears a readers/writer lock.
+ * Clearing a locked readers/writer lock is undefined behaviour.
+ */
+static inline void gfx_rwlock_clear_(GFXRWLock_* lock)
+{
+#if defined (GFX_UNIX)
+	pthread_rwlock_destroy(lock);
+
+#elif defined (GFX_WIN32)
+	/* No-op */
+
+#endif
+}
+
+/**
+ * Blocks until the calling thread is granted reader ownership of the lock.
+ * Locking an already owned readers/writer lock is undefined behaviour.
+ *
+ * Non-recursive!
+ */
+static inline void gfx_rwlock_rlock_(GFXRWLock_* lock)
+{
+#if defined (GFX_UNIX)
+	pthread_rwlock_rdlock(lock);
+
+#elif defined (GFX_WIN32)
+	AcquireSRWLockShared(lock);
+
+#endif
+}
+
+/**
+ * Try to get reader ownership of the lock without blocking.
+ * @return Non-zero if ownership was granted.
+ *
+ * Non-recursive!
+ */
+static inline bool gfx_rwlock_try_rlock_(GFXRWLock_* lock)
+{
+#if defined (GFX_UNIX)
+	return !pthread_rwlock_tryrdlock(lock);
+
+#elif defined (GFX_WIN32)
+	return TryAcquireSRWLockShared(lock);
+
+#endif
+}
+
+/**
+ * Releases the reader lock, making it available to writers.
+ * Unlocking an already unlocked readers/writer lock is undefined behaviour.
+ */
+static inline void gfx_rwlock_runlock_(GFXRWLock_* lock)
+{
+#if defined (GFX_UNIX)
+	pthread_rwlock_unlock(lock);
+
+#elif defined (GFX_WIN32)
+	ReleaseSRWLockShared(lock);
+
+#endif
+}
+
+/**
+ * Blocks until the calling thread is granted writer ownership of the lock.
+ * Locking an already owned readers/writer lock is undefined behaviour.
+ *
+ * Non-recursive!
+ */
+static inline void gfx_rwlock_wlock_(GFXRWLock_* lock)
+{
+#if defined (GFX_UNIX)
+	pthread_rwlock_wrlock(lock);
+
+#elif defined (GFX_WIN32)
+	AcquireSRWLockExclusive(lock);
+
+#endif
+}
+
+/**
+ * Try to get writer ownership of the lock without blocking.
+ * @return Non-zero if ownership was granted.
+ *
+ * Non-recursive!
+ */
+static inline bool gfx_rwlock_try_wlock_(GFXRWLock_* lock)
+{
+#if defined (GFX_UNIX)
+	return !pthread_rwlock_trywrlock(lock);
+
+#elif defined (GFX_WIN32)
+	return TryAcquireSRWLockExclusive(lock);
+
+#endif
+}
+
+/**
+ * Releases the writer lock, making it available to other readers/writers.
+ * Unlocking an already unlocked readers/writer lock is undefined behaviour.
+ */
+static inline void gfx_rwlock_wunlock_(GFXRWLock_* lock)
+{
+#if defined (GFX_UNIX)
+	pthread_rwlock_unlock(lock);
+
+#elif defined (GFX_WIN32)
+	ReleaseSRWLockExclusive(lock);
 
 #endif
 }

@@ -120,7 +120,7 @@ LIB_FLAGS = \
 
 ifeq ($(CC_PREFIX),None)
  ifneq ($(OS),Windows_NT)
-  LIB_FLAGS += -D_POSIX_C_SOURCE=199506L
+  LIB_FLAGS += -D_POSIX_C_SOURCE=200809L
  endif
 endif
 

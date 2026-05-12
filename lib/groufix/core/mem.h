@@ -310,9 +310,9 @@ typedef struct GFXCache_
 	GFXMap immutable; // Stores GFXHashKey_ : GFXCacheElem_.
 	GFXMap mutable;   // Stores GFXHashKey_ : GFXCacheElem_.
 
-	GFXMutex_ simpleLock;
-	GFXMutex_ lookupLock;
-	GFXMutex_ createLock;
+	GFXMutex_  simpleLock;
+	GFXRWLock_ lookupLock;
+	GFXMutex_  createLock;
 
 	size_t templateStride;
 

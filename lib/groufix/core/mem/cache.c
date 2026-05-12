@@ -877,10 +877,10 @@ static GFXCacheElem_* gfx_cache_get_pipeline_(GFXCache_* cache,
 	if (elem != NULL) goto found;
 
 	// If not found in the immutable cache, check the mutable cache.
-	// For this lookup we obviously do lock.
-	gfx_mutex_lock_(&cache->lookupLock);
+	// For this lookup we use a shared reader lock.
+	gfx_rwlock_rlock_(&cache->lookupLock);
 	elem = gfx_map_hsearch(&cache->mutable, key, hash);
-	gfx_mutex_unlock_(&cache->lookupLock);
+	gfx_rwlock_runlock_(&cache->lookupLock);
 
 	if (elem != NULL) goto found;
 
@@ -892,9 +892,9 @@ static GFXCacheElem_* gfx_cache_get_pipeline_(GFXCache_* cache,
 	// the same new element.
 	gfx_mutex_lock_(&cache->createLock);
 
-	gfx_mutex_lock_(&cache->lookupLock);
+	// No need to take a reader lock here; no other thread can be creating.
+	// And all readers can safely run in parallel anyway.
 	elem = gfx_map_hsearch(&cache->mutable, key, hash);
-	gfx_mutex_unlock_(&cache->lookupLock);
 
 	if (elem != NULL)
 	{
@@ -915,14 +915,14 @@ static GFXCacheElem_* gfx_cache_get_pipeline_(GFXCache_* cache,
 	}
 
 	// We created the thing, now insert the thing.
-	// For this we block any lookups again.
-	// When we're done we can also unlock for creation tho :)
-	gfx_mutex_lock_(&cache->lookupLock);
+	// For this we take an exclusive writer lock to block any lookups.
+	// When we're done we can also unlock for creation :)
+	gfx_rwlock_wlock_(&cache->lookupLock);
 
 	elem = gfx_map_hinsert(
 		&cache->mutable, &newElem, gfx_hash_size_(key), key, hash);
 
-	gfx_mutex_unlock_(&cache->lookupLock);
+	gfx_rwlock_wunlock_(&cache->lookupLock);
 	gfx_mutex_unlock_(&cache->createLock);
 
 	if (elem != NULL) goto found;
@@ -957,7 +957,7 @@ bool gfx_cache_init_(GFXCache_* cache, GFXDevice_* device, size_t templateStride
 	if (!gfx_mutex_init_(&cache->simpleLock))
 		return 0;
 
-	if (!gfx_mutex_init_(&cache->lookupLock))
+	if (!gfx_rwlock_init_(&cache->lookupLock))
 		goto clean_simple;
 
 	if (!gfx_mutex_init_(&cache->createLock))
@@ -991,7 +991,7 @@ bool gfx_cache_init_(GFXCache_* cache, GFXDevice_* device, size_t templateStride
 clean:
 	gfx_mutex_clear_(&cache->createLock);
 clean_lookup:
-	gfx_mutex_clear_(&cache->lookupLock);
+	gfx_rwlock_clear_(&cache->lookupLock);
 clean_simple:
 	gfx_mutex_clear_(&cache->simpleLock);
 
@@ -1042,7 +1042,7 @@ void gfx_cache_clear_(GFXCache_* cache)
 	gfx_map_clear(&cache->mutable);
 
 	gfx_mutex_clear_(&cache->simpleLock);
-	gfx_mutex_clear_(&cache->lookupLock);
+	gfx_rwlock_clear_(&cache->lookupLock);
 	gfx_mutex_clear_(&cache->createLock);
 }
 
@@ -1094,14 +1094,14 @@ bool gfx_cache_warmup_(GFXCache_* cache,
 	// Here we do need to lock the immutable cache, as we want the function
 	// to be reentrant. However we have no dedicated lock.
 	// Luckily this function _does not_ need to be able to run concurrently
-	// with gfx_cache_get_pipeline_, so we abuse the lookup lock :)
-	gfx_mutex_lock_(&cache->lookupLock);
+	// with gfx_cache_get_pipeline_, so we abuse the create lock :)
+	gfx_mutex_lock_(&cache->createLock);
 
 	// Try to find a matching element first.
 	GFXCacheElem_* elem = gfx_map_hsearch(&cache->immutable, key, hash);
 	if (elem != NULL)
 		// Found one, done, we do not care if it is completely built yet.
-		gfx_mutex_unlock_(&cache->lookupLock);
+		gfx_mutex_unlock_(&cache->createLock);
 	else
 	{
 		// If not found, insert a new element.
@@ -1109,7 +1109,7 @@ bool gfx_cache_warmup_(GFXCache_* cache,
 		elem = gfx_map_hinsert(
 			&cache->immutable, NULL, gfx_hash_size_(key), key, hash);
 
-		gfx_mutex_unlock_(&cache->lookupLock);
+		gfx_mutex_unlock_(&cache->createLock);
 
 		// THEN create it :)
 		if (elem == NULL || !gfx_cache_create_elem_(cache, elem, createInfo))
@@ -1117,9 +1117,9 @@ bool gfx_cache_warmup_(GFXCache_* cache,
 			// Failed.. I suppose we erase the element.
 			if (elem != NULL)
 			{
-				gfx_mutex_lock_(&cache->lookupLock);
+				gfx_mutex_lock_(&cache->createLock);
 				gfx_map_erase(&cache->immutable, elem);
-				gfx_mutex_unlock_(&cache->lookupLock);
+				gfx_mutex_unlock_(&cache->createLock);
 			}
 
 			free(key);
