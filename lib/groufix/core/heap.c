@@ -170,12 +170,20 @@ static bool gfx_buffer_alloc_(GFXBuffer_* buffer)
 	GFX_MOD_MEMORY_FLAGS_(buffer->base.flags, buffer->alloc.flags);
 
 	// Bind the buffer to the memory.
+	// Don't forget to lock the memory first.
+	gfx_mem_lock_(&buffer->alloc);
+
 	GFX_VK_CHECK_(
 		context->vk.BindBufferMemory(
 			context->vk.device,
 			buffer->vk.buffer,
 			buffer->alloc.vk.memory, buffer->alloc.offset),
-		goto clean_alloc);
+		{
+			gfx_mem_unlock_(&buffer->alloc);
+			goto clean_alloc;
+		});
+
+	gfx_mem_unlock_(&buffer->alloc);
 
 	return 1;
 
@@ -305,12 +313,20 @@ static bool gfx_image_alloc_(GFXImage_* image)
 	GFX_MOD_MEMORY_FLAGS_(image->base.flags, image->alloc.flags);
 
 	// Bind the image to the memory.
+	// Don't forget to lock the memory first.
+	gfx_mem_lock_(&image->alloc);
+
 	GFX_VK_CHECK_(
 		context->vk.BindImageMemory(
 			context->vk.device,
 			image->vk.image,
 			image->alloc.vk.memory, image->alloc.offset),
-		goto clean_alloc);
+		{
+			gfx_mem_unlock_(&image->alloc);
+			goto clean_alloc;
+		});
+
+	gfx_mem_unlock_(&image->alloc);
 
 	return 1;
 
@@ -444,12 +460,20 @@ GFXBacking_* gfx_alloc_backing_(GFXHeap* heap,
 	}
 
 	// Bind the image to the memory.
+	// Don't forget to lock/unlock the memory.
+	gfx_mem_lock_(&backing->alloc);
+
 	GFX_VK_CHECK_(
 		context->vk.BindImageMemory(
 			context->vk.device,
 			backing->vk.image,
 			backing->alloc.vk.memory, backing->alloc.offset),
-		goto clean_alloc);
+		{
+			gfx_mem_unlock_(&backing->alloc);
+			goto clean_alloc;
+		});
+
+	gfx_mem_unlock_(&backing->alloc);
 
 	// Unlock.
 	gfx_mutex_unlock_(&heap->lock);
@@ -544,12 +568,20 @@ GFXStaging_* gfx_alloc_staging_(GFXHeap* heap,
 	}
 
 	// Bind the buffer to the memory.
+	// Don't forget to lock/unlock the memory.
+	gfx_mem_lock_(&staging->alloc);
+
 	GFX_VK_CHECK_(
 		context->vk.BindBufferMemory(
 			context->vk.device,
 			staging->vk.buffer,
 			staging->alloc.vk.memory, staging->alloc.offset),
-		goto clean_alloc);
+		{
+			gfx_mem_unlock_(&staging->alloc);
+			goto clean_alloc;
+		});
+
+	gfx_mem_unlock_(&staging->alloc);
 
 	// Map the buffer & unlock.
 	if ((staging->vk.ptr = gfx_map_(&heap->allocator, &staging->alloc)) == NULL)
@@ -836,6 +868,8 @@ GFX_API bool gfx_heap_block(GFXHeap* heap)
 
 	// Ok so we are gonna gather ALL the fences and wait on them.
 	// Gonna access all transfer deques, lock all!
+	// This lock could technically be a reader lock, but this is the only
+	// place where this is the case, so a rwlock is a bit unnecessary.
 	gfx_mutex_lock_(&heap->ops.graphics.lock);
 	gfx_mutex_lock_(&heap->ops.transfer.lock);
 

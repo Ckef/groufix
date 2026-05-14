@@ -189,6 +189,23 @@ typedef struct GFXAllocator_
 
 
 /**
+ * Locks Vulkan memory so we can bind a buffer/image to it.
+ */
+static inline void gfx_mem_lock_(GFXMemAlloc_* mem)
+{
+	gfx_mutex_lock_(&mem->block->map.lock);
+}
+
+/**
+ * Unlocks Vulkan memory locked by gfx_mem_lock_.
+ * MUST be called before this thread tries to map any memory!
+ */
+static inline void gfx_mem_unlock_(GFXMemAlloc_* mem)
+{
+	gfx_mutex_unlock_(&mem->block->map.lock);
+}
+
+/**
  * Initializes an allocator.
  * @param alloc  Cannot be NULL.
  * @param device Cannot be NULL.
@@ -253,6 +270,9 @@ void gfx_free_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
  * @return NULL on failure.
  *
  * This function is reentrant!
+ * However, cannot bind buffer/image during this call,
+ * MUST use gfx_mem_lock_ and gfx_mem_unlock_!
+ *
  * The given object must be allocated with VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT.
  */
 void* gfx_map_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
@@ -263,7 +283,7 @@ void* gfx_map_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
  * @param alloc Cannot be NULL.
  * @param mem   Cannot be NULL, must be allocated from alloc.
  *
- * This function is reentrant!
+ * @see gfx_map_ for concurrency rules!
  */
 void gfx_unmap_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
 
