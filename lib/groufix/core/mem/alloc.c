@@ -73,6 +73,32 @@
 	} while (0)
 
 
+// Attaches Vulkan memory to a given Vulkan buffer/image.
+#define GFX_MEM_ATTACH_(alloc, block, isNewBlock, offset, buffer, image, action) \
+	do { \
+		if (isNewBlock) { \
+			if (!gfx_mem_attach_( \
+				alloc->context, block->vk.memory, offset, buffer, image)) \
+			{ \
+				gfx_log_error( \
+					"Could not attach existing memory to buffer/image."); \
+				action; \
+			} \
+		} else {\
+			gfx_mutex_lock_(&block->map.lock); \
+			if (!gfx_mem_attach_( \
+				alloc->context, block->vk.memory, offset, buffer, image)) \
+			{ \
+				gfx_mutex_unlock_(&block->map.lock); \
+				gfx_log_error( \
+					"Could not attach newly allocated memory to buffer/image."); \
+				action; \
+			} \
+			gfx_mutex_unlock_(&block->map.lock); \
+		} \
+	} while (0)
+
+
 /****************************
  * Search tree key comparison function, l and r are of type VkDeviceSize[2].
  * First element is the size, second is the offset.
@@ -118,6 +144,34 @@ static uint32_t gfx_get_mem_type_(const VkPhysicalDeviceMemoryProperties* pdmp,
 	}
 
 	return UINT32_MAX;
+}
+
+/****************************
+ * Attaches Vulkan memory to a given Vulkan buffer/image.
+ * @param context Cannot be NULL.
+ *
+ * One of buffer and image MUST be passed to bind to the memory.
+ */
+static bool gfx_mem_attach_(GFXContext_* context,
+                            VkDeviceMemory memory, VkDeviceSize offset,
+                            VkBuffer buffer, VkImage image)
+{
+	assert(context != NULL);
+	assert(buffer != VK_NULL_HANDLE || image != VK_NULL_HANDLE);
+	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
+
+	if (buffer != VK_NULL_HANDLE)
+		GFX_VK_CHECK_(
+			context->vk.BindBufferMemory(
+				context->vk.device, buffer, memory, offset),
+			return 0);
+	else
+		GFX_VK_CHECK_(
+			context->vk.BindImageMemory(
+				context->vk.device, image, memory, offset),
+			return 0);
+
+	return 1;
 }
 
 /****************************
@@ -407,13 +461,16 @@ void gfx_allocator_clear_(GFXAllocator_* alloc)
 /****************************/
 bool gfx_alloc_(GFXAllocator_* alloc, GFXMemAlloc_* mem, bool linear,
                 VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
-                VkMemoryRequirements reqs)
+                VkMemoryRequirements reqs,
+                VkBuffer buffer, VkImage image)
 {
 	assert(alloc != NULL);
 	assert(mem != NULL);
 	assert(reqs.size > 0);
 	assert(GFX_IS_POWER_OF_TWO(reqs.alignment));
 	assert(reqs.memoryTypeBits != 0);
+	assert(buffer != VK_NULL_HANDLE || image != VK_NULL_HANDLE);
+	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
 
 	// Alignment of 0 means 1.
 	reqs.alignment = (reqs.alignment > 0) ? reqs.alignment : 1;
@@ -518,6 +575,7 @@ try_search:
 	if (block == NULL)
 	{
 		// Uh oh the search failed, try to allocate a new memory block.
+		// Don't allocate dedicated memory!
 		block = gfx_alloc_mem_block_(
 			alloc, &pdmp, type, reqs.size,
 			GFX_MAX(reqs.size, GFX_DEF_LARGE_HEAP_BLOCK_SIZE_),
@@ -557,6 +615,22 @@ try_search:
 		// We're at the beginning, so it always aligns, set offset of 0.
 		node = block->nodes.free.root;
 		GFX_KEY_OFFSET_(key) = 0;
+
+		// Attach the memory to the given buffer/image.
+		GFX_MEM_ATTACH_(
+			alloc, block, 1, 0, buffer, image,
+			{
+				gfx_free_mem_block_(alloc, block);
+				return 0;
+			});
+	}
+	else
+	{
+		// We're using an existing memory block,
+		// so just attach the memory to the given buffer/image.
+		GFX_MEM_ATTACH_(
+			alloc, block, 0, GFX_KEY_OFFSET_(key), buffer, image,
+			return 0);
 	}
 
 	// Claim the memory.
@@ -628,6 +702,7 @@ bool gfx_allocd_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
 	assert(mem != NULL);
 	assert(reqs.size > 0);
 	assert(reqs.memoryTypeBits != 0);
+	assert(buffer != VK_NULL_HANDLE || image != VK_NULL_HANDLE);
 	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
 
 	// Get physical device memory properties.
@@ -674,6 +749,14 @@ bool gfx_allocd_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
 
 	if (block == NULL)
 		return 0;
+
+	// Attach the memory to the given buffer/image.
+	GFX_MEM_ATTACH_(
+		alloc, block, 1, 0, buffer, image,
+		{
+			gfx_free_mem_block_(alloc, block);
+			return 0;
+		});
 
 	// Claim memory,
 	// i.e. output the allocation data.

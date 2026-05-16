@@ -45,6 +45,8 @@
  * Performs the actual internal memory allocation.
  * Extracts Vulkan memory flags (and implicitly memory type) from public flags.
  * @param dreqs Can be NULL to disallow a dedicated allocation.
+ *
+ * One of buffer and image MUST be passed to bind to the memory.
  */
 static inline bool gfx_alloc_mem_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
                                   bool linear, bool transient,
@@ -88,7 +90,7 @@ static inline bool gfx_alloc_mem_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
 	if (dreqs != NULL && dreqs->prefersDedicatedAllocation)
 		return gfx_allocd_(alloc, mem, required, optimal, *reqs, buffer, image);
 	else
-		return gfx_alloc_(alloc, mem, linear, required, optimal, *reqs);
+		return gfx_alloc_(alloc, mem, linear, required, optimal, *reqs, buffer, image);
 }
 
 /****************************
@@ -163,39 +165,16 @@ static bool gfx_buffer_alloc_(GFXBuffer_* buffer)
 		&mr2.memoryRequirements, &mdr,
 		buffer->vk.buffer, VK_NULL_HANDLE))
 	{
-		goto clean;
+		context->vk.DestroyBuffer(
+			context->vk.device, buffer->vk.buffer, NULL);
+
+		return 0;
 	}
 
 	// Get public memory flags.
 	GFX_MOD_MEMORY_FLAGS_(buffer->base.flags, buffer->alloc.flags);
 
-	// Bind the buffer to the memory.
-	// Don't forget to lock the memory first.
-	gfx_mem_lock_(&buffer->alloc);
-
-	GFX_VK_CHECK_(
-		context->vk.BindBufferMemory(
-			context->vk.device,
-			buffer->vk.buffer,
-			buffer->alloc.vk.memory, buffer->alloc.offset),
-		{
-			gfx_mem_unlock_(&buffer->alloc);
-			goto clean_alloc;
-		});
-
-	gfx_mem_unlock_(&buffer->alloc);
-
 	return 1;
-
-
-	// Cleanup on failure.
-clean_alloc:
-	gfx_free_(&heap->allocator, &buffer->alloc);
-clean:
-	context->vk.DestroyBuffer(
-		context->vk.device, buffer->vk.buffer, NULL);
-
-	return 0;
 }
 
 /****************************
@@ -306,39 +285,16 @@ static bool gfx_image_alloc_(GFXImage_* image)
 		&mr2.memoryRequirements, &mdr,
 		VK_NULL_HANDLE, image->vk.image))
 	{
-		goto clean;
+		context->vk.DestroyImage(
+			context->vk.device, image->vk.image, NULL);
+
+		return 0;
 	}
 
 	// Get public memory flags.
 	GFX_MOD_MEMORY_FLAGS_(image->base.flags, image->alloc.flags);
 
-	// Bind the image to the memory.
-	// Don't forget to lock the memory first.
-	gfx_mem_lock_(&image->alloc);
-
-	GFX_VK_CHECK_(
-		context->vk.BindImageMemory(
-			context->vk.device,
-			image->vk.image,
-			image->alloc.vk.memory, image->alloc.offset),
-		{
-			gfx_mem_unlock_(&image->alloc);
-			goto clean_alloc;
-		});
-
-	gfx_mem_unlock_(&image->alloc);
-
 	return 1;
-
-
-	// Cleanup on failure.
-clean_alloc:
-	gfx_free_(&heap->allocator, &image->alloc);
-clean:
-	context->vk.DestroyImage(
-		context->vk.device, image->vk.image, NULL);
-
-	return 0;
 }
 
 /****************************
@@ -456,39 +412,20 @@ GFXBacking_* gfx_alloc_backing_(GFXHeap* heap,
 		&mr2.memoryRequirements, &mdr,
 		VK_NULL_HANDLE, backing->vk.image))
 	{
-		goto clean_image;
+		gfx_mutex_unlock_(&heap->lock);
+
+		context->vk.DestroyImage(
+			context->vk.device, backing->vk.image, NULL);
+
+		goto clean;
 	}
 
-	// Bind the image to the memory.
-	// Don't forget to lock/unlock the memory.
-	gfx_mem_lock_(&backing->alloc);
-
-	GFX_VK_CHECK_(
-		context->vk.BindImageMemory(
-			context->vk.device,
-			backing->vk.image,
-			backing->alloc.vk.memory, backing->alloc.offset),
-		{
-			gfx_mem_unlock_(&backing->alloc);
-			goto clean_alloc;
-		});
-
-	gfx_mem_unlock_(&backing->alloc);
-
-	// Unlock.
 	gfx_mutex_unlock_(&heap->lock);
 
 	return backing;
 
 
 	// Cleanup on failure.
-clean_alloc:
-	gfx_free_(&heap->allocator, &backing->alloc);
-clean_image:
-	gfx_mutex_unlock_(&heap->lock); // Don't forget.
-
-	context->vk.DestroyImage(
-		context->vk.device, backing->vk.image, NULL);
 clean:
 	free(backing);
 	gfx_log_error(
@@ -562,26 +499,11 @@ GFXStaging_* gfx_alloc_staging_(GFXHeap* heap,
 
 	if (!gfx_alloc_mem_(
 		&heap->allocator, &staging->alloc, 1, 0, GFX_MEMORY_HOST_VISIBLE,
-		&mr, NULL, VK_NULL_HANDLE, VK_NULL_HANDLE))
+		&mr, NULL,
+		staging->vk.buffer, VK_NULL_HANDLE))
 	{
 		goto clean_buffer;
 	}
-
-	// Bind the buffer to the memory.
-	// Don't forget to lock/unlock the memory.
-	gfx_mem_lock_(&staging->alloc);
-
-	GFX_VK_CHECK_(
-		context->vk.BindBufferMemory(
-			context->vk.device,
-			staging->vk.buffer,
-			staging->alloc.vk.memory, staging->alloc.offset),
-		{
-			gfx_mem_unlock_(&staging->alloc);
-			goto clean_alloc;
-		});
-
-	gfx_mem_unlock_(&staging->alloc);
 
 	// Map the buffer & unlock.
 	if ((staging->vk.ptr = gfx_map_(&heap->allocator, &staging->alloc)) == NULL)
@@ -596,7 +518,7 @@ GFXStaging_* gfx_alloc_staging_(GFXHeap* heap,
 clean_alloc:
 	gfx_free_(&heap->allocator, &staging->alloc);
 clean_buffer:
-	gfx_mutex_unlock_(&heap->lock); // Don't forget.
+	gfx_mutex_unlock_(&heap->lock); // Don't forget!
 
 	context->vk.DestroyBuffer(
 		context->vk.device, staging->vk.buffer, NULL);

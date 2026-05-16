@@ -189,23 +189,6 @@ typedef struct GFXAllocator_
 
 
 /**
- * Locks Vulkan memory so we can bind a buffer/image to it.
- */
-static inline void gfx_mem_lock_(GFXMemAlloc_* mem)
-{
-	gfx_mutex_lock_(&mem->block->map.lock);
-}
-
-/**
- * Unlocks Vulkan memory locked by gfx_mem_lock_.
- * MUST be called before this thread tries to map any memory!
- */
-static inline void gfx_mem_unlock_(GFXMemAlloc_* mem)
-{
-	gfx_mutex_unlock_(&mem->block->map.lock);
-}
-
-/**
  * Initializes an allocator.
  * @param alloc  Cannot be NULL.
  * @param device Cannot be NULL.
@@ -233,18 +216,17 @@ void gfx_allocator_clear_(GFXAllocator_* alloc);
  * @return Non-zero on success.
  *
  * Not thread-safe at all.
+ * One of buffer and image MUST be passed to bind to the memory.
  */
 bool gfx_alloc_(GFXAllocator_* alloc, GFXMemAlloc_* mem, bool linear,
                 VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
-                VkMemoryRequirements reqs);
+                VkMemoryRequirements reqs,
+                VkBuffer buffer, VkImage image);
 
 /**
  * Allocate some 'dedicated' Vulkan memory,
  * meaning it will not be sub-allocated from a larger memory block.
  * @see gfx_alloc_.
- *
- * To allocate Vulkan dedicated (for a Vulkan buffer or image) memory,
- * either a buffer _OR_ image can be passed.
  */
 bool gfx_allocd_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
                  VkMemoryPropertyFlags required, VkMemoryPropertyFlags optimal,
@@ -270,9 +252,6 @@ void gfx_free_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
  * @return NULL on failure.
  *
  * This function is reentrant!
- * However, cannot bind buffer/image during this call,
- * MUST use gfx_mem_lock_ and gfx_mem_unlock_!
- *
  * The given object must be allocated with VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT.
  */
 void* gfx_map_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
@@ -283,7 +262,7 @@ void* gfx_map_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
  * @param alloc Cannot be NULL.
  * @param mem   Cannot be NULL, must be allocated from alloc.
  *
- * @see gfx_map_ for concurrency rules!
+ * This function is reentrant!
  */
 void gfx_unmap_(GFXAllocator_* alloc, GFXMemAlloc_* mem);
 
