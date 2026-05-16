@@ -93,8 +93,9 @@
 				gfx_log_error( \
 					"Could not attach newly allocated memory to buffer/image."); \
 				action; \
+			} else { \
+				gfx_mutex_unlock_(&block->map.lock); \
 			} \
-			gfx_mutex_unlock_(&block->map.lock); \
 		} \
 	} while (0)
 
