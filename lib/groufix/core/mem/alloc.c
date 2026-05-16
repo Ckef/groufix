@@ -73,33 +73,6 @@
 	} while (0)
 
 
-// Attaches Vulkan memory to a given Vulkan buffer/image.
-#define GFX_MEM_ATTACH_(alloc, block, isNewBlock, offset, buffer, image, action) \
-	do { \
-		if (isNewBlock) { \
-			if (!gfx_mem_attach_( \
-				alloc->context, block->vk.memory, offset, buffer, image)) \
-			{ \
-				gfx_log_error( \
-					"Could not attach existing memory to buffer/image."); \
-				action; \
-			} \
-		} else {\
-			gfx_mutex_lock_(&block->map.lock); \
-			if (!gfx_mem_attach_( \
-				alloc->context, block->vk.memory, offset, buffer, image)) \
-			{ \
-				gfx_mutex_unlock_(&block->map.lock); \
-				gfx_log_error( \
-					"Could not attach newly allocated memory to buffer/image."); \
-				action; \
-			} else { \
-				gfx_mutex_unlock_(&block->map.lock); \
-			} \
-		} \
-	} while (0)
-
-
 /****************************
  * Search tree key comparison function, l and r are of type VkDeviceSize[2].
  * First element is the size, second is the offset.
@@ -149,17 +122,19 @@ static uint32_t gfx_get_mem_type_(const VkPhysicalDeviceMemoryProperties* pdmp,
 
 /****************************
  * Attaches Vulkan memory to a given Vulkan buffer/image.
- * @param context Cannot be NULL.
+ * @param alloc Cannot be NULL.
  *
  * One of buffer and image MUST be passed to bind to the memory.
  */
-static bool gfx_mem_attach_(GFXContext_* context,
+static bool gfx_mem_attach_(GFXAllocator_* alloc,
                             VkDeviceMemory memory, VkDeviceSize offset,
                             VkBuffer buffer, VkImage image)
 {
-	assert(context != NULL);
+	assert(alloc != NULL);
 	assert(buffer != VK_NULL_HANDLE || image != VK_NULL_HANDLE);
 	assert(buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE);
+
+	GFXContext_* context = alloc->context;
 
 	if (buffer != VK_NULL_HANDLE)
 		GFX_VK_CHECK_(
@@ -618,20 +593,27 @@ try_search:
 		GFX_KEY_OFFSET_(key) = 0;
 
 		// Attach the memory to the given buffer/image.
-		GFX_MEM_ATTACH_(
-			alloc, block, 1, 0, buffer, image,
-			{
-				gfx_free_mem_block_(alloc, block);
-				return 0;
-			});
+		if (!gfx_mem_attach_(alloc, block->vk.memory, 0, buffer, image))
+		{
+			gfx_free_mem_block_(alloc, block);
+			return 0;
+		}
 	}
 	else
 	{
 		// We're using an existing memory block,
 		// so just attach the memory to the given buffer/image.
-		GFX_MEM_ATTACH_(
-			alloc, block, 0, GFX_KEY_OFFSET_(key), buffer, image,
-			return 0);
+		// Need to lock access to the block in case gfx_(un)map_ is called!
+		gfx_mutex_lock_(&block->map.lock);
+
+		if (!gfx_mem_attach_(alloc,
+			block->vk.memory, GFX_KEY_OFFSET_(key), buffer, image))
+		{
+			gfx_mutex_unlock_(&block->map.lock);
+			return 0;
+		}
+
+		gfx_mutex_unlock_(&block->map.lock);
 	}
 
 	// Claim the memory.
@@ -752,12 +734,11 @@ bool gfx_allocd_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
 		return 0;
 
 	// Attach the memory to the given buffer/image.
-	GFX_MEM_ATTACH_(
-		alloc, block, 1, 0, buffer, image,
-		{
-			gfx_free_mem_block_(alloc, block);
-			return 0;
-		});
+	if (!gfx_mem_attach_(alloc, block->vk.memory, 0, buffer, image))
+	{
+		gfx_free_mem_block_(alloc, block);
+		return 0;
+	}
 
 	// Claim memory,
 	// i.e. output the allocation data.
