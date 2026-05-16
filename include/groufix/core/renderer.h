@@ -601,16 +601,20 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
                             const GFXRenderState* state);
 
 /**
- * Warms up the internal pipeline cache (technique must be locked).
+ * Warms up the internal pipeline cache.
+ * The associated technique must be locked!
  * @param renderable Cannot be NULL.
  * @return Non-zero on success.
  *
  * This function is reentrant.
- * However, NOT thread-safe with respect to the associated pass/renderer and
- * CANNOT be called during or inbetween gfx_frame_start and gfx_frame_submit.
+ * However, this function CANNOT be called during or inbetween
+ * gfx_frame_start and gfx_frame_submit.
  *
  * gfx_renderable only:
- *  This call will internally pre-built a portion of the associated pass.
+ *  This function is NOT thread-safe with respect to the associated
+ *  pass/renderer, meaning they cannot be modified during this call.
+ *
+ *  Furthermore, this call will internally pre-built a portion of the renderer.
  *  If any pass or attachment of the renderer is changed after this call, the
  *  warmup data is invalidated and this call is effectively rendered a waste.
  */
@@ -628,7 +632,8 @@ GFX_API bool gfx_computable(GFXComputable* computable,
                             GFXTechnique* tech);
 
 /**
- * Warms up the internal pipeline cache (technique must be locked).
+ * Warms up the internal pipeline cache.
+ * The associated technique must be locked!
  * @param computable Cannot be NULL.
  * @see gfx_renderable_warmup.
  */

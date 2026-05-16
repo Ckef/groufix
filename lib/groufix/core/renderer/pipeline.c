@@ -603,6 +603,7 @@ GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable)
 
 	// To build pipelines, we need the Vulkan render pass.
 	// This is the exact reason we can warmup all passes of the render graph!
+	// We want this function to be reentrant for ease-of-use.
 	// Sadly this is not thread-safe at all, so we re-use the renderer's lock.
 	gfx_mutex_lock_(&renderer->lock);
 	bool success = gfx_render_graph_warmup_(renderer);
