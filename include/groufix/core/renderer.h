@@ -613,7 +613,7 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
  * gfx_renderable only:
  *  This function is NOT thread-safe with respect to the associated
  *  pass/renderer, meaning they cannot be modified during this call,
- *  this includes the renderer's attachments (but not its sets).
+ *  this includes the renderer's attachments and passes (but not its sets).
  *
  *  Furthermore, this call will internally pre-built a portion of the renderer.
  *  If any pass or attachment of the renderer is changed after this call, the

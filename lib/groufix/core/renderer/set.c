@@ -417,11 +417,11 @@ static void gfx_set_update_attachs_(GFXSet* set)
 			// Vulkan update info of the set.
 			// Unfortunately multiple recorders could be recording with this
 			// set that all try to simultaneously update attachments...
-			// So we need to use the renderer's lock.
+			// So we need to use a dedicated lock.
 			// This is why we use the atomic generation, to skip this lock.
 			// Unfortunately we want the info and generation update to be
 			// one atomic operation, so we need to lock before updating gen.
-			gfx_mutex_lock_(&renderer->lock);
+			gfx_mutex_lock_(&renderer->reentrantLock);
 
 			// Check again in case another thread just finished updating.
 			gen = atomic_load_explicit(&entry->gen, memory_order_relaxed);
@@ -465,7 +465,7 @@ static void gfx_set_update_attachs_(GFXSet* set)
 			atomic_store_explicit(&entry->gen, gen, memory_order_relaxed);
 
 		unlock:
-			gfx_mutex_unlock_(&renderer->lock);
+			gfx_mutex_unlock_(&renderer->reentrantLock);
 
 			// Early exit when all attachments are found!
 		next:

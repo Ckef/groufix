@@ -976,6 +976,10 @@ struct GFXRenderer
 	GFXDeque  stales; // Stores { unsigned int, (Vk*)+ }.
 	GFXMutex_ staleLock;
 
+	// Lock used for gfx_renderable_warmup reentrancy +
+	// updating set attachment references during recording.
+	GFXMutex_ reentrantLock;
+
 
 	// Render backing (i.e. attachments).
 	struct
