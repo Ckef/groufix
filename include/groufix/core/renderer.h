@@ -735,10 +735,10 @@ GFX_API unsigned int gfx_frame_get_index(GFXFrame* frame);
  * Can only be called inbetween gfx_renderer_acquire and gfx_frame_submit!
  * @param frame Cannot be NULL.
  *
- * The renderer (including its attachments, passes and sets) cannot be
- * modified after this call until gfx_frame_submit has returned!
- * Nor can attachments be described, windows be attached, or
- * passes be added or erased during that period.
+ * The renderer CANNOT be modified after this call up until gfx_frame_submit
+ * has returned. This includes ALL of its attachments, passes and sets!
+ * Neither can attachments or windows be attached or detached, passes be added
+ * or erased, or sets be erased (though sets can be added) during that period.
  *
  * Failure during starting cannot be recovered from,
  * any such failure is appropriately logged.

@@ -167,15 +167,17 @@ static bool gfx_detach_attachment_(GFXRenderer* renderer, GFXAttach_* attach,
 	if (attach->type == GFX_ATTACH_EMPTY_)
 		return 0;
 
-	// Before detaching, we wait until all rendering is done.
-	// This so we can 'detach' (i.e. destroy) the associated resources.
+	// Skip if clearing.
 	if (!clear)
+	{
+		// Before detaching, we wait until all rendering is done.
+		// This so we can 'detach' (i.e. destroy) the associated resources.
 		gfx_sync_frames_(renderer);
 
-	// Destruct the render graph, it references these images,
-	// so for safety we destruct it all beforehand.
-	if (!clear)
+		// Destruct the render graph, it references these images,
+		// so for safety we destruct it all beforehand.
 		gfx_render_graph_destruct_(renderer);
+	}
 
 	// Then, if it is an image, reset the descriptor pools,
 	// this image attachment may not be referenced anymore!

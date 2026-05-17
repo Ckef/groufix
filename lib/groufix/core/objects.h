@@ -967,7 +967,7 @@ struct GFXRenderer
 	GFXList   recorders;  // References GFXRecorder.
 	GFXList   techniques; // References GFXTechnique.
 	GFXList   sets;       // References GFXSet.
-	GFXMutex_ lock;       // For recorders, techniques & sets.
+	GFXMutex_ lock;       // For recorders, techniques, sets & the pool.
 
 	// Current virtual frame state.
 	bool recording;
