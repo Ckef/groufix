@@ -168,21 +168,27 @@ bool gfx_push_stale_(GFXRenderer* renderer,
 		}
 	};
 
-	// If we have a single frame which is public, nothing is rendering,
-	// thus we can immediately destroy.
-	if (renderer->numFrames <= 1 && renderer->public != NULL)
-		gfx_destroy_stale_(renderer, &stale);
-
 	// Try to push the stale resource otherwise.
-	else if (!gfx_deque_push(&renderer->stales, 1, &stale))
+	// We push even if there is only one frame which is public, meaning
+	// nothing is actually rendering. If we were to account for that,
+	// we need to check the renderer's public frame pointer, which would make
+	// this function thread-unsafe with gfx_renderer_acquire!
+	// Besides, the stales will eventually get destroyed anyway...
+	gfx_mutex_lock_(&renderer->staleLock);
+
+	if (!gfx_deque_push(&renderer->stales, 1, &stale))
 	{
 		gfx_log_fatal(
 			"Stale resources could not be pushed, "
 			"prematurely destroyed instead...");
 
 		gfx_destroy_stale_(renderer, &stale);
+
+		gfx_mutex_unlock_(&renderer->staleLock);
 		return 0;
 	}
+
+	gfx_mutex_unlock_(&renderer->staleLock);
 
 	return 1;
 }
@@ -251,13 +257,16 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames)
 	gfx_pick_queue_(context, &rend->present, 0, 1);
 	gfx_pick_queue_(context, &rend->compute, VK_QUEUE_COMPUTE_BIT, 0);
 
-	// Initialize the technique/set lock first.
+	// Initialize the locks first.
 	if (!gfx_mutex_init_(&rend->lock))
 		goto clean;
 
+	if (!gfx_mutex_init_(&rend->staleLock))
+		goto clean_lock;
+
 	// Initialize the cache and pool second.
 	if (!gfx_cache_init_(&rend->cache, device, sizeof(GFXSetEntry_)))
-		goto clean_lock;
+		goto clean_stale_lock;
 
 	// Keep descriptor sets 4x the amount of frames we have.
 	// Offset by 1 to account for the first frame using it.
@@ -303,6 +312,8 @@ clean_renderer:
 	gfx_pool_clear_(&rend->pool);
 clean_cache:
 	gfx_cache_clear_(&rend->cache);
+clean_stale_lock:
+	gfx_mutex_clear_(&rend->staleLock);
 clean_lock:
 	gfx_mutex_clear_(&rend->lock);
 clean:
@@ -356,7 +367,9 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	gfx_pool_clear_(&renderer->pool);
 	gfx_cache_clear_(&renderer->cache);
 
+	gfx_mutex_clear_(&renderer->staleLock);
 	gfx_mutex_clear_(&renderer->lock);
+
 	free(renderer);
 }
 
@@ -441,6 +454,8 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 	// All previous frames should have destroyed all indices before the ones
 	// with this frame's index.
 	// If they did not, it means a frame was lost, which is fatal anyway.
+	gfx_mutex_lock_(&renderer->staleLock);
+
 	while (renderer->stales.size > 0)
 	{
 		GFXStale_* stale = gfx_deque_at(&renderer->stales, 0);
@@ -449,6 +464,8 @@ GFX_API GFXFrame* gfx_renderer_acquire(GFXRenderer* renderer)
 		gfx_destroy_stale_(renderer, stale);
 		gfx_deque_pop_front(&renderer->stales, 1);
 	}
+
+	gfx_mutex_unlock_(&renderer->staleLock);
 
 	return renderer->public;
 }

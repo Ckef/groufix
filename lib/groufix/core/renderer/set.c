@@ -99,26 +99,14 @@
 /****************************
  * Makes set resources stale, i.e. pushing them to the renderer for
  * destruction when they are no longer used by any virtual frames.
- * NOT thread-safe with respect gfx_renderer_(acquire|submit)!
  */
-static void gfx_make_stale_(GFXSet* set, bool lock,
+static void gfx_make_stale_(GFXSet* set,
                             VkImageView imageView, VkBufferView bufferView)
 {
 	// gfx_push_stale_ expects at least one resource!
 	if (imageView != VK_NULL_HANDLE || bufferView != VK_NULL_HANDLE)
-	{
-		// Explicitly not thread-safe, so we use the renderer's lock!
-		// This should be a rare path to go down, given dynamic offsets or
-		// alike are always prefered to updating sets.
-		// So aggressive locking is fine.
-		GFXRenderer* renderer = set->renderer;
-		if (lock) gfx_mutex_lock_(&renderer->lock);
-
-		gfx_push_stale_(renderer,
+		gfx_push_stale_(set->renderer,
 			VK_NULL_HANDLE, imageView, bufferView, VK_NULL_HANDLE);
-
-		if (lock) gfx_mutex_unlock_(&renderer->lock);
-	}
 }
 
 /****************************
@@ -241,7 +229,7 @@ static void gfx_set_update_(GFXSet* set,
 		GFXContext_* context = set->renderer->cache.context;
 
 		// Make the previous image view stale.
-		gfx_make_stale_(set, 1, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+		gfx_make_stale_(set, entry->vk.update.image.imageView, VK_NULL_HANDLE);
 		entry->vk.update.image.imageView = VK_NULL_HANDLE;
 		entry->vk.update.image.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -317,7 +305,7 @@ static void gfx_set_update_(GFXSet* set,
 		GFXContext_* context = set->renderer->cache.context;
 
 		// Make the previous buffer view stale.
-		gfx_make_stale_(set, 1, VK_NULL_HANDLE, entry->vk.update.view);
+		gfx_make_stale_(set, VK_NULL_HANDLE, entry->vk.update.view);
 		entry->vk.update.view = VK_NULL_HANDLE;
 
 		// Create a new buffer view.
@@ -440,12 +428,12 @@ static void gfx_set_update_attachs_(GFXSet* set)
 
 			if (gen == GFX_ATTACH_GEN_(attach))
 			{
-				gfx_make_stale_(set, 0, view, VK_NULL_HANDLE);
+				gfx_make_stale_(set, view, VK_NULL_HANDLE);
 				goto unlock;
 			}
 
 			// Let's first make the previous image view stale.
-			gfx_make_stale_(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+			gfx_make_stale_(set, entry->vk.update.image.imageView, VK_NULL_HANDLE);
 			entry->vk.update.image.imageView = view;
 			entry->vk.update.image.imageLayout = layout;
 
@@ -529,7 +517,7 @@ static void gfx_set_recycle_(GFXSet* set)
 
 		// Recycle all matching descriptor sets, this is explicitly NOT
 		// thread-safe, so we use the renderer's lock!
-		// Just like making the views stale, this should be a rare path to
+		// Just like making things stale, this should be a rare path to
 		// go down to and aggressive locking is fine.
 		gfx_mutex_lock_(&renderer->lock);
 		gfx_pool_recycle_(&renderer->pool, set->key, renderer->numFrames);
@@ -1180,15 +1168,14 @@ GFX_API void gfx_erase_set(GFXSet* set)
 
 	GFXRenderer* renderer = set->renderer;
 
+	// Unlink itself from the renderer.
 	// Modifying the renderer, lock!
 	gfx_mutex_lock_(&renderer->lock);
-
-	// Unlink itself from the renderer.
 	gfx_list_erase(&renderer->sets, &set->list);
+	gfx_mutex_unlock_(&renderer->lock);
 
 	// We have to loop over all descriptors and
 	// make the image and buffer views stale.
-	// Keep the lock so gfx_make_stale_ doesn't repeatedly re-acquire.
 	for (size_t b = 0; b < set->numBindings; ++b)
 	{
 		GFXSetBinding_* binding = &set->bindings[b];
@@ -1196,13 +1183,11 @@ GFX_API void gfx_erase_set(GFXSet* set)
 		{
 			GFXSetEntry_* entry = &binding->entries[e];
 			if (GFX_DESCRIPTOR_IS_IMAGE_(binding->type))
-				gfx_make_stale_(set, 0, entry->vk.update.image.imageView, VK_NULL_HANDLE);
+				gfx_make_stale_(set, entry->vk.update.image.imageView, VK_NULL_HANDLE);
 			else if (GFX_DESCRIPTOR_IS_VIEW_(binding->type))
-				gfx_make_stale_(set, 0, VK_NULL_HANDLE, entry->vk.update.view);
+				gfx_make_stale_(set, VK_NULL_HANDLE, entry->vk.update.view);
 		}
 	}
-
-	gfx_mutex_unlock_(&renderer->lock);
 
 	// And recycle all matching descriptor sets,
 	// none of the resources may be referenced anymore!

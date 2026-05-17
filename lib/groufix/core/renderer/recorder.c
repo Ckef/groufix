@@ -495,7 +495,6 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	// Initialize the rest of the pools.
 	rec->renderer = renderer;
 	rec->context = context;
-	rec->current = 0;
 	rec->inp.pass = NULL;
 	rec->inp.cmd = NULL;
 	gfx_vec_init(&rec->out.cmds, sizeof(GFXCmdElem_));
@@ -508,11 +507,11 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 		gfx_vec_init(&rec->pools[i*2+1].vk.cmds, sizeof(VkCommandBuffer));
 	}
 
-	// Ok so we cheat a little by checking if the renderer has a public frame.
-	// If it does, we take its index to set the current pool.
-	// Note that this is not thread-safe with frame operations!
-	if (renderer->public != NULL)
-		rec->current = renderer->current;
+	// Take the renderer's current frame index and use it for the recorder's
+	// current frame index. Does not have to be atomic, as this could only
+	// go wrong during gfx_frame_submit, but we are not allowed to call
+	// this function until the frame is submitted anyway, so we're good.
+	rec->current = renderer->current;
 
 	// Init subordinate & link the recorder into the renderer.
 	// Modifying the renderer, lock!
@@ -548,9 +547,10 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 	gfx_list_erase(&renderer->recorders, &recorder->list);
 	gfx_pool_unsub_(&renderer->pool, &recorder->sub);
 
-	// Stay locked; we need to make the command pools stale,
+	gfx_mutex_unlock_(&renderer->lock);
+
+	// We need to make the command pools stale,
 	// as its command buffers might still be in use by pending virtual frames!
-	// Still, NOT thread-safe with respect to gfx_renderer_(acquire|submit)!
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
 	{
 		// Graphics & compute pools.
@@ -561,8 +561,6 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 			VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE,
 			recorder->pools[i*2+1].vk.pool);
 	}
-
-	gfx_mutex_unlock_(&renderer->lock);
 
 	// Free all the memory.
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)

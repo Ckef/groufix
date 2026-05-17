@@ -228,8 +228,6 @@ invalidate:
  * Destructs a subset of all Vulkan objects.
  * @param rPass Cannot be NULL.
  * @param flags What resources should be destroyed (0 to do nothing).
- *
- * Not thread-safe with respect to pushing stale resources!
  */
 static void gfx_pass_destruct_partial_(GFXRenderPass_* rPass,
                                        GFXRecreateFlags_ flags)

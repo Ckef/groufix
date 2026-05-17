@@ -612,7 +612,8 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
  *
  * gfx_renderable only:
  *  This function is NOT thread-safe with respect to the associated
- *  pass/renderer, meaning they cannot be modified during this call.
+ *  pass/renderer, meaning they cannot be modified during this call,
+ *  this includes the renderer's attachments (but not its sets).
  *
  *  Furthermore, this call will internally pre-built a portion of the renderer.
  *  If any pass or attachment of the renderer is changed after this call, the
@@ -1388,8 +1389,8 @@ typedef struct GFXSetGroup
  * Thread-safe with respect to renderer,
  * as are all other functions related to this set.
  *
- * However, all but this function (and all getters) CANNOT run during
- * gfx_renderer_acquire or during or inbetween gfx_frame_start and gfx_frame_submit.
+ * However, all but this function (and all getters) CANNOT run
+ * during or inbetween gfx_frame_start and gfx_frame_submit.
  *
  * Thread-safe with respect to technique ONLY IF gfx_tech_lock has
  * succesfully returned (or one call to gfx_renderer_add_set has).
@@ -1580,8 +1581,7 @@ typedef struct GFXDispatchCmd
  * as are all other functions related to this recorder.
  *
  * However, this function and gfx_erase_recorder CANNOT
- * run during gfx_renderer_acquire or
- * during or inbetween gfx_frame_start and gfx_frame_submit.
+ * run during or inbetween gfx_frame_start and gfx_frame_submit.
  */
 GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer);
 

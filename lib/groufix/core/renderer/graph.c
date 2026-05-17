@@ -1012,12 +1012,7 @@ GFX_API void gfx_erase_pass(GFXPass* pass)
 	// which is simply inefficient.
 	// Do this even when culled, in case it wasn't culled before!
 	if (renderer->graph.state != GFX_GRAPH_EMPTY_)
-	{
-		// Use renderer's lock for pushing stale resources!
-		gfx_mutex_lock_(&renderer->lock);
 		gfx_render_graph_destruct_(renderer);
-		gfx_mutex_unlock_(&renderer->lock);
-	}
 
 	// Unlink itself from the render graph.
 	if (renderer->graph.firstCompute == pass)

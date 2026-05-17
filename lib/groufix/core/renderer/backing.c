@@ -174,9 +174,6 @@ static bool gfx_detach_attachment_(GFXRenderer* renderer, GFXAttach_* attach,
 
 	// Destruct the render graph, it references these images,
 	// so for safety we destruct it all beforehand.
-	// This is not thread-safe at all, so we re-use the renderer's lock.
-	gfx_mutex_lock_(&renderer->lock);
-
 	if (!clear)
 		gfx_render_graph_destruct_(renderer);
 
@@ -184,7 +181,9 @@ static bool gfx_detach_attachment_(GFXRenderer* renderer, GFXAttach_* attach,
 	// this image attachment may not be referenced anymore!
 	if (attach->type == GFX_ATTACH_IMAGE_)
 	{
-		// Also not thread-safe as sets/recorders could call the pool.
+		// Resetting pools is not thread-safe at all as sets/recorders
+		// could call the pool, so we use the renderer's lock.
+		gfx_mutex_lock_(&renderer->lock);
 		gfx_pool_reset_(&renderer->pool);
 		gfx_mutex_unlock_(&renderer->lock);
 
@@ -199,12 +198,9 @@ static bool gfx_detach_attachment_(GFXRenderer* renderer, GFXAttach_* attach,
 		// ergo we need to invalidate those entries.
 		gfx_attach_gen_(attach);
 	}
-	else
-		// If not an image, unlock.
-		gfx_mutex_unlock_(&renderer->lock);
 
 	// Finally, if it is a window, unlock the window.
-	if (attach->type == GFX_ATTACH_WINDOW_)
+	else if (attach->type == GFX_ATTACH_WINDOW_)
 	{
 		gfx_swapchain_unlock_(attach->window.window);
 		attach->window.window = NULL;

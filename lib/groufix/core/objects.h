@@ -967,13 +967,14 @@ struct GFXRenderer
 	GFXList   recorders;  // References GFXRecorder.
 	GFXList   techniques; // References GFXTechnique.
 	GFXList   sets;       // References GFXSet.
-	GFXMutex_ lock;       // For recorders, techniques & sets (and stales).
+	GFXMutex_ lock;       // For recorders, techniques & sets.
 
 	// Current virtual frame state.
 	bool recording;
 
 	GFXFrame* public; // Public frame, if not NULL, user has access.
 	GFXDeque  stales; // Stores { unsigned int, (Vk*)+ }.
+	GFXMutex_ staleLock;
 
 
 	// Render backing (i.e. attachments).
@@ -1953,7 +1954,6 @@ void gfx_render_graph_clear_(GFXRenderer* renderer);
  * @return Non-zero on success.
  *
  * This will call the relevant gfx_pass_(destruct|warmup)_ calls.
- * Thus not thread-safe with respect to pushing stale resources!
  */
 bool gfx_render_graph_warmup_(GFXRenderer* renderer);
 
@@ -1964,7 +1964,6 @@ bool gfx_render_graph_warmup_(GFXRenderer* renderer);
  * @return Non-zero if the entire graph is in a built state.
  *
  * This will call the relevant gfx_pass_(destruct|build)_ calls.
- * Thus not thread-safe with respect to pushing stale resources!
  */
 bool gfx_render_graph_build_(GFXRenderer* renderer);
 
@@ -1975,7 +1974,6 @@ bool gfx_render_graph_build_(GFXRenderer* renderer);
  * @param flags    Must contain the GFX_RECREATE_ bit.
  *
  * This will call the relevant gfx_pass_rebuild_ calls.
- * Thus not thread-safe with respect to pushing stale resources!
  */
 void gfx_render_graph_rebuild_(GFXRenderer* renderer, GFXRecreateFlags_ flags);
 
@@ -1985,7 +1983,6 @@ void gfx_render_graph_rebuild_(GFXRenderer* renderer, GFXRecreateFlags_ flags);
  *
  * Must be called before detaching any attachment!
  * This will call the relevant gfx_pass_destruct_ calls.
- * Thus not thread-safe with respect to pushing stale resources!
  */
 void gfx_render_graph_destruct_(GFXRenderer* renderer);
 
@@ -2064,8 +2061,6 @@ bool gfx_pass_build_(GFXRenderPass_* rPass);
  * @param rPass Cannot be NULL, cannot be culled and must be a master pass!
  * @param flags Must contain the GFX_RECREATE_ bit.
  * @return Non-zero if rebuilt successfully.
- *
- * Not thread-safe with respect to pushing stale resources!
  */
 bool gfx_pass_rebuild_(GFXRenderPass_* rPass, GFXRecreateFlags_ flags);
 
@@ -2075,7 +2070,6 @@ bool gfx_pass_rebuild_(GFXRenderPass_* rPass, GFXRecreateFlags_ flags);
  * @param rPass Cannot be NULL.
  *
  * Must be called before its attachments are changed!
- * Not thread-safe with respect to pushing stale resources!
  */
 void gfx_pass_destruct_(GFXRenderPass_* rPass);
 
@@ -2099,8 +2093,7 @@ GFXCacheElem_* gfx_get_sampler_(GFXRenderer* renderer,
  * @param renderer Cannot be NULL.
  * @return Non-zero if successfully pushed.
  *
- * Not reentrant nor thread-safe with respect to any call to
- * either gfx_renderer_acquire or gfx_frame_submit.
+ * Completely thread-safe and reentrant!
  *
  * Any Vulkan resource handle may be VK_NULL_HANDLE, as long as one is not.
  * All handles are invalidated after this call.
