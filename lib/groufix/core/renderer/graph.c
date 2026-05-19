@@ -825,7 +825,7 @@ static void gfx_render_graph_insert_(GFXRenderer* renderer, GFXPass* pass,
 	assert(pass != NULL);
 	assert(pass->renderer == renderer);
 
-	GFXPass* next;
+	GFXPass* next = NULL;
 
 	// Compute level; it is the highest level of all parents + 1.
 	const unsigned int oldLevel = pass->level;
@@ -902,37 +902,36 @@ static void gfx_render_graph_insert_(GFXRenderer* renderer, GFXPass* pass,
 	// as they now all potentially get a new level too!
 	// Start at the next possible child that we found earlier,
 	// then simply call this function again for each direct child of this pass!
-	if (!firstInsert)
-		while (next != NULL)
+	while (next != NULL)
+	{
+		// First check if we stumble upon the same pass again.
+		// This means the pass got a higher level than before.
+		// Just skip it this time, it's already placed correctly.
+		if (next == pass)
 		{
-			// First check if we stumble upon the same pass again.
-			// This means the pass got a higher level than before.
-			// Just skip it this time, it's already placed correctly.
-			if (next == pass)
-			{
-				next = (GFXPass*)next->list.next;
-				continue;
-			}
-
-			// Check if current pass is a direct child.
-			size_t p = 0;
-
-			for (; p < next->parents.size; ++p)
-				if (*(GFXPass**)gfx_vec_at(&next->parents, p) == pass)
-					break;
-
-			if (p >= next->parents.size)
-				next = (GFXPass*)next->list.next;
-			else
-			{
-				// If so, recurse!
-				// Get the next possible child before re-inserting.
-				GFXPass* nnext = (GFXPass*)next->list.next;
-				gfx_render_graph_insert_(renderer, next, 0);
-
-				next = nnext;
-			}
+			next = (GFXPass*)next->list.next;
+			continue;
 		}
+
+		// Check if current pass is a direct child.
+		size_t p = 0;
+
+		for (; p < next->parents.size; ++p)
+			if (*(GFXPass**)gfx_vec_at(&next->parents, p) == pass)
+				break;
+
+		if (p >= next->parents.size)
+			next = (GFXPass*)next->list.next;
+		else
+		{
+			// If so, recurse!
+			// Get the next possible child before re-inserting.
+			GFXPass* nnext = (GFXPass*)next->list.next;
+			gfx_render_graph_insert_(renderer, next, 0);
+
+			next = nnext;
+		}
+	}
 }
 
 /****************************/
