@@ -207,14 +207,14 @@ GFX_API void* gfx_map_next_equal(GFXMap* map, const void* node);
  *
  * Note: node is freed, cannot access its memory after this call!
  */
-GFX_API void gfx_map_erase(GFXMap* map, const void* node);
+GFX_API void gfx_map_erase(GFXMap* map, void* node);
 
 /**
  * Erases a node ('fast') without decreasing the capacity of the map.
  * The implicit order of nodes remains fixed to allow continued iteration.
  * @see gfx_map_erase.
  */
-GFX_API void gfx_map_ferase(GFXMap* map, const void* node);
+GFX_API void gfx_map_ferase(GFXMap* map, void* node);
 
 
 #endif

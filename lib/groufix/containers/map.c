@@ -11,7 +11,9 @@
 #include <string.h>
 
 
-#define GFX_MAP_LOAD_FACTOR_ 0.75 // Must be reasonably > 0.5 .. !
+// Must be reasonably > 0.5 .. !
+#define GFX_MAP_LOAD_FACTOR_ 0.75
+
 
 // Retrieve the GFXMapNode_ from a public element pointer.
 #define GFX_GET_NODE_(map, element) \
@@ -47,6 +49,7 @@ typedef struct GFXMapNode_
 static bool gfx_map_realloc_(GFXMap* map, size_t capacity)
 {
 	assert(capacity > 0);
+	assert(GFX_IS_POWER_OF_TWO(capacity));
 
 	void** new = malloc(capacity * sizeof(void*));
 	if (new == NULL) return 0;
@@ -63,7 +66,9 @@ static bool gfx_map_realloc_(GFXMap* map, size_t capacity)
 			map->buckets[i] = mNode->next;
 
 			// Stick it in new.
-			const uint64_t hInd = mNode->hash % capacity;
+			const uint64_t mask = (uint64_t)capacity - 1;
+			const uint64_t hInd = mNode->hash & mask;
+
 			mNode->next = new[hInd];
 			new[hInd] = mNode;
 		}
@@ -100,7 +105,10 @@ static void gfx_map_shrink_(GFXMap* map)
 	// If we have no nodes, clear the thing (we cannot postpone this).
 	if (map->size == 0)
 	{
-		gfx_map_clear(map);
+		free(map->buckets);
+		map->capacity = 0;
+		map->buckets = NULL;
+
 		return;
 	}
 
@@ -139,7 +147,8 @@ static bool gfx_map_move_(GFXMap* map, GFXMap* dst, const void* node,
 		return 0;
 
 	// Use stored hash to get index to the bucket!
-	uint64_t hInd = mNode->hash % map->capacity;
+	uint64_t mask = (uint64_t)map->capacity - 1;
+	uint64_t hInd = mNode->hash & mask;
 
 	// Remove it from the source map similarly to gfx_map_erase.
 	// By finding the node BEFORE the one to erase.
@@ -176,7 +185,9 @@ static bool gfx_map_move_(GFXMap* map, GFXMap* dst, const void* node,
 		// API does not allow passing a hash, but meh.
 		mNode->hash = dst->hash(GFX_GET_KEY_(dst, mNode));
 
-	hInd = mNode->hash % dst->capacity;
+	mask = (uint64_t)dst->capacity - 1;
+	hInd = mNode->hash & mask;
+
 	mNode->next = dst->buckets[hInd];
 	dst->buckets[hInd] = mNode;
 
@@ -272,7 +283,9 @@ GFX_API bool gfx_map_merge(GFXMap* map, GFXMap* src)
 			if (src->hash != map->hash)
 				mNode->hash = map->hash(GFX_GET_KEY_(map, mNode));
 
-			const uint64_t hInd = mNode->hash % map->capacity;
+			const uint64_t mask = (uint64_t)map->capacity - 1;
+			const uint64_t hInd = mNode->hash & mask;
+
 			mNode->next = map->buckets[hInd];
 			map->buckets[hInd] = mNode;
 		}
@@ -380,7 +393,9 @@ GFX_API void* gfx_map_hinsert(GFXMap* map, const void* elem,
 	memcpy(GFX_GET_KEY_(map, mNode), key, keySize);
 
 	// Insert node.
-	const uint64_t hInd = hash % map->capacity;
+	const uint64_t mask = (uint64_t)map->capacity - 1;
+	const uint64_t hInd = hash & mask;
+
 	mNode->next = map->buckets[hInd];
 	mNode->hash = hash;
 	map->buckets[hInd] = mNode;
@@ -406,7 +421,8 @@ GFX_API void* gfx_map_hsearch(GFXMap* map, const void* key, uint64_t hash)
 	if (map->capacity == 0) return NULL;
 
 	// Hash & search :)
-	const uint64_t hInd = hash % map->capacity;
+	const uint64_t mask = (uint64_t)map->capacity - 1;
+	const uint64_t hInd = hash & mask;
 
 	for (
 		GFXMapNode_* mNode = map->buckets[hInd];
@@ -430,7 +446,7 @@ GFX_API void* gfx_map_first(GFXMap* map)
 {
 	assert(map != NULL);
 
-	// First the first non-empty bucket.
+	// Find the first non-empty bucket.
 	for (size_t i = 0; i < map->capacity; ++i)
 		if (map->buckets[i] != NULL)
 			return GFX_GET_ELEMENT_(map, map->buckets[i]);
@@ -452,7 +468,8 @@ GFX_API void* gfx_map_next(GFXMap* map, const void* node)
 		return GFX_GET_ELEMENT_(map, mNode->next);
 
 	// Use stored hash to get index to the bucket!
-	const uint64_t hInd = mNode->hash % map->capacity;
+	const uint64_t mask = (uint64_t)map->capacity - 1;
+	const uint64_t hInd = mNode->hash & mask;
 
 	for (size_t i = (size_t)hInd + 1; i < map->capacity; ++i)
 		if (map->buckets[i] != NULL)
@@ -489,7 +506,7 @@ GFX_API void* gfx_map_next_equal(GFXMap* map, const void* node)
 }
 
 /****************************/
-GFX_API void gfx_map_erase(GFXMap* map, const void* node)
+GFX_API void gfx_map_erase(GFXMap* map, void* node)
 {
 	assert(map != NULL);
 	assert(node != NULL);
@@ -500,7 +517,7 @@ GFX_API void gfx_map_erase(GFXMap* map, const void* node)
 }
 
 /****************************/
-GFX_API void gfx_map_ferase(GFXMap* map, const void* node)
+GFX_API void gfx_map_ferase(GFXMap* map, void* node)
 {
 	assert(map != NULL);
 	assert(node != NULL);
@@ -509,7 +526,8 @@ GFX_API void gfx_map_ferase(GFXMap* map, const void* node)
 	GFXMapNode_* mNode = GFX_GET_NODE_(map, node);
 
 	// Use stored hash to get index again.
-	const uint64_t hInd = mNode->hash % map->capacity;
+	const uint64_t mask = (uint64_t)map->capacity - 1;
+	const uint64_t hInd = mNode->hash & mask;
 
 	// So this is a bit annoying,
 	// we need to find the node BEFORE the one we want to erase.
