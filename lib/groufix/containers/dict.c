@@ -220,7 +220,7 @@ static bool gfx_dict_grow_(GFXDict* dict, size_t minNodes)
 }
 
 /****************************
- * Shrinks the capacity such that size + tombstones >= capacity/4.
+ * Shrinks the capacity such that size >= capacity/4.
  */
 static void gfx_dict_shrink_(GFXDict* dict)
 {
@@ -238,11 +238,15 @@ static void gfx_dict_shrink_(GFXDict* dict)
 	// If we have more occupied nodes than capacity/4, don't shrink.
 	// Note: when reallocating, all tombstones will be removed, so we simply
 	// do not account for tombstones here, the dict is still validly loaded.
-	if (dict->size < (dict->capacity >> 2))
+	size_t cap = dict->capacity >> 1;
+
+	if (dict->size < (cap >> 1))
 	{
-		// We can only erase one occupied node at once,
-		// so no need to see if we can shrink it down further.
-		gfx_dict_realloc_(dict, dict->capacity >> 1);
+		// Otherwise, shrink back down to capacity/2.
+		// Keep dividing by 2 if we can, much like a vector :)
+		while (dict->size < (cap >> 2)) cap >>= 1;
+
+		gfx_dict_realloc_(dict, cap);
 	}
 }
 
