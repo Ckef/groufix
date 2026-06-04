@@ -58,7 +58,7 @@ static uint32_t gfx_dict_hash_(const char* str)
 
 	while ((c = *str++) != '\0')
 		// hash = hash * 33 + c.
-		hash = (uint32_t)((hash << 5) + hash) + (uint32_t)c;
+		hash = ((uint32_t)(hash << 5) + hash) + (uint32_t)c;
 
 	return hash;
 }
