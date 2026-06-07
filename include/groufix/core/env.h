@@ -29,4 +29,12 @@
 #define GFX_ENV_PRIMARY_VK_DEVICE "GROUFIX_PRIMARY_VK_DEVICE"
 
 
+/**
+ * Environment variable name to turn off the Vulkan Validation Layers.
+ * Ignored if not compiled with debug options enabled.
+ * Value can be FALSE|OFF|NO|f|n|0 to turn off, case insensitive.
+ */
+#define GFX_ENV_USE_VK_VALIDATION_LAYERS "GROUFIX_USE_VK_VALIDATION_LAYERS"
+
+
 #endif

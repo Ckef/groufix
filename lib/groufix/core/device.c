@@ -890,10 +890,11 @@ static void gfx_create_context_(GFXDevice_* device)
 		sizeof(extensions)/sizeof(char*);
 #endif
 
-	// Enable VK_LAYER_KHRONOS_validation if debug,
+	// Enable VK_LAYER_KHRONOS_validation,
 	// this is deprecated by now, but for older Vulkan versions.
 #if defined (GFX_USE_VK_VALIDATION_LAYERS)
 	const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
+	const uint32_t layerCount = groufix_.vk.useValidationLayers ? 1 : 0;
 #endif
 
 	// Finally go create the logical Vulkan device.
@@ -913,7 +914,7 @@ static void gfx_create_context_(GFXDevice_* device)
 		.queueCreateInfoCount    = sets,
 		.pQueueCreateInfos       = createInfos,
 #if defined (GFX_USE_VK_VALIDATION_LAYERS)
-		.enabledLayerCount       = sizeof(layers)/sizeof(char*),
+		.enabledLayerCount       = layerCount,
 		.ppEnabledLayerNames     = layers,
 #else
 		.enabledLayerCount       = 0,

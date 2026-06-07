@@ -45,6 +45,10 @@ bool gfx_init_(void)
 	groufix_.gamepadEvent = NULL;
 	groufix_.vk.instance = NULL;
 
+#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+	groufix_.vk.useValidationLayers = 1;
+#endif
+
 	// Start clock as last.
 	gfx_clock_(&groufix_.clock);
 

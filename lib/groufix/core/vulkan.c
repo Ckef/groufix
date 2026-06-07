@@ -7,6 +7,8 @@
  */
 
 #include "groufix/core.h"
+#include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
 
@@ -22,6 +24,38 @@
 
 
 #if defined (GFX_USE_VK_VALIDATION_LAYERS)
+
+/****************************
+ * Reads the GROUFIX_USE_VK_VALIDATION_LAYERS environment variable
+ * and determines whether we want to use validation layers.
+ */
+static bool gfx_use_vulkan_validation_layers_(void)
+{
+	// Get the env var for the boolean.
+	const char* envUseLayers = getenv(GFX_ENV_USE_VK_VALIDATION_LAYERS);
+
+	if (envUseLayers == NULL) return 1; // No value given, default to true.
+
+	// Define all false values for a string.
+	// We do not need true values, as true is the default anyway.
+	const char* falseValues[] = { "false", "off", "no", "f", "n", "0" };
+
+	for (size_t i = 0; i < sizeof(falseValues)/sizeof(char*); ++i)
+	{
+		const char* val = falseValues[i];
+		const char* inp = envUseLayers;
+
+		for (; *val != '\0' && *inp != '\0'; ++val, ++inp)
+			if (tolower(*val) != tolower(*inp)) break;
+
+		if (*val == '\0' && *inp == '\0')
+			// On match, return false!
+			return 0;
+	}
+
+	// No match, return true!
+	return 1;
+}
 
 /****************************
  * Callback for Vulkan debug messages.
@@ -162,6 +196,11 @@ bool gfx_vulkan_init_(void)
 	// Set this to NULL so we don't accidentally call garbage on cleanup.
 	groufix_.vk.DestroyInstance = NULL;
 
+	// Check if we want to use vulkan validation layers from env.
+#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+	groufix_.vk.useValidationLayers = gfx_use_vulkan_validation_layers_();
+#endif
+
 	// So first things first, we need to create a Vulkan instance.
 	// For this we load the global level vkCreateInstance function and
 	// we tell it what extensions we need, these include GLFW extensions.
@@ -177,28 +216,37 @@ bool gfx_vulkan_init_(void)
 		goto clean;
 
 	const char* extraExtensions[] = {
-		// VK_EXT_debug_utils so we can log Vulkan debug messages.
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
-		"VK_EXT_debug_utils",
-#endif
 		// VK_KHR_portability_enumeration for e.g. MoltenVK.
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
 		"VK_KHR_portability_enumeration",
 #endif
+		// VK_EXT_debug_utils so we can log Vulkan debug messages.
+#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+		"VK_EXT_debug_utils",
+#endif
 		NULL // Cannot have empty arrays.
 	};
 
+	const uint32_t extraCount =
+#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+		sizeof(extraExtensions)/sizeof(char*) -
+		(groufix_.vk.useValidationLayers ? 0 : 1) - 1;
+#else
+		sizeof(extraExtensions)/sizeof(char*) - 1;
+#endif
+
 	// We use a scope here so the goto above is allowed.
 	{
-		const uint32_t extraCount = sizeof(extraExtensions)/sizeof(char*) - 1;
 		const uint32_t extensionCount = glfwCount + extraCount;
 		const char* extensions[GFX_MAX(1, extensionCount)];
+
 		memcpy(extensions, glfwExtensions, sizeof(char*) * glfwCount);
 		memcpy(extensions + glfwCount, extraExtensions, sizeof(char*) * extraCount);
 
-		// Enable VK_LAYER_KHRONOS_validation if debug.
+		// Enable VK_LAYER_KHRONOS_validation.
 #if defined (GFX_USE_VK_VALIDATION_LAYERS)
 		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
+		const uint32_t layerCount = groufix_.vk.useValidationLayers ? 1 : 0;
 #endif
 
 		// Ok now go create a Vulkan instance.
@@ -252,8 +300,8 @@ bool gfx_vulkan_init_(void)
 
 			.pApplicationInfo        = &ai,
 #if defined (GFX_USE_VK_VALIDATION_LAYERS)
-			.pNext                   = &dumci,
-			.enabledLayerCount       = sizeof(layers)/sizeof(char*),
+			.pNext                   = groufix_.vk.useValidationLayers ? &dumci : NULL,
+			.enabledLayerCount       = layerCount,
 			.ppEnabledLayerNames     = layers,
 #else
 			.pNext                   = NULL,
@@ -277,9 +325,10 @@ bool gfx_vulkan_init_(void)
 		if (!res)
 		{
 #if defined (GFX_USE_VK_VALIDATION_LAYERS)
-			gfx_log_warn(
+			if (groufix_.vk.useValidationLayers) gfx_log_warn(
 				"Perhaps you do not have the Vulkan SDK installed?\n"
-				"    To build without needing the SDK, run `make clean` then build with USE_VK_VALIDATION_LAYERS=OFF.\n"
+				"    To run without the SDK, set the environment variable GROUFIX_USE_VK_VALIDATION_LAYERS to OFF.\n"
+				"    Or to build without the SDK, run `make clean` then build with USE_VK_VALIDATION_LAYERS=OFF.\n"
 				"    Or download the Vulkan SDK from https://vulkan.lunarg.com/sdk/home\n");
 #endif
 
@@ -311,10 +360,15 @@ bool gfx_vulkan_init_(void)
 		// Now load all instance level Vulkan functions.
 		// Load vkDestroyInstance first so we can clean properly.
 		GFX_GET_INSTANCE_PROC_ADDR_(DestroyInstance);
+
 #if defined (GFX_USE_VK_VALIDATION_LAYERS)
-		GFX_GET_INSTANCE_PROC_ADDR_(CreateDebugUtilsMessengerEXT);
-		GFX_GET_INSTANCE_PROC_ADDR_(DestroyDebugUtilsMessengerEXT);
+		if (groufix_.vk.useValidationLayers)
+		{
+			GFX_GET_INSTANCE_PROC_ADDR_(CreateDebugUtilsMessengerEXT);
+			GFX_GET_INSTANCE_PROC_ADDR_(DestroyDebugUtilsMessengerEXT);
+		}
 #endif
+
 		GFX_GET_INSTANCE_PROC_ADDR_(CreateDevice);
 		GFX_GET_INSTANCE_PROC_ADDR_(DestroySurfaceKHR);
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
@@ -336,10 +390,11 @@ bool gfx_vulkan_init_(void)
 		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceSurfaceSupportKHR);
 
 
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
 		// Register the Vulkan debug messenger callback.
-		GFX_VK_CHECK_(groufix_.vk.CreateDebugUtilsMessengerEXT(
-			groufix_.vk.instance, &dumci, NULL, &groufix_.vk.messenger), goto clean);
+#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+		if (groufix_.vk.useValidationLayers)
+			GFX_VK_CHECK_(groufix_.vk.CreateDebugUtilsMessengerEXT(
+				groufix_.vk.instance, &dumci, NULL, &groufix_.vk.messenger), goto clean);
 #endif
 
 		return 1;
@@ -366,11 +421,14 @@ void gfx_vulkan_terminate_(void)
 	if (groufix_.vk.instance == NULL)
 		return;
 
-	// Destroy the debug messenger and Vulkan instance.
+	// Destroy the debug messenger.
 #if defined (GFX_USE_VK_VALIDATION_LAYERS)
-	groufix_.vk.DestroyDebugUtilsMessengerEXT(
-		groufix_.vk.instance, groufix_.vk.messenger, NULL);
+	if (groufix_.vk.useValidationLayers)
+		groufix_.vk.DestroyDebugUtilsMessengerEXT(
+			groufix_.vk.instance, groufix_.vk.messenger, NULL);
 #endif
+
+	// Destroy Vulkan instance.
 	groufix_.vk.DestroyInstance(
 		groufix_.vk.instance, NULL);
 

@@ -30,7 +30,7 @@ The Makefile takes the following flags:
 
     - `SANITIZE=xxx` tells the Makefile to enable sanitizers. This setting is ignored if not compiling with debug options. `xxx` can be any `-fsanitize` option, e.g. `address,undefined`.
 
-    - `USE_VK_VALIDATION_LAYERS=xxx` tells the Makefile to enable the Vulkan Validation Layers from within _groufix_. This setting is turned off if not compiling with debug options. `xxx` can be either `ON` or `OFF` and defaults to `ON`.
+    - `USE_VK_VALIDATION_LAYERS=xxx` tells the Makefile to enable the Vulkan Validation Layers. This setting is turned off if not compiling with debug options. `xxx` can be either `ON` or `OFF` and defaults to `ON`.
 
 - `USE_WAYLAND=xxx` tells the Makefile whether to compile for Wayland or not, as it will default to X11 when building on Linux. `xxx` can be either `ON` or `OFF` and defaults to `OFF`.
 
@@ -66,6 +66,8 @@ Once _groufix_ is built and used by an executable, the following environment var
 - `GROUFIX_DEFAULT_LOG_LEVEL` : used to set the default log level during init. Value can be set to one of `NONE`,`FATAL`,`ERROR`,`WARN`,`INFO`,`DEBUG`,`VERBOSE`,`ALL`, case insensitive.
 
 - `GROUFIX_PRIMARY_VK_DEVICE` : used to influence the primary device selection. It will prioritize matching physical Vulkan devices. A device matches if the set value is a substring of its name, case insensitive.
+
+- `GROUFIX_USE_VK_VALIDATION_LAYERS` : used to turn off the Vulkan Validation Layers. If not compiled with debug options enabled, this variable will be ignored. Value can be `FALSE`, `OFF`, `NO`, `f`, `n`, `0` to turn off, case insensitive.
 
 
 All core functionality can be included in your code with `#include <groufix.h>`. To use the engine, it must be initialized with a call to `gfx_init`. The thread that initializes the engine is considered the _main thread_. Any other function of _groufix_ cannot be called before `gfx_init` has returned succesfully, the only exceptions being `gfx_terminate`, `gfx_attach`, `gfx_detach` and the `gfx_log*` function family. When the engine will not be used anymore, it must be terminated by the main thread with a call to `gfx_terminate`. Once the engine is terminated, it behaves exactly the same as before initialization.
