@@ -21,7 +21,7 @@
 	} while (0)
 
 
-#if !defined (NDEBUG)
+#if defined(GFX_USE_VK_VALIDATION_LAYERS)
 
 /****************************
  * Callback for Vulkan debug messages.
@@ -178,7 +178,7 @@ bool gfx_vulkan_init_(void)
 
 	const char* extraExtensions[] = {
 		// VK_EXT_debug_utils so we can log Vulkan debug messages.
-#if !defined (NDEBUG)
+#if defined (GFX_USE_VK_VALIDATION_LAYERS)
 		"VK_EXT_debug_utils",
 #endif
 		// VK_KHR_portability_enumeration for e.g. MoltenVK.
@@ -197,7 +197,7 @@ bool gfx_vulkan_init_(void)
 		memcpy(extensions + glfwCount, extraExtensions, sizeof(char*) * extraCount);
 
 		// Enable VK_LAYER_KHRONOS_validation if debug.
-#if !defined (NDEBUG)
+#if defined(GFX_USE_VK_VALIDATION_LAYERS)
 		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 #endif
 
@@ -216,7 +216,7 @@ bool gfx_vulkan_init_(void)
 			goto clean;
 		}
 
-#if !defined (NDEBUG)
+#if defined(GFX_USE_VK_VALIDATION_LAYERS)
 		VkDebugUtilsMessengerCreateInfoEXT dumci = {
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 
@@ -251,14 +251,14 @@ bool gfx_vulkan_init_(void)
 			.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 
 			.pApplicationInfo        = &ai,
-#if defined (NDEBUG)
-			.pNext                   = NULL,
-			.enabledLayerCount       = 0,
-			.ppEnabledLayerNames     = NULL,
-#else
+#if defined(GFX_USE_VK_VALIDATION_LAYERS)
 			.pNext                   = &dumci,
 			.enabledLayerCount       = sizeof(layers)/sizeof(char*),
 			.ppEnabledLayerNames     = layers,
+#else
+			.pNext                   = NULL,
+			.enabledLayerCount       = 0,
+			.ppEnabledLayerNames     = NULL,
 #endif
 			.enabledExtensionCount   = extensionCount,
 			.ppEnabledExtensionNames = extensions,
@@ -276,10 +276,10 @@ bool gfx_vulkan_init_(void)
 
 		if (!res)
 		{
-#if !defined (NDEBUG)
+#if defined(GFX_USE_VK_VALIDATION_LAYERS)
 			gfx_log_warn(
 				"Perhaps you do not have the Vulkan SDK installed?\n"
-				"    To build without needing the SDK, run `make clean` then build with DEBUG=OFF.\n"
+				"    To build without needing the SDK, run `make clean` then build with USE_VK_VALIDATION_LAYERS=OFF.\n"
 				"    Or download the Vulkan SDK from https://vulkan.lunarg.com/sdk/home\n");
 #endif
 
@@ -311,7 +311,7 @@ bool gfx_vulkan_init_(void)
 		// Now load all instance level Vulkan functions.
 		// Load vkDestroyInstance first so we can clean properly.
 		GFX_GET_INSTANCE_PROC_ADDR_(DestroyInstance);
-#if !defined (NDEBUG)
+#if defined(GFX_USE_VK_VALIDATION_LAYERS)
 		GFX_GET_INSTANCE_PROC_ADDR_(CreateDebugUtilsMessengerEXT);
 		GFX_GET_INSTANCE_PROC_ADDR_(DestroyDebugUtilsMessengerEXT);
 #endif
@@ -336,7 +336,7 @@ bool gfx_vulkan_init_(void)
 		GFX_GET_INSTANCE_PROC_ADDR_(GetPhysicalDeviceSurfaceSupportKHR);
 
 
-#if !defined (NDEBUG)
+#if defined(GFX_USE_VK_VALIDATION_LAYERS)
 		// Register the Vulkan debug messenger callback.
 		GFX_VK_CHECK_(groufix_.vk.CreateDebugUtilsMessengerEXT(
 			groufix_.vk.instance, &dumci, NULL, &groufix_.vk.messenger), goto clean);
@@ -367,7 +367,7 @@ void gfx_vulkan_terminate_(void)
 		return;
 
 	// Destroy the debug messenger and Vulkan instance.
-#if !defined (NDEBUG)
+#if defined(GFX_USE_VK_VALIDATION_LAYERS)
 	groufix_.vk.DestroyDebugUtilsMessengerEXT(
 		groufix_.vk.instance, groufix_.vk.messenger, NULL);
 #endif

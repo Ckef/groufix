@@ -30,6 +30,8 @@ The Makefile takes the following flags:
 
     - `SANITIZE=xxx` tells the Makefile to enable sanitizers. This setting is ignored if not compiling with debug options. `xxx` can be any `-fsanitize` option, e.g. `address,undefined`.
 
+    - `USE_VK_VALIDATION_LAYERS=xxx` tells the Makefile to enable the Vulkan Validation Layers from within _groufix_. This setting is turned off if not compiling with debug options. `xxx` can be either `ON` or `OFF` and defaults to `ON`.
+
 - `USE_WAYLAND=xxx` tells the Makefile whether to compile for Wayland or not, as it will default to X11 when building on Linux. `xxx` can be either `ON` or `OFF` and defaults to `OFF`.
 
 - `EXPORT_COMPILE_COMMAND=xxx` tells the Makefile whether to export `compile_commands.json` for Clang-based tools or not. `xxx` can be either `ON` or `OFF` and defaults to `ON`. Not supported and ignored on windows.
@@ -39,7 +41,7 @@ The Makefile takes the following flags:
 
 Most major dependencies are included as submodules in the repository (see the `deps/` directory). They are automatically built and linked by the included Makefile.
 
-To build and run with debug options enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. All other dependencies based on your setup are:
+To build and run with the Vulkan Validation Layers enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. All other dependencies based on your setup are:
 
 _When building on Linux_:
 - `gcc` _or_ `clang` : for building source files, use the `CC` flag to pick a compiler collection.
