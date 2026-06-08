@@ -34,7 +34,7 @@ The Makefile takes the following flags:
 
 - `USE_WAYLAND=xxx` tells the Makefile whether to compile for Wayland or not, as it will default to X11 when building on Linux. `xxx` can be either `ON` or `OFF` and defaults to `OFF`.
 
-- `EXPORT_COMPILE_COMMAND=xxx` tells the Makefile whether to export `compile_commands.json` for Clang-based tools or not. `xxx` can be either `ON` or `OFF` and defaults to `ON`. Not supported and ignored on windows.
+- `EXPORT_COMPILE_COMMANDS=xxx` tells the Makefile whether to export `compile_commands.json` for Clang-based tools or not. `xxx` can be either `ON` or `OFF` and defaults to `ON`. Not supported and ignored on windows.
 
 
 ### Dependencies
