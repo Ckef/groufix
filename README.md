@@ -30,8 +30,6 @@ The Makefile takes the following flags:
 
     - `SANITIZE=xxx` tells the Makefile to enable sanitizers. This setting is ignored if not compiling with debug options. `xxx` can be any `-fsanitize` option, e.g. `address,undefined`.
 
-    - `USE_VK_VALIDATION_LAYERS=xxx` tells the Makefile to enable the Vulkan Validation Layers. This setting is turned off if not compiling with debug options. `xxx` can be either `ON` or `OFF` and defaults to `ON`.
-
 - `USE_WAYLAND=xxx` tells the Makefile whether to compile for Wayland or not, as it will default to X11 when building on Linux. `xxx` can be either `ON` or `OFF` and defaults to `OFF`.
 
 - `EXPORT_COMPILE_COMMANDS=xxx` tells the Makefile whether to export `compile_commands.json` for Clang-based tools or not. `xxx` can be either `ON` or `OFF` and defaults to `ON`. Not supported and ignored on windows.
@@ -41,7 +39,7 @@ The Makefile takes the following flags:
 
 Most major dependencies are included as submodules in the repository (see the `deps/` directory). They are automatically built and linked by the included Makefile.
 
-To build and run with the Vulkan Validation Layers enabled, the [VulkanSDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. All other dependencies based on your setup are:
+To build and run with debug options enabled, the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home) needs to be installed on your system. All other dependencies based on your setup are:
 
 _When building on Linux_:
 - `gcc` _or_ `clang` : for building source files, use the `CC` flag to pick a compiler collection.
@@ -67,7 +65,7 @@ Once _groufix_ is built and used by an executable, the following environment var
 
 - `GROUFIX_PRIMARY_VK_DEVICE` : used to influence the primary device selection. It will prioritize matching physical Vulkan devices. A device matches if the set value is a substring of its name, case insensitive.
 
-- `GROUFIX_USE_VK_VALIDATION_LAYERS` : used to turn off the Vulkan Validation Layers. If not compiled with debug options enabled, this variable will be ignored. Value can be `FALSE`, `OFF`, `NO`, `f`, `n`, `0` to turn off, case insensitive.
+- `GROUFIX_USE_VK_VALIDATION_LAYERS` : used to turn off the Vulkan Validation Layers, enabling the debug build to run without the Vulkan SDK. Value can be `FALSE`, `OFF`, `NO`, `f`, `n`, `0` to turn off, case insensitive. If not compiled with debug options enabled, this variable will be ignored.
 
 
 All core functionality can be included in your code with `#include <groufix.h>`. To use the engine, it must be initialized with a call to `gfx_init`. The thread that initializes the engine is considered the _main thread_. Any other function of _groufix_ cannot be called before `gfx_init` has returned succesfully, the only exceptions being `gfx_terminate`, `gfx_attach`, `gfx_detach` and the `gfx_log*` function family. When the engine will not be used anymore, it must be terminated by the main thread with a call to `gfx_terminate`. Once the engine is terminated, it behaves exactly the same as before initialization.

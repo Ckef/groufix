@@ -45,7 +45,7 @@ bool gfx_init_(void)
 	groufix_.gamepadEvent = NULL;
 	groufix_.vk.instance = NULL;
 
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 	groufix_.vk.useValidationLayers = 1;
 #endif
 

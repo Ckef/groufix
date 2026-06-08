@@ -127,19 +127,19 @@ typedef struct GFXState_
 	// Vulkan fields.
 	struct
 	{
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 		bool useValidationLayers; // Value of GROUFIX_USE_VK_VALIDATION_LAYERS.
 #endif
 
 		VkInstance instance;
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 		VkDebugUtilsMessengerEXT messenger;
 #endif
 
 		GFX_VK_PFN_(CreateInstance);
 		GFX_VK_PFN_(EnumerateInstanceVersion);
 
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 		GFX_VK_PFN_(CreateDebugUtilsMessengerEXT);
 		GFX_VK_PFN_(DestroyDebugUtilsMessengerEXT);
 #endif

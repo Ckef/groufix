@@ -23,7 +23,7 @@
 	} while (0)
 
 
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 
 /****************************
  * Reads the GROUFIX_USE_VK_VALIDATION_LAYERS environment variable
@@ -197,7 +197,7 @@ bool gfx_vulkan_init_(void)
 	groufix_.vk.DestroyInstance = NULL;
 
 	// Check if we want to use vulkan validation layers from env.
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 	groufix_.vk.useValidationLayers = gfx_use_vulkan_validation_layers_();
 #endif
 
@@ -221,14 +221,14 @@ bool gfx_vulkan_init_(void)
 		"VK_KHR_portability_enumeration",
 #endif
 		// VK_EXT_debug_utils so we can log Vulkan debug messages.
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 		"VK_EXT_debug_utils",
 #endif
 		NULL // Cannot have empty arrays.
 	};
 
 	const uint32_t extraCount =
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 		sizeof(extraExtensions)/sizeof(char*) -
 		(groufix_.vk.useValidationLayers ? 0 : 1) - 1;
 #else
@@ -244,7 +244,7 @@ bool gfx_vulkan_init_(void)
 		memcpy(extensions + glfwCount, extraExtensions, sizeof(char*) * extraCount);
 
 		// Enable VK_LAYER_KHRONOS_validation.
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 		const uint32_t layerCount = groufix_.vk.useValidationLayers ? 1 : 0;
 #endif
@@ -264,7 +264,7 @@ bool gfx_vulkan_init_(void)
 			goto clean;
 		}
 
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 		VkDebugUtilsMessengerCreateInfoEXT dumci = {
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 
@@ -299,7 +299,7 @@ bool gfx_vulkan_init_(void)
 			.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 
 			.pApplicationInfo        = &ai,
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 			.pNext                   = groufix_.vk.useValidationLayers ? &dumci : NULL,
 			.enabledLayerCount       = layerCount,
 			.ppEnabledLayerNames     = layers,
@@ -324,11 +324,11 @@ bool gfx_vulkan_init_(void)
 
 		if (!res)
 		{
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 			if (groufix_.vk.useValidationLayers) gfx_log_warn(
 				"Perhaps you do not have the Vulkan SDK installed?\n"
 				"    To run without the SDK, set the environment variable GROUFIX_USE_VK_VALIDATION_LAYERS to OFF.\n"
-				"    Or to build without the SDK, run `make clean` then build with USE_VK_VALIDATION_LAYERS=OFF.\n"
+				"    Or to build without the SDK, run `make clean` then build with DEBUG=OFF.\n"
 				"    Or download the Vulkan SDK from https://vulkan.lunarg.com/sdk/home\n");
 #endif
 
@@ -343,10 +343,17 @@ bool gfx_vulkan_init_(void)
 			gfx_io_writef(logger,
 				"Vulkan instance created:\n"
 				"    API version: v%u.%u.%u\n"
-				"    Enabled extensions: %s\n",
+				"    Enabled layers: %s\n",
 				(unsigned int)VK_API_VERSION_MAJOR(version),
 				(unsigned int)VK_API_VERSION_MINOR(version),
 				(unsigned int)VK_API_VERSION_PATCH(version),
+				layerCount > 0 ? "" : "None.");
+
+			for (uint32_t l = 0; l < layerCount; ++l)
+				gfx_io_writef(logger, "        %s\n", layers[l]);
+
+			gfx_io_writef(logger,
+				"    Enabled extensions: %s\n",
 				extensionCount > 0 ? "" : "None.");
 
 			for (uint32_t e = 0; e < extensionCount; ++e)
@@ -361,7 +368,7 @@ bool gfx_vulkan_init_(void)
 		// Load vkDestroyInstance first so we can clean properly.
 		GFX_GET_INSTANCE_PROC_ADDR_(DestroyInstance);
 
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 		if (groufix_.vk.useValidationLayers)
 		{
 			GFX_GET_INSTANCE_PROC_ADDR_(CreateDebugUtilsMessengerEXT);
@@ -391,7 +398,7 @@ bool gfx_vulkan_init_(void)
 
 
 		// Register the Vulkan debug messenger callback.
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 		if (groufix_.vk.useValidationLayers)
 			GFX_VK_CHECK_(groufix_.vk.CreateDebugUtilsMessengerEXT(
 				groufix_.vk.instance, &dumci, NULL, &groufix_.vk.messenger), goto clean);
@@ -422,7 +429,7 @@ void gfx_vulkan_terminate_(void)
 		return;
 
 	// Destroy the debug messenger.
-#if defined (GFX_USE_VK_VALIDATION_LAYERS)
+#if !defined (NDEBUG)
 	if (groufix_.vk.useValidationLayers)
 		groufix_.vk.DestroyDebugUtilsMessengerEXT(
 			groufix_.vk.instance, groufix_.vk.messenger, NULL);

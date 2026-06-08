@@ -44,8 +44,6 @@ BIN   = bin
 BUILD = build
 TEMP  = obj
 
-USE_VK_VALIDATION_LAYERS = ON
-
 USE_WAYLAND = OFF
 
 EXPORT_COMPILE_COMMANDS = ON
@@ -123,12 +121,6 @@ LIB_FLAGS = \
 ifeq ($(CC_PREFIX),None)
  ifneq ($(OS),Windows_NT)
   LIB_FLAGS += -D_POSIX_C_SOURCE=200809L
- endif
-endif
-
-ifeq ($(DEBUG),ON)
- ifeq ($(USE_VK_VALIDATION_LAYERS),ON)
-  LIB_FLAGS += -DGFX_USE_VK_VALIDATION_LAYERS
  endif
 endif
 
