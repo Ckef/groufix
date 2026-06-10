@@ -74,14 +74,14 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer);
 /**
  * Allocates an image for an ImFontAtlas and sets its ImTextureID.
  * @param drawer      Cannot be NULL.
- * @param dep         Dependency to inject signal commands in, cannot be NULL.
+ * @param sem         Semaphore to inject signal commands in, cannot be NULL.
  * @param igFontAtlas The ImFontAtlas* to allocate an image for, cannot be NULL.
  * @return A valid ImTextureID, NULL on failure.
  *
  * The returned ID is invalidated when this drawer is cleared.
  */
 GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
-                             GFXDependency* dep, void* igFontAtlas);
+                             GFXSemaphore* sem, void* igFontAtlas);
 
 /**
  * Builds an ImTextureID from a GFXImage*.

@@ -446,12 +446,12 @@ clean:
  * @return NULL on failure.
  */
 static GFXImage* gfx_gltf_decode_image_(const char* src,
-                                        GFXHeap* heap, GFXDependency* dep,
+                                        GFXHeap* heap, GFXSemaphore* sem,
                                         GFXImageFlags flags, GFXImageUsage usage)
 {
 	assert(src != NULL);
 	assert(heap != NULL);
-	assert(dep != NULL);
+	assert(sem != NULL);
 
 	// Decode base64.
 	const size_t len = strlen(src);
@@ -471,7 +471,7 @@ static GFXImage* gfx_gltf_decode_image_(const char* src,
 	// Load image.
 	GFXBinReader reader;
 	GFXImage* image = gfx_load_image(
-		heap, dep, flags, usage, gfx_bin_reader(&reader, size, bin));
+		heap, sem, flags, usage, gfx_bin_reader(&reader, size, bin));
 
 	if (image == NULL)
 		gfx_log_error("Failed to load image data URI.");
@@ -489,12 +489,12 @@ static GFXImage* gfx_gltf_decode_image_(const char* src,
  * @return NULL on failure.
  */
 static GFXImage* gfx_gltf_include_image_(const GFXIncluder* inc, const char* uri,
-                                         GFXHeap* heap, GFXDependency* dep,
+                                         GFXHeap* heap, GFXSemaphore* sem,
                                          GFXImageFlags flags, GFXImageUsage usage)
 {
 	assert(uri != NULL);
 	assert(heap != NULL);
-	assert(dep != NULL);
+	assert(sem != NULL);
 
 	// Cannot do anything without an includer.
 	if (inc == NULL)
@@ -521,7 +521,7 @@ static GFXImage* gfx_gltf_include_image_(const GFXIncluder* inc, const char* uri
 	}
 
 	// Simply load the image.
-	GFXImage* image = gfx_load_image(heap, dep, flags, usage, src);
+	GFXImage* image = gfx_load_image(heap, sem, flags, usage, src);
 	if (image == NULL)
 		gfx_log_error("Failed to load image URI: %s.", uri);
 
@@ -537,11 +537,11 @@ static GFXImage* gfx_gltf_include_image_(const GFXIncluder* inc, const char* uri
  * @param buffer May be NULL, on which it will fail (same if size is 0).
  * @return Non-zero on success.
  */
-static bool gfx_gltf_buffer_alloc_(GFXHeap* heap, GFXDependency* dep,
+static bool gfx_gltf_buffer_alloc_(GFXHeap* heap, GFXSemaphore* sem,
                                    GFXGltfBuffer* buffer)
 {
 	assert(heap != NULL);
-	assert(dep != NULL);
+	assert(sem != NULL);
 
 	// Nothing to allocate.
 	if (buffer == NULL || buffer->size == 0 || buffer->bin == NULL)
@@ -567,7 +567,7 @@ static bool gfx_gltf_buffer_alloc_(GFXHeap* heap, GFXDependency* dep,
 	};
 
 	const GFXInject inject =
-		gfx_dep_sig(dep,
+		gfx_sem_sig(sem,
 			GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ, GFX_STAGE_ANY);
 
 	if (!gfx_write(buffer->bin, gfx_ref_buffer(buffer->buffer),
@@ -645,7 +645,7 @@ static size_t gfx_gltf_order_attributes_(const cgltf_primitive* cprim,
 }
 
 /****************************/
-GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
+GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXSemaphore* sem,
                            const GFXGltfOptions* options,
                            GFXImageFlags flags, GFXImageUsage usage,
                            const GFXReader* src,
@@ -653,7 +653,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
                            GFXGltfResult* result)
 {
 	assert(heap != NULL);
-	assert(dep != NULL);
+	assert(sem != NULL);
 	assert(options == NULL || options->orderSize == 0 || options->attributeOrder != NULL);
 	assert(src != NULL);
 	assert(result != NULL);
@@ -795,14 +795,14 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
-			image = gfx_gltf_decode_image_(base64, heap, dep, flags, usage);
+			image = gfx_gltf_decode_image_(base64, heap, sem, flags, usage);
 			if (image == NULL) goto clean;
 		}
 
 		// Check if actual URI.
 		else if (uri != NULL)
 		{
-			image = gfx_gltf_include_image_(inc, uri, heap, dep, flags, usage);
+			image = gfx_gltf_include_image_(inc, uri, heap, sem, flags, usage);
 			if (image == NULL) goto clean;
 		}
 
@@ -826,7 +826,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 			}
 
 			GFXBinReader reader;
-			image = gfx_load_image(heap, dep, flags, usage,
+			image = gfx_load_image(heap, sem, flags, usage,
 				gfx_bin_reader(
 					&reader, cview->size,
 					((uint8_t*)buffer->bin) + cview->offset));
@@ -1045,7 +1045,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				goto clean;
 			}
 
-			if (numIndices > 0 && !gfx_gltf_buffer_alloc_(heap, dep, indexBuffer))
+			if (numIndices > 0 && !gfx_gltf_buffer_alloc_(heap, sem, indexBuffer))
 			{
 				gfx_log_error("Failed to allocate index buffer.");
 				goto clean;
@@ -1073,7 +1073,7 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
 				GFXGltfBuffer* buffer =
 					GFX_FROM_GLTF_ACCESSOR_(cattr->data);
 
-				if (!gfx_gltf_buffer_alloc_(heap, dep, buffer))
+				if (!gfx_gltf_buffer_alloc_(heap, sem, buffer))
 				{
 					gfx_log_error("Failed to allocate vertex buffer.");
 					goto clean;

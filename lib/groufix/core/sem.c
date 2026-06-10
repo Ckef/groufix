@@ -32,213 +32,77 @@
 	} while (0)
 
 
-/****************************
- * Claims (creates) a synchronization object to use for an injection.
- * _WITHOUT_ locking the dependency object!
- * @param semaphore Non-zero to indicate we need a VkSemaphore.
- * @param family    If semaphore, the destination family index.
- * @param queue     If semaphore, the destination queue index.
- * @param injection If semaphore, the current injection metadata pointer.
- * @param shared    Output, if non-NULL, the sync object used for its semaphore.
- * @return NULL on failure.
- */
-static GFXSync_* gfx_dep_claim_(GFXDependency* dep, bool semaphore,
-                                uint32_t family, uint32_t queue,
-                                const GFXInjection_* injection,
-                                GFXSync_** shared)
-{
-	assert(dep != NULL);
-	assert(!semaphore || injection != NULL);
-	assert(shared != NULL);
-
-	GFXContext_* context = dep->context;
-
-	// Default to no sharing.
-	*shared = NULL;
-
-	// Keep track of sync obj positions.
-	size_t syncInd = SIZE_MAX;
-	size_t sharedInd = SIZE_MAX;
-
-	// If we need a semaphore, we need a sync object with either:
-	// - A semaphore.
-	// - A destination queue of which another sync object has a semaphore.
-	// The latter will need to be of the same injection,
-	// meaning this semaphore will already be written to the metadata.
-	if (semaphore)
-	{
-		// See if there is an unused semaphore.
-		// Also see if there are any sync objects with the same queue.
-		// They need to be of the same injection too, such that they can
-		// share the semaphore :)
-		for (size_t s = 0; s < dep->sems; ++s)
-		{
-			GFXSync_* sync = gfx_deque_at(&dep->syncs, s);
-
-			// Never break, always prefer objects closer to the center,
-			// such that shrinking is easier.
-			if (sync->stage == GFX_SYNC_UNUSED_)
-				syncInd = s;
-
-			// We know it has a semaphore because of its position in syncs.
-			if (sync->stage == GFX_SYNC_PREPARE_ &&
-				sync->inj == injection &&
-				sync->vk.dstQueue.family == family &&
-				sync->vk.dstQueue.index == queue)
-			{
-				sharedInd = s;
-			}
-		}
-
-		// If we found none to share, but did find an unused one, claim it.
-		if (sharedInd == SIZE_MAX && syncInd != SIZE_MAX)
-			goto claim;
-
-		// Still none to share, create one & claim it.
-		if (sharedInd == SIZE_MAX)
-		{
-			if (!gfx_deque_push_front(&dep->syncs, 1, NULL))
-				return NULL;
-
-			// Initialize it & create a semaphore.
-			GFXSync_* sync = gfx_deque_at(&dep->syncs, 0);
-			sync->stage = GFX_SYNC_UNUSED_;
-			sync->flags = GFX_SYNC_SEMAPHORE_;
-
-			VkSemaphoreCreateInfo sci = {
-				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-				.pNext = NULL,
-				.flags = 0
-			};
-
-			GFX_VK_CHECK_(
-				context->vk.CreateSemaphore(
-					context->vk.device, &sci, NULL, &sync->vk.signaled),
-				{
-					gfx_deque_pop_front(&dep->syncs, 1);
-					return NULL;
-				});
-
-			// Don't forget to increase the semaphore count!
-			++dep->sems;
-
-			syncInd = 0;
-			goto claim;
-		}
-
-		// At this point we have a shared semaphore.
-		// It is not the job of preparing signals to also shrink the deque.
-		// This might entail destroying semaphores, which might still be of
-		// use later. Only clean on finish/abort.
-
-		// We can just fall through to the logic to claim
-		// a non-semaphore sync object.
-	}
-
-	// So we have a shared semaphore, or we don't need a semaphore at all.
-	// Go see if we have an unused non-semaphore sync object.
-	for (size_t s = dep->sems; s < dep->syncs.size; ++s)
-	{
-		// Return immediately so we are closest to the center,
-		// again for easier shrinking.
-		GFXSync_* sync = gfx_deque_at(&dep->syncs, s);
-		if (sync->stage == GFX_SYNC_UNUSED_)
-		{
-			syncInd = s;
-			goto claim;
-		}
-	}
-
-	// Apparently not, insert anew.
-	syncInd = dep->syncs.size;
-
-	if (!gfx_deque_push(&dep->syncs, 1, NULL))
-		return NULL;
-
-	GFXSync_* sync = gfx_deque_at(&dep->syncs, syncInd);
-	sync->stage = GFX_SYNC_UNUSED_;
-	sync->flags = 0;
-	sync->vk.signaled = VK_NULL_HANDLE;
-
-	// On success!
-claim:
-	if (sharedInd != SIZE_MAX)
-		*shared = gfx_deque_at(&dep->syncs, sharedInd);
-
-	return gfx_deque_at(&dep->syncs, syncInd);
-}
-
 /****************************/
-GFX_API GFXDependency* gfx_create_dep(GFXDevice* device, unsigned int capacity)
+GFX_API GFXSemaphore* gfx_create_sem(GFXDevice* device, unsigned int capacity)
 {
-	// Allocate a new dependency object.
-	GFXDependency* dep = malloc(sizeof(GFXDependency));
-	if (dep == NULL) goto clean;
+	// Allocate a new semaphore.
+	GFXSemaphore* sem = malloc(sizeof(GFXSemaphore));
+	if (sem == NULL) goto clean;
 
 	// Get context associated with the device.
-	GFX_GET_DEVICE_(dep->device, device);
-	GFX_GET_CONTEXT_(dep->context, device, goto clean);
+	GFX_GET_DEVICE_(sem->device, device);
+	GFX_GET_CONTEXT_(sem->context, device, goto clean);
 
 	// Initialize things,
 	// we get all queue family indices for ownership transfers.
-	if (!gfx_mutex_init_(&dep->lock))
+	if (!gfx_mutex_init_(&sem->lock))
 		goto clean;
 
 	GFXQueueSet_* graphics = gfx_pick_family_(
-		dep->context, &dep->graphics.family, VK_QUEUE_GRAPHICS_BIT, 0);
+		sem->context, &sem->graphics.family, VK_QUEUE_GRAPHICS_BIT, 0);
 	GFXQueueSet_* compute = gfx_pick_family_(
-		dep->context, &dep->compute.family, VK_QUEUE_COMPUTE_BIT, 0);
+		sem->context, &sem->compute.family, VK_QUEUE_COMPUTE_BIT, 0);
 	GFXQueueSet_* transfer = gfx_pick_family_(
-		dep->context, &dep->transfer.family, VK_QUEUE_TRANSFER_BIT, 0);
+		sem->context, &sem->transfer.family, VK_QUEUE_TRANSFER_BIT, 0);
 
-	dep->graphics.index = gfx_queue_index_(graphics, VK_QUEUE_GRAPHICS_BIT, 0);
-	dep->compute.index = gfx_queue_index_(compute, VK_QUEUE_COMPUTE_BIT, 0);
-	dep->transfer.index = gfx_queue_index_(transfer, VK_QUEUE_TRANSFER_BIT, 0);
+	sem->graphics.index = gfx_queue_index_(graphics, VK_QUEUE_GRAPHICS_BIT, 0);
+	sem->compute.index = gfx_queue_index_(compute, VK_QUEUE_COMPUTE_BIT, 0);
+	sem->transfer.index = gfx_queue_index_(transfer, VK_QUEUE_TRANSFER_BIT, 0);
 
-	dep->waitCapacity = capacity;
-	dep->sems = 0;
-	gfx_deque_init(&dep->syncs, sizeof(GFXSync_));
+	sem->waitCapacity = capacity;
+	sem->sems = 0;
+	gfx_deque_init(&sem->sigs, sizeof(GFXSignal_));
 
-	return dep;
+	return sem;
 
 
 	// Cleanup on failure.
 clean:
-	gfx_log_error("Could not create a new dependency object.");
-	free(dep);
+	gfx_log_error("Could not create a new semaphore.");
+	free(sem);
 
 	return NULL;
 }
 
 /****************************/
-GFX_API void gfx_destroy_dep(GFXDependency* dep)
+GFX_API void gfx_destroy_sem(GFXSemaphore* sem)
 {
-	if (dep == NULL)
+	if (sem == NULL)
 		return;
 
-	GFXContext_* context = dep->context;
+	GFXContext_* context = sem->context;
 
-	// Destroy all semaphores of the dependency object.
+	// Destroy all Vulkan semaphores of the GFXSemaphore.
 	// By definition we do not need to care about
-	// whether the semaphores are still in use!
+	// whether the Vulkan semaphores are still in use!
 	// Also, all semaphores are at the front of the deque :)
-	for (size_t s = 0; s < dep->sems; ++s)
+	for (size_t s = 0; s < sem->sems; ++s)
 		context->vk.DestroySemaphore(context->vk.device,
-			((GFXSync_*)gfx_deque_at(&dep->syncs, s))->vk.signaled, NULL);
+			((GFXSignal_*)gfx_deque_at(&sem->sigs, s))->vk.signaled, NULL);
 
-	gfx_deque_clear(&dep->syncs);
-	gfx_mutex_clear_(&dep->lock);
+	gfx_deque_clear(&sem->sigs);
+	gfx_mutex_clear_(&sem->lock);
 
-	free(dep);
+	free(sem);
 }
 
 /****************************/
-GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep)
+GFX_API GFXDevice* gfx_sem_get_device(GFXSemaphore* sem)
 {
-	if (dep == NULL)
+	if (sem == NULL)
 		return NULL;
 
-	return (GFXDevice*)dep->device;
+	return (GFXDevice*)sem->device;
 }
 
 /****************************/
@@ -314,38 +178,38 @@ bool gfx_injection_push_(VkPipelineStageFlags srcStage,
 
 /****************************
  * Pushes an execution/memory barrier as injection metadata.
- * Assumes one of `sync->vk.buffer` or `sync->vk.image` is appropriately set.
+ * Assumes one of `sig->vk.buffer` or `sig->vk.image` is appropriately set.
  * @return Zero on failure.
  */
-static bool gfx_dep_push_barrier_(const GFXSync_* sync,
-                                  GFXInjection_* injection)
+static bool gfx_push_barrier_(const GFXSignal_* sig,
+                              GFXInjection_* injection)
 {
-	assert(sync != NULL);
-	assert(sync->flags & GFX_SYNC_BARRIER_);
+	assert(sig != NULL);
+	assert(sig->flags & GFX_SIGNAL_BARRIER_);
 	assert(injection != NULL);
 
 	// If there is a memory hazard, inject full memory barriers.
-	if (sync->flags & GFX_SYNC_MEM_HAZARD_)
+	if (sig->flags & GFX_SIGNAL_MEM_HAZARD_)
 	{
 		// We always set the destination queue family to be able to match, undo!
 		const uint32_t dstFamily =
-			(sync->vk.srcQueue.family == VK_QUEUE_FAMILY_IGNORED) ?
-			VK_QUEUE_FAMILY_IGNORED : sync->vk.dstQueue.family;
+			(sig->vk.srcQueue.family == VK_QUEUE_FAMILY_IGNORED) ?
+			VK_QUEUE_FAMILY_IGNORED : sig->vk.dstQueue.family;
 
 		// Output either a buffer or image memory barrier.
-		if (sync->ref.obj.buffer != NULL)
+		if (sig->ref.obj.buffer != NULL)
 		{
 			VkBufferMemoryBarrier bmb = {
 				.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
 
 				.pNext               = NULL,
-				.srcAccessMask       = sync->vk.srcAccess,
-				.dstAccessMask       = sync->vk.dstAccess,
-				.srcQueueFamilyIndex = sync->vk.srcQueue.family,
+				.srcAccessMask       = sig->vk.srcAccess,
+				.dstAccessMask       = sig->vk.dstAccess,
+				.srcQueueFamilyIndex = sig->vk.srcQueue.family,
 				.dstQueueFamilyIndex = dstFamily,
-				.buffer              = sync->vk.buffer,
-				.offset              = sync->range.offset,
-				.size                = sync->range.size
+				.buffer              = sig->vk.buffer,
+				.offset              = sig->range.offset,
+				.size                = sig->range.size
 			};
 
 			GFX_INJ_OUTPUT_(
@@ -359,22 +223,22 @@ static bool gfx_dep_push_barrier_(const GFXSync_* sync,
 				.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 
 				.pNext               = NULL,
-				.srcAccessMask       = sync->vk.srcAccess,
-				.dstAccessMask       = sync->vk.dstAccess,
-				.oldLayout           = sync->vk.oldLayout,
-				.newLayout           = sync->vk.newLayout,
-				.srcQueueFamilyIndex = sync->vk.srcQueue.family,
+				.srcAccessMask       = sig->vk.srcAccess,
+				.dstAccessMask       = sig->vk.dstAccess,
+				.oldLayout           = sig->vk.oldLayout,
+				.newLayout           = sig->vk.newLayout,
+				.srcQueueFamilyIndex = sig->vk.srcQueue.family,
 				.dstQueueFamilyIndex = dstFamily,
-				.image               = sync->vk.image,
+				.image               = sig->vk.image,
 				.subresourceRange = {
-					.aspectMask     = GFX_GET_VK_IMAGE_ASPECT_(sync->range.aspect),
-					.baseMipLevel   = sync->range.mipmap,
-					.baseArrayLayer = sync->range.layer,
+					.aspectMask     = GFX_GET_VK_IMAGE_ASPECT_(sig->range.aspect),
+					.baseMipLevel   = sig->range.mipmap,
+					.baseArrayLayer = sig->range.layer,
 
-					.levelCount = sync->range.numMipmaps == 0 ?
-						VK_REMAINING_MIP_LEVELS : sync->range.numMipmaps,
-					.layerCount = sync->range.numLayers == 0 ?
-						VK_REMAINING_ARRAY_LAYERS : sync->range.numLayers
+					.levelCount = sig->range.numMipmaps == 0 ?
+						VK_REMAINING_MIP_LEVELS : sig->range.numMipmaps,
+					.layerCount = sig->range.numLayers == 0 ?
+						VK_REMAINING_ARRAY_LAYERS : sig->range.numLayers
 				}
 			};
 
@@ -387,8 +251,8 @@ static bool gfx_dep_push_barrier_(const GFXSync_* sync,
 
 	// TODO: Maybe not merge pipeline flags always?
 	// In all cases (execution or memory barrier), add pipeline flags.
-	injection->bars.srcStage |= sync->vk.srcStage;
-	injection->bars.dstStage |= sync->vk.dstStage;
+	injection->bars.srcStage |= sig->vk.srcStage;
+	injection->bars.dstStage |= sig->vk.dstStage;
 
 	return 1;
 }
@@ -479,7 +343,7 @@ static void gfx_unpack_(GFXContext_* context,
 }
 
 /****************************/
-bool gfx_deps_catch_(GFXContext_* context, VkCommandBuffer cmd,
+bool gfx_sems_catch_(GFXContext_* context, VkCommandBuffer cmd,
                      size_t numInjs, const GFXInject* injs,
                      GFXInjection_* injection)
 {
@@ -498,65 +362,65 @@ bool gfx_deps_catch_(GFXContext_* context, VkCommandBuffer cmd,
 
 	// During a catch, we loop over all injections and filter out the
 	// wait commands. For each wait command, we match against all pending
-	// synchronization objects and 'catch' them with a potential barrier.
+	// signal objects and 'catch' them with a potential barrier.
 	for (size_t i = 0; i < numInjs; ++i)
 	{
 		if (!GFX_INJ_IS_WAIT_(injs[i]))
 			continue;
 
-		// Check the context of the dependency object.
-		if (injs[i].dep->context != context)
+		// Check the context of the semaphore.
+		if (injs[i].sem->context != context)
 		{
 			gfx_log_warn(
-				"Dependency wait command ignored, dependency objects "
+				"Dependency wait command ignored, semaphores "
 				"must be built on the same logical Vulkan device.");
 
 			continue;
 		}
 
-		// Now the bit where we match against all pending sync objects.
+		// Now the bit where we match against all pending signal objects.
 		// We lock for each command individually.
-		gfx_mutex_lock_(&injs[i].dep->lock);
+		gfx_mutex_lock_(&injs[i].sem->lock);
 
-		for (size_t s = 0; s < injs[i].dep->syncs.size; ++s)
+		for (size_t s = 0; s < injs[i].sem->sigs.size; ++s)
 		{
-			GFXSync_* sync = gfx_deque_at(&injs[i].dep->syncs, s);
+			GFXSignal_* sig = gfx_deque_at(&injs[i].sem->sigs, s);
 
 			// Before matching,
 			// we quickly check if we can recycle any used objs!
-			if (sync->stage == GFX_SYNC_USED_ && sync->waits > 0)
-				if ((--sync->waits) == 0)
-					sync->stage = GFX_SYNC_UNUSED_;
+			if (sig->stage == GFX_SIGNAL_USED_ && sig->waits > 0)
+				if ((--sig->waits) == 0)
+					sig->stage = GFX_SIGNAL_UNUSED_;
 
 			// Match on queue family & index.
 			if (
-				sync->vk.dstQueue.family != injection->inp.queue.family ||
-				sync->vk.dstQueue.index != injection->inp.queue.index)
+				sig->vk.dstQueue.family != injection->inp.queue.family ||
+				sig->vk.dstQueue.index != injection->inp.queue.index)
 			{
 				continue;
 			}
 
 			// Match against pending signals.
 			if (
-				sync->stage != GFX_SYNC_PENDING_ &&
+				sig->stage != GFX_SIGNAL_PENDING_ &&
 				// Catch prepared signals from the same injection too!
-				(sync->stage != GFX_SYNC_PREPARE_ || injection != sync->inj))
+				(sig->stage != GFX_SIGNAL_PREPARE_ || injection != sig->inj))
 			{
 				continue;
 			}
 
-			// We have a matching synchronization object, in other words,
+			// We have a matching signal object, in other words,
 			// we are going to catch a signal command with this wait command.
 			// First put the object in the catch stage.
-			sync->inj = injection;
-			sync->stage = (sync->stage == GFX_SYNC_PREPARE_) ?
-				GFX_SYNC_PREPARE_CATCH_ : GFX_SYNC_CATCH_;
+			sig->inj = injection;
+			sig->stage = (sig->stage == GFX_SIGNAL_PREPARE_) ?
+				GFX_SIGNAL_PREPARE_CATCH_ : GFX_SIGNAL_CATCH_;
 
 			// Check if this is perhaps an operation reference,
 			// if so, signal that it will be transitioned.
 			size_t r;
 			for (r = 0; r < injection->inp.numRefs; ++r)
-				if (GFX_UNPACK_REF_IS_EQUAL_(sync->ref, injection->inp.refs[r]))
+				if (GFX_UNPACK_REF_IS_EQUAL_(sig->ref, injection->inp.refs[r]))
 					break;
 
 			if (r < injection->inp.numRefs)
@@ -566,8 +430,8 @@ bool gfx_deps_catch_(GFXContext_* context, VkCommandBuffer cmd,
 			// since the signal command (i.e. resized or smth),
 			// if it was, nothing to be done anymore, image is stale.
 			const GFXImageAttach_* attach;
-			if ((attach = GFX_UNPACK_REF_ATTACH_(sync->ref)) != NULL)
-				if (sync->gen != GFX_ATTACH_GEN_(attach))
+			if ((attach = GFX_UNPACK_REF_ATTACH_(sig->ref)) != NULL)
+				if (sig->gen != GFX_ATTACH_GEN_(attach))
 				{
 					gfx_log_warn(
 						"Dangling dependency signal command, caught "
@@ -577,37 +441,37 @@ bool gfx_deps_catch_(GFXContext_* context, VkCommandBuffer cmd,
 				}
 
 			// Output barrier if deemed necessary by the command.
-			if (sync->flags & GFX_SYNC_BARRIER_)
-				if (!gfx_dep_push_barrier_(sync, injection))
+			if (sig->flags & GFX_SIGNAL_BARRIER_)
+				if (!gfx_push_barrier_(sig, injection))
 				{
-					gfx_mutex_unlock_(&injs[i].dep->lock);
+					gfx_mutex_unlock_(&injs[i].sem->lock);
 					return 0;
 				}
 
 			// Output the wait semaphore and stage if necessary.
-			if (sync->flags & GFX_SYNC_SEMAPHORE_)
+			if (sig->flags & GFX_SIGNAL_SEMAPHORE_)
 			{
 				size_t numWaits = injection->out.numWaits; // Placeholder.
 
 				GFX_INJ_OUTPUT_(
 					injection->out.numWaits, injection->out.waits,
-					sizeof(VkSemaphore), sync->vk.signaled,
+					sizeof(VkSemaphore), sig->vk.signaled,
 					{
-						gfx_mutex_unlock_(&injs[i].dep->lock);
+						gfx_mutex_unlock_(&injs[i].sem->lock);
 						return 0;
 					});
 
 				GFX_INJ_OUTPUT_(
 					numWaits, injection->out.stages,
-					sizeof(VkPipelineStageFlagBits), sync->vk.semStages,
+					sizeof(VkPipelineStageFlagBits), sig->vk.semStages,
 					{
-						gfx_mutex_unlock_(&injs[i].dep->lock);
+						gfx_mutex_unlock_(&injs[i].sem->lock);
 						return 0;
 					});
 			}
 		}
 
-		gfx_mutex_unlock_(&injs[i].dep->lock);
+		gfx_mutex_unlock_(&injs[i].sem->lock);
 	}
 
 	// Then flush all pushed barriers!
@@ -681,8 +545,144 @@ bool gfx_deps_catch_(GFXContext_* context, VkCommandBuffer cmd,
 	return 1;
 }
 
+/****************************
+ * Claims (creates) a signal object to use for an injection.
+ * _WITHOUT_ locking the GFXSemaphore!
+ * @param semaphore Non-zero to indicate we need a VkSemaphore.
+ * @param family    If semaphore, the destination family index.
+ * @param queue     If semaphore, the destination queue index.
+ * @param injection If semaphore, the current injection metadata pointer.
+ * @param shared    Output, if non-NULL, the signal object used for its semaphore.
+ * @return NULL on failure.
+ */
+static GFXSignal_* gfx_sem_claim_(GFXSemaphore* sem, bool semaphore,
+                                  uint32_t family, uint32_t queue,
+                                  const GFXInjection_* injection,
+                                  GFXSignal_** shared)
+{
+	assert(sem != NULL);
+	assert(!semaphore || injection != NULL);
+	assert(shared != NULL);
+
+	GFXContext_* context = sem->context;
+
+	// Default to no sharing.
+	*shared = NULL;
+
+	// Keep track of signal obj positions.
+	size_t sigInd = SIZE_MAX;
+	size_t sharedInd = SIZE_MAX;
+
+	// If we need a Vulkan semaphore, we need a signal object with either:
+	// - A Vulkan semaphore.
+	// - A destination queue of which another signal object has a semaphore.
+	// The latter will need to be of the same injection,
+	// meaning this semaphore will already be written to the metadata.
+	if (semaphore)
+	{
+		// See if there is an unused Vulkan semaphore.
+		// Also see if there are any signal objects with the same queue.
+		// They need to be of the same injection too, such that they can
+		// share the semaphore :)
+		for (size_t s = 0; s < sem->sems; ++s)
+		{
+			GFXSignal_* sig = gfx_deque_at(&sem->sigs, s);
+
+			// Never break, always prefer objects closer to the center,
+			// such that shrinking is easier.
+			if (sig->stage == GFX_SIGNAL_UNUSED_)
+				sigInd = s;
+
+			// We know it has a semaphore because of its position in sigs.
+			if (sig->stage == GFX_SIGNAL_PREPARE_ &&
+				sig->inj == injection &&
+				sig->vk.dstQueue.family == family &&
+				sig->vk.dstQueue.index == queue)
+			{
+				sharedInd = s;
+			}
+		}
+
+		// If we found none to share, but did find an unused one, claim it.
+		if (sharedInd == SIZE_MAX && sigInd != SIZE_MAX)
+			goto claim;
+
+		// Still none to share, create one & claim it.
+		if (sharedInd == SIZE_MAX)
+		{
+			if (!gfx_deque_push_front(&sem->sigs, 1, NULL))
+				return NULL;
+
+			// Initialize it & create a Vulkan semaphore.
+			GFXSignal_* sig = gfx_deque_at(&sem->sigs, 0);
+			sig->stage = GFX_SIGNAL_UNUSED_;
+			sig->flags = GFX_SIGNAL_SEMAPHORE_;
+
+			VkSemaphoreCreateInfo sci = {
+				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+				.pNext = NULL,
+				.flags = 0
+			};
+
+			GFX_VK_CHECK_(
+				context->vk.CreateSemaphore(
+					context->vk.device, &sci, NULL, &sig->vk.signaled),
+				{
+					gfx_deque_pop_front(&sem->sigs, 1);
+					return NULL;
+				});
+
+			// Don't forget to increase the semaphore count!
+			++sem->sems;
+
+			sigInd = 0;
+			goto claim;
+		}
+
+		// At this point we have a shared Vulkan semaphore.
+		// It is not the job of preparing signals to also shrink the deque.
+		// This might entail destroying semaphores, which might still be of
+		// use later. Only clean on finish/abort.
+
+		// We can just fall through to the logic to claim
+		// a non-semaphore signal object.
+	}
+
+	// So we have a shared Vulkan semaphore, or we don't need a semaphore.
+	// Go see if we have an unused non-semaphore signal object.
+	for (size_t s = sem->sems; s < sem->sigs.size; ++s)
+	{
+		// Return immediately so we are closest to the center,
+		// again for easier shrinking.
+		GFXSignal_* sig = gfx_deque_at(&sem->sigs, s);
+		if (sig->stage == GFX_SIGNAL_UNUSED_)
+		{
+			sigInd = s;
+			goto claim;
+		}
+	}
+
+	// Apparently not, insert anew.
+	sigInd = sem->sigs.size;
+
+	if (!gfx_deque_push(&sem->sigs, 1, NULL))
+		return NULL;
+
+	GFXSignal_* sig = gfx_deque_at(&sem->sigs, sigInd);
+	sig->stage = GFX_SIGNAL_UNUSED_;
+	sig->flags = 0;
+	sig->vk.signaled = VK_NULL_HANDLE;
+
+	// On success!
+claim:
+	if (sharedInd != SIZE_MAX)
+		*shared = gfx_deque_at(&sem->sigs, sharedInd);
+
+	return gfx_deque_at(&sem->sigs, sigInd);
+}
+
 /****************************/
-bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
+bool gfx_sems_prepare_(GFXContext_* context, VkCommandBuffer cmd,
                        bool blocking,
                        size_t numInjs, const GFXInject* injs,
                        GFXInjection_* injection)
@@ -697,28 +697,28 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 
 	// During a prepare, we again loop over all injections and filter out the
 	// signal commands. For each signal command we find the resources it is
-	// supposed to signal, claim a new synchronization object and 'prepare'
+	// supposed to signal, claim a new signal object and 'prepare'
 	// them with a potential barrier.
 	for (size_t i = 0; i < numInjs; ++i)
 	{
 		if (!GFX_INJ_IS_SIGNAL_(injs[i]))
 			continue;
 
-		// Check if we have a dependency object.
-		if (injs[i].dep == NULL)
+		// Check if we have a semaphore.
+		if (injs[i].sem == NULL)
 		{
 			gfx_log_warn(
 				"Dependency signal command ignored, must signal a "
-				"dependency object when not injecting between passes.");
+				"semaphore when not injecting between passes.");
 
 			continue;
 		}
 
-		// Check the context of the dependency object.
-		if (injs[i].dep->context != context)
+		// Check the context of the semaphore.
+		if (injs[i].sem->context != context)
 		{
 			gfx_log_warn(
-				"Dependency signal command ignored, dependency objects "
+				"Dependency signal command ignored, semaphores "
 				"must be built on the same logical Vulkan device.");
 
 			continue;
@@ -793,8 +793,8 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 					"Dependency signal command ignored, "
 					"unable to determine source access mask and stage. "
 					"Try using one of the following commands instead:\n"
-					"    `gfx_dep_sigrf`\n"
-					"    `gfx_dep_sigraf`\n");
+					"    `gfx_sem_sigrf`\n"
+					"    `gfx_sem_sigraf`\n");
 
 				continue;
 			}
@@ -814,17 +814,17 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 		// And flags for if we need an ownership transfer or want to discard.
 		const uint32_t family =
 			injs[i].mask & GFX_ACCESS_COMPUTE_ASYNC ?
-				injs[i].dep->compute.family :
+				injs[i].sem->compute.family :
 			injs[i].mask & GFX_ACCESS_TRANSFER_ASYNC ?
-				injs[i].dep->transfer.family :
-				injs[i].dep->graphics.family;
+				injs[i].sem->transfer.family :
+				injs[i].sem->graphics.family;
 
 		const uint32_t queue =
 			injs[i].mask & GFX_ACCESS_COMPUTE_ASYNC ?
-				injs[i].dep->compute.index :
+				injs[i].sem->compute.index :
 			injs[i].mask & GFX_ACCESS_TRANSFER_ASYNC ?
-				injs[i].dep->transfer.index :
-				injs[i].dep->graphics.index;
+				injs[i].sem->transfer.index :
+				injs[i].sem->graphics.index;
 
 		const bool ownership = (family != injection->inp.queue.family);
 		const bool semaphore = ownership || (queue != injection->inp.queue.index);
@@ -832,7 +832,7 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 
 		// Aaaand the bit where we prepare all signals.
 		// We lock for each command individually.
-		gfx_mutex_lock_(&injs[i].dep->lock);
+		gfx_mutex_lock_(&injs[i].sem->lock);
 
 		for (size_t r = 0; r < numRefs; ++r)
 		{
@@ -897,44 +897,44 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 			}
 #endif
 
-			// Now get us a synchronization object.
-			GFXSync_* shared;
-			GFXSync_* sync = gfx_dep_claim_(injs[i].dep,
-				// No need for a semaphore if the client blocks.
+			// Now get us a signal object.
+			GFXSignal_* shared;
+			GFXSignal_* sig = gfx_sem_claim_(injs[i].sem,
+				// No need for a Vulkan semaphore if the client blocks.
 				semaphore && !blocking, family, queue, injection, &shared);
 
-			if (sync == NULL)
+			if (sig == NULL)
 			{
 				gfx_log_error(
 					"Dependency injection failed, "
-					"could not claim synchronization object.");
+					"could not claim signal object.");
 
-				gfx_mutex_unlock_(&injs[i].dep->lock);
+				gfx_mutex_unlock_(&injs[i].sem->lock);
 				return 0;
 			}
 
 			// Output the signal semaphore if present.
-			if (sync->flags & GFX_SYNC_SEMAPHORE_)
+			if (sig->flags & GFX_SIGNAL_SEMAPHORE_)
 				GFX_INJ_OUTPUT_(
 					injection->out.numSigs, injection->out.sigs,
-					sizeof(VkSemaphore), sync->vk.signaled,
+					sizeof(VkSemaphore), sig->vk.signaled,
 					{
-						gfx_mutex_unlock_(&injs[i].dep->lock);
+						gfx_mutex_unlock_(&injs[i].sem->lock);
 						return 0;
 					});
 
-			// Now 'claim' the sync object & put it in the prepare stage.
-			sync->ref = refs[r];
-			sync->waits = injs[i].dep->waitCapacity; // Preemptively set.
-			sync->gen = (attach != NULL) ? GFX_ATTACH_GEN_(attach) : 0;
-			sync->inj = injection;
-			sync->stage = GFX_SYNC_PREPARE_;
-			sync->flags &= GFX_SYNC_SEMAPHORE_; // Remove all other flags.
+			// Now 'claim' the signal object & put it in the prepare stage.
+			sig->ref = refs[r];
+			sig->waits = injs[i].sem->waitCapacity; // Preemptively set.
+			sig->gen = (attach != NULL) ? GFX_ATTACH_GEN_(attach) : 0;
+			sig->inj = injection;
+			sig->stage = GFX_SIGNAL_PREPARE_;
+			sig->flags &= GFX_SIGNAL_SEMAPHORE_; // Remove all other flags.
 
 			if (image != VK_NULL_HANDLE)
-				sync->vk.image = image;
+				sig->vk.image = image;
 			else
-				sync->vk.buffer = buffer;
+				sig->vk.buffer = buffer;
 
 			// Get all access/stage flags for the resource to signal.
 			const GFXAccessMask srcMask =
@@ -967,32 +967,32 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 				GFX_INJ_IS_RANGED_(injs[i]) ? &injs[i].range : NULL,
 				(refs == &unp) ? gfx_ref_size_(injs[i].ref) : injection->inp.sizes[r],
 				srcMask, srcStage,
-				&sync->range,
-				&sync->vk.srcAccess, &sync->vk.oldLayout, &sync->vk.srcStage);
+				&sig->range,
+				&sig->vk.srcAccess, &sig->vk.oldLayout, &sig->vk.srcStage);
 
 			// Set all destination operation values.
-			sync->vk.dstAccess =
+			sig->vk.dstAccess =
 				GFX_GET_VK_ACCESS_FLAGS_(dstMask, fmt);
-			sync->vk.dstStage =
+			sig->vk.dstStage =
 				GFX_GET_VK_PIPELINE_STAGE_(dstMask, injs[i].stage, fmt);
-			sync->vk.dstStage =
-				GFX_MOD_VK_PIPELINE_STAGE_(sync->vk.dstStage, context);
-			sync->vk.newLayout =
+			sig->vk.dstStage =
+				GFX_MOD_VK_PIPELINE_STAGE_(sig->vk.dstStage, context);
+			sig->vk.newLayout =
 				// Undefined layout for buffers.
-				(sync->ref.obj.buffer != NULL) ?
+				(sig->ref.obj.buffer != NULL) ?
 					VK_IMAGE_LAYOUT_UNDEFINED :
 					GFX_GET_VK_IMAGE_LAYOUT_(dstMask, fmt);
 
 			if (shared != NULL)
-				// OR all stages into the semaphore's scope.
-				shared->vk.semStages |= sync->vk.dstStage;
+				// OR all stages into the Vulkan semaphore's scope.
+				shared->vk.semStages |= sig->vk.dstStage;
 
-			sync->vk.semStages = sync->vk.dstStage;
+			sig->vk.semStages = sig->vk.dstStage;
 
 			// Set undefined source layout if we want to discard,
 			// however if no layout transition, don't explicitly discard!
-			if (discard && sync->vk.newLayout != sync->vk.oldLayout)
-				sync->vk.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			if (discard && sig->vk.newLayout != sig->vk.oldLayout)
+				sig->vk.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			// Get families, explicitly ignore if we want to discard.
 			// Also, if the resource is concurrent instead of exclusive,
@@ -1000,13 +1000,13 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 			const bool concurrent = mFlags &
 				(GFX_MEMORY_COMPUTE_CONCURRENT | GFX_MEMORY_TRANSFER_CONCURRENT);
 
-			sync->vk.srcQueue.family = discard || concurrent ?
+			sig->vk.srcQueue.family = discard || concurrent ?
 				VK_QUEUE_FAMILY_IGNORED : injection->inp.queue.family;
 
-			sync->vk.dstQueue.family = discard || concurrent ?
+			sig->vk.dstQueue.family = discard || concurrent ?
 				VK_QUEUE_FAMILY_IGNORED : family;
 
-			sync->vk.dstQueue.index = queue;
+			sig->vk.dstQueue.index = queue;
 
 			// Insert execution barrier @catch if necessary:
 			// - Equal queues & either source or target writes,
@@ -1016,11 +1016,11 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 			const bool srcWrites = GFX_ACCESS_WRITES(srcMask);
 			const bool dstWrites = GFX_ACCESS_WRITES(dstMask);
 			const bool transfer = ownership && !discard && !concurrent;
-			const bool transition = sync->vk.oldLayout != sync->vk.newLayout;
+			const bool transition = sig->vk.oldLayout != sig->vk.newLayout;
 
 			if ((!ownership && (srcWrites || dstWrites)) || transfer || transition)
 			{
-				sync->flags |= GFX_SYNC_BARRIER_;
+				sig->flags |= GFX_SIGNAL_BARRIER_;
 			}
 
 			// Insert memory barrier @catch if necessary:
@@ -1030,7 +1030,7 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 			// - Inequal layouts, need layout transition.
 			if ((!ownership && srcWrites) || transfer || transition)
 			{
-				sync->flags |= GFX_SYNC_MEM_HAZARD_;
+				sig->flags |= GFX_SIGNAL_MEM_HAZARD_;
 			}
 
 			// Insert exeuction AND memory barrier @prepare if necessary:
@@ -1043,55 +1043,55 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 
 			if (transfer || flushToHost)
 			{
-				const VkAccessFlags dstAccess = sync->vk.dstAccess;
-				const VkPipelineStageFlags dstStage = sync->vk.dstStage;
-				const unsigned int flags = sync->flags;
+				const VkAccessFlags dstAccess = sig->vk.dstAccess;
+				const VkPipelineStageFlags dstStage = sig->vk.dstStage;
+				const unsigned int flags = sig->flags;
 
 				// If we are transferring ownership:
 				//  Zero out destination access/stage for the release.
 				//  Zero out source access/stage for the acquire.
 				if (transfer)
-					// Note: `sync->flags` is always already set above.
-					sync->vk.dstAccess = 0,
-					sync->vk.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+					// Note: `sig->flags` is always already set above.
+					sig->vk.dstAccess = 0,
+					sig->vk.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
 				// If we need to flush written data to the host:
 				//  Add appropriate host flags to destination access/stage.
 				//  Remove barrier at the catch if not transferring.
 				if (flushToHost)
-					sync->vk.dstAccess |=
+					sig->vk.dstAccess |=
 						GFX_GET_VK_ACCESS_FLAGS_(hostMask, fmt),
-					sync->vk.dstStage |=
+					sig->vk.dstStage |=
 						GFX_GET_VK_PIPELINE_STAGE_(hostMask, 0, fmt),
-					sync->flags |=
-						GFX_SYNC_BARRIER_ | GFX_SYNC_MEM_HAZARD_;
+					sig->flags |=
+						GFX_SIGNAL_BARRIER_ | GFX_SIGNAL_MEM_HAZARD_;
 
-				if (!gfx_dep_push_barrier_(sync, injection))
+				if (!gfx_push_barrier_(sig, injection))
 				{
-					// Just bail out, gfx_deps_abort_ will clean!
-					gfx_mutex_unlock_(&injs[i].dep->lock);
+					// Just bail out, gfx_sems_abort_ will clean!
+					gfx_mutex_unlock_(&injs[i].sem->lock);
 					return 0;
 				}
 
 				if (flushToHost)
-					sync->flags &= GFX_SYNC_SEMAPHORE_;
+					sig->flags &= GFX_SIGNAL_SEMAPHORE_;
 
 				if (transfer)
-					sync->vk.srcAccess = 0,
-					sync->vk.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+					sig->vk.srcAccess = 0,
+					sig->vk.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 					// Reset flags in case flushToHost removed them.
-					sync->flags = flags;
+					sig->flags = flags;
 
-				sync->vk.dstAccess = dstAccess;
-				sync->vk.dstStage = dstStage;
+				sig->vk.dstAccess = dstAccess;
+				sig->vk.dstStage = dstStage;
 			}
 
 			// Always set destination queue family,
 			// so we can match families when catching.
-			sync->vk.dstQueue.family = family;
+			sig->vk.dstQueue.family = family;
 		}
 
-		gfx_mutex_unlock_(&injs[i].dep->lock);
+		gfx_mutex_unlock_(&injs[i].sem->lock);
 	}
 
 	// When all is done and nothing failed,
@@ -1102,10 +1102,10 @@ bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
 }
 
 /****************************
- * Stand-in function for gfx_deps_abort_ and gfx_deps_finish_.
- * Will also shrink the sync object deque down, reducing semaphores.
+ * Stand-in function for gfx_sems_abort_ and gfx_sems_finish_.
+ * Will also shrink the signal object deque down, reducing Vulkan semaphores.
  */
-static void gfx_deps_finalize_(size_t numInjs, const GFXInject* injs,
+static void gfx_sems_finalize_(size_t numInjs, const GFXInject* injs,
                                bool success,
                                GFXInjection_* injection)
 {
@@ -1126,130 +1126,130 @@ static void gfx_deps_finalize_(size_t numInjs, const GFXInject* injs,
 	injection->out.sigs = NULL;
 	injection->out.stages = NULL;
 
-	// To finalize an injection, we loop over all synchronization objects of
-	// each command's dependency object. If it contains objects claimed by the
+	// To finalize an injection, we loop over all signal objects of each
+	// command's GFXSemaphore. If it contains objects claimed by the
 	// given injection metadata, revert/advance the stage.
 	// On abort, we do not need to worry about undoing any commands, as the
 	// operation has failed and should not submit its command buffers :)
 	for (size_t i = 0; i < numInjs; ++i)
 	{
-		GFXDependency* dep = injs[i].dep;
-		if (dep == NULL) continue; // Nothing to do.
+		GFXSemaphore* sem = injs[i].sem;
+		if (sem == NULL) continue; // Nothing to do.
 
-		GFXContext_* context = dep->context;
+		GFXContext_* context = sem->context;
 
 		// We lock for each command individually.
-		gfx_mutex_lock_(&dep->lock);
+		gfx_mutex_lock_(&sem->lock);
 
-		for (size_t s = 0; s < dep->syncs.size; ++s)
+		for (size_t s = 0; s < sem->sigs.size; ++s)
 		{
-			GFXSync_* sync = gfx_deque_at(&dep->syncs, s);
-			if (sync->inj == injection)
+			GFXSignal_* sig = gfx_deque_at(&sem->sigs, s);
+			if (sig->inj == injection)
 			{
 				// If we're dealing with an attachment of the renderer
 				// performing the operation, modify its signaled state.
 				if (success &&
-					sync->ref.obj.renderer != NULL &&
-					sync->ref.obj.renderer == injection->inp.renderer)
+					sig->ref.obj.renderer != NULL &&
+					sig->ref.obj.renderer == injection->inp.renderer)
 				{
 					// If in the prepare state, it might be for an
 					// operation outside this renderer, signal!
-					if (sync->stage == GFX_SYNC_PREPARE_)
-						GFX_UNPACK_REF_ATTACH_(sync->ref)->signaled = 1;
+					if (sig->stage == GFX_SIGNAL_PREPARE_)
+						GFX_UNPACK_REF_ATTACH_(sig->ref)->signaled = 1;
 
 					// If caught from outside this renderer, reset.
-					else if(sync->stage == GFX_SYNC_CATCH_)
-						GFX_UNPACK_REF_ATTACH_(sync->ref)->signaled = 0;
+					else if(sig->stage == GFX_SIGNAL_CATCH_)
+						GFX_UNPACK_REF_ATTACH_(sig->ref)->signaled = 0;
 				}
 
 				// If the object was only prepared, it is now pending.
 				// Otherwise it _must_ have been caught, in which case we
 				// advance it to used or unused.
-				// It only needs to be used if it has a semaphore,
+				// It only needs to be used if it has a Vulkan semaphore,
 				// in which case we cannot reclaim this object yet...
-				if (success) sync->stage =
-					(sync->stage == GFX_SYNC_PREPARE_) ?
-						GFX_SYNC_PENDING_ :
-					(sync->flags & GFX_SYNC_SEMAPHORE_) ?
-						GFX_SYNC_USED_ :
-						GFX_SYNC_UNUSED_;
+				if (success) sig->stage =
+					(sig->stage == GFX_SIGNAL_PREPARE_) ?
+						GFX_SIGNAL_PENDING_ :
+					(sig->flags & GFX_SIGNAL_SEMAPHORE_) ?
+						GFX_SIGNAL_USED_ :
+						GFX_SIGNAL_UNUSED_;
 
 				// Unless we abort, in which case we simply revert.
-				else sync->stage =
-					(sync->stage == GFX_SYNC_CATCH_) ?
-						GFX_SYNC_PENDING_ :
-						GFX_SYNC_UNUSED_;
+				else sig->stage =
+					(sig->stage == GFX_SIGNAL_CATCH_) ?
+						GFX_SIGNAL_PENDING_ :
+						GFX_SIGNAL_UNUSED_;
 
-				sync->inj = NULL;
+				sig->inj = NULL;
 			}
 		}
 
-		// Ok now also, this is our chance to shrink the sync object deque!
+		// Ok now also, this is our chance to shrink the signal object deque!
 		// We strategically do this after all stages have been updated.
-		// First remove all unused non-semaphore sync objects.
-		// Remove all bubbles of unused sync objects, then chop off the end.
+		// First remove all unused non-semaphore signal objects.
+		// Remove all bubbles of unused signal objects, then chop off the end.
 		size_t move = 0;
-		for (size_t s = dep->sems; s < dep->syncs.size; ++s)
+		for (size_t s = sem->sems; s < sem->sigs.size; ++s)
 		{
-			GFXSync_* sync = gfx_deque_at(&dep->syncs, s);
-			if (sync->stage == GFX_SYNC_UNUSED_)
+			GFXSignal_* sig = gfx_deque_at(&sem->sigs, s);
+			if (sig->stage == GFX_SIGNAL_UNUSED_)
 			{
 				++move;
 			}
 			else if (move > 0)
 			{
-				GFXSync_* dest = gfx_deque_at(&dep->syncs, s - move);
-				*dest = *sync;
+				GFXSignal_* dest = gfx_deque_at(&sem->sigs, s - move);
+				*dest = *sig;
 			}
 		}
 
-		if (move > 0) gfx_deque_pop(&dep->syncs, move);
+		if (move > 0) gfx_deque_pop(&sem->sigs, move);
 
-		// And now to the same for all sync objects with a semaphore.
+		// And now to the same for all signal objects with a semaphore.
 		// In the opposite direction.
 		move = 0;
-		for (size_t s = dep->sems; s > 0; --s)
+		for (size_t s = sem->sems; s > 0; --s)
 		{
-			GFXSync_* sync = gfx_deque_at(&dep->syncs, s - 1);
-			if (sync->stage == GFX_SYNC_UNUSED_)
+			GFXSignal_* sig = gfx_deque_at(&sem->sigs, s - 1);
+			if (sig->stage == GFX_SIGNAL_UNUSED_)
 			{
 				// Here we actually destroy the to-be-overwritten semaphore!
 				context->vk.DestroySemaphore(
-					context->vk.device, sync->vk.signaled, NULL);
+					context->vk.device, sig->vk.signaled, NULL);
 
 				// Don't forget to decrease the semaphore count!
-				--dep->sems;
+				--sem->sems;
 
 				++move;
 			}
 			else if (move > 0)
 			{
-				GFXSync_* dest = gfx_deque_at(&dep->syncs, s + move - 1);
-				*dest = *sync;
+				GFXSignal_* dest = gfx_deque_at(&sem->sigs, s + move - 1);
+				*dest = *sig;
 			}
 		}
 
-		if (move > 0) gfx_deque_pop_front(&dep->syncs, move);
+		if (move > 0) gfx_deque_pop_front(&sem->sigs, move);
 
 		// Unlock & done for this command.
-		gfx_mutex_unlock_(&dep->lock);
+		gfx_mutex_unlock_(&sem->lock);
 	}
 }
 
 /****************************/
-void gfx_deps_abort_(size_t numInjs, const GFXInject* injs,
+void gfx_sems_abort_(size_t numInjs, const GFXInject* injs,
                      GFXInjection_* injection)
 {
 	// Relies on stand-in function for asserts.
 
-	gfx_deps_finalize_(numInjs, injs, 0, injection);
+	gfx_sems_finalize_(numInjs, injs, 0, injection);
 }
 
 /****************************/
-void gfx_deps_finish_(size_t numInjs, const GFXInject* injs,
+void gfx_sems_finish_(size_t numInjs, const GFXInject* injs,
                       GFXInjection_* injection)
 {
 	// Relies on stand-in function for asserts.
 
-	gfx_deps_finalize_(numInjs, injs, 1, injection);
+	gfx_sems_finalize_(numInjs, injs, 1, injection);
 }

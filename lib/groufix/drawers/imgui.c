@@ -914,10 +914,10 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 
 /****************************/
 GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
-                             GFXDependency* dep, void* igFontAtlas)
+                             GFXSemaphore* sem, void* igFontAtlas)
 {
 	assert(drawer != NULL);
-	assert(dep != NULL);
+	assert(sem != NULL);
 	assert(igFontAtlas != NULL);
 
 	ImFontAtlas* fontAtlas = igFontAtlas;
@@ -975,7 +975,7 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
 	};
 
 	const GFXInject inject =
-		gfx_dep_sig(dep, GFX_ACCESS_SAMPLED_READ, GFX_STAGE_FRAGMENT);
+		gfx_sem_sig(sem, GFX_ACCESS_SAMPLED_READ, GFX_STAGE_FRAGMENT);
 
 	if (!gfx_write(pixels, gfx_ref_image(image),
 		GFX_TRANSFER_ASYNC,

@@ -99,7 +99,7 @@ static bool load_gltf(const char* path, GFXGltfResult* result)
 	};
 
 	if (!gfx_load_gltf(
-		TEST_BASE.heap, TEST_BASE.dep, &opts,
+		TEST_BASE.heap, TEST_BASE.sem, &opts,
 		GFX_IMAGE_ANY_FORMAT, GFX_IMAGE_SAMPLED,
 		&file.reader, &inc.includer, result))
 	{

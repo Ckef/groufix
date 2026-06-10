@@ -75,48 +75,48 @@ GFX_BIT_FIELD(GFXAccessMask)
 
 
 /**
- * Dependency object definition.
+ * Semaphore definition.
  * Stores transition & synchronization metadata.
  */
-typedef struct GFXDependency GFXDependency;
+typedef struct GFXSemaphore GFXSemaphore;
 
 
 /**
- * Creates a dependency object.
+ * Creates a semaphore.
  * @param device   NULL is equivalent to gfx_get_primary_device().
- * @param capacity Wait capacity of the dependency object.
+ * @param capacity Wait capacity of the semaphore.
  * @return NULL on failure.
  *
  * @capacity:
  * When a dependency is formed between operations that do not operate on the
- * same underlying Vulkan queue, internal semaphores are created.
+ * same underlying Vulkan queue, internal Vulkan semaphores are created.
  * (this can happen between async and non-async operations).
  *
- * These internal semaphores are recycled after N (capacity) subsequent
+ * These internal Vulkan objects are recycled after N (capacity) subsequent
  * wait commands, at which point the original operations MUST have completed.
- * In other words: the dependency object can hold `capacity` concurrent
- * wait commands of which the first operation that these wait commands were
+ * In other words: the GFXSemaphore can hold `capacity` concurrent
+ * wait commands of which the first operation that the first wait command was
  * submitted in is not yet completed.
- * Once the first operation that waited on this dependency has finished,
- * we are allowed to insert another wait command into this dependency object.
+ * Once the first operation that waited on this semaphore has finished,
+ * we are allowed to insert another wait command into this semaphore.
  *
- * capacity can be 0 (infinite) to _never_ recycle any internal semaphores,
- * their memory will be stale until the dependency object is destroyed!
+ * capacity can be 0 (infinite) to _never_ recycle any internal Vulkan objects,
+ * their memory will be stale until the semaphore is destroyed!
  */
-GFX_API GFXDependency* gfx_create_dep(GFXDevice* device, unsigned int capacity);
+GFX_API GFXSemaphore* gfx_create_sem(GFXDevice* device, unsigned int capacity);
 
 /**
- * Destroys a dependency object.
+ * Destroys a semaphore.
  * Undefined behaviour if destroyed when it holds metadata
  * about pairs of GPU operations that have not yet completed!
  */
-GFX_API void gfx_destroy_dep(GFXDependency* dep);
+GFX_API void gfx_destroy_sem(GFXSemaphore* sem);
 
 /**
- * Returns the device the dependency object was created for.
+ * Returns the device the semaphore was created for.
  * Can be called from any thread.
  */
-GFX_API GFXDevice* gfx_dep_get_device(GFXDependency* dep);
+GFX_API GFXDevice* gfx_sem_get_device(GFXSemaphore* sem);
 
 
 /****************************
@@ -144,8 +144,8 @@ typedef struct GFXInject
 {
 	GFXInjectType type;
 
-	// Object to inject a dependency in (may be NULL).
-	GFXDependency* dep;
+	// Semaphore to inject a dependency in (may be NULL).
+	GFXSemaphore* sem;
 
 	// To-be synchronized resource (may be GFX_REF_NULL).
 	GFX_SUPPRESS(GFXReference ref)
@@ -169,7 +169,7 @@ typedef struct GFXInject
 
 
 /**
- * Injection macros. Dependency objects or passes of a renderer can be
+ * Injection macros. Semaphores (or passes of a renderer!) can be
  * signaled or waited upon with respect to (a set of) resources on the GPU,
  * the CPU is never blocked!
  *
@@ -181,7 +181,7 @@ typedef struct GFXInject
  * A dependency is formed by a pair of signal/wait commands, where a signal
  * command matches with exactly one wait command, but a wait commad can match
  * with any number of signal commands.
- * Signal commands are accumulated in dependency objects and are made visible
+ * Signal commands are accumulated in semaphores and are made visible
  * by the operation they were injected in. After being made visible,
  * a wait command matches (and waits for) all signal commands that address
  * the same underlying Vulkan queue.
@@ -194,23 +194,23 @@ typedef struct GFXInject
  * `*_(COMPUTE|TRANSFER)_ASYNC` type, flag and modifiers.
  *
  * To limit the dependency to a range (area) of a resource, use
- *  `gfx_dep_siga`
+ *  `gfx_sem_siga`
  *
  * To force the dependency on a specific resource, use
- *  `gfx_dep_sigr`
+ *  `gfx_sem_sigr`
  *
  * To apply both of the above simultaneously, use
- *  `gfx_dep_sigra`
+ *  `gfx_sem_sigra`
  *
  * To specify the source access mask and stages of a specific resource, use
- *  `gfx_dep_sigrf` or `gfx_dep_sigraf`
+ *  `gfx_sem_sigrf` or `gfx_sem_sigraf`
  *
  * When signaling passes of a renderer directly, `f` is always appended:
  *  `gfx_sigf`, `gfx_sigrf`, `gfx_sigraf`
  *
- * Resources are considered referenced by the dependency object as long as it
+ * Resources are considered referenced by the semaphore as long as it
  * has not formed a valid signal/wait pair, meaning the resources in question
- * cannot be freed until its dependencies are waited upon.
+ * cannot be freed until its semaphore's dependencies are waited upon.
  *
  * Injections that reference attachments are _NOT_ thread-safe with respect
  * to the renderer it belongs to, not even if referenced implicitly.
@@ -222,50 +222,50 @@ typedef struct GFXInject
  * write to this memory before the operation is waited upon by the host itself.
  *
  * Functions that take injections as an argument are _always_ thread-safe with
- * respect to the dependency objects being referenced!
+ * respect to the semaphores being referenced!
  */
-#define gfx_dep_sig(dep_, mask_, stage_) \
+#define gfx_sem_sig(sem_, mask_, stage_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL, \
-		.dep = dep_, \
+		.sem = sem_, \
 		.ref = GFX_REF_NULL, \
 		.mask = mask_, \
 		.stage = stage_ \
 	}
 
-#define gfx_dep_siga(dep_, mask_, stage_, range_) \
+#define gfx_sem_siga(sem_, mask_, stage_, range_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL_RANGE, \
-		.dep = dep_, \
+		.sem = sem_, \
 		.ref = GFX_REF_NULL, \
 		.range = range_, \
 		.mask = mask_, \
 		.stage = stage_ \
 	}
 
-#define gfx_dep_sigr(dep_, mask_, stage_, ref_) \
+#define gfx_sem_sigr(sem_, mask_, stage_, ref_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL, \
-		.dep = dep_, \
+		.sem = sem_, \
 		.ref = ref_, \
 		.mask = mask_, \
 		.stage = stage_ \
 	}
 
-#define gfx_dep_sigra(dep_, mask_, stage_, ref_, range_) \
+#define gfx_sem_sigra(sem_, mask_, stage_, ref_, range_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL_RANGE, \
-		.dep = dep_, \
+		.sem = sem_, \
 		.ref = ref_, \
 		.range = range_, \
 		.mask = mask_, \
 		.stage = stage_ \
 	}
 
-#define gfx_dep_sigrf(dep_, maskf_, stagef_, mask_, stage_, ref_) \
+#define gfx_sem_sigrf(sem_, maskf_, stagef_, mask_, stage_, ref_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL_FROM, \
-		.dep = dep_, \
+		.sem = sem_, \
 		.ref = ref_, \
 		.mask = mask_, \
 		.stage = stage_, \
@@ -273,10 +273,10 @@ typedef struct GFXInject
 		.stagef = stagef_ \
 	}
 
-#define gfx_dep_sigraf(dep_, maskf_, stagef_, mask_, stage_, ref_, range_) \
+#define gfx_sem_sigraf(sem_, maskf_, stagef_, mask_, stage_, ref_, range_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL_RANGE_FROM, \
-		.dep = dep_, \
+		.sem = sem_, \
 		.ref = ref_, \
 		.range = range_, \
 		.mask = mask_, \
@@ -288,7 +288,7 @@ typedef struct GFXInject
 #define gfx_sigf(maskf_, stagef_, mask_, stage_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL_FROM, \
-		.dep = NULL, \
+		.sem = NULL, \
 		.ref = GFX_REF_NULL, \
 		.mask = mask_, \
 		.stage = stage_, \
@@ -299,7 +299,7 @@ typedef struct GFXInject
 #define gfx_sigrf(maskf_, stagef_, mask_, stage_, ref_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL_FROM, \
-		.dep = NULL, \
+		.sem = NULL, \
 		.ref = ref_, \
 		.mask = mask_, \
 		.stage = stage_, \
@@ -310,7 +310,7 @@ typedef struct GFXInject
 #define gfx_sigraf(maskf_, stagef_, mask_, stage_, ref_, range_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_SIGNAL_RANGE_FROM, \
-		.dep = NULL, \
+		.sem = NULL, \
 		.ref = ref_, \
 		.range = range_, \
 		.mask = mask_, \
@@ -319,10 +319,10 @@ typedef struct GFXInject
 		.stagef = stagef_ \
 	}
 
-#define gfx_dep_wait(dep_) \
+#define gfx_sem_wait(sem_) \
 	GFX_LITERAL(GFXInject){ \
 		.type = GFX_INJ_WAIT, \
-		.dep = dep_ \
+		.sem = sem_ \
 	}
 
 

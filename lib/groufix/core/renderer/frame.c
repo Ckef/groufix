@@ -576,7 +576,7 @@ static bool gfx_frame_push_consume_(GFXRenderer* renderer, GFXFrame* frame,
 
 /****************************
  * Pushes an execution/memory barrier, just as stored in a GFXDepend_ object.
- * Assumes `dep` to be fully initialized as a non-dependency-object command
+ * Assumes `dep` to be fully initialized as a non-semaphore command
  * and as a non-subpass-dependency!
  * @return Zero on failure.
  */
@@ -587,7 +587,7 @@ static bool gfx_frame_push_depend_(GFXRenderer* renderer,
 	assert(renderer != NULL);
 	assert(dep != NULL);
 	assert(!dep->out.subpass);
-	assert(dep->inj.dep == NULL);
+	assert(dep->inj.sem == NULL);
 	assert(injection != NULL);
 
 	GFXContext_* context = renderer->cache.context;
@@ -722,7 +722,7 @@ static bool gfx_frame_push_depend_(GFXRenderer* renderer,
 
 /****************************
  * Pushes a layout transition barrier, just as stored in a GFXDepend_ object.
- * Assumes `dep` to be fully initialized as a non-dependency-object command
+ * Assumes `dep` to be fully initialized as a non-semaphore command
  * and as a subpass-dependency with a layout transition!
  * @return Zero on failure.
  */
@@ -734,7 +734,7 @@ static bool gfx_frame_push_transition_(GFXRenderer* renderer,
 	assert(dep != NULL);
 	assert(dep->out.subpass);
 	assert(dep->out.transition);
-	assert(dep->inj.dep == NULL);
+	assert(dep->inj.sem == NULL);
 	assert(injection != NULL);
 
 	GFXContext_* context = renderer->cache.context;
@@ -852,7 +852,7 @@ static bool gfx_frame_record_(VkCommandBuffer cmd,
 				(GFXPass*)((GFXRenderPass_*)subpass)->out.next : NULL)
 		{
 			// Inject from both `injs` and `deps`.
-			if (!gfx_deps_catch_(
+			if (!gfx_sems_catch_(
 				context, cmd,
 				subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
 				injection))
@@ -863,9 +863,9 @@ static bool gfx_frame_record_(VkCommandBuffer cmd,
 			for (size_t d = 0; d < subpass->deps.size; ++d)
 			{
 				GFXDepend_* dep = gfx_vec_at(&subpass->deps, d);
-				if (dep->inj.dep == NULL)
+				if (dep->inj.sem == NULL)
 				{
-					// If not a dependency object, inject depend barriers.
+					// If not a semaphore, inject depend barriers.
 					// Note this will NEVER be between async and non-async
 					// passes, never have to transfer queues (!).
 					if (
@@ -876,8 +876,8 @@ static bool gfx_frame_record_(VkCommandBuffer cmd,
 					}
 				}
 
-				// If a dependency object, inject as if from `injs`.
-				else if (!gfx_deps_catch_(
+				// If a semaphore, inject as if from `injs`.
+				else if (!gfx_sems_catch_(
 					context, cmd, 1, &dep->inj, injection))
 				{
 					return 0;
@@ -999,7 +999,7 @@ static bool gfx_frame_record_(VkCommandBuffer cmd,
 				(GFXPass*)((GFXRenderPass_*)subpass)->out.next : NULL)
 		{
 			// Inject from both `injs` and `deps`.
-			if (!gfx_deps_prepare_(
+			if (!gfx_sems_prepare_(
 				context, cmd, 0,
 				subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
 				injection))
@@ -1010,9 +1010,9 @@ static bool gfx_frame_record_(VkCommandBuffer cmd,
 			for (size_t d = 0; d < subpass->deps.size; ++d)
 			{
 				GFXDepend_* dep = gfx_vec_at(&subpass->deps, d);
-				if (dep->inj.dep == NULL) continue; // Avoid a warning!
+				if (dep->inj.sem == NULL) continue; // Avoid a warning!
 
-				if (!gfx_deps_prepare_(
+				if (!gfx_sems_prepare_(
 					context, cmd, 0, 1, &dep->inj, injection))
 				{
 					return 0;
@@ -1054,23 +1054,23 @@ static void gfx_frame_finalize_(GFXRenderer* renderer, bool success,
 			// Firstly, finalize or abort the dependency injection.
 			// Finish/abort injections from both `injs` and `deps`.
 			if (success)
-				gfx_deps_finish_(
+				gfx_sems_finish_(
 					subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
 					injection);
 			else
-				gfx_deps_abort_(
+				gfx_sems_abort_(
 					subpass->injs.size, gfx_vec_at(&subpass->injs, 0),
 					injection);
 
 			for (size_t d = 0; d < subpass->deps.size; ++d)
 			{
 				GFXDepend_* dep = gfx_vec_at(&subpass->deps, d);
-				if (dep->inj.dep == NULL) continue; // Avoid many free() calls!
+				if (dep->inj.sem == NULL) continue; // Avoid many free() calls!
 
 				if (success)
-					gfx_deps_finish_(1, &dep->inj, injection);
+					gfx_sems_finish_(1, &dep->inj, injection);
 				else
-					gfx_deps_abort_(1, &dep->inj, injection);
+					gfx_sems_abort_(1, &dep->inj, injection);
 			}
 
 			// Then erase all injections from `injs`.
@@ -1128,7 +1128,7 @@ bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame)
 			goto clean_graphics;
 		}
 
-		// Get all the available semaphores & metadata.
+		// Get all the available Vulkan semaphores & metadata.
 		// If there are no sync objects, make VLAs of size 1 for legality.
 		// Then we count the presentable swapchains and go off of that.
 		const size_t vlaSyncs = GFX_MAX(1, frame->syncs.size);

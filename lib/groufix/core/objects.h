@@ -765,7 +765,7 @@ typedef struct GFXImageAttach_
 	uint32_t height;
 	uint32_t depth;
 
-	// Set by dependency objects, signaled out of the renderer.
+	// Set by dependency injections, signaled out of the renderer.
 	bool signaled;
 
 
@@ -1522,9 +1522,9 @@ typedef struct GFXInjection_
 
 
 /**
- * Synchronization (metadata) object.
+ * Dependency signal (metadata) object.
  */
-typedef struct GFXSync_
+typedef struct GFXSignal_
 {
 	GFXUnpackRef_ ref;
 	GFXRange      range; // Unpacked, i.e. normalized offset & non-zero size.
@@ -1540,12 +1540,12 @@ typedef struct GFXSync_
 	// Stage in the object's lifecycle.
 	enum
 	{
-		GFX_SYNC_UNUSED_, // Only `flags` and `vk.signaled` are defined.
-		GFX_SYNC_PREPARE_,
-		GFX_SYNC_PREPARE_CATCH_, // Within the same injection.
-		GFX_SYNC_PENDING_,
-		GFX_SYNC_CATCH_,
-		GFX_SYNC_USED_
+		GFX_SIGNAL_UNUSED_, // Only `flags` and `vk.signaled` are defined.
+		GFX_SIGNAL_PREPARE_,
+		GFX_SIGNAL_PREPARE_CATCH_, // Within the same injection.
+		GFX_SIGNAL_PENDING_,
+		GFX_SIGNAL_CATCH_,
+		GFX_SIGNAL_USED_
 
 	} stage;
 
@@ -1553,9 +1553,9 @@ typedef struct GFXSync_
 	// Synchronization flags.
 	enum
 	{
-		GFX_SYNC_SEMAPHORE_  = 0x0001, // If `vk.signaled` is used.
-		GFX_SYNC_BARRIER_    = 0x0002, // Set to inject barrier on catch.
-		GFX_SYNC_MEM_HAZARD_ = 0x0004  // Memory barrier required if set.
+		GFX_SIGNAL_SEMAPHORE_  = 0x0001, // If `vk.signaled` is used.
+		GFX_SIGNAL_BARRIER_    = 0x0002, // Set to inject barrier on catch.
+		GFX_SIGNAL_MEM_HAZARD_ = 0x0004  // Memory barrier required if set.
 
 	} flags;
 
@@ -1586,21 +1586,21 @@ typedef struct GFXSync_
 
 	} vk;
 
-} GFXSync_;
+} GFXSignal_;
 
 
 /**
- * Internal dependency object.
+ * Internal semaphore.
  */
-struct GFXDependency
+struct GFXSemaphore
 {
 	GFXDevice_*  device;
 	GFXContext_* context;
 
 	unsigned int waitCapacity;
 
-	size_t    sems;  // #semaphores at the front of `syncs`.
-	GFXDeque  syncs; // Stores GFXSync_.
+	size_t    sems; // #used vk.signaled semaphores at the front of `sigs`.
+	GFXDeque  sigs; // Stores GFXSignal_.
 	GFXMutex_ lock;
 
 	// Vulkan family & queue indices.
@@ -1634,19 +1634,19 @@ static inline void gfx_injection_(GFXInjection_* injection)
 
 /**
  * Flushes all stored barriers injected by gfx_injection_push_.
- * Automatically flushed by a successful call to gfx_deps_(catch|prepare)_.
+ * Automatically flushed by a successful call to gfx_sems_(catch|prepare)_.
  * @param context   Cannot be NULL.
  * @param cmd       To record all barriers to, cannot be VK_NULL_HANDLE.
  * @param injection Barrier metadata to flush, cannot be NULL.
  *
- * Must be called before gfx_deps_(abort|finish)_!
+ * Must be called before gfx_sems_(abort|finish)_!
  */
 void gfx_injection_flush_(GFXContext_* context, VkCommandBuffer cmd,
                           GFXInjection_* injection);
 
 /**
  * Pushes an execution/memory barrier for the next gfx_injection_flush_.
- * Should be used internally to inject barriers without using dependency objects.
+ * Should be used internally to inject barriers without using GFXSemaphores.
  * @param injection Barrier metadata to append to, cannot be NULL.
  * @return Zero on failure.
  *
@@ -1661,76 +1661,76 @@ bool gfx_injection_push_(VkPipelineStageFlags srcStage,
 
 /**
  * Completes dependency injections by catching pending signal commands.
- * Only operates on commands that reference a dependency object.
+ * Only operates on commands that reference a GFXSemaphore.
  * @param context   Cannot be NULL.
  * @param cmd       To record some initial barriers to, cannot be VK_NULL_HANDLE.
  * @param numInjs   Number of given injection commands.
  * @param injs      Given injection commands.
  * @param injection Input & output injection metadata, cannot be NULL.
- * @param Zero on failure, must call gfx_deps_abort_.
+ * @param Zero on failure, must call gfx_sems_abort_.
  *
- * Thread-safe with respect to all dependency objects!
+ * Thread-safe with respect to all GFXSemaphores!
  *
  * Can be called any number of times using the same injection metadata pointer.
- * However, after the first call to `gfx_deps_abort_` or `gfx_deps_finish_`,
- * neither `gfx_deps_catch_` nor `gfx_deps_prepare_` can be called anymore.
+ * However, after the first call to `gfx_sems_abort_` or `gfx_sems_finish_`,
+ * neither `gfx_sems_catch_` nor `gfx_sems_prepare_` can be called anymore.
  *
- * Every injection command passed to gfx_deps_(catch|prepare)_ must
- * subsequently be passed to a call to gfx_deps_abort_ or gfx_deps_finish_.
+ * Every injection command passed to gfx_sems_(catch|prepare)_ must
+ * subsequently be passed to a call to gfx_sems_abort_ or gfx_sems_finish_.
  * These subsequent calls MUST take the same injection metadata pointer.
  *
  * Inbetween calls injection->inp may be altered.
  * In fact, they must be altered if operation references were given.
  *
- * Right before the first call to gfx_deps_(abort|finish)_,
+ * Right before the first call to gfx_sems_(abort|finish)_,
  * all output arrays in injection may be externally realloc'd,
  * they will be properly freed when aborted or finished.
  */
-bool gfx_deps_catch_(GFXContext_* context, VkCommandBuffer cmd,
+bool gfx_sems_catch_(GFXContext_* context, VkCommandBuffer cmd,
                      size_t numInjs, const GFXInject* injs,
                      GFXInjection_* injection);
 
 /**
  * Starts dependency injections by preparing new signal commands.
- * Only operates on commands that reference a dependency object.
+ * Only operates on commands that reference a GFXSemaphore.
  * @param blocking Non-zero to indicate the operation is blocking.
- * @see gfx_deps_catch_.
+ * @see gfx_sems_catch_.
  *
- * Thread-safe with respect to all dependency objects!
+ * Thread-safe with respect to all GFXSemaphores!
  *
  * All commands are _always_ already visible to subsequent calls to
- * gfx_deps_catch_ taking the same injection metadata pointer.
+ * gfx_sems_catch_ taking the same injection metadata pointer.
  */
-bool gfx_deps_prepare_(GFXContext_* context, VkCommandBuffer cmd,
+bool gfx_sems_prepare_(GFXContext_* context, VkCommandBuffer cmd,
                        bool blocking,
                        size_t numInjs, const GFXInject* injs,
                        GFXInjection_* injection);
 
 /**
  * Aborts a dependency injection, cleaning all metadata.
- * @see gfx_deps_catch_.
+ * @see gfx_sems_catch_.
  *
- * Thread-safe with respect to all dependency objects!
+ * Thread-safe with respect to all GFXSemaphores!
  * The content of injection is invalidated after this call.
  *
  * Each injection metadata object must be called at least once with
- * either gfx_deps_abort_ OR gfx_deps_catch_ for ALL injection commands.
+ * either gfx_sems_abort_ OR gfx_sems_catch_ for ALL injection commands.
  * If no injection commands were given, one of these functions must still
  * be called with numInjs == 0!
  * NEVER can both calls be used for the same injection metadata pointer!
  */
-void gfx_deps_abort_(size_t numInjs, const GFXInject* injs,
+void gfx_sems_abort_(size_t numInjs, const GFXInject* injs,
                      GFXInjection_* injection);
 
 /**
  * Finalizes a dependency injection, all signal commands are made visible for
  * future wait commands and all wait commands are finalized and cleaned up.
- * @see gfx_deps_catch_.
+ * @see gfx_sems_catch_.
  *
- * Thread-safe with respect to all dependency objects!
+ * Thread-safe with respect to all GFXSemaphores!
  * The content of injection is invalidated after this call.
  */
-void gfx_deps_finish_(size_t numInjs, const GFXInject* injs,
+void gfx_sems_finish_(size_t numInjs, const GFXInject* injs,
                       GFXInjection_* injection);
 
 

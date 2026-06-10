@@ -117,7 +117,7 @@ TEST_DESCRIBE(compute, t)
 
 	// Render a single 'frame'.
 	gfx_pass_inject(pass, 1, (GFXInject[]){
-		gfx_dep_sigrf(t->dep,
+		gfx_sem_sigrf(t->sem,
 			GFX_ACCESS_STORAGE_READ_WRITE | GFX_ACCESS_COMPUTE_ASYNC,
 			GFX_STAGE_COMPUTE,
 			GFX_ACCESS_HOST_READ,

@@ -300,7 +300,7 @@ typedef struct GFXGltfOptions
 /**
  * Parses a glTF 2.0 stream into groufix objects.
  * @param heap    Heap to allocate resources from, cannot be NULL.
- * @param dep     Dependency to inject signal commands in, cannot be NULL.
+ * @param sem     Semaphore to inject signal commands in, cannot be NULL.
  * @param options Optional parsing options.
  * @param flags   Flags to influence the format for any allocated image.
  * @param usage   Image usage to use for any images.
@@ -309,7 +309,7 @@ typedef struct GFXGltfOptions
  * @param result  Cannot be NULL, output parsing results.
  * @return Non-zero on success.
  */
-GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXDependency* dep,
+GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXSemaphore* sem,
                            const GFXGltfOptions* options,
                            GFXImageFlags flags, GFXImageUsage usage,
                            const GFXReader* src,

@@ -577,9 +577,9 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 			depend.inj = injs[i];
 			depend.inj.ref = gfx_ref_resolve_(depend.inj.ref);
 
-			if (depend.inj.dep == NULL)
+			if (depend.inj.sem == NULL)
 			{
-				// No dependency object, do checks here!
+				// No semaphore, do checks here!
 				// Check the context the resource was built on.
 				GFXUnpackRef_ unp = gfx_ref_unpack_(depend.inj.ref);
 
@@ -618,23 +618,22 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 				{
 					gfx_log_warn(
 						"Dependency signal command ignored, must signal "
-						"a dependency object when injecting between an "
-						"asynchronous compute pass and a "
-						"non-asynchronous pass.");
+						"a semaphore when injecting between an asynchronous "
+						"compute pass and a non-asynchronous pass.");
 
 					continue;
 				}
 
-				// If no dependency object, we just inject a barrier
+				// If no semaphore, we just inject a barrier
 				// at the catch operation, i.e. at target.
 				if (!gfx_vec_push(&wait->deps, 1, &depend))
 					goto clean;
 			}
 			else
 			{
-				// If we do use a dependency object, insert at source.
+				// If we do use a semaphore, insert at source.
 				// Unless it's a wait command.
-				// Note we do not do any checking, this is done in dep.c!
+				// Note we do not do any checking, this is done in sem.c!
 				if (
 					!GFX_INJ_IS_WAIT_(depend.inj) &&
 					!gfx_vec_push(&pass->deps, 1, &depend))
@@ -642,15 +641,15 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 					goto clean;
 				}
 
-				// Plus insert a single wait command per dependency object
-				// at target. So try to find this dependency object.
+				// Plus insert a single wait command per semaphore
+				// at target. So try to find this semaphore.
 				size_t w = 0;
 				for (; w < wait->deps.size; ++w)
 				{
 					GFXDepend_* wDepend = gfx_vec_at(&wait->deps, w);
 					if (
 						GFX_INJ_IS_WAIT_(wDepend->inj) &&
-						wDepend->inj.dep == depend.inj.dep)
+						wDepend->inj.sem == depend.inj.sem)
 					{
 						break;
 					}
@@ -659,7 +658,7 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
 				// If not found, insert new wait command.
 				if (w >= wait->deps.size)
 				{
-					depend.inj = gfx_dep_wait(depend.inj.dep);
+					depend.inj = gfx_sem_wait(depend.inj.sem);
 
 					if (!gfx_vec_push(&wait->deps, 1, &depend))
 						goto clean;

@@ -288,7 +288,7 @@ GFX_API GFXDevice* gfx_heap_get_device(GFXHeap* heap);
  *
  * Thread-safe with respect to heap!
  *
- * All dependency objects given by any memory resource operation are referenced
+ * All semaphores given by any memory resource operation are referenced
  * until the heap is flushed. Normally, all signal commands only become visible
  * to subsequent wait commands after the signaling heap is flushed.
  *

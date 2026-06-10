@@ -769,9 +769,8 @@ GFX_API void gfx_frame_submit(GFXFrame* frame);
  * NOT thread-safe with respect to pass!
  * Cannot be called during gfx_frame_submit!
  *
- * All dependency objects are referenced until the first call to
- * gfx_frame_submit during which the pass is unculled (ergo used in the frame)
- * has returned.
+ * All semaphores are referenced until the first call to gfx_frame_submit
+ * during which the pass is unculled (ergo used in the frame) has returned.
  *
  * All signal commands are made visible to wait commands injected in passes
  * later in submission order. They are made visible to wait commands submitted
@@ -799,16 +798,16 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
  *
  * This is the only call that takes the gfx_sig* macro family as injections!
  * To inject between two render passes, use the gfx_sig* macro family.
- * All dependency objects are referenced until gfx_renderer_undepend is called.
+ * All semaphores are referenced until gfx_renderer_undepend is called.
  *
  * Any signal command is implicitly waited upon by the wait pass.
  * Meaning there is no need to inject a matching wait command anywhere.
  *
- * For each dependency object that is implicitly being waited upon by a pass,
+ * For each semaphore that is implicitly being waited upon by a pass,
  * only a single wait command will be injected in that pass,
  * even if gfx_pass_depend is called multiple times.
  *
- * It is undefined behaviour to use this call to inject a dependency object
+ * It is undefined behaviour to use this call to inject a semaphore
  * between two render passes in the same frame.
  */
 GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
@@ -1024,7 +1023,7 @@ GFX_API void gfx_pass_uncull(GFXPass* pass);
  * Only has effect if called on a render or _inline_ compute pass.
  * Will fail if called on _async_ compute passes.
  *
- * This call should be used to specify 'dependencies' between
+ * This call should be used to specify dependencies between
  * passes that use the same attachments.
  * Never use gfx_pass_depend for this (except if it is an async compute pass)!
  *

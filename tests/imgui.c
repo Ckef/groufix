@@ -50,7 +50,7 @@ TEST_DESCRIBE(imgui, t)
 	if (!gfx_imgui_init(&drawer, t->renderer, t->pass, NULL))
 		goto clean_input;
 
-	if (!gfx_imgui_font(&drawer, t->dep, io->Fonts))
+	if (!gfx_imgui_font(&drawer, t->sem, io->Fonts))
 		goto clean_drawer;
 
 	// Flush all memory writes.

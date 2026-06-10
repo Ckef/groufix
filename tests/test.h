@@ -174,12 +174,12 @@
 typedef struct TestBase
 {
 	// Base stuff.
-	GFXDevice*     device;
-	GFXWindow*     window;
-	GFXHeap*       heap;
-	GFXDependency* dep;
-	GFXRenderer*   renderer; // Window is attached at index 0.
-	GFXRecorder*   recorder;
+	GFXDevice*    device;
+	GFXWindow*    window;
+	GFXHeap*      heap;
+	GFXSemaphore* sem;
+	GFXRenderer*  renderer; // Window is attached at index 0.
+	GFXRecorder*  recorder;
 
 	// Render graph stuff.
 	GFXPass* pass;
@@ -225,7 +225,7 @@ static TestBase test_base_ =
 	.device = NULL,
 	.window = NULL,
 	.heap = NULL,
-	.dep = NULL,
+	.sem = NULL,
 	.renderer = NULL,
 	.recorder = NULL,
 	.pass = NULL,
@@ -290,7 +290,7 @@ static void test_clear_(void)
 	gfx_destroy_shader(test_base_.vertex);
 	gfx_destroy_shader(test_base_.fragment);
 	gfx_destroy_heap(test_base_.heap);
-	gfx_destroy_dep(test_base_.dep);
+	gfx_destroy_sem(test_base_.sem);
 	gfx_destroy_window(test_base_.window);
 	gfx_terminate();
 
@@ -406,13 +406,13 @@ static void test_init_(TestState* test_state_)
 	if (!gfx_init())
 		TEST_FAIL();
 
-	// Create a heap & dependency.
+	// Create a heap & semaphore.
 	test_base_.heap = gfx_create_heap(test_base_.device);
 	if (test_base_.heap == NULL)
 		TEST_FAIL();
 
-	test_base_.dep = gfx_create_dep(test_base_.device, TEST_NUM_FRAMES);
-	if (test_base_.dep == NULL)
+	test_base_.sem = gfx_create_sem(test_base_.device, TEST_NUM_FRAMES);
+	if (test_base_.sem == NULL)
 		TEST_FAIL();
 
 	// Create a renderer.
@@ -463,7 +463,7 @@ static void test_init_(TestState* test_state_)
 
 	// Preemptively inject a general wait dependency.
 	gfx_pass_inject(test_base_.pass,
-		1, (GFXInject[]){ gfx_dep_wait(test_base_.dep) });
+		1, (GFXInject[]){ gfx_sem_wait(test_base_.sem) });
 
 #if !defined (TEST_SKIP_CREATE_SCENE)
 	// Allocate a primitive.
@@ -513,7 +513,7 @@ static void test_init_(TestState* test_state_)
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(vertexData) }},
 		(GFXRegion[]){{ .offset = 0, .size = 0 }},
 		(GFXInject[]){
-			gfx_dep_sig(test_base_.dep,
+			gfx_sem_sig(test_base_.sem,
 				GFX_ACCESS_VERTEX_READ, GFX_STAGE_ANY)
 		}))
 	{
@@ -524,7 +524,7 @@ static void test_init_(TestState* test_state_)
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(indexData) }},
 		(GFXRegion[]){{ .offset = 0, .size = 0 }},
 		(GFXInject[]){
-			gfx_dep_sig(test_base_.dep,
+			gfx_sem_sig(test_base_.sem,
 				GFX_ACCESS_INDEX_READ, GFX_STAGE_ANY)
 		}))
 	{
@@ -581,7 +581,7 @@ static void test_init_(TestState* test_state_)
 		(GFXRegion[]){{ .offset = 0, .size = sizeof(uboData) }},
 		(GFXRegion[]){{ .offset = 0, .size = 0 }},
 		(GFXInject[]){
-			gfx_dep_sig(test_base_.dep,
+			gfx_sem_sig(test_base_.sem,
 				GFX_ACCESS_UNIFORM_READ, GFX_STAGE_VERTEX)
 		}))
 	{
@@ -601,7 +601,7 @@ static void test_init_(TestState* test_state_)
 			.width = 4,  .height = 4, .depth = 1
 		}},
 		(GFXInject[]){
-			gfx_dep_sig(test_base_.dep,
+			gfx_sem_sig(test_base_.sem,
 				GFX_ACCESS_SAMPLED_READ, GFX_STAGE_FRAGMENT)
 		}))
 	{

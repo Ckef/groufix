@@ -94,9 +94,9 @@ When an exception is made to any of the listed rules, this will always be noted 
 
 - __Resource operations__ : To facilitate concurrent modification of memory resources, operations performed on _different_ resources are thread-safe with respect to the `GFXHeap` that allocated them.
 
-- __Dependency objects__ : To facilitate concurrent synchronization of resources, the `gfx_dep_*` macro family is thread-safe with respect to the `GFXDependency`.
+- __Semaphores__ : To facilitate concurrent synchronization of resources, the `gfx_sem_*` macro family is thread-safe with respect to the `GFXSemaphore`.
 
-- __Techniques and sets__ : To facilitate concurrent creation and modification of resources, the `gfx_*tech*` and `gfx_*set*` function families are thread-safe with respect to the `GFXRenderer`.
+- __Techniques and Sets__ : To facilitate concurrent creation and modification of resources, the `gfx_*tech*` and `gfx_*set*` function families are thread-safe with respect to the `GFXRenderer`.
 
     * _Except for modification during recording_, i.e. from the moment either `gfx_renderer_start` or `gfx_frame_start` is called up until the subsequent call to `gfx_frame_submit` returns.
 

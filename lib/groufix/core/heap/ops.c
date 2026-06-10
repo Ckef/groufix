@@ -422,7 +422,7 @@ static void gfx_pop_transfer_(GFXHeap* heap, GFXTransferPool_* pool)
 
 	// And abort all injections made into it.
 	if (pool->injection != NULL)
-		gfx_deps_abort_(
+		gfx_sems_abort_(
 			pool->injs.size, gfx_vec_at(&pool->injs, 0),
 			pool->injection);
 
@@ -491,7 +491,7 @@ bool gfx_flush_transfer_(GFXHeap* heap, GFXTransferPool_* pool)
 	// Make all commands visible for future operations.
 	// This must be last so visibility happens exactly on return!
 	if (injection != NULL)
-		gfx_deps_finish_(
+		gfx_sems_finish_(
 			pool->injs.size, gfx_vec_at(&pool->injs, 0),
 			injection);
 
@@ -691,7 +691,7 @@ static int gfx_copy_device_(GFXHeap* heap, GFXTransferFlags flags,
 		goto clean;
 
 	// Inject wait commands.
-	if (!gfx_deps_catch_(
+	if (!gfx_sems_catch_(
 		context, transfer->vk.cmd, numInjs, injs, pool->injection))
 	{
 		goto clean;
@@ -918,7 +918,7 @@ static int gfx_copy_device_(GFXHeap* heap, GFXTransferFlags flags,
 	}
 
 	// Inject signal commands.
-	if (!gfx_deps_prepare_(
+	if (!gfx_sems_prepare_(
 		context, transfer->vk.cmd,
 		flags & GFX_TRANSFER_BLOCK, numInjs, injs, pool->injection))
 	{

@@ -63,12 +63,12 @@ static GFXFormat gfx_stb_image_fmt_(bool ishdr, bool is16, int comps)
 }
 
 /****************************/
-GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
+GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXSemaphore* sem,
                                  GFXImageFlags flags, GFXImageUsage usage,
                                  const GFXReader* src)
 {
 	assert(heap != NULL);
-	assert(dep != NULL);
+	assert(sem != NULL);
 	assert(src != NULL);
 
 	// Read source.
@@ -227,7 +227,7 @@ GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXDependency* dep,
 			GFX_ACCESS_STORAGE_READ_WRITE : 0);
 
 	const GFXInject inject =
-		gfx_dep_sig(dep, mask, GFX_STAGE_ANY);
+		gfx_sem_sig(sem, mask, GFX_STAGE_ANY);
 
 	if (!gfx_write(img, gfx_ref_image(image),
 		GFX_TRANSFER_ASYNC,

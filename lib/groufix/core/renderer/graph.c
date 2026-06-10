@@ -506,8 +506,8 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 					source->out.master == target->out.master)) &&
 
 				// Do not make it a subpass dependency if we're dealing
-				// with a dependency object.
-				dep->inj.dep == NULL;
+				// with a semaphore.
+				dep->inj.sem == NULL;
 
 			// Whether or not we are dealing with a layout transition.
 			dep->out.transition =
