@@ -90,11 +90,11 @@ When an exception is made to any of the listed rules, this will always be noted 
 
 - __Devices__ : Any function that takes a `GFXDevice` is thread-safe with respect to that given device.
 
+- __Semaphores__ : To facilitate concurrent synchronization of resources, the `gfx_sem_*` macro family is thread-safe with respect to the `GFXSemaphore`.
+
 - __Heap allocations__ : To facilitate concurrent creation of resources, all `gfx_alloc_*` and `gfx_free_*` functions are thread-safe with respect to the `GFXHeap`.
 
 - __Resource operations__ : To facilitate concurrent modification of memory resources, operations performed on _different_ resources are thread-safe with respect to the `GFXHeap` that allocated them.
-
-- __Semaphores__ : To facilitate concurrent synchronization of resources, the `gfx_sem_*` macro family is thread-safe with respect to the `GFXSemaphore`.
 
 - __Techniques and Sets__ : To facilitate concurrent creation and modification of resources, the `gfx_*tech*` and `gfx_*set*` function families are thread-safe with respect to the `GFXRenderer`.
 
@@ -103,4 +103,3 @@ When an exception is made to any of the listed rules, this will always be noted 
 - __Recorders__ : To facilitate concurrent initialization of threads and subsequent threaded recording, the `gfx_*recorder*` function family is thread-safe with respect to the `GFXRenderer`.
 
     * _Except for creation and modification during recording_, much like modification of techniques and sets.
-
