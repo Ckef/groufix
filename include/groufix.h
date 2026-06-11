@@ -10,7 +10,6 @@
 #ifndef GROUFIX_H
 #define GROUFIX_H
 
-#include "groufix/core/deps.h"
 #include "groufix/core/device.h"
 #include "groufix/core/env.h"
 #include "groufix/core/formats.h"
@@ -20,6 +19,7 @@
 #include "groufix/core/log.h"
 #include "groufix/core/refs.h"
 #include "groufix/core/renderer.h"
+#include "groufix/core/sem.h"
 #include "groufix/core/shader.h"
 #include "groufix/core/window.h"
 #include "groufix/def.h"

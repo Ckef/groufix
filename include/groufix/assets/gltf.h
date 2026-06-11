@@ -12,9 +12,9 @@
 
 #include "groufix/assets/image.h"
 #include "groufix/containers/io.h"
-#include "groufix/core/deps.h"
 #include "groufix/core/heap.h"
 #include "groufix/core/renderer.h"
+#include "groufix/core/sem.h"
 #include "groufix/def.h"
 
 

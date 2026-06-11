@@ -7,13 +7,31 @@
  */
 
 
-#ifndef GFX_CORE_DEPS_H
-#define GFX_CORE_DEPS_H
+#ifndef GFX_CORE_SEM_H
+#define GFX_CORE_SEM_H
 
 #include "groufix/core/device.h"
 #include "groufix/core/refs.h"
 #include "groufix/core/shader.h"
 #include "groufix/def.h"
+
+
+/**
+ * Access read/write checkers.
+ */
+#define GFX_ACCESS_READS(mask) \
+	((mask) & \
+		(GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ | \
+		GFX_ACCESS_UNIFORM_READ | GFX_ACCESS_INDIRECT_READ | \
+		GFX_ACCESS_SAMPLED_READ | GFX_ACCESS_STORAGE_READ | \
+		GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_ATTACHMENT_READ | \
+		GFX_ACCESS_TRANSFER_READ | GFX_ACCESS_HOST_READ))
+
+#define GFX_ACCESS_WRITES(mask) \
+	((mask) & \
+		(GFX_ACCESS_STORAGE_WRITE | \
+		GFX_ACCESS_ATTACHMENT_WRITE | GFX_ACCESS_ATTACHMENT_RESOLVE | \
+		GFX_ACCESS_TRANSFER_WRITE | GFX_ACCESS_HOST_WRITE))
 
 
 /**
@@ -57,26 +75,7 @@ GFX_BIT_FIELD(GFXAccessMask)
 
 
 /**
- * Access read/write checkers.
- */
-#define GFX_ACCESS_READS(mask) \
-	((mask) & \
-		(GFX_ACCESS_VERTEX_READ | GFX_ACCESS_INDEX_READ | \
-		GFX_ACCESS_UNIFORM_READ | GFX_ACCESS_INDIRECT_READ | \
-		GFX_ACCESS_SAMPLED_READ | GFX_ACCESS_STORAGE_READ | \
-		GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_ATTACHMENT_READ | \
-		GFX_ACCESS_TRANSFER_READ | GFX_ACCESS_HOST_READ))
-
-#define GFX_ACCESS_WRITES(mask) \
-	((mask) & \
-		(GFX_ACCESS_STORAGE_WRITE | \
-		GFX_ACCESS_ATTACHMENT_WRITE | GFX_ACCESS_ATTACHMENT_RESOLVE | \
-		GFX_ACCESS_TRANSFER_WRITE | GFX_ACCESS_HOST_WRITE))
-
-
-/**
  * Semaphore definition.
- * Stores transition & synchronization metadata.
  */
 typedef struct GFXSemaphore GFXSemaphore;
 
@@ -120,7 +119,7 @@ GFX_API GFXDevice* gfx_sem_get_device(GFXSemaphore* sem);
 
 
 /****************************
- * Dependency (transition/synchronization) injection.
+ * Dependency injection.
  ****************************/
 
 /**

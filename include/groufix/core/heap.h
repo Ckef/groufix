@@ -10,10 +10,10 @@
 #ifndef GFX_CORE_HEAP_H
 #define GFX_CORE_HEAP_H
 
-#include "groufix/core/deps.h"
 #include "groufix/core/device.h"
 #include "groufix/core/formats.h"
 #include "groufix/core/refs.h"
+#include "groufix/core/sem.h"
 #include "groufix/def.h"
 
 
