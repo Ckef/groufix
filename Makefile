@@ -100,14 +100,23 @@ endif
 WFLAGS = -Wall -Wconversion -Wsign-compare -Wshadow -pedantic
 CFLAGS = $(DFLAGS) $(WFLAGS) -std=c11 -Iinclude
 OFLAGS = $(CFLAGS) -c -MP -MMD
-TFLAGS = $(CFLAGS) -pthread -lm
 
 ifneq ($(OS),Windows_NT)
  OFLAGS += -fPIC
 endif
 
 
-# Flags for library files only
+# Test program flags
+TEST_FLAGS = \
+ $(CFLAGS) -pthread -lm -Itests -Ideps/cimgui
+
+
+# grouviz object flags
+VIZ_FLAGS = \
+ $(OFLAGS) -Iviz
+
+
+# Library object flags
 LIB_FLAGS = \
  $(OFLAGS) -DGFX_BUILD_LIB -Ilib \
  -Ideps/glfw/include \
@@ -344,11 +353,11 @@ $(BUILD)$(SUB)/cimgui/cimgui.a:
 # Object files
 $(TEMP)$(SUB)/lib/%.o: lib/%.c
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
-	$(CC) $(LIB_FLAGS) $< -o $@
+	$(CC) $< -o $@ $(LIB_FLAGS)
 
 $(TEMP)$(SUB)/viz/%.o: viz/%.c
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
-	$(CC) $(OFLAGS) -Iviz $< -o $@
+	$(CC) $< -o $@ $(VIZ_FLAGS)
 
 # Library file
 $(BIN)$(SUB)/libgroufix$(LIBEXT): $(DEPS) $(DEPS_EXPORT) $(LIB_OBJS)
@@ -360,7 +369,7 @@ $(BIN)$(SUB)/grouviz$(BINEXT): $(VIZ_OBJS) $(BIN)$(SUB)/libgroufix$(LIBEXT)
 	$(CC) $(VIZ_OBJS) -o $@ $(CFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 $(BIN)$(SUB)/%$(BINEXT): tests/%.c tests/test.h $(BIN)$(SUB)/libgroufix$(LIBEXT)
-	$(CC) -Itests -Ideps/cimgui $< -o $@ $(TFLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
+	$(CC) $< -o $@ $(TEST_FLAGS) -L$(BIN)$(SUB) -Wl,-rpath,'$$ORIGIN' -lgroufix
 
 
 # Platform builds
