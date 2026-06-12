@@ -560,7 +560,7 @@ typedef enum GFXFilter
  * @return Non-zero on success.
  *
  * All memory operations are thread-safe with respect to any associated heap,
- * which means operations can run in parallel as long as they operate on
+ * which means operations can run concurrently as long as they operate on
  * different resources (or non-overlapping regions thereof)!
  *
  * If GFX_TRANSFER_FLUSH is not passed, the operation is recorded but not yet
