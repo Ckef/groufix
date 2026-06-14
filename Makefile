@@ -148,7 +148,18 @@ ifeq ($(MACOS),ON)
   -framework CoreFoundation \
   -framework CoreGraphics \
   -framework Cocoa \
-  -framework IOKit
+  -framework IOKit \
+  -framework QuartzCore
+endif
+
+
+# Linker flags to start/end whole-archive sections
+ifeq ($(MACOS),ON)
+ WHOLE_ARCHIVE_BEGIN = -Wl,-all_load
+ WHOLE_ARCHIVE_END   =
+else
+ WHOLE_ARCHIVE_BEGIN = -Wl,--push-state,--whole-archive
+ WHOLE_ARCHIVE_END   = -Wl,--pop-state
 endif
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
@@ -167,10 +178,14 @@ GLFW_FLAGS_ALL = \
  -DGLFW_BUILD_TESTS=OFF \
  -DGLFW_BUILD_DOCS=OFF
 
+ifeq ($(MACOS),ON)
+ GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_COCOA=ON
+else
 ifeq ($(USE_WAYLAND),ON)
  GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_X11=OFF -DGLFW_BUILD_WAYLAND=ON
 else
  GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_X11=ON -DGLFW_BUILD_WAYLAND=OFF
+endif
 endif
 
 SHADERC_FLAGS_ALL = \
@@ -362,7 +377,7 @@ $(TEMP)$(SUB)/viz/%.o: viz/%.c
 # Library file
 $(BIN)$(SUB)/libgroufix$(LIBEXT): $(DEPS) $(DEPS_EXPORT) $(LIB_OBJS)
 	@$(MAKE) $(MFLAGS_ALL) MAKEDIR=$(@D) .makedir
-	$(CXX) $(LIB_OBJS) -o $@ $(DEPS) -Wl,--push-state,--whole-archive $(DEPS_EXPORT) -Wl,--pop-state $(LIB_LDFLAGS)
+	$(CXX) $(LIB_OBJS) -o $@ $(DEPS) $(WHOLE_ARCHIVE_BEGIN) $(DEPS_EXPORT) $(WHOLE_ARCHIVE_END) $(LIB_LDFLAGS)
 
 # Program files
 $(BIN)$(SUB)/grouviz$(BINEXT): $(VIZ_OBJS) $(BIN)$(SUB)/libgroufix$(LIBEXT)
