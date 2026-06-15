@@ -84,6 +84,16 @@ else
 endif
 
 
+# Linker flags to start/end whole-archive sections
+ifeq ($(MACOS),ON)
+ WHOLE_ARCHIVE_BEGIN = -Wl,-all_load
+ WHOLE_ARCHIVE_END   =
+else
+ WHOLE_ARCHIVE_BEGIN = -Wl,--push-state,--whole-archive
+ WHOLE_ARCHIVE_END   = -Wl,--pop-state
+endif
+
+
 # Flags for all binaries
 ifeq ($(DEBUG),ON)
  DFLAGS = -g -Og
@@ -152,16 +162,6 @@ ifeq ($(MACOS),ON)
   -framework QuartzCore
 endif
 
-
-# Linker flags to start/end whole-archive sections
-ifeq ($(MACOS),ON)
- WHOLE_ARCHIVE_BEGIN = -Wl,-all_load
- WHOLE_ARCHIVE_END   =
-else
- WHOLE_ARCHIVE_BEGIN = -Wl,--push-state,--whole-archive
- WHOLE_ARCHIVE_END   = -Wl,--pop-state
-endif
-
 ifneq ($(CC_PREFIX),None) # Cross-compile
  LIB_LDFLAGS = $(LIB_LDFLAGS_WIN)
 else ifeq ($(OS),Windows_NT)
@@ -178,14 +178,16 @@ GLFW_FLAGS_ALL = \
  -DGLFW_BUILD_TESTS=OFF \
  -DGLFW_BUILD_DOCS=OFF
 
+GLFW_FLAGS_WIN = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_WIN32=ON
+
 ifeq ($(MACOS),ON)
  GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_COCOA=ON
 else
-ifeq ($(USE_WAYLAND),ON)
- GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_X11=OFF -DGLFW_BUILD_WAYLAND=ON
-else
- GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_X11=ON -DGLFW_BUILD_WAYLAND=OFF
-endif
+ ifeq ($(USE_WAYLAND),ON)
+  GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_X11=OFF -DGLFW_BUILD_WAYLAND=ON
+ else
+  GLFW_FLAGS_UNIX = $(GLFW_FLAGS_ALL) -DGLFW_BUILD_X11=ON -DGLFW_BUILD_WAYLAND=OFF
+ endif
 endif
 
 SHADERC_FLAGS_ALL = \
@@ -235,12 +237,12 @@ SHADERC_MINGW_TOOLCHAIN = \
  -Dgtest_disable_pthreads=ON
 
 ifneq ($(CC_PREFIX),None) # Cross-compile
- GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(GLFW_MINGW_TOOLCHAIN)
+ GLFW_FLAGS        = $(GLFW_FLAGS_WIN) $(GLFW_MINGW_TOOLCHAIN)
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(SHADERC_MINGW_TOOLCHAIN) -G "Unix Makefiles"
  SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_MINGW_TOOLCHAIN)
  CIMGUI_FLAGS      = $(CIMGUI_FLAGS_ALL) $(CMAKE_MINGW_TOOLCHAIN)
 else ifeq ($(OS),Windows_NT)
- GLFW_FLAGS        = $(GLFW_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
+ GLFW_FLAGS        = $(GLFW_FLAGS_WIN) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
  SHADERC_FLAGS     = $(SHADERC_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
  SPIRV_CROSS_FLAGS = $(SPIRV_CROSS_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
  CIMGUI_FLAGS      = $(CIMGUI_FLAGS_ALL) $(CMAKE_TOOLCHAIN) -G "MinGW Makefiles"
