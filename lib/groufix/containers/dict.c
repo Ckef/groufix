@@ -24,6 +24,7 @@ static_assert(
 // Small string last-byte flag values.
 #define GFX_DICT_SHORT_STRING_ 0
 #define GFX_DICT_LONG_STRING_  1
+#define GFX_DICT_POINTER_      0 // Different from LONG_STRING_ (for str_free_)!
 #define GFX_DICT_EMPTY_        2
 #define GFX_DICT_TOMBSTONE_    3
 
@@ -34,6 +35,25 @@ static_assert(
 #define GFX_DICT_IS_OCCUPIED_(flag) (flag < 2)
 
 
+// Hash function for a generic key.
+#define GFX_DICT_HASH_(dict, key) \
+	(dict->p ? \
+		(uint32_t)gfx_dict_ptr_hash_(key) : \
+		(uint32_t)gfx_dict_str_hash_(key))
+
+// Hash function for a GFXDictNode_.
+#define GFX_DICT_NODE_HASH_(dict, node) \
+	(dict->p ? \
+		(uint32_t)gfx_dict_ptr_hash_(gfx_dict_ptr_get_(node)) : \
+		(uint32_t)gfx_dict_str_hash_(gfx_dict_str_get_(node)))
+
+// Compare function for a generic key against a node.
+#define GFX_DICT_CMP_(dict, key, node) \
+	(dict->p ? \
+		key == gfx_dict_ptr_get_(node) : \
+		strcmp(key, gfx_dict_str_get_(node)) == 0)
+
+
 /****************************
  * Dictionary's node definition.
  */
@@ -41,7 +61,7 @@ typedef struct GFXDictNode_
 {
 	// Small string optimization:
 	//  short: up to 15 string bytes, followed by all 0s.
-	//  long: 8 pointer bytes, 7 padding bytes, one byte with value 1.
+	//  long/ptr: 8 pointer bytes, 7 padding bytes, one byte with value 1.
 	char str[16]; // Last byte is the flag.
 	void* value;
 
@@ -51,7 +71,7 @@ typedef struct GFXDictNode_
 /****************************
  * DJB2 hash function.
  */
-static uint32_t gfx_dict_hash_(const char* str)
+static uint32_t gfx_dict_str_hash_(const char* str)
 {
 	uint32_t hash = 5381;
 	char c;
@@ -64,7 +84,20 @@ static uint32_t gfx_dict_hash_(const char* str)
 }
 
 /****************************
- * Retrieves the string from a GFXDictNode*.
+ * 64 bits integer hashing implementation,
+ * taken from Wolfgang Brehm at https://stackoverflow.com/q/664014,
+ */
+static uint64_t gfx_dict_ptr_hash_(const void* key)
+{
+	uint64_t n = (uint64_t)(uintptr_t)key;
+	n = (n ^ (n >> 32)) * 0x5555555555555555ull; // Alternating 0s and 1s.
+	n = (n ^ (n >> 32)) * 17316035218449499591ull; // Random uneven integer.
+
+	return n;
+}
+
+/****************************
+ * Retrieves the string key from a GFXDictNode*.
  * Assumes the node is occupied.
  */
 static const char* gfx_dict_str_get_(GFXDictNode_* node)
@@ -81,8 +114,9 @@ static const char* gfx_dict_str_get_(GFXDictNode_* node)
 }
 
 /****************************
- * Frees any memory the optimized string holds.
+ * Frees any memory the optimized string may hold.
  * Leaves all values of node!
+ * Also valid to call on nodes of a pointer-key dict.
  */
 static void gfx_dict_str_free_(GFXDictNode_* node)
 {
@@ -96,10 +130,23 @@ static void gfx_dict_str_free_(GFXDictNode_* node)
 }
 
 /****************************
+ * Retrieves the pointer key from a GFXDictNode*.
+ * Assumes the node is occupied.
+ */
+static const void* gfx_dict_ptr_get_(GFXDictNode_* node)
+{
+	// Return the pointer.
+	uintptr_t ptr;
+	memcpy(&ptr, node->str, sizeof(ptr));
+
+	return (const void*)ptr;
+}
+
+/****************************
  * Searches through the dict for a key value.
  * @return First tombstone (or empty) if not found.
  */
-static GFXDictNode_* gfx_dict_search_(GFXDict* dict, const char* key)
+static GFXDictNode_* gfx_dict_search_(GFXDict* dict, const void* key)
 {
 	assert(dict->capacity > 0);
 
@@ -108,7 +155,7 @@ static GFXDictNode_* gfx_dict_search_(GFXDict* dict, const char* key)
 	GFXDictNode_* firstTombstone = NULL;
 
 	uint32_t mask = (uint32_t)dict->capacity - 1;
-	uint32_t hInd = gfx_dict_hash_(key) & mask;
+	uint32_t hInd = GFX_DICT_HASH_(dict, key) & mask;
 
 	while (1)
 	{
@@ -132,7 +179,7 @@ static GFXDictNode_* gfx_dict_search_(GFXDict* dict, const char* key)
 		}
 
 		// If occupied, compare values.
-		else if (strcmp(key, gfx_dict_str_get_(node)) == 0)
+		else if (GFX_DICT_CMP_(dict, key, node))
 		{
 			return node;
 		}
@@ -168,7 +215,7 @@ static bool gfx_dict_realloc_(GFXDict* dict, size_t capacity)
 
 		// Compute hash again to stick it in the new memory block.
 		uint32_t mask = (uint32_t)capacity - 1;
-		uint32_t hInd = gfx_dict_hash_(gfx_dict_str_get_(node)) & mask;
+		uint32_t hInd = GFX_DICT_NODE_HASH_(dict, node) & mask;
 
 		while (1)
 		{
@@ -251,13 +298,29 @@ static void gfx_dict_shrink_(GFXDict* dict)
 }
 
 /****************************/
-GFX_API void gfx_dict_init(GFXDict* dict)
+GFX_API void gfx_sdict_init(GFXDict* dict)
 {
 	assert(dict != NULL);
 
 	dict->size = 0;
 	dict->tombstones = 0;
 	dict->capacity = 0;
+
+	dict->p = 0;
+
+	dict->data = NULL;
+}
+
+/****************************/
+GFX_API void gfx_pdict_init(GFXDict* dict)
+{
+	assert(dict != NULL);
+
+	dict->size = 0;
+	dict->tombstones = 0;
+	dict->capacity = 0;
+
+	dict->p = 1;
 
 	dict->data = NULL;
 }
@@ -268,13 +331,14 @@ GFX_API void gfx_dict_clear(GFXDict* dict)
 	assert(dict != NULL);
 
 	// Free all nodes.
-	for (size_t i = 0; i < dict->capacity; ++i)
-	{
-		GFXDictNode_* node = &((GFXDictNode_*)dict->data)[i];
+	if (!dict->p)
+		for (size_t i = 0; i < dict->capacity; ++i)
+		{
+			GFXDictNode_* node = &((GFXDictNode_*)dict->data)[i];
 
-		if (GFX_DICT_IS_OCCUPIED_(GFX_DICT_FLAG_(node)))
-			gfx_dict_str_free_(node);
-	}
+			if (GFX_DICT_IS_OCCUPIED_(GFX_DICT_FLAG_(node)))
+				gfx_dict_str_free_(node);
+		}
 
 	free(dict->data);
 	dict->size = 0;
@@ -293,7 +357,7 @@ GFX_API bool gfx_dict_reserve(GFXDict* dict, size_t numNodes)
 }
 
 /****************************/
-GFX_API bool gfx_dict_set(GFXDict* dict, void* value, const char* key)
+GFX_API bool gfx_dict_set(GFXDict* dict, void* value, const void* key)
 {
 	assert(dict != NULL);
 	assert(key != NULL);
@@ -305,30 +369,42 @@ GFX_API bool gfx_dict_set(GFXDict* dict, void* value, const char* key)
 		return 1;
 	}
 
-	const size_t keyLen = strlen(key);
 	const bool empty = dict->size == 0;
 
 	// Initialize new node & create short or long string.
 	GFXDictNode_ node;
 	node.value = value;
 
-	if (keyLen < sizeof(node.str))
+	if (dict->p)
 	{
-		// Copy as small string.
-		memcpy(node.str, key, keyLen + 1);
-		GFX_DICT_FLAG_(&node) = GFX_DICT_SHORT_STRING_;
+		// Set pointer key.
+		uintptr_t ptr = (uintptr_t)key;
+		memcpy(node.str, &ptr, sizeof(ptr));
+
+		GFX_DICT_FLAG_(&node) = GFX_DICT_POINTER_;
 	}
 	else
 	{
-		// Allocate new long string.
-		char* newKey = malloc(keyLen + 1);
-		if (newKey == NULL) return 0;
+		const size_t keyLen = strlen(key);
 
-		memcpy(newKey, key, keyLen + 1);
-		uintptr_t ptr = (uintptr_t)newKey;
+		if (keyLen < sizeof(node.str))
+		{
+			// Copy as small string.
+			memcpy(node.str, key, keyLen + 1);
+			GFX_DICT_FLAG_(&node) = GFX_DICT_SHORT_STRING_;
+		}
+		else
+		{
+			// Allocate new long string.
+			char* newKey = malloc(keyLen + 1);
+			if (newKey == NULL) return 0;
 
-		memcpy(node.str, &ptr, sizeof(ptr));
-		GFX_DICT_FLAG_(&node) = GFX_DICT_LONG_STRING_;
+			memcpy(newKey, key, keyLen + 1);
+			uintptr_t ptr = (uintptr_t)newKey;
+
+			memcpy(node.str, &ptr, sizeof(ptr));
+			GFX_DICT_FLAG_(&node) = GFX_DICT_LONG_STRING_;
+		}
 	}
 
 	// If the dict is empty, check if we can grow.
@@ -373,7 +449,7 @@ GFX_API bool gfx_dict_set(GFXDict* dict, void* value, const char* key)
 }
 
 /****************************/
-GFX_API void* gfx_dict_get(GFXDict* dict, const char* key)
+GFX_API void* gfx_dict_get(GFXDict* dict, const void* key)
 {
 	assert(dict != NULL);
 	assert(key != NULL);
@@ -390,7 +466,7 @@ GFX_API void* gfx_dict_get(GFXDict* dict, const char* key)
 }
 
 /****************************/
-GFX_API void* gfx_dict_erase(GFXDict* dict, const char* key)
+GFX_API void* gfx_dict_erase(GFXDict* dict, const void* key)
 {
 	assert(dict != NULL);
 	assert(key != NULL);
@@ -469,7 +545,7 @@ GFX_API GFXDictIterator gfx_dict_next(GFXDict* dict, GFXDictIterator it)
 }
 
 /****************************/
-GFX_API void* gfx_dict_it(GFXDictIterator it, const char** key)
+GFX_API void* gfx_sdict_it(GFXDictIterator it, const char** key)
 {
 	assert(it != NULL);
 
@@ -477,5 +553,17 @@ GFX_API void* gfx_dict_it(GFXDictIterator it, const char** key)
 
 	// Assume the node is occupied.
 	if (key != NULL) *key = gfx_dict_str_get_(node);
+	return node->value;
+}
+
+/****************************/
+GFX_API void* gfx_pdict_it(GFXDictIterator it, const void** key)
+{
+	assert(it != NULL);
+
+	GFXDictNode_* node = it;
+
+	// Assume the node is occupied.
+	if (key != NULL) *key = gfx_dict_ptr_get_(node);
 	return node->value;
 }

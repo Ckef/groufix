@@ -11,7 +11,7 @@
 #define GFX_DRAWERS_IMGUI_H
 
 #include "groufix/containers/deque.h"
-#include "groufix/containers/map.h"
+#include "groufix/containers/dict.h"
 #include "groufix/containers/vec.h"
 #include "groufix/core/gamepad.h"
 #include "groufix/core/heap.h"
@@ -34,7 +34,7 @@ typedef struct GFXImguiDrawer
 	GFXTechnique* tech;
 	GFXDeque      data;   // Stores { unsigned int, GFXPrimitive*, GFXRenderable, void* }.
 	GFXVec        fonts;  // Stores GFXImage*.
-	GFXMap        images; // Stores GFXImage* : GFXSet*.
+	GFXDict       images; // Stores GFXImage* : GFXSet*.
 
 	GFXRasterState raster;
 	GFXBlendState  blend;
@@ -84,14 +84,25 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
                              GFXSemaphore* sem, void* igFontAtlas);
 
 /**
- * Builds an ImTextureID from a GFXImage*.
+ * Builds an ImTextureID from a GFXImage* (or returns the existing one).
  * @param drawer Cannot be NULL.
- * @param image  Cannot be NULL.
+ * @param image  Cannot be NULL, image remains referenced by the drawer!
  * @return A valid ImTextureID, NULL on failure.
  *
- * The returned ID is invalidated when this drawer is cleared.
+ * The returned ID is invalidated when this drawer is cleared
+ * or gfx_imgui_erase_image is called on the same image.
  */
 GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image);
+
+/**
+ * Erases the resources for an ImTextureID created from a GFXImage*.
+ * @param drawer Cannot be NULL.
+ * @param image  Image to erase resources for.
+ *
+ * Must be called first if image is to be freed!
+ * All images are automatically erased when the drawer is cleared.
+ */
+GFX_API void gfx_imgui_erase_image(GFXImguiDrawer* drawer, GFXImage* image);
 
 /**
  * Render command to draw ImGui data using a drawer.

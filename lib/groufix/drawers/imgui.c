@@ -186,30 +186,6 @@ static const uint32_t gfx_imgui_frag_spv_[] =
 
 
 /****************************
- * 64 bits integer hasing implementation as GFXMap hash function,
- * taken from Wolfgang Brehm at https://stackoverflow.com/q/664014,
- * key is of type GFXImage**.
- */
-static uint64_t gfx_imgui_hash_(const void* key)
-{
-	uint64_t n = (uint64_t)(uintptr_t)(*(const GFXImage**)key);
-	n = (n ^ (n >> 32)) * 0x5555555555555555ull; // Alternating 0s and 1s.
-	n = (n ^ (n >> 32)) * 17316035218449499591ull; // Random uneven integer.
-
-	return n;
-}
-
-/****************************
- * GFXMap key comparison function,
- * l and r are of type GFXImage**.
- */
-static int gfx_imgui_cmp_(const void* l, const void* r)
-{
-	// Non-zero = inequal.
-	return *(const GFXImage**)l != *(const GFXImage**)r;
-}
-
-/****************************
  * Converts a GFXKey to a ImGuiKey.
  */
 static ImGuiKey gfx_imgui_key_(GFXKey key)
@@ -756,7 +732,7 @@ GFX_API bool gfx_imgui_init(GFXImguiDrawer* drawer,
 
 	gfx_deque_init(&drawer->data, sizeof(GFXDataElem_));
 	gfx_vec_init(&drawer->fonts, sizeof(GFXImage*));
-	gfx_map_init(&drawer->images, sizeof(GFXSet*), gfx_imgui_hash_, gfx_imgui_cmp_);
+	gfx_pdict_init(&drawer->images);
 
 	// Create shaders.
 	GFXShader* shads[] = {
@@ -866,7 +842,7 @@ clean:
 
 	gfx_deque_clear(&drawer->data);
 	gfx_vec_clear(&drawer->fonts);
-	gfx_map_clear(&drawer->images);
+	gfx_dict_clear(&drawer->images);
 
 	gfx_log_error("Could not initialize a new ImGui drawer.");
 
@@ -880,14 +856,14 @@ GFX_API void gfx_imgui_clear(GFXImguiDrawer* drawer)
 
 	// Erase all sets for used images.
 	for (
-		GFXSet** elem = gfx_map_first(&drawer->images);
-		elem != NULL;
-		elem = gfx_map_next(&drawer->images, elem))
+		GFXDictIterator it = gfx_dict_first(&drawer->images);
+		it != NULL;
+		it = gfx_dict_next(&drawer->images, it))
 	{
-		gfx_erase_set(*elem);
+		gfx_erase_set(gfx_pdict_it(it, NULL));
 	}
 
-	gfx_map_clear(&drawer->images);
+	gfx_dict_clear(&drawer->images);
 
 	// Free all allocated font images.
 	for (size_t f = 0; f < drawer->fonts.size; ++f)
@@ -921,7 +897,6 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
 	assert(igFontAtlas != NULL);
 
 	ImFontAtlas* fontAtlas = igFontAtlas;
-	GFXSet** elem;
 
 	// Get texture data from the font atlas.
 	unsigned char* pixels;
@@ -992,13 +967,7 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
 
 	// Cleanup on failure.
 clean_image:
-	elem = gfx_map_search(&drawer->images, &image);
-	if (elem != NULL)
-	{
-		gfx_erase_set(*elem);
-		gfx_map_erase(&drawer->images, elem);
-	}
-
+	gfx_imgui_erase_image(drawer, image);
 clean_fonts:
 	gfx_vec_pop(&drawer->fonts, 1);
 clean:
@@ -1016,12 +985,9 @@ GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image)
 	assert(drawer != NULL);
 	assert(image != NULL);
 
-	const uint64_t hash = drawer->images.hash(&image);
-
 	// Check if we already know the image.
-	GFXSet** elem = gfx_map_hsearch(&drawer->images, &image, hash);
-	if (elem != NULL)
-		return *elem;
+	GFXSet* set = gfx_dict_get(&drawer->images, image);
+	if (set != NULL) return set;
 
 	// Add a new set for this image.
 	const GFXSwizzleMap swizzle =
@@ -1029,7 +995,7 @@ GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image)
 			GFX_SWIZZLE_R_ALPHA :
 			GFX_SWIZZLE_IDENTITY;
 
-	GFXSet* set = gfx_renderer_add_set(drawer->renderer,
+	set = gfx_renderer_add_set(drawer->renderer,
 		drawer->tech, 0,
 		1, 0, 1, 0,
 		(GFXSetResource[]){{
@@ -1050,13 +1016,10 @@ GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image)
 		goto error;
 
 	// And add the new set to the drawer.
-	elem = gfx_map_hinsert(
-		&drawer->images, &set, sizeof(GFXImage*), &image, hash);
-
-	if (elem == NULL)
+	if (!gfx_dict_set(&drawer->images, set, image))
 		goto clean;
 
-	return *elem;
+	return set;
 
 
 	// Cleanup on failure.
@@ -1066,6 +1029,19 @@ error:
 	gfx_log_error("Failed to build an ImTextureID for an image");
 
 	return NULL;
+}
+
+/****************************/
+GFX_API void gfx_imgui_erase_image(GFXImguiDrawer* drawer, GFXImage* image)
+{
+	assert(drawer != NULL);
+	assert(image != NULL);
+
+	// Erase it from the drawer.
+	GFXSet* set = gfx_dict_erase(&drawer->images, image);
+
+	// And erase the associated set.
+	if (set != NULL) gfx_erase_set(set);
 }
 
 /****************************
