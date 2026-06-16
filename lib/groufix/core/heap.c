@@ -1115,12 +1115,12 @@ GFX_API GFXHeap* gfx_image_get_heap(GFXImage* image)
 
 /****************************/
 GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
-                                     GFXMemoryFlags flags, GFXBufferUsage usage,
                                      GFXTopology topology,
+                                     GFXMemoryFlags flags, GFXBufferUsage usage,
                                      uint32_t numIndices, char indexSize,
-                                     uint32_t numVertices,
                                      GFXBufferRef index,
-                                     size_t numAttribs, const GFXAttribute* attribs)
+                                     uint32_t numVertices, size_t numAttribs,
+                                     const GFXAttribute* attribs)
 {
 	assert(heap != NULL);
 	assert(numVertices > 0);

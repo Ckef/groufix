@@ -1106,12 +1106,13 @@ build_new:
 
 	// Allocate primitive.
 	elem->primitive = gfx_alloc_prim(drawer->heap,
+		GFX_TOPO_TRIANGLE_LIST,
 		GFX_MEMORY_HOST_VISIBLE | GFX_MEMORY_DEVICE_LOCAL,
-		0, GFX_TOPO_TRIANGLE_LIST,
+		GFX_BUFFER_NONE,
 		indices * numFrames, sizeof(uint16_t),
-		vertices * numFrames,
 		GFX_REF_NULL,
-		3, (GFXAttribute[]){
+		vertices * numFrames, 3,
+		(GFXAttribute[]){
 			{
 				.format = GFX_FORMAT_R32G32_SFLOAT,
 				.offset = offsetof(ImDrawVert, pos),

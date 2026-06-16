@@ -1108,13 +1108,15 @@ GFX_API bool gfx_load_gltf(GFXHeap* heap, GFXSemaphore* sem,
 
 			// Allocate primitive.
 			GFXPrimitive* prim = gfx_alloc_prim(heap,
-				0, 0, GFX_GLTF_TOPOLOGY_(cprim->type),
+				GFX_GLTF_TOPOLOGY_(cprim->type),
+				GFX_MEMORY_NONE,
+				GFX_BUFFER_NONE,
 				(uint32_t)numIndices, indexSize,
-				(uint32_t)numVertices,
 				numIndices > 0 ? gfx_ref_buffer_at(
 					indexBuffer->buffer,
 					cprim->indices->buffer_view->offset) : GFX_REF_NULL,
-				numAttributes, attributes);
+				(uint32_t)numVertices, numAttributes,
+				attributes);
 
 			if (prim == NULL) goto clean;
 

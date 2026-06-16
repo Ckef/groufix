@@ -479,12 +479,13 @@ static void test_init_(TestState* test_state_)
 	};
 
 	test_base_.primitive = gfx_alloc_prim(test_base_.heap,
+		GFX_TOPO_TRIANGLE_STRIP,
 		GFX_MEMORY_WRITE,
 		GFX_BUFFER_NONE,
-		GFX_TOPO_TRIANGLE_STRIP,
-		4, sizeof(uint16_t), 4,
+		4, sizeof(uint16_t),
 		GFX_REF_NULL,
-		3, (GFXAttribute[]){
+		4, 3,
+		(GFXAttribute[]){
 			{
 				.format = GFX_FORMAT_R32G32B32_SFLOAT,
 				.offset = 0,

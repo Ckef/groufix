@@ -353,8 +353,8 @@ GFX_API GFXHeap* gfx_buffer_get_heap(GFXBuffer* buffer);
 /**
  * Allocates an image from a heap.
  * @param heap    Cannot be NULL.
- * @param flags   At least one flag must be set.
  * @param type    Must be a valid image type.
+ * @param flags   At least one flag must be set.
  * @param usage   At least one usage must be set.
  * @param format  Cannot be GFX_FORMAT_EMPTY.
  * @param mipmaps Must be > 0.
@@ -389,12 +389,13 @@ GFX_API GFXHeap* gfx_image_get_heap(GFXImage* image);
 /**
  * Allocates a primitive geometry from a heap.
  * @param heap        Cannot be NULL.
+ * @param topology    Must be a valid primitive topology.
  * @param flags       At least one flag must be set if allocating new buffers.
  * @param usage       Added usage for any newly allocated buffer.
  * @param numIndices  Number of indices to claim.
  * @param indexSize   Index size, must be 0 or sizeof(uint8_t|uint16_t|uint32_t).
- * @param numVertices Number of vertices to claim, must be > 0.
  * @param index       Index buffer to use, GFX_REF_NULL to allocate new.
+ * @param numVertices Number of vertices to claim, must be > 0.
  * @param numAttribs  Number of vertex attributes, must be > 0.
  * @param attribs     Array of numAttribs GFXAttribute structs, cannot be NULL.
  * @return NULL on failure.
@@ -402,12 +403,12 @@ GFX_API GFXHeap* gfx_image_get_heap(GFXImage* image);
  * Thread-safe with respect to heap!
  */
 GFX_API GFXPrimitive* gfx_alloc_prim(GFXHeap* heap,
-                                     GFXMemoryFlags flags, GFXBufferUsage usage,
                                      GFXTopology topology,
+                                     GFXMemoryFlags flags, GFXBufferUsage usage,
                                      uint32_t numIndices, char indexSize,
-                                     uint32_t numVertices,
                                      GFXBufferRef index,
-                                     size_t numAttribs, const GFXAttribute* attribs);
+                                     uint32_t numVertices, size_t numAttribs,
+                                     const GFXAttribute* attribs);
 
 /**
  * Frees a primitive geometry, excluding any buffers it references.
