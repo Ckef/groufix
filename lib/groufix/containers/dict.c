@@ -11,10 +11,10 @@
 #include <string.h>
 
 
-// Short string optimization compatibility.
+// Short string optimization & pointer hash compatibility.
 static_assert(
-	sizeof(uintptr_t) < 16,
-	"Unsigned integer void pointers must be smaller than 16 bytes.");
+	sizeof(uintptr_t) <= sizeof(uint64_t),
+	"Unsigned integer void pointers cannot be bigger than 8 bytes.");
 
 
 // Must be rather low for a flat hashtable .. !
@@ -360,7 +360,7 @@ GFX_API bool gfx_dict_reserve(GFXDict* dict, size_t numNodes)
 GFX_API bool gfx_dict_set(GFXDict* dict, void* value, const void* key)
 {
 	assert(dict != NULL);
-	assert(key != NULL);
+	assert(dict->p || key != NULL);
 
 	if (value == NULL)
 	{
@@ -452,7 +452,7 @@ GFX_API bool gfx_dict_set(GFXDict* dict, void* value, const void* key)
 GFX_API void* gfx_dict_get(GFXDict* dict, const void* key)
 {
 	assert(dict != NULL);
-	assert(key != NULL);
+	assert(dict->p || key != NULL);
 
 	if (dict->size == 0) return NULL;
 
@@ -469,7 +469,7 @@ GFX_API void* gfx_dict_get(GFXDict* dict, const void* key)
 GFX_API void* gfx_dict_erase(GFXDict* dict, const void* key)
 {
 	assert(dict != NULL);
-	assert(key != NULL);
+	assert(dict->p || key != NULL);
 
 	if (dict->size == 0) return NULL;
 

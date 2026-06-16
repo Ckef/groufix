@@ -68,10 +68,10 @@ GFX_API bool gfx_dict_reserve(GFXDict* dict, size_t numNodes);
  * Sets the value held by the dict at a given key.
  * @param dict  Cannot be NULL.
  * @param value Can be NULL to erase.
- * @param key   Cannot be NULL, must be a const char* if a string-key dict.
+ * @param key   May be NULL (if pointer-key dict) or an empty string.
  * @return Zero when out of memory.
  *
- * If a string-key dict, key must be NULL-terminated, may be an empty string.
+ * If a string-key dict, key must be a non-NULL, NULL-terminated const char*.
  */
 GFX_API bool gfx_dict_set(GFXDict* dict, void* value, const void* key);
 
