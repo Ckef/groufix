@@ -13,12 +13,12 @@
 
 // Fixed hash sizes.
 #define GFX_BUFFER_HASH_SIZE_ \
-	(sizeof(GFXBuffer_*) + \
+	(sizeof(void*) /* GFXBuffer_* */ + \
 	sizeof(VkDeviceSize) /* offset */ + \
 	sizeof(VkDeviceSize)) /* range */
 
 #define GFX_IMAGE_HASH_SIZE_ \
-	(sizeof(GFXImage_*) /* NULL if an attachment */ + \
+	(sizeof(void*) /* GFXImage_*, NULL if an attachment */ + \
 	sizeof(size_t) /* SIZE_MAX if not an attachment */ + \
 	sizeof(VkImageViewType) + \
 	sizeof(VkFormat) + \
@@ -34,10 +34,10 @@
 	sizeof(VkImageLayout))
 
 #define GFX_SAMPLER_HASH_SIZE_ \
-	(sizeof(GFXCacheElem_*))
+	(sizeof(void*)) /* GFXCacheElem_* */
 
 #define GFX_VIEW_HASH_SIZE_ \
-	(sizeof(GFXBuffer_*) + \
+	(sizeof(void*) /* GFXBuffer_* */ + \
 	sizeof(VkFormat) + \
 	sizeof(VkDeviceSize) /* offset */ + \
 	sizeof(VkDeviceSize)) /* range */
@@ -88,11 +88,17 @@
 	GFX_ENTRY_HASH_SIZE_(binding->type) * (size_t)(entry - binding->entries))
 
 
-// Hash writer.
+// Hash writers.
 #define GFX_WRITE_HASH_(hash, value) \
 	do { \
 		memcpy(hash, &(value), sizeof(value)); \
 		hash += sizeof(value); \
+	} while (0)
+
+#define GFX_WRITE_HASH_PTR_(hash, ptr) \
+	do { \
+		const void* value = ptr; \
+		GFX_WRITE_HASH_(hash, value); \
 	} while (0)
 
 
@@ -217,7 +223,7 @@ static void gfx_set_update_(GFXSet* set,
 			};
 
 			// Update hash.
-			GFX_WRITE_HASH_(hash, unp.obj.buffer);
+			GFX_WRITE_HASH_PTR_(hash, unp.obj.buffer);
 			GFX_WRITE_HASH_(hash, entry->vk.update.buffer.offset);
 			GFX_WRITE_HASH_(hash, entry->vk.update.buffer.range);
 		}
@@ -260,7 +266,7 @@ static void gfx_set_update_(GFXSet* set,
 			const uint8_t swizzleB = (uint8_t)ivci.components.b;
 			const uint8_t swizzleA = (uint8_t)ivci.components.a;
 
-			GFX_WRITE_HASH_(hash, unp.obj.image);
+			GFX_WRITE_HASH_PTR_(hash, unp.obj.image);
 			GFX_WRITE_HASH_(hash, noIndex);
 			GFX_WRITE_HASH_(hash, ivci.viewType);
 			GFX_WRITE_HASH_(hash, ivci.format);
@@ -295,7 +301,7 @@ static void gfx_set_update_(GFXSet* set,
 			entry->vk.update.image.sampler = sampler->vk.sampler;
 
 			// Update hash.
-			GFX_WRITE_HASH_(hash, entry->sampler);
+			GFX_WRITE_HASH_PTR_(hash, entry->sampler);
 		}
 	}
 
@@ -339,7 +345,7 @@ static void gfx_set_update_(GFXSet* set,
 			entry->vk.update.view = view;
 
 			// Update hash.
-			GFX_WRITE_HASH_(hash, unp.obj.buffer);
+			GFX_WRITE_HASH_PTR_(hash, unp.obj.buffer);
 			GFX_WRITE_HASH_(hash, bvci.format);
 			GFX_WRITE_HASH_(hash, bvci.offset);
 			GFX_WRITE_HASH_(hash, bvci.range);
@@ -445,7 +451,7 @@ static void gfx_set_update_attachs_(GFXSet* set)
 			const uint8_t swizzleB = (uint8_t)ivci.components.b;
 			const uint8_t swizzleA = (uint8_t)ivci.components.a;
 
-			GFX_WRITE_HASH_(hash, noImage);
+			GFX_WRITE_HASH_PTR_(hash, noImage);
 			GFX_WRITE_HASH_(hash, backingInd);
 			GFX_WRITE_HASH_(hash, ivci.viewType);
 			GFX_WRITE_HASH_(hash, ivci.format);
