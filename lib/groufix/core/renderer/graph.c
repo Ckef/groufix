@@ -382,9 +382,9 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 	}
 
 	// Resolve the chain of 'master' passes.
-	subpass->out.next = NULL;
+	subpass->out.nextMaster = NULL;
 	**ptrToNext = subpass;
-	*ptrToNext = &subpass->out.next;
+	*ptrToNext = &subpass->out.nextMaster;
 
 	// And start looping over the entire subpass chain.
 	// Keep track of what consumptions have been seen in this chain.
@@ -589,8 +589,8 @@ static void gfx_render_graph_analyze_(GFXRenderer* renderer)
 		consumes[i] = NULL;
 
 	// Also reset the first 'master' pass, as the chain will be resolved also.
-	renderer->graph.out.first = NULL;
-	GFXPass** ptrToNext = &renderer->graph.out.first;
+	renderer->graph.out.firstMaster = NULL;
+	GFXPass** ptrToNext = &renderer->graph.out.firstMaster;
 
 	// During this loop we sneakedly set the order of all passes.
 	// Recorders use this order to distinguish between passes.
@@ -631,7 +631,7 @@ void gfx_render_graph_init_(GFXRenderer* renderer)
 	renderer->graph.state = GFX_GRAPH_BUILT_;
 
 	// Just in case.
-	renderer->graph.out.first = NULL;
+	renderer->graph.out.firstMaster = NULL;
 }
 
 /****************************/
@@ -671,9 +671,9 @@ bool gfx_render_graph_warmup_(GFXRenderer* renderer)
 	size_t failed = 0;
 
 	for (
-		GFXPass* pass = renderer->graph.out.first;
+		GFXPass* pass = renderer->graph.out.firstMaster;
 		pass != renderer->graph.firstCompute;
-		pass = pass->out.next)
+		pass = pass->out.nextMaster)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			// No need to worry about destructing, state remains 'validated'.
@@ -718,9 +718,9 @@ bool gfx_render_graph_build_(GFXRenderer* renderer)
 	size_t failed = 0;
 
 	for (
-		GFXPass* pass = renderer->graph.out.first;
+		GFXPass* pass = renderer->graph.out.firstMaster;
 		pass != renderer->graph.firstCompute;
-		pass = pass->out.next)
+		pass = pass->out.nextMaster)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			// The pass itself should log errors.
@@ -759,9 +759,9 @@ void gfx_render_graph_rebuild_(GFXRenderer* renderer, GFXRecreateFlags_ flags)
 	size_t failed = 0;
 
 	for (
-		GFXPass* pass = renderer->graph.out.first;
+		GFXPass* pass = renderer->graph.out.firstMaster;
 		pass != renderer->graph.firstCompute;
-		pass = pass->out.next)
+		pass = pass->out.nextMaster)
 	{
 		if (pass->type == GFX_PASS_RENDER)
 			failed += !gfx_pass_rebuild_((GFXRenderPass_*)pass, flags);

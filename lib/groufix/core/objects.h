@@ -1022,7 +1022,7 @@ struct GFXRenderer
 		{
 			// First 'master' (or to be built/recorded) pass.
 			// This chain is guaranteed to contain firstCompute.
-			GFXPass* first;
+			GFXPass* firstMaster;
 
 		} out;
 
@@ -1098,6 +1098,8 @@ typedef struct GFXDepend_
 	GFXPass*  source;
 	GFXPass*  target;
 
+	// TODO: Add waited counter so we can undepend per pass?
+
 
 	// Graph output (relative to neighbouring passes).
 	struct
@@ -1141,7 +1143,7 @@ struct GFXPass
 	struct
 	{
 		// Next 'master' (or to be built/recorded) pass.
-		GFXPass* next;
+		GFXPass* nextMaster;
 
 	} out;
 };

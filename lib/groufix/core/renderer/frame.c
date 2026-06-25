@@ -837,7 +837,7 @@ static bool gfx_frame_record_(VkCommandBuffer cmd,
 		return 0);
 
 	// Record all requested passes.
-	for (; first != end; first = first->out.next)
+	for (; first != end; first = first->out.nextMaster)
 	{
 		GFXPass* pass = first; // Guaranteed to be a master pass!
 
@@ -1044,7 +1044,7 @@ static void gfx_frame_finalize_(GFXRenderer* renderer, bool success,
 
 	// Loop over all passes again to deal with their dependencies.
 	// Also loop over the subpass chain to mirror gfx_frame_record_.
-	for (; first != end; first = first->out.next)
+	for (; first != end; first = first->out.nextMaster)
 		for (
 			GFXPass* subpass = first; // Guaranteed to be a master pass!
 			subpass != NULL;
@@ -1122,7 +1122,7 @@ bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame)
 		// Record graphics.
 		if (!gfx_frame_record_(frame->graphics.vk.cmd,
 			renderer, frame,
-			renderer->graph.out.first, renderer->graph.firstCompute,
+			renderer->graph.out.firstMaster, renderer->graph.firstCompute,
 			&injection))
 		{
 			goto clean_graphics;
@@ -1245,7 +1245,7 @@ bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame)
 
 		// Lastly, make all commands visible for future operations.
 		gfx_frame_finalize_(renderer, 1,
-			renderer->graph.out.first, renderer->graph.firstCompute,
+			renderer->graph.out.firstMaster, renderer->graph.firstCompute,
 			&injection);
 
 		// Succesfully submitted.
@@ -1330,7 +1330,7 @@ bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame)
 	// Cleanup on failure.
 clean_graphics:
 	gfx_frame_finalize_(renderer, 0,
-		renderer->graph.out.first, renderer->graph.firstCompute,
+		renderer->graph.out.firstMaster, renderer->graph.firstCompute,
 		&injection);
 
 	goto error;
