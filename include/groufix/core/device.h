@@ -111,7 +111,6 @@ typedef struct GFXDevice
 		uint32_t maxUniformBufferRange;
 		uint32_t maxStorageBufferRange;
 		uint32_t maxPushConstantSize;
-		uint32_t maxBoundSets;
 		uint32_t maxComputeMemorySize;
 		uint32_t maxAttributes;
 		uint32_t maxAttributeOffset;
@@ -122,21 +121,22 @@ typedef struct GFXDevice
 		uint32_t maxAttachmentLayers;
 		uint32_t maxAttachmentOutputs; // Non-depth/stencil r/w attachments.
 
-		uint32_t maxStageUniformBuffers;
-		uint32_t maxStageStorageBuffers;
-		uint32_t maxStageSampledImages;
-		uint32_t maxStageStorageImages;
-		uint32_t maxStageSamplers;
-		uint32_t maxStageAttachmentInputs;
+		uint32_t maxPerStageUniformBuffers;
+		uint32_t maxPerStageStorageBuffers;
+		uint32_t maxPerStageSampledImages;
+		uint32_t maxPerStageStorageImages;
+		uint32_t maxPerStageSamplers;
+		uint32_t maxPerStageAttachmentInputs;
 
-		uint32_t maxSetUniformBuffers; // Includes dynamic.
-		uint32_t maxSetStorageBuffers; // Includes dynamic.
-		uint32_t maxSetUniformBuffersDynamic; // Only dynamic.
-		uint32_t maxSetStorageBuffersDynamic; // Only dynamic.
-		uint32_t maxSetSampledImages;
-		uint32_t maxSetStorageImages;
-		uint32_t maxSetSamplers;
-		uint32_t maxSetAttachmentInputs;
+		uint32_t maxBoundSets;
+		uint32_t maxBoundUniformBuffers; // Includes dynamic.
+		uint32_t maxBoundStorageBuffers; // Includes dynamic.
+		uint32_t maxBoundUniformBuffersDynamic; // Only dynamic.
+		uint32_t maxBoundStorageBuffersDynamic; // Only dynamic.
+		uint32_t maxBoundSampledImages;
+		uint32_t maxBoundStorageImages;
+		uint32_t maxBoundSamplers;
+		uint32_t maxBoundAttachmentInputs;
 
 		uint64_t maxBufferSize;
 		uint64_t minTexelBufferAlign;
