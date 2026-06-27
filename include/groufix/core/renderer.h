@@ -798,12 +798,13 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
  *
  * This is the only call that takes the gfx_sig* macro family as injections!
  * To inject between two render passes, use the gfx_sig* macro family.
- * All semaphores are referenced until gfx_renderer_undepend is called.
+ * All semaphores are referenced until gfx_pass_undepend is called.
  *
  * Any signal command is implicitly waited upon by the wait pass.
  * Meaning there is no need to inject a matching wait command anywhere.
+ * In fact, this call will not accept any wait commands at all.
  *
- * For each semaphore that is implicitly being waited upon by a pass,
+ * For each semaphore that is implicitly being waited upon by a wait pass,
  * only a single wait command will be injected in that pass,
  * even if gfx_pass_depend is called multiple times.
  *
@@ -814,14 +815,16 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
                              size_t numInjs, const GFXInject* injs);
 
 /**
- * Removes ALL dependency commands appended to any pass
- * within renderer via a call to gfx_pass_depend.
- * @param renderer Cannot be NULL.
+ * Removes dependency commands appended to given passes.
+ * Only removes dependencies added with
+ * the same `pass` and `wait` arguments as gfx_pass_depend!
+ * @param pass Cannot be NULL.
+ * @param wait Cannot be NULL.
  *
- * NOT thread-safe with respect to renderer or any of its passes!
+ * NOT thread-safe with respect to pass or wait!
  * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
  */
-GFX_API void gfx_renderer_undepend(GFXRenderer* renderer);
+GFX_API void gfx_pass_undepend(GFXPass* pass, GFXPass* wait);
 
 /**
  * Blocks until all virtual frames are done rendering.
@@ -947,7 +950,9 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
  * Erases (destroys) a pass, removing it from its renderer.
  * @param pass Cannot be NULL.
  *
- * This function CANNOT be called if pass is still the parent of other passes.
+ * This function CANNOT be called if pass is still the parent of other passes
+ * or when it still has dependencies appended through gfx_pass_depend,
+ * either as `pass` or `wait` argument!
  */
 GFX_API void gfx_erase_pass(GFXPass* pass);
 

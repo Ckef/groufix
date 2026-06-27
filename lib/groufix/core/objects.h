@@ -1098,7 +1098,7 @@ typedef struct GFXDepend_
 	GFXPass*  source;
 	GFXPass*  target;
 
-	// TODO: Add waited counter so we can undepend per pass?
+	unsigned int waits; // #times this wait command is signaled.
 
 
 	// Graph output (relative to neighbouring passes).
