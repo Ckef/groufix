@@ -396,7 +396,7 @@ bool gfx_cache_flush_(GFXCache_* cache);
  */
 GFXCacheElem_* gfx_cache_get_(GFXCache_* cache,
                               const VkStructureType* createInfo,
-                              const void** handles);
+                              const uintptr_t* handles);
 
 /**
  * Warms up the immutable cache (i.e. inserts a pipeline in it). Input is a
@@ -413,7 +413,7 @@ GFXCacheElem_* gfx_cache_get_(GFXCache_* cache,
  */
 bool gfx_cache_warmup_(GFXCache_* cache,
                        const VkStructureType* createInfo,
-                       const void** handles);
+                       const uintptr_t* handles);
 
 /**
  * Loads groufix pipeline cache data, merging it into the current cache.

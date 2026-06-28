@@ -54,7 +54,7 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable,
 	gfx_renderable_lock_(renderable);
 
 	if (
-		renderable->pipeline != (uintptr_t)NULL &&
+		(GFXCacheElem_*)(void*)renderable->pipeline != NULL &&
 		renderable->gen == GFX_PASS_GEN_(rPass))
 	{
 		if (!warmup) *elem = (void*)renderable->pipeline;
@@ -70,14 +70,14 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable,
 	GFXTechnique* tech = renderable->technique;
 	GFXPrimitive_* prim = (GFXPrimitive_*)renderable->primitive;
 
-	const void* handles[GFX_NUM_SHADER_STAGES_ + 2];
+	uintptr_t handles[GFX_NUM_SHADER_STAGES_ + 2];
 	uint32_t numShaders = 0;
 
 	// Set & validate hashing handles.
 	for (uint32_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
 		if (tech->shaders[s] != NULL)
 			// Shader pointers will be converted to handles down below.
-			handles[numShaders++] = tech->shaders[s];
+			handles[numShaders++] = (uintptr_t)(void*)tech->shaders[s];
 
 	if (tech->layout == NULL)
 	{
@@ -91,8 +91,8 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable,
 		return 0;
 	}
 
-	handles[numShaders+0] = tech->layout;
-	handles[numShaders+1] = rPass->build.pass;
+	handles[numShaders+0] = (uintptr_t)(void*)tech->layout;
+	handles[numShaders+1] = (uintptr_t)(void*)rPass->build.pass;
 
 	// Gather appropriate state data.
 	const GFXRasterState* raster =
@@ -295,7 +295,7 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable,
 
 	for (uint32_t s = 0; s < numShaders; ++s)
 	{
-		const GFXShader* shader = handles[s];
+		const GFXShader* shader = (void*)handles[s];
 		const uint32_t stage = GFX_GET_SHADER_STAGE_INDEX_(shader->stage);
 
 		pstci[s] = (VkPipelineShaderStageCreateInfo){
@@ -313,7 +313,7 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable,
 		};
 
 		// And convert shaders to handles in the handles array.
-		handles[s] = (void*)shader->handle;
+		handles[s] = shader->handle;
 	}
 
 	// Build create info.
@@ -467,7 +467,7 @@ bool gfx_computable_pipeline_(GFXComputable* computable,
 	// We do not have a pipeline, create a new one.
 	// Again, multiple threads creating the same one is fine.
 	GFXTechnique* tech = computable->technique;
-	const void* handles[2];
+	uintptr_t handles[2];
 
 	// Set & validate hashing handles.
 	const uint32_t stage = GFX_GET_SHADER_STAGE_INDEX_(GFX_STAGE_COMPUTE);
@@ -485,8 +485,8 @@ bool gfx_computable_pipeline_(GFXComputable* computable,
 		return 0;
 	}
 
-	handles[0] = (void*)shader->handle;
-	handles[1] = tech->layout;
+	handles[0] = shader->handle;
+	handles[1] = (uintptr_t)(void*)tech->layout;
 
 	// Build create info.
 	const size_t numConsts = tech->constants.size;

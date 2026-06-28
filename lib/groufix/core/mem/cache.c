@@ -63,7 +63,7 @@ typedef struct GFXPipelineCacheHeader_
  * @return Key value, must call free() on success (NULL on failure).
  */
 static GFXHashKey_* gfx_cache_alloc_key_(const VkStructureType* createInfo,
-                                         const void** handles)
+                                         const uintptr_t* handles)
 {
 	assert(createInfo != NULL);
 
@@ -810,7 +810,7 @@ static void gfx_cache_destroy_elem_(GFXCache_* cache, GFXCacheElem_* elem)
  */
 static GFXCacheElem_* gfx_cache_get_simple_(GFXCache_* cache,
                                             const VkStructureType* createInfo,
-                                            const void** handles)
+                                            const uintptr_t* handles)
 {
 	assert(cache != NULL);
 	assert(createInfo != NULL);
@@ -856,7 +856,7 @@ static GFXCacheElem_* gfx_cache_get_simple_(GFXCache_* cache,
  */
 static GFXCacheElem_* gfx_cache_get_pipeline_(GFXCache_* cache,
                                               const VkStructureType* createInfo,
-                                              const void** handles)
+                                              const uintptr_t* handles)
 {
 	assert(cache != NULL);
 	assert(createInfo != NULL);
@@ -1058,7 +1058,7 @@ bool gfx_cache_flush_(GFXCache_* cache)
 /****************************/
 GFXCacheElem_* gfx_cache_get_(GFXCache_* cache,
                               const VkStructureType* createInfo,
-                              const void** handles)
+                              const uintptr_t* handles)
 {
 	assert(cache != NULL);
 	assert(createInfo != NULL);
@@ -1077,7 +1077,7 @@ GFXCacheElem_* gfx_cache_get_(GFXCache_* cache,
 /****************************/
 bool gfx_cache_warmup_(GFXCache_* cache,
                        const VkStructureType* createInfo,
-                       const void** handles)
+                       const uintptr_t* handles)
 {
 	assert(cache != NULL);
 	assert(createInfo != NULL);

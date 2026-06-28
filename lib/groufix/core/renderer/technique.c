@@ -947,7 +947,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 	GFXVec samplerHandles;
 	gfx_vec_init(&bindings, sizeof(VkDescriptorSetLayoutBinding));
 	gfx_vec_init(&samplers, sizeof(VkSampler));
-	gfx_vec_init(&samplerHandles, sizeof(void*));
+	gfx_vec_init(&samplerHandles, sizeof(uintptr_t));
 
 	// Loop over all sets.
 	for (size_t set = 0; set < technique->numSets; ++set)
@@ -1043,7 +1043,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 					gfx_get_sampler_(renderer, samplerInp);
 
 				// Push the sampler and a handle.
-				const void* handle = sampler;
+				const uintptr_t handle = (uintptr_t)(void*)sampler;
 				if (
 					sampler == NULL ||
 					!gfx_vec_push(&samplers, 1, &sampler->vk.sampler) ||
@@ -1074,7 +1074,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 				gfx_vec_at(&bindings, 0) : NULL
 		};
 
-		const void** handles = gfx_vec_at(&samplerHandles, 0);
+		const uintptr_t* handles = gfx_vec_at(&samplerHandles, 0);
 		technique->setLayouts[set] =
 			gfx_cache_get_(&renderer->cache, &dslci.sType, handles);
 
@@ -1096,11 +1096,11 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 	// We use a scope here so the gotos above are allowed.
 	{
 		VkDescriptorSetLayout sets[GFX_MAX(1, technique->numSets)];
-		const void* handles[GFX_MAX(1, technique->numSets)];
+		uintptr_t handles[GFX_MAX(1, technique->numSets)];
 
 		for (size_t s = 0; s < technique->numSets; ++s)
 			sets[s] = technique->setLayouts[s]->vk.setLayout,
-			handles[s] = technique->setLayouts[s];
+			handles[s] = (uintptr_t)(void*)technique->setLayouts[s];
 
 		VkPushConstantRange pcr = {
 			.stageFlags = GFX_GET_VK_SHADER_STAGE_(technique->pushStages),
