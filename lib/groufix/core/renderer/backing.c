@@ -123,7 +123,7 @@ static GFXAttach_* gfx_alloc_attachments_(GFXRenderer* renderer, size_t index)
 		return gfx_vec_at(&renderer->backing.attachs, index);
 
 	// Allocate new.
-	size_t elems =
+	const size_t elems =
 		index + 1 - renderer->backing.attachs.size;
 
 	if (!gfx_vec_push(&renderer->backing.attachs, elems, NULL))

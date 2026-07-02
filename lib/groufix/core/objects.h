@@ -864,9 +864,10 @@ struct GFXRecorder
 	// Current state.
 	struct
 	{
-		GFXViewport    viewport;
-		GFXScissor     scissor;
-		float          lineWidth;
+		GFXViewport viewport;
+		GFXScissor  scissor;
+		float       lineWidth;
+
 		GFXCacheElem_* pipeline;
 		GFXPrimitive_* primitive;
 

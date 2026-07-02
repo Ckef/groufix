@@ -1700,11 +1700,17 @@ GFX_API float gfx_recorder_get_line_width(GFXRecorder* recorder);
  * @param technique   Cannot be NULL.
  * @param numSets     Must be > 0.
  * @param numDynamics Number of dynamic offsets, missing offsets will be 0.
- * @param sets        Cannot be NULL.
+ * @param sets        Cannot be NULL, cannot contain NULL.
  * @param offsets     Cannot be NULL if numDynamics > 0.
  *
  * firstSet and numSets must fit within the available sets of technique.
  * All offsets must be properly aligned for uniform or storage buffer usages.
+ *
+ * Previously bound sets before firstSet are _only_ invalidated when they
+ * themselves are incompatible with technique.
+ *
+ * Previously bound sets after the given range are invalidated when _any_ of
+ * the given sets are incompatible with the previously bound technique.
  */
 GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
                           size_t firstSet,

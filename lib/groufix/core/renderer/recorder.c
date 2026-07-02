@@ -637,7 +637,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 		context->vk.BeginCommandBuffer(cmd, &cbbi),
 		goto error);
 
-	// Set viewport & scissor state.
+	// Set viewport, scissor & line width state.
 	VkViewport viewport = gfx_get_viewport_(
 		&rPass->state.viewport, rPass->build.fWidth, rPass->build.fHeight);
 	VkRect2D scissor = gfx_get_scissor_(
@@ -651,7 +651,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	context->vk.CmdSetScissor(cmd, 0, 1, &scissor);
 	context->vk.CmdSetLineWidth(cmd, recorder->state.lineWidth);
 
-	// Set recording input, record, unset input.
+	// Set recording input & state, record, unset input.
 	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;
 	recorder->state.pipeline = NULL;
@@ -662,6 +662,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	recorder->inp.pass = NULL;
 	recorder->inp.cmd = NULL;
 
+	// End recording.
 	GFX_VK_CHECK_(
 		context->vk.EndCommandBuffer(cmd),
 		goto error);
@@ -727,7 +728,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 		context->vk.BeginCommandBuffer(cmd, &cbbi),
 		goto error);
 
-	// Set recording input, record, unset input.
+	// Set recording input & state, record, unset input.
 	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;
 	recorder->state.pipeline = NULL;
@@ -738,6 +739,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 	recorder->inp.pass = NULL;
 	recorder->inp.cmd = NULL;
 
+	// End recording.
 	GFX_VK_CHECK_(
 		context->vk.EndCommandBuffer(cmd),
 		goto error);
