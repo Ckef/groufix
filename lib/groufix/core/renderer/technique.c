@@ -276,90 +276,6 @@ void gfx_tech_get_constants_(GFXTechnique* technique,
 }
 
 /****************************/
-void gfx_tech_get_set_size_(GFXTechnique* technique,
-                            size_t set, size_t* numBindings, size_t* numEntries)
-{
-	assert(technique != NULL);
-	assert(technique->layout != NULL); // Must be locked.
-	assert(set < technique->numSets);
-	assert(numBindings != NULL);
-	assert(numEntries != NULL);
-
-	*numBindings = 0;
-	*numEntries = 0;
-
-	// Loop over all shaders in order (for locality).
-	// Then do a binary search for the right-most resource with the given set.
-	// Keep track of this right-most index for the next loop.
-	size_t rMost[GFX_NUM_SHADER_STAGES_];
-
-	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
-		if (technique->shaders[s] != NULL)
-		{
-			GFXShader* shader = technique->shaders[s];
-			size_t l = shader->reflect.locations;
-			size_t r = shader->reflect.locations + shader->reflect.bindings;
-			rMost[s] = 0; // 0 = include none.
-
-			while (l < r)
-			{
-				const size_t p = (l + r) >> 1;
-				GFXShaderResource_* res = shader->reflect.resources + p;
-
-				if (res->set > set) r = p;
-				else l = p + 1;
-			}
-
-			// No resource with lesser or equal set.
-			if (r == shader->reflect.locations)
-				continue;
-
-			// No resource with equal set.
-			GFXShaderResource_* rRes = shader->reflect.resources + (r-1);
-			if (rRes->set != set)
-				continue;
-
-			rMost[s] = r;
-
-			// We want to count empty bindings too,
-			// so we can set numBindings to the maximum binding we can find.
-			*numBindings =
-				GFX_MAX(*numBindings, (size_t)(rRes->binding + 1));
-		}
-
-	// We have the number of bindings, but not yet the number of entries.
-	// An entry being an actual descriptor within a binding.
-	// For this we loop over all shaders again, then loop from the right-most
-	// resource to the left and check if we've already counted it.
-	// If not, check if it is immutable, if not, add its descriptor count.
-	unsigned char counted[GFX_MAX(1, *numBindings)];
-	memset(counted, 0, *numBindings);
-
-	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
-		if (technique->shaders[s] != NULL)
-		{
-			GFXShader* shader = technique->shaders[s];
-			for (size_t i = rMost[s]; i > shader->reflect.locations; --i)
-			{
-				// Stop if we passed the left-most element.
-				GFXShaderResource_* res = shader->reflect.resources + (i-1);
-				if (res->set != set) break;
-				if (counted[res->binding]) continue;
-
-				const bool isImmutable = gfx_find_binding_elem_(
-					&technique->immutable, set, res->binding, 0);
-
-				// Note that we also check if the resource contains more
-				// than just an immutable sampler.
-				if (!isImmutable || res->type != GFX_SHADER_SAMPLER_)
-					*numEntries += res->count;
-
-				counted[res->binding] = 1;
-			}
-		}
-}
-
-/****************************/
 bool gfx_tech_get_set_binding_(GFXTechnique* technique,
                                size_t set, size_t binding, GFXSetBinding_* out)
 {
@@ -389,7 +305,8 @@ bool gfx_tech_get_set_binding_(GFXTechnique* technique,
 	out->count = res->count;
 	out->size = res->size;
 
-	// Just as above, check if it contains more than an immutable sampler.
+	// Just as during locking,
+	// check if it contains more than an immutable sampler.
 	return !isImmutable || res->type != GFX_SHADER_SAMPLER_;
 }
 
@@ -458,11 +375,10 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	size_t valPos[GFX_NUM_SHADER_STAGES_];
 	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s) valPos[s] = 0;
 
-	// Also keep track of max #sets and #bindings.
-	// We need to create empty set layouts for missing set numbers AND
-	// we want to count empty bindings too, so just get the maximum of all :)
+	// Also keep track of max #sets.
+	// We need to create empty set layouts for missing set numbers,
+	// so just get the maximum of all!
 	size_t maxSets = 0;
-	size_t maxBindings = 0;
 
 	while (1)
 	{
@@ -514,17 +430,14 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 				++valPos[s];
 			}
 
-		// Keep track of max #sets and #bindings.
-		maxSets =
-			GFX_MAX(maxSets, (size_t)(cur->set + 1));
-		maxBindings =
-			GFX_MAX(maxBindings, (size_t)(cur->binding + 1));
+		// Keep track of max #sets.
+		maxSets = GFX_MAX(maxSets, (size_t)(cur->set + 1));
 	}
 
 	// Allocate a new technique.
 	GFXTechnique* tech = malloc(
 		sizeof(GFXTechnique) +
-		sizeof(GFXCacheElem_*) * maxSets);
+		sizeof(GFXTechniqueSet_) * maxSets);
 
 	if (tech == NULL)
 		goto error;
@@ -532,25 +445,47 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 	// Initialize the technique.
 	tech->renderer = renderer;
 	tech->numSets = maxSets;
-	tech->maxBindings = maxBindings;
 	tech->pushSize = 0;
 	tech->pushStages = 0;
 	tech->layout = NULL;
 	tech->vk.layout = VK_NULL_HANDLE;
 	memcpy(tech->shaders, shads, sizeof(shads));
 
-	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
-		if (shads[s] != NULL && shads[s]->reflect.push > 0)
-			tech->pushSize = GFX_MAX(tech->pushSize, shads[s]->reflect.push),
-			tech->pushStages |= shads[s]->stage;
-
 	for (size_t l = 0; l < tech->numSets; ++l)
-		tech->setLayouts[l] = NULL;
+		tech->sets[l].setLayout = NULL,
+		tech->sets[l].numBindings = 0;
 
 	gfx_vec_init(&tech->constants, sizeof(GFXConstantElem_));
 	gfx_vec_init(&tech->samplers, sizeof(GFXSamplerElem_));
 	gfx_vec_init(&tech->immutable, sizeof(GFXBindingElem_));
 	gfx_vec_init(&tech->dynamic, sizeof(GFXBindingElem_));
+
+	// Loop over ALL shaders once more to get the #bindings for each set.
+	// Again, we want to count empty bindings too,
+	// so we can simply keep track of the largest binding in each set.
+	for (size_t s = 0; s < GFX_NUM_SHADER_STAGES_; ++s)
+		if (shads[s] != NULL)
+		{
+			// Keep track of the largest binding in each set.
+			for (size_t i = 0; i < shads[s]->reflect.bindings; ++i)
+			{
+				GFXShaderResource_* res =
+					shads[s]->reflect.resources +
+					shads[s]->reflect.locations + i;
+
+				size_t* numBindings =
+					&tech->sets[res->set].numBindings;
+				*numBindings =
+					GFX_MAX(*numBindings, (size_t)(res->binding + 1));
+			}
+
+			// And keep track of push size/stages while we're at it.
+			if (shads[s]->reflect.push > 0)
+				tech->pushSize =
+					GFX_MAX(tech->pushSize, shads[s]->reflect.push),
+				tech->pushStages |=
+					shads[s]->stage;
+		}
 
 	// Link the technique into the renderer.
 	// Modifying the renderer, lock!
@@ -616,11 +551,11 @@ GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique)
 }
 
 /****************************/
-GFX_API size_t gfx_tech_get_max_bindings(GFXTechnique* technique)
+GFX_API size_t gfx_tech_get_num_bindings(GFXTechnique* technique, size_t set)
 {
 	assert(technique != NULL);
 
-	return technique->maxBindings;
+	return (set < technique->numSets) ? technique->sets[set].numBindings : 0;
 }
 
 /****************************/
@@ -952,6 +887,9 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 	// Loop over all sets.
 	for (size_t set = 0; set < technique->numSets; ++set)
 	{
+		size_t numEntries = 0;
+		size_t numDynamics = 0;
+
 		// Loop over all bindings of this set.
 		// NOTE: _Always_ true!
 		for (size_t binding = 0; 1; ++binding)
@@ -1012,6 +950,9 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 
 			if (!gfx_vec_push(&bindings, 1, &dslb))
 				goto reset;
+
+			if (isDynamic)
+				numDynamics += cur->count;
 		}
 
 		// Loop over all bindings again to create immutable samplers.
@@ -1025,6 +966,12 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 			immutable[b] = (unsigned char)gfx_find_binding_elem_(
 				&technique->immutable, set, dslb->binding, 0);
 
+			// Also a nice spot to count the number of set entries we need.
+			// Check if it contains more than an immutable sampler.
+			if (!immutable[b] || dslb->descriptorType != VK_DESCRIPTOR_TYPE_SAMPLER)
+				numEntries += dslb->descriptorCount;
+
+			// If not immutable, done.
 			if (!immutable[b]) continue;
 
 			// Welp, create 'm.
@@ -1074,12 +1021,18 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 				gfx_vec_at(&bindings, 0) : NULL
 		};
 
-		const uintptr_t* handles = gfx_vec_at(&samplerHandles, 0);
-		technique->setLayouts[set] =
+		const uintptr_t* handles =
+			gfx_vec_at(&samplerHandles, 0);
+
+		technique->sets[set].setLayout =
 			gfx_cache_get_(&renderer->cache, &dslci.sType, handles);
 
-		if (technique->setLayouts[set] == NULL)
+		if (technique->sets[set].setLayout == NULL)
 			goto reset;
+
+		// And set descriptor layout info!
+		technique->sets[set].numEntries = numEntries;
+		technique->sets[set].numDynamics = numDynamics;
 
 		// Keep memory for next set!
 		gfx_vec_release(&bindings);
@@ -1099,8 +1052,8 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 		uintptr_t handles[GFX_MAX(1, technique->numSets)];
 
 		for (size_t s = 0; s < technique->numSets; ++s)
-			sets[s] = technique->setLayouts[s]->vk.setLayout,
-			handles[s] = (uintptr_t)(void*)technique->setLayouts[s];
+			sets[s] = technique->sets[s].setLayout->vk.setLayout,
+			handles[s] = (uintptr_t)(void*)technique->sets[s].setLayout;
 
 		VkPushConstantRange pcr = {
 			.stageFlags = GFX_GET_VK_SHADER_STAGE_(technique->pushStages),
@@ -1144,7 +1097,7 @@ reset:
 	gfx_vec_clear(&samplerHandles);
 
 	for (size_t s = 0; s < technique->numSets; ++s)
-		technique->setLayouts[s] = NULL;
+		technique->sets[s].setLayout = NULL;
 
 	gfx_log_error("Failed to lock technique.");
 

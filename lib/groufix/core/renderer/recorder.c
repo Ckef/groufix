@@ -896,7 +896,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 	for (size_t s = 0; s < numSets; ++s)
 	{
 		// Validate against the given technique.
-		if (sets[s]->setLayout != technique->setLayouts[firstSet + s])
+		if (sets[s]->setLayout != technique->sets[firstSet + s].setLayout)
 		{
 			gfx_log_error(
 				"Set not compatible with technique during bind command; "

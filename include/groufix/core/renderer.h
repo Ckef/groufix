@@ -1237,11 +1237,11 @@ GFX_API GFXShader* gfx_tech_get_shader(GFXTechnique* technique, GFXShaderStage s
 GFX_API size_t gfx_tech_get_num_sets(GFXTechnique* technique);
 
 /**
- * Retrieves the maximum number of bindings any set of a technique has.
+ * Retrieves the number of descriptor bindings of a set of a technique.
  * Can be called from any thread.
  * @param technique Cannot be NULL.
  */
-GFX_API size_t gfx_tech_get_max_bindings(GFXTechnique* technique);
+GFX_API size_t gfx_tech_get_num_bindings(GFXTechnique* technique, size_t set);
 
 /**
  * Retrieves the resource type of a descriptor binding of a set.

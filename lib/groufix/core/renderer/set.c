@@ -1011,9 +1011,8 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		goto error;
 
 	// Get the number of bindings & entries to allocate.
-	size_t numBindings;
-	size_t numEntries;
-	gfx_tech_get_set_size_(technique, set, &numBindings, &numEntries);
+	const size_t numBindings = technique->sets[set].numBindings;
+	const size_t numEntries = technique->sets[set].numEntries;
 
 	// Allocate a new set.
 	const size_t structSize = GFX_ALIGN_UP(
@@ -1042,10 +1041,11 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 
 	// Initialize the set.
 	aset->renderer = renderer;
-	aset->setLayout = technique->setLayouts[set];
+	aset->setLayout = technique->sets[set].setLayout;
 	aset->numAttachs = 0;
-	aset->numDynamics = 0;
+	aset->numDynamics = technique->sets[set].numDynamics;
 	aset->numBindings = numBindings;
+
 	atomic_store_explicit(&aset->used, 0, memory_order_relaxed);
 
 	// Setup hash key.
@@ -1071,14 +1071,6 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		// even though binding->count might be > 0!
 		if (gfx_tech_get_set_binding_(technique, set, b, binding))
 			entries = binding->count;
-
-		// Count number of dynamic buffers.
-		if (
-			binding->type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
-			binding->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC)
-		{
-			aset->numDynamics += entries;
-		}
 
 		binding->entries = entries > 0 ? entryPtr : NULL;
 		binding->hash = entries > 0 ? hashPtr : NULL;
@@ -1143,7 +1135,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 
 	// And then loop over all things to manually update them.
 	// Because all current handles are VK_NULL_HANDLE,
-	// we do not push stales and we're still thread-safe :)
+	// we do not push stales and we're still non-blocking :)
 	for (size_t b = 0; b < numBindings; ++b)
 	{
 		GFXSetBinding_* binding = &aset->bindings[b];

@@ -1231,7 +1231,22 @@ typedef struct GFXComputePass_
 
 
 /**
- * Internal technique (i.e. shader pipeline).
+ * Technique set (i.e. descriptor layout info).
+ */
+typedef struct GFXTechniqueSet_
+{
+	GFXCacheElem_* setLayout;   // NULL until locked.
+	size_t         numBindings; // Including empty, set before locked!
+
+	// All undefined until locked.
+	size_t numEntries;
+	size_t numDynamics; // #dynamic buffer entries.
+
+} GFXTechniqueSet_;
+
+
+/**
+ * Internal technique (i.e. shader pipeline layout).
  */
 struct GFXTechnique
 {
@@ -1240,7 +1255,6 @@ struct GFXTechnique
 
 	GFXShader*     shaders[GFX_NUM_SHADER_STAGES_]; // May contain NULL.
 	size_t         numSets;
-	size_t         maxBindings;
 	uint32_t       pushSize;
 	GFXShaderStage pushStages;
 
@@ -1252,18 +1266,13 @@ struct GFXTechnique
 	GFXVec immutable; // Stores { size_t set, size_t binding }.
 	GFXVec dynamic;   // Stores { size_t set, size_t binding }.
 
-
 	// Vulkan fields.
-	struct
-	{
-		VkPipelineLayout layout; // For locality.
-
-	} vk;
+	struct { VkPipelineLayout layout; } vk; // For locality.
 
 
 	// Locking output.
-	GFXCacheElem_* layout;       // Pipeline layout, NULL until locked.
-	GFXCacheElem_* setLayouts[]; // Set layouts (sorted), all NULL until locked.
+	GFXCacheElem_*   layout; // Pipeline layout, NULL until locked.
+	GFXTechniqueSet_ sets[]; // Set layouts (sorted).
 };
 
 
@@ -2152,16 +2161,6 @@ void gfx_recorder_record_(GFXRecorder* recorder,
 void gfx_tech_get_constants_(GFXTechnique* technique,
                              VkSpecializationInfo* infos,
                              VkSpecializationMapEntry* entries);
-
-/**
- * Computes the size of a specific descriptor set layout within a technique.
- * @param technique   Cannot be NULL, must be locked.
- * @param set         Must be < technique->numSets.
- * @param numBindings Outputs the number of GFXSetBinding_'s necessary.
- * @param numEntries  Outputs the number of GFXSetEntry_'s necessary.
- */
-void gfx_tech_get_set_size_(GFXTechnique* technique,
-                            size_t set, size_t* numBindings, size_t* numEntries);
 
 /**
  * Retrieves a descriptor set binding from a technique and populates the
