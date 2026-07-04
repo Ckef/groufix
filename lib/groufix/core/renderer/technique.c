@@ -475,8 +475,9 @@ GFX_API GFXTechnique* gfx_renderer_add_tech(GFXRenderer* renderer,
 
 				size_t* numBindings =
 					&tech->sets[res->set].numBindings;
-				*numBindings =
-					GFX_MAX(*numBindings, (size_t)(res->binding + 1));
+
+				if (res->binding >= *numBindings)
+					*numBindings = (size_t)(res->binding + 1);
 			}
 
 			// And keep track of push size/stages while we're at it.
@@ -1092,6 +1093,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 	// Reset on failure.
 reset:
 	technique->layout = NULL;
+
 	gfx_vec_clear(&bindings);
 	gfx_vec_clear(&samplers);
 	gfx_vec_clear(&samplerHandles);

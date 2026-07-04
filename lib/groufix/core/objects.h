@@ -870,6 +870,11 @@ struct GFXRecorder
 
 		GFXCacheElem_* pipeline;
 		GFXPrimitive_* primitive;
+		uint32_t       pushSize;
+		GFXShaderStage pushStages;
+
+		GFXVec sets;    // Stores { GFXCacheElem_*, GFXPoolElem_*, size_t }.
+		GFXVec offsets; // Stores uint32_t.
 
 	} state;
 
@@ -1272,7 +1277,7 @@ struct GFXTechnique
 
 	// Locking output.
 	GFXCacheElem_*   layout; // Pipeline layout, NULL until locked.
-	GFXTechniqueSet_ sets[]; // Set layouts (sorted).
+	GFXTechniqueSet_ sets[]; // Sorted, no gaps.
 };
 
 

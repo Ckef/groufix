@@ -8,6 +8,7 @@
 
 #include "groufix/core/objects.h"
 #include <stdlib.h>
+#include <string.h>
 
 
 // Indirect command size compatibility.
@@ -30,6 +31,19 @@ static_assert(
 	(size) == sizeof(uint16_t) ? VK_INDEX_TYPE_UINT16 : \
 	(size) == sizeof(uint32_t) ? VK_INDEX_TYPE_UINT32 : \
 	0) /* Should not happen. */
+
+
+/****************************
+ * Bound set element definition.
+ */
+typedef struct GFXSetElem_
+{
+	GFXCacheElem_* setLayout;
+	GFXPoolElem_*  elem;
+
+	size_t numDynamics; // #dynamic buffer offsets.
+
+} GFXSetElem_;
 
 
 /****************************
@@ -497,6 +511,8 @@ GFX_API GFXRecorder* gfx_renderer_add_recorder(GFXRenderer* renderer)
 	rec->context = context;
 	rec->inp.pass = NULL;
 	rec->inp.cmd = NULL;
+	gfx_vec_init(&rec->state.sets, sizeof(GFXSetElem_));
+	gfx_vec_init(&rec->state.offsets, sizeof(uint32_t));
 	gfx_vec_init(&rec->out.cmds, sizeof(GFXCmdElem_));
 
 	for (unsigned int i = 0; i < renderer->numFrames; ++i)
@@ -569,6 +585,8 @@ GFX_API void gfx_erase_recorder(GFXRecorder* recorder)
 		gfx_vec_clear(&recorder->pools[i*2+1].vk.cmds);
 	}
 
+	gfx_vec_clear(&recorder->state.sets);
+	gfx_vec_clear(&recorder->state.offsets);
 	gfx_vec_clear(&recorder->out.cmds);
 	free(recorder);
 }
@@ -654,13 +672,19 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	// Set recording input & state, record, unset input.
 	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;
+
 	recorder->state.pipeline = NULL;
 	recorder->state.primitive = NULL;
+	recorder->state.pushSize = 0;
+	recorder->state.pushStages = 0;
 
 	cb(recorder, ptr);
 
 	recorder->inp.pass = NULL;
 	recorder->inp.cmd = NULL;
+
+	gfx_vec_release(&recorder->state.sets);
+	gfx_vec_release(&recorder->state.offsets);
 
 	// End recording.
 	GFX_VK_CHECK_(
@@ -731,13 +755,19 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 	// Set recording input & state, record, unset input.
 	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;
+
 	recorder->state.pipeline = NULL;
 	recorder->state.primitive = NULL;
+	recorder->state.pushSize = 0;
+	recorder->state.pushStages = 0;
 
 	cb(recorder, ptr);
 
 	recorder->inp.pass = NULL;
 	recorder->inp.cmd = NULL;
+
+	gfx_vec_release(&recorder->state.sets);
+	gfx_vec_release(&recorder->state.offsets);
 
 	// End recording.
 	GFX_VK_CHECK_(
@@ -888,15 +918,89 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		return;
 	}
 
-	// Get all the Vulkan descriptor sets.
-	// And count the number of dynamic offsets.
+	// Initialize bound set state.
+	if (recorder->state.sets.size < technique->numSets)
+	{
+		const size_t elems =
+			technique->numSets - recorder->state.sets.size;
+
+		if (!gfx_vec_push(&recorder->state.sets, elems, NULL))
+		{
+			gfx_log_error(
+				"Could not initialize bound set state during bind command; "
+				"command not recorded.");
+
+			return;
+		}
+
+		// Initialize all to none bound.
+		for (size_t i = 0; i < elems; ++i)
+		{
+			GFXSetElem_* elem = gfx_vec_at(
+				&recorder->state.sets, recorder->state.sets.size - i - 1);
+
+			elem->setLayout = NULL;
+			elem->elem = NULL;
+			elem->numDynamics = 0;
+		}
+	}
+
+	// We want to skip binding any leading descriptor sets that were already
+	// bound. In order to do so we need to keep track of Vulkan's bound
+	// descriptor set state. So keep track of what descriptor sets will be
+	// disturbed according to Vulkan.
+	size_t disturbedFrom = recorder->state.sets.size;
+
+	// If incompatible push constant ranges, all get disturbed!
+	if (
+		recorder->state.pushSize != technique->pushSize ||
+		recorder->state.pushStages != technique->pushStages)
+	{
+		disturbedFrom = 0;
+	}
+
+	// Start looping over all relevant sets and get Vulkan descriptor sets.
+	// And keep track of the number of sets/offsets we can skip binding for.
+	// And count the number of dynamic offsets that we need to bind.
 	VkDescriptorSet dSets[numSets];
+	GFXPoolElem_* pElems[numSets];
+	size_t skipSets = 0;
+	size_t skipOffsets = 0;
 	size_t numOffsets = 0;
 
-	for (size_t s = 0; s < numSets; ++s)
+	size_t offsetInd = 0; // In the input `offsets` array.
+	size_t bOffsetInd = 0; // In currently bound offsets.
+	size_t tOffsetInd = 0; // Resulting offset index of trailing sets.
+
+	for (size_t s = 0; s < firstSet + numSets; ++s)
 	{
+		GFXSetElem_* bound = gfx_vec_at(&recorder->state.sets, s);
+		uint32_t* bOffsets = gfx_vec_at(&recorder->state.offsets, bOffsetInd);
+		bOffsetInd += bound->numDynamics;
+
+		// Check if sets get disturbed from here, if not already.
+		// Note this will also disturb if nothing is bound yet.
+		// Note: if equal setLayout, numDynamics will stay equal too!
+		if (bound->setLayout == technique->sets[s].setLayout)
+			// Same layout, keep number of offsets!
+			tOffsetInd += bound->numDynamics;
+		else
+		{
+			// Different layout, get new number of offsets!
+			// Plus update what sets get disturbed.
+			tOffsetInd += technique->sets[s].numDynamics;
+			if (disturbedFrom > s) disturbedFrom = s;
+		}
+
+		// If we're not binding this set, done.
+		if (s < firstSet)
+			continue;
+
+		// We ARE binding this set.
 		// Validate against the given technique.
-		if (sets[s]->setLayout != technique->sets[firstSet + s].setLayout)
+		const size_t setInd = s - firstSet;
+
+		if (sets[setInd]->setLayout != technique->sets[s].setLayout)
 		{
 			gfx_log_error(
 				"Set not compatible with technique during bind command; "
@@ -906,7 +1010,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		}
 
 		// Get the Vulkan descriptor set.
-		GFXPoolElem_* elem = gfx_set_get_(sets[s], &recorder->sub);
+		GFXPoolElem_* elem = gfx_set_get_(sets[setInd], &recorder->sub);
 		if (elem == NULL)
 		{
 			gfx_log_error(
@@ -916,8 +1020,136 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 			return;
 		}
 
-		dSets[s] = elem->vk.set;
-		numOffsets += sets[s]->numDynamics;
+		// We want to check if we can skip binding this set.
+		// For this it must already be bound, not be disturbed
+		// and all previous passes must be skipped too!
+		bool skip =
+			bound->elem == elem && disturbedFrom > s && skipSets == setInd;
+
+		// Plus all bound offsets must be the same!
+		if (skip)
+			for (size_t d = 0; d < sets[setInd]->numDynamics; ++s)
+			{
+				const uint32_t newOffset = (offsetInd + d < numDynamics) ?
+					offsets[offsetInd + d] : 0;
+
+				if (bOffsets[d] != newOffset)
+				{
+					skip = 0;
+					break;
+				}
+			}
+
+		offsetInd += sets[setInd]->numDynamics;
+
+		// Skip or do not skip.
+		if (skip)
+		{
+			skipSets += 1;
+			skipOffsets += sets[setInd]->numDynamics;
+		}
+		else
+		{
+			dSets[setInd] = elem->vk.set;
+			pElems[setInd] = elem;
+			numOffsets += sets[setInd]->numDynamics;
+		}
+	}
+
+	// Super early return, apparently we are going to skip all sets.
+	// i.e. we are not going to bind anything new; done.
+	if (skipSets >= numSets)
+		return;
+
+	// Initialize bound dynamic offset state.
+	// Just allocate missing values, no need to initialize them.
+	// But first get the number of trailing offsets to potentially move.
+	const size_t tOffsets = recorder->state.offsets.size - bOffsetInd;
+
+	if (tOffsetInd > bOffsetInd && !gfx_vec_push(
+		&recorder->state.offsets, tOffsetInd - bOffsetInd, NULL))
+	{
+		gfx_log_error(
+			"Could not initialize bound offset state during bind command; "
+			"command not recorded.");
+
+		return;
+	}
+
+	// Move offsets of trailing sets that have not been disturbed.
+	// Do this before writing new offsets, so we don't overwrite them.
+	if (
+		tOffsets > 0 &&
+		tOffsetInd != bOffsetInd &&
+		disturbedFrom > firstSet + numSets)
+	{
+		memmove(
+			gfx_vec_at(&recorder->state.offsets, tOffsetInd),
+			gfx_vec_at(&recorder->state.offsets, bOffsetInd),
+			tOffsets);
+	}
+
+	// Now we have validated everything, set new bound state.
+	recorder->state.pushSize = technique->pushSize;
+	recorder->state.pushStages = technique->pushStages;
+
+	offsetInd = 0; // In the input `offsets` array.
+	bOffsetInd = 0; // In newly bound offsets.
+
+	for (size_t s = 0; s < recorder->state.sets.size; ++s)
+	{
+		GFXSetElem_* bound = gfx_vec_at(&recorder->state.sets, s);
+		uint32_t* bOffsets = gfx_vec_at(&recorder->state.offsets, bOffsetInd);
+
+		// Sets before or after the given range.
+		if (s < firstSet)
+		{
+			// If disturbed, invalidate the bound data.
+			if (disturbedFrom <= s)
+			{
+				bound->setLayout = NULL;
+				bound->elem = NULL;
+
+				// Only update numDynamics if a different layout!
+				if (bound->setLayout != technique->sets[s].setLayout)
+					bound->numDynamics = technique->sets[s].numDynamics;
+			}
+		}
+
+		// Sets within the given range.
+		else if (s < firstSet + numSets)
+		{
+			// Update bound data if not skipping.
+			const size_t setInd = s - firstSet;
+
+			if (setInd >= skipSets)
+			{
+				bound->setLayout = sets[setInd]->setLayout;
+				bound->elem = pElems[setInd];
+				bound->numDynamics = sets[setInd]->numDynamics;
+
+				for (size_t d = 0; d < bound->numDynamics; ++d)
+					bOffsets[d] = (offsetInd + d < numDynamics) ?
+						offsets[offsetInd + d] : 0;
+			}
+
+			offsetInd += sets[setInd]->numDynamics;
+		}
+
+		// Sets after the given range.
+		// Simply completely invalidate if disturbed.
+		else if (disturbedFrom <= s)
+		{
+			bound->setLayout = NULL;
+			bound->elem = NULL;
+			bound->numDynamics = 0;
+		}
+
+		// Apparently nothing got disturbed, we're done.
+		else break;
+
+		// Use newly bound number of dynamics to advance.
+		bOffsetInd += bound->numDynamics;
 	}
 
 	// Record the bind command.
@@ -926,13 +1158,15 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		VK_PIPELINE_BIND_POINT_GRAPHICS :
 		VK_PIPELINE_BIND_POINT_COMPUTE;
 
-	if (numDynamics >= numOffsets)
+	if (numDynamics >= skipOffsets + numOffsets)
 	{
 		// If enough dynamic offsets are given, just pass that array.
 		context->vk.CmdBindDescriptorSets(recorder->inp.cmd,
 			bindPoint, technique->vk.layout,
-			(uint32_t)firstSet, (uint32_t)numSets, dSets,
-			(uint32_t)numOffsets, offsets);
+			(uint32_t)(firstSet + skipSets),
+			(uint32_t)(numSets - skipSets),
+			dSets + skipSets,
+			(uint32_t)numOffsets, offsets + skipOffsets);
 	}
 	else
 	{
@@ -941,11 +1175,14 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		uint32_t offs[GFX_MAX(1, numOffsets)];
 
 		for (size_t d = 0; d < numOffsets; ++d)
-			offs[d] = d < numDynamics ? offsets[d] : 0;
+			offs[d] = (skipOffsets + d < numDynamics) ?
+				offsets[skipOffsets + d] : 0;
 
 		context->vk.CmdBindDescriptorSets(recorder->inp.cmd,
 			bindPoint, technique->vk.layout,
-			(uint32_t)firstSet, (uint32_t)numSets, dSets,
+			(uint32_t)(firstSet + skipSets),
+			(uint32_t)(numSets - skipSets),
+			dSets + skipSets,
 			(uint32_t)numOffsets, offs);
 	}
 }

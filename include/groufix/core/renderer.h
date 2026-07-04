@@ -1707,9 +1707,10 @@ GFX_API float gfx_recorder_get_line_width(GFXRecorder* recorder);
  * All offsets must be properly aligned for uniform or storage buffer usages.
  *
  * Previously bound sets before firstSet are _only_ invalidated when they
- * themselves are incompatible with technique.
+ * themselves or any of the sets before them are incompatible with technique.
  *
- * Previously bound sets after the given range are invalidated when _any_ of
+ * Previously bound sets after the given range are invalidated when any of
+ * the sets before firstSet are incompatible with technique OR any of
  * the given sets are incompatible with the previously bound technique.
  */
 GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
