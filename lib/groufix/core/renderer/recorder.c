@@ -1158,7 +1158,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		VK_PIPELINE_BIND_POINT_GRAPHICS :
 		VK_PIPELINE_BIND_POINT_COMPUTE;
 
-	if (numDynamics >= skipOffsets + numOffsets)
+	if (numOffsets == 0 || numDynamics >= skipOffsets + numOffsets)
 	{
 		// If enough dynamic offsets are given, just pass that array.
 		context->vk.CmdBindDescriptorSets(recorder->inp.cmd,
