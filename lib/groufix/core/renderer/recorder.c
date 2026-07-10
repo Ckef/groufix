@@ -1107,12 +1107,12 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 			// If disturbed, invalidate the bound data.
 			if (disturbedFrom <= s)
 			{
-				bound->setLayout = NULL;
-				bound->elem = NULL;
-
 				// Only update numDynamics if a different layout!
 				if (bound->setLayout != technique->sets[s].setLayout)
 					bound->numDynamics = technique->sets[s].numDynamics;
+
+				bound->setLayout = NULL;
+				bound->elem = NULL;
 			}
 		}
 
