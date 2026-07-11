@@ -977,19 +977,15 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		GFXSetElem_* bound = gfx_vec_at(&recorder->state.sets, s);
 		uint32_t* bOffsets = gfx_vec_at(&recorder->state.offsets, bOffsetInd);
 		bOffsetInd += bound->numDynamics;
+		tOffsetInd += technique->sets[s].numDynamics;
 
 		// Check if sets get disturbed from here, if not already.
 		// Note this will also disturb if nothing is bound yet.
-		// Note: if equal setLayout, numDynamics will stay equal too!
-		if (bound->setLayout == technique->sets[s].setLayout)
-			// Same layout, keep number of offsets!
-			tOffsetInd += bound->numDynamics;
-		else
+		if (
+			disturbedFrom > s &&
+			bound->setLayout != technique->sets[s].setLayout)
 		{
-			// Different layout, get new number of offsets!
-			// Plus update what sets get disturbed.
-			tOffsetInd += technique->sets[s].numDynamics;
-			if (disturbedFrom > s) disturbedFrom = s;
+			disturbedFrom = s;
 		}
 
 		// If we're not binding this set, done.
@@ -1107,12 +1103,9 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 			// If disturbed, invalidate the bound data.
 			if (disturbedFrom <= s)
 			{
-				// Only update numDynamics if a different layout!
-				if (bound->setLayout != technique->sets[s].setLayout)
-					bound->numDynamics = technique->sets[s].numDynamics;
-
 				bound->setLayout = NULL;
 				bound->elem = NULL;
+				bound->numDynamics = technique->sets[s].numDynamics;
 			}
 		}
 
