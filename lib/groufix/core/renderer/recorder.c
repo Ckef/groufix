@@ -1028,35 +1028,48 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 
 		offsetInd += sets[setInd]->numDynamics;
 
-		// Early skip if the same exact GFXSet was already bound.
-		// We do not have to worry about making sure to call gfx_set_get_
-		// to ensure pool elements aren't accidentally purged, the bound
-		// state is reset for every call to gfx_recorder_(render|compute),
-		// meaning it must have been called before if we can skip!
-		if (maybeSkip && bound->set == sets[setInd])
-			goto skip;
-
 		// Get the Vulkan descriptor set.
-		GFXPoolElem_* elem = gfx_set_get_(sets[setInd], &recorder->sub);
-		if (elem == NULL)
-		{
-			gfx_log_error(
-				"Failed to get Vulkan descriptor set during bind command; "
-				"command not recorded.");
+		GFXPoolElem_* elem;
 
-			return;
+		if (bound->set == sets[setInd])
+		{
+			// Early skip if the same exact GFXSet was already bound.
+			// We do not have to worry about making sure to call gfx_set_get_
+			// to ensure pool elements aren't accidentally purged, the bound
+			// state is reset in every call to gfx_recorder_(render|compute),
+			// meaning this element must have been retrieved before!
+			if (maybeSkip)
+				goto skip;
+
+			// Not skippable, but still skip gfx_set_get_!
+			elem = bound->elem;
+		}
+		else
+		{
+			// Get the Vulkan descriptor set from the pool.
+			elem = gfx_set_get_(sets[setInd], &recorder->sub);
+			if (elem == NULL)
+			{
+				gfx_log_error(
+					"Failed to get Vulkan descriptor set during bind command; "
+					"command not recorded.");
+
+				return;
+			}
+
+			// Late skip if the same Vulkan descriptor set was already bound.
+			if (maybeSkip && bound->elem == elem)
+				goto skip;
 		}
 
-		// Late skip if the same Vulkan descriptor set was already bound.
-		if (!maybeSkip || bound->elem != elem)
-		{
-			dSets[setInd] = elem->vk.set;
-			pElems[setInd] = elem;
-			numOffsets += sets[setInd]->numDynamics;
-			continue;
-		}
+		// We REALLY are binding this set, set values.
+		dSets[setInd] = elem->vk.set;
+		pElems[setInd] = elem;
+		numOffsets += sets[setInd]->numDynamics;
 
-		// Jump to here (or fall through) to skip binding this set.
+		continue;
+
+		// Jump to here to skip binding this set.
 	skip:
 		skipSets += 1;
 		skipOffsets += sets[setInd]->numDynamics;
