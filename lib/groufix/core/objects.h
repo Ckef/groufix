@@ -873,7 +873,7 @@ struct GFXRecorder
 		uint32_t       pushSize;
 		GFXShaderStage pushStages;
 
-		GFXVec sets;    // Stores { GFXCacheElem_*, GFXPoolElem_*, size_t }.
+		GFXVec sets;    // Stores { GFXCacheElem_*, GFXSet*, GFXPoolElem_*, size_t }.
 		GFXVec offsets; // Stores uint32_t.
 
 	} state;

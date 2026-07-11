@@ -39,6 +39,7 @@ static_assert(
 typedef struct GFXSetElem_
 {
 	GFXCacheElem_* setLayout;
+	GFXSet*        set;
 	GFXPoolElem_*  elem;
 
 	size_t numDynamics; // #dynamic buffer offsets.
@@ -669,7 +670,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
 	context->vk.CmdSetScissor(cmd, 0, 1, &scissor);
 	context->vk.CmdSetLineWidth(cmd, recorder->state.lineWidth);
 
-	// Set recording input & state, record, unset input.
+	// Set recording input & state, record, unset input & reset state.
 	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;
 
@@ -752,7 +753,7 @@ GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
 		context->vk.BeginCommandBuffer(cmd, &cbbi),
 		goto error);
 
-	// Set recording input & state, record, unset input.
+	// Set recording input & state, record, unset input & reset state.
 	recorder->inp.pass = pass;
 	recorder->inp.cmd = cmd;
 
@@ -940,6 +941,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 				&recorder->state.sets, recorder->state.sets.size - i - 1);
 
 			elem->setLayout = NULL;
+			elem->set = NULL;
 			elem->elem = NULL;
 			elem->numDynamics = 0;
 		}
@@ -1005,6 +1007,35 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 			return;
 		}
 
+		// We want to check if we can skip binding this set.
+		// For this it must not be disturbed and all previous passes
+		// must be skipped too!
+		bool maybeSkip = disturbedFrom > s && skipSets == setInd;
+
+		// Plus all bound offsets must be the same!
+		if (maybeSkip)
+			for (size_t d = 0; d < sets[setInd]->numDynamics; ++s)
+			{
+				const uint32_t newOffset = (offsetInd + d < numDynamics) ?
+					offsets[offsetInd + d] : 0;
+
+				if (bOffsets[d] != newOffset)
+				{
+					maybeSkip = 0;
+					break;
+				}
+			}
+
+		offsetInd += sets[setInd]->numDynamics;
+
+		// Early skip if the same exact GFXSet was already bound.
+		// We do not have to worry about making sure to call gfx_set_get_
+		// to ensure pool elements aren't accidentally purged, the bound
+		// state is reset for every call to gfx_recorder_(render|compute),
+		// meaning it must have been called before if we can skip!
+		if (maybeSkip && bound->set == sets[setInd])
+			goto skip;
+
 		// Get the Vulkan descriptor set.
 		GFXPoolElem_* elem = gfx_set_get_(sets[setInd], &recorder->sub);
 		if (elem == NULL)
@@ -1016,40 +1047,19 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 			return;
 		}
 
-		// We want to check if we can skip binding this set.
-		// For this it must already be bound, not be disturbed
-		// and all previous passes must be skipped too!
-		bool skip =
-			bound->elem == elem && disturbedFrom > s && skipSets == setInd;
-
-		// Plus all bound offsets must be the same!
-		if (skip)
-			for (size_t d = 0; d < sets[setInd]->numDynamics; ++s)
-			{
-				const uint32_t newOffset = (offsetInd + d < numDynamics) ?
-					offsets[offsetInd + d] : 0;
-
-				if (bOffsets[d] != newOffset)
-				{
-					skip = 0;
-					break;
-				}
-			}
-
-		offsetInd += sets[setInd]->numDynamics;
-
-		// Skip or do not skip.
-		if (skip)
-		{
-			skipSets += 1;
-			skipOffsets += sets[setInd]->numDynamics;
-		}
-		else
+		// Late skip if the same Vulkan descriptor set was already bound.
+		if (!maybeSkip || bound->elem != elem)
 		{
 			dSets[setInd] = elem->vk.set;
 			pElems[setInd] = elem;
 			numOffsets += sets[setInd]->numDynamics;
+			continue;
 		}
+
+		// Jump to here (or fall through) to skip binding this set.
+	skip:
+		skipSets += 1;
+		skipOffsets += sets[setInd]->numDynamics;
 	}
 
 	// Super early return, apparently we are going to skip all sets.
@@ -1104,6 +1114,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 			if (disturbedFrom <= s)
 			{
 				bound->setLayout = NULL;
+				bound->set = NULL;
 				bound->elem = NULL;
 				bound->numDynamics = technique->sets[s].numDynamics;
 			}
@@ -1118,6 +1129,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 			if (setInd >= skipSets)
 			{
 				bound->setLayout = sets[setInd]->setLayout;
+				bound->set = sets[setInd];
 				bound->elem = pElems[setInd];
 				bound->numDynamics = sets[setInd]->numDynamics;
 
@@ -1134,6 +1146,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		else if (disturbedFrom <= s)
 		{
 			bound->setLayout = NULL;
+			bound->set = NULL;
 			bound->elem = NULL;
 			bound->numDynamics = 0;
 		}
