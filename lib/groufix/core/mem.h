@@ -160,14 +160,6 @@ typedef struct GFXMemAlloc_
 	// For granularity constraints.
 	bool linear;
 
-
-	// Vulkan fields.
-	struct
-	{
-		VkDeviceMemory memory; // Redundant for locality.
-
-	} vk;
-
 } GFXMemAlloc_;
 
 

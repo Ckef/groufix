@@ -624,8 +624,7 @@ try_search:
 		.size   = GFX_KEY_SIZE_(key),
 		.offset = GFX_KEY_OFFSET_(key),
 		.flags  = pdmp.memoryTypes[block->type].propertyFlags,
-		.linear = linear,
-		.vk     = { .memory = block->vk.memory }
+		.linear = linear
 	};
 
 	gfx_list_insert_before(
@@ -748,8 +747,7 @@ bool gfx_allocd_(GFXAllocator_* alloc, GFXMemAlloc_* mem,
 		.size   = reqs.size,
 		.offset = 0,
 		.flags  = pdmp.memoryTypes[block->type].propertyFlags,
-		.linear = 0,
-		.vk     = { .memory = block->vk.memory }
+		.linear = 0
 	};
 
 	gfx_list_insert_before(&block->nodes.list, &mem->node.list, NULL);
