@@ -9,7 +9,7 @@
 #include "groufix/drawers/list.h"
 
 
-// Retrieve the position (into refs OR next item) from a draw item.
+// Retrieve the position (into inds OR next item) from a draw item.
 #define GFX_GET_POSITION_(item) (*(size_t*)item)
 
 // Retrieve the element data from a draw item.
@@ -17,6 +17,24 @@
 	(void*)((char*)item + \
 		GFX_ALIGN_UP(sizeof(size_t), alignof(max_align_t)))
 
+
+/****************************
+ * Swaps the positions of two draw items.
+ */
+static void gfx_draw_list_swap_(GFXDrawList* list, size_t lPos, size_t rPos)
+{
+	size_t* lInd = gfx_vec_at(&list->inds, lPos);
+	size_t* rInd = gfx_vec_at(&list->inds, rPos);
+
+	// Swap item positions.
+	GFX_GET_POSITION_(gfx_vec_at(&list->items, *lInd)) = rPos;
+	GFX_GET_POSITION_(gfx_vec_at(&list->items, *rInd)) = lPos;
+
+	// Swap indices.
+	const size_t tInd = *lInd;
+	*lInd = *rInd;
+	*rInd = tInd;
+}
 
 /****************************/
 GFX_API void gfx_draw_list_init(GFXDrawList* list, size_t elemSize,
@@ -27,7 +45,7 @@ GFX_API void gfx_draw_list_init(GFXDrawList* list, size_t elemSize,
 	assert(elemSize > 0);
 	assert(draw != NULL);
 
-	gfx_vec_init(&list->refs, sizeof(size_t));
+	gfx_vec_init(&list->inds, sizeof(size_t));
 	gfx_vec_init(&list->items,
 		GFX_ALIGN_UP(sizeof(size_t), alignof(max_align_t)) +
 		GFX_ALIGN_UP(elemSize, alignof(max_align_t)));
@@ -47,7 +65,7 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list)
 {
 	assert(list != NULL);
 
-	gfx_vec_clear(&list->refs);
+	gfx_vec_clear(&list->inds);
 	gfx_vec_clear(&list->items);
 
 	list->free = SIZE_MAX;
@@ -81,7 +99,7 @@ GFX_API void* gfx_draw_list_get(GFXDrawList* list, GFXDrawInd ind)
 	assert(list != NULL);
 	assert(ind != 0);
 
-	return GFX_GET_ELEMENT_(gfx_vec_at(&list->items, ind - 1));
+	return GFX_GET_ELEMENT_(gfx_vec_at(&list->items, ind-1));
 }
 
 /****************************/
@@ -90,7 +108,7 @@ GFX_API bool gfx_draw_list_is_visible(GFXDrawList* list, GFXDrawInd ind)
 	assert(list != NULL);
 	assert(ind != 0);
 
-	size_t pos = GFX_GET_POSITION_(gfx_vec_at(&list->items, ind - 1));
+	size_t pos = GFX_GET_POSITION_(gfx_vec_at(&list->items, ind-1));
 	return pos < list->numVisible;
 }
 
@@ -101,7 +119,35 @@ GFX_API void gfx_draw_list_set_visible(GFXDrawList* list, GFXDrawInd ind,
 	assert(list != NULL);
 	assert(ind != 0);
 
-	// TODO: Implement.
+	size_t pos = GFX_GET_POSITION_(gfx_vec_at(&list->items, ind-1));
+	bool isVisible = pos < list->numVisible;
+
+	// No change, done.
+	if (isVisible == visible)
+		return;
+
+	// Reverse visibility of this item,
+	// to do so, find a suitable item to swap positions with.
+	size_t newPos;
+
+	if (isVisible)
+	{
+		// Make it invisible, swap with the last visible item.
+		newPos = list->numVisible - 1;
+		--list->numVisible;
+	}
+	else
+	{
+		// Make it visible, swap with the first invisible item.
+		newPos = list->numVisible;
+		++list->numVisible;
+	}
+
+	// Only swap if it is not already at that position.
+	if (pos != newPos)
+		gfx_draw_list_swap_(list, pos, newPos);
+
+	gfx_draw_list_dirty(list);
 }
 
 /****************************/
@@ -109,7 +155,7 @@ GFX_API void gfx_draw_list_reset_visible(GFXDrawList* list, bool visible)
 {
 	assert(list != NULL);
 
-	list->numVisible = visible ? list->refs.size : 0;
+	list->numVisible = visible ? list->inds.size : 0;
 
 	gfx_draw_list_dirty(list);
 }
@@ -143,14 +189,14 @@ GFX_API void gfx_cmd_draw_list(GFXRecorder* recorder,
 {
 	assert(list != NULL);
 
-	// First sort.
+	// First sort all indices.
 	gfx_draw_list_sort(list);
 
-	// Loop over all references & draw each element.
-	for (size_t i = 0; i < list->numVisible; ++i)
+	// Loop over all sorted indices & draw each element.
+	for (size_t p = 0; p < list->numVisible; ++p)
 	{
-		const size_t ref = *(size_t*)gfx_vec_at(&list->refs, i);
-		const void* elem = GFX_GET_ELEMENT_(gfx_vec_at(&list->items, ref));
+		const size_t ind = *(size_t*)gfx_vec_at(&list->inds, p);
+		const void* elem = GFX_GET_ELEMENT_(gfx_vec_at(&list->items, ind));
 
 		list->draw(recorder, elem, ptr);
 	}

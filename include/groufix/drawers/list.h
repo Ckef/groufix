@@ -26,7 +26,7 @@ typedef size_t GFXDrawInd;
  */
 typedef struct GFXDrawList
 {
-	GFXVec refs;  // Stores size_t, index into items (or SIZE_MAX), to sort.
+	GFXVec inds;  // Stores size_t, 0-based index into items, to sort.
 	GFXVec items; // Stores { size_t pos, data... }.
 	size_t free;  // First free element of items (or SIZE_MAX).
 
@@ -49,6 +49,14 @@ typedef struct GFXDrawList
  * @param elemSize Must be > 0.
  * @param draw     Cannot be NULL.
  * @param cmp      May be NULL to not sort.
+ *
+ * 'draw' takes a recorder,
+ *  an element pointer and a user pointer.
+ *
+ * 'cmp' takes two element pointers, l and r, it should return:
+ *  < 0 if l < r
+ *  > 0 if l > r
+ *  0 if l == r
  */
 GFX_API void gfx_draw_list_init(GFXDrawList* list, size_t elemSize,
                                 void (*draw)(GFXRecorder*, const void*, void*),
