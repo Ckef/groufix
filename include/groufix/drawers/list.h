@@ -28,7 +28,7 @@ typedef struct GFXDrawList
 {
 	GFXVec inds;  // Stores size_t, 0-based index into items, to sort.
 	GFXVec items; // Stores { size_t pos, data... }.
-	size_t free;  // First free element of items (or SIZE_MAX).
+	size_t free;  // First free index into items (or SIZE_MAX).
 
 	size_t numVisible;
 	size_t elementSize;
