@@ -8,7 +8,6 @@
 
 #include "groufix/core/objects.h"
 #include <stdlib.h>
-#include <string.h>
 
 
 // Indirect command size compatibility.
@@ -1082,30 +1081,21 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 
 	// Initialize bound dynamic offset state.
 	// Just allocate missing values, no need to initialize them.
-	// But first get the number of trailing offsets to potentially move.
-	const size_t tOffsets = recorder->state.offsets.size - bOffsetInd;
-
-	if (tOffsetInd > bOffsetInd && !gfx_vec_push(
-		&recorder->state.offsets, tOffsetInd - bOffsetInd, NULL))
+	// Only happens when something got disturbed.
+	// If anything is disturbed, trailing offsets will be unused.
+	if (
+		disturbedFrom < recorder->state.sets.size &&
+		tOffsetInd > recorder->state.offsets.size &&
+		!gfx_vec_push(
+			&recorder->state.offsets,
+			tOffsetInd - recorder->state.offsets.size,
+			NULL))
 	{
 		gfx_log_error(
 			"Could not initialize bound offset state during bind command; "
 			"command not recorded.");
 
 		return;
-	}
-
-	// Move offsets of trailing sets that have not been disturbed.
-	// Do this before writing new offsets, so we don't overwrite them.
-	if (
-		tOffsets > 0 &&
-		tOffsetInd != bOffsetInd &&
-		disturbedFrom > firstSet + numSets)
-	{
-		memmove(
-			gfx_vec_at(&recorder->state.offsets, tOffsetInd),
-			gfx_vec_at(&recorder->state.offsets, bOffsetInd),
-			tOffsets);
 	}
 
 	// Now we have validated everything, set new bound state.
