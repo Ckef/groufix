@@ -292,6 +292,11 @@ GFX_API void gfx_draw_list_sort(GFXDrawList* list)
 
 	if (list->dirty)
 	{
+		// We choose to strictly only use quicksort, without a fallback
+		// to e.g. insertion sort when the input length is small.
+		// This because we expect many elements that compare equal.
+		// In the case of lots of equal items, quicksort swaps way less items.
+
 		// We can assume list->cmp != NULL, otherwise dirty was not set!
 		gfx_draw_list_qsort_(list, 0, list->numVisible);
 
