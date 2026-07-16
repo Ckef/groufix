@@ -1084,7 +1084,6 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 	// Only happens when something got disturbed.
 	// If anything is disturbed, trailing offsets will be unused.
 	if (
-		disturbedFrom < recorder->state.sets.size &&
 		tOffsetInd > recorder->state.offsets.size &&
 		!gfx_vec_push(
 			&recorder->state.offsets,
