@@ -41,6 +41,9 @@ GFX_BIT_FIELD(GFXImageFlags)
  * @param flags Flags to influence the format of the allocated image.
  * @param src   Source stream, cannot be NULL.
  * @return NULL on failure.
+ *
+ * Does not need to be released, hence no gfx_release_image.
+ * However, the returned image CAN be freed like any other image.
  */
 GFX_API GFXImage* gfx_load_image(GFXHeap* heap, GFXSemaphore* sem,
                                  GFXImageFlags flags, GFXImageUsage usage,
