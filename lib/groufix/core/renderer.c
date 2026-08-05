@@ -760,6 +760,27 @@ GFX_API void gfx_pass_undepend(GFXPass* pass, GFXPass* wait)
 }
 
 /****************************/
+GFX_API void gfx_pass_undepend_all(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	// Simply loop over all passes and undepend in both directions,
+	// i.e. with pass as both `pass` and `wait` argument.
+	// Does not need to be super performant.
+	for (
+		GFXPass* other = (GFXPass*)pass->renderer->graph.passes.head;
+		other != NULL;
+		other = (GFXPass*)other->list.next)
+	{
+		if (other != pass)
+		{
+			gfx_pass_undepend(pass, other);
+			gfx_pass_undepend(other, pass);
+		}
+	}
+}
+
+/****************************/
 GFX_API void gfx_renderer_block(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);

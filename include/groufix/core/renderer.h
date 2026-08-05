@@ -798,7 +798,10 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
  *
  * This is the only call that takes the gfx_sig* macro family as injections!
  * To inject between two render passes, use the gfx_sig* macro family.
- * All semaphores are referenced until gfx_pass_undepend is called.
+ * All semaphores are referenced until gfx_pass_undepend(_all) is called.
+ *
+ * To specify dependencies between passes that use the same attachment,
+ * never use this call, gfx_pass_consume* should be used instead!
  *
  * Any signal command is implicitly waited upon by the wait pass.
  * Meaning there is no need to inject a matching wait command anywhere.
@@ -825,6 +828,16 @@ GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
  * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
  */
 GFX_API void gfx_pass_undepend(GFXPass* pass, GFXPass* wait);
+
+/**
+ * Removes all dependency commands appended to a pass,
+ * either as `pass` or `wait` argument to gfx_pass_depend!
+ * @param pass Cannot be NULL.
+ *
+ * NOT thread-safe with respect to all related passes!
+ * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
+ */
+GFX_API void gfx_pass_undepend_all(GFXPass* pass);
 
 /**
  * Blocks until all virtual frames are done rendering.
@@ -950,9 +963,7 @@ GFX_API GFXPass* gfx_renderer_add_pass(GFXRenderer* renderer, GFXPassType type,
  * Erases (destroys) a pass, removing it from its renderer.
  * @param pass Cannot be NULL.
  *
- * This function CANNOT be called if pass is still the parent of other passes
- * or when it still has dependencies appended through gfx_pass_depend,
- * either as `pass` or `wait` argument!
+ * This function CANNOT be called if pass is still the parent of other passes.
  */
 GFX_API void gfx_erase_pass(GFXPass* pass);
 
@@ -1028,9 +1039,8 @@ GFX_API void gfx_pass_uncull(GFXPass* pass);
  * Only has effect if called on a render or _inline_ compute pass.
  * Will fail if called on _async_ compute passes.
  *
- * This call should be used to specify dependencies between
- * passes that use the same attachments.
- * Never use gfx_pass_depend for this (except if it is an async compute pass)!
+ * This call should be used to specify dependencies between (non-async) passes
+ * that use the same attachments, never use gfx_pass_depend!
  *
  * For synchronization purposes it is still necessary to consume an attachment
  * when said attachment is only used in bound sets while recording.

@@ -849,7 +849,6 @@ static void gfx_render_graph_insert_(GFXRenderer* renderer, GFXPass* pass,
 	// Note that within a level, the adding order is preserved.
 	// All async compute passes go at the end, all render or inline compute
 	// passes go in the front, with their own leveling.
-	// Backwards linear search is probably in-line with the adding order.
 	size_t num = pass->type == GFX_PASS_COMPUTE_ASYNC ?
 		renderer->graph.numCompute : renderer->graph.numRender;
 
@@ -876,6 +875,7 @@ static void gfx_render_graph_insert_(GFXRenderer* renderer, GFXPass* pass,
 	}
 
 	// Ok now find insert position.
+	// Backwards linear search is probably in-line with the adding order.
 	GFXPass* last = pass->type == GFX_PASS_COMPUTE_ASYNC ?
 		(GFXPass*)renderer->graph.passes.tail :
 		(renderer->graph.firstCompute != NULL ?
@@ -1004,7 +1004,11 @@ GFX_API void gfx_erase_pass(GFXPass* pass)
 
 	GFXRenderer* renderer = pass->renderer;
 
-	// First we destruct the entire render graph.
+	// Firstly, remove all dependencies added to pass,
+	// so no other pass references this one through its dependencies anymore.
+	gfx_pass_undepend_all(pass);
+
+	// Then, we destruct the entire render graph.
 	// We cannot only invalidate, as this pass will be destroyed.
 	// We do not just destruct this pass (or the subpass chain) as
 	// then the entire subpass chain might get destructed multiple times,
