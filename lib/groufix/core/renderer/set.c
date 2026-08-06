@@ -181,13 +181,12 @@ static bool gfx_make_view_(GFXContext_* context,
 
 	// ... and output some appropriate layout.
 	*layout =
-		// Guess the layout from the descriptor type.
-		// TODO: Make some input somewhere so we can force a general layout?
+		// If a storage image, general layout is the only option.
+		// Otherwise, always add GFX_ACCESS_SAMPLED_READ to the access mask
+		// to force either a general or optimal read only layout!
 		binding->type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ?
 			VK_IMAGE_LAYOUT_GENERAL :
-			GFX_FORMAT_HAS_DEPTH_OR_STENCIL(*fmt) ?
-				VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
-				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			GFX_GET_VK_IMAGE_LAYOUT_(entry->mask | GFX_ACCESS_SAMPLED_READ, *fmt);
 
 	return 1;
 }
@@ -666,7 +665,7 @@ static bool gfx_set_resources_(GFXSet* set, bool update, bool* changed,
  * @param changed Outputs whether update info was actually changed.
  */
 static bool gfx_set_views_(GFXSet* set, bool update, bool* changed,
-                           size_t numViews, const GFXView* views)
+                           size_t numViews, const GFXSetView* views)
 {
 	assert(set != NULL);
 	assert(!set->renderer->recording);
@@ -682,7 +681,7 @@ static bool gfx_set_views_(GFXSet* set, bool update, bool* changed,
 
 	for (size_t v = 0; v < numViews; ++v)
 	{
-		const GFXView* view = &views[v];
+		const GFXSetView* view = &views[v];
 
 		// Check if the resource exists.
 		if (
@@ -722,7 +721,7 @@ static bool gfx_set_views_(GFXSet* set, bool update, bool* changed,
 		if (GFX_DESCRIPTOR_IS_VIEW_(binding->type))
 		{
 			VkFormat vkFmt = VK_FORMAT_UNDEFINED;
-			GFXFormat gfxFmt = view->format;
+			GFXFormat gfxFmt = view->view.format;
 			GFX_RESOLVE_FORMAT_(gfxFmt, vkFmt, renderer->heap->allocator.device,
 				((VkFormatProperties){
 					.linearTilingFeatures = 0,
@@ -752,9 +751,10 @@ static bool gfx_set_views_(GFXSet* set, bool update, bool* changed,
 
 		// Set the new values & update.
 		*changed = 1;
-		entry->range = view->range;
-		entry->swizzle = view->swizzle;
-		entry->viewType = view->type;
+		entry->mask = view->mask;
+		entry->range = view->view.range;
+		entry->swizzle = view->view.swizzle;
+		entry->viewType = view->view.type;
 		atomic_store_explicit(&entry->gen, 0, memory_order_relaxed);
 
 		if (update)
@@ -862,11 +862,16 @@ static bool gfx_set_groups_(GFXSet* set, bool update,
 						gfx_ref_group_buffer(group, sGroup->offset + b, i)
 				};
 
-				GFXView view = {
+				GFXSetView view = {
 					.binding = sGroup->binding + b,
 					.index = i,
-					.format = gBinding->format,
-					.range = entry->range // Don't modify the range!
+					.mask = entry->mask, // Don't modify access mask!
+					.view = {
+						.format = gBinding->format,
+						// Don't modify the range or swizzle!
+						.range = entry->range,
+						.swizzle = entry->swizzle
+					}
 				};
 
 				// We do manually update and/or recycle, mostly
@@ -994,7 +999,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
                                      size_t numViews, size_t numSamplers,
                                      const GFXSetResource* resources,
                                      const GFXSetGroup* groups,
-                                     const GFXView* views,
+                                     const GFXSetView* views,
                                      const GFXSampler* samplers)
 {
 	assert(renderer != NULL);
@@ -1085,6 +1090,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
 		{
 			GFXSetEntry_* entry = &binding->entries[e];
 			entry->ref = GFX_REF_NULL;
+			entry->mask = 0;
 			entry->swizzle = GFX_SWIZZLE_IDENTITY;
 			entry->viewType = GFX_VIEW_2D;
 			entry->sampler = NULL;
@@ -1331,7 +1337,7 @@ GFX_API bool gfx_set_groups(GFXSet* set,
 
 /****************************/
 GFX_API bool gfx_set_views(GFXSet* set,
-                           size_t numViews, const GFXView* views)
+                           size_t numViews, const GFXSetView* views)
 {
 	// Relies on stand-in function for asserts.
 

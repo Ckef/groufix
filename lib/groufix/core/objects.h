@@ -1047,9 +1047,11 @@ struct GFXRenderer
  */
 typedef struct GFXConsume_
 {
+	size_t index; // Attachment index.
+
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
-	GFXView        view; // index used as attachment index.
+	GFXView        view;
 
 	GFXImageAspect  cleared;
 	GFXBlendOpState color;
@@ -1286,7 +1288,8 @@ struct GFXTechnique
  */
 typedef struct GFXSetEntry_
 {
-	GFXReference   ref; // GFX_REF_NULL if empty or sampler.
+	GFXReference   ref;  // GFX_REF_NULL if empty or sampler.
+	GFXAccessMask  mask; // For modifying the image layout, may be 0.
 	GFXRange       range;
 	GFXSwizzleMap  swizzle;
 	GFXViewType    viewType; // For attachment inputs ONLY!.

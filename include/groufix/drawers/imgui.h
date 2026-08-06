@@ -87,12 +87,14 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
  * Builds an ImTextureID from a GFXImage* (or returns the existing one).
  * @param drawer Cannot be NULL.
  * @param image  Cannot be NULL, image remains referenced by the drawer!
+ * @param mask   Access mask to use for the internal set view.
  * @return A valid ImTextureID, NULL on failure.
  *
  * The returned ID is invalidated when this drawer is cleared
  * or gfx_imgui_erase_image is called on the same image.
  */
-GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image);
+GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer,
+                              GFXImage* image, GFXAccessMask mask);
 
 /**
  * Erases the resources for an ImTextureID created from a GFXImage*.

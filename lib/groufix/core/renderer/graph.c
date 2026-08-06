@@ -49,10 +49,10 @@ static inline bool gfx_cmp_consume_(const GFXConsume_* l, const GFXConsume_* r)
 static size_t gfx_get_backing_(GFXRenderer* renderer, const GFXConsume_* con)
 {
 	const GFXAttach_* at =
-		gfx_vec_at(&renderer->backing.attachs, con->view.index);
+		gfx_vec_at(&renderer->backing.attachs, con->index);
 
 	if (
-		con->view.index < renderer->backing.attachs.size &&
+		con->index < renderer->backing.attachs.size &&
 		GFX_CONSUME_IS_ATTACH_(con) &&
 		at->type == GFX_ATTACH_WINDOW_ &&
 		(con->view.range.aspect & GFX_IMAGE_COLOR) &&
@@ -61,7 +61,7 @@ static size_t gfx_get_backing_(GFXRenderer* renderer, const GFXConsume_* con)
 			GFX_ACCESS_ATTACHMENT_WRITE |
 			GFX_ACCESS_ATTACHMENT_RESOLVE)))
 	{
-		return con->view.index;
+		return con->index;
 	}
 
 	return SIZE_MAX;
@@ -204,9 +204,9 @@ static uint64_t gfx_pass_merge_score_(GFXRenderer* renderer,
 		for (size_t i = 0; i < rCurr->base.consumes.size; ++i)
 		{
 			GFXConsume_* con = gfx_vec_at(&rCurr->base.consumes, i);
-			if (con->view.index < renderer->backing.attachs.size)
+			if (con->index < renderer->backing.attachs.size)
 			{
-				GFXConsume_* childCon = consumes[con->view.index];
+				GFXConsume_* childCon = consumes[con->index];
 				if (childCon == NULL) continue;
 
 				// Check if either pass consumes an attachment with
@@ -286,9 +286,9 @@ static void gfx_pass_merge_(GFXRenderer* renderer,
 	for (size_t i = 0; i < rPass->base.consumes.size; ++i)
 	{
 		GFXConsume_* con = gfx_vec_at(&rPass->base.consumes, i);
-		if (con->view.index < renderer->backing.attachs.size)
+		if (con->index < renderer->backing.attachs.size)
 		{
-			consumes[con->view.index] = con;
+			consumes[con->index] = con;
 			if (con->cleared) canMerge = 0;
 		}
 	}
@@ -401,7 +401,7 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 			GFXConsume_* con =
 				gfx_vec_at(&subpass->consumes, i);
 			const GFXAttach_* at =
-				gfx_vec_at(&renderer->backing.attachs, con->view.index);
+				gfx_vec_at(&renderer->backing.attachs, con->index);
 
 			// Default of empty in case we skip this consumption.
 			con->out.subpass = index;
@@ -413,14 +413,14 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 
 			// Validate existence of the attachment.
 			if (
-				con->view.index >= renderer->backing.attachs.size ||
+				con->index >= renderer->backing.attachs.size ||
 				at->type == GFX_ATTACH_EMPTY_)
 			{
 				continue;
 			}
 
 			// Get previous consumption from the previous resolve calls.
-			GFXConsume_* prev = consumes[con->view.index];
+			GFXConsume_* prev = consumes[con->index];
 
 			// Compute initial/final layout based on neighbours.
 			if (at->type == GFX_ATTACH_WINDOW_)
@@ -454,7 +454,7 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 				prev->out.next = con;
 
 				// Set subpass chain state if previous is of the same chain.
-				if (thisChain[con->view.index])
+				if (thisChain[con->index])
 				{
 					prev->out.state &= ~(unsigned int)GFX_CONSUME_IS_LAST_;
 					con->out.state &= ~(unsigned int)GFX_CONSUME_IS_FIRST_;
@@ -473,8 +473,8 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 
 			// Store the consumption for this attachment so the next
 			// resolve calls have this data.
-			consumes[con->view.index] = con;
-			thisChain[con->view.index] = 1;
+			consumes[con->index] = con;
+			thisChain[con->index] = 1;
 		}
 
 		// Also resolve all dependencies.

@@ -924,7 +924,8 @@ GFX_API void* gfx_imgui_font(GFXImguiDrawer* drawer,
 		goto clean;
 
 	// Build an ImTextureID.
-	void* texId = gfx_imgui_image(drawer, image);
+	void* texId =
+		gfx_imgui_image(drawer, image, GFX_ACCESS_SAMPLED_READ);
 
 	if (texId == NULL)
 		goto clean_fonts;
@@ -980,44 +981,57 @@ error:
 }
 
 /****************************/
-GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image)
+GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer,
+                              GFXImage* image, GFXAccessMask mask)
 {
 	assert(drawer != NULL);
 	assert(image != NULL);
 
-	// Check if we already know the image.
-	GFXSet* set = gfx_dict_get(&drawer->images, image);
-	if (set != NULL) return set;
-
-	// Add a new set for this image.
 	const GFXSwizzleMap swizzle =
 		(image->format.order == GFX_ORDER_R) ?
 			GFX_SWIZZLE_R_ALPHA :
 			GFX_SWIZZLE_IDENTITY;
 
-	set = gfx_renderer_add_set(drawer->renderer,
-		drawer->tech, 0,
-		1, 0, 1, 0,
-		(GFXSetResource[]){{
-			.binding = 0,
-			.index = 0,
-			.ref = gfx_ref_image(image)
-		}},
-		NULL,
-		(GFXView[]){{
-			.binding = 0,
-			.index = 0,
+	const GFXSetView view = {
+		.binding = 0,
+		.index = 0,
+		.mask = mask,
+		.view = {
 			.range = GFX_RANGE_WHOLE_IMAGE,
 			.swizzle = swizzle
-		}},
-		NULL);
+		}
+	};
 
-	if (set == NULL)
-		goto error;
+	// Check if we already know the image.
+	GFXSet* set = gfx_dict_get(&drawer->images, image);
+	if (set != NULL)
+	{
+		// If so, make sure the mask is set.
+		if (!gfx_set_views(set, 1, &view))
+			goto error;
+	}
+	else
+	{
+		// If not, add a new set for this image.
+		set = gfx_renderer_add_set(drawer->renderer,
+			drawer->tech, 0,
+			1, 0, 1, 0,
+			(GFXSetResource[]){{
+				.binding = 0,
+				.index = 0,
+				.ref = gfx_ref_image(image)
+			}},
+			NULL,
+			&view,
+			NULL);
 
-	// And add the new set to the drawer.
-	if (!gfx_dict_set(&drawer->images, set, image))
-		goto clean;
+		if (set == NULL)
+			goto error;
+
+		// And add the new set to the drawer.
+		if (!gfx_dict_set(&drawer->images, set, image))
+			goto clean;
+	}
 
 	return set;
 
@@ -1026,7 +1040,7 @@ GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer, GFXImage* image)
 clean:
 	gfx_erase_set(set);
 error:
-	gfx_log_error("Failed to build an ImTextureID for an image");
+	gfx_log_error("Failed to build/modify an ImTextureID for an image");
 
 	return NULL;
 }

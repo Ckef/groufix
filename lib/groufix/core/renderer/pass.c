@@ -177,7 +177,7 @@ static bool gfx_pass_consume_(GFXPass* pass, GFXConsume_* consume)
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == consume->view.index)
+		if (con->index == consume->index)
 		{
 			// Keep old clear, blend & resolve values.
 			GFXConsume_ t = *con;
@@ -532,7 +532,7 @@ static bool gfx_pass_filter_attachments_(GFXRenderPass_* rPass)
 			const GFXConsume_* con =
 				gfx_vec_at(&subpass->base.consumes, i);
 			const GFXAttach_* at =
-				gfx_vec_at(&rend->backing.attachs, con->view.index);
+				gfx_vec_at(&rend->backing.attachs, con->index);
 
 			// Validate that we want to access it as attachment.
 			// NOTE: We CAN filter based on the mask of a single consumption,
@@ -551,13 +551,13 @@ static bool gfx_pass_filter_attachments_(GFXRenderPass_* rPass)
 
 			// Validate existence of the attachment.
 			if (
-				con->view.index >= rend->backing.attachs.size ||
+				con->index >= rend->backing.attachs.size ||
 				at->type == GFX_ATTACH_EMPTY_)
 			{
 				gfx_log_warn(
 					"Consumption of attachment at index %"GFX_PRIs" "
 					"ignored, attachment not described.",
-					con->view.index);
+					con->index);
 
 				continue;
 			}
@@ -566,14 +566,14 @@ static bool gfx_pass_filter_attachments_(GFXRenderPass_* rPass)
 			if (at->type == GFX_ATTACH_WINDOW_)
 			{
 				// Check against the pre-analyzed backing window index.
-				if (con->view.index != rPass->out.backing)
+				if (con->index != rPass->out.backing)
 				{
 					// Skip any other window, no view will be created.
 					gfx_log_warn(
 						"Consumption of attachment at index %"GFX_PRIs" "
 						"ignored, a single pass can only read/write to a "
 						"single window attachment at a time.",
-						con->view.index);
+						con->index);
 
 					continue;
 				}
@@ -588,7 +588,7 @@ static bool gfx_pass_filter_attachments_(GFXRenderPass_* rPass)
 					(GFX_ACCESS_ATTACHMENT_READ | GFX_ACCESS_ATTACHMENT_WRITE)))
 			{
 				if (depSten == SIZE_MAX)
-					depSten = con->view.index;
+					depSten = con->index;
 				else
 					gfx_log_warn(
 						"A single pass can only read/write to a single "
@@ -636,7 +636,7 @@ static uint32_t gfx_pass_find_attachment_(GFXRenderPass_* rPass, size_t index)
 	for (size_t i = 0; i < rPass->vk.views.size; ++i)
 	{
 		const GFXViewElem_* view = gfx_vec_at(&rPass->vk.views, i);
-		if (view->consume->view.index == index) return (uint32_t)i;
+		if (view->consume->index == index) return (uint32_t)i;
 	}
 
 	return VK_ATTACHMENT_UNUSED;
@@ -757,7 +757,7 @@ bool gfx_pass_warmup_(GFXRenderPass_* rPass)
 
 			// This subpass _does_ consume this attachment.
 			const GFXAttach_* at =
-				gfx_vec_at(&rend->backing.attachs, con->view.index);
+				gfx_vec_at(&rend->backing.attachs, con->index);
 
 			bool isColor = 0;
 
@@ -996,7 +996,7 @@ bool gfx_pass_warmup_(GFXRenderPass_* rPass)
 		{
 			const GFXConsume_* con = gfx_vec_at(&subpass->base.consumes, i);
 			const GFXConsume_* prev = con->out.prev;
-			const GFXAttach_* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+			const GFXAttach_* at = gfx_vec_at(&rend->backing.attachs, con->index);
 
 			// Will validate existence of the attachment, checked by graph!
 			if (prev == NULL || (con->out.state & GFX_CONSUME_IS_FIRST_))
@@ -1160,7 +1160,7 @@ bool gfx_pass_build_(GFXRenderPass_* rPass)
 	{
 		GFXViewElem_* view = gfx_vec_at(&rPass->vk.views, i);
 		const GFXConsume_* con = view->consume;
-		const GFXAttach_* at = gfx_vec_at(&rend->backing.attachs, con->view.index);
+		const GFXAttach_* at = gfx_vec_at(&rend->backing.attachs, con->index);
 
 		// Swapchain.
 		if (at->type == GFX_ATTACH_WINDOW_)
@@ -1443,11 +1443,11 @@ GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
 	// Relies on stand-in function for asserts.
 
 	GFXConsume_ consume = {
+		.index = index,
 		.flags = 0,
 		.mask = mask,
 		.stage = stage,
 		.view = {
-			.index = index,
 			// Can specify all aspect flags, will be filtered later on.
 			.range = GFX_RANGE_WHOLE_IMAGE,
 			.swizzle = GFX_SWIZZLE_IDENTITY
@@ -1465,11 +1465,11 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 	// Relies on stand-in function for asserts.
 
 	GFXConsume_ consume = {
+		.index = index,
 		.flags = 0,
 		.mask = mask,
 		.stage = stage,
 		.view = {
-			.index = index,
 			.range = range,
 			.swizzle = GFX_SWIZZLE_IDENTITY
 		}
@@ -1485,9 +1485,8 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 {
 	// Relies on stand-in function for asserts.
 
-	view.index = index; // Purely for function call consistency.
-
 	GFXConsume_ consume = {
+		.index = index,
 		.flags = GFX_CONSUME_VIEWED_,
 		.mask = mask,
 		.stage = stage,
@@ -1509,7 +1508,7 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == index)
+		if (con->index == index)
 		{
 			// Set clear value, preserve other if only 1 of depth/stencil.
 			if (aspect == GFX_IMAGE_DEPTH)
@@ -1547,7 +1546,7 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == index)
+		if (con->index == index)
 		{
 			con->flags |= GFX_CONSUME_BLEND_;
 			con->color = color;
@@ -1571,7 +1570,7 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
 	for (i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == resolve)
+		if (con->index == resolve)
 			break;
 	}
 
@@ -1579,7 +1578,7 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
 	if (i > 0) for (i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == index)
+		if (con->index == index)
 		{
 			con->resolve = resolve;
 
@@ -1613,7 +1612,7 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->view.index == index)
+		if (con->index == index)
 		{
 			gfx_vec_erase(&pass->consumes, 1, i-1);
 

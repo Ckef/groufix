@@ -478,7 +478,7 @@ static bool gfx_frame_push_consume_(GFXRenderer* renderer, GFXFrame* frame,
 
 	GFXContext_* context = renderer->cache.context;
 	const GFXConsume_* prev = con->out.prev;
-	const GFXAttach_* at = gfx_vec_at(&renderer->backing.attachs, con->view.index);
+	const GFXAttach_* at = gfx_vec_at(&renderer->backing.attachs, con->index);
 
 	const GFXFormat fmt = (at->type == GFX_ATTACH_IMAGE_) ?
 		// Pick empty format for windows, which results in non-depth/stencil
@@ -510,7 +510,7 @@ static bool gfx_frame_push_consume_(GFXRenderer* renderer, GFXFrame* frame,
 	{
 		// Query the swapchain image index.
 		const uint32_t imageInd =
-			gfx_frame_get_swapchain_index_(frame, con->view.index);
+			gfx_frame_get_swapchain_index_(frame, con->index);
 
 		// Validate & set, silently ignore non-existent.
 		if (at->window.window->frame.images.size <= imageInd)

@@ -362,18 +362,14 @@ typedef enum GFXStencilOp
  */
 typedef struct GFXView
 {
-	// Both ignored for pass consumptions.
-	GFX_SUPPRESS(size_t binding)
-	GFX_SUPPRESS(size_t index) // Binding array index.
-
 	union {
 		GFXFormat   format; // For texel buffers.
 		GFXViewType type;   // For attachments.
 	};
 
-	GFX_SUPPRESS(GFXSwizzleMap swizzle)
-
 	GFXRange range;
+
+	GFX_SUPPRESS(GFXSwizzleMap swizzle)
 
 } GFXView;
 
@@ -1062,7 +1058,7 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 
 /**
  * Consumes an attachment of a renderer with a specific view.
- * @param view Specifies all properties (and attachment index) to consume with.
+ * @param view Specifies all properties to consume with.
  * @see gfx_pass_consume.
  */
 GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
@@ -1390,6 +1386,20 @@ typedef struct GFXSetGroup
 
 
 /**
+ * Set view description.
+ */
+typedef struct GFXSetView
+{
+	size_t binding;
+	size_t index; // Binding array index.
+
+	GFXAccessMask mask;
+	GFXView view;
+
+} GFXSetView;
+
+
+/**
  * Adds a new set to the renderer, locking the used technique.
  * @param renderer  Cannot be NULL.
  * @param technique Cannot be NULL, must be from renderer.
@@ -1423,7 +1433,7 @@ GFX_API GFXSet* gfx_renderer_add_set(GFXRenderer* renderer,
                                      size_t numViews, size_t numSamplers,
                                      const GFXSetResource* resources,
                                      const GFXSetGroup* groups,
-                                     const GFXView* views,
+                                     const GFXSetView* views,
                                      const GFXSampler* samplers);
 
 /**
@@ -1527,7 +1537,7 @@ GFX_API bool gfx_set_groups(GFXSet* set,
  * All views MUST match the shader input type!
  */
 GFX_API bool gfx_set_views(GFXSet* set,
-                           size_t numViews, const GFXView* views);
+                           size_t numViews, const GFXSetView* views);
 
 /**
  * Sets immutable samplers of the set.
