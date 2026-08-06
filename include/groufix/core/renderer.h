@@ -794,7 +794,6 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
  *
  * This is the only call that takes the gfx_sig* macro family as injections!
  * To inject between two render passes, use the gfx_sig* macro family.
- * All semaphores are referenced until gfx_pass_undepend(_all) is called.
  *
  * To specify dependencies between passes that use the same attachment,
  * never use this call, gfx_pass_consume* should be used instead!
@@ -806,6 +805,8 @@ GFX_API void gfx_pass_inject(GFXPass* pass,
  * For each semaphore that is implicitly being waited upon by a wait pass,
  * only a single wait command will be injected in that pass,
  * even if gfx_pass_depend is called multiple times.
+ * All semaphores are referenced until gfx_pass_undepend(_all) is called
+ * or either of the passes are erased.
  *
  * It is undefined behaviour to use this call to inject a semaphore
  * between two render passes in the same frame.
