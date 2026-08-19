@@ -1021,9 +1021,7 @@ GFX_API void* gfx_imgui_image(GFXImguiDrawer* drawer,
 				.index = 0,
 				.ref = gfx_ref_image(image)
 			}},
-			NULL,
-			&view,
-			NULL);
+			NULL, &view, NULL);
 
 		if (set == NULL)
 			goto error;
