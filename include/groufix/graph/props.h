@@ -128,31 +128,15 @@ GFX_API GFXProperty* gfx_list_prop_init(GFXListProperty* prop);
 GFX_API void gfx_list_prop_clear(GFXListProperty* prop);
 
 /**
- * Pushes properties to the end of a list property.
+ * Adds a property to the end of a list property.
  * @param prop Cannot be NULL.
  * @param item Cannot be NULL.
  * @return Zero when out of memory.
  */
-GFX_API bool gfx_list_prop_push(GFXListProperty* prop, GFXProperty* item);
+GFX_API bool gfx_list_prop_add(GFXListProperty* prop, GFXProperty* item);
 
 /**
- * Inserts properties in the list property at some index.
- * @param prop  Cannot be NULL.
- * @param item  Cannot be NULL.
- * @param index Must be <= prop->items.size.
- * @return Zero when out of memory.
- */
-GFX_API bool gfx_list_prop_insert(GFXListProperty* prop, GFXProperty* item,
-                                  size_t index);
-
-/**
- * Pops properties from the end of a list property.
- * @param prop Cannot be NULL.
- */
-GFX_API void gfx_list_prop_pop(GFXListProperty* prop);
-
-/**
- * Erases properties from the list property at some index.
+ * Erases a property from a list property at some index.
  * @param prop  Cannot be NULL.
  * @param index Must be < prop->items.size.
  */

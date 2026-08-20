@@ -30,31 +30,12 @@ GFX_API void gfx_list_prop_clear(GFXListProperty* prop)
 }
 
 /****************************/
-GFX_API bool gfx_list_prop_push(GFXListProperty* prop, GFXProperty* item)
+GFX_API bool gfx_list_prop_add(GFXListProperty* prop, GFXProperty* item)
 {
 	assert(prop != NULL);
 	assert(item != NULL);
 
 	return gfx_vec_push(&prop->items, 1, &item);
-}
-
-/****************************/
-GFX_API bool gfx_list_prop_insert(GFXListProperty* prop, GFXProperty* item,
-                                  size_t index)
-{
-	assert(prop != NULL);
-	assert(item != NULL);
-	assert(index <= prop->items.size);
-
-	return gfx_vec_insert(&prop->items, 1, &item, index);
-}
-
-/****************************/
-GFX_API void gfx_list_prop_pop(GFXListProperty* prop)
-{
-	assert(prop != NULL);
-
-	gfx_vec_pop(&prop->items, 1);
 }
 
 /****************************/
