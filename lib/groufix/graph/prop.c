@@ -7,6 +7,7 @@
  */
 
 #include "groufix/graph/props.h"
+#include <string.h>
 
 
 /****************************/
@@ -66,34 +67,100 @@ GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index)
 }
 
 /****************************/
-GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* forward)
+GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* follow)
 {
 	assert(prop != NULL);
 
 	prop->prop.type = GFX_PROP_LINK;
-	prop->forward = forward;
+	prop->follow = follow;
 
 	return &prop->prop;
 }
 
 /****************************/
-GFX_API GFXProperty* gfx_value_prop(GFXValueProperty* prop,
-                                    GFXPropertyType type, size_t count, void* value)
+GFX_API GFXProperty* gfx_bool_prop(GFXValueProperty* prop, size_t count,
+                                   bool* values)
 {
 	assert(prop != NULL);
 	assert(count > 0);
-	assert(value != NULL);
-	assert(
-		type == GFX_PROP_BOOL ||
-		type == GFX_PROP_FLOAT ||
-		type == GFX_PROP_DOUBLE ||
-		type == GFX_PROP_INT ||
-		type == GFX_PROP_UINT ||
-		type == GFX_PROP_STRING);
+	assert(values != NULL);
 
-	prop->prop.type = type;
+	prop->prop.type = GFX_PROP_BOOL;
 	prop->count = count;
-	prop->value = value;
+	prop->values = values;
+
+	return &prop->prop;
+}
+
+/****************************/
+GFX_API GFXProperty* gfx_float_prop(GFXValueProperty* prop, size_t count,
+                                    float* values)
+{
+	assert(prop != NULL);
+	assert(count > 0);
+	assert(values != NULL);
+
+	prop->prop.type = GFX_PROP_FLOAT;
+	prop->count = count;
+	prop->values = values;
+
+	return &prop->prop;
+}
+
+/****************************/
+GFX_API GFXProperty* gfx_double_prop(GFXValueProperty* prop, size_t count,
+                                     double* values)
+{
+	assert(prop != NULL);
+	assert(count > 0);
+	assert(values != NULL);
+
+	prop->prop.type = GFX_PROP_DOUBLE;
+	prop->count = count;
+	prop->values = values;
+
+	return &prop->prop;
+}
+
+/****************************/
+GFX_API GFXProperty* gfx_int_prop(GFXValueProperty* prop, size_t count,
+                                  int32_t* values)
+{
+	assert(prop != NULL);
+	assert(count > 0);
+	assert(values != NULL);
+
+	prop->prop.type = GFX_PROP_INT;
+	prop->count = count;
+	prop->values = values;
+
+	return &prop->prop;
+}
+
+/****************************/
+GFX_API GFXProperty* gfx_uint_prop(GFXValueProperty* prop, size_t count,
+                                   uint32_t* values)
+{
+	assert(prop != NULL);
+	assert(count > 0);
+	assert(values != NULL);
+
+	prop->prop.type = GFX_PROP_UINT;
+	prop->count = count;
+	prop->values = values;
+
+	return &prop->prop;
+}
+
+/****************************/
+GFX_API GFXProperty* gfx_string_prop(GFXValueProperty* prop, char* str)
+{
+	assert(prop != NULL);
+	assert(str != NULL);
+
+	prop->prop.type = GFX_PROP_STRING;
+	prop->count = strlen(str);
+	prop->values = str;
 
 	return &prop->prop;
 }

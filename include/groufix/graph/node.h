@@ -41,12 +41,28 @@ typedef struct GFXSpatialNode
 	struct
 	{
 		GFXValueProperty prop;
-		float            value[16]; // TODO: Prolly use cglm or sm?
+		float            values[16]; // TODO: Prolly use cglm or sm?
 
 	} matrix;
 
 } GFXSpatialNode;
 
+
+/**
+ * Sets a property of a node.
+ */
+static inline bool gfx_node_set(GFXNode* node, GFXProperty* prop, const char* key)
+{
+	return gfx_dict_set(&node->properties, prop, key);
+}
+
+/**
+ * Gets a property of a node.
+ */
+static inline GFXProperty* gfx_node_get(GFXNode* node, const char* key)
+{
+	return gfx_dict_get(&node->properties, key);
+}
 
 /**
  * Initializes a node.
@@ -71,22 +87,6 @@ GFX_API void gfx_snode_init(GFXSpatialNode* node);
  * @param node Cannot be NULL.
  */
 GFX_API void gfx_snode_clear(GFXSpatialNode* node);
-
-/**
- * Sets the property of a node.
- * @param node Cannot be NULL.
- * @param prop May be NULL to erase.
- * @param key  Cannot be NULL, must be NULL-terminated.
- * @return Zero when out of memory.
- */
-GFX_API bool gfx_node_set(GFXNode* node, GFXProperty* prop, const char* key);
-
-/**
- * Gets a property of a node.
- * @param node Cannot be NULL.
- * @param key  Cannot be NULL, must be NULL-terminated.
- */
-GFX_API GFXProperty* gfx_node_get(GFXNode* node, const char* key);
 
 
 #endif

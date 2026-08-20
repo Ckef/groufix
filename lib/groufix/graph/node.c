@@ -43,19 +43,19 @@ GFX_API void gfx_snode_init(GFXSpatialNode* node)
 {
 	assert(node != NULL);
 
-	const size_t numFloats =
-		sizeof(node->matrix.value) / sizeof(float);
-
 	gfx_node_init(&node->node);
 
 	// TODO: Set new update function updating the matrices.
 
 	// Initialize matrix value property.
-	gfx_value_prop(&node->matrix.prop,
-		GFX_PROP_FLOAT, numFloats, node->matrix.value);
+	const size_t numFloats =
+		sizeof(node->matrix.values) / sizeof(float);
+
+	gfx_float_prop(
+		&node->matrix.prop, numFloats, node->matrix.values);
 
 	for (size_t i = 0; i < numFloats; ++i)
-		node->matrix.value[i] = 0.0f;
+		node->matrix.values[i] = 0.0f;
 
 	// Set all properties.
 	gfx_node_set(&node->node, &node->matrix.prop.prop, "matrix");
@@ -69,28 +69,4 @@ GFX_API void gfx_snode_clear(GFXSpatialNode* node)
 	gfx_node_clear(&node->node);
 
 	// Leave all values, node is invalidated.
-}
-
-/****************************/
-GFX_API bool gfx_node_set(GFXNode* node, GFXProperty* prop, const char* key)
-{
-	assert(node != NULL);
-	assert(key != NULL);
-
-	return gfx_dict_set(&node->properties, prop, key);
-}
-
-/****************************/
-GFX_API GFXProperty* gfx_node_get(GFXNode* node, const char* key)
-{
-	assert(node != NULL);
-	assert(key != NULL);
-
-	GFXProperty* prop = gfx_dict_get(&node->properties, key);
-
-	// Resolve any links.
-	while (prop && prop->type == GFX_PROP_LINK)
-		prop = ((GFXLinkProperty*)prop)->forward;
-
-	return prop;
 }

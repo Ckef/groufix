@@ -46,12 +46,12 @@ typedef struct GFXProperty
 
 
 /**
- * Link (forward) property definition.
+ * Link (follow) property definition.
  */
 typedef struct GFXLinkProperty
 {
 	GFXProperty  prop; // Base-type.
-	GFXProperty* forward;
+	GFXProperty* follow;
 
 } GFXLinkProperty;
 
@@ -75,7 +75,7 @@ typedef struct GFXValueProperty
 	GFXProperty prop; // Base-type.
 
 	size_t count;
-	void*  value; // Type determined by prop.type.
+	void*  values; // Types determined by prop.type.
 
 } GFXValueProperty;
 
@@ -161,23 +161,65 @@ GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index);
 /**
  * Initializes a link property.
  * Does not need to be cleared, hence no _init postfix.
- * @param prop    Cannot be NULL.
- * @param forward May be NULL.
+ * @param prop   Cannot be NULL.
+ * @param follow May be NULL.
  * @return &prop->prop.
  */
-GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* forward);
+GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* follow);
 
 /**
- * Initializes a value property.
+ * Initializes a boolean value property.
  * Does not need to be cleared, hence no _init postfix.
- * @param prop  Cannot be NULL.
- * @param type  Must be GFX_PROP_(BOOL|FLOAT|DOUBLE|INT|UINT|STRING).
- * @param count Must be > 0.
- * @param value Cannot be NULL.
+ * @param prop   Cannot be NULL.
+ * @param count  Must be > 0.
+ * @param values Cannot be NULL.
  * @return &prop->prop.
  */
-GFX_API GFXProperty* gfx_value_prop(GFXValueProperty* prop, GFXPropertyType type,
-                                    size_t count, void* value);
+GFX_API GFXProperty* gfx_bool_prop(GFXValueProperty* prop, size_t count,
+                                   bool* values);
+
+/**
+ * Initializes a float value property.
+ * Does not need to be cleared, hence no _init postfix.
+ * @see gfx_bool_prop.
+ */
+GFX_API GFXProperty* gfx_float_prop(GFXValueProperty* prop, size_t count,
+                                    float* values);
+
+/**
+ * Initializes a double value property.
+ * Does not need to be cleared, hence no _init postfix.
+ * @see gfx_bool_prop.
+ */
+GFX_API GFXProperty* gfx_double_prop(GFXValueProperty* prop, size_t count,
+                                     double* values);
+
+/**
+ * Initializes an integer value property.
+ * Does not need to be cleared, hence no _init postfix.
+ * @see gfx_bool_prop.
+ */
+GFX_API GFXProperty* gfx_int_prop(GFXValueProperty* prop, size_t count,
+                                  int32_t* values);
+
+/**
+ * Initializes an unsigned integer value property.
+ * Does not need to be cleared, hence no _init postfix.
+ * @see gfx_bool_prop.
+ */
+GFX_API GFXProperty* gfx_uint_prop(GFXValueProperty* prop, size_t count,
+                                   uint32_t* values);
+
+/**
+ * Initializes a string value property.
+ * Does not need to be cleared, hence no _init postfix.
+ * @param prop Cannot be NULL.
+ * @param str  Cannot be NULL, must be NULL-terminated.
+ * @return &prop->prop.
+ *
+ * str is directly stored in prop, hence no const.
+ */
+GFX_API GFXProperty* gfx_string_prop(GFXValueProperty* prop, char* str);
 
 /**
  * Initializes a function property.
