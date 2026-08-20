@@ -24,7 +24,7 @@ typedef struct GFXNode
 	GFXDict     properties; // Stores string : GFXProperty*.
 
 	GFXLinkProperty parent;
-	GFXListProperty children; // Stores GFXNode*.
+	GFXListProperty children;
 	GFXFuncProperty update;
 
 } GFXNode;
@@ -55,16 +55,16 @@ typedef struct GFXSpatialNode
 GFX_API void gfx_node_init(GFXNode* node);
 
 /**
- * Initializes a spatial node.
- * @param node Cannot be NULL.
- */
-GFX_API void gfx_snode_init(GFXSpatialNode* node);
-
-/**
  * Clears a node, invalidating the contents of `node`.
  * @param node Cannot be NULL.
  */
 GFX_API void gfx_node_clear(GFXNode* node);
+
+/**
+ * Initializes a spatial node.
+ * @param node Cannot be NULL.
+ */
+GFX_API void gfx_snode_init(GFXSpatialNode* node);
 
 /**
  * Clears a spatial node, invalidating the contents of `node`.

@@ -22,30 +22,9 @@ GFX_API void gfx_node_init(GFXNode* node)
 	gfx_func_prop(&node->update, NULL);
 
 	// Set all properties.
-	gfx_dict_set(&node->properties, &node->parent, "parent");
-	gfx_dict_set(&node->properties, &node->children, "children");
-	gfx_dict_set(&node->properties, &node->update, "update");
-}
-
-/****************************/
-GFX_API void gfx_snode_init(GFXSpatialNode* node)
-{
-	assert(node != NULL);
-
-	const size_t numFloats =
-		sizeof(node->matrix.value) / sizeof(float);
-
-	gfx_node_init(&node->node);
-	gfx_value_prop(&node->matrix.prop,
-		GFX_PROP_FLOAT, numFloats, node->matrix.value);
-
-	// TODO: Set new update function updating the matrices.
-
-	for (size_t i = 0; i < numFloats; ++i)
-		node->matrix.value[i] = 0.0f;
-
-	// Set all properties.
-	gfx_dict_set(&node->node.properties, &node->matrix.prop, "matrix");
+	gfx_node_set(node, &node->parent.prop, "parent");
+	gfx_node_set(node, &node->children.prop, "children");
+	gfx_node_set(node, &node->update.prop, "update");
 }
 
 /****************************/
@@ -57,6 +36,29 @@ GFX_API void gfx_node_clear(GFXNode* node)
 	gfx_list_prop_clear(&node->children);
 
 	// Leave all values, node is invalidated.
+}
+
+/****************************/
+GFX_API void gfx_snode_init(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	const size_t numFloats =
+		sizeof(node->matrix.value) / sizeof(float);
+
+	gfx_node_init(&node->node);
+
+	// TODO: Set new update function updating the matrices.
+
+	// Initialize matrix value property.
+	gfx_value_prop(&node->matrix.prop,
+		GFX_PROP_FLOAT, numFloats, node->matrix.value);
+
+	for (size_t i = 0; i < numFloats; ++i)
+		node->matrix.value[i] = 0.0f;
+
+	// Set all properties.
+	gfx_node_set(&node->node, &node->matrix.prop.prop, "matrix");
 }
 
 /****************************/

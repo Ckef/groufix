@@ -29,12 +29,49 @@ GFX_API void gfx_list_prop_clear(GFXListProperty* prop)
 }
 
 /****************************/
-GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* link)
+GFX_API bool gfx_list_prop_push(GFXListProperty* prop, GFXProperty* item)
+{
+	assert(prop != NULL);
+	assert(item != NULL);
+
+	return gfx_vec_push(&prop->items, 1, &item);
+}
+
+/****************************/
+GFX_API bool gfx_list_prop_insert(GFXListProperty* prop, GFXProperty* item,
+                                  size_t index)
+{
+	assert(prop != NULL);
+	assert(item != NULL);
+	assert(index <= prop->items.size);
+
+	return gfx_vec_insert(&prop->items, 1, &item, index);
+}
+
+/****************************/
+GFX_API void gfx_list_prop_pop(GFXListProperty* prop)
+{
+	assert(prop != NULL);
+
+	gfx_vec_pop(&prop->items, 1);
+}
+
+/****************************/
+GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index)
+{
+	assert(prop != NULL);
+	assert(index < prop->items.size);
+
+	gfx_vec_erase(&prop->items, 1, index);
+}
+
+/****************************/
+GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* forward)
 {
 	assert(prop != NULL);
 
 	prop->prop.type = GFX_PROP_LINK;
-	prop->forward = link;
+	prop->forward = forward;
 
 	return &prop->prop;
 }

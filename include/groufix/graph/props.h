@@ -97,15 +97,6 @@ typedef struct GFXFuncProperty
  ****************************/
 
 /**
- * Calls a function property.
- */
-static inline int gfx_func_prop_call(GFXFuncProperty* prop, GFXProperty* this,
-                                     const GFXListProperty* args)
-{
-	return  prop->fn ? prop->fn(this, args) : 0;
-}
-
-/**
  * Indexes a list property.
  */
 static inline GFXProperty* gfx_list_prop_at(GFXListProperty* prop, size_t index)
@@ -114,36 +105,13 @@ static inline GFXProperty* gfx_list_prop_at(GFXListProperty* prop, size_t index)
 }
 
 /**
- * Pushes properties to the end of a list property.
+ * Calls a function property.
+ * @return The function's return, or zero when set to NULL.
  */
-static inline bool gfx_list_prop_push(GFXListProperty* prop, GFXProperty* item)
+static inline int gfx_func_prop_call(GFXFuncProperty* prop, GFXProperty* this,
+                                     const GFXListProperty* args)
 {
-	return gfx_vec_push(&prop->items, 1, &item);
-}
-
-/**
- * Inserts properties in the list property at some index.
- */
-static inline bool gfx_list_prop_insert(GFXListProperty* prop, GFXProperty* item,
-                                        size_t index)
-{
-	return gfx_vec_insert(&prop->items, 1, &item, index);
-}
-
-/**
- * Pops properties from the end of a list property.
- */
-static inline void gfx_list_prop_pop(GFXListProperty* prop)
-{
-	gfx_vec_pop(&prop->items, 1);
-}
-
-/**
- * Erases properties from the list property at some index.
- */
-static inline void gfx_list_prop_erase(GFXListProperty* prop, size_t index)
-{
-	gfx_vec_erase(&prop->items, 1, index);
+	return prop->fn ? prop->fn(this, args) : 0;
 }
 
 /**
@@ -160,12 +128,44 @@ GFX_API GFXProperty* gfx_list_prop_init(GFXListProperty* prop);
 GFX_API void gfx_list_prop_clear(GFXListProperty* prop);
 
 /**
+ * Pushes properties to the end of a list property.
+ * @param prop Cannot be NULL.
+ * @param item Cannot be NULL.
+ * @return Zero when out of memory.
+ */
+GFX_API bool gfx_list_prop_push(GFXListProperty* prop, GFXProperty* item);
+
+/**
+ * Inserts properties in the list property at some index.
+ * @param prop  Cannot be NULL.
+ * @param item  Cannot be NULL.
+ * @param index Must be <= prop->items.size.
+ * @return Zero when out of memory.
+ */
+GFX_API bool gfx_list_prop_insert(GFXListProperty* prop, GFXProperty* item,
+                                  size_t index);
+
+/**
+ * Pops properties from the end of a list property.
+ * @param prop Cannot be NULL.
+ */
+GFX_API void gfx_list_prop_pop(GFXListProperty* prop);
+
+/**
+ * Erases properties from the list property at some index.
+ * @param prop  Cannot be NULL.
+ * @param index Must be < prop->items.size.
+ */
+GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index);
+
+/**
  * Initializes a link property.
  * Does not need to be cleared, hence no _init postfix.
- * @param prop Cannot be NULL.
+ * @param prop    Cannot be NULL.
+ * @param forward May be NULL.
  * @return &prop->prop.
  */
-GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* link);
+GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* forward);
 
 /**
  * Initializes a value property.
@@ -183,6 +183,7 @@ GFX_API GFXProperty* gfx_value_prop(GFXValueProperty* prop, GFXPropertyType type
  * Initializes a function property.
  * Does not need to be cleared, hence no _init postfix.
  * @param prop Cannot be NULL.
+ * @param fn   May be NULL.
  * @return &prop->prop.
  */
 GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop,
