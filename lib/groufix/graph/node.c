@@ -70,3 +70,54 @@ GFX_API void gfx_snode_clear(GFXSpatialNode* node)
 
 	// Leave all values, node is invalidated.
 }
+
+/****************************/
+GFX_API bool gfx_node_set_parent(GFXNode* node, GFXNode* parent)
+{
+	assert(node != NULL);
+	assert(parent == NULL || parent->prop.type == GFX_PROP_NODE);
+
+	// Add it as a child to its new parent.
+	if (parent != NULL)
+	{
+		// Parent already set.
+		if (node->parent.follow == &parent->prop)
+			return 1;
+
+		if (!gfx_list_prop_add(&parent->children, &node->prop))
+			return 0;
+	}
+
+	// Remove it as child from its current parent.
+	if (
+		node->parent.follow != NULL &&
+		node->parent.follow->type == GFX_PROP_NODE)
+	{
+		GFXNode* currParent = (GFXNode*)node->parent.follow;
+
+		for (size_t i = currParent->children.items.size; i > 0; --i)
+		{
+			GFXProperty* child =
+				gfx_list_prop_at(&currParent->children, i-1);
+
+			if (child == &node->prop)
+				gfx_list_prop_erase(&currParent->children, i-1);
+		}
+	}
+
+	// Set new parent.
+	gfx_link_prop(&node->parent, (GFXProperty*)parent);
+
+	return 1;
+}
+
+/****************************/
+GFX_API GFXNode* gfx_node_get_parent(GFXNode* node)
+{
+	assert(node != NULL);
+
+	GFXProperty* parent = node->parent.follow;
+
+	return (parent != NULL && parent->type == GFX_PROP_NODE) ?
+		(GFXNode*)parent : NULL;
+}

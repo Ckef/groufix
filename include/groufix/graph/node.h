@@ -88,5 +88,20 @@ GFX_API void gfx_snode_init(GFXSpatialNode* node);
  */
 GFX_API void gfx_snode_clear(GFXSpatialNode* node);
 
+/**
+ * Sets the parent node of a node.
+ * @param node   Cannot be NULL.
+ * @param parent Must be a node or NULL.
+ * @return Zero on failure.
+ */
+GFX_API bool gfx_node_set_parent(GFXNode* node, GFXNode* parent);
+
+/**
+ * Retrieves the parent node of a node.
+ * @param node Cannot be NULL.
+ * @return NULL if no parent is set or parent is not a node.
+ */
+GFX_API GFXNode* gfx_node_get_parent(GFXNode* node);
+
 
 #endif
