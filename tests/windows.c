@@ -37,7 +37,7 @@ TEST_DESCRIBE(windows, t)
 	window2->events.key.release = TEST_EVT_KEY_RELEASE;
 
 	// Add second window to the renderer.
-	if (!gfx_renderer_attach_window(t->renderer, 1, window2))
+	if (!gfx_renderer_attach_window(t->renderer, window2))
 		TEST_FAIL();
 
 	// And create a pass writing to it.
@@ -47,13 +47,13 @@ TEST_DESCRIBE(windows, t)
 	if (pass2 == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_consume(pass2, 1,
+	if (!gfx_pass_consume(pass2, 2,
 		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
 	{
 		TEST_FAIL();
 	}
 
-	gfx_pass_clear(pass2, 1,
+	gfx_pass_clear(pass2, 2,
 		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
 
 	// And of course a second renderable.

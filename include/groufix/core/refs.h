@@ -304,7 +304,7 @@ typedef struct GFXSwizzleMap
  *   - one of its buffers or images.
  *   - or: all newly allocated buffers as one.
  *  GFXRenderer
- *   - one of its image attachments.
+ *   - one of its image attachments (1-based index).
  *
  * No argument can be NULL, any referenced memory resource must exist.
  * If any of these constraints are not met, behaviour is undefined.

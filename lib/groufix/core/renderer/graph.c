@@ -44,7 +44,7 @@ static inline bool gfx_cmp_consume_(const GFXConsume_* l, const GFXConsume_* r)
 
 /****************************
  * Checks if a consumption is a potential backing window as attachment.
- * @return The window attachment index, SIZE_MAX if not present.
+ * @return The window attachment index (0-based), SIZE_MAX if not present.
  */
 static size_t gfx_get_backing_(GFXRenderer* renderer, const GFXConsume_* con)
 {

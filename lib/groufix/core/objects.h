@@ -898,7 +898,7 @@ struct GFXRecorder
 typedef struct GFXFrameSync_
 {
 	GFXWindow_* window;
-	size_t      backing; // Attachment index.
+	size_t      backing; // Attachment index (0-based).
 	uint32_t    image;   // Swapchain image index (or UINT32_MAX).
 
 
@@ -991,6 +991,7 @@ struct GFXRenderer
 	struct
 	{
 		GFXVec attachs; // Stores GFXAttach_.
+		size_t empty;   // First empty index into attachs (or SIZE_MAX).
 
 		enum {
 			GFX_BACKING_INVALID_,
@@ -1047,7 +1048,7 @@ struct GFXRenderer
  */
 typedef struct GFXConsume_
 {
-	size_t index; // Attachment index.
+	size_t index; // Attachment index (0-based).
 
 	GFXAccessMask  mask;
 	GFXShaderStage stage;
@@ -1056,7 +1057,7 @@ typedef struct GFXConsume_
 	GFXImageAspect  cleared;
 	GFXBlendOpState color;
 	GFXBlendOpState alpha;
-	size_t          resolve; // Or SIZE_MAX.
+	size_t          resolve; // Or SIZE_MAX (0-based).
 
 	enum {
 		GFX_CONSUME_VIEWED_ = 0x0001, // Set to use view.type.
@@ -1194,7 +1195,7 @@ typedef struct GFXRenderPass_
 
 		uint32_t subpass;   // Subpass index.
 		uint32_t subpasses; // Number of subpasses (undefined if not master).
-		size_t   backing;   // Window attachment index (or SIZE_MAX).
+		size_t   backing;   // Window attachment index (or SIZE_MAX, 0-based).
 
 	} out;
 
@@ -1365,7 +1366,7 @@ struct GFXSet
 typedef struct GFXUnpackRef_
 {
 	// Unpacked reference value(s),
-	//  buffer offset | attachment index | 0.
+	//  buffer offset | attachment index (0-based) | 0.
 	uint64_t value;
 
 
@@ -1877,7 +1878,7 @@ void gfx_frame_clear_(GFXRenderer* renderer, GFXFrame* frame);
 /**
  * Retrieves the swapchain image index associated with an attachment.
  * @param frame Cannot be NULL.
- * @param index Attachment index.
+ * @param index Attachment index (0-based).
  * @return The swapchain image index, or UINT32_MAX if none associated.
  */
 uint32_t gfx_frame_get_swapchain_index_(GFXFrame* frame, size_t index);

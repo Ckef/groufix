@@ -19,7 +19,7 @@
 
 #define GFX_VATTRIBUTE_(ref) ref.values[0]
 #define GFX_VBINDING_(ref) ref.values[0]
-#define GFX_VATTACHMENT_(ref) ref.values[0]
+#define GFX_VATTACHMENT_(ref) (ref.values[0] - 1) // Adjust 1-based index.
 #define GFX_VINDEX_(ref) ref.values[1]
 
 
@@ -163,6 +163,7 @@ GFXReference gfx_ref_resolve_(GFXReference ref)
 		// Note that this is not thread-safe with respect to the attachment
 		// vector, luckily references don't have to be thread-safe (!).
 		GFX_CHECK_RESOLVE_(
+			// 0 will underflow to SIZE_MAX, triggering the same error!
 			GFX_VATTACHMENT_(ref) < GFX_RENDERER_->backing.attachs.size,
 			"Referencing a non-existent renderer attachment!");
 
