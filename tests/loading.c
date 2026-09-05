@@ -231,7 +231,7 @@ TEST_DESCRIBE(loading, t)
 		goto clean;
 
 	// Setup a multisampled intermediate output attachment.
-	if (!gfx_renderer_attach(t->renderer, 1,
+	if (!gfx_renderer_attach(t->renderer,
 		(GFXAttachment){
 			.type  = GFX_IMAGE_2D,
 			.flags = GFX_MEMORY_NONE,
@@ -243,7 +243,7 @@ TEST_DESCRIBE(loading, t)
 			.layers  = 1,
 
 			.size = GFX_SIZE_RELATIVE,
-			.ref = 0,
+			.ref = 1,
 			.xScale = 1.0f,
 			.yScale = 1.0f,
 			.zScale = 1.0f
@@ -253,7 +253,7 @@ TEST_DESCRIBE(loading, t)
 	}
 
 	// Setup a multisampled depth buffer for our object.
-	if (!gfx_renderer_attach(t->renderer, 2,
+	if (!gfx_renderer_attach(t->renderer,
 		(GFXAttachment){
 			.type  = GFX_IMAGE_2D,
 			.flags = GFX_MEMORY_NONE,
@@ -265,7 +265,7 @@ TEST_DESCRIBE(loading, t)
 			.layers  = 1,
 
 			.size = GFX_SIZE_RELATIVE,
-			.ref = 0,
+			.ref = 1,
 			.xScale = 1.0f,
 			.yScale = 1.0f,
 			.zScale = 1.0f
@@ -275,33 +275,33 @@ TEST_DESCRIBE(loading, t)
 	}
 
 	// Consume the intermediate as output and the window as resolve.
-	gfx_pass_release(t->pass, 0);
+	gfx_pass_release(t->pass, 1);
 
-	if (!gfx_pass_consume(t->pass, 1,
+	if (!gfx_pass_consume(t->pass, 2,
 		GFX_ACCESS_ATTACHMENT_WRITE | GFX_ACCESS_DISCARD, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
-	if (!gfx_pass_consume(t->pass, 2,
+	if (!gfx_pass_consume(t->pass, 3,
 		GFX_ACCESS_ATTACHMENT_TEST | GFX_ACCESS_DISCARD, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
-	if (!gfx_pass_consume(t->pass, 0,
+	if (!gfx_pass_consume(t->pass, 1,
 		GFX_ACCESS_ATTACHMENT_RESOLVE, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
-	gfx_pass_clear(t->pass, 1,
+	gfx_pass_clear(t->pass, 2,
 		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
 
-	gfx_pass_clear(t->pass, 2,
+	gfx_pass_clear(t->pass, 3,
 		GFX_IMAGE_DEPTH, (GFXClear){ .depth = 1.0f });
 
-	gfx_pass_resolve(t->pass, 1, 0);
+	gfx_pass_resolve(t->pass, 2, 1);
 
 	// Setup an event loop.
 	while (!gfx_window_should_close(t->window))

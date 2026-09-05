@@ -32,125 +32,6 @@ typedef enum GFXSizeClass
 
 
 /**
- * Viewport description.
- */
-typedef struct GFXViewport
-{
-	GFXSizeClass size;
-
-	union {
-		float x;
-		float xOffset;
-	};
-
-	union {
-		float y;
-		float yOffset;
-	};
-
-	union {
-		float width;
-		float xScale;
-	};
-
-	union {
-		float height;
-		float yScale;
-	};
-
-	float minDepth;
-	float maxDepth;
-
-} GFXViewport;
-
-
-/**
- * Scissor description.
- */
-typedef struct GFXScissor
-{
-	GFXSizeClass size;
-
-	union {
-		int32_t x;
-		float xOffset;
-	};
-
-	union {
-		int32_t y;
-		float yOffset;
-	};
-
-	union {
-		uint32_t width;
-		float xScale;
-	};
-
-	union {
-		uint32_t height;
-		float yScale;
-	};
-
-} GFXScissor;
-
-
-/**
- * Attachment description.
- */
-typedef struct GFXAttachment
-{
-	GFXImageType   type;
-	GFXMemoryFlags flags;
-	GFXImageUsage  usage;
-
-	GFXFormat     format;
-	unsigned char samples; // 1 <= 2^n <= 64.
-	uint32_t      mipmaps;
-	uint32_t      layers;
-
-	// Optionally dynamic size.
-	GFXSizeClass size;
-
-	GFX_SUPPRESS(size_t ref) // Index of the attachment the size is relative to.
-
-	union {
-		uint32_t width;
-		float xScale;
-	};
-
-	union {
-		uint32_t height;
-		float yScale;
-	};
-
-	union {
-		uint32_t depth;
-		float zScale;
-	};
-
-} GFXAttachment;
-
-
-/**
- * Image clear value.
- */
-typedef union GFXClear
-{
-	float    f[4];
-	int32_t  i32[4];
-	uint32_t u32[4];
-
-	GFX_UNION_ANONYMOUS(
-	{
-		GFX_SUPPRESS(float    depth)
-		GFX_SUPPRESS(uint32_t stencil)
-
-	}, test)
-
-} GFXClear;
-
-
-/**
  * Image view type (interpreted dimensionality).
  */
 typedef enum GFXViewType
@@ -355,6 +236,69 @@ typedef enum GFXStencilOp
 	GFX_STENCIL_DECR_WRAP
 
 } GFXStencilOp;
+
+
+/**
+ * Viewport description.
+ */
+typedef struct GFXViewport
+{
+	GFXSizeClass size;
+
+	union {
+		float x;
+		float xOffset;
+	};
+
+	union {
+		float y;
+		float yOffset;
+	};
+
+	union {
+		float width;
+		float xScale;
+	};
+
+	union {
+		float height;
+		float yScale;
+	};
+
+	float minDepth;
+	float maxDepth;
+
+} GFXViewport;
+
+
+/**
+ * Scissor description.
+ */
+typedef struct GFXScissor
+{
+	GFXSizeClass size;
+
+	union {
+		int32_t x;
+		float xOffset;
+	};
+
+	union {
+		int32_t y;
+		float yOffset;
+	};
+
+	union {
+		uint32_t width;
+		float xScale;
+	};
+
+	union {
+		uint32_t height;
+		float yScale;
+	};
+
+} GFXScissor;
 
 
 /**
@@ -862,62 +806,105 @@ GFX_API void gfx_frame_block(GFXFrame* frame);
  ****************************/
 
 /**
- * Describes the properties of an image attachment of a renderer.
- * If the attachment already exists, it will be detached and overwritten.
+ * Attachment index (1-based).
+ */
+typedef size_t GFXAttachmentInd;
+
+
+/**
+ * Attachment description.
+ */
+typedef struct GFXAttachment
+{
+	GFXImageType   type;
+	GFXMemoryFlags flags;
+	GFXImageUsage  usage;
+
+	GFXFormat     format;
+	unsigned char samples; // 1 <= 2^n <= 64.
+	uint32_t      mipmaps;
+	uint32_t      layers;
+
+	// Optionally dynamic size.
+	GFXSizeClass size;
+
+	// Index of the attachment the size is relative to.
+	GFX_SUPPRESS(GFXAttachmentInd ref)
+
+	union {
+		uint32_t width;
+		float xScale;
+	};
+
+	union {
+		uint32_t height;
+		float yScale;
+	};
+
+	union {
+		uint32_t depth;
+		float zScale;
+	};
+
+} GFXAttachment;
+
+
+/**
+ * Describes the properties of a new image attachment of a renderer.
  * @param renderer Cannot be NULL.
- * @param index    Attachment index.
- * @return Zero on failure.
+ * @return Non-zero on success.
+ *
+ * The lowest possible attachment index (i.e. where no attachment or window is
+ * attached) will be handed out for the new attachment, starting at 1.
  *
  * The GFX_MEMORY_HOST_VISIBLE flag is ignored, images cannot be mapped!
- * If anything needs to be detached, this will block until rendering is done!
  */
-GFX_API bool gfx_renderer_attach(GFXRenderer* renderer,
-                                 size_t index, GFXAttachment attachment);
+GFX_API GFXAttachmentInd gfx_renderer_attach(GFXRenderer* renderer,
+                                             GFXAttachment attachment);
 
 /**
  * Attaches a window to an attachment index of a renderer.
- * If the attachment already exists, it will be detached and overwritten.
- * @param renderer Cannot be NULL.
- * @param index    Attachment index.
- * @param window   Cannot be NULL.
- * @return Zero on failure.
+ * @param window Cannot be NULL.
+ * @see gfx_renderer_attach.
  *
  * Thread-safe with respect to window.
- * If anything needs to be detached, this will block until rendering is done!
  * Fails if the window was already attached to a renderer or the window and
  * renderer do not share a compatible device.
  */
-GFX_API bool gfx_renderer_attach_window(GFXRenderer* renderer,
-                                        size_t index, GFXWindow* window);
+GFX_API GFXAttachmentInd gfx_renderer_attach_window(GFXRenderer* renderer,
+                                                    GFXWindow* window);
 
 /**
  * Retrieves the properties of an image attachment of a renderer.
  * @param renderer Cannot be NULL.
- * @param index    Must be < largest attachment index of renderer.
+ * @param index    Must be non-zero.
  * @return Empty attachment if none attached.
  *
  * An empty attachment has 0'd out values and
  * undefined `type`, `flags`, `usage` and `ref` fields.
  */
-GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer, size_t index);
+GFX_API GFXAttachment gfx_renderer_get_attach(GFXRenderer* renderer,
+                                              GFXAttachmentInd index);
 
 /**
  * Retrieves a window at an attachment index of a renderer.
  * @param renderer Cannot be NULL.
- * @param index    Must be < largest attachment index of renderer.
+ * @param index    Must be non-zero.
  * @return NULL if no window is attached.
  */
-GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer, size_t index);
+GFX_API GFXWindow* gfx_renderer_get_window(GFXRenderer* renderer,
+                                           GFXAttachmentInd index);
 
 /**
  * Detaches an attachment at a given index of a renderer.
  * Undescribed if not a window, detached if a window.
  * @param renderer Cannot be NULL.
- * @param index    Must be < largest attachment index of renderer.
+ * @param index    Must be non-zero.
  *
  * If anything is detached, this will block until rendering is done!
  */
-GFX_API void gfx_renderer_detach(GFXRenderer* renderer, size_t index);
+GFX_API void gfx_renderer_detach(GFXRenderer* renderer,
+                                 GFXAttachmentInd index);
 
 
 /****************************
@@ -934,6 +921,25 @@ typedef enum GFXPassType
 	GFX_PASS_COMPUTE_ASYNC
 
 } GFXPassType;
+
+
+/**
+ * Image clear value.
+ */
+typedef union GFXClear
+{
+	float    f[4];
+	int32_t  i32[4];
+	uint32_t u32[4];
+
+	GFX_UNION_ANONYMOUS(
+	{
+		GFX_SUPPRESS(float    depth)
+		GFX_SUPPRESS(uint32_t stencil)
+
+	}, test)
+
+} GFXClear;
 
 
 /**
@@ -1028,7 +1034,7 @@ GFX_API void gfx_pass_uncull(GFXPass* pass);
 /**
  * Consume an attachment of a renderer.
  * @param pass  Cannot be NULL.
- * @param index Attachment index to consume.
+ * @param index Attachment index to consume, must be non-zero.
  * @param mask  Access mask to consume the attachment with.
  * @param stage Shader stages with access to the attachment.
  * @return Zero on failure.
@@ -1046,14 +1052,14 @@ GFX_API void gfx_pass_uncull(GFXPass* pass);
  *  Shader location is in add-order, calling with the same index twice
  *  does _not_ change the shader location, should release first.
  */
-GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
+GFX_API bool gfx_pass_consume(GFXPass* pass, GFXAttachmentInd index,
                               GFXAccessMask mask, GFXShaderStage stage);
 
 /**
  * Consumes a range (area) of an attachment of a renderer.
  * @see gfx_pass_consume.
  */
-GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
+GFX_API bool gfx_pass_consumea(GFXPass* pass, GFXAttachmentInd index,
                                GFXAccessMask mask, GFXShaderStage stage,
                                GFXRange range);
 
@@ -1062,20 +1068,20 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
  * @param view Specifies all properties to consume with.
  * @see gfx_pass_consume.
  */
-GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
+GFX_API bool gfx_pass_consumev(GFXPass* pass, GFXAttachmentInd index,
                                GFXAccessMask mask, GFXShaderStage stage,
                                GFXView view);
 
 /**
  * Clears the contents of a consumed attachment before the pass.
  * @param pass   Cannot be NULL.
- * @param index  Attachment index to clear.
+ * @param index  Attachment index to clear, must be non-zero.
  * @param aspect Cannot contain both color AND depth/stencil!
  *
  * No-op if attachment at index is not consumed.
  * Only has effect if consumed by a render pass, with attachment access.
  */
-GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
+GFX_API void gfx_pass_clear(GFXPass* pass, GFXAttachmentInd index,
                             GFXImageAspect aspect, GFXClear value);
 
 /**
@@ -1086,26 +1092,27 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
  * @param alpha (src|dst)AlphaFactor are ignored if GFX_BLEND_NO_OP.
  * @see gfx_pass_clear.
  */
-GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
+GFX_API void gfx_pass_blend(GFXPass* pass, GFXAttachmentInd index,
                             GFXBlendOpState color, GFXBlendOpState alpha);
 
 /**
  * Resolves the contents of a consumed attachment to another after the pass.
- * @param resolve Attachment index to resolve to.
+ * @param resolve Attachment index to resolve to, must be non-zero.
  * @see gfx_pass_clear.
  *
  * No-op if either attachment at index or resolve is not consumed!
  * Will be unset if the attachment at either index or resolve is released!
  */
-GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve);
+GFX_API void gfx_pass_resolve(GFXPass* pass, GFXAttachmentInd index,
+                              GFXAttachmentInd resolve);
 
 /**
  * Release any consumption of an attachment of the renderer.
  * This will reset all state once the attachment is consumed again.
  * @param pass  Cannot be NULL.
- * @param index Attachment index to release.
+ * @param index Attachment index to release, nust be non-zero.
  */
-GFX_API void gfx_pass_release(GFXPass* pass, size_t index);
+GFX_API void gfx_pass_release(GFXPass* pass, GFXAttachmentInd index);
 
 /**
  * Sets the render state of a render pass.

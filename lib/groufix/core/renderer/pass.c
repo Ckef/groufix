@@ -154,7 +154,7 @@ static inline void gfx_pass_gen_(GFXRenderPass_* rPass)
 
 /****************************
  * Stand-in function for all the gfx_pass_consume* variants.
- * The `flags`, `mask`, `stage` and `view` fields of consume must be set.
+ * The `index`, `flags`, `mask`, `stage`, `view` fields of consume must be set.
  * As for `flags`, GFX_CONSUME_BLEND_ may _NOT_ be set.
  * @see gfx_pass_consume*.
  * @param consume Cannot be NULL.
@@ -620,7 +620,7 @@ static bool gfx_pass_filter_attachments_(GFXRenderPass_* rPass)
  * Finds a filtered attachment based on attachment index.
  * If not found, will return VK_ATTACHMENT_UNUSED.
  * @param rPass Cannot be NULL.
- * @param index Attachment index to find.
+ * @param index Attachment index to find (0-based).
  * @return Index into VkRenderPassCreateInfo::pAttachments.
  */
 static uint32_t gfx_pass_find_attachment_(GFXRenderPass_* rPass, size_t index)
@@ -1437,13 +1437,15 @@ GFX_API bool gfx_pass_is_culled(GFXPass* pass)
 }
 
 /****************************/
-GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
+GFX_API bool gfx_pass_consume(GFXPass* pass, GFXAttachmentInd index,
                               GFXAccessMask mask, GFXShaderStage stage)
 {
-	// Relies on stand-in function for asserts.
+	// Mostly relies on stand-in function for asserts.
+
+	assert(index != 0);
 
 	GFXConsume_ consume = {
-		.index = index,
+		.index = index - 1, // 0-based index.
 		.flags = 0,
 		.mask = mask,
 		.stage = stage,
@@ -1458,14 +1460,16 @@ GFX_API bool gfx_pass_consume(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
+GFX_API bool gfx_pass_consumea(GFXPass* pass, GFXAttachmentInd index,
                                GFXAccessMask mask, GFXShaderStage stage,
                                GFXRange range)
 {
-	// Relies on stand-in function for asserts.
+	// Mostly relies on stand-in function for asserts.
+
+	assert(index != 0);
 
 	GFXConsume_ consume = {
-		.index = index,
+		.index = index - 1, // 0-based index.
 		.flags = 0,
 		.mask = mask,
 		.stage = stage,
@@ -1479,14 +1483,16 @@ GFX_API bool gfx_pass_consumea(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
+GFX_API bool gfx_pass_consumev(GFXPass* pass, GFXAttachmentInd index,
                                GFXAccessMask mask, GFXShaderStage stage,
                                GFXView view)
 {
-	// Relies on stand-in function for asserts.
+	// Mostly relies on stand-in function for asserts.
+
+	assert(index != 0);
 
 	GFXConsume_ consume = {
-		.index = index,
+		.index = index - 1, // 0-based index.
 		.flags = GFX_CONSUME_VIEWED_,
 		.mask = mask,
 		.stage = stage,
@@ -1497,18 +1503,19 @@ GFX_API bool gfx_pass_consumev(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
+GFX_API void gfx_pass_clear(GFXPass* pass, GFXAttachmentInd index,
                             GFXImageAspect aspect, GFXClear value)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
+	assert(index != 0);
 	assert(!(aspect & GFX_IMAGE_COLOR) || aspect == GFX_IMAGE_COLOR);
 
 	// Find and set.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->index == index)
+		if (con->index == index - 1)
 		{
 			// Set clear value, preserve other if only 1 of depth/stencil.
 			if (aspect == GFX_IMAGE_DEPTH)
@@ -1527,11 +1534,12 @@ GFX_API void gfx_pass_clear(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
+GFX_API void gfx_pass_blend(GFXPass* pass, GFXAttachmentInd index,
                             GFXBlendOpState color, GFXBlendOpState alpha)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
+	assert(index != 0);
 
 	// Ignore if no-op.
 	if (color.op == GFX_BLEND_NO_OP)
@@ -1546,7 +1554,7 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->index == index)
+		if (con->index == index - 1)
 		{
 			con->flags |= GFX_CONSUME_BLEND_;
 			con->color = color;
@@ -1560,17 +1568,20 @@ GFX_API void gfx_pass_blend(GFXPass* pass, size_t index,
 }
 
 /****************************/
-GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
+GFX_API void gfx_pass_resolve(GFXPass* pass, GFXAttachmentInd index,
+                              GFXAttachmentInd resolve)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
+	assert(index != 0);
+	assert(resolve != 0);
 
 	// Check that resolve is consumed.
 	size_t i;
 	for (i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->index == resolve)
+		if (con->index == resolve - 1)
 			break;
 	}
 
@@ -1578,9 +1589,9 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
 	if (i > 0) for (i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->index == index)
+		if (con->index == index - 1)
 		{
-			con->resolve = resolve;
+			con->resolve = resolve - 1; // 0-based index!
 
 			// Same as gfx_pass_consume_, invalidate for destruction.
 			if (!pass->culled) gfx_render_graph_invalidate_(pass->renderer);
@@ -1590,16 +1601,17 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, size_t index, size_t resolve)
 }
 
 /****************************/
-GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
+GFX_API void gfx_pass_release(GFXPass* pass, GFXAttachmentInd index)
 {
 	assert(pass != NULL);
 	assert(!pass->renderer->recording);
+	assert(index != 0);
 
 	// Find any that resolve to index.
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->resolve == index)
+		if (con->resolve == index - 1)
 		{
 			con->resolve = SIZE_MAX;
 
@@ -1612,7 +1624,7 @@ GFX_API void gfx_pass_release(GFXPass* pass, size_t index)
 	for (size_t i = pass->consumes.size; i > 0; --i)
 	{
 		GFXConsume_* con = gfx_vec_at(&pass->consumes, i-1);
-		if (con->index == index)
+		if (con->index == index - 1)
 		{
 			gfx_vec_erase(&pass->consumes, 1, i-1);
 

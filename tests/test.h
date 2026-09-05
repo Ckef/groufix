@@ -178,7 +178,7 @@ typedef struct TestBase
 	GFXWindow*    window;
 	GFXHeap*      heap;
 	GFXSemaphore* sem;
-	GFXRenderer*  renderer; // Window is attached at index 0.
+	GFXRenderer*  renderer; // Window is attached at index 1.
 	GFXRecorder*  recorder;
 
 	// Render graph stuff.
@@ -440,8 +440,8 @@ static void test_init_(TestState* test_state_)
 	test_base_.window->events.key.release = TEST_EVT_KEY_RELEASE;
 #endif
 
-	// Attach the window at index 0.
-	if (!gfx_renderer_attach_window(test_base_.renderer, 0, test_base_.window))
+	// Attach the window at index 1.
+	if (!gfx_renderer_attach_window(test_base_.renderer, test_base_.window))
 		TEST_FAIL();
 
 #if !defined (TEST_SKIP_CREATE_RENDER_GRAPH)
@@ -452,13 +452,13 @@ static void test_init_(TestState* test_state_)
 	if (test_base_.pass == NULL)
 		TEST_FAIL();
 
-	if (!gfx_pass_consume(test_base_.pass, 0,
+	if (!gfx_pass_consume(test_base_.pass, 1,
 		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
 	{
 		TEST_FAIL();
 	}
 
-	gfx_pass_clear(test_base_.pass, 0,
+	gfx_pass_clear(test_base_.pass, 1,
 		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
 
 	// Preemptively inject a general wait dependency.

@@ -217,7 +217,7 @@ TEST_DESCRIBE(post, t)
 	}
 
 	// Setup an intermediate output attachment.
-	if (!gfx_renderer_attach(t->renderer, 1,
+	if (!gfx_renderer_attach(t->renderer,
 		(GFXAttachment){
 			.type  = GFX_IMAGE_2D,
 			.flags = GFX_MEMORY_NONE,
@@ -229,7 +229,7 @@ TEST_DESCRIBE(post, t)
 			.layers  = 1,
 
 			.size = GFX_SIZE_RELATIVE,
-			.ref = 0,
+			.ref = 1,
 			.xScale = 1.0f,
 			.yScale = 1.0f,
 			.zScale = 1.0f
@@ -267,42 +267,42 @@ TEST_DESCRIBE(post, t)
 	ctx.mode = 2;
 
 	// Move the window to the second passes, the intermediate to the first.
-	gfx_pass_release(t->pass, 0);
+	gfx_pass_release(t->pass, 1);
 
-	if (!gfx_pass_consume(t->pass, 1,
+	if (!gfx_pass_consume(t->pass, 2,
 		GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
 	if (
+		!gfx_pass_consume(posts[0], 2,
+			GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_DISCARD, GFX_STAGE_ANY) ||
 		!gfx_pass_consume(posts[0], 1,
-			GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_DISCARD, GFX_STAGE_ANY) ||
-		!gfx_pass_consume(posts[0], 0,
 			GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
 	if (
+		!gfx_pass_consume(posts[1], 2,
+			GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_DISCARD, GFX_STAGE_ANY) ||
 		!gfx_pass_consume(posts[1], 1,
-			GFX_ACCESS_ATTACHMENT_INPUT | GFX_ACCESS_DISCARD, GFX_STAGE_ANY) ||
-		!gfx_pass_consume(posts[1], 0,
 			GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
 	if (
-		!gfx_pass_consume(posts[2], 1,
+		!gfx_pass_consume(posts[2], 2,
 			GFX_ACCESS_SAMPLED_READ | GFX_ACCESS_DISCARD, GFX_STAGE_ANY) ||
-		!gfx_pass_consume(posts[2], 0,
+		!gfx_pass_consume(posts[2], 1,
 			GFX_ACCESS_ATTACHMENT_WRITE, GFX_STAGE_ANY))
 	{
 		goto clean;
 	}
 
-	gfx_pass_clear(t->pass, 1,
+	gfx_pass_clear(t->pass, 2,
 		GFX_IMAGE_COLOR, (GFXClear){{ 0.0f, 0.0f, 0.0f, 0.0f }});
 
 	// Create the techniques.
@@ -336,7 +336,7 @@ TEST_DESCRIBE(post, t)
 		(GFXSetResource[]){{
 			.binding = 0,
 			.index = 0,
-			.ref = gfx_ref_attach(t->renderer, 1)
+			.ref = gfx_ref_attach(t->renderer, 2)
 		}},
 		NULL, NULL, NULL);
 
@@ -348,7 +348,7 @@ TEST_DESCRIBE(post, t)
 		(GFXSetResource[]){{
 			.binding = 0,
 			.index = 0,
-			.ref = gfx_ref_attach(t->renderer, 1)
+			.ref = gfx_ref_attach(t->renderer, 2)
 		}},
 		NULL, NULL, NULL);
 
