@@ -6,6 +6,7 @@
  * www     : <www.vuzzel.nl>
  */
 
+#include "groufix/core/objects.h"
 #include "groufix/drawers/list.h"
 #include <string.h>
 
@@ -66,7 +67,7 @@ static void gfx_draw_list_qsort_(GFXDrawList* list, size_t l, size_t r)
 			eq = eq + 1; // Pivot element, skip comparison function.
 		else
 		{
-			const int cmp = list->cmp(eqElem, pivElem);
+			const int cmp = list->cmp(list, eqElem, pivElem);
 
 			if (cmp < 0)
 			{
@@ -97,10 +98,56 @@ static void gfx_draw_list_qsort_(GFXDrawList* list, size_t l, size_t r)
 		gfx_draw_list_qsort_(list, gt, r);
 }
 
+/****************************
+ * GFXRenderList implementation of the cmp function.
+ */
+static int gfx_rdraw_list_cmp_(GFXDrawList* list, const void* l, const void* r)
+{
+	const size_t numSets = ((GFXRenderList*)list)->numSets;
+	GFXSet** lSets = gfx_rdraw_list_sets(list, l);
+	GFXSet** rSets = gfx_rdraw_list_sets(list, r);
+
+	for (size_t s = 0; s < numSets; ++s)
+	{
+		// Use integer pointer values to compare.
+		// We can do so as the order does not matter;
+		// it only matters the values uniquely identify the sets.
+		const uintptr_t vL = (uintptr_t)(void*)lSets[s];
+		const uintptr_t vR = (uintptr_t)(void*)rSets[s];
+
+		if ((s+1) == numSets || lSets[s+1] == NULL || rSets[s+1] == NULL)
+		{
+			// Unless this is the last index to compare,
+			// then we first sort on set layout, for minimal pipeline swaps.
+			// Still sort on set afterwards, in case they're equal.
+
+			// Note: we rely on the internal core object of a set
+			// to get a pointer to its layout (!).
+			const uintptr_t lL = (uintptr_t)(void*)lSets[s]->setLayout;
+			const uintptr_t lR = (uintptr_t)(void*)rSets[s]->setLayout;
+
+			if (lL < lR) return -1;
+			if (lL > lR) return 1;
+
+			if (vL < vR) return -1;
+			if (vL > vR) return 1;
+
+			// If equal so far, put fewer sets used first.
+			return (s+1) == numSets ? 0 :
+				lSets[s+1] == NULL ? (rSets[s+1] == NULL ? 0 : -1) : 1;
+		}
+
+		if (vL < vR) return -1;
+		if (vL > vR) return 1;
+	}
+
+	return 0;
+}
+
 /****************************/
 GFX_API void gfx_draw_list_init(GFXDrawList* list, size_t elemSize,
-                                void (*draw)(GFXRecorder*, const void*, void*),
-                                int (*cmp)(const void*, const void*))
+                                void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*),
+                                int (*cmp)(GFXDrawList*, const void*, const void*))
 {
 	assert(list != NULL);
 	assert(elemSize > 0);
@@ -132,6 +179,35 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list)
 	list->free = SIZE_MAX;
 	list->numVisible = 0;
 	list->dirty = 0;
+}
+
+/****************************/
+GFX_API void gfx_rdraw_list_init(GFXRenderList* list,
+                                 size_t elemSize, size_t numSets,
+                                 void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*))
+{
+	assert(list != NULL);
+	assert(elemSize > 0);
+	assert(numSets > 0);
+	assert(draw != NULL);
+
+	const size_t eSize =
+		GFX_ALIGN_UP(elemSize, alignof(GFXSet*)) +
+		sizeof(GFXSet*) * numSets;
+
+	gfx_draw_list_init(
+		&list->list, eSize, draw, gfx_rdraw_list_cmp_);
+
+	list->elementSize = elemSize;
+	list->numSets = numSets;
+}
+
+/****************************/
+GFX_API void gfx_rdraw_list_clear(GFXRenderList* list)
+{
+	assert(list != NULL);
+
+	gfx_draw_list_clear(&list->list);
 }
 
 /****************************/
@@ -179,6 +255,33 @@ GFX_API GFXDrawInd gfx_draw_list_add(GFXDrawList* list, const void* elem,
 	gfx_draw_list_set_visible(list, *ind + 1, visible);
 
 	return *ind + 1;
+}
+
+/****************************/
+GFX_API GFXDrawInd gfx_rdraw_list_add(GFXRenderList* list, const void* elem,
+                                      size_t numSets, GFXSet** sets,
+                                      bool visible)
+{
+	assert(list != NULL);
+	assert(numSets <= list->numSets);
+	assert(numSets == 0 || sets != NULL);
+
+	// Insert empty element.
+	GFXDrawInd ind = gfx_draw_list_add(&list->list, NULL, visible);
+	if (ind == 0) return 0;
+
+	// Copy the element data & all given sets.
+	void* iElem = gfx_draw_list_get(&list->list, ind);
+	GFXSet** iSets = gfx_rdraw_list_sets(&list->list, iElem);
+
+	if (elem != NULL) memcpy(iElem, elem, list->elementSize);
+	if (numSets > 0) memcpy(iSets, sets, sizeof(GFXSet*) * numSets);
+
+	// Set all remaining sets to NULL.
+	while (numSets < list->numSets)
+		iSets[numSets++] = NULL;
+
+	return ind;
 }
 
 /****************************/
@@ -317,6 +420,6 @@ GFX_API void gfx_cmd_draw_list(GFXRecorder* recorder,
 	for (size_t p = 0; p < list->numVisible; ++p)
 	{
 		const void* elem = GFX_GET_ELEMENT_FROM_POS_(list, p);
-		list->draw(recorder, elem, ptr);
+		list->draw(recorder, list, elem, ptr);
 	}
 }

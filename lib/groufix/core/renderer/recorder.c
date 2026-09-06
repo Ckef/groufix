@@ -997,7 +997,10 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		// Validate against the given technique.
 		const size_t setInd = s - firstSet;
 
-		if (sets[setInd]->setLayout != technique->sets[s].setLayout)
+		if (
+			// Safety check for NULL anyway!
+			sets[setInd] == NULL ||
+			sets[setInd]->setLayout != technique->sets[s].setLayout)
 		{
 			gfx_log_error(
 				"Set not compatible with technique during bind command; "

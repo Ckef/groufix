@@ -35,13 +35,37 @@ typedef struct GFXDrawList
 	bool   dirty; // True if sorting needed.
 
 	// Draw function.
-	void (*draw)(GFXRecorder*, const void*, void*);
+	void (*draw)(GFXRecorder*, struct GFXDrawList*, const void*, void*);
 
 	// Comparison function, may be NULL.
-	int (*cmp)(const void*, const void*);
+	int (*cmp)(struct GFXDrawList*, const void*, const void*);
 
 } GFXDrawList;
 
+
+/**
+ * Render list (draw list specialization) definition.
+ */
+typedef struct GFXRenderList
+{
+	GFXDrawList list; // Base-type.
+
+	size_t elementSize;
+	size_t numSets;
+
+} GFXRenderList;
+
+
+/**
+ * Retrieves the bound sets from a render list element.
+ * Undefined behaviour if list is not a render list or
+ * elem is not a value returned by gfx_draw_list_get (or a list->draw arg).
+ */
+static inline GFXSet** gfx_rdraw_list_sets(GFXDrawList* list, const void* elem)
+{
+	return (GFXSet**)((const char*)elem + GFX_ALIGN_UP(
+		((GFXRenderList*)list)->elementSize, alignof(GFXSet*)));
+}
 
 /**
  * Initializes a draw list.
@@ -50,23 +74,45 @@ typedef struct GFXDrawList
  * @param draw     Cannot be NULL.
  * @param cmp      May be NULL to not sort.
  *
- * 'draw' takes a recorder,
- *  an element pointer and a user pointer.
+ * 'draw' takes a recorder, this draw list,
+ * an element pointer and a user pointer.
  *
- * 'cmp' takes two element pointers, l and r, it should return:
+ * 'cmp' takes this draw list
+ * and two element pointers, l and r, it should return:
  *  < 0 if l < r
  *  > 0 if l > r
  *  0 if l == r
  */
 GFX_API void gfx_draw_list_init(GFXDrawList* list, size_t elemSize,
-                                void (*draw)(GFXRecorder*, const void*, void*),
-                                int (*cmp)(const void*, const void*));
+                                void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*),
+                                int (*cmp)(GFXDrawList*, const void*, const void*));
 
 /**
  * Clears the content of a draw list.
  * @param list Cannot be NULL.
  */
 GFX_API void gfx_draw_list_clear(GFXDrawList* list);
+
+/**
+ * Initializes a render list (draw list specialization).
+ * @param numSets Must be > 0.
+ * @see gfx_draw_list_init.
+ *
+ * Cannot use gfx_draw_list_add on list,
+ * MUST use gfx_rdraw_list_add!
+ *
+ * The render list will sort on all leading non-NULL sets associated with each
+ * element. If any set is NULL, all after will be ignored.
+ */
+GFX_API void gfx_rdraw_list_init(GFXRenderList* list,
+                                 size_t elemSize, size_t numSets,
+                                 void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*));
+
+/**
+ * Clears the content of a render list.
+ * @param list Cannot be NULL.
+ */
+GFX_API void gfx_rdraw_list_clear(GFXRenderList* list);
 
 /**
  * Adds a new element to a draw list.
@@ -76,6 +122,16 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list);
  */
 GFX_API GFXDrawInd gfx_draw_list_add(GFXDrawList* list, const void* elem,
                                      bool visible);
+
+/**
+ * Adds a new element to a render list.
+ * @param numSets Must be <= list->numSets.
+ * @param sets    Cannot be NULL if numSets > 0.
+ * @see gfx_draw_list_add.
+ */
+GFX_API GFXDrawInd gfx_rdraw_list_add(GFXRenderList* list, const void* elem,
+                                      size_t numSets, GFXSet** sets,
+                                      bool visible);
 
 /**
  * Erases an element from a draw list.
