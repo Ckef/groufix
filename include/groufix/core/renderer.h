@@ -1300,6 +1300,13 @@ GFX_API uint32_t gfx_tech_get_push_size(GFXTechnique* technique);
 GFX_API GFXShaderStage gfx_tech_get_push_stages(GFXTechnique* technique);
 
 /**
+ * Retrieves the number of total dynamic descriptors of all bindings.
+ * Can be called from any thread AFTER the technique is locked.
+ * @param technique Cannot be NULL.
+ */
+GFX_API size_t gfx_tech_get_num_dynamics(GFXTechnique* technique);
+
+/**
  * Sets specialization constant of the technique.
  * @param technique Cannot be NULL.
  * @param id        ID of the specialization constant in SPIR-V.

@@ -638,6 +638,14 @@ GFX_API GFXShaderStage gfx_tech_get_push_stages(GFXTechnique* technique)
 }
 
 /****************************/
+GFX_API size_t gfx_tech_get_num_dynamics(GFXTechnique* technique)
+{
+	assert(technique != NULL);
+
+	return technique->dynamic.size;
+}
+
+/****************************/
 GFX_API bool gfx_tech_constant(GFXTechnique* technique,
                                uint32_t id, GFXShaderStage stage,
                                size_t size, GFXConstant value)
