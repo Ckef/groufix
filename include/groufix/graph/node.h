@@ -65,6 +65,24 @@ static inline GFXProperty* gfx_node_get(GFXNode* node, const char* key)
 }
 
 /**
+ * Sets the update function of a node.
+ */
+static inline void gfx_node_set_update(GFXNode* node,
+                                       int (*fn)(GFXProperty*, const GFXListProperty*))
+{
+	gfx_func_prop(&node->update, fn);
+}
+
+/**
+ * Calls the update function of a node.
+ * @return The function's return, or zero when set to NULL.
+ */
+static inline int gfx_node_update(GFXNode* node, const GFXListProperty* args)
+{
+	return gfx_func_prop_call(&node->update, &node->prop, args);
+}
+
+/**
  * Initializes a node.
  * @param node Cannot be NULL.
  */

@@ -45,8 +45,6 @@ GFX_API void gfx_snode_init(GFXSpatialNode* node)
 
 	gfx_node_init(&node->node);
 
-	// TODO: Set new update function updating the matrices.
-
 	// Initialize matrix value property.
 	const size_t numFloats =
 		sizeof(node->matrix.values) / sizeof(float);
