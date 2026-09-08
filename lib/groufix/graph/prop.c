@@ -147,12 +147,13 @@ GFX_API GFXProperty* gfx_string_prop(GFXValueProperty* prop, char* str)
 }
 
 /****************************/
-GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop,
+GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop, GFXProperty* this,
                                    int (*fn)(GFXProperty*, const GFXListProperty*))
 {
 	assert(prop != NULL);
 
 	prop->prop.type = GFX_PROP_FUNC;
+	prop->this = this;
 	prop->fn = fn;
 
 	return &prop->prop;

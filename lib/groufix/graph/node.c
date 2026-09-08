@@ -19,7 +19,7 @@ GFX_API void gfx_node_init(GFXNode* node)
 
 	gfx_link_prop(&node->parent, NULL);
 	gfx_list_prop_init(&node->children);
-	gfx_func_prop(&node->update, NULL);
+	gfx_func_prop(&node->update, &node->prop, NULL);
 
 	// Set all properties.
 	gfx_node_set(node, &node->parent.prop, "parent");

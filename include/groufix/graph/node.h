@@ -70,7 +70,7 @@ static inline GFXProperty* gfx_node_get(GFXNode* node, const char* key)
 static inline void gfx_node_set_update(GFXNode* node,
                                        int (*fn)(GFXProperty*, const GFXListProperty*))
 {
-	gfx_func_prop(&node->update, fn);
+	gfx_func_prop(&node->update, &node->prop, fn);
 }
 
 /**
@@ -79,7 +79,7 @@ static inline void gfx_node_set_update(GFXNode* node,
  */
 static inline int gfx_node_update(GFXNode* node, const GFXListProperty* args)
 {
-	return gfx_func_prop_call(&node->update, &node->prop, args);
+	return gfx_func_prop_call(&node->update, args);
 }
 
 /**

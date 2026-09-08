@@ -85,7 +85,8 @@ typedef struct GFXValueProperty
  */
 typedef struct GFXFuncProperty
 {
-	GFXProperty prop; // Base-type.
+	GFXProperty  prop; // Base-type.
+	GFXProperty* this;
 
 	int (*fn)(GFXProperty* this, const GFXListProperty* args);
 
@@ -95,6 +96,18 @@ typedef struct GFXFuncProperty
 /****************************
  * Property initialization and handling.
  ****************************/
+
+/**
+ * Get pointer to an object from pointer to its property member.
+ * Defined as follows:
+ * struct Type { ... (GFXProperty|GFX*Property|...) prop; ... };
+ * ...
+ * struct Type obj;
+ * assert(&obj == GFX_IO_OBJ(&obj->prop, struct Type, prop))
+ */
+#define GFX_PROP_OBJ(prop, type_, member_) \
+	((type_*)((const char*)(prop) - offsetof(type_, member_)))
+
 
 /**
  * Indexes a list property.
@@ -108,10 +121,9 @@ static inline GFXProperty* gfx_list_prop_at(GFXListProperty* prop, size_t index)
  * Calls a function property.
  * @return The function's return, or zero when set to NULL.
  */
-static inline int gfx_func_prop_call(GFXFuncProperty* prop, GFXProperty* this,
-                                     const GFXListProperty* args)
+static inline int gfx_func_prop_call(GFXFuncProperty* prop, const GFXListProperty* args)
 {
-	return prop->fn ? prop->fn(this, args) : 0;
+	return prop->fn ? prop->fn(prop->this, args) : 0;
 }
 
 /**
@@ -212,7 +224,7 @@ GFX_API GFXProperty* gfx_string_prop(GFXValueProperty* prop, char* str);
  * @param fn   May be NULL.
  * @return &prop->prop.
  */
-GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop,
+GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop, GFXProperty* this,
                                    int (*fn)(GFXProperty*, const GFXListProperty*));
 
 
