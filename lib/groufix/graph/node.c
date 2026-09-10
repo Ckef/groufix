@@ -32,6 +32,21 @@ GFX_API void gfx_node_clear(GFXNode* node)
 {
 	assert(node != NULL);
 
+	// Unlink from parent & children.
+	gfx_node_set_parent(node, NULL);
+
+	for (size_t i = 0; i < node->children.items.size;)
+	{
+		GFXProperty* child =
+			gfx_list_prop_at(&node->children, i);
+
+		if (child->type == GFX_PROP_NODE)
+			gfx_node_set_parent((GFXNode*)child, NULL);
+		else
+			++i;
+	}
+
+	// Clear all other things.
 	gfx_dict_clear(&node->properties);
 	gfx_list_prop_clear(&node->children);
 

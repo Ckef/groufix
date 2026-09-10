@@ -90,6 +90,7 @@ GFX_API void gfx_node_init(GFXNode* node);
 
 /**
  * Clears a node, invalidating the contents of `node`.
+ * Will unlink itself from its parent and children.
  * @param node Cannot be NULL.
  */
 GFX_API void gfx_node_clear(GFXNode* node);
@@ -103,6 +104,7 @@ GFX_API void gfx_snode_init(GFXSpatialNode* node);
 /**
  * Clears a spatial node, invalidating the contents of `node`.
  * @param node Cannot be NULL.
+ * @see gfx_node_clear.
  */
 GFX_API void gfx_snode_clear(GFXSpatialNode* node);
 
