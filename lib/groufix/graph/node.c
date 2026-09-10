@@ -9,6 +9,20 @@
 #include "groufix/graph/node.h"
 
 
+/****************************
+ * GFXNode.parent setter implementation.
+ */
+static bool gfx_node_parent_set_(GFXLinkProperty* link, GFXProperty* follow)
+{
+	GFXNode* node = GFX_PROP_OBJ(link, GFXNode, parent);
+
+	// Only set if it's a node.
+	if (follow == NULL || follow->type == GFX_PROP_NODE)
+		return gfx_node_set_parent(node, (GFXNode*)follow);
+
+	return 0;
+}
+
 /****************************/
 GFX_API void gfx_node_init(GFXNode* node)
 {
@@ -17,7 +31,7 @@ GFX_API void gfx_node_init(GFXNode* node)
 	node->prop.type = GFX_PROP_NODE;
 	gfx_sdict_init(&node->properties);
 
-	gfx_link_prop(&node->parent, NULL);
+	gfx_link_prop(&node->parent, NULL, gfx_node_parent_set_);
 	gfx_list_prop_init(&node->children);
 	gfx_func_prop(&node->update, &node->prop, NULL);
 
@@ -128,7 +142,7 @@ GFX_API bool gfx_node_set_parent(GFXNode* node, GFXNode* parent)
 	}
 
 	// Set new parent.
-	gfx_link_prop(&node->parent, (GFXProperty*)parent);
+	gfx_link_prop(&node->parent, (GFXProperty*)parent, gfx_node_parent_set_);
 
 	return 1;
 }

@@ -53,6 +53,8 @@ typedef struct GFXLinkProperty
 	GFXProperty  prop; // Base-type.
 	GFXProperty* follow;
 
+	bool (*set)(struct GFXLinkProperty* link, GFXProperty* follow);
+
 } GFXLinkProperty;
 
 
@@ -118,6 +120,15 @@ static inline GFXProperty* gfx_list_prop_at(GFXListProperty* prop, size_t index)
 }
 
 /**
+ * Calls the setter of a link property.
+ * @return The setter's return, or zero when setter set to NULL.
+ */
+static inline bool gfx_link_prop_set(GFXLinkProperty* link, GFXProperty* follow)
+{
+	return link->set ? link->set(link, follow) : 0;
+}
+
+/**
  * Calls a function property.
  * @return The function's return, or zero when set to NULL.
  */
@@ -159,9 +170,11 @@ GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index);
  * Does not need to be cleared, hence no _init postfix.
  * @param prop   Cannot be NULL.
  * @param follow May be NULL.
+ * @param set    May be NULL.
  * @return &prop->prop.
  */
-GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* follow);
+GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* follow,
+                                   bool (*set)(GFXLinkProperty*, GFXProperty*));
 
 /**
  * Initializes a boolean value property.

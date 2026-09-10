@@ -48,12 +48,14 @@ GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index)
 }
 
 /****************************/
-GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* follow)
+GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* follow,
+                                   bool (*set)(GFXLinkProperty*, GFXProperty*))
 {
 	assert(prop != NULL);
 
 	prop->prop.type = GFX_PROP_LINK;
 	prop->follow = follow;
+	prop->set = set;
 
 	return &prop->prop;
 }
