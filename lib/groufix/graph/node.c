@@ -40,10 +40,19 @@ GFX_API void gfx_node_clear(GFXNode* node)
 		GFXProperty* child =
 			gfx_list_prop_at(&node->children, i);
 
-		if (child->type == GFX_PROP_NODE)
+		// Check if child is a node with this as parent.
+		if (
+			child->type == GFX_PROP_NODE &&
+			((GFXNode*)child)->parent.follow == &node->prop)
+		{
+			// Set its parent to NULL, will erase self from children.
 			gfx_node_set_parent((GFXNode*)child, NULL);
+		}
 		else
+		{
+			// Skip if different parent.
 			++i;
+		}
 	}
 
 	// Clear all other things.
