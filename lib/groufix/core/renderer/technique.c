@@ -999,6 +999,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 					gfx_get_sampler_(renderer, samplerInp);
 
 				// Push the sampler and a handle.
+				// Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*.
 				const uintptr_t handle = (uintptr_t)(void*)sampler;
 				if (
 					sampler == NULL ||
@@ -1062,6 +1063,7 @@ GFX_API bool gfx_tech_lock(GFXTechnique* technique)
 
 		for (size_t s = 0; s < technique->numSets; ++s)
 			sets[s] = technique->sets[s].setLayout->vk.setLayout,
+			// Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*.
 			handles[s] = (uintptr_t)(void*)technique->sets[s].setLayout;
 
 		VkPushConstantRange pcr = {

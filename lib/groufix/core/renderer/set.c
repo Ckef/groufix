@@ -13,12 +13,12 @@
 
 // Fixed hash sizes.
 #define GFX_BUFFER_HASH_SIZE_ \
-	(sizeof(void*) /* GFXBuffer_* */ + \
+	(sizeof(uintptr_t) /* GFXBuffer_* */ + \
 	sizeof(VkDeviceSize) /* offset */ + \
 	sizeof(VkDeviceSize)) /* range */
 
 #define GFX_IMAGE_HASH_SIZE_ \
-	(sizeof(void*) /* GFXImage_*, NULL if an attachment */ + \
+	(sizeof(uintptr_t) /* GFXImage_*, NULL if an attachment */ + \
 	sizeof(size_t) /* SIZE_MAX if not an attachment */ + \
 	sizeof(VkImageViewType) + \
 	sizeof(VkFormat) + \
@@ -34,10 +34,10 @@
 	sizeof(VkImageLayout))
 
 #define GFX_SAMPLER_HASH_SIZE_ \
-	(sizeof(void*)) /* GFXCacheElem_* */
+	(sizeof(uintptr_t)) /* GFXCacheElem_* */
 
 #define GFX_VIEW_HASH_SIZE_ \
-	(sizeof(void*) /* GFXBuffer_* */ + \
+	(sizeof(uintptr_t) /* GFXBuffer_* */ + \
 	sizeof(VkFormat) + \
 	sizeof(VkDeviceSize) /* offset */ + \
 	sizeof(VkDeviceSize)) /* range */
@@ -97,7 +97,8 @@
 
 #define GFX_WRITE_HASH_PTR_(hash, ptr) \
 	do { \
-		const void* value = ptr; \
+		/* Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*. */ \
+		const uintptr_t value = (uintptr_t)(void*)ptr; \
 		GFX_WRITE_HASH_(hash, value); \
 	} while (0)
 

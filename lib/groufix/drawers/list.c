@@ -109,9 +109,12 @@ static int gfx_rdraw_list_cmp_(GFXDrawList* list, const void* l, const void* r)
 
 	for (size_t s = 0; s < numSets; ++s)
 	{
-		// Use integer pointer values to compare.
+		// Use integer pointer values to compare sets.
 		// We can do so as the order does not matter;
 		// it only matters the values uniquely identify the sets.
+
+		// Note: Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*.
+		// This holds true on most 32 and 64 bit architectures!
 		const uintptr_t vL = (uintptr_t)(void*)lSets[s];
 		const uintptr_t vR = (uintptr_t)(void*)rSets[s];
 
