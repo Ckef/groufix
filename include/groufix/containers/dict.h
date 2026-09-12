@@ -44,6 +44,10 @@ GFX_API void gfx_sdict_init(GFXDict* dict);
 /**
  * Initializes a pointer-key dict.
  * @param dict Cannot be NULL.
+ *
+ * Note: Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*, i.e. casting
+ * a pointer to a uintptr_t will always yield the same integral value.
+ * This holds true on most 32 and 64 bit architectures like x86_64 or i686.
  */
 GFX_API void gfx_pdict_init(GFXDict* dict);
 
