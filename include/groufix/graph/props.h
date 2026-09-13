@@ -108,7 +108,7 @@ typedef struct GFXFuncProperty
  * struct Type { ... (GFXProperty|GFX*Property|...) prop; ... };
  * ...
  * struct Type obj;
- * assert(&obj == GFX_IO_OBJ(&obj->prop, struct Type, prop))
+ * assert(&obj == GFX_PROP_OBJ(&obj->prop, struct Type, prop))
  */
 #define GFX_PROP_OBJ(prop, type_, member_) \
 	((type_*)((const char*)(prop) - offsetof(type_, member_)))
