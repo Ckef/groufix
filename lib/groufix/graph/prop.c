@@ -11,12 +11,14 @@
 
 
 /****************************/
-GFX_API GFXProperty* gfx_list_prop_init(GFXListProperty* prop)
+GFX_API GFXProperty* gfx_list_prop_init(GFXListProperty* prop,
+                                        bool (*set)(GFXListProperty*, GFXProperty*, size_t))
 {
 	assert(prop != NULL);
 
 	prop->prop.type = GFX_PROP_LIST;
 	gfx_vec_init(&prop->items, sizeof(GFXProperty*));
+	prop->set = set;
 
 	return &prop->prop;
 }

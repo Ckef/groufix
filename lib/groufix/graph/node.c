@@ -23,6 +23,50 @@ static bool gfx_node_parent_set_(GFXLinkProperty* link, GFXProperty* follow)
 	return 0;
 }
 
+/****************************
+ * GFXNode.children setter implementation.
+ */
+static bool gfx_node_children_set_(GFXListProperty* list, GFXProperty* item, size_t index)
+{
+	GFXNode* node = GFX_PROP_OBJ(list, GFXNode, children);
+
+	// Add a child.
+	if (
+		item != NULL && item->type == GFX_PROP_NODE &&
+		index == list->items.size)
+	{
+		return gfx_node_set_parent((GFXNode*)item, node);
+	}
+
+	// Remove a child.
+	if (
+		item == NULL &&
+		index < list->items.size)
+	{
+		GFXProperty* child =
+			gfx_list_prop_at(list, index);
+
+		// Check if child is a node with this as parent.
+		if (
+			child->type == GFX_PROP_NODE &&
+			((GFXNode*)child)->parent.follow == &node->prop)
+		{
+			// Set its parent to NULL, will erase self from children.
+			gfx_node_set_parent((GFXNode*)child, NULL);
+		}
+		else
+		{
+			// If different parent, just erase the item.
+			gfx_list_prop_erase(list, index);
+		}
+
+		return 1;
+	}
+
+	// No reassigning childs!
+	return 0;
+}
+
 /****************************/
 GFX_API void gfx_node_init(GFXNode* node)
 {
@@ -32,7 +76,7 @@ GFX_API void gfx_node_init(GFXNode* node)
 	gfx_sdict_init(&node->properties);
 
 	gfx_link_prop(&node->parent, NULL, gfx_node_parent_set_);
-	gfx_list_prop_init(&node->children);
+	gfx_list_prop_init(&node->children, gfx_node_children_set_);
 	gfx_func_prop(&node->update, &node->prop, NULL);
 
 	// Set all properties.

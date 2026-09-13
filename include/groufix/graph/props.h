@@ -66,6 +66,9 @@ typedef struct GFXListProperty
 	GFXProperty prop;  // Base-type.
 	GFXVec      items; // Stores GFXProperty*.
 
+	// index = items.size to add, item = NULL to erase.
+	bool (*set)(struct GFXListProperty* list, GFXProperty* item, size_t index);
+
 } GFXListProperty;
 
 
@@ -113,10 +116,20 @@ typedef struct GFXFuncProperty
 
 /**
  * Indexes a list property.
+ * @param index Must be < prop->items.size.
  */
 static inline GFXProperty* gfx_list_prop_at(GFXListProperty* prop, size_t index)
 {
 	return *(GFXProperty**)gfx_vec_at(&prop->items, index);
+}
+
+/**
+ * Calls the setter of a list property.
+ * @return The setter's return, or zero when setter set to NULL.
+ */
+static inline bool gfx_list_prop_set(GFXListProperty* list, GFXProperty* item, size_t index)
+{
+	return list->set ? list->set(list, item, index) : 0;
 }
 
 /**
@@ -140,9 +153,11 @@ static inline int gfx_func_prop_call(GFXFuncProperty* prop, const GFXListPropert
 /**
  * Initializes a list property.
  * @param prop Cannot be NULL.
+ * @param set  May be NULL.
  * @return &prop->prop.
  */
-GFX_API GFXProperty* gfx_list_prop_init(GFXListProperty* prop);
+GFX_API GFXProperty* gfx_list_prop_init(GFXListProperty* prop,
+                                        bool (*set)(GFXListProperty*, GFXProperty*, size_t));
 
 /**
  * Clears a list property.
