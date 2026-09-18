@@ -40,8 +40,8 @@ typedef struct GFXSpatialNode
 	// Spatial matrix.
 	struct
 	{
-		GFXValueProperty prop;
-		float            values[16]; // TODO: Prolly use cglm or sm?
+		GFXValueProperty  prop;
+		alignas(32) float values[16];
 
 	} matrix;
 
