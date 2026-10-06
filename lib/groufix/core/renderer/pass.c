@@ -975,12 +975,13 @@ bool gfx_pass_warmup_(GFXRenderPass_* rPass)
 					depend->inj.mask, depend->inj.stage, emptyFmt);
 
 			VkSubpassDependency dependency = {
-				.srcSubpass    = ((GFXRenderPass_*)depend->source)->out.subpass,
-				.dstSubpass    = ((GFXRenderPass_*)depend->target)->out.subpass,
-				.srcStageMask  = GFX_MOD_VK_PIPELINE_STAGE_(srcStageMask, context),
-				.dstStageMask  = GFX_MOD_VK_PIPELINE_STAGE_(dstStageMask, context),
-				.srcAccessMask = GFX_GET_VK_ACCESS_FLAGS_(depend->inj.maskf, emptyFmt),
-				.dstAccessMask = GFX_GET_VK_ACCESS_FLAGS_(depend->inj.mask, emptyFmt),
+				.srcSubpass      = ((GFXRenderPass_*)depend->source)->out.subpass,
+				.dstSubpass      = ((GFXRenderPass_*)depend->target)->out.subpass,
+				.srcStageMask    = GFX_MOD_VK_PIPELINE_STAGE_(srcStageMask, context),
+				.dstStageMask    = GFX_MOD_VK_PIPELINE_STAGE_(dstStageMask, context),
+				.srcAccessMask   = GFX_GET_VK_ACCESS_FLAGS_(depend->inj.maskf, emptyFmt),
+				.dstAccessMask   = GFX_GET_VK_ACCESS_FLAGS_(depend->inj.mask, emptyFmt),
+				.dependencyFlags = 0
 			};
 
 			if (!gfx_vec_push(&dependencies, 1, &dependency))
@@ -1014,12 +1015,13 @@ bool gfx_pass_warmup_(GFXRenderPass_* rPass)
 				GFX_GET_VK_PIPELINE_STAGE_(con->mask, con->stage, fmt);
 
 			VkSubpassDependency dependency = {
-				.srcSubpass    = prev->out.subpass,
-				.dstSubpass    = con->out.subpass,
-				.srcStageMask  = GFX_MOD_VK_PIPELINE_STAGE_(srcStageMask, context),
-				.dstStageMask  = GFX_MOD_VK_PIPELINE_STAGE_(dstStageMask, context),
-				.srcAccessMask = GFX_GET_VK_ACCESS_FLAGS_(prev->mask, fmt),
-				.dstAccessMask = GFX_GET_VK_ACCESS_FLAGS_(con->mask, fmt),
+				.srcSubpass      = prev->out.subpass,
+				.dstSubpass      = con->out.subpass,
+				.srcStageMask    = GFX_MOD_VK_PIPELINE_STAGE_(srcStageMask, context),
+				.dstStageMask    = GFX_MOD_VK_PIPELINE_STAGE_(dstStageMask, context),
+				.srcAccessMask   = GFX_GET_VK_ACCESS_FLAGS_(prev->mask, fmt),
+				.dstAccessMask   = GFX_GET_VK_ACCESS_FLAGS_(con->mask, fmt),
+				.dependencyFlags = 0
 			};
 
 			if (!gfx_vec_push(&dependencies, 1, &dependency))
