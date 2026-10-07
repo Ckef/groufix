@@ -192,25 +192,25 @@ TEST_DESCRIBE(post, t)
 	// Compile GLSL into the shaders.
 	GFXStringReader str;
 
-	if (!gfx_shader_compile(vert, GFX_GLSL, 1,
+	if (!gfx_shader_compile(vert, 1,
 		gfx_string_reader(&str, glsl_post_vertex), NULL, NULL, NULL))
 	{
 		goto clean;
 	}
 
-	if (!gfx_shader_compile(frags[0], GFX_GLSL, 1,
+	if (!gfx_shader_compile(frags[0], 1,
 		gfx_string_reader(&str, glsl_post_fragment_invert), NULL, NULL, NULL))
 	{
 		goto clean;
 	}
 
-	if (!gfx_shader_compile(frags[1], GFX_GLSL, 1,
+	if (!gfx_shader_compile(frags[1], 1,
 		gfx_string_reader(&str, glsl_post_fragment_shuffle), NULL, NULL, NULL))
 	{
 		goto clean;
 	}
 
-	if (!gfx_shader_compile(frags[2], GFX_GLSL, 1,
+	if (!gfx_shader_compile(frags[2], 1,
 		gfx_string_reader(&str, glsl_post_fragment_blur), NULL, NULL, NULL))
 	{
 		goto clean;

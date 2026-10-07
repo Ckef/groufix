@@ -17,10 +17,6 @@
 static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 
 
-#define GFX_GET_LANGUAGE_STRING_(language) \
-	((language) == GFX_GLSL ? "glsl" : \
-	(language) == GFX_HLSL ? "hlsl" : "*")
-
 #define GFX_GET_STAGE_STRING_(stage) \
 	((stage) == GFX_STAGE_VERTEX ? \
 		"vertex" : \
@@ -34,13 +30,6 @@ static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 		"fragment" : \
 	(stage) == GFX_STAGE_COMPUTE ? \
 		"compute" : "unknown")
-
-#define GFX_GET_SHADERC_LANGUAGE_(language) \
-	((language) == GFX_GLSL ? \
-		shaderc_source_language_glsl : \
-	(language) == GFX_HLSL ? \
-		shaderc_source_language_hlsl : \
-		shaderc_source_language_glsl)
 
 #define GFX_GET_SHADERC_KIND_(stage) \
 	((stage) == GFX_STAGE_VERTEX ? \
@@ -712,8 +701,7 @@ GFX_API GFXDevice* gfx_shader_get_device(GFXShader* shader)
 }
 
 /****************************/
-GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
-                                bool optimize,
+GFX_API bool gfx_shader_compile(GFXShader* shader, bool optimize,
                                 const GFXReader* src, const GFXIncluder* inc,
                                 const GFXWriter* out, const GFXWriter* err)
 {
@@ -758,7 +746,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 
 	// Set source language.
 	shaderc_compile_options_set_source_language(
-		options, GFX_GET_SHADERC_LANGUAGE_(language));
+		options, shaderc_source_language_glsl);
 
 	// Set target environment.
 	// Omits patch version (Shaderc doesn't understand it).
@@ -838,8 +826,7 @@ GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
 	shaderc_compilation_result_t result = shaderc_compile_into_spv(
 		compiler, (const char*)source, (size_t)len,
 		GFX_GET_SHADERC_KIND_(shader->stage),
-		GFX_GET_LANGUAGE_STRING_(language),
-		"main",
+		"glsl", "main",
 		options);
 
 	shaderc_compilation_status status =

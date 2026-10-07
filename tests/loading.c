@@ -45,8 +45,7 @@ static GFXShader* load_shader(GFXShaderStage stage, const char* path)
 		goto clean_includer;
 
 	// Compile shader.
-	if (!gfx_shader_compile(shader,
-		GFX_GLSL, 1,
+	if (!gfx_shader_compile(shader, 1,
 		&file.reader, &inc.includer, NULL, NULL))
 	{
 		goto clean_shader;

@@ -628,13 +628,13 @@ static void test_init_(TestState* test_state_)
 	// Compile GLSL into the shaders.
 	GFXStringReader str;
 
-	if (!gfx_shader_compile(test_base_.vertex, GFX_GLSL, 1,
+	if (!gfx_shader_compile(test_base_.vertex, 1,
 		gfx_string_reader(&str, test_glsl_vertex_), NULL, NULL, NULL))
 	{
 		TEST_FAIL();
 	}
 
-	if (!gfx_shader_compile(test_base_.fragment, GFX_GLSL, 1,
+	if (!gfx_shader_compile(test_base_.fragment, 1,
 		gfx_string_reader(&str, test_glsl_fragment_), NULL, NULL, NULL))
 	{
 		TEST_FAIL();

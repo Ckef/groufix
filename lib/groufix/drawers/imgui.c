@@ -75,7 +75,8 @@ typedef struct GFXEventData_
 
 /****************************
  * Vertex shader SPIR-V bytecode to use for ImGui.
- * Taken from the Dear ImGui Vulkan implementation.
+ * Taken from the Dear ImGui Vulkan implementation, compiled with:
+ *  glslangValidator -V -x -o glsl_shader.vert.u32 glsl_shader.vert
  *
  * #version 450 core
  * layout(location = 0) in vec2 aPos;
@@ -142,7 +143,8 @@ static const uint32_t gfx_imgui_vert_spv_[] =
 
 /****************************
  * Fragment shader SPIR-V bytecode to use for ImGui.
- * Taken from the Dear ImGui Vulkan implementation.
+ * Taken from the Dear ImGui Vulkan implementation, compiled with:
+ *  glslangValidator -V -x -o glsl_shader.frag.u32 glsl_shader.frag
  *
  * #version 450 core
  * layout(location = 0) out vec4 fColor;
