@@ -64,7 +64,7 @@ TEST_DESCRIBE(compute, t)
 
 	// Compile GLSL into the shader.
 	GFXStringReader str;
-	if (!gfx_shader_compile(comp, GFX_GLSL, 1,
+	if (!gfx_shader_compile(comp, 1,
 		gfx_string_reader(&str, glsl_compute), NULL, NULL, NULL))
 	{
 		goto clean;

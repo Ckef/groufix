@@ -16,17 +16,6 @@
 
 
 /**
- * Shader language.
- */
-typedef enum GFXShaderLanguage
-{
-	GFX_GLSL,
-	GFX_HLSL
-
-} GFXShaderLanguage;
-
-
-/**
  * Shader stage.
  */
 typedef enum GFXShaderStage
@@ -90,7 +79,7 @@ GFX_API void gfx_destroy_shader(GFXShader* shader);
 GFX_API GFXDevice* gfx_shader_get_device(GFXShader* shader);
 
 /**
- * Compiles a shader from GLSL/HLSL source into SPIR-V bytecode for use.
+ * Compiles a shader from GLSL source into SPIR-V bytecode for use.
  * @param shader   Cannot be NULL.
  * @param optimize Non-zero to enable platform-specific compiler options.
  * @param src      Source stream, cannot be NULL.
@@ -102,8 +91,7 @@ GFX_API GFXDevice* gfx_shader_get_device(GFXShader* shader);
  * Silently fails if shader already stores SPIR-V bytecode.
  * Output stream failure is ignored.
  */
-GFX_API bool gfx_shader_compile(GFXShader* shader, GFXShaderLanguage language,
-                                bool optimize,
+GFX_API bool gfx_shader_compile(GFXShader* shader, bool optimize,
                                 const GFXReader* src, const GFXIncluder* inc,
                                 const GFXWriter* out, const GFXWriter* err);
 
