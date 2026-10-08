@@ -7,14 +7,26 @@
  */
 
 #include "groufix/graph/node.h"
+#include <stdlib.h>
+#include <string.h>
 
+
+/****************************
+ * GFXNode.name.prop setter implementation.
+ */
+static bool gfx_node_name_set_(GFXValueProperty* prop, const void* values)
+{
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, name.prop);
+
+	return gfx_node_set_name(node, values);
+}
 
 /****************************
  * GFXNode.parent setter implementation.
  */
-static bool gfx_node_parent_set_(GFXLinkProperty* link, GFXProperty* follow)
+static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 {
-	GFXNode* node = GFX_PROP_OBJ(link, GFXNode, parent);
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, parent);
 
 	// Only set if it's a node.
 	if (follow == NULL || follow->type == GFX_PROP_NODE)
@@ -26,14 +38,14 @@ static bool gfx_node_parent_set_(GFXLinkProperty* link, GFXProperty* follow)
 /****************************
  * GFXNode.children setter implementation.
  */
-static bool gfx_node_children_set_(GFXListProperty* list, GFXProperty* item, size_t index)
+static bool gfx_node_children_set_(GFXListProperty* prop, GFXProperty* item, size_t index)
 {
-	GFXNode* node = GFX_PROP_OBJ(list, GFXNode, children);
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, children);
 
 	// Add a child.
 	if (
 		item != NULL && item->type == GFX_PROP_NODE &&
-		index == list->items.size)
+		index == prop->items.size)
 	{
 		return gfx_node_set_parent((GFXNode*)item, node);
 	}
@@ -41,10 +53,10 @@ static bool gfx_node_children_set_(GFXListProperty* list, GFXProperty* item, siz
 	// Remove a child.
 	if (
 		item == NULL &&
-		index < list->items.size)
+		index < prop->items.size)
 	{
 		GFXProperty* child =
-			gfx_list_prop_at(list, index);
+			gfx_list_prop_at(prop, index);
 
 		// Check if child is a node with this as parent.
 		if (
@@ -57,7 +69,7 @@ static bool gfx_node_children_set_(GFXListProperty* list, GFXProperty* item, siz
 		else
 		{
 			// If different parent, just erase the item.
-			gfx_list_prop_erase(list, index);
+			gfx_list_prop_erase(prop, index);
 		}
 
 		return 1;
@@ -67,11 +79,32 @@ static bool gfx_node_children_set_(GFXListProperty* list, GFXProperty* item, siz
 	return 0;
 }
 
+/****************************
+ * Frees any memory the string name from a GFXNode may hold.
+ * Leaves all values of node.name!
+ */
+static inline void gfx_node_name_free_(GFXNode* node)
+{
+	// If not pointing to node->name.str,
+	// it must be manually allocated, free it!
+	if (node->name.prop.values != node->name.str)
+		// Can pass NULL.
+		free(node->name.prop.values);
+}
+
 /****************************/
-GFX_API void gfx_node_init(GFXNode* node)
+GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 {
 	assert(node != NULL);
 
+	// First set name, may need to allocate.
+	// Set name property values pointer to avoid free call.
+	node->name.prop.values = node->name.str;
+
+	if (!gfx_node_set_name(node, name))
+		return 0;
+
+	// Initialize the rest of the node.
 	node->prop.type = GFX_PROP_NODE;
 	gfx_sdict_init(&node->properties);
 
@@ -80,9 +113,12 @@ GFX_API void gfx_node_init(GFXNode* node)
 	gfx_func_prop(&node->update, &node->prop, NULL);
 
 	// Set all properties.
+	gfx_node_set(node, &node->name.prop.prop, "name");
 	gfx_node_set(node, &node->parent.prop, "parent");
 	gfx_node_set(node, &node->children.prop, "children");
 	gfx_node_set(node, &node->update.prop, "update");
+
+	return 1;
 }
 
 /****************************/
@@ -114,6 +150,7 @@ GFX_API void gfx_node_clear(GFXNode* node)
 	}
 
 	// Clear all other things.
+	gfx_node_name_free_(node);
 	gfx_dict_clear(&node->properties);
 	gfx_list_prop_clear(&node->children);
 
@@ -121,24 +158,27 @@ GFX_API void gfx_node_clear(GFXNode* node)
 }
 
 /****************************/
-GFX_API void gfx_snode_init(GFXSpatialNode* node)
+GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 {
 	assert(node != NULL);
 
-	gfx_node_init(&node->node);
+	if (!gfx_node_init(&node->node, name))
+		return 0;
 
 	// Initialize matrix value property.
 	const size_t numFloats =
 		sizeof(node->matrix.values) / sizeof(float);
 
 	gfx_float_prop(
-		&node->matrix.prop, numFloats, node->matrix.values);
+		&node->matrix.prop, numFloats, node->matrix.values, NULL);
 
 	for (size_t i = 0; i < numFloats; ++i)
 		node->matrix.values[i] = 0.0f;
 
 	// Set all properties.
 	gfx_node_set(&node->node, &node->matrix.prop.prop, "matrix");
+
+	return 1;
 }
 
 /****************************/
@@ -149,6 +189,50 @@ GFX_API void gfx_snode_clear(GFXSpatialNode* node)
 	gfx_node_clear(&node->node);
 
 	// Leave all values, node is invalidated.
+}
+
+/****************************/
+GFX_API bool gfx_node_set_name(GFXNode* node, const char* name)
+{
+	assert(node != NULL);
+
+	// NULL equals empty string.
+	if (name == NULL) name = "";
+
+	const size_t nameLen = strlen(name);
+
+	if (nameLen < sizeof(node->name.str))
+	{
+		// Copy as small string.
+		gfx_node_name_free_(node);
+		memcpy(node->name.str, name, nameLen + 1);
+
+		gfx_string_prop(
+			&node->name.prop, node->name.str, gfx_node_name_set_);
+	}
+	else
+	{
+		// Allocate new long string.
+		char* newName = malloc(nameLen + 1);
+		if (newName == NULL) return 0;
+
+		// Free old name after successful allocation.
+		gfx_node_name_free_(node);
+		memcpy(newName, name, nameLen + 1);
+
+		gfx_string_prop(
+			&node->name.prop, newName, gfx_node_name_set_);
+	}
+
+	return 1;
+}
+
+/****************************/
+GFX_API const char* gfx_node_get_name(GFXNode* node)
+{
+	assert(node != NULL);
+
+	return node->name.prop.values;
 }
 
 /****************************/
@@ -186,7 +270,8 @@ GFX_API bool gfx_node_set_parent(GFXNode* node, GFXNode* parent)
 	}
 
 	// Set new parent.
-	gfx_link_prop(&node->parent, (GFXProperty*)parent, gfx_node_parent_set_);
+	gfx_link_prop(
+		&node->parent, (GFXProperty*)parent, gfx_node_parent_set_);
 
 	return 1;
 }

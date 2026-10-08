@@ -53,7 +53,7 @@ typedef struct GFXLinkProperty
 	GFXProperty  prop; // Base-type.
 	GFXProperty* follow;
 
-	bool (*set)(struct GFXLinkProperty* link, GFXProperty* follow);
+	bool (*set)(struct GFXLinkProperty* prop, GFXProperty* follow);
 
 } GFXLinkProperty;
 
@@ -67,7 +67,7 @@ typedef struct GFXListProperty
 	GFXVec      items; // Stores GFXProperty*, all non-NULL.
 
 	// index = items.size to add, item = NULL to erase.
-	bool (*set)(struct GFXListProperty* list, GFXProperty* item, size_t index);
+	bool (*set)(struct GFXListProperty* prop, GFXProperty* item, size_t index);
 
 } GFXListProperty;
 
@@ -81,6 +81,9 @@ typedef struct GFXValueProperty
 
 	size_t count;
 	void*  values; // Types determined by prop.type.
+
+	// values = NULL-terminated or NULL if string, count elements otherwise.
+	bool (*set)(struct GFXValueProperty* prop, const void* values);
 
 } GFXValueProperty;
 
@@ -127,18 +130,27 @@ static inline GFXProperty* gfx_list_prop_at(GFXListProperty* prop, size_t index)
  * Calls the setter of a list property.
  * @return The setter's return, or zero when setter set to NULL.
  */
-static inline bool gfx_list_prop_set(GFXListProperty* list, GFXProperty* item, size_t index)
+static inline bool gfx_list_prop_set(GFXListProperty* prop, GFXProperty* item, size_t index)
 {
-	return list->set ? list->set(list, item, index) : 0;
+	return prop->set ? prop->set(prop, item, index) : 0;
 }
 
 /**
  * Calls the setter of a link property.
  * @return The setter's return, or zero when setter set to NULL.
  */
-static inline bool gfx_link_prop_set(GFXLinkProperty* link, GFXProperty* follow)
+static inline bool gfx_link_prop_set(GFXLinkProperty* prop, GFXProperty* follow)
 {
-	return link->set ? link->set(link, follow) : 0;
+	return prop->set ? prop->set(prop, follow) : 0;
+}
+
+/**
+ * Calls the setter of a value property.
+ * @return The setter's return, or zero when setter set to NULL.
+ */
+static inline bool gfx_value_prop_set(GFXValueProperty* prop, const void* values)
+{
+	return prop->set ? prop->set(prop, values) : 0;
 }
 
 /**
@@ -197,10 +209,12 @@ GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* follow,
  * @param prop   Cannot be NULL.
  * @param count  Must be > 0.
  * @param values Cannot be NULL.
+ * @param set    May be NULL.
  * @return &prop->prop.
  */
 GFX_API GFXProperty* gfx_bool_prop(GFXValueProperty* prop, size_t count,
-                                   bool* values);
+                                   bool* values,
+                                   bool (*set)(GFXValueProperty*, const void*));
 
 /**
  * Initializes a float value property.
@@ -208,7 +222,8 @@ GFX_API GFXProperty* gfx_bool_prop(GFXValueProperty* prop, size_t count,
  * @see gfx_bool_prop.
  */
 GFX_API GFXProperty* gfx_float_prop(GFXValueProperty* prop, size_t count,
-                                    float* values);
+                                    float* values,
+                                    bool (*set)(GFXValueProperty*, const void*));
 
 /**
  * Initializes a double value property.
@@ -216,7 +231,8 @@ GFX_API GFXProperty* gfx_float_prop(GFXValueProperty* prop, size_t count,
  * @see gfx_bool_prop.
  */
 GFX_API GFXProperty* gfx_double_prop(GFXValueProperty* prop, size_t count,
-                                     double* values);
+                                     double* values,
+                                     bool (*set)(GFXValueProperty*, const void*));
 
 /**
  * Initializes an integer value property.
@@ -224,7 +240,8 @@ GFX_API GFXProperty* gfx_double_prop(GFXValueProperty* prop, size_t count,
  * @see gfx_bool_prop.
  */
 GFX_API GFXProperty* gfx_int_prop(GFXValueProperty* prop, size_t count,
-                                  int32_t* values);
+                                  int32_t* values,
+                                  bool (*set)(GFXValueProperty*, const void*));
 
 /**
  * Initializes an unsigned integer value property.
@@ -232,18 +249,21 @@ GFX_API GFXProperty* gfx_int_prop(GFXValueProperty* prop, size_t count,
  * @see gfx_bool_prop.
  */
 GFX_API GFXProperty* gfx_uint_prop(GFXValueProperty* prop, size_t count,
-                                   uint32_t* values);
+                                   uint32_t* values,
+                                   bool (*set)(GFXValueProperty*, const void*));
 
 /**
  * Initializes a string value property.
  * Does not need to be cleared, hence no _init postfix.
  * @param prop Cannot be NULL.
  * @param str  Cannot be NULL, must be NULL-terminated.
+ * @param set  May be NULL.
  * @return &prop->prop.
  *
  * str is directly stored in prop, hence no const.
  */
-GFX_API GFXProperty* gfx_string_prop(GFXValueProperty* prop, char* str);
+GFX_API GFXProperty* gfx_string_prop(GFXValueProperty* prop, char* str,
+                                     bool (*set)(GFXValueProperty*, const void*));
 
 /**
  * Initializes a function property.

@@ -23,6 +23,14 @@ typedef struct GFXNode
 	GFXProperty prop;       // Base-type.
 	GFXDict     properties; // Stores string : GFXProperty*.
 
+	// String name.
+	struct
+	{
+		GFXValueProperty prop;
+		char str[32]; // For short strings.
+
+	} name;
+
 	GFXLinkProperty parent;
 	GFXListProperty children;
 	GFXFuncProperty update;
@@ -85,8 +93,10 @@ static inline int gfx_node_update(GFXNode* node, const GFXListProperty* args)
 /**
  * Initializes a node.
  * @param node Cannot be NULL.
+ * @param name Must be NULL-terminated or NULL for empty string.
+ * @return Zero when out of memory.
  */
-GFX_API void gfx_node_init(GFXNode* node);
+GFX_API bool gfx_node_init(GFXNode* node, const char* name);
 
 /**
  * Clears a node, invalidating the contents of `node`.
@@ -98,8 +108,9 @@ GFX_API void gfx_node_clear(GFXNode* node);
 /**
  * Initializes a spatial node.
  * @param node Cannot be NULL.
+ * @see gfx_node_init.
  */
-GFX_API void gfx_snode_init(GFXSpatialNode* node);
+GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name);
 
 /**
  * Clears a spatial node, invalidating the contents of `node`.
@@ -109,10 +120,27 @@ GFX_API void gfx_snode_init(GFXSpatialNode* node);
 GFX_API void gfx_snode_clear(GFXSpatialNode* node);
 
 /**
+ * Sets the name of a node.
+ * @param node Cannot be NULL.
+ * @param name Must be NULL-terminated or NULL for empty string.
+ * @return Zero when out of memory.
+ */
+GFX_API bool gfx_node_set_name(GFXNode* node, const char* name);
+
+/**
+ * Retrieves the name of a node.
+ * @param node Cannot be NULL.
+ * @return Never NULL, always NULL-terminated.
+ *
+ * Note: the returned pointer is invalidated when the name is changed!
+ */
+GFX_API const char* gfx_node_get_name(GFXNode* node);
+
+/**
  * Sets the parent node of a node.
  * @param node   Cannot be NULL.
  * @param parent Must be a node or NULL.
- * @return Zero on failure.
+ * @return Zero when out of memory.
  */
 GFX_API bool gfx_node_set_parent(GFXNode* node, GFXNode* parent);
 
