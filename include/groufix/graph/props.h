@@ -64,7 +64,7 @@ typedef struct GFXLinkProperty
 typedef struct GFXListProperty
 {
 	GFXProperty prop;  // Base-type.
-	GFXVec      items; // Stores GFXProperty*.
+	GFXVec      items; // Stores GFXProperty*, all non-NULL.
 
 	// index = items.size to add, item = NULL to erase.
 	bool (*set)(struct GFXListProperty* list, GFXProperty* item, size_t index);

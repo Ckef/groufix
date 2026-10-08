@@ -201,3 +201,15 @@ GFX_API GFXNode* gfx_node_get_parent(GFXNode* node)
 	return (parent != NULL && parent->type == GFX_PROP_NODE) ?
 		(GFXNode*)parent : NULL;
 }
+
+/****************************/
+GFX_API GFXNode* gfx_node_get_child(GFXNode* node, size_t index)
+{
+	assert(node != NULL);
+	assert(index < node->children.items.size);
+
+	GFXProperty* child = gfx_list_prop_at(&node->children, index);
+
+	return (child->type == GFX_PROP_NODE) ?
+		(GFXNode*)child : NULL;
+}

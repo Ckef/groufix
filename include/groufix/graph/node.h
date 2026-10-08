@@ -123,5 +123,12 @@ GFX_API bool gfx_node_set_parent(GFXNode* node, GFXNode* parent);
  */
 GFX_API GFXNode* gfx_node_get_parent(GFXNode* node);
 
+/**
+ * Retrieves a child node of a node.
+ * @param node  Cannot be NULL.
+ * @param index Must be < node->children.items.size.
+ */
+GFX_API GFXNode* gfx_node_get_child(GFXNode* node, size_t index);
+
 
 #endif
