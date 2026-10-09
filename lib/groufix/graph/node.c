@@ -80,6 +80,17 @@ static bool gfx_node_children_set_(GFXListProperty* prop, GFXProperty* item, siz
 }
 
 /****************************
+ * GFXSpatialNode.mlocal.prop setter implementation.
+ */
+static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
+{
+	// Just directly copy according to the property.
+	memcpy(prop->values, values, sizeof(float) * prop->count);
+
+	return 1;
+}
+
+/****************************
  * Frees any memory the string name from a GFXNode may hold.
  * Leaves all values of node.name!
  */
@@ -165,18 +176,32 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 	if (!gfx_node_init(&node->node, name))
 		return 0;
 
-	// Initialize matrix value property.
-	const size_t numFloats =
-		sizeof(node->matrix.values) / sizeof(float);
+	// Initialize global matrix property.
+	{
+		const size_t numFloats =
+			sizeof(node->mglobal.values) / sizeof(float);
+		gfx_float_prop(
+			&node->mglobal.prop, numFloats, node->mglobal.values, NULL);
 
-	gfx_float_prop(
-		&node->matrix.prop, numFloats, node->matrix.values, NULL);
+		for (size_t i = 0; i < numFloats; ++i)
+			node->mglobal.values[i] = 0.0f;
+	}
 
-	for (size_t i = 0; i < numFloats; ++i)
-		node->matrix.values[i] = 0.0f;
+	// Initialize local matrix property.
+	{
+		const size_t numFloats =
+			sizeof(node->mlocal.values) / sizeof(float);
+		gfx_float_prop(
+			&node->mlocal.prop, numFloats, node->mlocal.values,
+			gfx_snode_mlocal_set_);
+
+		for (size_t i = 0; i < numFloats; ++i)
+			node->mlocal.values[i] = 0.0f;
+	}
 
 	// Set all properties.
-	gfx_node_set(&node->node, &node->matrix.prop.prop, "matrix");
+	gfx_node_set(&node->node, &node->mglobal.prop.prop, "mglobal");
+	gfx_node_set(&node->node, &node->mlocal.prop.prop, "mlocal");
 
 	return 1;
 }

@@ -45,13 +45,21 @@ typedef struct GFXSpatialNode
 {
 	GFXNode node; // Base-type.
 
-	// Spatial matrix.
+	// Global matrix.
 	struct
 	{
 		GFXValueProperty  prop;
 		alignas(32) float values[16];
 
-	} matrix;
+	} mglobal;
+
+	// Local matrix.
+	struct
+	{
+		GFXValueProperty  prop;
+		alignas(32) float values[16];
+
+	} mlocal;
 
 } GFXSpatialNode;
 
