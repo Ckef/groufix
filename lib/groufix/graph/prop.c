@@ -175,85 +175,102 @@ GFX_API GFXProperty* gfx_link_prop(GFXLinkProperty* prop, GFXProperty* follow,
 
 /****************************/
 GFX_API GFXProperty* gfx_bool_prop(GFXValueProperty* prop, size_t count,
-                                   bool* values,
-                                   bool (*set)(GFXValueProperty*, const void*))
+                                   bool (*set)(GFXValueProperty*, const void*),
+                                   const void* (*get)(GFXValueProperty*))
 {
 	assert(prop != NULL);
 	assert(count > 0);
-	assert(values != NULL);
+	assert(set != NULL || get != NULL);
 
 	prop->prop.type = GFX_PROP_BOOL;
 	prop->count = count;
-	prop->values = values;
 	prop->set = set;
+	prop->get = get;
 
 	return &prop->prop;
 }
 
 /****************************/
 GFX_API GFXProperty* gfx_float_prop(GFXValueProperty* prop, size_t count,
-                                    float* values,
-                                    bool (*set)(GFXValueProperty*, const void*))
+                                    bool (*set)(GFXValueProperty*, const void*),
+                                    const void* (*get)(GFXValueProperty*))
 {
 	assert(prop != NULL);
 	assert(count > 0);
-	assert(values != NULL);
+	assert(set != NULL || get != NULL);
 
 	prop->prop.type = GFX_PROP_FLOAT;
 	prop->count = count;
-	prop->values = values;
 	prop->set = set;
+	prop->get = get;
 
 	return &prop->prop;
 }
 
 /****************************/
 GFX_API GFXProperty* gfx_double_prop(GFXValueProperty* prop, size_t count,
-                                     double* values,
-                                     bool (*set)(GFXValueProperty*, const void*))
+                                     bool (*set)(GFXValueProperty*, const void*),
+                                     const void* (*get)(GFXValueProperty*))
 {
 	assert(prop != NULL);
 	assert(count > 0);
-	assert(values != NULL);
+	assert(set != NULL || get != NULL);
 
 	prop->prop.type = GFX_PROP_DOUBLE;
 	prop->count = count;
-	prop->values = values;
 	prop->set = set;
+	prop->get = get;
 
 	return &prop->prop;
 }
 
 /****************************/
 GFX_API GFXProperty* gfx_int_prop(GFXValueProperty* prop, size_t count,
-                                  int32_t* values,
-                                  bool (*set)(GFXValueProperty*, const void*))
+                                  bool (*set)(GFXValueProperty*, const void*),
+                                  const void* (*get)(GFXValueProperty*))
 {
 	assert(prop != NULL);
 	assert(count > 0);
-	assert(values != NULL);
+	assert(set != NULL || get != NULL);
 
 	prop->prop.type = GFX_PROP_INT;
 	prop->count = count;
-	prop->values = values;
 	prop->set = set;
+	prop->get = get;
 
 	return &prop->prop;
 }
 
 /****************************/
 GFX_API GFXProperty* gfx_uint_prop(GFXValueProperty* prop, size_t count,
-                                   uint32_t* values,
-                                   bool (*set)(GFXValueProperty*, const void*))
+                                   bool (*set)(GFXValueProperty*, const void*),
+                                   const void* (*get)(GFXValueProperty*))
 {
 	assert(prop != NULL);
 	assert(count > 0);
-	assert(values != NULL);
+	assert(set != NULL || get != NULL);
 
 	prop->prop.type = GFX_PROP_UINT;
 	prop->count = count;
-	prop->values = values;
 	prop->set = set;
+	prop->get = get;
+
+	return &prop->prop;
+}
+
+/****************************/
+GFX_API GFXProperty* gfx_data_prop(GFXValueProperty* prop, size_t count,
+                                   bool (*set)(GFXValueProperty*, const void*),
+                                   const void* (*get)(GFXValueProperty*))
+{
+	assert(prop != NULL);
+	assert(count > 0);
+	assert(set != NULL || get != NULL);
+
+	prop->prop.type = GFX_PROP_DATA;
+	prop->count = count;
+	prop->set = set;
+	prop->get = get;
 
 	return &prop->prop;
 }

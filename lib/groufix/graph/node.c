@@ -86,16 +86,40 @@ static bool gfx_node_children_set_(GFXListProperty* prop, GFXProperty* item, siz
 }
 
 /****************************
+ * GFXSpatialNode.mglobal.prop getter implementation.
+ */
+static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
+
+	// TODO: Update if dirty flag is set.
+
+	return node->mglobal.values;
+}
+
+/****************************
  * GFXSpatialNode.mlocal.prop setter implementation.
  */
 static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 {
-	// TODO: Update global matrix. Or set dirty flag?
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
-	// Just directly copy according to the property.
-	memcpy(prop->values, values, sizeof(float) * prop->count);
+	// TODO: Set dirty flag so global matrix will get updated.
+
+	// Directly copy to the stored values.
+	memcpy(node->mlocal.values, values, sizeof(node->mlocal.values));
 
 	return 1;
+}
+
+/****************************
+ * GFXSpatialNode.mlocal.prop getter implementation.
+ */
+static const void* gfx_snode_mlocal_get_(GFXValueProperty* prop)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
+
+	return node->mlocal.values;
 }
 
 /****************************/
@@ -160,8 +184,11 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 	{
 		const size_t numFloats =
 			sizeof(node->mglobal.values) / sizeof(float);
+
 		gfx_float_prop(
-			&node->mglobal.prop, numFloats, node->mglobal.values, NULL);
+			&node->mglobal.prop, numFloats,
+			NULL,
+			gfx_snode_mglobal_get_);
 
 		for (size_t i = 0; i < numFloats; ++i)
 			node->mglobal.values[i] = 0.0f;
@@ -171,9 +198,11 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 	{
 		const size_t numFloats =
 			sizeof(node->mlocal.values) / sizeof(float);
+
 		gfx_float_prop(
-			&node->mlocal.prop, numFloats, node->mlocal.values,
-			gfx_snode_mlocal_set_);
+			&node->mlocal.prop, numFloats,
+			gfx_snode_mlocal_set_,
+			gfx_snode_mlocal_get_);
 
 		for (size_t i = 0; i < numFloats; ++i)
 			node->mlocal.values[i] = 0.0f;
