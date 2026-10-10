@@ -7,65 +7,8 @@
  */
 
 #include "groufix/graph/node.h"
-#include <stdlib.h>
 #include <string.h>
 
-
-/****************************
- * Frees any memory a GFXNode.name may hold.
- * Leaves all values of node.name!
- */
-static inline void gfx_node_name_free_(GFXNode* node)
-{
-	// If non-NULL and not pointing to node->name.str,
-	// it must be manually allocated, free it!
-	if (
-		node->name.prop.values != NULL &&
-		node->name.prop.values != node->name.str)
-	{
-		// Can pass NULL.
-		free(node->name.prop.values);
-	}
-}
-
-/****************************
- * GFXNode.name.prop setter implementation.
- */
-static bool gfx_node_name_set_(GFXValueProperty* prop, const void* values)
-{
-	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, name.prop);
-	const char* name = values;
-
-	// NULL equals empty string.
-	if (name == NULL) name = "";
-
-	const size_t nameLen = strlen(name);
-
-	if (nameLen < sizeof(node->name.str))
-	{
-		// Copy as small string.
-		gfx_node_name_free_(node);
-		memcpy(node->name.str, name, nameLen + 1);
-
-		node->name.prop.count = nameLen;
-		node->name.prop.values = node->name.str;
-	}
-	else
-	{
-		// Allocate new long string.
-		char* newName = malloc(nameLen + 1);
-		if (newName == NULL) return 0;
-
-		// Free old name after successful allocation.
-		gfx_node_name_free_(node);
-		memcpy(newName, name, nameLen + 1);
-
-		node->name.prop.count = nameLen;
-		node->name.prop.values = newName;
-	}
-
-	return 1;
-}
 
 /****************************
  * GFXNode.parent setter implementation.
@@ -163,10 +106,7 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	node->prop.type = GFX_PROP_NODE;
 
 	// First initialize name, may need to allocate.
-	// Set empty name first so we can call the setter.
-	gfx_string_prop(&node->name.prop, "", gfx_node_name_set_);
-
-	if (!gfx_node_name_set_(&node->name.prop, name))
+	if (gfx_string_prop_init(&node->name, name) == NULL)
 		return 0;
 
 	// Initialize the rest of the node.
@@ -176,7 +116,7 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	gfx_func_prop(&node->update, &node->prop, NULL);
 
 	// Set all properties.
-	gfx_node_set(node, &node->name.prop.prop, "name");
+	gfx_node_set(node, &node->name.prop, "name");
 	gfx_node_set(node, &node->parent.prop, "parent");
 	gfx_node_set(node, &node->children.prop, "children");
 	gfx_node_set(node, &node->update.prop, "update");
@@ -201,7 +141,7 @@ GFX_API void gfx_node_clear(GFXNode* node)
 	}
 
 	// Clear all other things.
-	gfx_node_name_free_(node);
+	gfx_string_prop_clear(&node->name);
 	gfx_dict_clear(&node->properties);
 	gfx_list_prop_clear(&node->children);
 

@@ -7,8 +7,32 @@
  */
 
 #include "groufix/graph/props.h"
+#include <stdlib.h>
 #include <string.h>
 
+
+// Small string last-byte flag values.
+#define GFX_STR_SHORT_STRING_ 0
+#define GFX_STR_LONG_STRING_  1
+
+// Retrieve the flag from a GFXStringProperty as lvalue.
+#define GFX_STR_FLAG_(prop) (prop)->str[sizeof((prop)->str) - 1]
+
+
+/****************************
+ * Frees any memory the optimized string may hold.
+ * Leaves all values of prop!
+ */
+static void gfx_string_prop_free_(GFXStringProperty* prop)
+{
+	if (GFX_STR_FLAG_(prop) == GFX_STR_LONG_STRING_)
+	{
+		uintptr_t ptr;
+		memcpy(&ptr, prop->str, sizeof(ptr));
+
+		free((char*)ptr);
+	}
+}
 
 /****************************/
 GFX_API GFXProperty* gfx_list_prop_init(GFXListProperty* prop,
@@ -47,6 +71,93 @@ GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index)
 	assert(index < prop->items.size);
 
 	gfx_vec_erase(&prop->items, 1, index);
+}
+
+/****************************/
+GFX_API GFXProperty* gfx_string_prop_init(GFXStringProperty* prop, const char* str)
+{
+	assert(prop != NULL);
+
+	prop->prop.type = GFX_PROP_STRING;
+
+	// Flag as short string to avoid free call.
+	GFX_STR_FLAG_(prop) = GFX_STR_SHORT_STRING_;
+
+	if (!gfx_string_prop_set(prop, str))
+		return NULL;
+
+	return &prop->prop;
+}
+
+/****************************/
+GFX_API void gfx_string_prop_clear(GFXStringProperty* prop)
+{
+	assert(prop != NULL);
+
+	// Free any string.
+	gfx_string_prop_free_(prop);
+
+	// Set to empty string.
+	prop->str[0] = '\0';
+	GFX_STR_FLAG_(prop) = GFX_STR_SHORT_STRING_;
+}
+
+/****************************/
+GFX_API bool gfx_string_prop_set(GFXStringProperty* prop, const char* str)
+{
+	assert(prop != NULL);
+
+	// NULL equals empty string.
+	if (str == NULL || str[0] == '\0')
+	{
+		gfx_string_prop_clear(prop);
+		return 1;
+	}
+
+	// Create short or long string.
+	const size_t strLen = strlen(str);
+
+	if (strLen < sizeof(prop->str))
+	{
+		// Copy as small string.
+		gfx_string_prop_free_(prop);
+		memcpy(prop->str, str, strLen + 1);
+
+		GFX_STR_FLAG_(prop) = GFX_STR_SHORT_STRING_;
+	}
+	else
+	{
+		// Allocate new long string.
+		char* newStr = malloc(strLen + 1);
+		if (newStr == NULL) return 0;
+
+		// Free old string after successful allocation.
+		gfx_string_prop_free_(prop);
+		memcpy(newStr, str, strLen + 1);
+
+		uintptr_t ptr = (uintptr_t)newStr;
+		memcpy(prop->str, &ptr, sizeof(ptr));
+
+		GFX_STR_FLAG_(prop) = GFX_STR_LONG_STRING_;
+	}
+
+	return 1;
+}
+
+/****************************/
+GFX_API const char* gfx_string_prop_get(GFXStringProperty* prop)
+{
+	assert(prop != NULL);
+
+	// Return the short string.
+	if (GFX_STR_FLAG_(prop) == GFX_STR_SHORT_STRING_)
+		return prop->str;
+
+	// Return the long string.
+	uintptr_t ptr;
+	memcpy(&ptr, prop->str, sizeof(ptr));
+
+	return (const char*)ptr;
 }
 
 /****************************/
@@ -142,21 +253,6 @@ GFX_API GFXProperty* gfx_uint_prop(GFXValueProperty* prop, size_t count,
 	prop->prop.type = GFX_PROP_UINT;
 	prop->count = count;
 	prop->values = values;
-	prop->set = set;
-
-	return &prop->prop;
-}
-
-/****************************/
-GFX_API GFXProperty* gfx_string_prop(GFXValueProperty* prop, char* str,
-                                     bool (*set)(GFXValueProperty*, const void*))
-{
-	assert(prop != NULL);
-	assert(str != NULL);
-
-	prop->prop.type = GFX_PROP_STRING;
-	prop->count = strlen(str);
-	prop->values = str;
 	prop->set = set;
 
 	return &prop->prop;

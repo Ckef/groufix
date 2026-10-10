@@ -23,13 +23,8 @@ typedef struct GFXNode
 	GFXProperty prop;       // Base-type.
 	GFXDict     properties; // Stores string : GFXProperty*.
 
-	// String name.
-	struct
-	{
-		GFXValueProperty prop;
-		char str[32]; // For short strings.
-
-	} name;
+	// Identifier name string.
+	GFXStringProperty name;
 
 	GFXLinkProperty parent;
 	GFXListProperty children;
@@ -99,7 +94,7 @@ static inline bool gfx_node_set_name(GFXNode* node, const char* name)
 {
 	assert(node != NULL);
 
-	return gfx_value_prop_set(&node->name.prop, name);
+	return gfx_string_prop_set(&node->name, name);
 }
 
 /**
@@ -113,7 +108,7 @@ static inline const char* gfx_node_get_name(GFXNode* node)
 {
 	assert(node != NULL);
 
-	return node->name.prop.values;
+	return gfx_string_prop_get(&node->name);
 }
 
 /**

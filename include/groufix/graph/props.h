@@ -22,6 +22,7 @@ typedef enum GFXPropertyType
 	GFX_PROP_NODE,
 	GFX_PROP_LINK,
 	GFX_PROP_LIST,
+	GFX_PROP_STRING,
 	GFX_PROP_FUNC,
 
 	// Value property types.
@@ -29,8 +30,7 @@ typedef enum GFXPropertyType
 	GFX_PROP_FLOAT,
 	GFX_PROP_DOUBLE,
 	GFX_PROP_INT,
-	GFX_PROP_UINT,
-	GFX_PROP_STRING
+	GFX_PROP_UINT
 
 } GFXPropertyType;
 
@@ -86,6 +86,21 @@ typedef struct GFXValueProperty
 	bool (*set)(struct GFXValueProperty* prop, const void* values);
 
 } GFXValueProperty;
+
+
+/**
+ * String property definition.
+ */
+typedef struct GFXStringProperty
+{
+	GFXProperty prop; // Base-type.
+
+	// Small string optimization:
+	//  short: up to 31 string bytes, followed by all 0s.
+	//  long: pointer bytes, padding bytes, one byte with value 1.
+	char str[32]; // Last byte is the flag.
+
+} GFXStringProperty;
 
 
 /**
@@ -193,6 +208,37 @@ GFX_API bool gfx_list_prop_add(GFXListProperty* prop, GFXProperty* item);
 GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index);
 
 /**
+ * Initializes a string property.
+ * @param prop Cannot be NULL.
+ * @param str  Must be NULL-terminated or NULL for empty string.
+ * @return &prop->prop, NULL when out of memory.
+ */
+GFX_API GFXProperty* gfx_string_prop_init(GFXStringProperty* prop, const char* str);
+
+/**
+ * Clears a string property, setting its value to the empty string.
+ * @param prop Cannot be NULL.
+ */
+GFX_API void gfx_string_prop_clear(GFXStringProperty* prop);
+
+/**
+ * Sets the value of a string property.
+ * @param prop Cannot be NULL.
+ * @param str  Must be NULL-terminated or NULL for empty string.
+ * @return Zero when out of memory.
+ */
+GFX_API bool gfx_string_prop_set(GFXStringProperty* prop, const char* str);
+
+/**
+ * Retrieves the value of a string property.
+ * @param prop Cannot be NULL.
+ * @return Never NULL, always NULL-terminated.
+ *
+ * Note: the returned pointer is invalidated when the value is changed.
+ */
+GFX_API const char* gfx_string_prop_get(GFXStringProperty* prop);
+
+/**
  * Initializes a link property.
  * Does not need to be cleared, hence no _init postfix.
  * @param prop   Cannot be NULL.
@@ -251,19 +297,6 @@ GFX_API GFXProperty* gfx_int_prop(GFXValueProperty* prop, size_t count,
 GFX_API GFXProperty* gfx_uint_prop(GFXValueProperty* prop, size_t count,
                                    uint32_t* values,
                                    bool (*set)(GFXValueProperty*, const void*));
-
-/**
- * Initializes a string value property.
- * Does not need to be cleared, hence no _init postfix.
- * @param prop Cannot be NULL.
- * @param str  Cannot be NULL, must be NULL-terminated.
- * @param set  May be NULL.
- * @return &prop->prop.
- *
- * str is directly stored in prop, hence no const.
- */
-GFX_API GFXProperty* gfx_string_prop(GFXValueProperty* prop, char* str,
-                                     bool (*set)(GFXValueProperty*, const void*));
 
 /**
  * Initializes a function property.
