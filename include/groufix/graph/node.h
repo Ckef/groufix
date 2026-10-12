@@ -40,7 +40,15 @@ typedef struct GFXSpatialNode
 {
 	GFXNode node; // Base-type.
 
-	// Global matrix.
+	// Transform dirty flag.
+	struct
+	{
+		GFXValueProperty prop;
+		bool             value;
+
+	} dirty;
+
+	// Global transform matrix.
 	struct
 	{
 		GFXValueProperty  prop;
@@ -48,7 +56,7 @@ typedef struct GFXSpatialNode
 
 	} mglobal;
 
-	// Local matrix.
+	// Local transform matrix.
 	struct
 	{
 		GFXValueProperty  prop;

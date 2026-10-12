@@ -11,6 +11,37 @@
 
 
 /****************************
+ * Recursively set the dirty flag of a node's children.
+ * Will stop traversing children once it cannot find a dirty flag.
+ */
+static void gfx_node_children_set_dirty_(GFXNode* node)
+{
+	// Loop over all its children.
+	for (size_t i = 0; i < node->children.items.size; ++i)
+	{
+		GFXNode* child =
+			gfx_node_get_child(node, i);
+		GFXValueProperty* dirty =
+			(GFXValueProperty*)gfx_node_get(child, "dirty");
+
+		// Check if its dirty property exists and
+		// is a boolean value property of count 1.
+		if (
+			dirty != NULL &&
+			dirty->prop.type == GFX_PROP_BOOL && dirty->count == 1)
+		{
+			// If so, try to set dirty.
+			bool flag = 1;
+			if (gfx_value_prop_set(dirty, &flag))
+			{
+				// If successful, recurse to its children.
+				gfx_node_children_set_dirty_(child);
+			}
+		}
+	}
+}
+
+/****************************
  * GFXNode.parent setter implementation.
  */
 static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
@@ -86,13 +117,64 @@ static bool gfx_node_children_set_(GFXListProperty* prop, GFXProperty* item, siz
 }
 
 /****************************
+ * GFXSpatialNode.node.parent setter implementation.
+ */
+static bool gfx_snode_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, node.parent);
+	GFXProperty* prevParent = node->node.parent.follow;
+
+	// First call the base setter.
+	if (!gfx_node_parent_set_(prop, follow))
+		return 0;
+
+	// Flag this node as dirty & propagate if parent changed.
+	if (follow != prevParent)
+	{
+		node->dirty.value = 1;
+		gfx_node_children_set_dirty_(&node->node);
+	}
+
+	return 1;
+}
+
+/****************************
+ * GFXSpatialNode.dirty.prop setter implementation.
+ */
+static bool gfx_snode_dirty_set_(GFXValueProperty* prop, const void* values)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, dirty.prop);
+
+	node->dirty.value = *(const bool*)values;
+	return 1;
+}
+
+/****************************
+ * GFXSpatialNode.dirty.prop getter implementation.
+ */
+static const void* gfx_snode_dirty_get_(GFXValueProperty* prop)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
+
+	return &node->dirty.value;
+}
+
+/****************************
  * GFXSpatialNode.mglobal.prop getter implementation.
  */
 static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 {
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
-	// TODO: Update if dirty flag is set.
+	// TODO: Calculate global matrix if dirty flag is set.
+	// Do so by checking node->dirty.value directly.
+	// Then get the "mglobal" property of the parent,
+	// check if it is a float property of count 16.
+	// Copy its value to a local variable and
+	// do the multiplication with node->mlocal.values directly.
+
+	// Reset dirty flag.
+	node->dirty.value = 0;
 
 	return node->mglobal.values;
 }
@@ -104,10 +186,13 @@ static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 {
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
-	// TODO: Set dirty flag so global matrix will get updated.
-
 	// Directly copy to the stored values.
 	memcpy(node->mlocal.values, values, sizeof(node->mlocal.values));
+
+	// TODO: Check if the matrix value changed?
+	// Flag this node as dirty & propagate.
+	node->dirty.value = 1;
+	gfx_node_children_set_dirty_(&node->node);
 
 	return 1;
 }
@@ -180,7 +265,22 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 	if (!gfx_node_init(&node->node, name))
 		return 0;
 
-	// Initialize global matrix property.
+	// Override parent setter for transform updates.
+	// We can simply override the 'set' field directly!
+	// Do not override the children setter; it always calls the parent setter.
+	node->node.parent.set = gfx_snode_parent_set_;
+
+	// Initialize transform dirty flag property.
+	{
+		gfx_bool_prop(
+			&node->dirty.prop, 1,
+			gfx_snode_dirty_set_,
+			gfx_snode_dirty_get_);
+
+		node->dirty.value = 0;
+	}
+
+	// Initialize global transform matrix property.
 	{
 		const size_t numFloats =
 			sizeof(node->mglobal.values) / sizeof(float);
@@ -194,7 +294,7 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 			node->mglobal.values[i] = 0.0f;
 	}
 
-	// Initialize local matrix property.
+	// Initialize local transform matrix property.
 	{
 		const size_t numFloats =
 			sizeof(node->mlocal.values) / sizeof(float);
@@ -208,9 +308,8 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 			node->mlocal.values[i] = 0.0f;
 	}
 
-	// TODO: Override parent & children setters for global matrix.
-
 	// Set all properties.
+	gfx_node_set(&node->node, &node->dirty.prop.prop, "dirty");
 	gfx_node_set(&node->node, &node->mglobal.prop.prop, "mglobal");
 	gfx_node_set(&node->node, &node->mlocal.prop.prop, "mlocal");
 
