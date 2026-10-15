@@ -210,13 +210,24 @@ static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 {
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
-	// Directly copy to the stored values.
-	memcpy(node->mlocal.values, values, sizeof(node->mlocal.values));
+	// Compare stored & given values.
+	const bool equal = memcmp(
+		node->mlocal.values,
+		values,
+		sizeof(node->mlocal.values)) == 0;
 
-	// TODO: Check if the matrix value changed?
-	// Flag this node as dirty & propagate.
-	node->dirty.value = 1;
-	gfx_node_children_set_dirty_(&node->node);
+	// Directly copy to the stored values.
+	memcpy(
+		node->mlocal.values,
+		values,
+		sizeof(node->mlocal.values));
+
+	// Flag this node as dirty & propagate if values changed.
+	if (!equal)
+	{
+		node->dirty.value = 1;
+		gfx_node_children_set_dirty_(&node->node);
+	}
 
 	return 1;
 }
