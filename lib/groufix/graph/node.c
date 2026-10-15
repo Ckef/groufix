@@ -32,7 +32,7 @@ static bool gfx_check_cycles_(GFXNode* node, GFXNode* parent)
 
 /****************************
  * Recursively set the dirty flag of a node's children.
- * Will stop traversing children once it cannot find a dirty flag.
+ * Will stop traversing children once it cannot find or set a dirty flag.
  */
 static void gfx_node_children_set_dirty_(GFXNode* node)
 {
@@ -190,15 +190,37 @@ static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 {
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
-	// TODO: Calculate global matrix if dirty flag is set.
-	// Do so by checking node->dirty.value directly.
-	// Then get the "mglobal" property of the parent,
-	// check if it is a float property of count 16.
-	// Copy its value to a local variable and
-	// do the multiplication with node->mlocal.values directly.
+	// Check if this node is flagged dirty.
+	if (node->dirty.value)
+	{
+		const size_t numFloats =
+			sizeof(node->mglobal.values) / sizeof(float);
+		GFXNode* parent =
+			gfx_node_get_parent(&node->node);
+		GFXValueProperty* mglobal =
+			(GFXValueProperty*)gfx_node_get(parent, "mglobal");
 
-	// Reset dirty flag.
-	node->dirty.value = 0;
+		// Check if its parent's mglobal property exists
+		// and is a float value property of the proper count.
+		// If so, call its getter to get the values.
+		const float* vmglobal;
+
+		if (
+			mglobal != NULL &&
+			mglobal->prop.type == GFX_PROP_FLOAT &&
+			mglobal->count == numFloats &&
+			(vmglobal = gfx_value_prop_get(mglobal)) != NULL)
+		{
+			// Once we have its mglobal values, calculate new own mglobal.
+			// First copy the property values to the stack for alignment.
+
+			// TODO: Calculate new mglobal :)
+			// Use local var for vmglobal, use node->mlocal.values directly.
+		}
+
+		// Reset dirty flag.
+		node->dirty.value = 0;
+	}
 
 	return node->mglobal.values;
 }
