@@ -264,9 +264,12 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames)
 	if (!gfx_mutex_init_(&rend->staleLock))
 		goto clean_lock;
 
+	if (!gfx_mutex_init_(&rend->reentrantLock))
+		goto clean_stale_lock;
+
 	// Initialize the cache and pool second.
 	if (!gfx_cache_init_(&rend->cache, device, sizeof(GFXSetEntry_)))
-		goto clean_stale_lock;
+		goto clean_reentrant_lock;
 
 	// Keep descriptor sets 4x the amount of frames we have.
 	// Offset by 1 to account for the first frame using it.
@@ -312,6 +315,8 @@ clean_renderer:
 	gfx_pool_clear_(&rend->pool);
 clean_cache:
 	gfx_cache_clear_(&rend->cache);
+clean_reentrant_lock:
+	gfx_mutex_clear_(&rend->reentrantLock);
 clean_stale_lock:
 	gfx_mutex_clear_(&rend->staleLock);
 clean_lock:
@@ -367,6 +372,7 @@ GFX_API void gfx_destroy_renderer(GFXRenderer* renderer)
 	gfx_pool_clear_(&renderer->pool);
 	gfx_cache_clear_(&renderer->cache);
 
+	gfx_mutex_clear_(&renderer->reentrantLock);
 	gfx_mutex_clear_(&renderer->staleLock);
 	gfx_mutex_clear_(&renderer->lock);
 
