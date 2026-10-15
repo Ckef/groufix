@@ -11,6 +11,26 @@
 
 
 /****************************
+ * Checks whether or not setting a new parent of a node
+ * will result in cycles in the node's tree.
+ * @return Non-zero if no cycles will be created.
+ */
+static bool gfx_check_cycles_(GFXNode* node, GFXNode* parent)
+{
+	// Keep following parents.
+	while (parent != NULL)
+	{
+		// Check if we ended up back at node.
+		if (parent == node) return 0;
+
+		// No cycle yet, check parent.
+		parent = gfx_node_get_parent(parent);
+	}
+
+	return 1;
+}
+
+/****************************
  * Recursively set the dirty flag of a node's children.
  * Will stop traversing children once it cannot find a dirty flag.
  */
@@ -51,6 +71,10 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 
 	// Validate follow is a node.
 	if (follow != NULL && follow->type != GFX_PROP_NODE)
+		return 0;
+
+	// Check for cycles.
+	if (!gfx_check_cycles_(node, parent))
 		return 0;
 
 	// Add it as a child to its new parent.
