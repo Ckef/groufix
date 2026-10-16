@@ -194,26 +194,34 @@ static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 	// If this node is flagged dirty, calculate new global transform matrix.
 	if (node->dirty.value)
 	{
-		GFXNode* parent =
-			gfx_node_get_parent(&node->node);
-		GFXValueProperty* mglobal =
-			(GFXValueProperty*)gfx_node_get(parent, "mglobal");
+		// own mglobal = parent mglobal * own mlocal.
+		// See if we have a parent mglobal.
+		const float* pmglobal = NULL;
+		GFXNode* parent = gfx_node_get_parent(&node->node);
 
-		// Check if its parent's mglobal property exists
-		// and is a float value property of the proper count.
-		// If so, call its getter to get the values.
-		const float* vmglobal;
-
-		if (
-			mglobal != NULL &&
-			mglobal->prop.type == GFX_PROP_FLOAT &&
-			mglobal->count == sizeof(node->mlocal.values) / sizeof(float) &&
-			(vmglobal = gfx_value_prop_get(mglobal)) != NULL)
+		if (parent != NULL)
 		{
-			// Once we have its mglobal values, calculate new own mglobal.
-			// vmglobal has unknown alignment, so copy to local variable.
+			// If we have a parent, check if its mglobal property exists
+			// and is a float value property of the proper count.
+			GFXValueProperty* mglobal =
+				(GFXValueProperty*)gfx_node_get(parent, "mglobal");
+
+			if (
+				mglobal != NULL &&
+				mglobal->prop.type == GFX_PROP_FLOAT &&
+				mglobal->count == sizeof(mat4) / sizeof(float))
+			{
+				// If so, get its values.
+				pmglobal = gfx_value_prop_get(mglobal);
+			}
+		}
+
+		if (pmglobal != NULL)
+		{
+			// If we have parent mglobal values, calculate own mglobal.
+			// pmglobal has unknown alignment, copy to local variable.
 			mat4 pGlobal;
-			glm_mat4_make(vmglobal, pGlobal);
+			glm_mat4_make(pmglobal, pGlobal);
 			glm_mat4_mul(pGlobal,
 				*(mat4*)&node->mlocal.values,
 				*(mat4*)&node->mglobal.values);
