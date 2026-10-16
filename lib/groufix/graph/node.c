@@ -194,8 +194,6 @@ static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 	// If this node is flagged dirty, calculate new global transform matrix.
 	if (node->dirty.value)
 	{
-		const size_t numFloats =
-			sizeof(node->mglobal.values) / sizeof(float);
 		GFXNode* parent =
 			gfx_node_get_parent(&node->node);
 		GFXValueProperty* mglobal =
@@ -209,7 +207,7 @@ static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 		if (
 			mglobal != NULL &&
 			mglobal->prop.type == GFX_PROP_FLOAT &&
-			mglobal->count == numFloats &&
+			mglobal->count == sizeof(node->mlocal.values) / sizeof(float) &&
 			(vmglobal = gfx_value_prop_get(mglobal)) != NULL)
 		{
 			// Once we have its mglobal values, calculate new own mglobal.
@@ -337,40 +335,30 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 	node->node.parent.set = gfx_snode_parent_set_;
 
 	// Initialize transform dirty flag property.
-	{
-		gfx_bool_prop(
-			&node->dirty.prop, 1,
-			gfx_snode_dirty_set_,
-			gfx_snode_dirty_get_);
+	gfx_bool_prop(
+		&node->dirty.prop, 1,
+		gfx_snode_dirty_set_,
+		gfx_snode_dirty_get_);
 
-		node->dirty.value = 0;
-	}
+	node->dirty.value = 0;
 
 	// Initialize global transform matrix property.
-	{
-		const size_t numFloats =
-			sizeof(node->mglobal.values) / sizeof(float);
+	gfx_float_prop(
+		&node->mglobal.prop,
+		sizeof(node->mglobal.values) / sizeof(float),
+		NULL,
+		gfx_snode_mglobal_get_);
 
-		gfx_float_prop(
-			&node->mglobal.prop, numFloats,
-			NULL,
-			gfx_snode_mglobal_get_);
-
-		glm_mat4_identity(*(mat4*)&node->mglobal.values);
-	}
+	glm_mat4_identity(*(mat4*)&node->mglobal.values);
 
 	// Initialize local transform matrix property.
-	{
-		const size_t numFloats =
-			sizeof(node->mlocal.values) / sizeof(float);
+	gfx_float_prop(
+		&node->mlocal.prop,
+		sizeof(node->mlocal.values) / sizeof(float),
+		gfx_snode_mlocal_set_,
+		gfx_snode_mlocal_get_);
 
-		gfx_float_prop(
-			&node->mlocal.prop, numFloats,
-			gfx_snode_mlocal_set_,
-			gfx_snode_mlocal_get_);
-
-		glm_mat4_identity(*(mat4*)&node->mlocal.values);
-	}
+	glm_mat4_identity(*(mat4*)&node->mlocal.values);
 
 	// Set all properties.
 	gfx_node_set(&node->node, &node->dirty.prop.prop, "dirty");
