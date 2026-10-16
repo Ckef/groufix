@@ -154,7 +154,7 @@ static bool gfx_snode_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 		return 0;
 
 	// Flag this node as dirty & propagate if parent changed.
-	if (follow != prevParent)
+	if (!node->dirty.value && follow != prevParent)
 	{
 		node->dirty.value = 1;
 		gfx_node_children_set_dirty_(&node->node);
@@ -260,7 +260,7 @@ static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 		*(mat4*)&node->mlocal.values);
 
 	// Flag this node as dirty & propagate if values changed.
-	if (!equal)
+	if (!node->dirty.value && !equal)
 	{
 		node->dirty.value = 1;
 		gfx_node_children_set_dirty_(&node->node);
