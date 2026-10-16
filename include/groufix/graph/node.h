@@ -52,7 +52,7 @@ typedef struct GFXSpatialNode
 	struct
 	{
 		GFXValueProperty  prop;
-		alignas(32) float values[16];
+		alignas(32) float values[16]; // Column-major.
 
 	} mglobal;
 
@@ -60,7 +60,7 @@ typedef struct GFXSpatialNode
 	struct
 	{
 		GFXValueProperty  prop;
-		alignas(32) float values[16];
+		alignas(32) float values[16]; // Column-major.
 
 	} mlocal;
 

@@ -7,6 +7,7 @@
  */
 
 #include "groufix/graph/node.h"
+#include "cglm/mat4.h"
 #include <string.h>
 
 
@@ -190,7 +191,7 @@ static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 {
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
-	// Check if this node is flagged dirty.
+	// If this node is flagged dirty, calculate new global transform matrix.
 	if (node->dirty.value)
 	{
 		const size_t numFloats =
@@ -212,10 +213,19 @@ static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 			(vmglobal = gfx_value_prop_get(mglobal)) != NULL)
 		{
 			// Once we have its mglobal values, calculate new own mglobal.
-			// First copy the property values to the stack for alignment.
-
-			// TODO: Calculate new mglobal :)
-			// Use local var for vmglobal, use node->mlocal.values directly.
+			// vmglobal has unknown alignment, so copy to local variable.
+			mat4 pGlobal;
+			glm_mat4_make(vmglobal, pGlobal);
+			glm_mat4_mul(pGlobal,
+				*(mat4*)&node->mlocal.values,
+				*(mat4*)&node->mglobal.values);
+		}
+		else
+		{
+			// Simply copy mlocal to mglobal if we have no parent values.
+			glm_mat4_copy(
+				*(mat4*)&node->mlocal.values,
+				*(mat4*)&node->mglobal.values);
 		}
 
 		// Reset dirty flag.
@@ -239,10 +249,9 @@ static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 		sizeof(node->mlocal.values)) == 0;
 
 	// Directly copy to the stored values.
-	memcpy(
-		node->mlocal.values,
+	glm_mat4_make(
 		values,
-		sizeof(node->mlocal.values));
+		*(mat4*)&node->mlocal.values);
 
 	// Flag this node as dirty & propagate if values changed.
 	if (!equal)
@@ -347,8 +356,7 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 			NULL,
 			gfx_snode_mglobal_get_);
 
-		for (size_t i = 0; i < numFloats; ++i)
-			node->mglobal.values[i] = 0.0f;
+		glm_mat4_identity(*(mat4*)&node->mglobal.values);
 	}
 
 	// Initialize local transform matrix property.
@@ -361,8 +369,7 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 			gfx_snode_mlocal_set_,
 			gfx_snode_mlocal_get_);
 
-		for (size_t i = 0; i < numFloats; ++i)
-			node->mlocal.values[i] = 0.0f;
+		glm_mat4_identity(*(mat4*)&node->mlocal.values);
 	}
 
 	// Set all properties.
