@@ -277,12 +277,14 @@ GFX_API GFXProperty* gfx_data_prop(GFXValueProperty* prop, size_t count,
 
 /****************************/
 GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop, GFXProperty* this,
-                                   int (*fn)(GFXProperty*, const GFXListProperty*))
+                                   intptr_t context,
+                                   int (*fn)(GFXProperty*, const GFXListProperty*, intptr_t))
 {
 	assert(prop != NULL);
 
 	prop->prop.type = GFX_PROP_FUNC;
 	prop->this = this;
+	prop->context = context;
 	prop->fn = fn;
 
 	return &prop->prop;

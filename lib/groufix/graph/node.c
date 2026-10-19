@@ -294,7 +294,7 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	gfx_sdict_init(&node->properties);
 	gfx_link_prop(&node->parent, NULL, gfx_node_parent_set_);
 	gfx_list_prop_init(&node->children, gfx_node_children_set_);
-	gfx_func_prop(&node->update, &node->prop, NULL);
+	gfx_func_prop(&node->update, &node->prop, 0, NULL);
 
 	// Set all properties.
 	gfx_node_set(node, &node->name.prop, "name");
