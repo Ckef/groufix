@@ -52,7 +52,7 @@ static void gfx_node_children_set_dirty_(GFXNode* node)
 			dirty->prop.type == GFX_PROP_BOOL && dirty->count == 1)
 		{
 			// If so, try to set dirty.
-			bool flag = 1;
+			const bool flag = 1;
 			if (gfx_value_prop_set(dirty, &flag))
 			{
 				// If successful, recurse to its children.
@@ -154,8 +154,9 @@ static bool gfx_snode_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 		return 0;
 
 	// Flag this node as dirty & propagate if parent changed.
-	if (!node->dirty.value && follow != prevParent)
+	if (!node->mdirty && follow != prevParent)
 	{
+		node->mdirty = 1;
 		node->dirty.value = 1;
 		gfx_node_children_set_dirty_(&node->node);
 	}
@@ -169,8 +170,14 @@ static bool gfx_snode_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 static bool gfx_snode_dirty_set_(GFXValueProperty* prop, const void* values)
 {
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, dirty.prop);
+	const bool flag = *(const bool*)values;
 
-	node->dirty.value = *(const bool*)values;
+	// ONLY set the transform dirty flag if setting to 1.
+	// This way we will get propagation updates from the parent,
+	// but matrix updates still happen when reset by the user.
+	if (flag) node->mdirty = 1;
+	node->dirty.value = flag;
+
 	return 1;
 }
 
@@ -181,6 +188,9 @@ static const void* gfx_snode_dirty_get_(GFXValueProperty* prop)
 {
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
+	// Only output the public dirty property.
+	// This way this and child nodes can use and reset the dirty flag
+	// themselves, even when mgobal is retrieved somewhere else.
 	return &node->dirty.value;
 }
 
@@ -191,8 +201,8 @@ static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 {
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
-	// If this node is flagged dirty, calculate new global transform matrix.
-	if (node->dirty.value)
+	// Update global transform matrix if flagged as dirty.
+	if (node->mdirty)
 	{
 		// own mglobal = parent mglobal * own mlocal.
 		// See if we have a parent mglobal.
@@ -234,8 +244,8 @@ static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 				*(mat4*)&node->mglobal.values);
 		}
 
-		// Reset dirty flag.
-		node->dirty.value = 0;
+		// Reset transform dirty flag.
+		node->mdirty = 0;
 	}
 
 	return node->mglobal.values;
@@ -260,8 +270,9 @@ static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 		*(mat4*)&node->mlocal.values);
 
 	// Flag this node as dirty & propagate if values changed.
-	if (!node->dirty.value && !equal)
+	if (!node->mdirty && !equal)
 	{
+		node->mdirty = 1;
 		node->dirty.value = 1;
 		gfx_node_children_set_dirty_(&node->node);
 	}
@@ -342,12 +353,13 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 	// Do not override the children setter; it always calls the parent setter.
 	node->node.parent.set = gfx_snode_parent_set_;
 
-	// Initialize transform dirty flag property.
+	// Initialize (public) dirty flag property.
 	gfx_bool_prop(
 		&node->dirty.prop, 1,
 		gfx_snode_dirty_set_,
 		gfx_snode_dirty_get_);
 
+	node->mdirty = 0;
 	node->dirty.value = 0;
 
 	// Initialize global transform matrix property.

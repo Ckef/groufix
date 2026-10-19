@@ -38,9 +38,10 @@ typedef struct GFXNode
  */
 typedef struct GFXSpatialNode
 {
-	GFXNode node; // Base-type.
+	GFXNode node;   // Base-type.
+	bool    mdirty; // Transform dirty flag.
 
-	// Transform dirty flag.
+	// Public dirty flag.
 	struct
 	{
 		GFXValueProperty prop;
@@ -165,6 +166,63 @@ static inline void gfx_node_set_update(GFXNode* node, intptr_t context,
 	assert(node != NULL);
 
 	gfx_func_prop(&node->update, &node->prop, context, fn);
+}
+
+/**
+ * Retrieves the dirty flag of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_snode_is_dirty(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	return node->dirty.value;
+}
+
+/**
+ * Resets the dirty flag of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline void gfx_snode_reset_dirty(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	node->dirty.value = 0;
+}
+
+/**
+ * Retrieves the global transform matrix of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline const float* gfx_snode_get_mglobal(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	return gfx_value_prop_get(&node->mglobal.prop);
+}
+
+/**
+ * Sets the local transform matrix of a spatial node.
+ * @param node   Cannot be NULL.
+ * @param values Cannot be NULL, must be a column-major 4x4 matrix.
+ */
+static inline bool gfx_snode_set_mlocal(GFXSpatialNode* node, const float* values)
+{
+	assert(node != NULL);
+	assert(values != NULL);
+
+	return gfx_value_prop_set(&node->mlocal.prop, values);
+}
+
+/**
+ * Retrieves the local transform matrix of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline const float* gfx_snode_get_mlocal(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	return node->mlocal.values;
 }
 
 /**
