@@ -157,40 +157,6 @@ static inline GFXNode* gfx_node_get_child(GFXNode* node, size_t index)
 }
 
 /**
- * Sets the update function of a node.
- * @param node Cannot be NULL.
- */
-static inline void gfx_node_set_update(GFXNode* node, intptr_t context,
-                                       int (*fn)(GFXProperty*, const GFXListProperty*, intptr_t))
-{
-	assert(node != NULL);
-
-	gfx_func_prop(&node->update, &node->prop, context, fn);
-}
-
-/**
- * Retrieves the dirty flag of a spatial node.
- * @param node Cannot be NULL.
- */
-static inline bool gfx_snode_is_dirty(GFXSpatialNode* node)
-{
-	assert(node != NULL);
-
-	return node->dirty.value;
-}
-
-/**
- * Resets the dirty flag of a spatial node.
- * @param node Cannot be NULL.
- */
-static inline void gfx_snode_reset_dirty(GFXSpatialNode* node)
-{
-	assert(node != NULL);
-
-	node->dirty.value = 0;
-}
-
-/**
  * Retrieves the global transform matrix of a spatial node.
  * @param node Cannot be NULL.
  */
@@ -223,6 +189,28 @@ static inline const float* gfx_snode_get_mlocal(GFXSpatialNode* node)
 	assert(node != NULL);
 
 	return node->mlocal.values;
+}
+
+/**
+ * Retrieves the dirty flag of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_snode_is_dirty(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	return node->dirty.value;
+}
+
+/**
+ * Resets the dirty flag of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline void gfx_snode_reset_dirty(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	node->dirty.value = 0;
 }
 
 /**

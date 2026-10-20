@@ -165,36 +165,6 @@ static bool gfx_snode_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 }
 
 /****************************
- * GFXSpatialNode.dirty.prop setter implementation.
- */
-static bool gfx_snode_dirty_set_(GFXValueProperty* prop, const void* values)
-{
-	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, dirty.prop);
-	const bool flag = *(const bool*)values;
-
-	// ONLY set the transform dirty flag if setting to 1.
-	// This way we will get propagation updates from the parent,
-	// but matrix updates still happen when reset by the user.
-	if (flag) node->mdirty = 1;
-	node->dirty.value = flag;
-
-	return 1;
-}
-
-/****************************
- * GFXSpatialNode.dirty.prop getter implementation.
- */
-static const void* gfx_snode_dirty_get_(GFXValueProperty* prop)
-{
-	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
-
-	// Only output the public dirty property.
-	// This way this and child nodes can use and reset the dirty flag
-	// themselves, even when mgobal is retrieved somewhere else.
-	return &node->dirty.value;
-}
-
-/****************************
  * GFXSpatialNode.mglobal.prop getter implementation.
  */
 static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
@@ -288,6 +258,36 @@ static const void* gfx_snode_mlocal_get_(GFXValueProperty* prop)
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
 	return node->mlocal.values;
+}
+
+/****************************
+ * GFXSpatialNode.dirty.prop setter implementation.
+ */
+static bool gfx_snode_dirty_set_(GFXValueProperty* prop, const void* values)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, dirty.prop);
+	const bool flag = *(const bool*)values;
+
+	// ONLY set the transform dirty flag if setting to 1.
+	// This way we will get propagation updates from the parent,
+	// but matrix updates still happen when reset by the user.
+	if (flag) node->mdirty = 1;
+	node->dirty.value = flag;
+
+	return 1;
+}
+
+/****************************
+ * GFXSpatialNode.dirty.prop getter implementation.
+ */
+static const void* gfx_snode_dirty_get_(GFXValueProperty* prop)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
+
+	// Only output the public dirty property.
+	// This way this and child nodes can use and reset the dirty flag
+	// themselves, even when mgobal is retrieved somewhere else.
+	return &node->dirty.value;
 }
 
 /****************************/
