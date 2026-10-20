@@ -702,85 +702,6 @@ GFX_API void gfx_frame_start(GFXFrame* frame);
 GFX_API void gfx_frame_submit(GFXFrame* frame);
 
 /**
- * Injects dependency commands in a given pass.
- * @param pass Cannot be NULL.
- * @param injs Cannot be NULL if numInjs > 0.
- *
- * NOT thread-safe with respect to pass!
- * Cannot be called during gfx_frame_submit!
- *
- * All semaphores are referenced until the first call to gfx_frame_submit
- * during which the pass is unculled (ergo used in the frame) has returned.
- *
- * All signal commands are made visible to wait commands injected in passes
- * later in submission order. They are made visible to wait commands submitted
- * anywhere else as soon as gfx_frame_submit returns.
- *
- * All wait commands only see signal commands injected in passes earlier in
- * submission order. However, all wait commands can match any visible signal
- * commands submitted elsewhere up until gfx_frame_submit is called.
- *
- * It is undefined behaviour to use this call to inject dependencies between
- * two render passes in the same frame, gfx_pass_depend should be used.
- */
-GFX_API void gfx_pass_inject(GFXPass* pass,
-                             size_t numInjs, const GFXInject* injs);
-
-/**
- * Appends dependency commands to given passes, effectively 'injecting' the
- * given commands before every frame the passes are used in.
- * @param pass Cannot be NULL.
- * @param wait Cannot be NULL, pass to implicitly wait, must not be pass.
- * @param injs Cannot be NULL if numInjs > 0.
- *
- * NOT thread-safe with respect to pass or wait!
- * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
- *
- * This is the only call that takes the gfx_sig* macro family as injections!
- * To inject between two render passes, use the gfx_sig* macro family.
- *
- * To specify dependencies between passes that use the same attachment,
- * never use this call, gfx_pass_consume* should be used instead!
- *
- * Any signal command is implicitly waited upon by the wait pass.
- * Meaning there is no need to inject a matching wait command anywhere.
- * In fact, this call will not accept any wait commands at all.
- *
- * For each semaphore that is implicitly being waited upon by a wait pass,
- * only a single wait command will be injected in that pass,
- * even if gfx_pass_depend is called multiple times.
- * All semaphores are referenced until gfx_pass_undepend(_all) is called
- * or either of the passes are erased.
- *
- * It is undefined behaviour to use this call to inject a semaphore
- * between two render passes in the same frame.
- */
-GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
-                             size_t numInjs, const GFXInject* injs);
-
-/**
- * Removes dependency commands appended to given passes.
- * Only removes dependencies added with
- * the same `pass` and `wait` arguments as gfx_pass_depend!
- * @param pass Cannot be NULL.
- * @param wait Cannot be NULL.
- *
- * NOT thread-safe with respect to pass or wait!
- * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
- */
-GFX_API void gfx_pass_undepend(GFXPass* pass, GFXPass* wait);
-
-/**
- * Removes all dependency commands appended to a pass,
- * either as `pass` or `wait` argument to gfx_pass_depend!
- * @param pass Cannot be NULL.
- *
- * NOT thread-safe with respect to all related passes!
- * Cannot be called during or inbetween gfx_frame_start and gfx_frame_submit!
- */
-GFX_API void gfx_pass_undepend_all(GFXPass* pass);
-
-/**
  * Blocks until all virtual frames are done rendering.
  * Does not block if a frame is not submitted.
  * @param renderer Cannot be NULL.
@@ -1113,6 +1034,76 @@ GFX_API void gfx_pass_resolve(GFXPass* pass, GFXAttachmentInd index,
  * @param index Attachment index to release, nust be non-zero.
  */
 GFX_API void gfx_pass_release(GFXPass* pass, GFXAttachmentInd index);
+
+/**
+ * Injects dependency commands in a given pass.
+ * @param pass Cannot be NULL.
+ * @param injs Cannot be NULL if numInjs > 0.
+ *
+ * This is the only pass call that can be called after gfx_frame_start,
+ * but it still cannot be called during gfx_frame_submit!
+ *
+ * All semaphores are referenced until the first call to gfx_frame_submit
+ * during which the pass is unculled (ergo used in the frame) has returned.
+ *
+ * All signal commands are made visible to wait commands injected in passes
+ * later in submission order. They are made visible to wait commands submitted
+ * anywhere else as soon as gfx_frame_submit returns.
+ *
+ * All wait commands only see signal commands injected in passes earlier in
+ * submission order. However, all wait commands can match any visible signal
+ * commands submitted elsewhere up until gfx_frame_submit is called.
+ *
+ * It is undefined behaviour to use this call to inject dependencies between
+ * two render passes in the same frame, gfx_pass_depend should be used.
+ */
+GFX_API void gfx_pass_inject(GFXPass* pass,
+                             size_t numInjs, const GFXInject* injs);
+
+/**
+ * Appends dependency commands to given passes, effectively 'injecting' the
+ * given commands before every frame the passes are used in.
+ * @param pass Cannot be NULL.
+ * @param wait Cannot be NULL, pass to implicitly wait, must not be pass.
+ * @param injs Cannot be NULL if numInjs > 0.
+ *
+ * This is the only call that takes the gfx_sig* macro family as injections!
+ * To inject between two render passes, use the gfx_sig* macro family.
+ *
+ * To specify dependencies between passes that use the same attachment,
+ * never use this call, gfx_pass_consume* should be used instead!
+ *
+ * Any signal command is implicitly waited upon by the wait pass.
+ * Meaning there is no need to inject a matching wait command anywhere.
+ * In fact, this call will not accept any wait commands at all.
+ *
+ * For each semaphore that is implicitly being waited upon by a wait pass,
+ * only a single wait command will be injected in that pass,
+ * even if gfx_pass_depend is called multiple times.
+ * All semaphores are referenced until gfx_pass_undepend(_all) is called
+ * or either of the passes are erased.
+ *
+ * It is undefined behaviour to use this call to inject a semaphore
+ * between two render passes in the same frame.
+ */
+GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
+                             size_t numInjs, const GFXInject* injs);
+
+/**
+ * Removes dependency commands appended to given passes.
+ * Only removes dependencies added with
+ * the same `pass` and `wait` arguments as gfx_pass_depend!
+ * @param pass Cannot be NULL.
+ * @param wait Cannot be NULL.
+ */
+GFX_API void gfx_pass_undepend(GFXPass* pass, GFXPass* wait);
+
+/**
+ * Removes all dependency commands appended to a pass,
+ * either as `pass` or `wait` argument to gfx_pass_depend!
+ * @param pass Cannot be NULL.
+ */
+GFX_API void gfx_pass_undepend_all(GFXPass* pass);
 
 /**
  * Sets the render state of a render pass.

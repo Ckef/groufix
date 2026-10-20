@@ -1167,6 +1167,264 @@ GFX_API void gfx_pass_uncull(GFXPass* pass)
 }
 
 /****************************/
+GFX_API void gfx_pass_inject(GFXPass* pass,
+                             size_t numInjs, const GFXInject* injs)
+{
+	assert(pass != NULL);
+	assert(numInjs == 0 || injs != NULL);
+
+	// Store injections for submission.
+	if (numInjs > 0 && !gfx_vec_push(&pass->injs, numInjs, injs))
+		gfx_log_warn(
+			"Dependency injection failed, "
+			"injection commands could not be stored at pass inject.");
+}
+
+/****************************/
+GFX_API void gfx_pass_depend(GFXPass* pass, GFXPass* wait,
+                             size_t numInjs, const GFXInject* injs)
+{
+	assert(pass != NULL);
+	assert(wait != NULL);
+	assert(pass != wait);
+	assert(numInjs == 0 || injs != NULL);
+
+	GFXRenderer* renderer = pass->renderer;
+	GFXContext_* context = renderer->cache.context;
+	const size_t numPass = pass->deps.size;
+	const size_t numWait = wait->deps.size;
+
+	// Check renderer.
+	if (renderer != wait->renderer)
+	{
+		gfx_log_warn(
+			"Dependency injection failed, "
+			"passes cannot be associated with a different renderer.");
+
+		return;
+	}
+
+	// Loop over all injections and insert them at either the
+	// source or target pass, implicitly inserting a wait command if
+	// necessary.
+	// Once submitting, we can determine what to do based on the
+	// source/target fields!
+	for (size_t i = 0; i < numInjs; ++i)
+	{
+		if (GFX_INJ_IS_WAIT_(injs[i]))
+		{
+			gfx_log_warn(
+				"Dependency wait command ignored, "
+				"cannot inject wait commands using gfx_pass_depend.");
+
+			continue;
+		}
+
+		// Construct dependency.
+		// Always resolve for efficiency!
+		GFXDepend_ depend = {
+			.inj = injs[i],
+			.source = pass,
+			.target = wait,
+			.waits = 1
+		};
+
+		depend.inj.ref = gfx_ref_resolve_(depend.inj.ref);
+
+		if (depend.inj.sem == NULL)
+		{
+			// No semaphore, do checks here!
+			// Check the context the resource was built on.
+			GFXUnpackRef_ unp = gfx_ref_unpack_(depend.inj.ref);
+
+			if (
+				!GFX_REF_IS_NULL(depend.inj.ref) &&
+				GFX_UNPACK_REF_CONTEXT_(unp) != context)
+			{
+				gfx_log_warn(
+					"Dependency signal command ignored, given "
+					"underlying resource must be built on the same "
+					"logical Vulkan device.");
+
+				continue;
+			}
+
+			// And its renderer too.
+			if (
+				unp.obj.renderer != NULL &&
+				unp.obj.renderer != renderer)
+			{
+				gfx_log_warn(
+					"Dependency signal command ignored, renderer "
+					"attachment references cannot be used in "
+					"another renderer.");
+
+				continue;
+			}
+
+			// And the pass type too.
+			if (
+				(pass->type == GFX_PASS_COMPUTE_ASYNC &&
+				wait->type != GFX_PASS_COMPUTE_ASYNC) ||
+
+				(pass->type != GFX_PASS_COMPUTE_ASYNC &&
+				wait->type == GFX_PASS_COMPUTE_ASYNC))
+			{
+				gfx_log_warn(
+					"Dependency signal command ignored, must signal "
+					"a semaphore when injecting between an asynchronous "
+					"compute pass and a non-asynchronous pass.");
+
+				continue;
+			}
+
+			// If no semaphore, we just inject a barrier
+			// at the catch operation, i.e. at target.
+			if (!gfx_vec_push(&wait->deps, 1, &depend))
+				goto clean;
+		}
+		else
+		{
+			// If we do use a semaphore, insert at source.
+			// Note we do not do any checking, this is done in sem.c!
+			if (!gfx_vec_push(&pass->deps, 1, &depend))
+				goto clean;
+
+			// Plus insert a single wait command per semaphore
+			// at target. So try to find this semaphore.
+			size_t w = 0;
+			for (; w < wait->deps.size; ++w)
+			{
+				GFXDepend_* wDepend = gfx_vec_at(&wait->deps, w);
+				if (
+					GFX_INJ_IS_WAIT_(wDepend->inj) &&
+					wDepend->inj.sem == depend.inj.sem)
+				{
+					++wDepend->waits;
+					break;
+				}
+			}
+
+			// If not found, insert new wait command.
+			if (w >= wait->deps.size)
+			{
+				depend.source = NULL; // Might serve multiple sources!
+				depend.inj = gfx_sem_wait(depend.inj.sem);
+
+				if (!gfx_vec_push(&wait->deps, 1, &depend))
+					goto clean;
+			}
+		}
+	}
+
+	// Invalidate the graph, maybe new subpass dependencies.
+	if (numInjs > 0 && renderer->graph.state != GFX_GRAPH_EMPTY_)
+		renderer->graph.state = GFX_GRAPH_INVALID_;
+
+	return;
+
+
+	// Cleanup on failure.
+clean:
+	if (pass->deps.size > numPass)
+		gfx_vec_pop(&pass->deps, pass->deps.size - numPass);
+	if (wait->deps.size > numWait)
+		gfx_vec_pop(&wait->deps, wait->deps.size - numWait);
+
+	gfx_log_warn(
+		"Dependency injection failed, "
+		"injection commands could not be stored at pass depend.");
+}
+
+/****************************/
+GFX_API void gfx_pass_undepend(GFXPass* pass, GFXPass* wait)
+{
+	assert(pass != NULL);
+	assert(wait != NULL);
+	assert(pass != wait);
+
+	GFXRenderer* renderer = pass->renderer;
+
+	// Silently ignore different renderers.
+	if (renderer != wait->renderer)
+		return;
+
+	// First loop over all dependencies in the source.
+	// If it is a signal command that uses a semaphore, with correct source
+	// and target, it should have a matching wait command, remove both!
+	for (size_t d = pass->deps.size; d > 0; --d)
+	{
+		GFXDepend_* depend = gfx_vec_at(&pass->deps, d-1);
+		if (
+			GFX_INJ_IS_SIGNAL_(depend->inj) &&
+			depend->inj.sem != NULL &&
+			depend->source == pass &&
+			depend->target == wait)
+		{
+			// Find its matching wait command at target.
+			// Only remove when its reference count hits zero.
+			for (size_t w = 0; w < wait->deps.size; ++w)
+			{
+				GFXDepend_* wDepend = gfx_vec_at(&wait->deps, w);
+				if (
+					GFX_INJ_IS_WAIT_(wDepend->inj) &&
+					wDepend->inj.sem == depend->inj.sem)
+				{
+					if ((--wDepend->waits) == 0)
+						gfx_vec_erase(&wait->deps, 1, w);
+
+					break;
+				}
+			}
+
+			// Remove at source.
+			gfx_vec_erase(&pass->deps, 1, d-1);
+		}
+	}
+
+	// Secondly loop over all dependencies in the target.
+	// If it is a signal command that does not use a semaphore, with correct
+	// source and target, simply remove it, no matching wait command exists!
+	for (size_t d = wait->deps.size; d > 0; --d)
+	{
+		GFXDepend_* depend = gfx_vec_at(&wait->deps, d-1);
+		if (
+			GFX_INJ_IS_SIGNAL_(depend->inj) &&
+			depend->inj.sem == NULL &&
+			depend->source == pass &&
+			depend->target == wait)
+		{
+			gfx_vec_erase(&wait->deps, 1, d-1);
+		}
+	}
+
+	// Invalidate the graph, subpass dependencies are gone.
+	if (renderer->graph.state != GFX_GRAPH_EMPTY_)
+		renderer->graph.state = GFX_GRAPH_INVALID_;
+}
+
+/****************************/
+GFX_API void gfx_pass_undepend_all(GFXPass* pass)
+{
+	assert(pass != NULL);
+
+	// Simply loop over all passes and undepend in both directions,
+	// i.e. with pass as both `pass` and `wait` argument.
+	// Does not need to be super performant.
+	for (
+		GFXPass* other = (GFXPass*)pass->renderer->graph.passes.head;
+		other != NULL;
+		other = (GFXPass*)other->list.next)
+	{
+		if (other != pass)
+		{
+			gfx_pass_undepend(pass, other);
+			gfx_pass_undepend(other, pass);
+		}
+	}
+}
+
+/****************************/
 GFX_API GFXPass* gfx_renderer_get_first(GFXRenderer* renderer)
 {
 	assert(renderer != NULL);
