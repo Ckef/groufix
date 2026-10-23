@@ -112,9 +112,9 @@ typedef struct GFXFuncProperty
 {
 	GFXProperty  prop; // Base-type.
 	GFXProperty* this;
-	intptr_t     context;
+	intmax_t     context;
 
-	int (*fn)(GFXProperty* this, const GFXListProperty* args, intptr_t ctx);
+	int (*fn)(GFXProperty* this, const GFXListProperty* args, intmax_t ctx);
 
 } GFXFuncProperty;
 
@@ -328,8 +328,8 @@ GFX_API GFXProperty* gfx_data_prop(GFXValueProperty* prop, size_t count,
  * @return &prop->prop.
  */
 GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop, GFXProperty* this,
-                                   intptr_t context,
-                                   int (*fn)(GFXProperty*, const GFXListProperty*, intptr_t));
+                                   intmax_t context,
+                                   int (*fn)(GFXProperty*, const GFXListProperty*, intmax_t));
 
 
 #endif

@@ -277,8 +277,8 @@ GFX_API GFXProperty* gfx_data_prop(GFXValueProperty* prop, size_t count,
 
 /****************************/
 GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop, GFXProperty* this,
-                                   intptr_t context,
-                                   int (*fn)(GFXProperty*, const GFXListProperty*, intptr_t))
+                                   intmax_t context,
+                                   int (*fn)(GFXProperty*, const GFXListProperty*, intmax_t))
 {
 	assert(prop != NULL);
 
