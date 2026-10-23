@@ -7,8 +7,8 @@
  */
 
 
-#ifndef GFX_GRAPH_PROPS_H
-#define GFX_GRAPH_PROPS_H
+#ifndef GFX_SCENE_PROPS_H
+#define GFX_SCENE_PROPS_H
 
 #include "groufix/containers/vec.h"
 #include "groufix/def.h"
@@ -211,6 +211,14 @@ GFX_API void gfx_list_prop_clear(GFXListProperty* prop);
  * @return Zero when out of memory.
  */
 GFX_API bool gfx_list_prop_add(GFXListProperty* prop, GFXProperty* item);
+
+/**
+ * Moves a property of a list at some index to another.
+ * @param prop Cannot be NULL.
+ * @param from Must be < prop->items.size.
+ * @param to   Must be <= prop->items.size, item to put it _before_.
+ */
+GFX_API void gfx_list_prop_move(GFXListProperty* prop, size_t from, size_t to);
 
 /**
  * Erases a property from a list property at some index.

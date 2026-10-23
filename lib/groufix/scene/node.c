@@ -6,7 +6,7 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/graph/node.h"
+#include "groufix/scene/node.h"
 #include "cglm/mat4.h"
 #include <string.h>
 

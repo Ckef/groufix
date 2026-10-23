@@ -7,11 +7,11 @@
  */
 
 
-#ifndef GFX_GRAPH_NODE_H
-#define GFX_GRAPH_NODE_H
+#ifndef GFX_SCENE_NODE_H
+#define GFX_SCENE_NODE_H
 
 #include "groufix/containers/dict.h"
-#include "groufix/graph/props.h"
+#include "groufix/scene/props.h"
 #include "groufix/def.h"
 
 

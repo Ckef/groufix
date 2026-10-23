@@ -6,7 +6,7 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/graph/props.h"
+#include "groufix/scene/props.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -62,6 +62,41 @@ GFX_API bool gfx_list_prop_add(GFXListProperty* prop, GFXProperty* item)
 	assert(item != NULL);
 
 	return gfx_vec_push(&prop->items, 1, &item);
+}
+
+/****************************/
+GFX_API void gfx_list_prop_move(GFXListProperty* prop, size_t from, size_t to)
+{
+	assert(prop != NULL);
+	assert(from < prop->items.size);
+	assert(to <= prop->items.size);
+
+	// Nothing to do.
+	if (to == from || to == from + 1) return;
+
+	// Get item to move.
+	GFXProperty* item = gfx_list_prop_at(prop, from);
+
+	if (to > from)
+	{
+		// Move items inbetween backwards.
+		memmove(
+			gfx_vec_at(&prop->items, from),
+			gfx_vec_at(&prop->items, from + 1),
+			to - from - 1);
+
+		*(GFXProperty**)gfx_vec_at(&prop->items, to - 1) = item;
+	}
+	else
+	{
+		// Move items inbetween forwards.
+		memmove(
+			gfx_vec_at(&prop->items, to + 1),
+			gfx_vec_at(&prop->items, to),
+			to - from);
+
+		*(GFXProperty**)gfx_vec_at(&prop->items, to) = item;
+	}
 }
 
 /****************************/
