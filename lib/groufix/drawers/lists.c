@@ -414,7 +414,7 @@ GFX_API void gfx_draw_list_sort(GFXDrawList* list)
 	assert(list != NULL);
 
 	// Ignore if we have no comparison function.
-	if (list->cmp && list->list.numVisible > 0 && list->list.dirty)
+	if (list->cmp && list->list.numVisible > 1 && list->list.dirty)
 	{
 		// We choose to strictly only use quicksort, without a fallback
 		// to e.g. insertion sort when the input length is small.
