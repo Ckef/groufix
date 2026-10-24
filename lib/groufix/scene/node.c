@@ -32,33 +32,48 @@ static bool gfx_check_cycles_(GFXNode* node, GFXNode* parent)
 }
 
 /****************************
- * Recursively set the dirty flag of a node's children.
- * Will stop traversing children once it cannot find or set a dirty flag.
+ * Sets the dirty flag of a node.
+ * Silently ignored if node does not have a dirty flag.
  */
-static void gfx_node_children_set_dirty_(GFXNode* node)
+static void gfx_node_set_dirty_(GFXNode* node)
 {
-	// Loop over all its children.
+	// Check if the node's dirty property exists and
+	// is a boolean value property of count 1.
+	GFXValueProperty* dirty =
+		(GFXValueProperty*)gfx_node_get(node, "dirty");
+
+	if (
+		dirty != NULL &&
+		dirty->prop.type == GFX_PROP_BOOL &&
+		dirty->count == 1)
+	{
+		const bool flag = 1;
+		gfx_value_prop_set(dirty, &flag);
+	}
+}
+
+/****************************
+ * Propagate the depth and dirty flag to a node's children.
+ * Does NOT set the depth or dirty flag of node itself!
+ */
+static void gfx_node_propagate_children_(GFXNode* node)
+{
+	// Get new depth of all children.
+	const unsigned int depth = node->depth.value + 1;
+
+	// Loop over all children.
 	for (size_t i = 0; i < node->children.items.size; ++i)
 	{
-		GFXNode* child =
-			gfx_node_get_child(node, i);
-		GFXValueProperty* dirty =
-			(GFXValueProperty*)gfx_node_get(child, "dirty");
+		GFXNode* child = gfx_node_get_child(node, i);
 
-		// Check if its dirty property exists and
-		// is a boolean value property of count 1.
-		if (
-			dirty != NULL &&
-			dirty->prop.type == GFX_PROP_BOOL && dirty->count == 1)
-		{
-			// If so, try to set dirty.
-			const bool flag = 1;
-			if (gfx_value_prop_set(dirty, &flag))
-			{
-				// If successful, recurse to its children.
-				gfx_node_children_set_dirty_(child);
-			}
-		}
+		// Set depth of this child.
+		child->depth.value = depth;
+
+		// Flag this child as dirty.
+		gfx_node_set_dirty_(child);
+
+		// Propagate to its children.
+		gfx_node_propagate_children_(child);
 	}
 }
 
@@ -74,22 +89,28 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 	if (follow != NULL && follow->type != GFX_PROP_NODE)
 		return 0;
 
+	// Parent already set.
+	if (node->parent.follow == follow)
+		return 1;
+
 	// Check for cycles.
 	if (!gfx_check_cycles_(node, parent))
 		return 0;
 
-	// Add it as a child to its new parent.
-	if (parent != NULL)
+	// If removing parent, reset depth.
+	if (parent == NULL)
+		node->depth.value = 0;
+	else
 	{
-		// Parent already set.
-		if (node->parent.follow == follow)
-			return 1;
-
+		// If new parent, add node as a child to it.
 		if (!gfx_list_prop_add(&parent->children, &node->prop))
 			return 0;
+
+		// Set new depth according to new parent.
+		node->depth.value = parent->depth.value + 1;
 	}
 
-	// Remove it as child from its current parent.
+	// Remove node as child from its current parent.
 	if (node->parent.follow != NULL)
 	{
 		GFXNode* currParent = (GFXNode*)node->parent.follow;
@@ -106,6 +127,10 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 
 	// Set new parent.
 	node->parent.follow = follow;
+
+	// Flag dirty & propagate.
+	gfx_node_set_dirty_(node);
+	gfx_node_propagate_children_(node);
 
 	return 1;
 }
@@ -142,26 +167,43 @@ static bool gfx_node_children_set_(GFXListProperty* prop, GFXProperty* item, siz
 }
 
 /****************************
- * GFXSpatialNode.node.parent setter implementation.
+ * GFXNode.depth.prop getter implementation.
  */
-static bool gfx_snode_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
+static const void* gfx_node_depth_get_(GFXValueProperty* prop)
 {
-	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, node.parent);
-	GFXProperty* prevParent = node->node.parent.follow;
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, depth.prop);
 
-	// First call the base setter.
-	if (!gfx_node_parent_set_(prop, follow))
-		return 0;
+	return &node->depth.value;
+}
 
-	// Flag this node as dirty & propagate if parent changed.
-	if (!node->mdirty && follow != prevParent)
-	{
-		node->mdirty = 1;
-		node->dirty.value = 1;
-		gfx_node_children_set_dirty_(&node->node);
-	}
+/****************************
+ * GFXSpatialNode.dirty.prop setter implementation.
+ */
+static bool gfx_snode_dirty_set_(GFXValueProperty* prop, const void* values)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, dirty.prop);
+	const bool flag = *(const bool*)values;
+
+	// ONLY set the transform dirty flag if setting to 1.
+	// This way we will get propagation updates from the parent,
+	// but matrix updates still happen when reset by the user.
+	if (flag) node->mdirty = 1;
+	node->dirty.value = flag;
 
 	return 1;
+}
+
+/****************************
+ * GFXSpatialNode.dirty.prop getter implementation.
+ */
+static const void* gfx_snode_dirty_get_(GFXValueProperty* prop)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
+
+	// Only output the public dirty property.
+	// This way this and child nodes can use and reset the dirty flag
+	// themselves, even when mgobal is retrieved somewhere else.
+	return &node->dirty.value;
 }
 
 /****************************
@@ -239,12 +281,12 @@ static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 		values,
 		*(mat4*)&node->mlocal.values);
 
-	// Flag this node as dirty & propagate if values changed.
+	// Lazily flag dirty & propagate if values changed.
 	if (!node->mdirty && !equal)
 	{
 		node->mdirty = 1;
 		node->dirty.value = 1;
-		gfx_node_children_set_dirty_(&node->node);
+		gfx_node_propagate_children_(&node->node);
 	}
 
 	return 1;
@@ -258,36 +300,6 @@ static const void* gfx_snode_mlocal_get_(GFXValueProperty* prop)
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
 
 	return node->mlocal.values;
-}
-
-/****************************
- * GFXSpatialNode.dirty.prop setter implementation.
- */
-static bool gfx_snode_dirty_set_(GFXValueProperty* prop, const void* values)
-{
-	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, dirty.prop);
-	const bool flag = *(const bool*)values;
-
-	// ONLY set the transform dirty flag if setting to 1.
-	// This way we will get propagation updates from the parent,
-	// but matrix updates still happen when reset by the user.
-	if (flag) node->mdirty = 1;
-	node->dirty.value = flag;
-
-	return 1;
-}
-
-/****************************
- * GFXSpatialNode.dirty.prop getter implementation.
- */
-static const void* gfx_snode_dirty_get_(GFXValueProperty* prop)
-{
-	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
-
-	// Only output the public dirty property.
-	// This way this and child nodes can use and reset the dirty flag
-	// themselves, even when mgobal is retrieved somewhere else.
-	return &node->dirty.value;
 }
 
 /****************************/
@@ -307,11 +319,20 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	gfx_list_prop_init(&node->children, gfx_node_children_set_);
 	gfx_func_prop(&node->update, &node->prop, 0, NULL);
 
+	// Initialize depth property.
+	gfx_uint_prop(
+		&node->depth.prop, 1,
+		NULL,
+		gfx_node_depth_get_);
+
+	node->depth.value = 0;
+
 	// Set all properties.
 	gfx_node_set(node, &node->name.prop, "name");
 	gfx_node_set(node, &node->parent.prop, "parent");
 	gfx_node_set(node, &node->children.prop, "children");
 	gfx_node_set(node, &node->update.prop, "update");
+	gfx_node_set(node, &node->depth.prop.prop, "depth");
 
 	return 1;
 }
@@ -347,11 +368,6 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 
 	if (!gfx_node_init(&node->node, name))
 		return 0;
-
-	// Override parent setter for transform updates.
-	// We can simply override the 'set' field directly!
-	// Do not override the children setter; it always calls the parent setter.
-	node->node.parent.set = gfx_snode_parent_set_;
 
 	// Initialize (public) dirty flag property.
 	gfx_bool_prop(

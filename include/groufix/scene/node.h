@@ -30,6 +30,14 @@ typedef struct GFXNode
 	GFXListProperty children;
 	GFXFuncProperty update;
 
+	// Tree depth.
+	struct
+	{
+		GFXValueProperty prop;
+		unsigned int     value;
+
+	} depth;
+
 } GFXNode;
 
 
@@ -157,6 +165,39 @@ static inline GFXNode* gfx_node_get_child(GFXNode* node, size_t index)
 }
 
 /**
+ * Retrieves the node's tree depth.
+ * @param node Cannot be NULL.
+ */
+static inline unsigned int gfx_node_get_depth(GFXNode* node)
+{
+	assert(node != NULL);
+
+	return node->depth.value;
+}
+
+/**
+ * Retrieves the dirty flag of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_snode_is_dirty(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	return node->dirty.value;
+}
+
+/**
+ * Resets the dirty flag of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline void gfx_snode_reset_dirty(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	node->dirty.value = 0;
+}
+
+/**
  * Retrieves the global transform matrix of a spatial node.
  * @param node Cannot be NULL.
  */
@@ -189,28 +230,6 @@ static inline const float* gfx_snode_get_mlocal(GFXSpatialNode* node)
 	assert(node != NULL);
 
 	return node->mlocal.values;
-}
-
-/**
- * Retrieves the dirty flag of a spatial node.
- * @param node Cannot be NULL.
- */
-static inline bool gfx_snode_is_dirty(GFXSpatialNode* node)
-{
-	assert(node != NULL);
-
-	return node->dirty.value;
-}
-
-/**
- * Resets the dirty flag of a spatial node.
- * @param node Cannot be NULL.
- */
-static inline void gfx_snode_reset_dirty(GFXSpatialNode* node)
-{
-	assert(node != NULL);
-
-	node->dirty.value = 0;
 }
 
 /**
