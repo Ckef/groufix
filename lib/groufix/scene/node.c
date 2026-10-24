@@ -364,6 +364,7 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	gfx_node_set(node, &node->children.prop, "children");
 	gfx_node_set(node, &node->update.prop, "update");
 	gfx_node_set(node, &node->depth.prop.prop, "depth");
+	gfx_node_set(node, &node->index.prop.prop, "index");
 
 	return 1;
 }
