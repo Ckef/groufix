@@ -31,6 +31,7 @@ typedef enum GFXPropertyType
 	GFX_PROP_DOUBLE,
 	GFX_PROP_INT,
 	GFX_PROP_UINT,
+	GFX_PROP_SIZE,
 	GFX_PROP_DATA
 
 } GFXPropertyType;
@@ -315,6 +316,15 @@ GFX_API GFXProperty* gfx_int_prop(GFXValueProperty* prop, size_t count,
  * @see gfx_bool_prop.
  */
 GFX_API GFXProperty* gfx_uint_prop(GFXValueProperty* prop, size_t count,
+                                   bool (*set)(GFXValueProperty*, const void*),
+                                   const void* (*get)(GFXValueProperty*));
+
+/**
+ * Initializes a size_t value property.
+ * Does not need to be cleared, hence no _init postfix.
+ * @see gfx_bool_prop.
+ */
+GFX_API GFXProperty* gfx_size_prop(GFXValueProperty* prop, size_t count,
                                    bool (*set)(GFXValueProperty*, const void*),
                                    const void* (*get)(GFXValueProperty*));
 

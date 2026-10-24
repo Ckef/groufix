@@ -97,31 +97,44 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 	if (!gfx_check_cycles_(node, parent))
 		return 0;
 
-	// If removing parent, reset depth.
+	// If removing parent, reset depth & index.
 	if (parent == NULL)
-		node->depth.value = 0;
+		node->depth.value = 0,
+		node->index.value = 0;
 	else
 	{
 		// If new parent, add node as a child to it.
 		if (!gfx_list_prop_add(&parent->children, &node->prop))
 			return 0;
 
-		// Set new depth according to new parent.
+		// Set new depth & index according to new parent.
 		node->depth.value = parent->depth.value + 1;
+		node->index.value = parent->children.items.size - 1;
 	}
 
 	// Remove node as child from its current parent.
 	if (node->parent.follow != NULL)
 	{
 		GFXNode* currParent = (GFXNode*)node->parent.follow;
+		size_t removed = 0; // To avoid unnecessary child access.
 
-		for (size_t i = currParent->children.items.size; i > 0; --i)
+		for (size_t i = 0; i < currParent->children.items.size;)
 		{
-			GFXProperty* child =
-				gfx_list_prop_at(&currParent->children, i-1);
+			GFXNode* child =
+				(GFXNode*)gfx_list_prop_at(&currParent->children, i);
 
-			if (child == &node->prop)
-				gfx_list_prop_erase(&currParent->children, i-1);
+			if (child == node)
+			{
+				// Erase child from current parent.
+				gfx_list_prop_erase(&currParent->children, i);
+				++removed;
+			}
+			else
+			{
+				// Adjust index of all other children.
+				if (removed > 0) child->index.value = i;
+				++i;
+			}
 		}
 	}
 
@@ -174,6 +187,16 @@ static const void* gfx_node_depth_get_(GFXValueProperty* prop)
 	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, depth.prop);
 
 	return &node->depth.value;
+}
+
+/****************************
+ * GFXNode.index.prop getter implementation.
+ */
+static const void* gfx_node_index_get_(GFXValueProperty* prop)
+{
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, index.prop);
+
+	return &node->index.value;
 }
 
 /****************************
@@ -326,6 +349,14 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 		gfx_node_depth_get_);
 
 	node->depth.value = 0;
+
+	// Initialize index property.
+	gfx_size_prop(
+		&node->index.prop, 1,
+		NULL,
+		gfx_node_index_get_);
+
+	node->index.value = 0;
 
 	// Set all properties.
 	gfx_node_set(node, &node->name.prop, "name");

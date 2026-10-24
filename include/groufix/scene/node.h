@@ -38,6 +38,14 @@ typedef struct GFXNode
 
 	} depth;
 
+	// Child index.
+	struct
+	{
+		GFXValueProperty prop;
+		size_t           value;
+
+	} index;
+
 } GFXNode;
 
 
@@ -173,6 +181,17 @@ static inline unsigned int gfx_node_get_depth(GFXNode* node)
 	assert(node != NULL);
 
 	return node->depth.value;
+}
+
+/**
+ * Retrieves the node's child index (into its parent's children list).
+ * @param node Cannot be NULL.
+ */
+static inline size_t gfx_node_get_index(GFXNode* node)
+{
+	assert(node != NULL);
+
+	return node->index.value;
 }
 
 /**

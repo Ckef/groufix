@@ -294,6 +294,23 @@ GFX_API GFXProperty* gfx_uint_prop(GFXValueProperty* prop, size_t count,
 }
 
 /****************************/
+GFX_API GFXProperty* gfx_size_prop(GFXValueProperty* prop, size_t count,
+                                   bool (*set)(GFXValueProperty*, const void*),
+                                   const void* (*get)(GFXValueProperty*))
+{
+	assert(prop != NULL);
+	assert(count > 1);
+	assert(set != NULL || get != NULL);
+
+	prop->prop.type = GFX_PROP_SIZE;
+	prop->count = count;
+	prop->set = set;
+	prop->get = get;
+
+	return &prop->prop;
+}
+
+/****************************/
 GFX_API GFXProperty* gfx_data_prop(GFXValueProperty* prop, size_t count,
                                    bool (*set)(GFXValueProperty*, const void*),
                                    const void* (*get)(GFXValueProperty*))
