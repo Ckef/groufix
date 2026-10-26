@@ -338,21 +338,23 @@ static bool gfx_snode_mglobal_set_(GFXValueProperty* prop, const void* values)
 {
 	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mglobal.prop);
 
-	// Compare stored & given values.
-	const bool equal = memcmp(
+	// Update local transform matrix if changed.
+	// Do not postpone this update to reduce matrix operations;
+	// we need the local transform to be up to date when changes
+	// occur from higher up in the node's tree!
+	// If flagged dirty, always update, outdated stored values!
+	const bool dirty = node->mdirty || memcmp(
 		node->mglobal.values,
 		values,
-		sizeof(node->mglobal.values)) == 0;
+		sizeof(node->mglobal.values)) != 0;
 
-	// Directly copy to the stored values.
-	glm_mat4_make(
-		values,
-		*(mat4*)&node->mglobal.values);
-
-	// Update local transform matrix if changed.
-	// If flagged dirty, always update, outdated stored values!
-	if (node->mdirty || !equal)
+	if (dirty)
 	{
+		// Directly copy to the stored values.
+		glm_mat4_make(
+			values,
+			*(mat4*)&node->mglobal.values);
+
 		// own mlocal = (parent mglobal)^-1 * own mglobal
 		// See if we have a parent mglobal.
 		const float* pmglobal =
@@ -378,8 +380,9 @@ static bool gfx_snode_mglobal_set_(GFXValueProperty* prop, const void* values)
 		}
 
 		// Lazily propagate if values changed.
-		// Always reset own transform dirty flag.
+		// Always reset own transform dirty flag, but do set public dirty!
 		if (!node->mdirty)
+			node->dirty.value = 1,
 			gfx_node_propagate_(&node->node);
 		else
 			node->mdirty = 0;
@@ -441,17 +444,20 @@ static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 		values,
 		sizeof(node->mlocal.values)) == 0;
 
-	// Directly copy to the stored values.
-	glm_mat4_make(
-		values,
-		*(mat4*)&node->mlocal.values);
-
-	// Lazily flag dirty & propagate if values changed.
-	if (!node->mdirty && !equal)
+	if (!equal)
 	{
-		node->mdirty = 1;
-		node->dirty.value = 1;
-		gfx_node_propagate_(&node->node);
+		// Directly copy to the stored values.
+		glm_mat4_make(
+			values,
+			*(mat4*)&node->mlocal.values);
+
+		// Lazily flag dirty & propagate.
+		if (!node->mdirty)
+		{
+			node->mdirty = 1;
+			node->dirty.value = 1;
+			gfx_node_propagate_(&node->node);
+		}
 	}
 
 	return 1;
