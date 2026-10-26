@@ -28,7 +28,9 @@ typedef struct GFXNode
 
 	GFXLinkProperty parent;
 	GFXListProperty children;
-	GFXFuncProperty update;
+	GFXFuncProperty enter;
+	GFXFuncProperty leave;
+	GFXFuncProperty process;
 
 	// Tree depth.
 	struct

@@ -53,10 +53,10 @@ static void gfx_node_set_dirty_(GFXNode* node)
 }
 
 /****************************
- * Propagate the depth and dirty flag to a node's children.
+ * Recursively propagate the depth and dirty flag to a node's children.
  * Does NOT set the depth or dirty flag of node itself!
  */
-static void gfx_node_propagate_children_(GFXNode* node)
+static void gfx_node_propagate_(GFXNode* node)
 {
 	// Get new depth of all children.
 	const unsigned int depth = node->depth.value + 1;
@@ -73,8 +73,18 @@ static void gfx_node_propagate_children_(GFXNode* node)
 		gfx_node_set_dirty_(child);
 
 		// Propagate to its children.
-		gfx_node_propagate_children_(child);
+		gfx_node_propagate_(child);
 	}
+}
+
+/****************************
+ * GFXNode.name setter implementation.
+ */
+static bool gfx_node_name_set_(GFXStringProperty* prop, const char* str)
+{
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, name);
+
+	return gfx_string_prop_store(&node->name, str);
 }
 
 /****************************
@@ -143,7 +153,7 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 
 	// Flag dirty & propagate.
 	gfx_node_set_dirty_(node);
-	gfx_node_propagate_children_(node);
+	gfx_node_propagate_(node);
 
 	return 1;
 }
@@ -177,6 +187,45 @@ static bool gfx_node_children_set_(GFXListProperty* prop, GFXProperty* item, siz
 
 	// No reassigning childs!
 	return 0;
+}
+
+/****************************
+ * GFXNode.enter setter implementation.
+ */
+static bool gfx_node_enter_set_(GFXFuncProperty* prop, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, enter);
+
+	node->enter.fn = fn;
+	node->enter.ctx = ctx;
+
+	return 1;
+}
+
+/****************************
+ * GFXNode.leave setter implementation.
+ */
+static bool gfx_node_leave_set_(GFXFuncProperty* prop, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, leave);
+
+	node->leave.fn = fn;
+	node->leave.ctx = ctx;
+
+	return 1;
+}
+
+/****************************
+ * GFXNode.process setter implementation.
+ */
+static bool gfx_node_process_set_(GFXFuncProperty* prop, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, process);
+
+	node->process.fn = fn;
+	node->process.ctx = ctx;
+
+	return 1;
 }
 
 /****************************
@@ -309,7 +358,7 @@ static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 	{
 		node->mdirty = 1;
 		node->dirty.value = 1;
-		gfx_node_propagate_children_(&node->node);
+		gfx_node_propagate_(&node->node);
 	}
 
 	return 1;
@@ -333,14 +382,16 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	node->prop.type = GFX_PROP_NODE;
 
 	// First initialize name, may need to allocate.
-	if (gfx_string_prop_init(&node->name, name) == NULL)
+	if (gfx_string_prop_init(&node->name, name, gfx_node_name_set_) == NULL)
 		return 0;
 
 	// Initialize the rest of the node.
 	gfx_sdict_init(&node->properties);
 	gfx_link_prop(&node->parent, NULL, gfx_node_parent_set_);
 	gfx_list_prop_init(&node->children, gfx_node_children_set_);
-	gfx_func_prop(&node->update, &node->prop, 0, NULL);
+	gfx_func_prop(&node->enter, &node->prop, gfx_node_enter_set_);
+	gfx_func_prop(&node->leave, &node->prop, gfx_node_leave_set_);
+	gfx_func_prop(&node->process, &node->prop, gfx_node_process_set_);
 
 	// Initialize depth property.
 	gfx_uint_prop(
@@ -362,7 +413,9 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	gfx_node_set(node, &node->name.prop, "name");
 	gfx_node_set(node, &node->parent.prop, "parent");
 	gfx_node_set(node, &node->children.prop, "children");
-	gfx_node_set(node, &node->update.prop, "update");
+	gfx_node_set(node, &node->enter.prop, "enter");
+	gfx_node_set(node, &node->leave.prop, "leave");
+	gfx_node_set(node, &node->process.prop, "process");
 	gfx_node_set(node, &node->depth.prop.prop, "depth");
 	gfx_node_set(node, &node->index.prop.prop, "index");
 

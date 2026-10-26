@@ -103,7 +103,17 @@ typedef struct GFXStringProperty
 	//  long: pointer bytes, padding bytes, one byte with value 1.
 	char str[32]; // Last byte is the flag.
 
+	// str = NULL-terminated or NULL for empty string.
+	bool (*set)(struct GFXStringProperty* prop, const char* str);
+
 } GFXStringProperty;
+
+
+/**
+ * Function property function definition.
+ */
+typedef int (*GFXFuncPropertyFn)(GFXProperty* this,
+                                 size_t numArgs, GFXProperty** args, intmax_t ctx);
 
 
 /**
@@ -113,9 +123,11 @@ typedef struct GFXFuncProperty
 {
 	GFXProperty  prop; // Base-type.
 	GFXProperty* this;
-	intmax_t     context;
 
-	int (*fn)(GFXProperty* this, const GFXListProperty* args, intmax_t ctx);
+	GFXFuncPropertyFn fn;
+	intmax_t          ctx;
+
+	bool (*set)(struct GFXFuncProperty* prop, GFXFuncPropertyFn fn, intmax_t ctx);
 
 } GFXFuncProperty;
 
@@ -182,12 +194,30 @@ static inline const void* gfx_value_prop_get(GFXValueProperty* prop)
 }
 
 /**
+ * Calls the setter of a string property.
+ * @return The setter's return, or zero when setter set to NULL.
+ */
+static inline bool gfx_string_prop_set(GFXStringProperty* prop, const char* str)
+{
+	return prop->set ? prop->set(prop, str) : 0;
+}
+
+/**
+ * Calls the setter of a function property.
+ * @return The setter's return, or zero when setter set to NULL.
+ */
+static inline bool gfx_func_prop_set(GFXFuncProperty* prop, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	return prop->set ? prop->set(prop, fn, ctx) : 0;
+}
+
+/**
  * Calls a function property.
  * @return The function's return, or zero when set to NULL.
  */
-static inline int gfx_func_prop_call(GFXFuncProperty* prop, const GFXListProperty* args)
+static inline int gfx_func_prop_call(GFXFuncProperty* prop, size_t numArgs, GFXProperty** args)
 {
-	return prop->fn ? prop->fn(prop->this, args, prop->context) : 0;
+	return prop->fn ? prop->fn(prop->this, numArgs, args, prop->ctx) : 0;
 }
 
 /**
@@ -234,7 +264,8 @@ GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index);
  * @param str  Must be NULL-terminated or NULL for empty string.
  * @return &prop->prop, NULL when out of memory.
  */
-GFX_API GFXProperty* gfx_string_prop_init(GFXStringProperty* prop, const char* str);
+GFX_API GFXProperty* gfx_string_prop_init(GFXStringProperty* prop, const char* str,
+                                          bool (*set)(GFXStringProperty*, const char*));
 
 /**
  * Clears a string property, setting its value to the empty string.
@@ -243,12 +274,12 @@ GFX_API GFXProperty* gfx_string_prop_init(GFXStringProperty* prop, const char* s
 GFX_API void gfx_string_prop_clear(GFXStringProperty* prop);
 
 /**
- * Sets the value of a string property.
+ * Stores a new value directly in a string property.
  * @param prop Cannot be NULL.
  * @param str  Must be NULL-terminated or NULL for empty string.
  * @return Zero when out of memory.
  */
-GFX_API bool gfx_string_prop_set(GFXStringProperty* prop, const char* str);
+GFX_API bool gfx_string_prop_store(GFXStringProperty* prop, const char* str);
 
 /**
  * Retrieves the value of a string property.
@@ -342,12 +373,11 @@ GFX_API GFXProperty* gfx_data_prop(GFXValueProperty* prop, size_t count,
  * Initializes a function property.
  * Does not need to be cleared, hence no _init postfix.
  * @param prop Cannot be NULL.
- * @param fn   May be NULL.
+ * @param set  May be NULL.
  * @return &prop->prop.
  */
 GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop, GFXProperty* this,
-                                   intmax_t context,
-                                   int (*fn)(GFXProperty*, const GFXListProperty*, intmax_t));
+                                   bool (*set)(GFXFuncProperty*, GFXFuncPropertyFn, intmax_t));
 
 
 #endif

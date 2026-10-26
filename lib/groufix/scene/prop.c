@@ -109,16 +109,18 @@ GFX_API void gfx_list_prop_erase(GFXListProperty* prop, size_t index)
 }
 
 /****************************/
-GFX_API GFXProperty* gfx_string_prop_init(GFXStringProperty* prop, const char* str)
+GFX_API GFXProperty* gfx_string_prop_init(GFXStringProperty* prop, const char* str,
+                                          bool (*set)(GFXStringProperty*, const char*))
 {
 	assert(prop != NULL);
 
 	prop->prop.type = GFX_PROP_STRING;
+	prop->set = set;
 
 	// Flag as short string to avoid free call.
 	GFX_STR_FLAG_(prop) = GFX_STR_SHORT_STRING_;
 
-	if (!gfx_string_prop_set(prop, str))
+	if (!gfx_string_prop_store(prop, str))
 		return NULL;
 
 	return &prop->prop;
@@ -138,7 +140,7 @@ GFX_API void gfx_string_prop_clear(GFXStringProperty* prop)
 }
 
 /****************************/
-GFX_API bool gfx_string_prop_set(GFXStringProperty* prop, const char* str)
+GFX_API bool gfx_string_prop_store(GFXStringProperty* prop, const char* str)
 {
 	assert(prop != NULL);
 
@@ -329,15 +331,15 @@ GFX_API GFXProperty* gfx_data_prop(GFXValueProperty* prop, size_t count,
 
 /****************************/
 GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop, GFXProperty* this,
-                                   intmax_t context,
-                                   int (*fn)(GFXProperty*, const GFXListProperty*, intmax_t))
+                                   bool (*set)(GFXFuncProperty*, GFXFuncPropertyFn, intmax_t))
 {
 	assert(prop != NULL);
 
 	prop->prop.type = GFX_PROP_FUNC;
 	prop->this = this;
-	prop->context = context;
-	prop->fn = fn;
+	prop->fn = NULL;
+	prop->ctx = 0;
+	prop->set = set;
 
 	return &prop->prop;
 }
