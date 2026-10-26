@@ -90,6 +90,7 @@ typedef struct GFXSpatialNode
  * Sets a property of a node.
  * @param node Cannot be NULL.
  * @param key  Must be non-NULL and NULL-terminated.
+ * @return Zero when out of memory.
  */
 static inline bool gfx_node_set(GFXNode* node, GFXProperty* prop, const char* key)
 {
@@ -103,6 +104,7 @@ static inline bool gfx_node_set(GFXNode* node, GFXProperty* prop, const char* ke
  * Gets a property of a node.
  * @param node Cannot be NULL.
  * @param key  Must be non-NULL and NULL-terminated.
+ * @return The property held at key (NULL if none).
  */
 static inline GFXProperty* gfx_node_get(GFXNode* node, const char* key)
 {
@@ -255,6 +257,7 @@ static inline const float* gfx_snode_get_mlocal(GFXSpatialNode* node)
 
 /**
  * Initializes a node.
+ * The object pointed to by node cannot be moved or copied!
  * @param node Cannot be NULL.
  * @param name Must be NULL-terminated or NULL for empty string.
  * @return Zero when out of memory.
@@ -270,6 +273,7 @@ GFX_API void gfx_node_clear(GFXNode* node);
 
 /**
  * Initializes a spatial node.
+ * The object pointed to by node cannot be moved or copied!
  * @param node Cannot be NULL.
  * @see gfx_node_init.
  */
