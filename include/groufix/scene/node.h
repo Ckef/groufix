@@ -177,7 +177,7 @@ static inline GFXNode* gfx_node_get_child(GFXNode* node, size_t index)
 }
 
 /**
- * Retrieves the node's tree depth.
+ * Retrieves the tree depth of a node.
  * @param node Cannot be NULL.
  */
 static inline unsigned int gfx_node_get_depth(GFXNode* node)
@@ -188,7 +188,19 @@ static inline unsigned int gfx_node_get_depth(GFXNode* node)
 }
 
 /**
- * Retrieves the node's child index (into its parent's children list).
+ * Sets the child index of a node.
+ * If set to a greater value, resulting index will be index-1.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_node_set_index(GFXNode* node, size_t index)
+{
+	assert(node != NULL);
+
+	return gfx_value_prop_set(&node->index.prop, &index);
+}
+
+/**
+ * Retrieves the child index of a node.
  * @param node Cannot be NULL.
  */
 static inline size_t gfx_node_get_index(GFXNode* node)
@@ -218,6 +230,19 @@ static inline void gfx_snode_reset_dirty(GFXSpatialNode* node)
 	assert(node != NULL);
 
 	node->dirty.value = 0;
+}
+
+/**
+ * Sets the global transform matrix of a spatial node.
+ * @param node   Cannot be NULL.
+ * @param values Cannot be NULL, must be a column-major 4x4 matrix.
+ */
+static inline bool gfx_snode_set_mglobal(GFXSpatialNode* node, const float* values)
+{
+	assert(node != NULL);
+	assert(values != NULL);
+
+	return gfx_value_prop_set(&node->mglobal.prop, values);
 }
 
 /**

@@ -78,6 +78,36 @@ static void gfx_node_propagate_(GFXNode* node)
 }
 
 /****************************
+ * Retrieves the global transform matrix of node's parent.
+ * @param node Cannot be NULL.
+ * @return Column-major 4x4 matrix, alignment unknown.
+ */
+static const float* gfx_node_get_parent_mglobal_(GFXNode* node)
+{
+	assert(node != NULL);
+
+	GFXNode* parent = gfx_node_get_parent(node);
+	if (parent != NULL)
+	{
+		// If we have a parent, check if its mglobal property exists
+		// and is a float value property of the proper count.
+		GFXValueProperty* mglobal =
+			(GFXValueProperty*)gfx_node_get(parent, "mglobal");
+
+		if (
+			mglobal != NULL &&
+			mglobal->prop.type == GFX_PROP_FLOAT &&
+			mglobal->count == sizeof(mat4) / sizeof(float))
+		{
+			// If so, get its values.
+			return gfx_value_prop_get(mglobal);
+		}
+	}
+
+	return NULL;
+}
+
+/****************************
  * GFXNode.name setter implementation.
  */
 static bool gfx_node_name_set_(GFXStringProperty* prop, const char* str)
@@ -94,6 +124,7 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 {
 	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, parent);
 	GFXNode* parent = (GFXNode*)follow;
+	const size_t currIndex = node->index.value;
 
 	// Validate follow is a node.
 	if (follow != NULL && follow->type != GFX_PROP_NODE)
@@ -126,25 +157,15 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 	if (node->parent.follow != NULL)
 	{
 		GFXNode* currParent = (GFXNode*)node->parent.follow;
-		size_t removed = 0; // To avoid unnecessary child access.
+		gfx_list_prop_erase(&currParent->children, currIndex);
 
-		for (size_t i = 0; i < currParent->children.items.size;)
+		// Set new index value of all moved children.
+		for (size_t i = currIndex; i < currParent->children.items.size; ++i)
 		{
 			GFXNode* child =
 				(GFXNode*)gfx_list_prop_at(&currParent->children, i);
 
-			if (child == node)
-			{
-				// Erase child from current parent.
-				gfx_list_prop_erase(&currParent->children, i);
-				++removed;
-			}
-			else
-			{
-				// Adjust index of all other children.
-				if (removed > 0) child->index.value = i;
-				++i;
-			}
+			child->index.value = i;
 		}
 	}
 
@@ -239,6 +260,38 @@ static const void* gfx_node_depth_get_(GFXValueProperty* prop)
 }
 
 /****************************
+ * GFXNode.index.prop setter implementation.
+ */
+static bool gfx_node_index_set_(GFXValueProperty* prop, const void* values)
+{
+	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, index.prop);
+	GFXNode* parent = gfx_node_get_parent(node);
+	const size_t to = *(const size_t*)values;
+
+	// Validate index exists at parent.
+	if (parent == NULL || to > parent->children.items.size)
+		return 0;
+
+	// Move it as child at the parent.
+	const size_t from = node->index.value;
+	const size_t smaller = from < to ? from : to;
+	const size_t bigger = from > to ? from : to;
+
+	gfx_list_prop_move(&parent->children, from, to);
+
+	// Set new index value of all moved children.
+	for (size_t i = smaller; i < bigger; ++i)
+	{
+		GFXNode* child =
+			(GFXNode*)gfx_list_prop_at(&parent->children, i);
+
+		child->index.value = i;
+	}
+
+	return 1;
+}
+
+/****************************
  * GFXNode.index.prop getter implementation.
  */
 static const void* gfx_node_index_get_(GFXValueProperty* prop)
@@ -270,7 +323,7 @@ static bool gfx_snode_dirty_set_(GFXValueProperty* prop, const void* values)
  */
 static const void* gfx_snode_dirty_get_(GFXValueProperty* prop)
 {
-	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, dirty.prop);
 
 	// Only output the public dirty property.
 	// This way this and child nodes can use and reset the dirty flag
@@ -279,36 +332,76 @@ static const void* gfx_snode_dirty_get_(GFXValueProperty* prop)
 }
 
 /****************************
+ * GFXSpatialNode.mglobal.prop setter implementation.
+ */
+static bool gfx_snode_mglobal_set_(GFXValueProperty* prop, const void* values)
+{
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mglobal.prop);
+
+	// Compare stored & given values.
+	const bool equal = memcmp(
+		node->mglobal.values,
+		values,
+		sizeof(node->mglobal.values)) == 0;
+
+	// Directly copy to the stored values.
+	glm_mat4_make(
+		values,
+		*(mat4*)&node->mglobal.values);
+
+	// Update local transform matrix if changed.
+	// If flagged dirty, always update, outdated stored values!
+	if (node->mdirty || !equal)
+	{
+		// own mlocal = (parent mglobal)^-1 * own mglobal
+		// See if we have a parent mglobal.
+		const float* pmglobal =
+			gfx_node_get_parent_mglobal_(&node->node);
+
+		if (pmglobal != NULL)
+		{
+			// If we have parent mglobal values, calculate own mlocal.
+			// pmglobal has unknown alignment, copy to local variable.
+			mat4 pGlobal;
+			glm_mat4_make(pmglobal, pGlobal);
+			glm_mat4_inv(pGlobal, pGlobal);
+			glm_mat4_mul(pGlobal,
+				*(mat4*)&node->mglobal.values,
+				*(mat4*)&node->mlocal.values);
+		}
+		else
+		{
+			// Simply copy mglobal to mlocal if we have no parent values.
+			glm_mat4_copy(
+				*(mat4*)&node->mglobal.values,
+				*(mat4*)&node->mlocal.values);
+		}
+
+		// Lazily propagate if values changed.
+		// Always reset own transform dirty flag.
+		if (!node->mdirty)
+			gfx_node_propagate_(&node->node);
+		else
+			node->mdirty = 0;
+	}
+
+	return 1;
+}
+
+/****************************
  * GFXSpatialNode.mglobal.prop getter implementation.
  */
 static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 {
-	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mlocal.prop);
+	GFXSpatialNode* node = GFX_PROP_OBJ(prop, GFXSpatialNode, mglobal.prop);
 
 	// Update global transform matrix if flagged as dirty.
 	if (node->mdirty)
 	{
 		// own mglobal = parent mglobal * own mlocal.
 		// See if we have a parent mglobal.
-		const float* pmglobal = NULL;
-		GFXNode* parent = gfx_node_get_parent(&node->node);
-
-		if (parent != NULL)
-		{
-			// If we have a parent, check if its mglobal property exists
-			// and is a float value property of the proper count.
-			GFXValueProperty* mglobal =
-				(GFXValueProperty*)gfx_node_get(parent, "mglobal");
-
-			if (
-				mglobal != NULL &&
-				mglobal->prop.type == GFX_PROP_FLOAT &&
-				mglobal->count == sizeof(mat4) / sizeof(float))
-			{
-				// If so, get its values.
-				pmglobal = gfx_value_prop_get(mglobal);
-			}
-		}
+		const float* pmglobal =
+			gfx_node_get_parent_mglobal_(&node->node);
 
 		if (pmglobal != NULL)
 		{
@@ -404,7 +497,7 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	// Initialize index property.
 	gfx_size_prop(
 		&node->index.prop, 1,
-		NULL,
+		gfx_node_index_set_,
 		gfx_node_index_get_);
 
 	node->index.value = 0;
@@ -467,7 +560,7 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 	gfx_float_prop(
 		&node->mglobal.prop,
 		sizeof(node->mglobal.values) / sizeof(float),
-		NULL,
+		gfx_snode_mglobal_set_,
 		gfx_snode_mglobal_get_);
 
 	glm_mat4_identity(*(mat4*)&node->mglobal.values);
