@@ -56,7 +56,7 @@ typedef struct GFXNode
  */
 typedef struct GFXSpatialNode
 {
-	GFXNode node;   // Base-type.
+	GFXNode base;
 	bool    mdirty; // Transform dirty flag.
 
 	// Public dirty flag.

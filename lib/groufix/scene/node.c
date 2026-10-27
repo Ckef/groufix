@@ -358,7 +358,7 @@ static bool gfx_snode_mglobal_set_(GFXValueProperty* prop, const void* values)
 		// own mlocal = (parent mglobal)^-1 * own mglobal
 		// See if we have a parent mglobal.
 		const float* pmglobal =
-			gfx_node_get_parent_mglobal_(&node->node);
+			gfx_node_get_parent_mglobal_(&node->base);
 
 		if (pmglobal != NULL)
 		{
@@ -383,7 +383,7 @@ static bool gfx_snode_mglobal_set_(GFXValueProperty* prop, const void* values)
 		// Always reset own transform dirty flag, but do set public dirty!
 		if (!node->mdirty)
 			node->dirty.value = 1,
-			gfx_node_propagate_(&node->node);
+			gfx_node_propagate_(&node->base);
 		else
 			node->mdirty = 0;
 	}
@@ -404,7 +404,7 @@ static const void* gfx_snode_mglobal_get_(GFXValueProperty* prop)
 		// own mglobal = parent mglobal * own mlocal.
 		// See if we have a parent mglobal.
 		const float* pmglobal =
-			gfx_node_get_parent_mglobal_(&node->node);
+			gfx_node_get_parent_mglobal_(&node->base);
 
 		if (pmglobal != NULL)
 		{
@@ -456,7 +456,7 @@ static bool gfx_snode_mlocal_set_(GFXValueProperty* prop, const void* values)
 		{
 			node->mdirty = 1;
 			node->dirty.value = 1;
-			gfx_node_propagate_(&node->node);
+			gfx_node_propagate_(&node->base);
 		}
 	}
 
@@ -509,6 +509,7 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	node->index.value = 0;
 
 	// Set all properties.
+	gfx_dict_reserve(&node->properties, 8); // Just a kick-start.
 	gfx_node_set(node, &node->name.prop, "name");
 	gfx_node_set(node, &node->parent.prop, "parent");
 	gfx_node_set(node, &node->children.prop, "children");
@@ -550,7 +551,7 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 {
 	assert(node != NULL);
 
-	if (!gfx_node_init(&node->node, name))
+	if (!gfx_node_init(&node->base, name))
 		return 0;
 
 	// Initialize (public) dirty flag property.
@@ -581,9 +582,9 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 	glm_mat4_identity(*(mat4*)&node->mlocal.values);
 
 	// Set all properties.
-	gfx_node_set(&node->node, &node->dirty.prop.prop, "dirty");
-	gfx_node_set(&node->node, &node->mglobal.prop.prop, "mglobal");
-	gfx_node_set(&node->node, &node->mlocal.prop.prop, "mlocal");
+	gfx_node_set(&node->base, &node->dirty.prop.prop, "dirty");
+	gfx_node_set(&node->base, &node->mglobal.prop.prop, "mglobal");
+	gfx_node_set(&node->base, &node->mlocal.prop.prop, "mlocal");
 
 	return 1;
 }
@@ -593,7 +594,7 @@ GFX_API void gfx_snode_clear(GFXSpatialNode* node)
 {
 	assert(node != NULL);
 
-	gfx_node_clear(&node->node);
+	gfx_node_clear(&node->base);
 
 	// Leave all values, node is invalidated.
 }
