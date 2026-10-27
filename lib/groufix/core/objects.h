@@ -1027,9 +1027,10 @@ struct GFXRenderer
 		// Graph output (relative to neighbouring passes).
 		struct
 		{
-			// First 'master' (or to be built/recorded) pass.
-			// This chain is guaranteed to contain firstCompute.
+			// First 'master' (or to be built/recorded) passes.
+			// First unculled async compute pass as sentinel.
 			GFXPass* firstMaster;
+			GFXPass* firstUnculledCompute;
 
 		} out;
 
