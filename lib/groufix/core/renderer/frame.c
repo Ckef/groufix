@@ -1122,7 +1122,8 @@ bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame)
 		// Record graphics.
 		if (!gfx_frame_record_(frame->graphics.vk.cmd,
 			renderer, frame,
-			renderer->graph.out.firstMaster, renderer->graph.firstCompute,
+			renderer->graph.out.firstMaster,
+			renderer->graph.out.firstUnculledCompute,
 			&injection))
 		{
 			goto clean_graphics;
@@ -1245,7 +1246,8 @@ bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame)
 
 		// Lastly, make all commands visible for future operations.
 		gfx_frame_finalize_(renderer, 1,
-			renderer->graph.out.firstMaster, renderer->graph.firstCompute,
+			renderer->graph.out.firstMaster,
+			renderer->graph.out.firstUnculledCompute,
 			&injection);
 
 		// Succesfully submitted.
@@ -1272,7 +1274,7 @@ bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame)
 		// Record compute.
 		if (!gfx_frame_record_(frame->compute.vk.cmd,
 			renderer, frame,
-			renderer->graph.firstCompute, NULL,
+			renderer->graph.out.firstUnculledCompute, NULL,
 			&injection))
 		{
 			goto clean_compute;
@@ -1306,7 +1308,7 @@ bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame)
 
 		// Lastly, make all commands visible for future operations.
 		gfx_frame_finalize_(renderer, 1,
-			renderer->graph.firstCompute, NULL,
+			renderer->graph.out.firstUnculledCompute, NULL,
 			&injection);
 
 		// Succesfully submitted.
@@ -1330,14 +1332,15 @@ bool gfx_frame_submit_(GFXRenderer* renderer, GFXFrame* frame)
 	// Cleanup on failure.
 clean_graphics:
 	gfx_frame_finalize_(renderer, 0,
-		renderer->graph.out.firstMaster, renderer->graph.firstCompute,
+		renderer->graph.out.firstMaster,
+		renderer->graph.out.firstUnculledCompute,
 		&injection);
 
 	goto error;
 
 clean_compute:
 	gfx_frame_finalize_(renderer, 0,
-		renderer->graph.firstCompute, NULL,
+		renderer->graph.out.firstUnculledCompute, NULL,
 		&injection);
 
 	goto error;

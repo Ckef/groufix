@@ -344,7 +344,8 @@ static void gfx_pass_merge_(GFXRenderer* renderer,
 
 /****************************
  * Resolves a pass, setting the `out` field of all consumptions and dependencies.
- * Will also resolve the `out` field of all 'master' passes in the chain.
+ * Will also resolve the `out` field of all 'master' passes in the chain,
+ * which includes the renderer's graph (and its `firstUnculledCompute` field).
  * @param pass      Cannot be NULL, must not be culled.
  * @param consumes  Cannot be NULL, must be initialized to all NULL on first call.
  * @param ptrToNext Cannot be NULL, pointed to cannot be NULL either.
@@ -379,6 +380,14 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 		// See if it is a chain and start at master.
 		if (rPass->out.master != NULL)
 			subpass = (GFXPass*)rPass->out.master;
+	}
+
+	// If an async compute pass, check if it is the first.
+	else if (
+		pass->type == GFX_PASS_COMPUTE_ASYNC &&
+		renderer->graph.out.firstUnculledCompute == NULL)
+	{
+		renderer->graph.out.firstUnculledCompute = subpass;
 	}
 
 	// Resolve the chain of 'master' passes.
@@ -527,9 +536,8 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 
 /****************************
  * Analyzes the render graph to setup all passes for correct builds. Meaning
- * the `out` field of all consumptions, dependencies and render passes are set.
- * Also resolves the 'master' chain of passes
- * and sets the `order` field of all passes :)
+ * the `out` fields of the renderer, all consumptions, dependencies
+ * and all passes are set. Also sets the `order` field of all passes :)
  * @param renderer Cannot be NULL, its graph state must not yet be validated.
  */
 static void gfx_render_graph_analyze_(GFXRenderer* renderer)
@@ -588,8 +596,9 @@ static void gfx_render_graph_analyze_(GFXRenderer* renderer)
 	for (size_t i = 0; i < numAttachs; ++i)
 		consumes[i] = NULL;
 
-	// Also reset the first 'master' pass, as the chain will be resolved also.
+	// Also reset the first 'master' passes, the chain will be resolved too.
 	renderer->graph.out.firstMaster = NULL;
+	renderer->graph.out.firstUnculledCompute = NULL;
 	GFXPass** ptrToNext = &renderer->graph.out.firstMaster;
 
 	// During this loop we sneakedly set the order of all passes.
@@ -632,6 +641,7 @@ void gfx_render_graph_init_(GFXRenderer* renderer)
 
 	// Just in case.
 	renderer->graph.out.firstMaster = NULL;
+	renderer->graph.out.firstUnculledCompute = NULL;
 }
 
 /****************************/
@@ -672,7 +682,7 @@ bool gfx_render_graph_warmup_(GFXRenderer* renderer)
 
 	for (
 		GFXPass* pass = renderer->graph.out.firstMaster;
-		pass != renderer->graph.firstCompute;
+		pass != renderer->graph.out.firstUnculledCompute;
 		pass = pass->out.nextMaster)
 	{
 		if (pass->type == GFX_PASS_RENDER)
@@ -719,7 +729,7 @@ bool gfx_render_graph_build_(GFXRenderer* renderer)
 
 	for (
 		GFXPass* pass = renderer->graph.out.firstMaster;
-		pass != renderer->graph.firstCompute;
+		pass != renderer->graph.out.firstUnculledCompute;
 		pass = pass->out.nextMaster)
 	{
 		if (pass->type == GFX_PASS_RENDER)
@@ -760,7 +770,7 @@ void gfx_render_graph_rebuild_(GFXRenderer* renderer, GFXRecreateFlags_ flags)
 
 	for (
 		GFXPass* pass = renderer->graph.out.firstMaster;
-		pass != renderer->graph.firstCompute;
+		pass != renderer->graph.out.firstUnculledCompute;
 		pass = pass->out.nextMaster)
 	{
 		if (pass->type == GFX_PASS_RENDER)
