@@ -42,7 +42,7 @@ typedef struct GFXCullList
  */
 typedef struct GFXDrawList
 {
-	GFXCullList list;  // Base-type.
+	GFXCullList base;
 
 	// Draw function.
 	void (*draw)(GFXRecorder*, struct GFXDrawList*, const void*, void*);
@@ -58,7 +58,7 @@ typedef struct GFXDrawList
  */
 typedef struct GFXRenderList
 {
-	GFXDrawList list; // Base-type.
+	GFXDrawList base;
 
 	size_t elementSize;
 	size_t numSets;
