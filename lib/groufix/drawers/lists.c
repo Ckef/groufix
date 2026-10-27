@@ -51,7 +51,7 @@ static void gfx_draw_list_qsort_(GFXDrawList* list, size_t l, size_t r)
 {
 	// Use the middle as pivot.
 	const void* pivElem =
-		GFX_GET_ELEMENT_FROM_POS_(&list->list, l + ((r - l) >> 1));
+		GFX_GET_ELEMENT_FROM_POS_(&list->base, l + ((r - l) >> 1));
 
 	// Perform partition.
 	size_t lt = l;
@@ -61,7 +61,7 @@ static void gfx_draw_list_qsort_(GFXDrawList* list, size_t l, size_t r)
 	while (eq < gt)
 	{
 		const void* eqElem =
-			GFX_GET_ELEMENT_FROM_POS_(&list->list, eq);
+			GFX_GET_ELEMENT_FROM_POS_(&list->base, eq);
 
 		if (eqElem == pivElem)
 			eq = eq + 1; // Pivot element, skip comparison function.
@@ -72,7 +72,7 @@ static void gfx_draw_list_qsort_(GFXDrawList* list, size_t l, size_t r)
 			if (cmp < 0)
 			{
 				if (eq != lt)
-					gfx_cull_list_swap_(&list->list, eq, lt);
+					gfx_cull_list_swap_(&list->base, eq, lt);
 
 				lt = lt + 1;
 				eq = eq + 1;
@@ -82,7 +82,7 @@ static void gfx_draw_list_qsort_(GFXDrawList* list, size_t l, size_t r)
 				gt = gt - 1;
 
 				if (eq != gt)
-					gfx_cull_list_swap_(&list->list, eq, gt);
+					gfx_cull_list_swap_(&list->base, eq, gt);
 			}
 			else
 			{
@@ -187,7 +187,7 @@ GFX_API void gfx_draw_list_init(GFXDrawList* list, size_t elemSize,
 	assert(elemSize > 0);
 	assert(draw != NULL);
 
-	gfx_cull_list_init(&list->list, elemSize);
+	gfx_cull_list_init(&list->base, elemSize);
 
 	list->draw = draw;
 	list->cmp = cmp;
@@ -198,7 +198,7 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list)
 {
 	assert(list != NULL);
 
-	gfx_cull_list_clear(&list->list);
+	gfx_cull_list_clear(&list->base);
 }
 
 /****************************/
@@ -216,7 +216,7 @@ GFX_API void gfx_rdraw_list_init(GFXRenderList* list,
 		sizeof(GFXSet*) * numSets;
 
 	gfx_draw_list_init(
-		&list->list, eSize, draw, gfx_rdraw_list_cmp_);
+		&list->base, eSize, draw, gfx_rdraw_list_cmp_);
 
 	list->elementSize = elemSize;
 	list->numSets = numSets;
@@ -227,7 +227,7 @@ GFX_API void gfx_rdraw_list_clear(GFXRenderList* list)
 {
 	assert(list != NULL);
 
-	gfx_draw_list_clear(&list->list);
+	gfx_draw_list_clear(&list->base);
 }
 
 /****************************/
@@ -287,12 +287,12 @@ GFX_API GFXCullInd gfx_rdraw_list_add(GFXRenderList* list, const void* elem,
 	assert(numSets == 0 || sets != NULL);
 
 	// Insert empty element.
-	GFXCullInd ind = gfx_cull_list_add(&list->list.list, NULL, visible);
+	GFXCullInd ind = gfx_cull_list_add(&list->base.base, NULL, visible);
 	if (ind == 0) return 0;
 
 	// Copy the element data & all given sets.
-	void* iElem = gfx_cull_list_get(&list->list.list, ind);
-	GFXSet** iSets = gfx_rdraw_list_sets(&list->list, iElem);
+	void* iElem = gfx_cull_list_get(&list->base.base, ind);
+	GFXSet** iSets = gfx_rdraw_list_sets(&list->base, iElem);
 
 	if (elem != NULL) memcpy(iElem, elem, list->elementSize);
 	if (numSets > 0) memcpy(iSets, sets, sizeof(GFXSet*) * numSets);
@@ -414,16 +414,16 @@ GFX_API void gfx_draw_list_sort(GFXDrawList* list)
 	assert(list != NULL);
 
 	// Ignore if we have no comparison function.
-	if (list->cmp && list->list.numVisible > 1 && list->list.dirty)
+	if (list->cmp && list->base.numVisible > 1 && list->base.dirty)
 	{
 		// We choose to strictly only use quicksort, without a fallback
 		// to e.g. insertion sort when the input length is small.
 		// This because we expect many elements that compare equal.
 		// In the case of lots of equal items, quicksort swaps way less items.
-		gfx_draw_list_qsort_(list, 0, list->list.numVisible);
+		gfx_draw_list_qsort_(list, 0, list->base.numVisible);
 	}
 
-	list->list.dirty = 0;
+	list->base.dirty = 0;
 }
 
 /****************************/
@@ -437,9 +437,9 @@ GFX_API void gfx_cmd_draw_list(GFXRecorder* recorder,
 	gfx_draw_list_sort(list);
 
 	// Loop over all sorted indices & draw each element.
-	for (size_t p = 0; p < list->list.numVisible; ++p)
+	for (size_t p = 0; p < list->base.numVisible; ++p)
 	{
-		const void* elem = GFX_GET_ELEMENT_FROM_POS_(&list->list, p);
+		const void* elem = GFX_GET_ELEMENT_FROM_POS_(&list->base, p);
 		list->draw(recorder, list, elem, ptr);
 	}
 }
