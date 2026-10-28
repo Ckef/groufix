@@ -363,9 +363,6 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 	assert(consumes != NULL);
 	assert(ptrToNext != NULL && *ptrToNext != NULL);
 
-	GFXPass* subpass = pass;
-	uint32_t index = 0;
-
 	// Skip if not the last pass in a subpass chain.
 	// If it is the last pass, resolve for the entire chain.
 	// We perform all actions at the last pass, and not master, because that's
@@ -379,7 +376,7 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 
 		// See if it is a chain and start at master.
 		if (rPass->out.master != NULL)
-			subpass = (GFXPass*)rPass->out.master;
+			pass = (GFXPass*)rPass->out.master;
 	}
 
 	// If an async compute pass, check if it is the first.
@@ -387,33 +384,34 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 		pass->type == GFX_PASS_COMPUTE_ASYNC &&
 		renderer->graph.out.firstUnculledCompute == NULL)
 	{
-		renderer->graph.out.firstUnculledCompute = subpass;
+		renderer->graph.out.firstUnculledCompute = pass;
 	}
 
 	// Resolve the chain of 'master' passes.
-	subpass->out.nextMaster = NULL;
-	**ptrToNext = subpass;
-	*ptrToNext = &subpass->out.nextMaster;
+	pass->out.nextMaster = NULL;
+	**ptrToNext = pass;
+	*ptrToNext = &pass->out.nextMaster;
 
 	// And start looping over the entire subpass chain.
 	// Keep track of what consumptions have been seen in this chain.
+	uint32_t subpassIndex = 0;
 	const size_t numAttachs = renderer->backing.attachs.size;
 
 	bool thisChain[GFX_MAX(1, numAttachs)];
 	for (size_t i = 0; i < numAttachs; ++i) thisChain[i] = 0;
 
-	while (subpass != NULL)
+	while (pass != NULL)
 	{
 		// Start looping over all consumptions & resolve them.
-		for (size_t i = 0; i < subpass->consumes.size; ++i)
+		for (size_t i = 0; i < pass->consumes.size; ++i)
 		{
 			GFXConsume_* con =
-				gfx_vec_at(&subpass->consumes, i);
+				gfx_vec_at(&pass->consumes, i);
 			const GFXAttach_* at =
 				gfx_vec_at(&renderer->backing.attachs, con->index);
 
 			// Default of empty in case we skip this consumption.
-			con->out.subpass = index;
+			con->out.subpass = subpassIndex;
 			con->out.initial = VK_IMAGE_LAYOUT_UNDEFINED;
 			con->out.final = VK_IMAGE_LAYOUT_UNDEFINED;
 			con->out.state = GFX_CONSUME_IS_FIRST_ | GFX_CONSUME_IS_LAST_;
@@ -487,9 +485,9 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 		}
 
 		// Also resolve all dependencies.
-		for (size_t i = 0; i < subpass->deps.size; ++i)
+		for (size_t i = 0; i < pass->deps.size; ++i)
 		{
-			GFXDepend_* dep = gfx_vec_at(&subpass->deps, i);
+			GFXDepend_* dep = gfx_vec_at(&pass->deps, i);
 			GFXRenderPass_* source = (GFXRenderPass_*)dep->source;
 			GFXRenderPass_* target = (GFXRenderPass_*)dep->target;
 
@@ -526,11 +524,11 @@ static void gfx_pass_resolve_(GFXRenderer* renderer,
 		}
 
 		// Next subpass.
-		if (subpass->type != GFX_PASS_RENDER)
-			subpass = NULL;
+		if (pass->type != GFX_PASS_RENDER)
+			pass = NULL;
 		else
-			subpass = (GFXPass*)((GFXRenderPass_*)subpass)->out.next,
-			++index;
+			pass = (GFXPass*)((GFXRenderPass_*)pass)->out.next,
+			++subpassIndex;
 	}
 }
 

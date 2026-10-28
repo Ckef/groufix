@@ -6,8 +6,8 @@
  * www     : <www.vuzzel.nl>
  */
 
+#include "groufix/core/str.h"
 #include "groufix/core.h"
-#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -65,14 +65,6 @@
 
 
 /****************************
- * Stringified device types for logging.
- */
-static const char* gfx_log_device_types_[] = {
-	"GPU", "Virtual GPU", "Integrated GPU", "CPU", "Unknown device type"
-};
-
-
-/****************************
  * Array of Vulkan queue priority values in [0,1].
  * The only separate queues that may be allocated within the same family are
  *  { (graphics|present), compute, transfer }
@@ -85,37 +77,11 @@ static const float gfx_vk_queue_priorities_[] = { 1.0f, 0.5f, 0.5f };
 
 
 /****************************
- * Finds whether or not substr occurs in str.
- * All inputs must be NULL-terminated or NULL.
- * Comparison is case insensitive.
+ * Stringified device types for logging.
  */
-static bool gfx_contains_substr_(const char* str, const char* substr)
-{
-	if (str == NULL || substr == NULL) return 0;
-
-	const char* haystack = str;
-	const char* needle = substr;
-	const char* found = NULL;
-
-	while (*haystack != '\0' && *needle != '\0')
-	{
-		if (tolower(*haystack) == tolower(*needle))
-		{
-			if (found == NULL) found = haystack;
-			++needle;
-		}
-		else
-		{
-			if (found != NULL) haystack = found;
-			needle = substr;
-			found = NULL;
-		}
-
-		++haystack;
-	}
-
-	return *needle == '\0';
-}
+static const char* gfx_log_device_types_[] = {
+	"GPU", "Virtual GPU", "Integrated GPU", "CPU", "Unknown device type"
+};
 
 
 #if defined (GFX_USE_VK_SUBSET_DEVICES)
@@ -1409,13 +1375,13 @@ bool gfx_devices_init_(void)
 		// Find position to insert at, insert them in order of primary-ness.
 		// This makes it so the 'primary' device is at index 0.
 		// We also check if the env variable for the primary device is set.
-		const bool matchEnv = gfx_contains_substr_(dev.name, envPrimDevice);
+		const bool matchEnv = gfx_str_has_substr_(dev.name, envPrimDevice);
 		size_t j;
 
 		for (j = 0; j < groufix_.devices.size; ++j)
 		{
 			GFXDevice_* d = gfx_vec_at(&groufix_.devices, j);
-			const bool dEnv = gfx_contains_substr_(d->name, envPrimDevice);
+			const bool dEnv = gfx_str_has_substr_(d->name, envPrimDevice);
 
 			// Compare the device against the current in the vector
 			// and check if we found the position or need to move on.
