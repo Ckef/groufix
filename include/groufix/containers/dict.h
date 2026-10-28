@@ -80,6 +80,13 @@ GFX_API bool gfx_dict_reserve(GFXDict* dict, size_t numNodes);
 GFX_API bool gfx_dict_set(GFXDict* dict, void* value, const void* key);
 
 /**
+ * Retrieves if the dict holds a value at a given key.
+ * @return Non-zero if the dict holds a value at key.
+ * @see gfx_dict_set.
+ */
+GFX_API bool gfx_dict_has(GFXDict* dict, const void* key);
+
+/**
  * Gets the value held by the dict at a given key.
  * @return The value held at key (NULL if none).
  * @see gfx_dict_set.

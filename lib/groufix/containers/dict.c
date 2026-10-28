@@ -449,6 +449,20 @@ GFX_API bool gfx_dict_set(GFXDict* dict, void* value, const void* key)
 }
 
 /****************************/
+GFX_API bool gfx_dict_has(GFXDict* dict, const void* key)
+{
+	assert(dict != NULL);
+	assert(dict->p || key != NULL);
+
+	if (dict->size == 0) return 0;
+
+	// Simply search for the key.
+	GFXDictNode_* node = gfx_dict_search_(dict, key);
+
+	return GFX_DICT_IS_OCCUPIED_(GFX_DICT_FLAG_(node));
+}
+
+/****************************/
 GFX_API void* gfx_dict_get(GFXDict* dict, const void* key)
 {
 	assert(dict != NULL);
