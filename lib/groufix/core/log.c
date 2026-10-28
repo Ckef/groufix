@@ -6,8 +6,8 @@
  * www     : <www.vuzzel.nl>
  */
 
+#include "groufix/core/str.h"
 #include "groufix/core.h"
-#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -109,24 +109,14 @@ void gfx_log_set_default_level_(void)
 	const char* envLogDef = getenv(GFX_ENV_DEFAULT_LOG_LEVEL);
 	const size_t options = sizeof(gfx_log_env_levels_)/sizeof(char*);
 
-	if (envLogDef == NULL) return; // No value given.
-
 	// Loop over all stringified options, get case insenstive match.
 	for (GFXLogLevel level = 0; level < options; ++level)
-	{
-		const char* opt = gfx_log_env_levels_[level];
-		const char* inp = envLogDef;
-
-		for (; *opt != '\0' && *inp != '\0'; ++opt, ++inp)
-			if (tolower(*opt) != tolower(*inp)) break;
-
-		if (*opt == '\0' && *inp == '\0')
+		if (gfx_str_match_(gfx_log_env_levels_[level], envLogDef))
 		{
 			// On a match, set the global default!
 			groufix_.logDef = level;
 			return;
 		}
-	}
 
 	// If no match against a log level, silently ignore.
 }

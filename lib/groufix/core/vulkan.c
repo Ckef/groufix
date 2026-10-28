@@ -6,8 +6,8 @@
  * www     : <www.vuzzel.nl>
  */
 
+#include "groufix/core/str.h"
 #include "groufix/core.h"
-#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,38 +24,6 @@
 
 
 #if !defined (NDEBUG)
-
-/****************************
- * Reads the GROUFIX_USE_VK_VALIDATION_LAYERS environment variable
- * and determines whether we want to use validation layers.
- */
-static bool gfx_use_vulkan_validation_layers_(void)
-{
-	// Get the env var for the boolean.
-	const char* envUseLayers = getenv(GFX_ENV_USE_VK_VALIDATION_LAYERS);
-
-	if (envUseLayers == NULL) return 1; // No value given, default to true.
-
-	// Define all false values for a string.
-	// We do not need true values, as true is the default anyway.
-	const char* falseValues[] = { "false", "off", "no", "f", "n", "0" };
-
-	for (size_t i = 0; i < sizeof(falseValues)/sizeof(char*); ++i)
-	{
-		const char* val = falseValues[i];
-		const char* inp = envUseLayers;
-
-		for (; *val != '\0' && *inp != '\0'; ++val, ++inp)
-			if (tolower(*val) != tolower(*inp)) break;
-
-		if (*val == '\0' && *inp == '\0')
-			// On match, return false!
-			return 0;
-	}
-
-	// No match, return true!
-	return 1;
-}
 
 /****************************
  * Callback for Vulkan debug messages.
@@ -197,8 +165,10 @@ bool gfx_vulkan_init_(void)
 	groufix_.vk.DestroyInstance = NULL;
 
 	// Check if we want to use vulkan validation layers from env.
+	// Default to true, so we need to check if the string is a `false` value.
 #if !defined (NDEBUG)
-	groufix_.vk.useValidationLayers = gfx_use_vulkan_validation_layers_();
+	const char* envUseLayers = getenv(GFX_ENV_USE_VK_VALIDATION_LAYERS);
+	groufix_.vk.useValidationLayers = !gfx_str_is_false_(envUseLayers);
 #endif
 
 	// So first things first, we need to create a Vulkan instance.
