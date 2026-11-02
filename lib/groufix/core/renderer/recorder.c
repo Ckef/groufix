@@ -183,7 +183,7 @@ static bool gfx_recorder_bind_renderable_(GFXRecorder* recorder,
 
 	// Get pipeline from renderable.
 	GFXCacheElem_* elem;
-	if (!gfx_renderable_pipeline_(renderable, &elem, 0))
+	if (!gfx_renderable_pipeline_(renderable, &elem))
 		return 0;
 
 	// Bind as graphics pipeline.
@@ -213,7 +213,7 @@ static bool gfx_recorder_bind_computable_(GFXRecorder* recorder,
 
 	// Get pipeline from computable.
 	GFXCacheElem_* elem;
-	if (!gfx_computable_pipeline_(computable, &elem, 0))
+	if (!gfx_computable_pipeline_(computable, &elem))
 		return 0;
 
 	// Bind as compute pipeline.
