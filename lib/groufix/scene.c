@@ -55,9 +55,11 @@ GFX_API void gfx_scene_process(GFXScene* scene)
 	// TODO: Keep this copy around and only invalidate when necessary?
 
 	// Process all nodes in order.
+	GFXProperty* arg = &scene->root.prop;
+
 	for (size_t i = 0; i < scene->process.list.size; ++i)
 	{
 		GFXNode* node = *(GFXNode**)gfx_vec_at(&scene->process.list, i);
-		gfx_func_prop_call(&node->process, 0, NULL);
+		gfx_func_prop_call(&node->process, 1, &arg);
 	}
 }

@@ -113,7 +113,8 @@ typedef struct GFXStringProperty
  * Function property function definition.
  */
 typedef int (*GFXFuncPropertyFn)(GFXProperty* this,
-                                 size_t numArgs, GFXProperty** args, intmax_t ctx);
+                                 size_t numArgs, GFXProperty** args,
+                                 intmax_t ctx);
 
 
 /**

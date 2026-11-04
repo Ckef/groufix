@@ -137,7 +137,9 @@ static bool gfx_node_set_scene_(GFXNode* node, GFXScene* scene)
 		// Trigger leave callback before updating & remove from old scene.
 		if (node->scene != NULL)
 		{
-			gfx_func_prop_call(&node->leave, 0, NULL);
+			GFXProperty* arg = &node->scene->root.prop;
+			gfx_func_prop_call(&node->leave, 1, &arg);
+
 			gfx_scene_remove_node_(node->scene, node);
 		}
 
@@ -160,7 +162,10 @@ static bool gfx_node_set_scene_(GFXNode* node, GFXScene* scene)
 
 		// Trigger enter callback after updating.
 		if (scene != NULL)
-			gfx_func_prop_call(&node->enter, 0, NULL);
+		{
+			GFXProperty* arg = &scene->root.prop;
+			gfx_func_prop_call(&node->enter, 1, &arg);
+		}
 	}
 
 	return success;
@@ -377,7 +382,10 @@ static bool gfx_node_enter_set_(GFXFuncProperty* prop, GFXFuncPropertyFn fn, int
 
 	// If this node is in a scene, call the enter callback immediately!
 	if (node->scene != NULL)
-		gfx_func_prop_call(&node->enter, 0, NULL);
+	{
+		GFXProperty* arg = &node->scene->root.prop;
+		gfx_func_prop_call(&node->enter, 1, &arg);
+	}
 
 	return 1;
 }
