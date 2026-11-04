@@ -81,7 +81,7 @@ static bool gfx_scene_add_node_(GFXScene* scene, GFXNode* node)
 	}
 
 	// Always set dirty, if we un-remove it could have been an old node.
-	scene->process.dirty = 1;
+	scene->process.dirty |= GFX_SCENE_PROCESS_REORDER;
 
 	return 1;
 }
@@ -114,6 +114,9 @@ static void gfx_scene_remove_node_(GFXScene* scene, GFXNode* node)
 				gfx_vec_erase(&scene->process.list, 1, i);
 				break;
 			}
+
+		// Set dirty, but without reordering!
+		scene->process.dirty |= GFX_SCENE_PROCESS_SHRUNK;
 	}
 }
 
@@ -305,7 +308,7 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 		// Order changed, scene didn't; flag the scene's process list as dirty.
 		// Even if this node has no process callback; its children may have it!
 		if (newScene != NULL && !diffScene)
-			newScene->process.dirty = 1;
+			newScene->process.dirty |= GFX_SCENE_PROCESS_REORDER;
 	}
 
 	// Remove node as child from its current parent.
@@ -475,7 +478,7 @@ static bool gfx_node_index_set_(GFXValueProperty* prop, const void* values)
 	// Order changed; flag the scene's process list as dirty.
 	// Even if this node has no process callback; its children may have it!
 	if (node->scene != NULL)
-		node->scene->process.dirty = 1;
+		node->scene->process.dirty |= GFX_SCENE_PROCESS_REORDER;
 
 	return 1;
 }

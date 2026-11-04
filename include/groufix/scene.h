@@ -26,9 +26,18 @@ typedef struct GFXScene
 	// Process list.
 	struct
 	{
-		bool    dirty;   // True if unsorted.
 		GFXVec  list;    // Stores GFXNode*.
 		GFXDict removed; // Stores GFXNode* : any.
+
+		enum {
+			GFX_SCENE_PROCESS_SHRUNK  = 0x0001,
+			GFX_SCENE_PROCESS_REORDER = 0x0002
+
+		} dirty;
+
+
+		GFXNode** copy; // To be iterated.
+		size_t    copySize;
 
 	} process;
 
@@ -52,8 +61,9 @@ GFX_API void gfx_scene_clear(GFXScene* scene);
 /**
  * Processes a scene, calling all process callbacks.
  * @param scene Cannot be NULL.
+ * @return Zero when out of memory.
  */
-GFX_API void gfx_scene_process(GFXScene* scene);
+GFX_API bool gfx_scene_process(GFXScene* scene);
 
 
 #endif
