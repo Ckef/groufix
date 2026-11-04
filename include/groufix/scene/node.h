@@ -16,12 +16,19 @@
 
 
 /**
+ * Scene declaration.
+ */
+typedef struct GFXScene GFXScene;
+
+
+/**
  * Node property definition.
  */
 typedef struct GFXNode
 {
 	GFXProperty prop;       // Base-type.
 	GFXDict     properties; // Stores string : GFXProperty*.
+	GFXScene*   scene;
 
 	// Identifier name string.
 	GFXStringProperty name;
@@ -167,6 +174,7 @@ static inline GFXNode* gfx_node_get_parent(GFXNode* node)
  * Retrieves a child of a node.
  * @param node  Cannot be NULL.
  * @param index Must be < node->children.items.size.
+ * @return Never NULL.
  */
 static inline GFXNode* gfx_node_get_child(GFXNode* node, size_t index)
 {
@@ -174,6 +182,39 @@ static inline GFXNode* gfx_node_get_child(GFXNode* node, size_t index)
 	assert(index < node->children.items.size);
 
 	return (GFXNode*)gfx_list_prop_at(&node->children, index);
+}
+
+/**
+ * Sets the enter callback of a node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_node_set_enter(GFXNode* node, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	assert(node != NULL);
+
+	return gfx_func_prop_set(&node->enter, fn, ctx);
+}
+
+/**
+ * Sets the leave callback of a node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_node_set_leave(GFXNode* node, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	assert(node != NULL);
+
+	return gfx_func_prop_set(&node->leave, fn, ctx);
+}
+
+/**
+ * Sets the process callback of a node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_node_set_process(GFXNode* node, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	assert(node != NULL);
+
+	return gfx_func_prop_set(&node->process, fn, ctx);
 }
 
 /**

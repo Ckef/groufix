@@ -6,7 +6,9 @@
  * www     : <www.vuzzel.nl>
  */
 
+#include "groufix/core/log.h"
 #include "groufix/scene/node.h"
+#include "groufix/scene.h"
 #include "cglm/mat4.h"
 #include <string.h>
 
@@ -53,12 +55,128 @@ static void gfx_node_set_dirty_(GFXNode* node)
 }
 
 /****************************
- * Recursively propagate the depth and dirty flag to a node's children.
- * Does NOT set the depth or dirty flag of node itself!
+ * Adds a node to a scene's process list.
+ * Assumes node is not yet added to scene!
+ * @param scene Cannot be NULL.
+ * @param node  Cannot be NULL.
+ * @return Zero when out of memory.
+ */
+static bool gfx_scene_add_node_(GFXScene* scene, GFXNode* node)
+{
+	assert(scene != NULL);
+	assert(node != NULL);
+
+	// Do nothing if we do not have a process callback.
+	if (node->process.fn == NULL) return 1;
+
+	// If removed, simply un-remove.
+	// The 'removed' dict might contain invalidated pointers, but if one of
+	// those happens to match the node we're inserting, there is no difference.
+	// Just remove it from the dict, it's still in the list.
+	if (gfx_dict_erase(&scene->process.removed, node) == NULL)
+	{
+		// If it wasn't removed, add it to the list.
+		if (!gfx_vec_push(&scene->process.list, 1, &node))
+			return 0;
+	}
+
+	// Always set dirty, if we un-remove it could have been an old node.
+	scene->process.dirty = 1;
+
+	return 1;
+}
+
+/****************************
+ * Removes a node from a scene's process list.
+ * Assumes node has been added to scene!
+ * @param scene Cannot be NULL.
+ * @param node  Cannot be NULL.
+ */
+static void gfx_scene_remove_node_(GFXScene* scene, GFXNode* node)
+{
+	assert(scene != NULL);
+	assert(node != NULL);
+
+	// If we do not have a process callback, it should already be removed.
+	if (node->process.fn == NULL) return;
+
+	// Simply add it to the 'removed' dict.
+	// The pointer we add to the dict might become invalidated afterwards.
+	// However this does not matter, we only need its value to remove it
+	// from the list later.
+	if (!gfx_dict_set(&scene->process.removed, node, node))
+	{
+		// If we can't add it to the dict,
+		// search for it in the list and directly remove it.
+		for (size_t i = 0; i < scene->process.list.size; ++i)
+			if (node == *(GFXNode**)gfx_vec_at(&scene->process.list, i))
+			{
+				gfx_vec_erase(&scene->process.list, 1, i);
+				break;
+			}
+	}
+}
+
+/****************************
+ * Sets a node's scene, triggering its enter & leave callbacks and
+ * adding or removing it from its scene's process list.
+ * Does nothing if node's scene is already set correctly.
+ * @param node Cannot be NULL.
+ * @return Zero when out of memory.
+ *
+ * Failure is considered fatal, node will not be processed.
+ */
+static bool gfx_node_set_scene_(GFXNode* node, GFXScene* scene)
+{
+	assert(node != NULL);
+
+	bool success = 1;
+
+	if (node->scene != scene)
+	{
+		// Trigger leave callback before updating & remove from old scene.
+		if (node->scene != NULL)
+		{
+			gfx_func_prop_call(&node->leave, 0, NULL);
+			gfx_scene_remove_node_(node->scene, node);
+		}
+
+		// Add to new scene.
+		if (scene != NULL)
+		{
+			// If we fail to add, nothing can be done.
+			if (!gfx_scene_add_node_(scene, node))
+			{
+				gfx_log_fatal(
+					"Could not add a node to a scene's process list, "
+					"node will not be processed...");
+
+				success = 0;
+			}
+		}
+
+		// Set node's scene pointer.
+		node->scene = scene;
+
+		// Trigger enter callback after updating.
+		if (scene != NULL)
+			gfx_func_prop_call(&node->enter, 0, NULL);
+	}
+
+	return success;
+}
+
+/****************************
+ * Recursively propagate the scene, depth and dirty flag to a node's children.
+ * Does NOT set the scene, depth or dirty flag of node itself!
+ * @param node Cannot be NULL.
  */
 static void gfx_node_propagate_(GFXNode* node)
 {
-	// Get new depth of all children.
+	assert(node != NULL);
+
+	// Get new scene & depth of all children.
+	GFXScene* scene = node->scene;
 	const unsigned int depth = node->depth.value + 1;
 
 	// Loop over all children.
@@ -66,11 +184,18 @@ static void gfx_node_propagate_(GFXNode* node)
 	{
 		GFXNode* child = gfx_node_get_child(node, i);
 
+		// Unset old scene, potentially triggering leave.
+		if (child->scene != scene)
+			gfx_node_set_scene_(child, NULL);
+
 		// Set depth of this child.
 		child->depth.value = depth;
 
 		// Flag this child as dirty.
 		gfx_node_set_dirty_(child);
+
+		// Set new scene, potentially triggering enter.
+		gfx_node_set_scene_(child, scene);
 
 		// Propagate to its children.
 		gfx_node_propagate_(child);
@@ -125,6 +250,7 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, parent);
 	GFXNode* parent = (GFXNode*)follow;
 	const size_t currIndex = node->index.value;
+	GFXScene* newScene = NULL;
 
 	// Validate follow is a node.
 	if (follow != NULL && follow->type != GFX_PROP_NODE)
@@ -138,19 +264,43 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 	if (!gfx_check_cycles_(node, parent))
 		return 0;
 
-	// If removing parent, reset depth & index.
 	if (parent == NULL)
-		node->depth.value = 0,
+	{
+		// Unset old scene, potentially triggering leave.
+		gfx_node_set_scene_(node, NULL);
+
+		// Reset depth & index if removing parent.
+		node->depth.value = 0;
 		node->index.value = 0;
+	}
 	else
 	{
+		GFXScene* currScene = node->scene;
+		newScene = parent->scene;
+		const bool diffScene = currScene != newScene;
+
+		// Unset old scene, potentially triggering leave.
+		if (diffScene) gfx_node_set_scene_(node, NULL);
+
 		// If new parent, add node as a child to it.
 		if (!gfx_list_prop_add(&parent->children, &node->prop))
+		{
+			// This is the only point this function can fail,
+			// but if we do, we've just unset the old scene...
+			// To undo, set it again.
+			if (diffScene) gfx_node_set_scene_(node, currScene);
+
 			return 0;
+		}
 
 		// Set new depth & index according to new parent.
 		node->depth.value = parent->depth.value + 1;
 		node->index.value = parent->children.items.size - 1;
+
+		// Order changed, scene didn't; flag the scene's process list as dirty.
+		// Even if this node has no process callback; its children may have it!
+		if (newScene != NULL && !diffScene)
+			newScene->process.dirty = 1;
 	}
 
 	// Remove node as child from its current parent.
@@ -172,8 +322,13 @@ static bool gfx_node_parent_set_(GFXLinkProperty* prop, GFXProperty* follow)
 	// Set new parent.
 	node->parent.follow = follow;
 
-	// Flag dirty & propagate.
+	// Flag this node as dirty.
 	gfx_node_set_dirty_(node);
+
+	// Set new scene, potentially triggering enter.
+	gfx_node_set_scene_(node, newScene);
+
+	// Propagate to its children.
 	gfx_node_propagate_(node);
 
 	return 1;
@@ -220,6 +375,10 @@ static bool gfx_node_enter_set_(GFXFuncProperty* prop, GFXFuncPropertyFn fn, int
 	node->enter.fn = fn;
 	node->enter.ctx = ctx;
 
+	// If this node is in a scene, call the enter callback immediately!
+	if (node->scene != NULL)
+		gfx_func_prop_call(&node->enter, 0, NULL);
+
 	return 1;
 }
 
@@ -242,9 +401,22 @@ static bool gfx_node_leave_set_(GFXFuncProperty* prop, GFXFuncPropertyFn fn, int
 static bool gfx_node_process_set_(GFXFuncProperty* prop, GFXFuncPropertyFn fn, intmax_t ctx)
 {
 	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, process);
+	GFXScene* scene = node->scene;
+
+	// Determine whether we remove or add a process callback.
+	const bool addFn = node->process.fn == NULL && fn != NULL;
+	const bool removeFn = node->process.fn != NULL && fn == NULL;
+
+	// To be removed from the current scene's process list.
+	if (scene != NULL && removeFn)
+		gfx_scene_remove_node_(scene, node);
 
 	node->process.fn = fn;
 	node->process.ctx = ctx;
+
+	// To be added to the current scene's process list.
+	if (scene != NULL && addFn)
+		gfx_scene_add_node_(scene, node);
 
 	return 1;
 }
@@ -267,19 +439,23 @@ static bool gfx_node_index_set_(GFXValueProperty* prop, const void* values)
 	GFXNode* node = GFX_PROP_OBJ(prop, GFXNode, index.prop);
 	GFXNode* parent = gfx_node_get_parent(node);
 	const size_t to = *(const size_t*)values;
+	const size_t from = node->index.value;
 
 	// Validate index exists at parent.
 	if (parent == NULL || to > parent->children.items.size)
 		return 0;
 
-	// Move it as child at the parent.
-	const size_t from = node->index.value;
-	const size_t smaller = from < to ? from : to;
-	const size_t bigger = from > to ? from : to;
+	// Validate we're moving something, if not, avoid flagging dirty!
+	if (to == from || to == from + 1)
+		return 1;
 
+	// Move it as child at the parent.
 	gfx_list_prop_move(&parent->children, from, to);
 
 	// Set new index value of all moved children.
+	const size_t smaller = from < to ? from : to;
+	const size_t bigger = from > to ? from + 1 : to;
+
 	for (size_t i = smaller; i < bigger; ++i)
 	{
 		GFXNode* child =
@@ -287,6 +463,11 @@ static bool gfx_node_index_set_(GFXValueProperty* prop, const void* values)
 
 		child->index.value = i;
 	}
+
+	// Order changed; flag the scene's process list as dirty.
+	// Even if this node has no process callback; its children may have it!
+	if (node->scene != NULL)
+		node->scene->process.dirty = 1;
 
 	return 1;
 }
@@ -486,6 +667,8 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 
 	// Initialize the rest of the node.
 	gfx_sdict_init(&node->properties);
+	node->scene = NULL;
+
 	gfx_link_prop(&node->parent, NULL, gfx_node_parent_set_);
 	gfx_list_prop_init(&node->children, gfx_node_children_set_);
 	gfx_func_prop(&node->enter, &node->prop, gfx_node_enter_set_);
