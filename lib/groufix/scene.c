@@ -154,9 +154,10 @@ GFX_API bool gfx_scene_process(GFXScene* scene)
 
 	// Process all nodes in order.
 	// Read them from the copy.
+	const size_t size = scene->process.list.size; // May get modified!
 	GFXProperty* arg = &scene->root.prop;
 
-	for (size_t i = 0; i < scene->process.list.size; ++i)
+	for (size_t i = 0; i < size; ++i)
 	{
 		GFXNode* node = scene->process.copy[i];
 		gfx_func_prop_call(&node->process, 1, &arg);
