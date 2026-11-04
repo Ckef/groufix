@@ -463,7 +463,7 @@ typedef struct GFXShaderResource_
 /**
  * Internal shader.
  */
-struct GFXShader
+typedef struct GFXShader
 {
 	GFXDevice_*  device; // Associated GPU to use as target environment.
 	GFXContext_* context;
@@ -496,7 +496,8 @@ struct GFXShader
 		VkShaderModule module;
 
 	} vk;
-};
+
+} GFXShader;
 
 
 /****************************
@@ -572,7 +573,7 @@ typedef struct GFXTransferPool_
 /**
  * Internal heap.
  */
-struct GFXHeap
+typedef struct GFXHeap
 {
 	GFXAllocator_ allocator; // Has both GFXDevice_* and GFXContext_*.
 	GFXMutex_     lock;      // For allocation.
@@ -592,7 +593,8 @@ struct GFXHeap
 		uint32_t         compute; // Family index only.
 
 	} ops;
-};
+
+} GFXHeap;
 
 
 /**
@@ -844,7 +846,7 @@ typedef struct GFXRecorderPool_
 /**
  * Internal recorder.
  */
-struct GFXRecorder
+typedef struct GFXRecorder
 {
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
@@ -889,7 +891,8 @@ struct GFXRecorder
 
 	unsigned int     current; // Current virtual frame index.
 	GFXRecorderPool_ pools[]; // Two { graphics, compute } for each virtual frame.
-};
+
+} GFXRecorder;
 
 
 /**
@@ -932,7 +935,7 @@ typedef struct GFXFramePool_
 /**
  * Internal virtual frame.
  */
-struct GFXFrame
+typedef struct GFXFrame
 {
 	unsigned int index;
 
@@ -955,13 +958,14 @@ struct GFXFrame
 		VkSemaphore rendered;
 
 	} vk;
-};
+
+} GFXFrame;
 
 
 /**
  * Internal renderer.
  */
-struct GFXRenderer
+typedef struct GFXRenderer
 {
 	GFXHeap*  heap;  // Has both GFXDevice_* and GFXContext_*.
 	GFXCache_ cache; // Has GFXContext_*.
@@ -1041,7 +1045,8 @@ struct GFXRenderer
 	unsigned int numFrames;
 	unsigned int current; // Next frame to submit.
 	GFXFrame     frames[];
-};
+
+} GFXRenderer;
 
 
 /**
@@ -1127,7 +1132,7 @@ typedef struct GFXDepend_
 /**
  * Internal pass (i.e. render/compute pass).
  */
-struct GFXPass
+typedef struct GFXPass
 {
 	GFXListNode  list; // Base-type.
 	GFXPassType  type;
@@ -1156,7 +1161,8 @@ struct GFXPass
 		GFXPass* nextMaster;
 
 	} out;
-};
+
+} GFXPass;
 
 
 /**
@@ -1257,7 +1263,7 @@ typedef struct GFXTechniqueSet_
 /**
  * Internal technique (i.e. shader pipeline layout).
  */
-struct GFXTechnique
+typedef struct GFXTechnique
 {
 	GFXListNode  list; // Base-type.
 	GFXRenderer* renderer;
@@ -1282,7 +1288,8 @@ struct GFXTechnique
 	// Locking output.
 	GFXCacheElem_*   layout; // Pipeline layout, NULL until locked.
 	GFXTechniqueSet_ sets[]; // Sorted, no gaps.
-};
+
+} GFXTechnique;
 
 
 /**
@@ -1337,7 +1344,7 @@ typedef struct GFXSetBinding_
 /**
  * Internal set (i.e. descriptor set).
  */
-struct GFXSet
+typedef struct GFXSet
 {
 	GFXListNode    list; // Base-type.
 	GFXRenderer*   renderer;
@@ -1353,7 +1360,8 @@ struct GFXSet
 	size_t numBindings;
 
 	GFXSetBinding_ bindings[]; // Sorted, no gaps.
-};
+
+} GFXSet;
 
 
 /****************************
@@ -1614,7 +1622,7 @@ typedef struct GFXSignal_
 /**
  * Internal semaphore.
  */
-struct GFXSemaphore
+typedef struct GFXSemaphore
 {
 	GFXDevice_*  device;
 	GFXContext_* context;
@@ -1629,7 +1637,8 @@ struct GFXSemaphore
 	struct { uint32_t family, index; } graphics;
 	struct { uint32_t family, index; } compute;
 	struct { uint32_t family, index; } transfer;
-};
+
+} GFXSemaphore;
 
 
 /**
@@ -1833,14 +1842,12 @@ bool gfx_flush_transfer_(GFXHeap* heap, GFXTransferPool_* pool);
  * Retrieves a graphics pipeline from the renderer's cache (or warms it up).
  * Essentially a wrapper for gfx_cache_(get|warmup)_.
  * @param renderable Cannot be NULL.
- * @param elem       Output cache element, cannot be NULL if warmup is zero.
- * @param warmup     Non-zero to only warmup and not retrieve.
+ * @param elem       Output cache element, NULL to only warmup.
  * @return Zero on failure.
  *
  * Completely thread-safe with respect to the renderable!
  */
-bool gfx_renderable_pipeline_(GFXRenderable* renderable,
-                              GFXCacheElem_** elem, bool warmup);
+bool gfx_renderable_pipeline_(GFXRenderable* renderable, GFXCacheElem_** elem);
 
 /**
  * Retrieves a compute pipeline from the renderer's cache (or warms it up).
@@ -1850,8 +1857,7 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable,
  *
  * Completely thread-safe with respect to the computable!
  */
-bool gfx_computable_pipeline_(GFXComputable* computable,
-                              GFXCacheElem_** elem, bool warmup);
+bool gfx_computable_pipeline_(GFXComputable* computable, GFXCacheElem_** elem);
 
 
 /****************************

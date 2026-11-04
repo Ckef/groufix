@@ -107,6 +107,13 @@ static int gfx_rdraw_list_cmp_(GFXDrawList* list, const void* l, const void* r)
 	GFXSet** lSets = gfx_rdraw_list_sets(list, l);
 	GFXSet** rSets = gfx_rdraw_list_sets(list, r);
 
+	// Numsets is guaranted to be > 0 as per gfx_rdarw_list_init.
+	if (lSets[0] == NULL || rSets[0] == NULL)
+	{
+		// First index is missing sets, put fewer sets used first.
+		return lSets[0] == NULL ? (rSets[0] == NULL ? 0 : -1) : 1;
+	}
+
 	for (size_t s = 0; s < numSets; ++s)
 	{
 		// Use integer pointer values to compare sets.

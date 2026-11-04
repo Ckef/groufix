@@ -111,13 +111,14 @@ typedef struct GFXMonitor
 /**
  * Window definition.
  */
-struct GFXWindow
+typedef struct GFXWindow
 {
 	// User pointer, can be used for any purpose.
 	// Defaults to NULL.
 	void*           ptr;
 	GFXWindowEvents events;
-};
+
+} GFXWindow;
 
 
 /****************************

@@ -40,11 +40,9 @@ static inline void gfx_renderable_unlock_(GFXRenderable* renderable)
 }
 
 /****************************/
-bool gfx_renderable_pipeline_(GFXRenderable* renderable,
-                              GFXCacheElem_** elem, bool warmup)
+bool gfx_renderable_pipeline_(GFXRenderable* renderable, GFXCacheElem_** elem)
 {
 	assert(renderable != NULL);
-	assert(warmup || elem != NULL);
 
 	GFXRenderPass_* rPass = (GFXRenderPass_*)renderable->pass;
 
@@ -57,7 +55,7 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable,
 		(GFXCacheElem_*)(void*)renderable->pipeline != NULL &&
 		renderable->gen == GFX_PASS_GEN_(rPass))
 	{
-		if (!warmup) *elem = (void*)renderable->pipeline;
+		if (elem != NULL) *elem = (void*)renderable->pipeline;
 		gfx_renderable_unlock_(renderable);
 		return 1;
 	}
@@ -424,7 +422,7 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable,
 		}}
 	};
 
-	if (warmup)
+	if (elem == NULL)
 		// If asked to warmup, just do that :)
 		return gfx_cache_warmup_(&tech->renderer->cache, &gpci.sType, handles);
 	else
@@ -448,11 +446,9 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable,
 }
 
 /****************************/
-bool gfx_computable_pipeline_(GFXComputable* computable,
-                              GFXCacheElem_** elem, bool warmup)
+bool gfx_computable_pipeline_(GFXComputable* computable, GFXCacheElem_** elem)
 {
 	assert(computable != NULL);
-	assert(warmup || elem != NULL);
 
 	// Unlike for renderables,
 	// we can just check the pipeline and return when it's there!
@@ -461,7 +457,7 @@ bool gfx_computable_pipeline_(GFXComputable* computable,
 
 	if (pipeline != NULL)
 	{
-		if (!warmup) *elem = pipeline;
+		if (elem != NULL) *elem = pipeline;
 		return 1;
 	}
 
@@ -521,7 +517,7 @@ bool gfx_computable_pipeline_(GFXComputable* computable,
 		}
 	};
 
-	if (warmup)
+	if (elem == NULL)
 		// If asked to warmup, just do that :)
 		return gfx_cache_warmup_(&tech->renderer->cache, &cpci.sType, handles);
 	else
@@ -618,7 +614,7 @@ GFX_API bool gfx_renderable_warmup(GFXRenderable* renderable)
 	}
 
 	// Then build it.
-	if (!gfx_renderable_pipeline_(renderable, NULL, 1))
+	if (!gfx_renderable_pipeline_(renderable, NULL))
 	{
 		gfx_log_error("Could not warm renderable; pipeline not built.");
 		return 0;
@@ -657,7 +653,7 @@ GFX_API bool gfx_computable_warmup(GFXComputable* computable)
 	assert(computable != NULL);
 
 	// Just build it.
-	if (!gfx_computable_pipeline_(computable, NULL, 1))
+	if (!gfx_computable_pipeline_(computable, NULL))
 	{
 		gfx_log_error("Could not warm computable; pipeline not built.");
 		return 0;

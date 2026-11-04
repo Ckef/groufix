@@ -434,7 +434,7 @@ static uint32_t gfx_find_queue_family_(GFXDevice_* device, uint32_t count,
 
 /****************************
  * Finds all required queue families to use.
- * @param props Cannot be NULL if count > 0.
+ * @param props    Cannot be NULL if count > 0.
  * @param families Output array storing { graphics, present, compute, transfer }.
  *
  * families is overwritten with the Vulkan family indices to use.
