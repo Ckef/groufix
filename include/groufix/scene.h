@@ -26,15 +26,9 @@ typedef struct GFXScene
 	// Process list.
 	struct
 	{
+		char    dirty;   // Unsorted = 0x01, shrunk = 0x02.
 		GFXVec  list;    // Stores GFXNode*.
 		GFXDict removed; // Stores GFXNode* : any.
-
-		enum {
-			GFX_SCENE_PROCESS_SHRUNK  = 0x0001,
-			GFX_SCENE_PROCESS_REORDER = 0x0002
-
-		} dirty;
-
 
 		GFXNode** copy; // To be iterated.
 		size_t    copySize;

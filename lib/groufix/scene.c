@@ -65,7 +65,7 @@ GFX_API bool gfx_scene_process(GFXScene* scene)
 		scene->process.dirty != 0;
 
 	const bool unsorted =
-		scene->process.dirty & GFX_SCENE_PROCESS_REORDER;
+		scene->process.dirty & 0x01;
 
 	scene->process.dirty = 0;
 
