@@ -27,12 +27,12 @@ GFX_API bool gfx_scene_init(GFXScene* scene)
 	scene->root.scene = scene;
 
 	// Initialize the process list.
+	gfx_vec_init(&scene->process.list, sizeof(GFXNode*));
+	gfx_pdict_init(&scene->process.removed);
+
 	scene->process.dirty = 0;
 	scene->process.copy = NULL;
 	scene->process.copySize = 0;
-
-	gfx_vec_init(&scene->process.list, sizeof(GFXNode*));
-	gfx_pdict_init(&scene->process.removed);
 
 	return 1;
 }
@@ -122,20 +122,17 @@ GFX_API bool gfx_scene_process(GFXScene* scene)
 
 	// If we cannot use the current copy of the process list, make a new one.
 	// We need to copy the list, it may get modified in process callbacks!
+	// Note at this point we are guaranteed to have at least one node.
 	if (copyInvalidated)
 	{
-		const size_t byteSize =
-			scene->process.list.size * sizeof(GFXNode*);
+		// Mimic the list's capacity for optimal reallocation.
+		const size_t capacity = scene->process.list.capacity;
 
-		// Only reallocate if the copy is too small
-		// OR bigger than twice what's needed.
-		if (
-			scene->process.copySize < scene->process.list.size ||
-			scene->process.copySize > (scene->process.list.size << 1))
+		if (scene->process.copySize != capacity)
 		{
 			// Free then malloc, no realloc, no need to preserve!
 			free(scene->process.copy);
-			scene->process.copy = malloc(byteSize);
+			scene->process.copy = malloc(capacity * sizeof(GFXNode*));
 
 			// Out of memory, reset copy size.
 			if (scene->process.copy == NULL)
@@ -145,23 +142,24 @@ GFX_API bool gfx_scene_process(GFXScene* scene)
 			}
 
 			// Set new copy size.
-			scene->process.copySize = scene->process.list.size;
+			scene->process.copySize = capacity;
 		}
 
 		// Copy the process list to the copy.
-		memcpy(scene->process.copy, scene->process.list.data, byteSize);
+		memcpy(
+			scene->process.copy,
+			scene->process.list.data,
+			scene->process.list.size * sizeof(GFXNode*));
 	}
 
 	// Process all nodes in order.
 	// Read them from the copy.
 	const size_t size = scene->process.list.size; // May get modified!
+	GFXNode** node = scene->process.copy;
 	GFXProperty* arg = &scene->root.prop;
 
-	for (size_t i = 0; i < size; ++i)
-	{
-		GFXNode* node = scene->process.copy[i];
-		gfx_func_prop_call(&node->process, 1, &arg);
-	}
+	for (size_t i = 0; i < size; ++i, ++node)
+		gfx_func_prop_call(&(*node)->process, 1, &arg);
 
 	return 1;
 }

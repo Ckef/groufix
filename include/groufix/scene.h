@@ -26,9 +26,9 @@ typedef struct GFXScene
 	// Process list.
 	struct
 	{
-		char    dirty;   // Unsorted = 0x01, shrunk = 0x02.
 		GFXVec  list;    // Stores GFXNode*.
 		GFXDict removed; // Stores GFXNode* : any.
+		char    dirty;   // Unsorted = 0x01, shrunk = 0x02.
 
 		GFXNode** copy; // To be iterated.
 		size_t    copySize;
