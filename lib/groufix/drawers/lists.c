@@ -6,7 +6,6 @@
  * www     : <www.vuzzel.nl>
  */
 
-#include "groufix/core/objects.h"
 #include "groufix/drawers/lists.h"
 #include <string.h>
 
@@ -107,7 +106,7 @@ static int gfx_rdraw_list_cmp_(GFXDrawList* list, const void* l, const void* r)
 	GFXSet** lSets = gfx_rdraw_list_sets(list, l);
 	GFXSet** rSets = gfx_rdraw_list_sets(list, r);
 
-	// Numsets is guaranted to be > 0 as per gfx_rdarw_list_init.
+	// Numsets is guaranted to be > 0 as per gfx_rdraw_list_init.
 	if (lSets[0] == NULL || rSets[0] == NULL)
 	{
 		// First index is missing sets, put fewer sets used first.
@@ -130,11 +129,8 @@ static int gfx_rdraw_list_cmp_(GFXDrawList* list, const void* l, const void* r)
 			// Unless this is the last index to compare,
 			// then we first sort on set layout, for minimal pipeline swaps.
 			// Still sort on set afterwards, in case they're equal.
-
-			// Note: we rely on the internal core object of a set
-			// to get a pointer to its layout (!).
-			const uintptr_t lL = (uintptr_t)(void*)lSets[s]->setLayout;
-			const uintptr_t lR = (uintptr_t)(void*)rSets[s]->setLayout;
+			const uintptr_t lL = (uintptr_t)gfx_set_layout(lSets[s]);
+			const uintptr_t lR = (uintptr_t)gfx_set_layout(rSets[s]);
 
 			if (lL < lR) return -1;
 			if (lL > lR) return 1;

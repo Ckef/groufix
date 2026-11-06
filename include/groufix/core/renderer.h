@@ -1360,6 +1360,24 @@ GFX_API bool gfx_tech_dynamic(GFXTechnique* technique,
  */
 GFX_API bool gfx_tech_lock(GFXTechnique* technique);
 
+/**
+ * Retrieves a unique opaque handle for the technique's layout.
+ * Can be used to uniquely identify Vulkan pipeline layouts.
+ * Can be called from any thread AFTER the technique is locked.
+ * @param technique Cannot be NULL.
+ * @return NULL if the technique is not locked.
+ *
+ * The returned pointer is valid & unique as long as the renderer exists.
+ */
+GFX_API void* gfx_tech_layout(GFXTechnique* technique);
+
+/**
+ * Retrieves a unique opaque handle for the set's layout.
+ * Can be used to uniquely identify Vulkan descriptor set layouts.
+ * @see gfx_tech_layout.
+ */
+GFX_API void* gfx_tech_set_layout(GFXTechnique* technique, size_t set);
+
 
 /****************************
  * Set creation and modification.
@@ -1558,6 +1576,17 @@ GFX_API bool gfx_set_views(GFXSet* set,
  */
 GFX_API bool gfx_set_samplers(GFXSet* set,
                               size_t numSamplers, const GFXSampler* samplers);
+
+/**
+ * Retrieves a unique opaque handle for the set's layout.
+ * Can be used to uniquely identify Vulkan descriptor set layouts.
+ * Can be called from any thread.
+ * @param set Cannot be NULL.
+ * @return Never NULL.
+ *
+ * The returned pointer is valid & unique as long as the renderer exists.
+ */
+GFX_API void* gfx_set_layout(GFXSet* set);
 
 
 /****************************
