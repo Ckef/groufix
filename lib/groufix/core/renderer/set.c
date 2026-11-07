@@ -1354,3 +1354,11 @@ GFX_API bool gfx_set_samplers(GFXSet* set,
 
 	return gfx_set_samplers_(set, 1, numSamplers, samplers);
 }
+
+/****************************/
+GFX_API void* gfx_set_layout(GFXSet* set)
+{
+	assert(set != NULL);
+
+	return set->setLayout;
+}

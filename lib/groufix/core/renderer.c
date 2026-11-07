@@ -274,10 +274,7 @@ GFX_API GFXRenderer* gfx_create_renderer(GFXHeap* heap, unsigned int frames)
 	// Keep descriptor sets 4x the amount of frames we have.
 	// Offset by 1 to account for the first frame using it.
 	if (!gfx_pool_init_(&rend->pool, device, (frames << 2) + 1))
-	{
-		gfx_cache_clear_(&rend->cache);
 		goto clean_cache;
-	}
 
 	// Then initialize the render backing & graph.
 	// Technically it doesn't matter, but let's do it in dependency order.

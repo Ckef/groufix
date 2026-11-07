@@ -1115,3 +1115,19 @@ reset:
 
 	return 0;
 }
+
+/****************************/
+GFX_API void* gfx_tech_layout(GFXTechnique* technique)
+{
+	assert(technique != NULL);
+
+	return technique->layout;
+}
+
+/****************************/
+GFX_API void* gfx_tech_set_layout(GFXTechnique* technique, size_t set)
+{
+	assert(technique != NULL);
+
+	return (set < technique->numSets) ? technique->sets[set].setLayout : NULL;
+}
