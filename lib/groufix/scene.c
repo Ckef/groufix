@@ -11,6 +11,65 @@
 #include <string.h>
 
 
+/****************************
+ * Compares two nodes for process-order.
+ */
+static int gfx_scene_cmp_nodes_(const GFXNode* l, const GFXNode* r)
+{
+	assert(l->scene != NULL);
+	assert(r->scene != NULL);
+	assert(l->scene == r->scene);
+
+	// Check which is deeper.
+	unsigned int lDepth = gfx_node_get_depth((GFXNode*)l);
+	unsigned int rDepth = gfx_node_get_depth((GFXNode*)r);
+	const bool rDeep = rDepth > lDepth;
+
+	const GFXNode* deep = rDeep ? r : l;
+	const GFXNode* shallow = rDeep ? l : r;
+
+	// See if shallow is an ancestor of deep.
+	while (rDepth > lDepth)
+	{
+		deep = gfx_node_get_parent((GFXNode*)deep);
+		rDepth = gfx_node_get_depth((GFXNode*)deep);
+	}
+
+	if (deep == shallow)
+		return rDeep ? -1 : 1;
+
+	// If not, find shared ancestor.
+	const GFXNode* dParent = gfx_node_get_parent((GFXNode*)deep);
+	const GFXNode* sParent = gfx_node_get_parent((GFXNode*)shallow);
+
+	while (dParent != sParent) {
+		deep = dParent;
+		shallow = sParent;
+		dParent = gfx_node_get_parent((GFXNode*)deep);
+		sParent = gfx_node_get_parent((GFXNode*)shallow);
+	}
+
+	// Check their index.
+	const size_t dIndex = gfx_node_get_index((GFXNode*)deep);
+	const size_t sIndex = gfx_node_get_index((GFXNode*)shallow);
+	const bool dRight = dIndex > sIndex;
+
+	return dRight == rDeep ? -1 : 1;
+}
+
+
+/****************************
+ * Construct sort implementation.
+ */
+#define GFX_SORT_LIST_T_ GFXNode**
+#define GFX_SORT_ELEM_T_ GFXNode*
+
+#define GFX_SORT_CMP_(lElem, rElem) \
+	gfx_scene_cmp_nodes_(lElem, rElem)
+
+#include "groufix/sort.h"
+
+
 /****************************/
 GFX_API bool gfx_scene_init(GFXScene* scene)
 {
@@ -116,9 +175,7 @@ GFX_API bool gfx_scene_process(GFXScene* scene)
 
 	// Sort the process list if flagged.
 	if (unsorted)
-	{
-		// TODO: Sort.
-	}
+		gfx_sort_(scene->process.list.data, 0, scene->process.list.size);
 
 	// If we cannot use the current copy of the process list, make a new one.
 	// We need to copy the list, it may get modified in process callbacks!

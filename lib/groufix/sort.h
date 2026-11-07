@@ -20,10 +20,10 @@
  * GFX_SORT_GET_ELEM_(list, index)
  *   Get an element type from a list type by size_t index.
  *
- * GFX_SORT_CMP_(lElem, rElem)
+ * GFX_SORT_CMP_(const lElem, const rElem)
  *   Compares two element types, < 0 if l < r, > 0 if l > r, 0 if l == r.
  *
- * GFX_SORT_CMP_LIST_(list, lElem, rElem)
+ * GFX_SORT_CMP_LIST_(list, const lElem, const rElem)
  *   Compares two element types with the list type passed as first arg.
  *
  * GFX_SORT_SWAP_(list, lIndex, rIndex)
@@ -155,19 +155,19 @@ static void gfx_heapify_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
 	// Check if left child is larger.
 	if (l + 1 < r)
 	{
-		const GFX_SORT_ELEM_T_ pElem = GFX_SORT_GET_ELEM_(list, largest);
+		const GFX_SORT_ELEM_T_ lElem = GFX_SORT_GET_ELEM_(list, l);
 		const GFX_SORT_ELEM_T_ iElem = GFX_SORT_GET_ELEM_(list, l + 1);
-		if (GFX_SORT_CMP_LIST_(list, iElem, pElem) > 0)
+		if (GFX_SORT_CMP_LIST_(list, iElem, lElem) > 0)
 			largest = l + 1;
-	}
 
-	// Check if right child is larger.
-	if (l + 2 < r)
-	{
-		const GFX_SORT_ELEM_T_ pElem = GFX_SORT_GET_ELEM_(list, largest);
-		const GFX_SORT_ELEM_T_ jElem = GFX_SORT_GET_ELEM_(list, l + 2);
-		if (GFX_SORT_CMP_LIST_(list, jElem, pElem) > 0)
-			largest = l + 2;
+		// Check if right child is larger.
+		if (l + 2 < r)
+		{
+			const GFX_SORT_ELEM_T_ tElem = largest == l ? lElem : iElem;
+			const GFX_SORT_ELEM_T_ jElem = GFX_SORT_GET_ELEM_(list, l + 2);
+			if (GFX_SORT_CMP_LIST_(list, jElem, tElem) > 0)
+				largest = l + 2;
+		}
 	}
 
 	// Parent is not largest, swap.
