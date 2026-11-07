@@ -42,60 +42,24 @@ static void gfx_cull_list_swap_(GFXCullList* list, size_t lPos, size_t rPos)
 	*rInd = tInd;
 }
 
+
 /****************************
- * Quicksort indices with fat partitioning.
- * Assumes list->cmp != NULL.
+ * Construct sort implementation.
  */
-static void gfx_draw_list_qsort_(GFXDrawList* list, size_t l, size_t r)
-{
-	// Use the middle as pivot.
-	const void* pivElem =
-		GFX_GET_ELEMENT_FROM_POS_(&list->base, l + ((r - l) >> 1));
+#define GFX_SORT_LIST_T_ GFXDrawList*
+#define GFX_SORT_ELEM_T_ void*
 
-	// Perform partition.
-	size_t lt = l;
-	size_t eq = l;
-	size_t gt = r;
+#define GFX_SORT_GET_ELEM_(list, index) \
+	GFX_GET_ELEMENT_FROM_POS_(&list->base, index)
 
-	while (eq < gt)
-	{
-		const void* eqElem =
-			GFX_GET_ELEMENT_FROM_POS_(&list->base, eq);
+#define GFX_SORT_CMP_LIST_(list, lElem, rElem) \
+	list->cmp(list, lElem, rElem)
 
-		if (eqElem == pivElem)
-			eq = eq + 1; // Pivot element, skip comparison function.
-		else
-		{
-			const int cmp = list->cmp(list, eqElem, pivElem);
+#define GFX_SORT_SWAP_(list, lIndex, rIndex) \
+	gfx_cull_list_swap_(&list->base, lIndex, rIndex)
 
-			if (cmp < 0)
-			{
-				if (eq != lt)
-					gfx_cull_list_swap_(&list->base, eq, lt);
+#include "groufix/sort.h"
 
-				lt = lt + 1;
-				eq = eq + 1;
-			}
-			else if (cmp > 0)
-			{
-				gt = gt - 1;
-
-				if (eq != gt)
-					gfx_cull_list_swap_(&list->base, eq, gt);
-			}
-			else
-			{
-				eq = eq + 1;
-			}
-		}
-	}
-
-	// Recurse, skip if only 1 element.
-	if (l + 1 < lt)
-		gfx_draw_list_qsort_(list, l, lt);
-	if (gt + 1 < r)
-		gfx_draw_list_qsort_(list, gt, r);
-}
 
 /****************************
  * GFXRenderList implementation of the cmp function.
@@ -416,15 +380,9 @@ GFX_API void gfx_draw_list_sort(GFXDrawList* list)
 {
 	assert(list != NULL);
 
-	// Ignore if we have no comparison function.
-	if (list->cmp && list->base.numVisible > 1 && list->base.dirty)
-	{
-		// We choose to strictly only use quicksort, without a fallback
-		// to e.g. insertion sort when the input length is small.
-		// This because we expect many elements that compare equal.
-		// In the case of lots of equal items, quicksort swaps way less items.
-		gfx_draw_list_qsort_(list, 0, list->base.numVisible);
-	}
+	// Ignore if we have no comparison function, skip if not dirty.
+	if (list->cmp && list->base.dirty)
+		gfx_sort_(list, 0, list->base.numVisible);
 
 	list->base.dirty = 0;
 }
