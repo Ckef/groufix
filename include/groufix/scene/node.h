@@ -1,0 +1,370 @@
+/**
+ * This file is part of groufix.
+ * Copyright (c) Stef Velzel. All rights reserved.
+ *
+ * groufix : graphics engine produced by Stef Velzel.
+ * www     : <www.vuzzel.nl>
+ */
+
+
+#ifndef GFX_SCENE_NODE_H
+#define GFX_SCENE_NODE_H
+
+#include "groufix/containers/dict.h"
+#include "groufix/scene/props.h"
+#include "groufix/scene/type.h"
+#include "groufix/def.h"
+
+
+/**
+ * Scene declaration.
+ */
+typedef struct GFXScene GFXScene;
+
+
+/**
+ * Node property definition.
+ */
+typedef struct GFXNode
+{
+	GFXProperty prop;       // Base-type.
+	GFXDict     properties; // Stores string : GFXProperty*.
+	GFXScene*   scene;
+
+	// Meta-type of this node.
+	const GFXNodeType* type;
+
+	// Identifier name string.
+	GFXStringProperty name;
+
+	GFXLinkProperty parent;
+	GFXListProperty children;
+	GFXFuncProperty enter;
+	GFXFuncProperty leave;
+	GFXFuncProperty process;
+
+	// Tree depth.
+	struct
+	{
+		GFXValueProperty prop;
+		unsigned int     value;
+
+	} depth;
+
+	// Child index.
+	struct
+	{
+		GFXValueProperty prop;
+		size_t           value;
+
+	} index;
+
+} GFXNode;
+
+
+/**
+ * Spatial node property definition.
+ */
+typedef struct GFXSpatialNode
+{
+	GFXNode base;
+	bool    mdirty; // Transform dirty flag.
+
+	// Public dirty flag.
+	struct
+	{
+		GFXValueProperty prop;
+		bool             value;
+
+	} dirty;
+
+	// Global transform matrix.
+	struct
+	{
+		GFXValueProperty  prop;
+		alignas(32) float values[16]; // Column-major.
+
+	} mglobal;
+
+	// Local transform matrix.
+	struct
+	{
+		GFXValueProperty  prop;
+		alignas(32) float values[16]; // Column-major.
+
+	} mlocal;
+
+} GFXSpatialNode;
+
+
+/**
+ * Node & Spatial node meta-types.
+ */
+#define GFX_NODE_TYPE         (&gfx_node_type)
+#define GFX_SPATIAL_NODE_TYPE (&gfx_spatial_node_type)
+
+GFX_API const GFXNodeType gfx_node_type;
+GFX_API const GFXNodeType gfx_spatial_node_type;
+
+
+/**
+ * Sets a property of a node.
+ * @param node Cannot be NULL.
+ * @param key  Must be non-NULL and NULL-terminated.
+ * @return Zero when out of memory.
+ */
+static inline bool gfx_node_set(GFXNode* node, GFXProperty* prop, const char* key)
+{
+	assert(node != NULL);
+	assert(key != NULL);
+
+	return gfx_dict_set(&node->properties, prop, key);
+}
+
+/**
+ * Gets a property of a node.
+ * @param node Cannot be NULL.
+ * @param key  Must be non-NULL and NULL-terminated.
+ * @return The property held at key (NULL if none).
+ */
+static inline GFXProperty* gfx_node_get(GFXNode* node, const char* key)
+{
+	assert(node != NULL);
+	assert(key != NULL);
+
+	return gfx_dict_get(&node->properties, key);
+}
+
+/**
+ * Sets the name of a node.
+ * @param node Cannot be NULL.
+ * @param name Must be NULL-terminated or NULL for empty string.
+ */
+static inline bool gfx_node_set_name(GFXNode* node, const char* name)
+{
+	assert(node != NULL);
+
+	return gfx_string_prop_set(&node->name, name);
+}
+
+/**
+ * Retrieves the name of a node.
+ * @param node Cannot be NULL.
+ * @return Never NULL, always NULL-terminated.
+ *
+ * Note: the returned pointer is invalidated when the name is changed.
+ */
+static inline const char* gfx_node_get_name(GFXNode* node)
+{
+	assert(node != NULL);
+
+	return gfx_string_prop_get(&node->name);
+}
+
+/**
+ * Sets the parent node of a node.
+ * @param node   Cannot be NULL.
+ * @param parent Must be a node or NULL.
+ */
+static inline bool gfx_node_set_parent(GFXNode* node, GFXNode* parent)
+{
+	assert(node != NULL);
+
+	return gfx_link_prop_set(&node->parent, &parent->prop);
+}
+
+/**
+ * Retrieves the parent node of a node.
+ * @param node Cannot be NULL.
+ */
+static inline GFXNode* gfx_node_get_parent(GFXNode* node)
+{
+	assert(node != NULL);
+
+	return (GFXNode*)node->parent.follow;
+}
+
+/**
+ * Retrieves a child of a node.
+ * @param node  Cannot be NULL.
+ * @param index Must be < node->children.items.size.
+ * @return Never NULL.
+ */
+static inline GFXNode* gfx_node_get_child(GFXNode* node, size_t index)
+{
+	assert(node != NULL);
+	assert(index < node->children.items.size);
+
+	return (GFXNode*)gfx_list_prop_at(&node->children, index);
+}
+
+/**
+ * Sets the enter callback of a node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_node_set_enter(GFXNode* node, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	assert(node != NULL);
+
+	return gfx_func_prop_set(&node->enter, fn, ctx);
+}
+
+/**
+ * Sets the leave callback of a node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_node_set_leave(GFXNode* node, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	assert(node != NULL);
+
+	return gfx_func_prop_set(&node->leave, fn, ctx);
+}
+
+/**
+ * Sets the process callback of a node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_node_set_process(GFXNode* node, GFXFuncPropertyFn fn, intmax_t ctx)
+{
+	assert(node != NULL);
+
+	return gfx_func_prop_set(&node->process, fn, ctx);
+}
+
+/**
+ * Retrieves the tree depth of a node.
+ * @param node Cannot be NULL.
+ */
+static inline unsigned int gfx_node_get_depth(GFXNode* node)
+{
+	assert(node != NULL);
+
+	return node->depth.value;
+}
+
+/**
+ * Sets the child index of a node.
+ * If set to a greater value, resulting index will be index-1.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_node_set_index(GFXNode* node, size_t index)
+{
+	assert(node != NULL);
+
+	return gfx_value_prop_set(&node->index.prop, &index);
+}
+
+/**
+ * Retrieves the child index of a node.
+ * @param node Cannot be NULL.
+ */
+static inline size_t gfx_node_get_index(GFXNode* node)
+{
+	assert(node != NULL);
+
+	return node->index.value;
+}
+
+/**
+ * Retrieves the dirty flag of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline bool gfx_snode_is_dirty(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	return node->dirty.value;
+}
+
+/**
+ * Resets the dirty flag of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline void gfx_snode_reset_dirty(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	node->dirty.value = 0;
+}
+
+/**
+ * Sets the global transform matrix of a spatial node.
+ * @param node   Cannot be NULL.
+ * @param values Cannot be NULL, must be a column-major 4x4 matrix.
+ */
+static inline bool gfx_snode_set_mglobal(GFXSpatialNode* node, const float* values)
+{
+	assert(node != NULL);
+	assert(values != NULL);
+
+	return gfx_value_prop_set(&node->mglobal.prop, values);
+}
+
+/**
+ * Retrieves the global transform matrix of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline const float* gfx_snode_get_mglobal(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	return gfx_value_prop_get(&node->mglobal.prop);
+}
+
+/**
+ * Sets the local transform matrix of a spatial node.
+ * @param node   Cannot be NULL.
+ * @param values Cannot be NULL, must be a column-major 4x4 matrix.
+ */
+static inline bool gfx_snode_set_mlocal(GFXSpatialNode* node, const float* values)
+{
+	assert(node != NULL);
+	assert(values != NULL);
+
+	return gfx_value_prop_set(&node->mlocal.prop, values);
+}
+
+/**
+ * Retrieves the local transform matrix of a spatial node.
+ * @param node Cannot be NULL.
+ */
+static inline const float* gfx_snode_get_mlocal(GFXSpatialNode* node)
+{
+	assert(node != NULL);
+
+	return node->mlocal.values;
+}
+
+/**
+ * Initializes a node.
+ * The object pointed to by node cannot be moved or copied!
+ * @param node Cannot be NULL.
+ * @param name Must be NULL-terminated or NULL for empty string.
+ * @return Zero when out of memory.
+ */
+GFX_API bool gfx_node_init(GFXNode* node, const char* name);
+
+/**
+ * Clears a node, invalidating the contents of `node`.
+ * Will unlink itself from its parent and children.
+ * @param node Cannot be NULL.
+ */
+GFX_API void gfx_node_clear(GFXNode* node);
+
+/**
+ * Initializes a spatial node.
+ * The object pointed to by node cannot be moved or copied!
+ * @param node Cannot be NULL.
+ * @see gfx_node_init.
+ */
+GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name);
+
+/**
+ * Clears a spatial node, invalidating the contents of `node`.
+ * @param node Cannot be NULL.
+ * @see gfx_node_clear.
+ */
+GFX_API void gfx_snode_clear(GFXSpatialNode* node);
+
+
+#endif

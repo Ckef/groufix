@@ -134,6 +134,7 @@ LIB_FLAGS = \
  -Ideps/shaderc/libshaderc/include \
  -Ideps/SPIRV-Cross \
  -Ideps/cimgui \
+ -Ideps/cglm/include \
  -isystem deps/cgltf \
  -isystem deps/stb
 
