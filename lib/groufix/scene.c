@@ -71,6 +71,20 @@ static int gfx_scene_cmp_nodes_(const GFXNode* l, const GFXNode* r)
 
 
 /****************************/
+const GFXNodeType gfx_root_node_type =
+{
+	.name = "Root",
+	.inherits = GFX_NODE_TYPE,
+
+	.alloc = {
+		.size = 0,
+		.init = NULL,
+		.clear = NULL
+	}
+};
+
+
+/****************************/
 GFX_API bool gfx_scene_init(GFXScene* scene)
 {
 	assert(scene != NULL);
@@ -78,6 +92,8 @@ GFX_API bool gfx_scene_init(GFXScene* scene)
 	// Initialize the root node.
 	if (!gfx_node_init(&scene->root, "root"))
 		return 0;
+
+	scene->root.type = GFX_ROOT_NODE_TYPE;
 
 	// Root cannot have a parent, disable its setter.
 	scene->root.parent.set = NULL;

@@ -13,6 +13,7 @@
 #include "groufix/containers/dict.h"
 #include "groufix/containers/vec.h"
 #include "groufix/scene/node.h"
+#include "groufix/scene/type.h"
 #include "groufix/def.h"
 
 
@@ -36,6 +37,14 @@ typedef struct GFXScene
 	} process;
 
 } GFXScene;
+
+
+/**
+ * Root node meta-type.
+ */
+#define GFX_ROOT_NODE_TYPE (&gfx_root_node_type)
+
+GFX_API const GFXNodeType gfx_root_node_type;
 
 
 /**

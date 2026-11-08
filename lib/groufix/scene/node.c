@@ -658,6 +658,67 @@ static const void* gfx_snode_mlocal_get_(GFXValueProperty* prop)
 	return node->mlocal.values;
 }
 
+/****************************
+ * gfx_node_type implementation of the alloc.init function.
+ */
+static bool gfx_node_type_init_(void* node, const char* name)
+{
+	return gfx_node_init(node, name);
+}
+
+/****************************
+ * gfx_node_type implementation of the alloc.clear function.
+ */
+static void gfx_node_type_clear_(void* node)
+{
+	gfx_node_clear(node);
+}
+
+/****************************
+ * gfx_spatial_node_type implementation of the alloc.init function.
+ */
+static bool gfx_spatial_node_type_init_(void* node, const char* name)
+{
+	return gfx_snode_init(node, name);
+}
+
+/****************************
+ * gfx_spatial_node_type implementation of the alloc.clear function.
+ */
+static void gfx_spatial_node_type_clear_(void* node)
+{
+	gfx_snode_clear(node);
+}
+
+
+/****************************/
+const GFXNodeType gfx_node_type =
+{
+	.name = "Node",
+	.inherits = NULL,
+
+	.alloc = {
+		.size = sizeof(GFXNode),
+		.init = gfx_node_type_init_,
+		.clear = gfx_node_type_clear_
+	}
+};
+
+
+/****************************/
+const GFXNodeType gfx_spatial_node_type =
+{
+	.name = "SpatialNode",
+	.inherits = GFX_NODE_TYPE,
+
+	.alloc = {
+		.size = sizeof(GFXSpatialNode),
+		.init = gfx_spatial_node_type_init_,
+		.clear = gfx_spatial_node_type_clear_
+	}
+};
+
+
 /****************************/
 GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 {
@@ -672,6 +733,7 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 	// Initialize the rest of the node.
 	gfx_sdict_init(&node->properties);
 	node->scene = NULL;
+	node->type = GFX_NODE_TYPE;
 
 	gfx_link_prop(&node->parent, NULL, gfx_node_parent_set_);
 	gfx_list_prop_init(&node->children, gfx_node_children_set_);
@@ -740,6 +802,8 @@ GFX_API bool gfx_snode_init(GFXSpatialNode* node, const char* name)
 
 	if (!gfx_node_init(&node->base, name))
 		return 0;
+
+	node->base.type = GFX_SPATIAL_NODE_TYPE;
 
 	// Initialize (public) dirty flag property.
 	gfx_bool_prop(

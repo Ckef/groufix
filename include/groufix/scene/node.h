@@ -12,6 +12,7 @@
 
 #include "groufix/containers/dict.h"
 #include "groufix/scene/props.h"
+#include "groufix/scene/type.h"
 #include "groufix/def.h"
 
 
@@ -29,6 +30,9 @@ typedef struct GFXNode
 	GFXProperty prop;       // Base-type.
 	GFXDict     properties; // Stores string : GFXProperty*.
 	GFXScene*   scene;
+
+	// Meta-type of this node.
+	const GFXNodeType* type;
 
 	// Identifier name string.
 	GFXStringProperty name;
@@ -91,6 +95,16 @@ typedef struct GFXSpatialNode
 	} mlocal;
 
 } GFXSpatialNode;
+
+
+/**
+ * Node & Spatial node meta-types.
+ */
+#define GFX_NODE_TYPE         (&gfx_node_type)
+#define GFX_SPATIAL_NODE_TYPE (&gfx_spatial_node_type)
+
+GFX_API const GFXNodeType gfx_node_type;
+GFX_API const GFXNodeType gfx_spatial_node_type;
 
 
 /**

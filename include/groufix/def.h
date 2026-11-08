@@ -10,6 +10,8 @@
 #ifndef GFX_DEF_H
 #define GFX_DEF_H
 
+// IWYU pragma: always_keep
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdalign.h>

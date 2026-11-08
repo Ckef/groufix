@@ -72,7 +72,7 @@ static_assert(sizeof(uint32_t) == 4, "SPIR-V words must be 4 bytes.");
 /****************************
  * Default shaderc include error.
  */
-const static shaderc_include_result gfx_shaderc_def_error_ = {
+static const shaderc_include_result gfx_shaderc_def_error_ = {
 	.source_name = "",
 	.source_name_length = 0,
 	.content =
