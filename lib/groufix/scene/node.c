@@ -383,13 +383,6 @@ static bool gfx_node_enter_set_(GFXFuncProperty* prop, GFXFuncPropertyFn fn, int
 	node->enter.fn = fn;
 	node->enter.ctx = ctx;
 
-	// If this node is in a scene, call the enter callback immediately!
-	if (node->scene != NULL)
-	{
-		GFXProperty* arg = &node->scene->root.prop;
-		gfx_func_prop_call(&node->enter, 1, &arg);
-	}
-
 	return 1;
 }
 
