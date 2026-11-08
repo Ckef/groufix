@@ -10,6 +10,8 @@
 #ifndef GROUFIX_H
 #define GROUFIX_H
 
+// IWYU pragma: begin_exports
+
 #include "groufix/core/device.h"
 #include "groufix/core/env.h"
 #include "groufix/core/formats.h"
@@ -23,6 +25,8 @@
 #include "groufix/core/shader.h"
 #include "groufix/core/window.h"
 #include "groufix/def.h"
+
+// IWYU pragma: end_exports
 
 
 /**

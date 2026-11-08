@@ -17,7 +17,6 @@
 static int gfx_scene_cmp_nodes_(const GFXNode* l, const GFXNode* r)
 {
 	assert(l->scene != NULL);
-	assert(r->scene != NULL);
 	assert(l->scene == r->scene);
 
 	// Check which is deeper.

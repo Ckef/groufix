@@ -218,9 +218,9 @@ typedef struct TestState
 
 
 /**
- * 'Global' instance of the test base state.
+ * Global instance of the test base state.
  */
-static TestBase test_base_ =
+TestBase test_base_ =
 {
 	.device = NULL,
 	.window = NULL,
@@ -284,7 +284,7 @@ static const char* test_glsl_fragment_ =
 /**
  * Clears the base test state.
  */
-static void test_clear_(void)
+static inline void test_clear_(void)
 {
 	gfx_destroy_renderer(test_base_.renderer);
 	gfx_destroy_shader(test_base_.vertex);
@@ -300,7 +300,7 @@ static void test_clear_(void)
 /**
  * Forces the test to fail and exits the program.
  */
-static void test_fail_(TestState* test)
+static inline void test_fail_(TestState* test)
 {
 	test_clear_();
 
@@ -311,7 +311,7 @@ static void test_fail_(TestState* test)
 /**
  * End (i.e. exit) the test program.
  */
-static void test_end_(TestState* test)
+static inline void test_end_(TestState* test)
 {
 	test_clear_();
 
@@ -325,7 +325,7 @@ static void test_end_(TestState* test)
 /**
  * Thread entry point for a test.
  */
-static void* test_thrd_(void* arg)
+void* test_thrd_(void* arg)
 {
 	TestState* test = arg;
 
@@ -347,8 +347,8 @@ static void* test_thrd_(void* arg)
 /**
  * Default key release event handler.
  */
-static bool test_key_release_(GFXWindow* window,
-                              GFXKey key, int scan, GFXModifier mod, void* data)
+bool test_key_release_(GFXWindow* window,
+                       GFXKey key, int scan, GFXModifier mod, void* data)
 {
 	switch (key)
 	{
@@ -387,7 +387,7 @@ static bool test_key_release_(GFXWindow* window,
 /**
  * Default render callback.
  */
-static void test_default_render_(GFXRecorder* recorder, void* ptr)
+void test_default_render_(GFXRecorder* recorder, void* ptr)
 {
 	// Record stuff.
 	gfx_cmd_bind(recorder, test_base_.technique, 0, 1, 0, &test_base_.set, NULL);
@@ -400,7 +400,7 @@ static void test_default_render_(GFXRecorder* recorder, void* ptr)
 /**
  * Initializes the test base program.
  */
-static void test_init_(TestState* test_state_)
+void test_init_(TestState* test_state_)
 {
 	// Initialize.
 	if (!gfx_init())

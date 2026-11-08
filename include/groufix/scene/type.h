@@ -18,7 +18,7 @@
  */
 typedef struct GFXNodeType
 {
-	// Name of the type.
+	// Name of the meta-type.
 	const char* name;
 
 	// Type this inherits from.
@@ -30,10 +30,11 @@ typedef struct GFXNodeType
 	{
 		size_t size; // Size to allocate in bytes, 0 to disallow.
 
-		// Initializes a node of this type, all args must be non-NULL.
+		// Initializes a node of this type.
+		//  name Must be NULL-terminated or NULL for empty string.
 		bool (*init)(void* node, const char* name);
 
-		// Clears a node of this type, all args must be non-NULL.
+		// Clears a node of this type.
 		void (*clear)(void* node);
 
 	} alloc;

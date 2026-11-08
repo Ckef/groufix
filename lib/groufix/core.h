@@ -10,6 +10,8 @@
 #ifndef GFX_CORE_H_
 #define GFX_CORE_H_
 
+// IWYU pragma: begin_exports
+
 #include "groufix/containers/io.h"
 #include "groufix/containers/list.h"
 #include "groufix/containers/vec.h"
@@ -22,6 +24,8 @@
 
 #define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
+
+// IWYU pragma: end_exports
 
 
 // Least Vulkan version that must be supported.

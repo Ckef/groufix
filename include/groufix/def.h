@@ -10,7 +10,7 @@
 #ifndef GFX_DEF_H
 #define GFX_DEF_H
 
-// IWYU pragma: always_keep
+// IWYU pragma: begin_exports
 
 #include <assert.h>
 #include <inttypes.h>
@@ -28,6 +28,8 @@
 #else
 	#include <stdatomic.h>
 #endif
+
+// IWYU pragma: end_exports
 
 
 /**
