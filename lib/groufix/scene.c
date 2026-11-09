@@ -188,15 +188,15 @@ GFX_API bool gfx_scene_process(GFXScene* scene)
 		return 1;
 	}
 
-	// Sort the process list if flagged.
-	if (unsorted)
-		gfx_sort_(scene->process.list.data, 0, scene->process.list.size);
-
 	// If we cannot use the current copy of the process list, make a new one.
 	// We need to copy the list, it may get modified in process callbacks!
 	// Note at this point we are guaranteed to have at least one node.
 	if (copyInvalidated)
 	{
+		// Sort the process list if flagged.
+		if (unsorted) gfx_sort_(
+			scene->process.list.data, 0, scene->process.list.size);
+
 		// Mimic the list's capacity for optimal reallocation.
 		const size_t capacity = scene->process.list.capacity;
 
