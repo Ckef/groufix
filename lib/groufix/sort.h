@@ -102,7 +102,7 @@ static inline int gfx_log2_(size_t n)
 	#elif SIZE_MAX == UINT_MAX
 		return (int)sizeof(unsigned int) * CHAR_BIT - __builtin_clz(n) - 1;
 	#else
-		#error "Host compilier does not support __builtin_clz."
+		#error "Host compiler does not support appropriate __builtin_clz."
 	#endif
 	}
 
