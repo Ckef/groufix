@@ -142,39 +142,40 @@ static void gfx_insertsort_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
 }
 
 /**
- * Max-heapify a list of elements.
- * Must pass at least one element!
- * @param r Exclusive boundary, must be > l.
+ * Max-heapify a list of elements, i.e. sift down an element.
+ * @param s Element to sift down, must be < len.
  */
-static void gfx_heapify_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
+static void gfx_heapify_(GFX_SORT_LIST_T_ list, size_t l, size_t len, size_t s)
 {
-	assert(r > l);
+	assert(s < len);
 
-	size_t largest = l;
+	size_t largest = s;
+	const size_t i = (s << 1) + 1;
+	const size_t j = (s << 1) + 2;
 
 	// Check if left child is larger.
-	if (l + 1 < r)
+	if (i < len)
 	{
-		const GFX_SORT_ELEM_T_ lElem = GFX_SORT_GET_ELEM_(list, l);
-		const GFX_SORT_ELEM_T_ iElem = GFX_SORT_GET_ELEM_(list, l + 1);
-		if (GFX_SORT_CMP_LIST_(list, iElem, lElem) > 0)
-			largest = l + 1;
+		const GFX_SORT_ELEM_T_ sElem = GFX_SORT_GET_ELEM_(list, l + s);
+		const GFX_SORT_ELEM_T_ iElem = GFX_SORT_GET_ELEM_(list, l + i);
+		if (GFX_SORT_CMP_LIST_(list, iElem, sElem) > 0)
+			largest = i;
 
 		// Check if right child is larger.
-		if (l + 2 < r)
+		if (j < len)
 		{
-			const GFX_SORT_ELEM_T_ tElem = largest == l ? lElem : iElem;
-			const GFX_SORT_ELEM_T_ jElem = GFX_SORT_GET_ELEM_(list, l + 2);
+			const GFX_SORT_ELEM_T_ tElem = largest == s ? sElem : iElem;
+			const GFX_SORT_ELEM_T_ jElem = GFX_SORT_GET_ELEM_(list, l + j);
 			if (GFX_SORT_CMP_LIST_(list, jElem, tElem) > 0)
-				largest = l + 2;
+				largest = j;
 		}
-	}
 
-	// Parent is not largest, swap.
-	if (largest != l)
-	{
-		GFX_SORT_SWAP_(list, l, largest);
-		gfx_heapify_(list, largest, r);
+		// Parent is not largest, swap.
+		if (largest != s)
+		{
+			GFX_SORT_SWAP_(list, l + s, l + largest);
+			gfx_heapify_(list, l, len, largest);
+		}
 	}
 }
 
@@ -186,15 +187,17 @@ static void gfx_heapsort_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
 {
 	assert(r >= l);
 
+	const size_t len = r - l;
+
 	// Build max-heap.
-	for (size_t i = l + ((r - l) >> 1); i > l; --i)
-		gfx_heapify_(list, i - 1, r);
+	for (size_t i = len >> 1; i > 0; --i)
+		gfx_heapify_(list, l, len, i - 1);
 
 	// Extract largest elements to the ending.
-	for (size_t i = r; i > l + 1; --i)
+	for (size_t i = len; i > 1; --i)
 	{
-		GFX_SORT_SWAP_(list, l, i - 1);
-		gfx_heapify_(list, l, i - 1);
+		GFX_SORT_SWAP_(list, l, l + i - 1);
+		gfx_heapify_(list, l, i - 1, 0);
 	}
 }
 
@@ -219,6 +222,7 @@ static size_t gfx_partition_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
 	// Perform partition, omit pivot.
 	size_t i = l + 1;
 	size_t j = r - 1; // Make inclusive.
+	int icmp = 0;
 
 	while (i <= j)
 	{
@@ -227,7 +231,7 @@ static size_t gfx_partition_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
 		while (i <= j)
 		{
 			const GFX_SORT_ELEM_T_ iElem = GFX_SORT_GET_ELEM_(list, i);
-			if (GFX_SORT_CMP_LIST_(list, iElem, pivElem) < 0)
+			if ((icmp = GFX_SORT_CMP_LIST_(list, iElem, pivElem)) < 0)
 				++i;
 			else
 				break;
@@ -237,11 +241,24 @@ static size_t gfx_partition_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
 		// its element belongs right of the pivot.
 		while (i <= j)
 		{
-			const GFX_SORT_ELEM_T_ jElem = GFX_SORT_GET_ELEM_(list, j);
-			if (GFX_SORT_CMP_LIST_(list, jElem, pivElem) > 0)
-				--j;
+			if (i == j)
+			{
+				// If we're at i, we have already done the comparison,
+				// don't do it again, as it may be expensive!
+				if (icmp > 0)
+					--j;
+				else
+					break;
+			}
 			else
-				break;
+			{
+				// Otherwise, get & compare like normal.
+				const GFX_SORT_ELEM_T_ jElem = GFX_SORT_GET_ELEM_(list, j);
+				if (GFX_SORT_CMP_LIST_(list, jElem, pivElem) > 0)
+					--j;
+				else
+					break;
+			}
 		}
 
 		// If they crossed, we're done.
