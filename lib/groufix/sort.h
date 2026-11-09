@@ -239,27 +239,17 @@ static size_t gfx_partition_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
 
 		// Move right index to the left as long as
 		// its element belongs right of the pivot.
-		while (i <= j)
+		while (i < j)
 		{
-			if (i == j)
-			{
-				// If we're at i, we have already done the comparison,
-				// don't do it again, as it may be expensive!
-				if (icmp > 0)
-					--j;
-				else
-					break;
-			}
+			const GFX_SORT_ELEM_T_ jElem = GFX_SORT_GET_ELEM_(list, j);
+			if (GFX_SORT_CMP_LIST_(list, jElem, pivElem) > 0)
+				--j;
 			else
-			{
-				// Otherwise, get & compare like normal.
-				const GFX_SORT_ELEM_T_ jElem = GFX_SORT_GET_ELEM_(list, j);
-				if (GFX_SORT_CMP_LIST_(list, jElem, pivElem) > 0)
-					--j;
-				else
-					break;
-			}
+				break;
 		}
+
+		// Do the last comparison separately, as we've already done it!
+		if (i == j && icmp > 0) --j;
 
 		// If they crossed, we're done.
 		if (i >= j) break;
