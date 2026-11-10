@@ -661,7 +661,7 @@ static const void* gfx_snode_mlocal_get_(GFXValueProperty* prop)
 /****************************
  * gfx_node_type implementation of the alloc.init function.
  */
-static bool gfx_node_type_init_(void* node, const char* name)
+static bool gfx_node_type_init_(void* node, const char* name, const GFXNodeType* type)
 {
 	return gfx_node_init(node, name);
 }
@@ -669,7 +669,7 @@ static bool gfx_node_type_init_(void* node, const char* name)
 /****************************
  * gfx_node_type implementation of the alloc.clear function.
  */
-static void gfx_node_type_clear_(void* node)
+static void gfx_node_type_clear_(void* node, const GFXNodeType* type)
 {
 	gfx_node_clear(node);
 }
@@ -677,7 +677,7 @@ static void gfx_node_type_clear_(void* node)
 /****************************
  * gfx_spatial_node_type implementation of the alloc.init function.
  */
-static bool gfx_spatial_node_type_init_(void* node, const char* name)
+static bool gfx_spatial_node_type_init_(void* node, const char* name, const GFXNodeType* type)
 {
 	return gfx_snode_init(node, name);
 }
@@ -685,7 +685,7 @@ static bool gfx_spatial_node_type_init_(void* node, const char* name)
 /****************************
  * gfx_spatial_node_type implementation of the alloc.clear function.
  */
-static void gfx_spatial_node_type_clear_(void* node)
+static void gfx_spatial_node_type_clear_(void* node, const GFXNodeType* type)
 {
 	gfx_snode_clear(node);
 }
@@ -737,9 +737,9 @@ GFX_API bool gfx_node_init(GFXNode* node, const char* name)
 
 	gfx_link_prop(&node->parent, NULL, gfx_node_parent_set_);
 	gfx_list_prop_init(&node->children, gfx_node_children_set_);
-	gfx_func_prop(&node->enter, &node->prop, gfx_node_enter_set_);
-	gfx_func_prop(&node->leave, &node->prop, gfx_node_leave_set_);
-	gfx_func_prop(&node->process, &node->prop, gfx_node_process_set_);
+	gfx_func_prop(&node->enter, &node->prop, NULL, 0, gfx_node_enter_set_);
+	gfx_func_prop(&node->leave, &node->prop, NULL, 0, gfx_node_leave_set_);
+	gfx_func_prop(&node->process, &node->prop, NULL, 0, gfx_node_process_set_);
 
 	// Initialize depth property.
 	gfx_uint_prop(

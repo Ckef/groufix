@@ -331,14 +331,15 @@ GFX_API GFXProperty* gfx_data_prop(GFXValueProperty* prop, size_t count,
 
 /****************************/
 GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop, GFXProperty* this,
+                                   GFXFuncPropertyFn fn, intmax_t ctx,
                                    bool (*set)(GFXFuncProperty*, GFXFuncPropertyFn, intmax_t))
 {
 	assert(prop != NULL);
 
 	prop->prop.type = GFX_PROP_FUNC;
 	prop->this = this;
-	prop->fn = NULL;
-	prop->ctx = 0;
+	prop->fn = fn;
+	prop->ctx = ctx;
 	prop->set = set;
 
 	return &prop->prop;

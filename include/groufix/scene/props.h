@@ -378,6 +378,7 @@ GFX_API GFXProperty* gfx_data_prop(GFXValueProperty* prop, size_t count,
  * @return &prop->prop.
  */
 GFX_API GFXProperty* gfx_func_prop(GFXFuncProperty* prop, GFXProperty* this,
+                                   GFXFuncPropertyFn fn, intmax_t ctx,
                                    bool (*set)(GFXFuncProperty*, GFXFuncPropertyFn, intmax_t));
 
 
