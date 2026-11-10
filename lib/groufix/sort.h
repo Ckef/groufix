@@ -202,67 +202,70 @@ static void gfx_heapsort_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
 }
 
 /**
- * Divides a list of elements in two.
- * Must pass at least one element!
- * @param r Exclusive boundary, must be > l.
- * @return The used pivot element.
+ * Uses fat partitioning to divide a list of elements into three.
+ * @param r  Exclusive boundary, must be > l.
+ * @param lt Output boundary, left of is < right.
+ * @param gt Output boundary, right of is > left.
  */
-static size_t gfx_partition_(GFX_SORT_LIST_T_ list, size_t l, size_t r)
+static void gfx_partition_(GFX_SORT_LIST_T_ list,
+                           size_t l, size_t r, size_t* lt, size_t* gt)
 {
 	assert(r > l);
+	assert(lt != NULL);
+	assert(gt != NULL);
 
 	// Use the middle as pivot.
-	const size_t piv = l + ((r - l) >> 1);
+	size_t piv = l + ((r - l) >> 1);
 	const GFX_SORT_ELEM_T_ pivElem = GFX_SORT_GET_ELEM_(list, piv);
 
-	// Swap pivot to the beginning of the list.
-	// So we never compare the same elements, in case it is expensive!
-	if (piv != l) GFX_SORT_SWAP_(list, piv, l);
+	// Perform partition.
+	size_t eq = l;
+	*lt = l;
+	*gt = r;
 
-	// Perform partition, omit pivot.
-	size_t i = l + 1;
-	size_t j = r - 1; // Make inclusive.
-	int icmp = 0;
-
-	while (i <= j)
+	while (eq < *gt)
 	{
-		// Move left index to the right as long as
-		// its element belongs left of the pivot.
-		while (i <= j)
+		if (eq == piv)
 		{
-			const GFX_SORT_ELEM_T_ iElem = GFX_SORT_GET_ELEM_(list, i);
-			if ((icmp = GFX_SORT_CMP_LIST_(list, iElem, pivElem)) < 0)
-				++i;
-			else
-				break;
+			// Pivot element, skip comparison.
+			eq = eq + 1;
+			continue;
 		}
 
-		// Move right index to the left as long as
-		// its element belongs right of the pivot.
-		while (i < j)
+		// Compare to pivot.
+		const GFX_SORT_ELEM_T_ eqElem = GFX_SORT_GET_ELEM_(list, eq);
+		const int cmp = GFX_SORT_CMP_LIST_(list, eqElem, pivElem);
+
+		if (cmp < 0)
 		{
-			const GFX_SORT_ELEM_T_ jElem = GFX_SORT_GET_ELEM_(list, j);
-			if (GFX_SORT_CMP_LIST_(list, jElem, pivElem) > 0)
-				--j;
-			else
-				break;
+			// < pivot, move to left region.
+			if (eq != *lt)
+				GFX_SORT_SWAP_(list, eq, *lt);
+
+			*lt = *lt + 1;
+			eq = eq + 1;
 		}
+		else if (cmp > 0)
+		{
+			// > pivot, move to right region.
+			*gt = *gt - 1;
 
-		// Do the last comparison separately, as we've already done it!
-		if (i == j && icmp > 0) --j;
+			if (eq != *gt)
+				GFX_SORT_SWAP_(list, eq, *gt);
 
-		// If they crossed, we're done.
-		if (i >= j) break;
-
-		// If not, swap and continue.
-		GFX_SORT_SWAP_(list, i, j);
-		++i, --j;
+			// Potentially moved the pivot, fast skip.
+			if (piv == *gt)
+			{
+				piv = eq;
+				eq = eq + 1;
+			}
+		}
+		else
+		{
+			// == pivot, leave in middle region.
+			eq = eq + 1;
+		}
 	}
-
-	// Swap back pivot to its correct position.
-	if (j != l) GFX_SORT_SWAP_(list, j, l);
-
-	return j;
 }
 
 /**
@@ -285,10 +288,14 @@ static void gfx_introsort_(GFX_SORT_LIST_T_ list, size_t l, size_t r, int maxDep
 	else
 	{
 		// Quick-sort partition one level deeper otherwise.
-		const size_t piv = gfx_partition_(list, l, r);
+		// We use fat partitioning, so we get 3 regions.
+		size_t lt;
+		size_t gt;
+		gfx_partition_(list, l, r, &lt, &gt);
 
-		gfx_introsort_(list, l, piv, maxDepth - 1);
-		gfx_introsort_(list, piv + 1, r, maxDepth - 1);
+		// Recurse on the left and righ regions.
+		gfx_introsort_(list, l, lt, maxDepth - 1);
+		gfx_introsort_(list, gt, r, maxDepth - 1);
 	}
 }
 
