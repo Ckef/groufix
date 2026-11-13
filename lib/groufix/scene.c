@@ -20,37 +20,25 @@ static int gfx_scene_cmp_nodes_(const GFXNode* l, const GFXNode* r)
 	assert(l->scene == r->scene);
 
 	// Check which is deeper.
-	unsigned int lDepth = gfx_node_get_depth((GFXNode*)l);
-	unsigned int rDepth = gfx_node_get_depth((GFXNode*)r);
-	const bool rDeep = rDepth > lDepth;
-
+	const bool rDeep = r->depth.value > l->depth.value;
 	const GFXNode* deep = rDeep ? r : l;
 	const GFXNode* shallow = rDeep ? l : r;
 
 	// See if shallow is an ancestor of deep.
-	while (rDepth > lDepth)
-	{
+	while (deep->depth.value > shallow->depth.value)
 		deep = gfx_node_get_parent((GFXNode*)deep);
-		rDepth = gfx_node_get_depth((GFXNode*)deep);
-	}
 
 	if (deep == shallow)
 		return rDeep ? -1 : 1;
 
 	// If not, find shared ancestor.
-	const GFXNode* dParent = gfx_node_get_parent((GFXNode*)deep);
-	const GFXNode* sParent = gfx_node_get_parent((GFXNode*)shallow);
-
-	while (dParent != sParent) {
-		deep = dParent;
-		shallow = sParent;
-		dParent = gfx_node_get_parent((GFXNode*)deep);
-		sParent = gfx_node_get_parent((GFXNode*)shallow);
-	}
+	while (deep->parent.follow != shallow->parent.follow)
+		deep = gfx_node_get_parent((GFXNode*)deep),
+		shallow = gfx_node_get_parent((GFXNode*)shallow);
 
 	// Check their index.
-	const size_t dIndex = gfx_node_get_index((GFXNode*)deep);
-	const size_t sIndex = gfx_node_get_index((GFXNode*)shallow);
+	const size_t dIndex = deep->index.value;
+	const size_t sIndex = shallow->index.value;
 	const bool dRight = dIndex > sIndex;
 
 	return dRight == rDeep ? -1 : 1;
