@@ -63,6 +63,8 @@ GFX_API void gfx_scene_clear(GFXScene* scene);
 
 /**
  * Processes a scene, calling all process callbacks.
+ * Nodes of this scene cannot be cleared during processing!
+ * However, the scene may otherwise be freely modified.
  * @param scene Cannot be NULL.
  * @return Zero when out of memory.
  */
