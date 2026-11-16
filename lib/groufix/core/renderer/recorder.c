@@ -902,7 +902,6 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(technique->renderer == recorder->renderer);
 	assert(firstSet < technique->numSets);
 	assert(numSets > 0);
-	assert(numSets <= technique->numSets - firstSet);
 	assert(sets != NULL);
 	assert(numDynamics == 0 || offsets != NULL);
 
@@ -945,6 +944,10 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 			elem->numDynamics = 0;
 		}
 	}
+
+	// Fix numSets to the accepted range.
+	if (numSets > technique->numSets - firstSet)
+		numSets = technique->numSets - firstSet;
 
 	// We want to skip binding any leading descriptor sets that were already
 	// bound. In order to do so we need to keep track of Vulkan's bound
@@ -998,7 +1001,7 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		const size_t setInd = s - firstSet;
 
 		if (
-			// Safety check for NULL anyway!
+			// Safety check for NULLs!
 			sets[setInd] == NULL ||
 			sets[setInd]->setLayout != technique->sets[s].setLayout)
 		{
@@ -1210,7 +1213,6 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(offset % 4 == 0);
 	assert(offset < technique->pushSize);
 	assert(size % 4 == 0);
-	assert(size <= technique->pushSize - offset);
 	assert(data != NULL);
 
 	GFXContext_* context = recorder->context;
@@ -1225,8 +1227,8 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
 		return;
 	}
 
-	// Take all remaining bytes if asked.
-	if (size == 0)
+	// Fixe size to the accepted range.
+	if (size == 0 || size > technique->pushSize - offset)
 		size = technique->pushSize - offset;
 
 	// Record the push command.
