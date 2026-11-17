@@ -255,7 +255,7 @@ static bool gfx_render_backing_resolve_(GFXRenderer* renderer)
 
 	// Now keep iterating over all attachments until we cannot resolve
 	// anything anymore.
-	while (1)
+	while (totalResolved < renderer->backing.attachs.size)
 	{
 		size_t numResolved = 0;
 
