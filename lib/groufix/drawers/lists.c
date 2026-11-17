@@ -64,13 +64,13 @@ static void gfx_cull_list_swap_(GFXCullList* list, size_t lPos, size_t rPos)
 /****************************
  * GFXRenderList implementation of the cmp function.
  */
-static int gfx_rdraw_list_cmp_(GFXDrawList* list, const void* l, const void* r)
+static int gfx_render_list_cmp_(GFXDrawList* list, const void* l, const void* r)
 {
 	const size_t numSets = ((GFXRenderList*)list)->numSets;
-	GFXSet** lSets = gfx_rdraw_list_sets(list, l);
-	GFXSet** rSets = gfx_rdraw_list_sets(list, r);
+	GFXSet** lSets = gfx_render_list_sets(list, l);
+	GFXSet** rSets = gfx_render_list_sets(list, r);
 
-	// Numsets is guaranted to be > 0 as per gfx_rdraw_list_init.
+	// Numsets is guaranted to be > 0 as per gfx_render_list_init.
 	if (lSets[0] == NULL || rSets[0] == NULL)
 	{
 		// First index is missing sets, put fewer sets used first.
@@ -169,9 +169,9 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list)
 }
 
 /****************************/
-GFX_API void gfx_rdraw_list_init(GFXRenderList* list,
-                                 size_t elemSize, size_t numSets,
-                                 void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*))
+GFX_API void gfx_render_list_init(GFXRenderList* list,
+                                  size_t elemSize, size_t numSets,
+                                  void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*))
 {
 	assert(list != NULL);
 	assert(elemSize > 0);
@@ -183,14 +183,14 @@ GFX_API void gfx_rdraw_list_init(GFXRenderList* list,
 		sizeof(GFXSet*) * numSets;
 
 	gfx_draw_list_init(
-		&list->base, eSize, draw, gfx_rdraw_list_cmp_);
+		&list->base, eSize, draw, gfx_render_list_cmp_);
 
 	list->elementSize = elemSize;
 	list->numSets = numSets;
 }
 
 /****************************/
-GFX_API void gfx_rdraw_list_clear(GFXRenderList* list)
+GFX_API void gfx_render_list_clear(GFXRenderList* list)
 {
 	assert(list != NULL);
 
@@ -245,9 +245,9 @@ GFX_API GFXCullInd gfx_cull_list_add(GFXCullList* list, const void* elem,
 }
 
 /****************************/
-GFX_API GFXCullInd gfx_rdraw_list_add(GFXRenderList* list, const void* elem,
-                                      size_t numSets, GFXSet** sets,
-                                      bool visible)
+GFX_API GFXCullInd gfx_render_list_add(GFXRenderList* list, const void* elem,
+                                       size_t numSets, GFXSet** sets,
+                                       bool visible)
 {
 	assert(list != NULL);
 	assert(numSets <= list->numSets);
@@ -259,7 +259,7 @@ GFX_API GFXCullInd gfx_rdraw_list_add(GFXRenderList* list, const void* elem,
 
 	// Copy the element data & all given sets.
 	void* iElem = gfx_cull_list_get(&list->base.base, ind);
-	GFXSet** iSets = gfx_rdraw_list_sets(&list->base, iElem);
+	GFXSet** iSets = gfx_render_list_sets(&list->base, iElem);
 
 	if (elem != NULL) memcpy(iElem, elem, list->elementSize);
 	if (numSets > 0) memcpy(iSets, sets, sizeof(GFXSet*) * numSets);

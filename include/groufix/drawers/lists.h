@@ -71,7 +71,7 @@ typedef struct GFXRenderList
  * Undefined behaviour if list is not a render list or
  * elem is not a value returned by gfx_cull_list_get (or a list->draw arg).
  */
-static inline GFXSet** gfx_rdraw_list_sets(GFXDrawList* list, const void* elem)
+static inline GFXSet** gfx_render_list_sets(GFXDrawList* list, const void* elem)
 {
 	return (GFXSet**)((const char*)elem + GFX_ALIGN_UP(
 		((GFXRenderList*)list)->elementSize, alignof(GFXSet*)));
@@ -122,20 +122,20 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list);
  * @see gfx_draw_list_init.
  *
  * Cannot use gfx_cull_list_add on list,
- * MUST use gfx_rdraw_list_add!
+ * MUST use gfx_render_list_add!
  *
  * The render list will sort on all leading non-NULL sets associated with each
  * element. If any set is NULL, all after will be ignored.
  */
-GFX_API void gfx_rdraw_list_init(GFXRenderList* list,
-                                 size_t elemSize, size_t numSets,
-                                 void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*));
+GFX_API void gfx_render_list_init(GFXRenderList* list,
+                                  size_t elemSize, size_t numSets,
+                                  void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*));
 
 /**
  * Clears the content of a render list.
  * @param list Cannot be NULL.
  */
-GFX_API void gfx_rdraw_list_clear(GFXRenderList* list);
+GFX_API void gfx_render_list_clear(GFXRenderList* list);
 
 /**
  * Adds a new element to a cull list.
@@ -152,35 +152,35 @@ GFX_API GFXCullInd gfx_cull_list_add(GFXCullList* list, const void* elem,
  * @param sets    Cannot be NULL if numSets > 0.
  * @see gfx_cull_list_add.
  */
-GFX_API GFXCullInd gfx_rdraw_list_add(GFXRenderList* list, const void* elem,
-                                      size_t numSets, GFXSet** sets,
-                                      bool visible);
+GFX_API GFXCullInd gfx_render_list_add(GFXRenderList* list, const void* elem,
+                                       size_t numSets, GFXSet** sets,
+                                       bool visible);
 
 /**
  * Erases an element from a cull list.
  * @param list Cannot be NULL.
- * @param ind  Must be a non-zero value returned by gfx_(cull|rdraw)_list_add.
+ * @param ind  Must be a non-zero value returned by gfx_(cull|render)_list_add.
  */
 GFX_API void gfx_cull_list_erase(GFXCullList* list, GFXCullInd ind);
 
 /**
  * Retrieves the element data from a cull list index.
  * @param list Cannot be NULL.
- * @param ind  Must be a non-zero value returend by gfx_(cull|rdraw)_list_add.
+ * @param ind  Must be a non-zero value returend by gfx_(cull|render)_list_add.
  */
 GFX_API void* gfx_cull_list_get(GFXCullList* list, GFXCullInd ind);
 
 /**
  * Retrieves whether an element of a cull list is visible or not.
  * @param list Cannot be NULL.
- * @param ind  Must be a non-zero value returned by gfx_(cull|rdraw)_list_add.
+ * @param ind  Must be a non-zero value returned by gfx_(cull|render)_list_add.
  */
 GFX_API bool gfx_cull_list_is_visible(GFXCullList* list, GFXCullInd ind);
 
 /**
  * Sets the visibility of an element of a cull list.
  * @param list Cannot be NULL.
- * @param ind  Must be a non-zero value returend by gfx_(cull|rdraw)_list_add.
+ * @param ind  Must be a non-zero value returend by gfx_(cull|render)_list_add.
  */
 GFX_API void gfx_cull_list_set_visible(GFXCullList* list, GFXCullInd ind,
                                        bool visible);

@@ -1000,14 +1000,20 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 		// Validate against the given technique.
 		const size_t setInd = s - firstSet;
 
-		if (
-			// Safety check for NULLs!
-			sets[setInd] == NULL ||
-			sets[setInd]->setLayout != technique->sets[s].setLayout)
+		if (sets[setInd] == NULL)
 		{
 			gfx_log_error(
-				"Set not compatible with technique during bind command; "
-				"command not recorded.");
+				"Missing set (index=%"GFX_PRIs") during bind command; "
+				"command not recorded.", s);
+
+			continue;
+		}
+
+		if (sets[setInd]->setLayout != technique->sets[s].setLayout)
+		{
+			gfx_log_error(
+				"Incompatible set (index=%"GFX_PRIs") during bind command; "
+				"command not recorded.", s);
 
 			return;
 		}
@@ -1056,8 +1062,9 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 			if (elem == NULL)
 			{
 				gfx_log_error(
-					"Failed to get Vulkan descriptor set during bind command; "
-					"command not recorded.");
+					"Failed to get Vulkan descriptor set "
+					"(index=%"GFX_PRIs") during bind command; "
+					"command not recorded.", s);
 
 				return;
 			}
