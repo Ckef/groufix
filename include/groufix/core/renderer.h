@@ -1750,11 +1750,11 @@ GFX_API GFXScissor gfx_recorder_get_scissor(GFXRecorder* recorder);
 GFX_API float gfx_recorder_get_line_width(GFXRecorder* recorder);
 
 /**
- * State command to bind a descriptor set.
+ * State command to bind descriptor sets.
  * Can only be called within a callback of gfx_recorder_(render|compute)!
  * @param recorder    Cannot be NULL.
  * @param technique   Cannot be NULL.
- * @param firstSet    Must be < gfx_tech_get_num_sets(technique).
+ * @param firstSet    Must be < gfx_tech_get_num_sets(technique) or 0.
  * @param numSets     Must be > 0.
  * @param numDynamics Number of dynamic offsets, missing offsets will be 0.
  * @param sets        Cannot be NULL.
@@ -1782,11 +1782,12 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
  * Can only be called within a callback of gfx_recorder_(render|compute)!
  * @param recorder  Cannot be NULL.
  * @param technique Cannot be NULL.
- * @param offset    Must be a multiple of 4.
- * @param size      Must be a multiple of 4, zero for all remaining bytes.
+ * @param offset    Must be < gfx_tech_get_push_size(technique) or 0.
+ * @param size      Zero for all remaining bytes.
  * @param data      An array of size bytes.
  *
  * offset + size may exceed the available push constant range of technique.
+ * Both offset and size must be a multiple of 4.
  */
 GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
                           uint32_t offset,

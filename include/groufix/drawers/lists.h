@@ -60,21 +60,57 @@ typedef struct GFXRenderList
 {
 	GFXDrawList base;
 
-	size_t elementSize;
-	size_t numSets;
+	size_t   elementSize;
+	size_t   numSets;
+	size_t   numDynamics;
+	uint32_t pushSize;
 
 } GFXRenderList;
 
 
 /**
- * Retrieves the bound sets from a render list element.
+ * Retrieves the renderable from a render list element.
  * Undefined behaviour if list is not a render list or
- * elem is not a value returned by gfx_cull_list_get (or a list->draw arg).
+ * elem is not a value returned by gfx_cull_list_(get|at) (or a list->draw arg).
+ */
+static inline GFXRenderable* gfx_render_list_renderable(GFXDrawList* list, const void* elem)
+{
+	return (GFXRenderable*)((const char*)elem + GFX_ALIGN_UP(
+		((GFXRenderList*)list)->elementSize, alignof(max_align_t)));
+}
+
+/**
+ * Retrieves the bound sets from a render list element.
+ * @see gfx_render_list_renderable.
  */
 static inline GFXSet** gfx_render_list_sets(GFXDrawList* list, const void* elem)
 {
-	return (GFXSet**)((const char*)elem + GFX_ALIGN_UP(
-		((GFXRenderList*)list)->elementSize, alignof(GFXSet*)));
+	return (GFXSet**)((const char*)gfx_render_list_renderable(list, elem) +
+		GFX_ALIGN_UP(sizeof(GFXRenderable), alignof(max_align_t)));
+}
+
+/**
+ * Retrieves the bound dynamic offsets from a render list element.
+ * @see gfx_render_list_renderable.
+ */
+static inline uint32_t* gfx_render_list_dynamics(GFXDrawList* list, const void* elem)
+{
+	const size_t numSets = ((GFXRenderList*)list)->numSets;
+
+	return (uint32_t*)((const char*)gfx_render_list_sets(list, elem) +
+		GFX_ALIGN_UP(sizeof(GFXSet*) * numSets, alignof(max_align_t)));
+}
+
+/**
+ * Retrieves the push constant range from a render list element.
+ * @see gfx_render_list_renderable.
+ */
+static inline void* gfx_render_list_push(GFXDrawList* list, const void* elem)
+{
+	const size_t numDynamics = ((GFXRenderList*)list)->numDynamics;
+
+	return (void*)((const char*)gfx_render_list_dynamics(list, elem) +
+		GFX_ALIGN_UP(sizeof(uint32_t) * numDynamics, alignof(max_align_t)));
 }
 
 /**
@@ -118,7 +154,11 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list);
 
 /**
  * Initializes a render list (draw list specialization).
- * @param numSets Must be > 0.
+ * Will internally sort all elements based on pipeline switching of sets.
+ * @param elemSize    May be 0.
+ * @param numSets     Must be > 0.
+ * @param numDynamics May be 0.
+ * @param pushSize    May be 0, must be a multiple of 4.
  * @see gfx_draw_list_init.
  *
  * Cannot use gfx_cull_list_add on list,
@@ -127,8 +167,8 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list);
  * The render list will sort on all leading non-NULL sets associated with each
  * element. If any set is NULL, all after will be ignored.
  */
-GFX_API void gfx_render_list_init(GFXRenderList* list,
-                                  size_t elemSize, size_t numSets,
+GFX_API void gfx_render_list_init(GFXRenderList* list, size_t elemSize,
+                                  size_t numSets, size_t numDynamics, uint32_t pushSize,
                                   void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*));
 
 /**
@@ -148,12 +188,24 @@ GFX_API GFXCullInd gfx_cull_list_add(GFXCullList* list, const void* elem,
 
 /**
  * Adds a new element to a render list.
- * @param numSets Must be <= list->numSets.
- * @param sets    Cannot be NULL if numSets > 0.
+ * @param renderable  Renderable to copy, may be NULL to leave undefined.
+ * @param numSets     Must be <= list->numSets.
+ * @param sets        Cannot be NULL if numSets > 0.
+ * @param numDynamics Must be <= list->numDynamics.
+ * @param offsets     Cannot be NULL if numDynamics > 0.
+ * @param pushSize    Must be <= list->pushSize, must be a multiple of 4.
+ * @param push        Cannot be NULL if pushSize > 0.
  * @see gfx_cull_list_add.
+ *
+ * Note: even when any of the values are not set through this function,
+ * they MUST be set before drawing the list!
+ * Additionally, all sets must be set before sorting the list!
  */
 GFX_API GFXCullInd gfx_render_list_add(GFXRenderList* list, const void* elem,
+                                       const GFXRenderable* renderable,
                                        size_t numSets, GFXSet** sets,
+                                       size_t numDynamics, const uint32_t* offsets,
+                                       size_t pushSize, const void* push,
                                        bool visible);
 
 /**
@@ -212,6 +264,26 @@ GFX_API void gfx_draw_list_sort(GFXDrawList* list);
  */
 GFX_API void gfx_cmd_draw_list(GFXRecorder* recorder,
                                GFXDrawList* list, void* ptr);
+
+/**
+ * State command to bind descriptor sets from a render list element.
+ * elem can be the argument from the draw function.
+ * @param recorder Cannot be NULL.
+ * @param list     Cannot be NULL, must be a render list!
+ * @param elem     Must be a value returned by gfx_cull_list_(get|at).
+ */
+GFX_API void gfx_cmd_bind_render_list(GFXRecorder* recorder,
+                                      GFXDrawList* list, const void* elem);
+
+/**
+ * State command to update push constants from a render list element.
+ * elem can be the argument from the draw function.
+ * @param recorder Cannot be NULL.
+ * @param list     Cannot be NULL, must be a render list!
+ * @param elem     Must be a value returned by gfx_cull_list_(get|at).
+ */
+GFX_API void gfx_cmd_push_render_list(GFXRecorder* recorder,
+                                      GFXDrawList* list, const void* elem);
 
 
 #endif

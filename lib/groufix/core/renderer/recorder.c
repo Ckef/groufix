@@ -900,12 +900,16 @@ GFX_API void gfx_cmd_bind(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(recorder->inp.cmd != NULL);
 	assert(technique != NULL);
 	assert(technique->renderer == recorder->renderer);
-	assert(firstSet < technique->numSets);
+	assert(firstSet < technique->numSets || firstSet == 0);
 	assert(numSets > 0);
 	assert(sets != NULL);
 	assert(numDynamics == 0 || offsets != NULL);
 
 	GFXContext_* context = recorder->context;
+
+	// Technique doesn't have the sets, silent skip.
+	if (firstSet >= technique->numSets)
+		return;
 
 	// Check technique.
 	if (technique->layout == NULL)
@@ -1218,11 +1222,15 @@ GFX_API void gfx_cmd_push(GFXRecorder* recorder, GFXTechnique* technique,
 	assert(technique != NULL);
 	assert(technique->renderer == recorder->renderer);
 	assert(offset % 4 == 0);
-	assert(offset < technique->pushSize);
+	assert(offset < technique->pushSize || offset == 0);
 	assert(size % 4 == 0);
 	assert(data != NULL);
 
 	GFXContext_* context = recorder->context;
+
+	// Beyond technique's range, silent skip.
+	if (offset >= technique->pushSize)
+		return;
 
 	// Check technique.
 	if (technique->layout == NULL)

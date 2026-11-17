@@ -70,7 +70,7 @@ static int gfx_render_list_cmp_(GFXDrawList* list, const void* l, const void* r)
 	GFXSet** lSets = gfx_render_list_sets(list, l);
 	GFXSet** rSets = gfx_render_list_sets(list, r);
 
-	// Numsets is guaranted to be > 0 as per gfx_render_list_init.
+	// numSets is guaranted to be > 0 as per gfx_render_list_init.
 	if (lSets[0] == NULL || rSets[0] == NULL)
 	{
 		// First index is missing sets, put fewer sets used first.
@@ -169,24 +169,29 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list)
 }
 
 /****************************/
-GFX_API void gfx_render_list_init(GFXRenderList* list,
-                                  size_t elemSize, size_t numSets,
+GFX_API void gfx_render_list_init(GFXRenderList* list, size_t elemSize,
+                                  size_t numSets, size_t numDynamics, uint32_t pushSize,
                                   void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*))
 {
 	assert(list != NULL);
-	assert(elemSize > 0);
 	assert(numSets > 0);
+	assert(pushSize % 4 == 0);
 	assert(draw != NULL);
 
 	const size_t eSize =
-		GFX_ALIGN_UP(elemSize, alignof(GFXSet*)) +
-		sizeof(GFXSet*) * numSets;
+		GFX_ALIGN_UP(elemSize, alignof(max_align_t)) +
+		GFX_ALIGN_UP(sizeof(GFXRenderable), alignof(max_align_t)) +
+		GFX_ALIGN_UP(sizeof(GFXSet*) * numSets, alignof(max_align_t)) +
+		GFX_ALIGN_UP(sizeof(uint32_t) * numDynamics, alignof(max_align_t)) +
+		pushSize;
 
 	gfx_draw_list_init(
 		&list->base, eSize, draw, gfx_render_list_cmp_);
 
 	list->elementSize = elemSize;
 	list->numSets = numSets;
+	list->numDynamics = numDynamics;
+	list->pushSize = pushSize;
 }
 
 /****************************/
@@ -246,27 +251,53 @@ GFX_API GFXCullInd gfx_cull_list_add(GFXCullList* list, const void* elem,
 
 /****************************/
 GFX_API GFXCullInd gfx_render_list_add(GFXRenderList* list, const void* elem,
+                                       const GFXRenderable* renderable,
                                        size_t numSets, GFXSet** sets,
+                                       size_t numDynamics, const uint32_t* offsets,
+                                       size_t pushSize, const void* push,
                                        bool visible)
 {
 	assert(list != NULL);
 	assert(numSets <= list->numSets);
 	assert(numSets == 0 || sets != NULL);
+	assert(numDynamics <= list->numDynamics);
+	assert(numDynamics == 0 || offsets != NULL);
+	assert(pushSize % 4 == 0);
+	assert(pushSize <= list->pushSize);
+	assert(pushSize == 0 || push != NULL);
 
 	// Insert empty element.
 	GFXCullInd ind = gfx_cull_list_add(&list->base.base, NULL, visible);
 	if (ind == 0) return 0;
 
-	// Copy the element data & all given sets.
+	// Copy the element data & all given values.
 	void* iElem = gfx_cull_list_get(&list->base.base, ind);
 	GFXSet** iSets = gfx_render_list_sets(&list->base, iElem);
+	uint32_t* iDyns = gfx_render_list_dynamics(&list->base, iElem);
+	void* iPush = gfx_render_list_push(&list->base, iElem);
 
-	if (elem != NULL) memcpy(iElem, elem, list->elementSize);
-	if (numSets > 0) memcpy(iSets, sets, sizeof(GFXSet*) * numSets);
+	if (renderable != NULL)
+		*gfx_render_list_renderable(&list->base, iElem) = *renderable;
 
-	// Set all remaining sets to NULL.
+	if (elem != NULL && list->elementSize > 0)
+		memcpy(iElem, elem, list->elementSize);
+
+	if (numSets > 0)
+		memcpy(iSets, sets, sizeof(GFXSet*) * numSets);
+	if (numDynamics > 0)
+		memcpy(iDyns, offsets, sizeof(uint32_t) * numDynamics);
+	if (pushSize > 0)
+		memcpy(iPush, push, pushSize);
+
+	// Set all remaining values.
 	while (numSets < list->numSets)
 		iSets[numSets++] = NULL;
+
+	while (numDynamics < list->numDynamics)
+		iDyns[numDynamics++] = 0;
+
+	if (pushSize < list->pushSize)
+		memset((char*)iPush + pushSize, 0, list->pushSize - pushSize);
 
 	return ind;
 }
@@ -403,4 +434,39 @@ GFX_API void gfx_cmd_draw_list(GFXRecorder* recorder,
 		const void* elem = GFX_GET_ELEMENT_FROM_POS_(&list->base, p);
 		list->draw(recorder, list, elem, ptr);
 	}
+}
+
+/****************************/
+GFX_API void gfx_cmd_bind_render_list(GFXRecorder* recorder,
+                                      GFXDrawList* list, const void* elem)
+{
+	assert(recorder != NULL);
+	assert(list != NULL);
+	assert(elem != NULL);
+
+	GFXRenderList* rlist = (GFXRenderList*)list;
+
+	// numSets is guaranted to be > 0 as per gfx_render_list_init.
+	gfx_cmd_bind(recorder,
+		gfx_render_list_renderable(list, elem)->technique,
+		0, rlist->numSets, rlist->numDynamics,
+		gfx_render_list_sets(list, elem),
+		gfx_render_list_dynamics(list, elem));
+}
+
+/****************************/
+GFX_API void gfx_cmd_push_render_list(GFXRecorder* recorder,
+                                      GFXDrawList* list, const void* elem)
+{
+	assert(recorder != NULL);
+	assert(list != NULL);
+	assert(elem != NULL);
+
+	GFXRenderList* rlist = (GFXRenderList*)list;
+
+	if (rlist->pushSize > 0)
+		gfx_cmd_push(recorder,
+			gfx_render_list_renderable(list, elem)->technique,
+			0, rlist->pushSize,
+			gfx_render_list_push(list, elem));
 }
