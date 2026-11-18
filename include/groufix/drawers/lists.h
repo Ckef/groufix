@@ -197,15 +197,14 @@ GFX_API GFXCullInd gfx_cull_list_add(GFXCullList* list, const void* elem,
  * @param push        Cannot be NULL if pushSize > 0.
  * @see gfx_cull_list_add.
  *
- * Note: even when any of the values are not set through this function,
- * they MUST be set before drawing the list!
- * Additionally, all sets must be set before sorting the list!
+ * Note: even when the renderable or sets are not set through this function,
+ * they MUST be set before sorting or drawing the list!
  */
 GFX_API GFXCullInd gfx_render_list_add(GFXRenderList* list, const void* elem,
                                        const GFXRenderable* renderable,
                                        size_t numSets, GFXSet** sets,
                                        size_t numDynamics, const uint32_t* offsets,
-                                       size_t pushSize, const void* push,
+                                       uint32_t pushSize, const void* push,
                                        bool visible);
 
 /**
@@ -268,22 +267,26 @@ GFX_API void gfx_cmd_draw_list(GFXRecorder* recorder,
 /**
  * State command to bind descriptor sets from a render list element.
  * elem can be the argument from the draw function.
- * @param recorder Cannot be NULL.
- * @param list     Cannot be NULL, must be a render list!
- * @param elem     Must be a value returned by gfx_cull_list_(get|at).
+ * @param recorder    Cannot be NULL.
+ * @param list        Cannot be NULL, must be a render list!
+ * @param elem        Must be a value returned by gfx_cull_list_(get|at).
+ * @param numDynamics May be > 0 to override stored dynamic offsets.
+ * @param offsets     Cannot be NULL if numDynamics > 0.
  */
 GFX_API void gfx_cmd_bind_render_list(GFXRecorder* recorder,
-                                      GFXDrawList* list, const void* elem);
+                                      GFXDrawList* list, const void* elem,
+                                      size_t numDynamics, const uint32_t* offsets);
 
 /**
  * State command to update push constants from a render list element.
  * elem can be the argument from the draw function.
- * @param recorder Cannot be NULL.
- * @param list     Cannot be NULL, must be a render list!
- * @param elem     Must be a value returned by gfx_cull_list_(get|at).
+ * @param pushSize May be > 0 to override stored push constants.
+ * @param push     Cannot be NULL if pushSize > 0.
+ * @see gfx_cmd_bind_render_list.
  */
 GFX_API void gfx_cmd_push_render_list(GFXRecorder* recorder,
-                                      GFXDrawList* list, const void* elem);
+                                      GFXDrawList* list, const void* elem,
+                                      uint32_t pushSize, const void* push);
 
 
 #endif

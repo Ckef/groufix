@@ -254,7 +254,7 @@ GFX_API GFXCullInd gfx_render_list_add(GFXRenderList* list, const void* elem,
                                        const GFXRenderable* renderable,
                                        size_t numSets, GFXSet** sets,
                                        size_t numDynamics, const uint32_t* offsets,
-                                       size_t pushSize, const void* push,
+                                       uint32_t pushSize, const void* push,
                                        bool visible)
 {
 	assert(list != NULL);
@@ -438,35 +438,49 @@ GFX_API void gfx_cmd_draw_list(GFXRecorder* recorder,
 
 /****************************/
 GFX_API void gfx_cmd_bind_render_list(GFXRecorder* recorder,
-                                      GFXDrawList* list, const void* elem)
+                                      GFXDrawList* list, const void* elem,
+                                      size_t numDynamics, const uint32_t* offsets)
 {
 	assert(recorder != NULL);
 	assert(list != NULL);
 	assert(elem != NULL);
+	assert(numDynamics == 0 || offsets != NULL);
 
 	GFXRenderList* rlist = (GFXRenderList*)list;
+
+	// Override dynamic offsets with user given ones.
+	const size_t numOffs =
+		numDynamics > 0 ? numDynamics : rlist->numDynamics;
+	const uint32_t* offs =
+		numDynamics > 0 ? offsets : gfx_render_list_dynamics(list, elem);
 
 	// numSets is guaranted to be > 0 as per gfx_render_list_init.
 	gfx_cmd_bind(recorder,
 		gfx_render_list_renderable(list, elem)->technique,
-		0, rlist->numSets, rlist->numDynamics,
-		gfx_render_list_sets(list, elem),
-		gfx_render_list_dynamics(list, elem));
+		0, rlist->numSets, numOffs,
+		gfx_render_list_sets(list, elem), offs);
 }
 
 /****************************/
 GFX_API void gfx_cmd_push_render_list(GFXRecorder* recorder,
-                                      GFXDrawList* list, const void* elem)
+                                      GFXDrawList* list, const void* elem,
+                                      uint32_t pushSize, const void* push)
 {
 	assert(recorder != NULL);
 	assert(list != NULL);
 	assert(elem != NULL);
+	assert(pushSize == 0 || push != NULL);
 
 	GFXRenderList* rlist = (GFXRenderList*)list;
 
-	if (rlist->pushSize > 0)
+	// Override push constants with user given ones.
+	const uint32_t size =
+		pushSize > 0 ? pushSize : rlist->pushSize;
+	const void* data =
+		pushSize > 0 ? push : gfx_render_list_push(list, elem);
+
+	if (size > 0)
 		gfx_cmd_push(recorder,
 			gfx_render_list_renderable(list, elem)->technique,
-			0, rlist->pushSize,
-			gfx_render_list_push(list, elem));
+			0, size, data);
 }
