@@ -77,7 +77,6 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable, GFXCacheElem_** elem)
 			// Shader pointers will be converted to handles down below.
 			handles[numShaders++] = (uintptr_t)(void*)tech->shaders[s];
 
-	// Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*.
 	if (tech->layout == NULL)
 	{
 		gfx_log_warn("Technique not locked while building pipeline.");
@@ -90,6 +89,7 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable, GFXCacheElem_** elem)
 		return 0;
 	}
 
+	// Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*.
 	handles[numShaders+0] = (uintptr_t)(void*)tech->layout;
 	handles[numShaders+1] = (uintptr_t)(void*)rPass->build.pass;
 

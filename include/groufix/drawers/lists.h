@@ -154,11 +154,9 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list);
 
 /**
  * Initializes a render list (draw list specialization).
- * Will internally sort all elements based on pipeline switching of sets.
- * @param elemSize    May be 0.
- * @param numSets     Must be > 0.
- * @param numDynamics May be 0.
- * @param pushSize    May be 0, must be a multiple of 4.
+ * Will internally sort all elements to achieve minimal pipeline switching.
+ * @param elemSize May be 0, as opposed to gfx_draw_list_init.
+ * @param draw     May be NULL to enable default; draw stored primitives only.
  * @see gfx_draw_list_init.
  *
  * Cannot use gfx_cull_list_add on list,
@@ -166,6 +164,7 @@ GFX_API void gfx_draw_list_clear(GFXDrawList* list);
  *
  * The render list will sort on all leading non-NULL sets associated with each
  * element. If any set is NULL, all after will be ignored.
+ * Unless numSets == 0, in that case it will sort based on the used technique.
  */
 GFX_API void gfx_render_list_init(GFXRenderList* list, size_t elemSize,
                                   size_t numSets, size_t numDynamics, uint32_t pushSize,

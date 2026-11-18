@@ -62,9 +62,60 @@ static void gfx_cull_list_swap_(GFXCullList* list, size_t lPos, size_t rPos)
 
 
 /****************************
- * GFXRenderList implementation of the cmp function.
+ * GFXRenderList default implementation of the draw function.
  */
-static int gfx_render_list_cmp_(GFXDrawList* list, const void* l, const void* r)
+static void gfx_render_list_draw_(GFXRecorder* recorder,
+                                  GFXDrawList* list, const void* elem, void* ptr)
+{
+	GFXRenderable* renderable =
+		gfx_render_list_renderable(list, elem);
+
+	// Simply draw one instance of the stored primitive.
+	// Nothing to do if no primitive stored.
+	if (renderable->primitive != NULL)
+	{
+		// Bind, push & draw.
+		gfx_cmd_bind_render_list(recorder, list, elem, 0, NULL);
+		gfx_cmd_push_render_list(recorder, list, elem, 0, NULL);
+		gfx_cmd_draw_prim(recorder, renderable, 1, 0);
+	}
+}
+
+/****************************
+ * GFXRenderList implementation of the cmp function based on pipeline layouts.
+ */
+static int gfx_render_list_tcmp_(GFXDrawList* list, const void* l, const void* r)
+{
+	GFXTechnique* lTech = gfx_render_list_renderable(list, l)->technique;
+	GFXTechnique* rTech = gfx_render_list_renderable(list, r)->technique;
+
+	// Use integer pointer values to compare techniques.
+	// We can do so as the order does not matter;
+	// it only matters the values uniquely identify the techniques.
+
+	// Note: Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*.
+	// This holds true on most 32 and 64 bit architectures!
+	const uintptr_t vL = (uintptr_t)(void*)lTech;
+	const uintptr_t vR = (uintptr_t)(void*)rTech;
+
+	// But first sort on pipeline layout, for minimal pipeline swaps.
+	// Still sort on technique afterwards, in case they're equal.
+	const uintptr_t lL = (uintptr_t)gfx_tech_layout(lTech);
+	const uintptr_t lR = (uintptr_t)gfx_tech_layout(rTech);
+
+	if (lL < lR) return -1;
+	if (lL > lR) return 1;
+
+	if (vL < vR) return -1;
+	if (vL > vR) return 1;
+
+	return 0;
+}
+
+/****************************
+ * GFXRenderList implementation of the cmp function based on set layouts.
+ */
+static int gfx_render_list_scmp_(GFXDrawList* list, const void* l, const void* r)
 {
 	const size_t numSets = ((GFXRenderList*)list)->numSets;
 	GFXSet** lSets = gfx_render_list_sets(list, l);
@@ -79,12 +130,8 @@ static int gfx_render_list_cmp_(GFXDrawList* list, const void* l, const void* r)
 
 	for (size_t s = 0; s < numSets; ++s)
 	{
-		// Use integer pointer values to compare sets.
-		// We can do so as the order does not matter;
-		// it only matters the values uniquely identify the sets.
-
-		// Note: Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*.
-		// This holds true on most 32 and 64 bit architectures!
+		// Also use integer pointer values to compare sets.
+		// Assumes (uintptr_t)p == (uintptr_t)p, where p is a void*.
 		const uintptr_t vL = (uintptr_t)(void*)lSets[s];
 		const uintptr_t vR = (uintptr_t)(void*)rSets[s];
 
@@ -174,9 +221,7 @@ GFX_API void gfx_render_list_init(GFXRenderList* list, size_t elemSize,
                                   void (*draw)(GFXRecorder*, GFXDrawList*, const void*, void*))
 {
 	assert(list != NULL);
-	assert(numSets > 0);
 	assert(pushSize % 4 == 0);
-	assert(draw != NULL);
 
 	const size_t eSize =
 		GFX_ALIGN_UP(elemSize, alignof(max_align_t)) +
@@ -185,8 +230,12 @@ GFX_API void gfx_render_list_init(GFXRenderList* list, size_t elemSize,
 		GFX_ALIGN_UP(sizeof(uint32_t) * numDynamics, alignof(max_align_t)) +
 		pushSize;
 
-	gfx_draw_list_init(
-		&list->base, eSize, draw, gfx_render_list_cmp_);
+	gfx_draw_list_init(&list->base, eSize,
+		// If no draw function given, use the default.
+		draw != NULL ? draw : gfx_render_list_draw_,
+		// If no sets, still sort elements based on pipeline layout.
+		// Note: gfx_render_list_scmp_ can assume numSets > 0!
+		numSets > 0 ? gfx_render_list_scmp_ : gfx_render_list_tcmp_);
 
 	list->elementSize = elemSize;
 	list->numSets = numSets;
@@ -448,17 +497,19 @@ GFX_API void gfx_cmd_bind_render_list(GFXRecorder* recorder,
 
 	GFXRenderList* rlist = (GFXRenderList*)list;
 
-	// Override dynamic offsets with user given ones.
-	const size_t numOffs =
-		numDynamics > 0 ? numDynamics : rlist->numDynamics;
-	const uint32_t* offs =
-		numDynamics > 0 ? offsets : gfx_render_list_dynamics(list, elem);
+	if (rlist->numSets > 0)
+	{
+		// Override dynamic offsets with user given ones.
+		const size_t numOffs =
+			numDynamics > 0 ? numDynamics : rlist->numDynamics;
+		const uint32_t* offs =
+			numDynamics > 0 ? offsets : gfx_render_list_dynamics(list, elem);
 
-	// numSets is guaranted to be > 0 as per gfx_render_list_init.
-	gfx_cmd_bind(recorder,
-		gfx_render_list_renderable(list, elem)->technique,
-		0, rlist->numSets, numOffs,
-		gfx_render_list_sets(list, elem), offs);
+		gfx_cmd_bind(recorder,
+			gfx_render_list_renderable(list, elem)->technique,
+			0, rlist->numSets, numOffs,
+			gfx_render_list_sets(list, elem), offs);
+	}
 }
 
 /****************************/
