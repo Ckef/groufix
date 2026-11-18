@@ -257,6 +257,7 @@ GFX_API void gfx_draw_list_sort(GFXDrawList* list);
 
 /**
  * Proxy command to draw a draw list.
+ * Can only be called within a callback of gfx_recorder_render!
  * @param recorder Cannot be NULL.
  * @param list     Cannot be NULL.
  * @param ptr      User pointer as last argument of the draw function.
@@ -266,12 +267,14 @@ GFX_API void gfx_cmd_draw_list(GFXRecorder* recorder,
 
 /**
  * State command to bind descriptor sets from a render list element.
- * elem can be the argument from the draw function.
+ * Can only be called within a callback of gfx_recorder_render!
  * @param recorder    Cannot be NULL.
  * @param list        Cannot be NULL, must be a render list!
  * @param elem        Must be a value returned by gfx_cull_list_(get|at).
  * @param numDynamics May be > 0 to override stored dynamic offsets.
  * @param offsets     Cannot be NULL if numDynamics > 0.
+ *
+ * 'elem' can be taken from the parameters of the list's draw function.
  */
 GFX_API void gfx_cmd_bind_render_list(GFXRecorder* recorder,
                                       GFXDrawList* list, const void* elem,
@@ -279,7 +282,7 @@ GFX_API void gfx_cmd_bind_render_list(GFXRecorder* recorder,
 
 /**
  * State command to update push constants from a render list element.
- * elem can be the argument from the draw function.
+ * Can only be called within a callback of gfx_recorder_render!
  * @param pushSize May be > 0 to override stored push constants.
  * @param push     Cannot be NULL if pushSize > 0.
  * @see gfx_cmd_bind_render_list.
