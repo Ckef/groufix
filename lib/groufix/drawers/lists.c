@@ -234,7 +234,6 @@ GFX_API void gfx_render_list_init(GFXRenderList* list, size_t elemSize,
 		// If no draw function given, use the default.
 		draw != NULL ? draw : gfx_render_list_draw_,
 		// If no sets, still sort elements based on pipeline layout.
-		// Note: gfx_render_list_scmp_ can assume numSets > 0!
 		numSets > 0 ? gfx_render_list_scmp_ : gfx_render_list_tcmp_);
 
 	list->elementSize = elemSize;
@@ -323,14 +322,13 @@ GFX_API GFXCullInd gfx_render_list_add(GFXRenderList* list, const void* elem,
 	void* iElem = gfx_cull_list_get(&list->base.base, ind);
 	GFXSet** iSets = gfx_render_list_sets(&list->base, iElem);
 	uint32_t* iDyns = gfx_render_list_dynamics(&list->base, iElem);
-	void* iPush = gfx_render_list_push(&list->base, iElem);
+	void* iPush = gfx_render_list_push_range(&list->base, iElem);
 
 	if (renderable != NULL)
 		*gfx_render_list_renderable(&list->base, iElem) = *renderable;
 
 	if (elem != NULL && list->elementSize > 0)
 		memcpy(iElem, elem, list->elementSize);
-
 	if (numSets > 0)
 		memcpy(iSets, sets, sizeof(GFXSet*) * numSets);
 	if (numDynamics > 0)
@@ -528,7 +526,7 @@ GFX_API void gfx_cmd_push_render_list(GFXRecorder* recorder,
 	const uint32_t size =
 		pushSize > 0 ? pushSize : rlist->pushSize;
 	const void* data =
-		pushSize > 0 ? push : gfx_render_list_push(list, elem);
+		pushSize > 0 ? push : gfx_render_list_push_range(list, elem);
 
 	if (size > 0)
 		gfx_cmd_push(recorder,

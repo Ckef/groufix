@@ -85,7 +85,7 @@ static inline GFXRenderable* gfx_render_list_renderable(GFXDrawList* list, const
  */
 static inline GFXSet** gfx_render_list_sets(GFXDrawList* list, const void* elem)
 {
-	return (GFXSet**)((const char*)gfx_render_list_renderable(list, elem) +
+	return (GFXSet**)((char*)gfx_render_list_renderable(list, elem) +
 		GFX_ALIGN_UP(sizeof(GFXRenderable), alignof(max_align_t)));
 }
 
@@ -97,7 +97,7 @@ static inline uint32_t* gfx_render_list_dynamics(GFXDrawList* list, const void* 
 {
 	const size_t numSets = ((GFXRenderList*)list)->numSets;
 
-	return (uint32_t*)((const char*)gfx_render_list_sets(list, elem) +
+	return (uint32_t*)((char*)gfx_render_list_sets(list, elem) +
 		GFX_ALIGN_UP(sizeof(GFXSet*) * numSets, alignof(max_align_t)));
 }
 
@@ -105,11 +105,11 @@ static inline uint32_t* gfx_render_list_dynamics(GFXDrawList* list, const void* 
  * Retrieves the push constant range from a render list element.
  * @see gfx_render_list_renderable.
  */
-static inline void* gfx_render_list_push(GFXDrawList* list, const void* elem)
+static inline void* gfx_render_list_push_range(GFXDrawList* list, const void* elem)
 {
 	const size_t numDynamics = ((GFXRenderList*)list)->numDynamics;
 
-	return (void*)((const char*)gfx_render_list_dynamics(list, elem) +
+	return (void*)((char*)gfx_render_list_dynamics(list, elem) +
 		GFX_ALIGN_UP(sizeof(uint32_t) * numDynamics, alignof(max_align_t)));
 }
 

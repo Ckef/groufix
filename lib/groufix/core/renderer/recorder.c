@@ -601,8 +601,7 @@ GFX_API GFXRenderer* gfx_recorder_get_renderer(GFXRecorder* recorder)
 
 /****************************/
 GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
-                                 void (*cb)(GFXRecorder*, void*),
-                                 void* ptr)
+                                 void (*cb)(GFXRecorder*, void*), void* ptr)
 {
 	assert(recorder != NULL);
 	assert(recorder->renderer->recording);
@@ -706,8 +705,7 @@ error:
 
 /****************************/
 GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
-                                  void (*cb)(GFXRecorder*, void*),
-                                  void* ptr)
+                                  void (*cb)(GFXRecorder*, void*), void* ptr)
 {
 	assert(recorder != NULL);
 	assert(recorder->renderer->recording);

@@ -1673,8 +1673,7 @@ GFX_API GFXRenderer* gfx_recorder_get_renderer(GFXRecorder* recorder);
  * concurrently, with any arguments!
  */
 GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
-                                 void (*cb)(GFXRecorder*, void*),
-                                 void* ptr);
+                                 void (*cb)(GFXRecorder*, void*), void* ptr);
 
 /**
  * Records compute commands within a given compute pass.
@@ -1682,8 +1681,7 @@ GFX_API void gfx_recorder_render(GFXRecorder* recorder, GFXPass* pass,
  * @see gfx_recorder_render.
  */
 GFX_API void gfx_recorder_compute(GFXRecorder* recorder, GFXPass* pass,
-                                  void (*cb)(GFXRecorder*, void*),
-                                  void* ptr);
+                                  void (*cb)(GFXRecorder*, void*), void* ptr);
 
 /**
  * Retrieves the current virtual frame index.
