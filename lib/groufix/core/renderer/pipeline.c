@@ -9,36 +9,6 @@
 #include "groufix/core/objects.h"
 
 
-/****************************
- * Spin-locks a renderable for pipeline retrieval.
- */
-static inline void gfx_renderable_lock_(GFXRenderable* renderable)
-{
-	bool l = 0;
-
-	// Based on the glibc implementation of pthread_spin_lock.
-	// We assume the first try will be mostly successful,
-	// thus we use atomic_exchange, which is assumed to be fast on success.
-	if (!atomic_exchange_explicit(&renderable->lock, 1, memory_order_acquire))
-		return;
-
-	// Otherwise we use a weak CAS loop and not an exchange so we bail out
-	// after a failed attempt and fallback to an atomic_load.
-	// This has the advantage that the atomic_load can be relaxed and we do not
-	// force any expensive memory synchronizations and penalize other threads.
-	while (!atomic_compare_exchange_weak_explicit(
-		&renderable->lock, &l, 1,
-		memory_order_acquire, memory_order_relaxed)) l = 0;
-}
-
-/****************************
- * Unlocks a renderable for pipeline retrieval.
- */
-static inline void gfx_renderable_unlock_(GFXRenderable* renderable)
-{
-	atomic_store_explicit(&renderable->lock, 0, memory_order_release);
-}
-
 /****************************/
 bool gfx_renderable_pipeline_(GFXRenderable* renderable, GFXCacheElem_** elem)
 {
@@ -46,21 +16,20 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable, GFXCacheElem_** elem)
 
 	GFXRenderPass_* rPass = (GFXRenderPass_*)renderable->pass;
 
-	// Firstly, spin-lock the renderable and check if we have an up-to-date
-	// pipeline, if so, we can just return :)
-	// Immediately unlock afterwards for maximum concurrency!
-	gfx_renderable_lock_(renderable);
+	// Firstly, check if we have an up-to-date pipeline, if so, just return :)
+	// The pipeline can only be invalidated outside of recording,
+	// meaning this will only be out-of-date once per frame and the reading
+	// of gen and pipeline does not need to be one atomic operation!
+	uint_least32_t gen = atomic_load_explicit(
+		&renderable->gen, memory_order_acquire);
 
-	if (
-		(GFXCacheElem_*)(void*)renderable->pipeline != NULL &&
-		renderable->gen == GFX_PASS_GEN_(rPass))
+	if (gen == GFX_PASS_GEN_(rPass))
 	{
-		if (elem != NULL) *elem = (void*)renderable->pipeline;
-		gfx_renderable_unlock_(renderable);
+		if (elem != NULL) *elem = (void*)atomic_load_explicit(
+			&renderable->pipeline, memory_order_relaxed);
+
 		return 1;
 	}
-
-	gfx_renderable_unlock_(renderable);
 
 	// We do not have a pipeline, create a new one.
 	// Multiple threads could end up creating the same new pipeline, but
@@ -434,12 +403,13 @@ bool gfx_renderable_pipeline_(GFXRenderable* renderable, GFXCacheElem_** elem)
 		// Skip this step on failure tho.
 		if (*elem == NULL) return 0;
 
-		gfx_renderable_lock_(renderable);
+		atomic_store_explicit(
+			&renderable->pipeline,
+			(uintptr_t)(void*)*elem, memory_order_relaxed);
 
-		renderable->pipeline = (uintptr_t)(void*)*elem;
-		renderable->gen = GFX_PASS_GEN_(rPass);
-
-		gfx_renderable_unlock_(renderable);
+		atomic_store_explicit(
+			&renderable->gen,
+			GFX_PASS_GEN_(rPass), memory_order_release);
 
 		return 1;
 	}
@@ -453,7 +423,7 @@ bool gfx_computable_pipeline_(GFXComputable* computable, GFXCacheElem_** elem)
 	// Unlike for renderables,
 	// we can just check the pipeline and return when it's there!
 	GFXCacheElem_* pipeline = (void*)atomic_load_explicit(
-		&computable->pipeline, memory_order_relaxed);
+		&computable->pipeline, memory_order_acquire);
 
 	if (pipeline != NULL)
 	{
@@ -531,7 +501,7 @@ bool gfx_computable_pipeline_(GFXComputable* computable, GFXCacheElem_** elem)
 
 		atomic_store_explicit(
 			&computable->pipeline,
-			(uintptr_t)(void*)*elem, memory_order_relaxed);
+			(uintptr_t)(void*)*elem, memory_order_release);
 
 		return 1;
 	}
@@ -585,9 +555,10 @@ GFX_API bool gfx_renderable(GFXRenderable* renderable,
 	renderable->primitive = prim;
 	renderable->state = state;
 
-	atomic_store_explicit(&renderable->lock, 0, memory_order_relaxed);
-	renderable->pipeline = (uintptr_t)NULL;
-	renderable->gen = 0;
+	atomic_store_explicit(
+		&renderable->gen, 0, memory_order_relaxed);
+	atomic_store_explicit(
+		&renderable->pipeline, (uintptr_t)NULL, memory_order_relaxed);
 
 	return 1;
 }
@@ -641,6 +612,7 @@ GFX_API bool gfx_computable(GFXComputable* computable,
 
 	// Init computable, store NULL as pipeline.
 	computable->technique = tech;
+
 	atomic_store_explicit(
 		&computable->pipeline, (uintptr_t)NULL, memory_order_relaxed);
 

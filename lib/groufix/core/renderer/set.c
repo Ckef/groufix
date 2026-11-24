@@ -400,7 +400,7 @@ static void gfx_set_update_attachs_(GFXSet* set)
 			GFXImageAttach_* attach = GFX_UNPACK_REF_ATTACH_(unp);
 
 			uint_least32_t gen =
-				atomic_load_explicit(&entry->gen, memory_order_relaxed);
+				atomic_load_explicit(&entry->gen, memory_order_acquire);
 
 			if (attach == NULL || gen == GFX_ATTACH_GEN_(attach))
 				goto next;
@@ -430,7 +430,7 @@ static void gfx_set_update_attachs_(GFXSet* set)
 			gfx_mutex_lock_(&renderer->reentrantLock);
 
 			// Check again in case another thread just finished updating.
-			gen = atomic_load_explicit(&entry->gen, memory_order_relaxed);
+			gen = atomic_load_explicit(&entry->gen, memory_order_acquire);
 
 			if (gen == GFX_ATTACH_GEN_(attach))
 			{
@@ -468,7 +468,7 @@ static void gfx_set_update_attachs_(GFXSet* set)
 
 			// Update the stored build generation last!
 			gen = success ? GFX_ATTACH_GEN_(attach) : 0;
-			atomic_store_explicit(&entry->gen, gen, memory_order_relaxed);
+			atomic_store_explicit(&entry->gen, gen, memory_order_release);
 
 		unlock:
 			gfx_mutex_unlock_(&renderer->reentrantLock);
@@ -498,7 +498,9 @@ GFXPoolElem_* gfx_set_get_(GFXSet* set, GFXPoolSub_* sub)
 
 	// Make sure to set the used flag on success.
 	// This HAS to be atomic so multiple threads can record using this set!
-	if (elem != NULL) atomic_store_explicit(&set->used, 1, memory_order_relaxed);
+	if (elem != NULL)
+		atomic_store_explicit(&set->used, 1, memory_order_release);
+
 	return elem;
 }
 
@@ -510,7 +512,7 @@ GFXPoolElem_* gfx_set_get_(GFXSet* set, GFXPoolSub_* sub)
 static void gfx_set_recycle_(GFXSet* set)
 {
 	// Only recycle if the set has been used & reset used flag.
-	if (atomic_exchange_explicit(&set->used, 0, memory_order_relaxed))
+	if (atomic_exchange_explicit(&set->used, 0, memory_order_acquire))
 	{
 		GFXRenderer* renderer = set->renderer;
 

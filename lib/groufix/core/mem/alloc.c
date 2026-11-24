@@ -337,7 +337,7 @@ clean_lock:
 clean:
 	// Decrease allocation count on failure.
 	atomic_fetch_sub_explicit(
-		&context->limits.allocs, 1, memory_order_relaxed);
+		&context->limits.allocs, 1, memory_order_release);
 
 	gfx_log_error(
 		"Could not allocate a new %sVulkan memory object of %"PRIu64" bytes.",
@@ -364,7 +364,7 @@ static void gfx_free_mem_block_(GFXAllocator_* alloc, GFXMemBlock_* block)
 		context->vk.device, block->vk.memory, NULL);
 
 	atomic_fetch_sub_explicit(
-		&context->limits.allocs, 1, memory_order_relaxed);
+		&context->limits.allocs, 1, memory_order_release);
 
 	// Unlink from the allocator and free all remaining block things.
 	gfx_list_erase(

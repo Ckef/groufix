@@ -146,10 +146,17 @@ static inline bool gfx_cmp_stencil_(const GFXStencilOpState* l,
  */
 static inline void gfx_pass_gen_(GFXRenderPass_* rPass)
 {
-	if (++rPass->gen == 0) gfx_log_warn(
-		"Pass build generation reached maximum (%"PRIu32") and overflowed; "
-		"may cause old renderables/computables to not be invalidated.",
-		UINT32_MAX);
+	if (++rPass->gen == 0)
+	{
+		gfx_log_warn(
+			"Pass build generation reached maximum (%"PRIu32") and "
+			"overflowed; may cause old renderables/computables to "
+			"not be invalidated.",
+			UINT32_MAX);
+
+		// Keep 0 reserved for 'uninitialized'-like uses.
+		rPass->gen = 1;
+	}
 }
 
 /****************************
@@ -357,7 +364,7 @@ GFXPass* gfx_create_pass_(GFXRenderer* renderer, GFXPassType type,
 	if (type == GFX_PASS_RENDER)
 	{
 		GFXRenderPass_* rPass = (GFXRenderPass_*)pass;
-		rPass->gen = 0;
+		rPass->gen = 1;
 
 		// Initialize building stuff.
 		rPass->out.master = NULL;

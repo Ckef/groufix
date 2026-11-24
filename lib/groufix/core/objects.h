@@ -1171,7 +1171,7 @@ typedef struct GFXPass
 typedef struct GFXRenderPass_
 {
 	GFXPass  base;
-	uint32_t gen; // Build generation (to invalidate pipelines).
+	uint32_t gen; // Build generation (to invalidate pipelines), never 0!
 
 
 	// Pipeline state input.

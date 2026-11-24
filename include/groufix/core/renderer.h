@@ -497,10 +497,8 @@ typedef struct GFXRenderable
 
 	const GFXRenderState* state;
 
-	GFX_ATOMIC(bool) lock;
-
-	uintptr_t pipeline;
-	uint32_t  gen;
+	GFX_ATOMIC(uint_least32_t) gen;
+	GFX_ATOMIC(uintptr_t)      pipeline;
 
 } GFXRenderable;
 

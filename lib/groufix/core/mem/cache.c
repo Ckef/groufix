@@ -708,7 +708,7 @@ static bool gfx_cache_create_elem_(GFXCache_* cache, GFXCacheElem_* elem,
 			{
 				// Undo...
 				atomic_fetch_sub_explicit(
-					&context->limits.samplers, 1, memory_order_relaxed);
+					&context->limits.samplers, 1, memory_order_release);
 
 				goto error;
 			});
@@ -784,7 +784,7 @@ static void gfx_cache_destroy_elem_(GFXCache_* cache, GFXCacheElem_* elem)
 			context->vk.device, elem->vk.sampler, NULL);
 
 		atomic_fetch_sub_explicit(
-			&context->limits.samplers, 1, memory_order_relaxed);
+			&context->limits.samplers, 1, memory_order_release);
 
 		break;
 

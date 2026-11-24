@@ -1693,11 +1693,11 @@ bool gfx_check_limit_(atomic_uint_fast32_t* count, uint32_t limit)
 
 	// If it does not, use a weak CAS loop to try and claim the next increment.
 	// On every failed attempt, compare against the limit again.
-	// We do not lock anything so memory order can be relaxed.
+	// On success; prevent reads/writes from being reordered before this call.
 	while (num < limit)
 		if (atomic_compare_exchange_weak_explicit(
 			count, &num, num + 1,
-			memory_order_relaxed, memory_order_relaxed)) return 1;
+			memory_order_acquire, memory_order_relaxed)) return 1;
 
 	return 0;
 }

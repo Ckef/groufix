@@ -12,6 +12,7 @@
 
 /****************************
  * Retrieves whether the GLFW recreate signal was set (and resets the signal).
+ * A mutex is used to access data, memory order of this check can be relaxed!
  * @return Non-zero if the recreate signal was set.
  */
 static inline bool gfx_swapchain_sig_(GFXWindow_* window)
