@@ -124,8 +124,13 @@ static int gfx_render_list_scmp_(GFXDrawList* list, const void* l, const void* r
 	// numSets is guaranted to be > 0 as per gfx_render_list_init.
 	if (lSets[0] == NULL || rSets[0] == NULL)
 	{
-		// First index is missing sets, put fewer sets used first.
-		return lSets[0] == NULL ? (rSets[0] == NULL ? 0 : -1) : 1;
+		// If both elements do not have a set on the first index,
+		// compare based on the technique instead.
+		if (lSets[0] == NULL && rSets[0] == NULL)
+			return gfx_render_list_tcmp_(list, l, r);
+
+		// Otherwise, put fewer sets used first.
+		return lSets[0] == NULL ? -1 : 1;
 	}
 
 	for (size_t s = 0; s < numSets; ++s)
