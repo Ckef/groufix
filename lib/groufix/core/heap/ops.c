@@ -284,7 +284,9 @@ static GFXTransfer_* gfx_claim_transfer_(GFXHeap* heap, GFXTransferPool_* pool)
 	// This way we end up with round-robin like behaviour :)
 	// Note we check if the host is blocking for any transfers,
 	// if so, we cannot reset the fence, so skip recycling...
-	const bool isBlocking = atomic_load(&pool->blocking) > 0;
+	const bool isBlocking =
+		atomic_load_explicit(&pool->blocking, memory_order_acquire) > 0;
+
 	GFXTransfer_ newTransfer;
 
 	if (!isBlocking && pool->transfers.size > 0)
@@ -937,7 +939,7 @@ static int gfx_copy_device_(GFXHeap* heap, GFXTransferFlags flags,
 	// We want to unlock BEFORE blocking, so other operations can start.
 	VkFence done = transfer->vk.done;
 	if (flags & GFX_TRANSFER_BLOCK)
-		atomic_fetch_add(&pool->blocking, 1);
+		atomic_fetch_add_explicit(&pool->blocking, 1, memory_order_relaxed);
 
 	// If not blocking, remember the staging buffer
 	// so it gets freed at some point.
@@ -957,7 +959,7 @@ static int gfx_copy_device_(GFXHeap* heap, GFXTransferFlags flags,
 		});
 
 		// No need to lock :)
-		atomic_fetch_sub(&pool->blocking, 1);
+		atomic_fetch_sub_explicit(&pool->blocking, 1, memory_order_release);
 	}
 
 	return 1;

@@ -225,7 +225,7 @@ void gfx_monitors_terminate_(void)
 /****************************/
 GFX_API void gfx_monitor_event_set(void (*event)(GFXMonitor*, bool))
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	// Yeah just set the event callback.
 	groufix_.monitorEvent = event;
@@ -234,7 +234,7 @@ GFX_API void gfx_monitor_event_set(void (*event)(GFXMonitor*, bool))
 /****************************/
 GFX_API size_t gfx_get_num_monitors(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	return groufix_.monitors.size;
 }
@@ -242,7 +242,7 @@ GFX_API size_t gfx_get_num_monitors(void)
 /****************************/
 GFX_API GFXMonitor* gfx_get_monitor(size_t index)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 	assert(index < groufix_.monitors.size);
 
 	return *(GFXMonitor**)gfx_vec_at(&groufix_.monitors, index);
@@ -251,7 +251,7 @@ GFX_API GFXMonitor* gfx_get_monitor(size_t index)
 /****************************/
 GFX_API GFXMonitor* gfx_get_primary_monitor(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 	assert(groufix_.monitors.size > 0);
 
 	// Just return the first,

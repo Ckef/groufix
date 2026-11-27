@@ -641,8 +641,8 @@ GFX_API GFXHeap* gfx_create_heap(GFXDevice* device)
 	gfx_deque_init(&heap->ops.transfer.transfers, sizeof(GFXTransfer_));
 	gfx_vec_init(&heap->ops.graphics.injs, sizeof(GFXInject));
 	gfx_vec_init(&heap->ops.transfer.injs, sizeof(GFXInject));
-	atomic_store(&heap->ops.graphics.blocking, 0);
-	atomic_store(&heap->ops.transfer.blocking, 0);
+	atomic_store_explicit(&heap->ops.graphics.blocking, 0, memory_order_relaxed);
+	atomic_store_explicit(&heap->ops.transfer.blocking, 0, memory_order_relaxed);
 
 	return heap;
 
@@ -833,8 +833,10 @@ gather_fences:
 
 	// We've read all data, increase the block count of both pools and unlock.
 	// We want to unlock BEFORE blocking, so other operations can start.
-	atomic_fetch_add(&heap->ops.graphics.blocking, 1);
-	atomic_fetch_add(&heap->ops.transfer.blocking, 1);
+	atomic_fetch_add_explicit(
+		&heap->ops.graphics.blocking, 1, memory_order_relaxed);
+	atomic_fetch_add_explicit(
+		&heap->ops.transfer.blocking, 1, memory_order_relaxed);
 
 	gfx_mutex_unlock_(&heap->ops.graphics.lock);
 	gfx_mutex_unlock_(&heap->ops.transfer.lock);
@@ -850,8 +852,10 @@ gather_fences:
 	free(fences);
 
 	// No need to lock :)
-	atomic_fetch_sub(&heap->ops.graphics.blocking, 1);
-	atomic_fetch_sub(&heap->ops.transfer.blocking, 1);
+	atomic_fetch_sub_explicit(
+		&heap->ops.graphics.blocking, 1, memory_order_release);
+	atomic_fetch_sub_explicit(
+		&heap->ops.transfer.blocking, 1, memory_order_release);
 
 	return success;
 
@@ -882,7 +886,8 @@ purge:
 	// until one is not done yet, it's a round-robin.
 	// Note we check if the host is blocking for any operations,
 	// if so, we cannot destroy the fences, so skip purging...
-	const bool isBlocking = atomic_load(&pool->blocking) > 0;
+	const bool isBlocking =
+		atomic_load_explicit(&pool->blocking, memory_order_acquire) > 0;
 
 	while (!isBlocking && pool->transfers.size > 0)
 	{

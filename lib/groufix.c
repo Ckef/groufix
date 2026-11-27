@@ -23,7 +23,7 @@ static void gfx_glfw_error_(int error, const char* description)
 GFX_API bool gfx_init(void)
 {
 	// Already initialized, just do nothing.
-	if (atomic_load(&groufix_.initialized))
+	if (gfx_initialized_())
 		return 1;
 
 	// Before anything, get the log level from env.
@@ -84,7 +84,7 @@ terminate:
 GFX_API void gfx_terminate(void)
 {
 	// Not yet initialized, just do nothing.
-	if (!atomic_load(&groufix_.initialized))
+	if (!gfx_initialized_())
 		return;
 
 	// Terminate the contents of the engine.
@@ -105,7 +105,7 @@ GFX_API void gfx_terminate(void)
 GFX_API bool gfx_attach(void)
 {
 	// Not yet initialized, cannot attach.
-	if (!atomic_load(&groufix_.initialized))
+	if (!gfx_initialized_())
 		return 0;
 
 	// Already attached.
@@ -129,7 +129,7 @@ GFX_API bool gfx_attach(void)
 GFX_API void gfx_detach(void)
 {
 	// Not yet initialized or attached.
-	if (!atomic_load(&groufix_.initialized) || !gfx_get_local_())
+	if (!gfx_initialized_() || !gfx_get_local_())
 		return;
 
 	// Every thread may have one last say :)
@@ -141,7 +141,7 @@ GFX_API void gfx_detach(void)
 /****************************/
 GFX_API int64_t gfx_time(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	return gfx_clock_get_time_(&groufix_.clock);
 }
@@ -149,7 +149,7 @@ GFX_API int64_t gfx_time(void)
 /****************************/
 GFX_API int64_t gfx_time_frequency(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	return groufix_.clock.frequency;
 }
@@ -157,7 +157,7 @@ GFX_API int64_t gfx_time_frequency(void)
 /****************************/
 GFX_API void gfx_poll_events(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	glfwPollEvents();
 }
@@ -165,7 +165,7 @@ GFX_API void gfx_poll_events(void)
 /****************************/
 GFX_API void gfx_wait_events(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	glfwWaitEvents();
 }
@@ -173,7 +173,7 @@ GFX_API void gfx_wait_events(void)
 /****************************/
 GFX_API void gfx_wake(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	glfwPostEmptyEvent();
 }

@@ -21,7 +21,7 @@ GFXState_ groufix_ =
 /****************************/
 bool gfx_init_(void)
 {
-	assert(!atomic_load(&groufix_.initialized));
+	assert(!gfx_initialized_());
 
 	// Initialize thread local data.
 	if (!gfx_thread_key_init_(&groufix_.thread.key))
@@ -53,7 +53,7 @@ bool gfx_init_(void)
 	gfx_clock_(&groufix_.clock);
 
 	// Signal that initialization is done.
-	atomic_store(&groufix_.initialized, 1);
+	atomic_store_explicit(&groufix_.initialized, 1, memory_order_release);
 
 	return 1;
 
@@ -70,7 +70,7 @@ clean_key:
 /****************************/
 void gfx_terminate_(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	gfx_vec_clear(&groufix_.devices);
 	gfx_list_clear(&groufix_.contexts);
@@ -82,13 +82,13 @@ void gfx_terminate_(void)
 	gfx_mutex_clear_(&groufix_.contextLock);
 
 	// Signal that termination is done.
-	atomic_store(&groufix_.initialized, 0);
+	atomic_store_explicit(&groufix_.initialized, 0, memory_order_release);
 }
 
 /****************************/
 bool gfx_create_local_(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 	assert(!gfx_thread_key_get_(groufix_.thread.key));
 
 	// Allocate and set state.
@@ -115,7 +115,7 @@ bool gfx_create_local_(void)
 /****************************/
 void gfx_destroy_local_(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 	assert(gfx_thread_key_get_(groufix_.thread.key));
 
 	// Get key and free it.
@@ -128,7 +128,7 @@ void gfx_destroy_local_(void)
 /****************************/
 GFXThreadState_* gfx_get_local_(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	// Just return stored data.
 	return gfx_thread_key_get_(groufix_.thread.key);

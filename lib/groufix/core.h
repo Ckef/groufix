@@ -485,6 +485,15 @@ extern GFXBufWriter gfx_io_buf_def_;
 
 
 /**
+ * Atomically checks if groufix is initialized.
+ * @return The value of groufix_.initialized.
+ */
+static inline bool gfx_initialized_(void)
+{
+	return atomic_load_explicit(&groufix_.initialized, memory_order_acquire);
+}
+
+/**
  * Reads the default log level from the
  * GROUFIX_DEFAULT_LOG_LEVEL environment variable,
  * if present, it overwrites groufix_.logDef.

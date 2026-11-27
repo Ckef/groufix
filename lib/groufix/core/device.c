@@ -1705,7 +1705,7 @@ bool gfx_check_limit_(atomic_uint_fast32_t* count, uint32_t limit)
 /****************************/
 GFX_API size_t gfx_get_num_devices(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	return groufix_.devices.size;
 }
@@ -1713,7 +1713,7 @@ GFX_API size_t gfx_get_num_devices(void)
 /****************************/
 GFX_API GFXDevice* gfx_get_device(size_t index)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 	assert(groufix_.devices.size > 0);
 	assert(index < groufix_.devices.size);
 
@@ -1723,7 +1723,7 @@ GFX_API GFXDevice* gfx_get_device(size_t index)
 /****************************/
 GFX_API GFXDevice* gfx_get_primary_device(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 	assert(groufix_.devices.size > 0);
 
 	return gfx_vec_at(&groufix_.devices, 0);

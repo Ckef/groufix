@@ -198,7 +198,7 @@ void gfx_gamepads_terminate_(void)
 /****************************/
 GFX_API void gfx_gamepad_event_set(void (*event)(GFXGamepad*, bool))
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	// Yeah just set the event callback.
 	groufix_.gamepadEvent = event;
@@ -207,7 +207,7 @@ GFX_API void gfx_gamepad_event_set(void (*event)(GFXGamepad*, bool))
 /****************************/
 GFX_API size_t gfx_get_num_gamepads(void)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 
 	return groufix_.gamepads.size;
 }
@@ -215,7 +215,7 @@ GFX_API size_t gfx_get_num_gamepads(void)
 /****************************/
 GFX_API GFXGamepad* gfx_get_gamepad(size_t index)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 	assert(groufix_.gamepads.size > 0);
 	assert(index < groufix_.gamepads.size);
 
@@ -244,7 +244,7 @@ GFX_API bool gfx_gamepad_get_state(GFXGamepad* gamepad, GFXGamepadState* state)
 /****************************/
 GFX_API bool gfx_gamepad_mappings_update(const GFXReader* src)
 {
-	assert(atomic_load(&groufix_.initialized));
+	assert(gfx_initialized_());
 	assert(src != NULL);
 
 	// Read the source, unfortunately we need a NULL-terminated string.

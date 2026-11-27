@@ -133,7 +133,7 @@ GFX_API void gfx_log(GFXLogLevel level,
 	va_list args;
 
 	// If groufix is initialized..
-	if (atomic_load(&groufix_.initialized))
+	if (gfx_initialized_())
 	{
 		// Default to next thread id.
 		uintmax_t thread =
@@ -193,7 +193,7 @@ GFX_API GFXBufWriter* gfx_logger(GFXLogLevel level,
 	if (level == GFX_LOG_NONE) return NULL; // No-op by design.
 
 	// If groufix is initialized..
-	if (atomic_load(&groufix_.initialized))
+	if (gfx_initialized_())
 	{
 		// Default to next thread id.
 		uintmax_t thread =
@@ -243,7 +243,7 @@ GFX_API void gfx_logger_end(GFXBufWriter* logger)
 
 	// Unlock if groufix is initialized!
 	// Note: it is not allowed to initialize/terminate before this call!
-	if (atomic_load(&groufix_.initialized))
+	if (gfx_initialized_())
 		gfx_mutex_unlock_(&groufix_.thread.ioLock);
 }
 
@@ -255,7 +255,7 @@ GFX_API bool gfx_log_set_level(GFXLogLevel level)
 	// Set default log level if not initialized.
 	GFXLogLevel* logLevel = &groufix_.logDef;
 
-	if (atomic_load(&groufix_.initialized))
+	if (gfx_initialized_())
 	{
 		GFXThreadState_* state = gfx_get_local_();
 		if (state == NULL) return 0;
@@ -276,7 +276,7 @@ GFX_API bool gfx_log_set(const GFXWriter* out)
 	// Set default logger if not initialized.
 	GFXBufWriter* writer = &gfx_io_buf_def_;
 
-	if (atomic_load(&groufix_.initialized))
+	if (gfx_initialized_())
 	{
 		GFXThreadState_* state = gfx_get_local_();
 		if (state == NULL) return 0;
